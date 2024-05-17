@@ -1,13 +1,13 @@
 <template>
     <header>
         <nav class="flex flex-row bg-red-800 text-yellow-50">
-            <div>
+            <div class="mx-3">
                 <img src="logo_пищепром-сервер_1200х1207.jpg">
             </div>
-            <div>
+            <div class="mx-3">
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
             </div>
-            <div>
+            <div class="mx-3">
                 <Link href="route('glycerol')">Глицерины</Link>
             </div>
         </nav>

@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
-class glycerolController extends Controller
+class GlycerolController extends Controller
 {
     public function index(){
         $data = [

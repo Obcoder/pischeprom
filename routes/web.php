@@ -23,5 +23,5 @@ Route::middleware([
     })->name('dashboard');
 });
 
-Route::get('/glycerol/', [\App\Http\Controllers\glycerolController::class, 'index'])
+Route::get('/glycerol/', [\App\Http\Controllers\GlycerolController::class, 'index'])
     ->name('glycerol');
