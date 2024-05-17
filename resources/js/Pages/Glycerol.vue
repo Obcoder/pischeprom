@@ -7,5 +7,9 @@
 </template>
 
 <script setup>
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 
+defineOptions({
+    layout: LayoutDefault,
+})
 </script>
