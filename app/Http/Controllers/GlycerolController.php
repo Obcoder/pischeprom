@@ -9,7 +9,7 @@ class glycerolController extends Controller
 {
     public function index(){
         $data = [
-            'title' => 'Глицерины (пищевое производство, косметика, промышленность)'
+            'title' => 'Глицерины (пищевое производство, косметика, промышленность)',
         ];
 
         return Inertia::render('Glycerol', $data);
