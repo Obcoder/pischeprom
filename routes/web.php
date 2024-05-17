@@ -22,3 +22,6 @@ Route::middleware([
         return Inertia::render('Dashboard');
     })->name('dashboard');
 });
+
+Route::get('/glycerol/', [\App\Http\Controllers\glycerolController::class, 'index'])
+    ->name('glycerol');

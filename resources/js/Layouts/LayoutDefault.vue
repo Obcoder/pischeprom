@@ -1,8 +1,14 @@
 <template>
     <header>
-        <nav class="bg-red-800">
-            <div class="text-yellow-50">
+        <nav class="flex flex-row bg-red-800 text-yellow-50">
+            <div>
+                <img src="logo_пищепром-сервер_1200х1207.jpg">
+            </div>
+            <div>
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
+            </div>
+            <div>
+                <Link href="/glycerol/">Глицерины</Link>
             </div>
         </nav>
     </header>
