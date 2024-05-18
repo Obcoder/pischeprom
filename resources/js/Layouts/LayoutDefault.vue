@@ -8,7 +8,7 @@
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
             </div>
             <div class="mx-3">
-                <Link href="route('glycerol')">Глицерины</Link>
+                <Link href="/glycerol/">Глицерины</Link>
             </div>
         </nav>
     </header>
