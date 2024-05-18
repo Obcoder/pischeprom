@@ -1,14 +1,16 @@
 <template>
     <header>
-        <nav class="flex flex-row bg-red-800 text-yellow-50">
+        <nav class="flex items-center bg-red-800 text-yellow-50">
             <div class="mx-3">
-                <img src="logo_пищепром-сервер_1200х1207.jpg">
+                <Link href="/">
+                    <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0">
+                </Link>
             </div>
             <div class="mx-3">
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
             </div>
             <div class="mx-3">
-                <Link href="/glycerol/">Глицерины</Link>
+                <Link :href="route('glycerol')">Глицерины</Link>
             </div>
         </nav>
     </header>
@@ -25,4 +27,5 @@
 
 <script setup>
 import { Link } from "@inertiajs/vue3";
+import {logo} from "@/Pages/Helpers/consts.js";
 </script>
