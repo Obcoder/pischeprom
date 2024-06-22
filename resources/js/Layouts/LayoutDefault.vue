@@ -6,8 +6,13 @@
                     <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
                 </Link>
             </div>
-            <div class="mx-3 p-3 h-full">
-                <Link :href="route('glycerol')">Глицерины</Link>
+            <div class="mx-3">
+                <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
+            </div>
+            <div v-for="category in categories" class="mx-3 p-3 h-full">
+                <div>
+                    {{category.name}}
+                </div>
             </div>
         </nav>
     </header>
@@ -25,4 +30,8 @@
 <script setup>
 import { Link } from "@inertiajs/vue3";
 import {logo} from "@/Pages/Helpers/consts.js";
+
+const props = defineProps({
+    categories: Object,
+})
 </script>

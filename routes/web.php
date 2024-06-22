@@ -10,6 +10,7 @@ Route::get('/', function () {
         'canRegister' => Route::has('register'),
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
+        'categories' => \App\Models\Category::get(),
     ]);
 });
 
