@@ -1,7 +1,7 @@
 <template>
     <div>
-        <div v-for="good in goods" class="relative">
-            <div>
+        <div v-for="good in goods">
+            <div class="relative">
                 <div class="absolute z-50 text-white font-bold">
                     200 руб/кг
                 </div>
