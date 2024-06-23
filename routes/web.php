@@ -26,3 +26,6 @@ Route::middleware([
 
 Route::get('/glycerol/', [\App\Http\Controllers\GlycerolController::class, 'index'])
     ->name('glycerol');
+
+Route::get('/items/', [\App\Http\Controllers\GoodController::class, 'index'])
+    ->name('goods');

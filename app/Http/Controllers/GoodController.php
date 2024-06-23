@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreGoodRequest;
 use App\Http\Requests\UpdateGoodRequest;
 use App\Models\Good;
+use Inertia\Inertia;
 
 class GoodController extends Controller
 {
@@ -13,7 +14,14 @@ class GoodController extends Controller
      */
     public function index()
     {
-        //
+        $goods = Good::orderBy('name')
+            ->get();
+
+        $data = [
+            'goods' => $goods,
+        ];
+
+        return Inertia::render('Goods', $data);
     }
 
     /**

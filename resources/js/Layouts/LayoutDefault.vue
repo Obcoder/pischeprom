@@ -14,6 +14,9 @@
                     {{category.name}}
                 </div>
             </div>
+            <div class="mx-3 p-3 h-full">
+                <Link :href="route('goods')">Все товары</Link>
+            </div>
         </nav>
     </header>
 
