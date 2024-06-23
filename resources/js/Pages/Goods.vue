@@ -1,16 +1,13 @@
 <template>
     <div>
         <div v-for="good in goods">
-            <div class="relative">
-                <div class="absolute z-50 text-white font-bold">
-                    200 руб/кг
-                </div>
-                <div class="absolute z-1">
+            <div class="grid grid-cols-10">
+                <div class="col-span-4">
                     <img :src="good.ava_image" class="max-w-[103px]">
                 </div>
-            </div>
-            <div>
-                {{good.name}}
+                <div class="col-span-6">
+                    {{good.name}}
+                </div>
             </div>
         </div>
     </div>

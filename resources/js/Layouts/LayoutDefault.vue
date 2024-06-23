@@ -1,6 +1,6 @@
 <template>
     <header>
-        <nav class="flex items-center bg-red-800 text-yellow-50">
+        <nav class="flex items-center bg-red-800 text-yellow-50 sm:max-w-full">
             <div class="mx-3">
                 <Link href="/">
                     <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
