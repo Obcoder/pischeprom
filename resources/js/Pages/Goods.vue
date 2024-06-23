@@ -1,11 +1,11 @@
 <template>
     <div>
-        <div v-for="good in goods">
+        <div v-for="good in goods" class="relative">
             <div>
-                <div class="relative z-50 text-white font-bold">
+                <div class="absolute z-50 text-white font-bold">
                     200 руб/кг
                 </div>
-                <div class="relative z-1">
+                <div class="absolute z-1">
                     <img :src="good.ava_image" class="max-w-[103px]">
                 </div>
             </div>
