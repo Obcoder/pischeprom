@@ -2,7 +2,7 @@
     <div>
         <div v-for="good in goods">
             <div>
-                {{good.ava_image}}
+                <img :src="good.ava_image" class="max-w-[103px]">
             </div>
             <div>
                 {{good.name}}

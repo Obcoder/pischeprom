@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreGoodRequest;
 use App\Http\Requests\UpdateGoodRequest;
+use App\Models\Category;
 use App\Models\Good;
 use Inertia\Inertia;
 
@@ -16,8 +17,10 @@ class GoodController extends Controller
     {
         $goods = Good::orderBy('name')
             ->get();
+        $categories = Category::get();
 
         $data = [
+            'categories' => $categories,
             'goods' => $goods,
         ];
 
