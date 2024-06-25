@@ -1,4 +1,7 @@
 <template>
+    <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </Head>
     <header>
         <nav class="flex items-center bg-red-800 text-yellow-50 sm:max-w-full">
             <div class="mx-3">
@@ -6,7 +9,7 @@
                     <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
                 </Link>
             </div>
-            <div class="mx-3 sm:hidden">
+            <div class="mx-3 md:visible">
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
             </div>
             <div v-for="category in categories" class="mx-3 p-3 h-full">
@@ -31,7 +34,7 @@
 </template>
 
 <script setup>
-import { Link } from "@inertiajs/vue3";
+import { Head, Link } from "@inertiajs/vue3";
 import { logo } from "@/Pages/Helpers/consts.js";
 
 const props = defineProps({
