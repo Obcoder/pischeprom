@@ -24,10 +24,10 @@
         <slot />
     </main>
 
-    <div class="bg-red-800 text-yellow-50">
+    <footer class="absolute inset-x-0 bottom-0 h-16 bg-red-800 text-yellow-50">
         <h3>Телефон</h3>
         <p>+7-905-753-26-48</p>
-    </div>
+    </footer>
 </template>
 
 <script setup>
