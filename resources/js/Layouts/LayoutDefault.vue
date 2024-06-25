@@ -32,7 +32,7 @@
 
 <script setup>
 import { Link } from "@inertiajs/vue3";
-import {logo} from "@/Pages/Helpers/consts.js";
+import { logo } from "@/Pages/Helpers/consts.js";
 
 const props = defineProps({
     categories: Object,
