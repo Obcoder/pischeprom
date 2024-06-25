@@ -6,7 +6,7 @@
                     <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
                 </Link>
             </div>
-            <div class="mx-3">
+            <div class="mx-3 sm:hidden">
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
             </div>
             <div v-for="category in categories" class="mx-3 p-3 h-full">
