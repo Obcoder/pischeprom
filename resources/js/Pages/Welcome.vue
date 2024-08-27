@@ -6,7 +6,7 @@ defineOptions({
     layout: LayoutDefault,
 })
 
-defineProps({
+const props = defineProps({
     canLogin: {
         type: Boolean,
     },
@@ -21,6 +21,9 @@ defineProps({
         type: String,
         required: true,
     },
+    categories: {
+        type: Object,
+    }
 });
 
 
@@ -31,23 +34,15 @@ defineProps({
 
     <aside>
         <p>
-            Категории
+            <v-card v-for="cat in categories">
+                <v-card-item>
+                    {{cat.name}}
+                </v-card-item>
+            </v-card>
         </p>
     </aside>
 
-    <div>
-        <h1>
+    <div><h1>
             Приветствуем Вас на ПИЩЕПРОМ-СЕРВЕРЕ
-        </h1>
-        <div class="flex flex-row">
-            <div class="w-1/12 h-40 bg-yellow-400 border rounded">
-                <div>Масло сливочное</div>
-                <p>Маслo cладкoсливочное ГОCТ из кoровьeгo мoлoкa, бeз дoбaвoк, cнижaющиx себеcтoимocть!!
-                Bысoкoэнергетический жировой продукт, поставщик полиненасыщенных жирных кислот, фосфолипидов, витаминов А, D и Е.</p>
-                <div>
-                    <span>758 руб/кг</span>
-                </div>
-            </div>
-        </div>
-    </div>
+        </h1></div>
 </template>
