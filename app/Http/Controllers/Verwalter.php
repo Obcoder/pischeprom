@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Good;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -9,6 +10,13 @@ class Verwalter extends Controller
 {
     public function index()
     {
-        return Inertia::render('Verwalter', ['title' => 'Verwalter']);
+        $goods = Good::all()->sortByDesc('created_at');
+
+        $data = [
+            'title' => 'Verwalter',
+            'goods' => $goods,
+        ];
+
+        return Inertia::render('Verwalter', $data);
     }
 }
