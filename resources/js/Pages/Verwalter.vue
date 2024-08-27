@@ -1,10 +1,20 @@
 <script setup>
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
-defineOptions({
-    layout: LayoutDefault,
+import {onMounted, ref} from "vue";
+
+const props = defineProps({
+    goods: {
+        type: Object,
+    }
+})
+
+let listGoods = ref([]);
+onMounted(()=>{
+    listGoods.value = props.goods;
 })
 </script>
 
 <template>
-    <p>Verwalter page</p>
+    <v-data-table
+        :items="listGoods">
+    </v-data-table>
 </template>
