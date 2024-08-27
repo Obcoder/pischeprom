@@ -34,9 +34,11 @@ const props = defineProps({
 
     <aside>
         <p>
-            <div v-for="cat in categories">
-                {{cat.name}}
-            </div>
+            <v-card v-for="cat in categories">
+                <v-card-item>
+                    {{cat.name}}
+                </v-card-item>
+            </v-card>
         </p>
     </aside>
 
