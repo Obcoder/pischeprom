@@ -6,9 +6,5 @@ defineOptions({
 </script>
 
 <template>
-    <p>Verwalter</p>
+    <p>Verwalter page</p>
 </template>
-
-<style scoped>
-
-</style>

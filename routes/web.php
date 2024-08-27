@@ -22,3 +22,6 @@ Route::get('/glycerol/', [\App\Http\Controllers\GlycerolController::class, 'inde
 
 Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'index'])
     ->name('goods');
+
+Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
+    ->name('verwalter');
