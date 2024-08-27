@@ -10,7 +10,7 @@ class Verwalter extends Controller
 {
     public function index()
     {
-        $goods = Good::all()->sortByDesc('created_at');
+        $goods = Good::all();
 
         $data = [
             'title' => 'Verwalter',

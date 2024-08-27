@@ -6,9 +6,7 @@ const props = defineProps({
     title:{
         type: String,
     },
-    goods: {
-        type: Object,
-    }
+    goods: Object,
 })
 
 let listGoods = ref([]);
@@ -19,7 +17,7 @@ onMounted(()=>{
 </script>
 
 <template>
-    <Head title="{{title}}" />
+    <Head title={{title}} />
 
     <v-data-table
         :items="listGoods">
