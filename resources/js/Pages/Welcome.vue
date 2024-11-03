@@ -32,16 +32,6 @@ const props = defineProps({
 <template>
     <Head title="ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий" />
 
-    <aside>
-        <p>
-            <v-card v-for="cat in categories">
-                <v-card-item>
-                    {{cat.name}}
-                </v-card-item>
-            </v-card>
-        </p>
-    </aside>
-
     <div><h1>
             Приветствуем Вас на ПИЩЕПРОМ-СЕРВЕРЕ
         </h1></div>
