@@ -2,30 +2,50 @@
     <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </Head>
-    <header>
-        <nav class="flex items-center bg-red-800 text-yellow-50 sm:max-w-full">
-            <div class="mx-3">
-                <Link href="/">
-                    <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
-                </Link>
-            </div>
-            <div class="mx-3 md:visible">
-                <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
-            </div>
-            <div v-for="category in categories" class="mx-3 p-3 h-full">
-                <div>
-                    {{category.name}}
-                </div>
-            </div>
-            <div class="mx-3 p-3 h-full">
-                <Link :href="route('goods')">Все товары</Link>
-            </div>
-        </nav>
-    </header>
 
-    <main class="container mx-auto px-4">
-        <slot />
-    </main>
+    <v-layout class="rounded rounded-md">
+        <v-navigation-drawer>
+            <v-list>
+                <v-list-item title="ПИЩЕПРОМ-СЕРВЕР">
+                    <Link href="/">
+                        <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
+                    </Link>
+                </v-list-item>
+                <v-list-item title="ВСЕ ТОВАРЫ">
+                    <Link :href="route('goods')">Все товары</Link>
+                </v-list-item>
+                <v-list-item title="КЛАССИФИКАЦИЯ">
+                    <v-menu
+                        КАТЕГОРИИ
+                    >
+                        <template v-slot:activator="{ props }">
+                            <v-btn
+                                color="primary"
+                                v-bind="props"
+                            >
+                                КАТЕГОРИИ
+                            </v-btn>
+                        </template>
+
+                        <v-list>
+                            <v-list-item
+                                v-for="(item, index) in categories"
+                                :key="index"
+                            >
+                                <v-list-item-title>{{ item.name }}</v-list-item-title>
+                            </v-list-item>
+                        </v-list>
+                    </v-menu>
+                </v-list-item>
+            </v-list>
+        </v-navigation-drawer>
+
+        <v-app-bar title="Application bar"></v-app-bar>
+
+        <v-main class="d-flex align-center justify-center" style="min-height: 300px;">
+            <slot />
+        </v-main>
+    </v-layout>
 
     <footer class="absolute inset-x-0 bottom-0 h-16 bg-red-800 text-yellow-50">
         <h3>Телефон</h3>

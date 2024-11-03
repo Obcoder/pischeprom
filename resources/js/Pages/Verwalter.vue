@@ -1,11 +1,9 @@
 <script setup>
 import {onMounted, ref} from "vue";
-import {Head} from "@inertiajs/vue3"
+import {Head} from "@inertiajs/vue3";
 
 const props = defineProps({
-    title:{
-        type: String,
-    },
+    title: String,
     goods: Object,
 })
 
@@ -17,7 +15,9 @@ onMounted(()=>{
 </script>
 
 <template>
-    <Head title={{title}} />
+    <Head>
+        <title>{{title}}</title>
+    </Head>
 
     <v-data-table
         :items="listGoods">
