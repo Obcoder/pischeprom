@@ -6,7 +6,7 @@
     <v-layout class="rounded rounded-md">
         <v-navigation-drawer>
             <v-list>
-                <v-list-item title="ПИЩЕПРОМ-СЕРВЕР">
+                <v-list-item>
                     <Link href="/">
                         <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
                     </Link>
@@ -40,7 +40,7 @@
             </v-list>
         </v-navigation-drawer>
 
-        <v-app-bar title="Application bar"></v-app-bar>
+        <v-app-bar title="ПИЩЕПРОМ-СЕРВЕР"></v-app-bar>
 
         <v-main class="d-flex align-center justify-center" style="min-height: 300px;">
             <slot />

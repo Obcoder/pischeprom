@@ -32,7 +32,16 @@ const props = defineProps({
 <template>
     <Head title="ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий" />
 
-    <div><h1>
-            Приветствуем Вас на ПИЩЕПРОМ-СЕРВЕРЕ
-        </h1></div>
+    <v-container>
+        <v-row>
+            <v-col>
+                <v-card>
+                    <v-card-title>Лецитин</v-card-title>
+                    <v-card-subtitle>подсолнечный</v-card-subtitle>
+                </v-card>
+            </v-col>
+            <v-col></v-col>
+            <v-col></v-col>
+        </v-row>
+    </v-container>
 </template>
