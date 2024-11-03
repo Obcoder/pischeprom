@@ -1,11 +1,10 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
-
+import {ref} from "vue";
 defineOptions({
     layout: LayoutDefault,
 })
-
 const props = defineProps({
     canLogin: {
         type: Boolean,
@@ -25,7 +24,7 @@ const props = defineProps({
         type: Object,
     }
 });
-
+let show = ref(false);
 
 </script>
 
