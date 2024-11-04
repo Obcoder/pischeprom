@@ -59,6 +59,25 @@
             <p>+7-905-753-26-48</p>
         </footer>
     </v-layout>
+    <v-footer class="inset-x-0 bottom-0 h-16 text-yellow-50"
+              color="#800000"
+    >
+        <v-row justify="center" no-gutters>
+            <v-btn
+                v-for="link in links"
+                :key="link"
+                class="mx-2"
+                color="white"
+                rounded="xl"
+                variant="text"
+            >
+                {{ link }}
+            </v-btn>
+            <v-col class="text-center mt-4" cols="12">
+                {{ new Date().getFullYear() }} — <strong>ООО "Пищепром-сервер"</strong>
+            </v-col>
+        </v-row>
+    </v-footer>
 </template>
 
 <script setup>
@@ -68,4 +87,14 @@ import { logo } from "@/Pages/Helpers/consts.js";
 const props = defineProps({
     categories: Object,
 })
+
+const links = [
+    'Home',
+    'About Us',
+    'Team',
+    'Services',
+    'Blog',
+    'Contact Us',
+];
+
 </script>
