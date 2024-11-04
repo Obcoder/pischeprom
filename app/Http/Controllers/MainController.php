@@ -12,7 +12,8 @@ class MainController extends Controller
     public function index()
     {
         $categories = Category::all();
-        $goodOfTheDay = GoodOfTheDay::inRandomOrder()->first();
+        $goodOfTheDay = GoodOfTheDay::with('good')
+            ->inRandomOrder()->first();
 
         $data = [
             'categories' => $categories,
