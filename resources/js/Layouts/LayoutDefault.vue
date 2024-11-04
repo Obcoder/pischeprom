@@ -11,36 +11,35 @@
                         <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
                     </Link>
                 </v-list-item>
-                <v-list-item title="ВСЕ ТОВАРЫ">
+                <v-list-item>
                     <Link :href="route('goods')">Все товары</Link>
-                </v-list-item>
-                <v-list-item title="КЛАССИФИКАЦИЯ">
-                    <v-menu
-                        КАТЕГОРИИ
-                    >
-                        <template v-slot:activator="{ props }">
-                            <v-btn
-                                color="primary"
-                                v-bind="props"
-                            >
-                                КАТЕГОРИИ
-                            </v-btn>
-                        </template>
-
-                        <v-list>
-                            <v-list-item
-                                v-for="(item, index) in categories"
-                                :key="index"
-                            >
-                                <v-list-item-title>{{ item.name }}</v-list-item-title>
-                            </v-list-item>
-                        </v-list>
-                    </v-menu>
                 </v-list-item>
             </v-list>
         </v-navigation-drawer>
 
-        <v-app-bar title="ПИЩЕПРОМ-СЕРВЕР"></v-app-bar>
+        <v-app-bar title="ПИЩЕПРОМ-СЕРВЕР">
+            <v-menu
+                КАТЕГОРИИ
+            >
+                <template v-slot:activator="{ props }">
+                    <v-btn
+                        color="primary"
+                        v-bind="props"
+                    >
+                        КАТЕГОРИИ
+                    </v-btn>
+                </template>
+
+                <v-list>
+                    <v-list-item
+                        v-for="(item, index) in categories"
+                        :key="index"
+                    >
+                        <v-list-item-title>{{ item.name }}</v-list-item-title>
+                    </v-list-item>
+                </v-list>
+            </v-menu>
+        </v-app-bar>
 
         <v-main class="d-flex align-center justify-center" style="min-height: 300px;">
             <slot />
