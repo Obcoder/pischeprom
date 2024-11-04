@@ -61,16 +61,17 @@
     <v-footer class="inset-x-0 bottom-0 h-16 text-yellow-50"
               color="#800000"
     >
-        <v-row>
-            <v-card title="Телефон">
-                <v-card-text>
-                    <v-sheet>
-                        +7-905-753-26-48
-                    </v-sheet>
-                </v-card-text>
-            </v-card>
-        </v-row>
         <v-row justify="center" no-gutters>
+            <v-col class="text-center mt-4" cols="12"
+                >
+                <v-card title="Телефон">
+                    <v-card-text>
+                        <v-sheet>
+                            +7-905-753-26-48
+                        </v-sheet>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-btn
                 v-for="link in links"
                 :key="link"
