@@ -18,9 +18,16 @@
             </v-list>
         </v-navigation-drawer>
 
-        <v-app-bar title="ПИЩЕПРОМ-СЕРВЕР"
-                   color="green"
+        <v-app-bar color="deep-orange-accent-4"
         >
+            <template v-slot:prepend>
+                <v-app-bar-nav-icon></v-app-bar-nav-icon>
+            </template>
+            <v-app-bar-title>
+                <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
+                <v-chip>Рыба</v-chip>
+            </v-app-bar-title>
+
             <v-menu
                 КАТЕГОРИИ
             >
