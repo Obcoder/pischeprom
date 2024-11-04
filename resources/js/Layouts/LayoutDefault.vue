@@ -49,7 +49,7 @@
                 </v-list>
             </v-menu>
 
-            <Link :href="route('fish')">Рыба</Link>
+            <Link href="/">Рыба</Link>
 
         </v-app-bar>
 
