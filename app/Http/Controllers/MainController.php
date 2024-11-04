@@ -11,9 +11,12 @@ class MainController extends Controller
     public function index()
     {
         $categories = Category::all();
+        $goodOfTheDay = GoodOfTheDayController::inRandomOrder()
+            ->first();
 
         $data = [
             'categories' => $categories,
+            'goodOfTheDay' => $goodOfTheDay,
         ];
 
         return Inertia::render('Welcome', $data);

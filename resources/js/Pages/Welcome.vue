@@ -22,7 +22,8 @@ const props = defineProps({
     },
     categories: {
         type: Object,
-    }
+    },
+    goodOfTheDay: Object,
 });
 let show = ref(false);
 
@@ -106,7 +107,11 @@ let show = ref(false);
             </v-col>
 
             <v-col>
-                <v-card title="Акция дня"></v-card>
+                <v-card title="Акция дня">
+                    <v-card-text>
+                        {{goodOfTheDay.good.name}}
+                    </v-card-text>
+                </v-card>
             </v-col>
         </v-row>
     </v-container>
