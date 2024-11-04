@@ -19,7 +19,7 @@
         </v-navigation-drawer>
 
         <v-app-bar title="ПИЩЕПРОМ-СЕРВЕР"
-                   color="purple"
+                   color="green"
         >
             <v-menu
                 КАТЕГОРИИ
