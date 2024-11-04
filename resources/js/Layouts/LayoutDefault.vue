@@ -25,7 +25,6 @@
             </template>
             <v-app-bar-title>
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
-                <v-chip>Рыба</v-chip>
             </v-app-bar-title>
 
             <v-menu
@@ -49,19 +48,28 @@
                     </v-list-item>
                 </v-list>
             </v-menu>
+
+            <Link :href="route('fish')">Рыба</Link>
+
         </v-app-bar>
 
         <v-main class="d-flex align-center justify-center" style="min-height: 300px;">
             <slot />
         </v-main>
-        <footer class="inset-x-0 bottom-0 h-16 bg-red-800 text-yellow-50">
-            <h3>Телефон</h3>
-            <p>+7-905-753-26-48</p>
-        </footer>
     </v-layout>
+
     <v-footer class="inset-x-0 bottom-0 h-16 text-yellow-50"
               color="#800000"
     >
+        <v-row>
+            <v-card title="Телефон">
+                <v-card-text>
+                    <v-sheet>
+                        +7-905-753-26-48
+                    </v-sheet>
+                </v-card-text>
+            </v-card>
+        </v-row>
         <v-row justify="center" no-gutters>
             <v-btn
                 v-for="link in links"
@@ -78,6 +86,7 @@
             </v-col>
         </v-row>
     </v-footer>
+
 </template>
 
 <script setup>
