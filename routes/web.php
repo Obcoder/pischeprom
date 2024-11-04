@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ManufacturerController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -25,3 +26,6 @@ Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'inde
 
 Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
+
+Route::get('/api/manufacturers/', [ManufacturerController::class, 'index'])
+    ->name('api.manufacturers');
