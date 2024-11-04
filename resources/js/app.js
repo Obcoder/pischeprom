@@ -11,8 +11,15 @@ import 'vuetify/styles'
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
+import '@mdi/font/css/materialdesignicons.css';
 
 const vuetify = createVuetify({
+    locale: {
+        locale: 'ru',
+    },
+    icons: {
+        defaultSet: 'mdi', // This is already the default value - only for display purposes
+    },
     components,
     directives,
 })
