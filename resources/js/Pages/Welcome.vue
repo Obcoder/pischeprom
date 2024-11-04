@@ -96,7 +96,10 @@ let show = ref(false);
                     </v-expand-transition>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+
+            <v-col>
+                <v-card title="Акция дня"></v-card>
+            </v-col>
         </v-row>
     </v-container>
 </template>
