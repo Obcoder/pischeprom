@@ -27,6 +27,16 @@
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
             </v-app-bar-title>
 
+            <v-list>
+                <v-list-item>
+                    <v-card>
+                        <v-card-title>Пищевое сырьё</v-card-title>
+                    </v-card>
+                </v-list-item>
+                <v-list-item>Пищевые ингредиенты</v-list-item>
+                <v-list-item>Пищевые добавки</v-list-item>
+            </v-list>
+
             <v-menu
                 КАТЕГОРИИ
             >
