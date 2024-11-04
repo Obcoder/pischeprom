@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\GoodOfTheDay;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -11,8 +12,7 @@ class MainController extends Controller
     public function index()
     {
         $categories = Category::all();
-        $goodOfTheDay = GoodOfTheDayController::inRandomOrder()
-            ->first();
+        $goodOfTheDay = GoodOfTheDay::inRandomOrder()->first();
 
         $data = [
             'categories' => $categories,
