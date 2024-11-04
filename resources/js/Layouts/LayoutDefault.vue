@@ -54,12 +54,11 @@
         <v-main class="d-flex align-center justify-center" style="min-height: 300px;">
             <slot />
         </v-main>
+        <footer class="inset-x-0 bottom-0 h-16 bg-red-800 text-yellow-50">
+            <h3>Телефон</h3>
+            <p>+7-905-753-26-48</p>
+        </footer>
     </v-layout>
-
-    <footer class="inset-x-0 bottom-0 h-16 bg-red-800 text-yellow-50">
-        <h3>Телефон</h3>
-        <p>+7-905-753-26-48</p>
-    </footer>
 </template>
 
 <script setup>
