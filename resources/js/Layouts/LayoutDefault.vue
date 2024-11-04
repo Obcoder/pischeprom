@@ -4,6 +4,7 @@
     </Head>
 
     <v-layout class="rounded rounded-md">
+
         <v-navigation-drawer>
             <v-list>
                 <v-list-item>
@@ -17,7 +18,9 @@
             </v-list>
         </v-navigation-drawer>
 
-        <v-app-bar title="ПИЩЕПРОМ-СЕРВЕР">
+        <v-app-bar title="ПИЩЕПРОМ-СЕРВЕР"
+                   color="purple"
+        >
             <v-menu
                 КАТЕГОРИИ
             >
