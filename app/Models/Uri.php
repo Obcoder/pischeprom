@@ -10,6 +10,6 @@ class Uri extends Model
     use HasFactory;
 
     protected $fillable = [
-        'uri',
+        'address',
     ];
 }

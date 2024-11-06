@@ -14,7 +14,7 @@ class UriController extends Controller
     public function index()
     {
         $uris = DB::table('uris')
-            ->select('uri', 'created_at')
+            ->select('address', 'created_at')
             ->get();
     }
 
