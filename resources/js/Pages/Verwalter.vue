@@ -135,6 +135,7 @@ function storeUnit(){
                                 <v-text-field v-model="searchUnits"
                                               label="Искать по Units"
                                               variant="outlined"
+                                              class="my-3 py-2"
                                 ></v-text-field>
                                 <v-dialog
                                     transition="dialog-bottom-transition"
