@@ -27,5 +27,9 @@ Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'inde
 Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
 
+
+//                     A         P         I
 Route::get('/api/manufacturers/', [ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
+Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
+    ->name('api.products');

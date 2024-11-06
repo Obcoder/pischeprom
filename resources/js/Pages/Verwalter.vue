@@ -15,8 +15,10 @@ onMounted(()=>{
     ];
 
     getManufacturers();
+    getProducts();
 })
 let manufacturers = ref();
+let listProducts = ref();
 let headersGoods = ref([]);
 let tab = ref();
 
@@ -24,6 +26,19 @@ function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
         // handle success
         manufacturers.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        })
+        .finally(function () {
+            // always executed
+        });
+}
+function getProducts(){
+    axios.get(route('api.products')).then(function (response) {
+        // handle success
+        listProducts.value = response.data;
     })
         .catch(function (error) {
             // handle error
@@ -55,6 +70,9 @@ function getManufacturers(){
                         <v-tab value="two">
                             Manufacturers
                         </v-tab>
+                        <v-tab value="three">
+                            Products
+                        </v-tab>
                     </v-tabs>
 
                     <v-card-text>
@@ -73,6 +91,11 @@ function getManufacturers(){
                                               density="compact"
                                               hover="hover"
                                 ></v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="three">
+                                <v-data-table :items="listProducts"
+                                              ></v-data-table>
                             </v-tabs-window-item>
 
                         </v-tabs-window>
