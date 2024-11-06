@@ -16,6 +16,7 @@ onMounted(()=>{
 
     getManufacturers();
     getProducts();
+    getUnits();
 })
 let manufacturers = ref();
 let listProducts = ref();
