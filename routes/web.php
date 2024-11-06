@@ -37,6 +37,8 @@ Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class
     ->name('api.products');
 Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
     ->name('api.units');
+Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
+    ->name('api.uris');
 
 
 //                           P        O         S         T

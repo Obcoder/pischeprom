@@ -17,10 +17,12 @@ onMounted(()=>{
     getManufacturers();
     getProducts();
     getUnits();
+    getUris();
 })
 let manufacturers = ref();
 let listProducts = ref();
 let listUnits = ref();
+let listUris = ref();
 let headersGoods = ref([]);
 let searchUnits = ref('');
 let tab = ref();
@@ -58,6 +60,19 @@ function getUnits(){
     axios.get(route('api.units')).then(function (response) {
         // handle success
         listUnits.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        })
+        .finally(function () {
+            // always executed
+        });
+}
+function getUris(){
+    axios.get(route('api.uris')).then(function (response) {
+        // handle success
+        listUris.value = response.data;
     })
         .catch(function (error) {
             // handle error
@@ -106,6 +121,9 @@ function storeUnit(){
                         <v-tab value="four">
                             Units
                         </v-tab>
+                        <v-tab value="five">
+                            Uris
+                        </v-tab>
                     </v-tabs>
 
                     <v-card-text>
@@ -135,7 +153,7 @@ function storeUnit(){
                                 <v-text-field v-model="searchUnits"
                                               label="Искать по Units"
                                               variant="outlined"
-                                              class="my-3 py-2"
+                                              class="mt-1 py-1 ring-0 focus:outline-none"
                                 ></v-text-field>
                                 <v-dialog
                                     transition="dialog-bottom-transition"
@@ -151,7 +169,7 @@ function storeUnit(){
 
                                     <template v-slot:default="{ isActive }">
                                         <v-card>
-                                            <v-toolbar title="Создание Unit"></v-toolbar>
+                                            <v-toolbar title="Unit form"></v-toolbar>
 
                                             <v-card-text class="text-h2 pa-12">
                                                 <form @submit.prevent>
@@ -159,6 +177,7 @@ function storeUnit(){
                                                         <v-row>
                                                             <v-text-field v-model="formUnit.name"
                                                                           label="Name"
+                                                                          variant="outlined"
                                                             ></v-text-field>
                                                         </v-row>
                                                     </v-container>
@@ -180,6 +199,13 @@ function storeUnit(){
 
                                 <v-data-table :items="listUnits"
                                               :search="searchUnits"
+                                              density="compact"
+                                              hover="hover"
+                                ></v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="five">
+                                <v-data-table :items="listUris"
                                               density="compact"
                                               hover="hover"
                                 ></v-data-table>

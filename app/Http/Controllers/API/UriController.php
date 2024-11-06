@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class UriController extends Controller
 {
@@ -12,7 +13,9 @@ class UriController extends Controller
      */
     public function index()
     {
-        //
+        $uris = DB::table('uris')
+            ->select('uris.uri', 'uris.created_at')
+            ->get();
     }
 
     /**

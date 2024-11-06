@@ -8,4 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 class Uri extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'uri',
+    ];
 }
