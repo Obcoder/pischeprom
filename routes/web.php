@@ -29,7 +29,10 @@ Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
 
 
 //                     A         P         I
-Route::get('/api/manufacturers/', [ManufacturerController::class, 'index'])
+
+Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
     ->name('api.products');
+Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
+    ->name('api.units');
