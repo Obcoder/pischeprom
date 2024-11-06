@@ -29,10 +29,16 @@ Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
 
 
 //                     A         P         I
-
+//                          G         E         T
+//
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
     ->name('api.products');
 Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
     ->name('api.units');
+
+
+//                           P        O         S         T
+Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
+    ->name('api.units.store');

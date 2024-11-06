@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Unit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -33,7 +34,7 @@ class UnitController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $unit = Unit::create($request->all());
     }
 
     /**
