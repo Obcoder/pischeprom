@@ -208,6 +208,7 @@ function storeUnit(){
                                 <v-data-table :items="listUris"
                                               density="compact"
                                               hover="hover"
+                                              class="border-1"
                                 ></v-data-table>
                             </v-tabs-window-item>
 
