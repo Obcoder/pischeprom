@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
-            $table->string('uri')->index();
+            $table->string('address');
         });
     }
 
