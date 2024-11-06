@@ -16,6 +16,8 @@ class UriController extends Controller
         $uris = DB::table('uris')
             ->select('address', 'created_at')
             ->get();
+
+        return $uris;
     }
 
     /**
