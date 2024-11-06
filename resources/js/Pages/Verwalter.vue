@@ -132,50 +132,51 @@ function storeUnit(){
                             </v-tabs-window-item>
 
                             <v-tabs-window-item value="four">
-                                <v-sheet class="d-flex">
-                                    <v-text-field v-model="searchUnits"
-                                                  label="Искать по Units"
-                                                  variant="outlined"
-                                    ></v-text-field>
-                                    <v-dialog
-                                        transition="dialog-bottom-transition"
-                                        width="auto"
-                                    >
-                                        <template v-slot:activator="{ props: activatorProps }">
-                                            <v-btn
-                                                v-bind="activatorProps"
-                                                text="Новый Unit"
-                                                block
-                                            ></v-btn>
-                                        </template>
+                                <v-text-field v-model="searchUnits"
+                                              label="Искать по Units"
+                                              variant="outlined"
+                                ></v-text-field>
+                                <v-dialog
+                                    transition="dialog-bottom-transition"
+                                    width="auto"
+                                >
+                                    <template v-slot:activator="{ props: activatorProps }">
+                                        <v-btn
+                                            v-bind="activatorProps"
+                                            text="Новый Unit"
+                                            block
+                                        ></v-btn>
+                                    </template>
 
-                                        <template v-slot:default="{ isActive }">
-                                            <v-card>
-                                                <v-toolbar title="Создание Unit"></v-toolbar>
+                                    <template v-slot:default="{ isActive }">
+                                        <v-card>
+                                            <v-toolbar title="Создание Unit"></v-toolbar>
 
-                                                <v-card-text class="text-h2 pa-12">
-                                                    <form @submit.prevent>
-                                                        <v-container>
-                                                            <v-row>
-                                                                <v-text-field></v-text-field>
-                                                            </v-row>
-                                                        </v-container>
-                                                    </form>
-                                                </v-card-text>
+                                            <v-card-text class="text-h2 pa-12">
+                                                <form @submit.prevent>
+                                                    <v-container>
+                                                        <v-row>
+                                                            <v-text-field v-model="formUnit.name"
+                                                                          label="Name"
+                                                            ></v-text-field>
+                                                        </v-row>
+                                                    </v-container>
+                                                </form>
+                                            </v-card-text>
 
-                                                <v-card-actions class="justify-end">
-                                                    <v-btn
-                                                        text="Close"
-                                                        @click="isActive.value = false"
-                                                    ></v-btn>
-                                                    <v-btn text="Сохранить"
-                                                           @click="storeUnit"
-                                                    ></v-btn>
-                                                </v-card-actions>
-                                            </v-card>
-                                        </template>
-                                    </v-dialog>
-                                </v-sheet>
+                                            <v-card-actions class="justify-end">
+                                                <v-btn
+                                                    text="Close"
+                                                    @click="isActive.value = false"
+                                                ></v-btn>
+                                                <v-btn text="Сохранить"
+                                                       @click="storeUnit"
+                                                ></v-btn>
+                                            </v-card-actions>
+                                        </v-card>
+                                    </template>
+                                </v-dialog>
+
                                 <v-data-table :items="listUnits"
                                               :search="searchUnits"
                                               density="compact"
