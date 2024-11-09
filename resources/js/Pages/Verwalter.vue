@@ -26,8 +26,10 @@ let listUris = ref();
 let headersGoods = ref([]);
 let searchUnits = ref('');
 let tab = ref();
+let selectedUris = ref([]);
 const formUnit = useForm({
     name: null,
+    uris: null,
 });
 
 function getManufacturers(){
@@ -84,6 +86,7 @@ function getUris(){
 }
 
 function storeUnit(){
+    formUnit.uris = selectedUris.value;
     formUnit.post(route('api.units.store'), {
         replace: false,
         preserveState: false,
@@ -149,6 +152,7 @@ function storeUnit(){
                                               ></v-data-table>
                             </v-tabs-window-item>
 
+                            <!--     U N I T S     -->
                             <v-tabs-window-item value="four">
                                 <v-text-field v-model="searchUnits"
                                               label="Искать по Units"
@@ -180,6 +184,18 @@ function storeUnit(){
                                                                           variant="outlined"
                                                             ></v-text-field>
                                                         </v-row>
+                                                        <v-row>
+                                                            <v-col cols="9">
+                                                                <v-combobox
+                                                                    v-model="selectedUris"
+                                                                    :items="listUris"
+                                                                    label="Uris selected"
+                                                                    chips
+                                                                    multiple
+                                                                ></v-combobox>
+                                                            </v-col>
+                                                            <v-col cols="3"></v-col>
+                                                        </v-row>
                                                     </v-container>
                                                 </form>
                                             </v-card-text>
@@ -203,6 +219,7 @@ function storeUnit(){
                                               hover="hover"
                                 ></v-data-table>
                             </v-tabs-window-item>
+                            <!--     E N D  U N I T S     -->
 
                             <v-tabs-window-item value="five">
                                 <v-data-table :items="listUris"

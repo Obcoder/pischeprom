@@ -12,4 +12,10 @@ class Unit extends Model
     protected $fillable = [
         'name',
     ];
+
+    public function uris()
+    {
+        return $this->belongsToMany(Uri::class)
+            ->using(unit_uri::class);
+    }
 }

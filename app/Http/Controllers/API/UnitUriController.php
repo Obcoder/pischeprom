@@ -3,22 +3,16 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Unit;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
-class UnitController extends Controller
+class UnitUriController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $units = DB::table('units')
-            ->select('units.name')
-            ->get();
-
-        return $units;
+        //
     }
 
     /**
@@ -34,8 +28,7 @@ class UnitController extends Controller
      */
     public function store(Request $request)
     {
-        $unit = Unit::create($request->all());
-        $unit->uris()->attach($request->uris);
+        //
     }
 
     /**
