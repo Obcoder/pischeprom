@@ -44,3 +44,5 @@ Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index
 //                           P        O         S         T
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
     ->name('api.units.store');
+Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
+    ->name('api.uri.store');

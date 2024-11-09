@@ -28,10 +28,15 @@ let headersGoods = ref([]);
 let searchUnits = ref('');
 let tab = ref();
 let selectedUris = ref([]);
+let showFormUri = ref(false);
+
 const formUnit = useForm({
     name: null,
     uris: null,
 });
+const formUri = useForm({
+    address: null,
+})
 
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
@@ -94,6 +99,16 @@ function storeUnit(){
         preserveScroll: false,
         onSuccess: ()=> {
             formUnit.reset();
+        },
+    });
+}
+function storeUri(){
+    formUri.post(route('api.uri.store'), {
+        replace: false,
+        preserveState: false,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formUri.reset();
         },
     });
 }
@@ -198,7 +213,41 @@ function storeUnit(){
                                                                     multiple
                                                                 ></v-combobox>
                                                             </v-col>
-                                                            <v-col cols="3"></v-col>
+                                                            <v-col cols="3">
+                                                                <template v-slot:activator="{ showFormUri }">
+                                                                    <v-btn
+                                                                        v-bind="showFormUri"
+                                                                        text="+ uri"
+                                                                        flat
+                                                                    ></v-btn>
+                                                                </template>
+
+                                                                <template v-slot:default="{ showFormUri}">
+                                                                    <v-card min-width="400px">
+                                                                        <v-toolbar title="FORM: Uri"></v-toolbar>
+
+                                                                        <v-card-text>
+                                                                            <v-form @submit.prevent>
+                                                                                <v-row>
+                                                                                    <v-text-field v-model="formUri.address"
+                                                                                                  label="Uri address"
+                                                                                                  variant="outlined"
+                                                                                    ></v-text-field>
+                                                                                </v-row>
+                                                                                <v-row>
+                                                                                    <v-col cols="4">
+                                                                                        <v-btn
+                                                                                            text="store"
+                                                                                            block
+                                                                                            @click="storeUri"
+                                                                                        ></v-btn>
+                                                                                    </v-col>
+                                                                                </v-row>
+                                                                            </v-form>
+                                                                        </v-card-text>
+                                                                    </v-card>
+                                                                </template>
+                                                            </v-col>
                                                         </v-row>
                                                     </v-container>
                                                 </form>
