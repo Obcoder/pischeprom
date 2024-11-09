@@ -214,15 +214,15 @@ function storeUri(){
                                                                 ></v-combobox>
                                                             </v-col>
                                                             <v-col cols="3">
-                                                                <template v-slot:activator="{ showFormUri }">
+                                                                <template v-slot:activator="{ props: activatorProps }">
                                                                     <v-btn
-                                                                        v-bind="showFormUri"
+                                                                        v-bind="activatorProps"
                                                                         text="+ uri"
                                                                         flat
                                                                     ></v-btn>
                                                                 </template>
 
-                                                                <template v-slot:default="{ showFormUri}">
+                                                                <template v-slot:default="{ isActive }">
                                                                     <v-card min-width="400px">
                                                                         <v-toolbar title="FORM: Uri"></v-toolbar>
 
