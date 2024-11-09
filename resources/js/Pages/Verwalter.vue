@@ -190,8 +190,8 @@ function storeUnit(){
                                                                 <v-combobox
                                                                     v-model="selectedUris"
                                                                     :items="listUris"
-                                                                    :item-value="id"
-                                                                    :item-title="address"
+                                                                    :item-value="'id'"
+                                                                    :item-title="'address'"
                                                                     :item-color="orange"
                                                                     label="Uris selected"
                                                                     chips
