@@ -2,6 +2,7 @@
 import {onMounted, ref} from "vue";
 import {Head, useForm} from "@inertiajs/vue3";
 import axios from "axios";
+import {orange} from "vuetify/util/colors";
 const props = defineProps({
     title: String,
     goods: Object,
@@ -172,7 +173,7 @@ function storeUnit(){
                                     </template>
 
                                     <template v-slot:default="{ isActive }">
-                                        <v-card>
+                                        <v-card min-width="500px">
                                             <v-toolbar title="Unit form"></v-toolbar>
 
                                             <v-card-text class="text-h2 pa-12">
@@ -189,6 +190,9 @@ function storeUnit(){
                                                                 <v-combobox
                                                                     v-model="selectedUris"
                                                                     :items="listUris"
+                                                                    :item-value="id"
+                                                                    :item-title="address"
+                                                                    :item-color="orange"
                                                                     label="Uris selected"
                                                                     chips
                                                                     multiple
