@@ -39,6 +39,8 @@ Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'ind
     ->name('api.units');
 Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
     ->name('api.uris');
+Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
+    ->name('api.categories');
 
 
 //                           P        O         S         T

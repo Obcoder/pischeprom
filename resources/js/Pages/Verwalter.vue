@@ -20,11 +20,13 @@ onMounted(()=>{
     getProducts();
     getUnits();
     getUris();
+    getCategories();
 })
 let manufacturers = ref();
 let listProducts = ref();
 let listUnits = ref();
 let listUris = ref();
+let listCategories = ref();
 let headersGoods = ref([]);
 let searchUnits = ref('');
 let tab = ref();
@@ -91,12 +93,25 @@ function getUris(){
             // always executed
         });
 }
+function getCategories(){
+    axios.get(route('api.categories')).then(function (response) {
+        // handle success
+        listCategories.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        })
+        .finally(function () {
+            // always executed
+        });
+}
 
 function storeUnit(){
     formUnit.uris = selectedUris.value;
     formUnit.post(route('api.units.store'), {
         replace: false,
-        preserveState: true,
+        preserveState: false,
         preserveScroll: false,
         onSuccess: ()=> {
             formUnit.reset();
@@ -143,6 +158,9 @@ function storeUri(){
                         </v-tab>
                         <v-tab value="five">
                             Uris
+                        </v-tab>
+                        <v-tab value="six">
+                            Categories
                         </v-tab>
                     </v-tabs>
 
@@ -277,6 +295,13 @@ function storeUri(){
 
                             <v-tabs-window-item value="five">
                                 <v-data-table :items="listUris"
+                                              density="compact"
+                                              hover="hover"
+                                ></v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="six">
+                                <v-data-table :items="listCategories"
                                               density="compact"
                                               hover="hover"
                                 ></v-data-table>
