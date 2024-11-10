@@ -106,7 +106,7 @@ function storeUnit(){
 function storeUri(){
     formUri.post(route('api.uri.store'), {
         replace: false,
-        preserveState: false,
+        preserveState: true,
         preserveScroll: false,
         onSuccess: ()=> {
             formUri.reset();
@@ -224,7 +224,7 @@ function storeUri(){
                                                                     </template>
 
                                                                     <template v-slot:default="{ isActive }">
-                                                                        <v-card width="auto">
+                                                                        <v-card max-width="350">
                                                                             <v-toolbar title="FORM: Uri"></v-toolbar>
 
                                                                             <v-card-text>
