@@ -122,8 +122,8 @@ function storeUri(){
 
     <v-container>
         <v-row>
-            <v-col>
-
+            <v-col cols="2"></v-col>
+            <v-col cols="8">
                 <v-card>
                     <v-tabs
                         v-model="tab"
@@ -166,7 +166,7 @@ function storeUri(){
 
                             <v-tabs-window-item value="three">
                                 <v-data-table :items="listProducts"
-                                              ></v-data-table>
+                                ></v-data-table>
                             </v-tabs-window-item>
 
                             <!--     U N I T S     -->
@@ -223,7 +223,7 @@ function storeUri(){
                                                                 <v-dialog
                                                                     v-model="dialogUri"
                                                                     width="301"
-                                                                    >
+                                                                >
                                                                     <v-card>
                                                                         <v-toolbar title="FORM: Uri"></v-toolbar>
 
@@ -286,9 +286,7 @@ function storeUri(){
                     </v-card-text>
                 </v-card>
             </v-col>
-
-            <v-col></v-col>
-            <v-col></v-col>
+            <v-col cols="2"></v-col>
         </v-row>
     </v-container>
 </template>
