@@ -16,6 +16,7 @@ class UnitController extends Controller
     {
         $units = DB::table('units')
             ->select('units.name')
+            ->orderBy('name')
             ->get();
 
         return $units;
