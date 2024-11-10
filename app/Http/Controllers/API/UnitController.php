@@ -16,7 +16,7 @@ class UnitController extends Controller
     {
         $units = DB::table('units')
             ->select('units.name')
-            ->orderBy('name')
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return $units;
