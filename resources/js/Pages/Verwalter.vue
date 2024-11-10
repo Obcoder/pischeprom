@@ -2,7 +2,7 @@
 import {onMounted, ref} from "vue";
 import {Head, useForm} from "@inertiajs/vue3";
 import axios from "axios";
-import {orange} from "vuetify/util/colors";
+import { mergeProps } from 'vue'
 const props = defineProps({
     title: String,
     goods: Object,
