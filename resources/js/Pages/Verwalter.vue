@@ -203,7 +203,7 @@ function storeUri(){
                                                         </v-row>
                                                         <v-row>
                                                             <v-col cols="9">
-                                                                <v-select
+                                                                <v-autocomplete
                                                                     v-model="selectedUris"
                                                                     :items="props.uris"
                                                                     :item-value="'id'"
@@ -211,7 +211,7 @@ function storeUri(){
                                                                     label="Uris selected"
                                                                     chips
                                                                     multiple
-                                                                ></v-select>
+                                                                ></v-autocomplete>
                                                             </v-col>
                                                             <v-col cols="3">
                                                                 <v-dialog>
