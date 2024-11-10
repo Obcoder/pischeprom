@@ -222,13 +222,13 @@ function storeUri(){
                                                                                     color="primary"
                                                                                     v-bind="mergeProps(menu, tooltip)"
                                                                                 >
-                                                                                    Add Uri
+                                                                                    Добавить Uri
                                                                                 </v-btn>
                                                                             </template>
-                                                                            <span>I'm A Tooltip</span>
+                                                                            <span>Сохраните новый Uri, чтобы не забыть!</span>
                                                                         </v-tooltip>
                                                                     </template>
-                                                                    <v-card max-width="350">
+                                                                    <v-card>
                                                                         <v-toolbar title="FORM: Uri"></v-toolbar>
 
                                                                         <v-card-text>
