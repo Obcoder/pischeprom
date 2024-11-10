@@ -214,41 +214,44 @@ function storeUri(){
                                                                 ></v-autocomplete>
                                                             </v-col>
                                                             <v-col cols="3">
-                                                                <v-dialog>
-                                                                    <template v-slot:activator="{ props: activatorProps }">
-                                                                        <v-btn
-                                                                            v-bind="activatorProps"
-                                                                            text="+ uri"
-                                                                            flat
-                                                                        ></v-btn>
+                                                                <v-menu>
+                                                                    <template v-slot:activator="{ props: menu }">
+                                                                        <v-tooltip location="top">
+                                                                            <template v-slot:activator="{ props: tooltip }">
+                                                                                <v-btn
+                                                                                    color="primary"
+                                                                                    v-bind="mergeProps(menu, tooltip)"
+                                                                                >
+                                                                                    Add Uri
+                                                                                </v-btn>
+                                                                            </template>
+                                                                            <span>I'm A Tooltip</span>
+                                                                        </v-tooltip>
                                                                     </template>
+                                                                    <v-card max-width="350">
+                                                                        <v-toolbar title="FORM: Uri"></v-toolbar>
 
-                                                                    <template v-slot:default="{ isActive }">
-                                                                        <v-card max-width="350">
-                                                                            <v-toolbar title="FORM: Uri"></v-toolbar>
-
-                                                                            <v-card-text>
-                                                                                <v-form @submit.prevent>
-                                                                                    <v-row>
-                                                                                        <v-text-field v-model="formUri.address"
-                                                                                                      label="Uri address"
-                                                                                                      variant="outlined"
-                                                                                        ></v-text-field>
-                                                                                    </v-row>
-                                                                                    <v-row>
-                                                                                        <v-col cols="4">
-                                                                                            <v-btn
-                                                                                                text="store"
-                                                                                                block
-                                                                                                @click="storeUri"
-                                                                                            ></v-btn>
-                                                                                        </v-col>
-                                                                                    </v-row>
-                                                                                </v-form>
-                                                                            </v-card-text>
-                                                                        </v-card>
-                                                                    </template>
-                                                                </v-dialog>
+                                                                        <v-card-text>
+                                                                            <v-form @submit.prevent>
+                                                                                <v-row>
+                                                                                    <v-text-field v-model="formUri.address"
+                                                                                                  label="Uri address"
+                                                                                                  variant="outlined"
+                                                                                    ></v-text-field>
+                                                                                </v-row>
+                                                                                <v-row>
+                                                                                    <v-col cols="4">
+                                                                                        <v-btn
+                                                                                            text="store"
+                                                                                            block
+                                                                                            @click="storeUri"
+                                                                                        ></v-btn>
+                                                                                    </v-col>
+                                                                                </v-row>
+                                                                            </v-form>
+                                                                        </v-card-text>
+                                                                    </v-card>
+                                                                </v-menu>
                                                             </v-col>
                                                         </v-row>
                                                     </v-container>
