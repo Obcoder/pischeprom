@@ -29,7 +29,7 @@ let headersGoods = ref([]);
 let searchUnits = ref('');
 let tab = ref();
 let selectedUris = ref([]);
-let showFormUri = ref(false);
+let dialogUri = ref(false);
 
 const formUnit = useForm({
     name: null,
@@ -214,20 +214,16 @@ function storeUri(){
                                                                 ></v-autocomplete>
                                                             </v-col>
                                                             <v-col cols="3">
-                                                                <v-menu>
-                                                                    <template v-slot:activator="{ props: menu }">
-                                                                        <v-tooltip location="top">
-                                                                            <template v-slot:activator="{ props: tooltip }">
-                                                                                <v-btn
-                                                                                    color="primary"
-                                                                                    v-bind="mergeProps(menu)"
-                                                                                >
-                                                                                    Добавить Uri
-                                                                                </v-btn>
-                                                                            </template>
-                                                                            <span>Сохраните новый Uri, чтобы не забыть!</span>
-                                                                        </v-tooltip>
-                                                                    </template>
+                                                                <v-btn
+                                                                    class="my-2"
+                                                                    text="+ uri"
+                                                                    @click="dialogUri = true"
+                                                                ></v-btn>
+
+                                                                <v-dialog
+                                                                    v-model="dialogUri"
+                                                                    width="301"
+                                                                    >
                                                                     <v-card>
                                                                         <v-toolbar title="FORM: Uri"></v-toolbar>
 
@@ -251,7 +247,7 @@ function storeUri(){
                                                                             </v-form>
                                                                         </v-card-text>
                                                                     </v-card>
-                                                                </v-menu>
+                                                                </v-dialog>
                                                             </v-col>
                                                         </v-row>
                                                     </v-container>
