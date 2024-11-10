@@ -220,7 +220,7 @@ function storeUri(){
                                                                             <template v-slot:activator="{ props: tooltip }">
                                                                                 <v-btn
                                                                                     color="primary"
-                                                                                    v-bind="mergeProps(tooltip)"
+                                                                                    v-bind="mergeProps(menu)"
                                                                                 >
                                                                                     Добавить Uri
                                                                                 </v-btn>
