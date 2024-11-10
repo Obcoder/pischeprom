@@ -6,6 +6,7 @@ import {orange} from "vuetify/util/colors";
 const props = defineProps({
     title: String,
     goods: Object,
+    uris: Object,
 })
 onMounted(()=>{
     headersGoods.value = [
@@ -204,7 +205,7 @@ function storeUri(){
                                                             <v-col cols="9">
                                                                 <v-select
                                                                     v-model="selectedUris"
-                                                                    :items="listUris"
+                                                                    :items="props.uris"
                                                                     :item-value="'id'"
                                                                     :item-title="'address'"
                                                                     label="Uris selected"
