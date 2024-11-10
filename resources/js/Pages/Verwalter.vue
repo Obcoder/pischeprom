@@ -96,7 +96,7 @@ function storeUnit(){
     formUnit.uris = selectedUris.value;
     formUnit.post(route('api.units.store'), {
         replace: false,
-        preserveState: false,
+        preserveState: true,
         preserveScroll: false,
         onSuccess: ()=> {
             formUnit.reset();
@@ -129,6 +129,9 @@ function storeUri(){
                         v-model="tab"
                         bg-color="primary"
                     >
+                        <v-tab value="four">
+                            Units
+                        </v-tab>
                         <v-tab value="one">
                             Goods
                         </v-tab>
@@ -138,9 +141,6 @@ function storeUri(){
                         <v-tab value="three">
                             Products
                         </v-tab>
-                        <v-tab value="four">
-                            Units
-                        </v-tab>
                         <v-tab value="five">
                             Uris
                         </v-tab>
@@ -148,27 +148,6 @@ function storeUri(){
 
                     <v-card-text>
                         <v-tabs-window v-model="tab">
-                            <v-tabs-window-item value="one">
-                                <v-data-table :items="goods"
-                                              :headers="headersGoods"
-                                              density="compact"
-                                              hover="hover"
-                                >
-                                </v-data-table>
-                            </v-tabs-window-item>
-
-                            <v-tabs-window-item value="two">
-                                <v-data-table :items="manufacturers"
-                                              density="compact"
-                                              hover="hover"
-                                ></v-data-table>
-                            </v-tabs-window-item>
-
-                            <v-tabs-window-item value="three">
-                                <v-data-table :items="listProducts"
-                                ></v-data-table>
-                            </v-tabs-window-item>
-
                             <!--     U N I T S     -->
                             <v-tabs-window-item value="four">
                                 <v-text-field v-model="searchUnits"
@@ -274,6 +253,27 @@ function storeUri(){
                                 ></v-data-table>
                             </v-tabs-window-item>
                             <!--     E N D  U N I T S     -->
+
+                            <v-tabs-window-item value="one">
+                                <v-data-table :items="goods"
+                                              :headers="headersGoods"
+                                              density="compact"
+                                              hover="hover"
+                                >
+                                </v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="two">
+                                <v-data-table :items="manufacturers"
+                                              density="compact"
+                                              hover="hover"
+                                ></v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="three">
+                                <v-data-table :items="listProducts"
+                                ></v-data-table>
+                            </v-tabs-window-item>
 
                             <v-tabs-window-item value="five">
                                 <v-data-table :items="listUris"
