@@ -202,16 +202,15 @@ function storeUri(){
                                                         </v-row>
                                                         <v-row>
                                                             <v-col cols="9">
-                                                                <v-combobox
+                                                                <v-select
                                                                     v-model="selectedUris"
                                                                     :items="listUris"
                                                                     :item-value="'id'"
                                                                     :item-title="'address'"
-                                                                    :item-color="orange"
                                                                     label="Uris selected"
                                                                     chips
                                                                     multiple
-                                                                ></v-combobox>
+                                                                ></v-select>
                                                             </v-col>
                                                             <v-col cols="3">
                                                                 <v-dialog>
@@ -224,7 +223,7 @@ function storeUri(){
                                                                     </template>
 
                                                                     <template v-slot:default="{ isActive }">
-                                                                        <v-card min-width="400px">
+                                                                        <v-card width="auto">
                                                                             <v-toolbar title="FORM: Uri"></v-toolbar>
 
                                                                             <v-card-text>
