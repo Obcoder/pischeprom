@@ -214,39 +214,41 @@ function storeUri(){
                                                                 ></v-combobox>
                                                             </v-col>
                                                             <v-col cols="3">
-                                                                <template v-slot:activator="{ props: activatorProps }">
-                                                                    <v-btn
-                                                                        v-bind="activatorProps"
-                                                                        text="+ uri"
-                                                                        flat
-                                                                    ></v-btn>
-                                                                </template>
+                                                                <v-dialog>
+                                                                    <template v-slot:activator="{ props: activatorProps }">
+                                                                        <v-btn
+                                                                            v-bind="activatorProps"
+                                                                            text="+ uri"
+                                                                            flat
+                                                                        ></v-btn>
+                                                                    </template>
 
-                                                                <template v-slot:default="{ isActive }">
-                                                                    <v-card min-width="400px">
-                                                                        <v-toolbar title="FORM: Uri"></v-toolbar>
+                                                                    <template v-slot:default="{ isActive }">
+                                                                        <v-card min-width="400px">
+                                                                            <v-toolbar title="FORM: Uri"></v-toolbar>
 
-                                                                        <v-card-text>
-                                                                            <v-form @submit.prevent>
-                                                                                <v-row>
-                                                                                    <v-text-field v-model="formUri.address"
-                                                                                                  label="Uri address"
-                                                                                                  variant="outlined"
-                                                                                    ></v-text-field>
-                                                                                </v-row>
-                                                                                <v-row>
-                                                                                    <v-col cols="4">
-                                                                                        <v-btn
-                                                                                            text="store"
-                                                                                            block
-                                                                                            @click="storeUri"
-                                                                                        ></v-btn>
-                                                                                    </v-col>
-                                                                                </v-row>
-                                                                            </v-form>
-                                                                        </v-card-text>
-                                                                    </v-card>
-                                                                </template>
+                                                                            <v-card-text>
+                                                                                <v-form @submit.prevent>
+                                                                                    <v-row>
+                                                                                        <v-text-field v-model="formUri.address"
+                                                                                                      label="Uri address"
+                                                                                                      variant="outlined"
+                                                                                        ></v-text-field>
+                                                                                    </v-row>
+                                                                                    <v-row>
+                                                                                        <v-col cols="4">
+                                                                                            <v-btn
+                                                                                                text="store"
+                                                                                                block
+                                                                                                @click="storeUri"
+                                                                                            ></v-btn>
+                                                                                        </v-col>
+                                                                                    </v-row>
+                                                                                </v-form>
+                                                                            </v-card-text>
+                                                                        </v-card>
+                                                                    </template>
+                                                                </v-dialog>
                                                             </v-col>
                                                         </v-row>
                                                     </v-container>
