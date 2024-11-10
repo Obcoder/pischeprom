@@ -189,7 +189,7 @@ function storeUri(){
                                     </template>
 
                                     <template v-slot:default="{ isActive }">
-                                        <v-card min-width="500px">
+                                        <v-card min-width="600px">
                                             <v-toolbar title="Unit form"></v-toolbar>
 
                                             <v-card-text class="text-h2 pa-12">
@@ -220,7 +220,7 @@ function storeUri(){
                                                                             <template v-slot:activator="{ props: tooltip }">
                                                                                 <v-btn
                                                                                     color="primary"
-                                                                                    v-bind="mergeProps(menu, tooltip)"
+                                                                                    v-bind="mergeProps(tooltip)"
                                                                                 >
                                                                                     Добавить Uri
                                                                                 </v-btn>
