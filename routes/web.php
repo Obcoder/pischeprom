@@ -48,3 +48,5 @@ Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class,
     ->name('api.units.store');
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
     ->name('api.uri.store');
+Route::post('/api/product/store', [\App\Http\Controllers\API\ProductController::class, 'store'])
+    ->name('api.product.store');

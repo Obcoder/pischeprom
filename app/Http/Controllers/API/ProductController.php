@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,7 +15,7 @@ class ProductController extends Controller
     public function index()
     {
         $products = DB::table('products')
-            ->select('products.rus')
+            ->select('products.id', 'products.rus')
             ->get();
 
         return $products;
@@ -33,7 +34,7 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $product = Product::create($request->all());
     }
 
     /**

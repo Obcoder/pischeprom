@@ -15,6 +15,12 @@ onMounted(()=>{
             key: 'name',
         },
     ];
+    headersProducts.value = [
+        {
+            title: 'rus',
+            key: 'rus',
+        },
+    ]
 
     getManufacturers();
     getProducts();
@@ -28,10 +34,13 @@ let listUnits = ref();
 let listUris = ref();
 let listCategories = ref();
 let headersGoods = ref([]);
+let headersProducts = ref([]);
 let searchUnits = ref('');
+let searchProducts = ref('');
 let tab = ref();
 let selectedUris = ref([]);
 let dialogUri = ref(false);
+let dialogFormProduct = ref(false);
 
 const formUnit = useForm({
     name: null,
@@ -39,6 +48,9 @@ const formUnit = useForm({
 });
 const formUri = useForm({
     address: null,
+})
+const formProduct = useForm({
+    rus: null,
 })
 
 function getManufacturers(){
@@ -125,6 +137,16 @@ function storeUri(){
         preserveScroll: false,
         onSuccess: ()=> {
             formUri.reset();
+        },
+    });
+}
+function storeProduct(){
+    formProduct.post(route('api.product.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formProduct.reset();
         },
     });
 }
@@ -289,8 +311,92 @@ function storeUri(){
                             </v-tabs-window-item>
 
                             <v-tabs-window-item value="three">
-                                <v-data-table :items="listProducts"
-                                ></v-data-table>
+
+                                <v-card
+                                    title="Products"
+                                    flat
+                                >
+                                    <template v-slot:text>
+                                        <v-text-field
+                                            v-model="searchProducts"
+                                            label="Filter products"
+                                            prepend-inner-icon="mdi-magnify"
+                                            variant="outlined"
+                                            single-line
+                                        ></v-text-field>
+                                    </template>
+
+                                    <v-data-table
+                                        :headers="headersProducts"
+                                        :items="listProducts"
+                                        :search="searchProducts"
+                                    >
+                                        <template v-slot:top>
+                                            <v-toolbar
+                                                flat
+                                            >
+                                                <v-divider
+                                                    class="mx-4"
+                                                    inset
+                                                    vertical
+                                                ></v-divider>
+                                                <v-spacer></v-spacer>
+                                                <v-dialog
+                                                    v-model="dialogFormProduct"
+                                                    max-width="500px"
+                                                >
+                                                    <template v-slot:activator="{ props }">
+                                                        <v-btn
+                                                            class="mb-2"
+                                                            color="primary"
+                                                            dark
+                                                            v-bind="props"
+                                                        >
+                                                            New Item
+                                                        </v-btn>
+                                                    </template>
+                                                    <v-card>
+                                                        <v-card-text>
+                                                            <v-container>
+                                                                <v-row>
+                                                                    <v-col
+                                                                        cols="12"
+                                                                        md="4"
+                                                                        sm="6"
+                                                                    >
+                                                                        <v-text-field
+                                                                            v-model="formProduct.rus"
+                                                                            label="Product"
+                                                                        ></v-text-field>
+                                                                    </v-col>
+                                                                </v-row>
+                                                            </v-container>
+                                                        </v-card-text>
+
+                                                        <v-card-actions>
+                                                            <v-spacer></v-spacer>
+                                                            <v-btn
+                                                                color="blue-darken-1"
+                                                                variant="text"
+                                                                @click="close"
+                                                            >
+                                                                Cancel
+                                                            </v-btn>
+                                                            <v-btn
+                                                                color="blue-darken-1"
+                                                                variant="text"
+                                                                @click="storeProduct"
+                                                            >
+                                                                Store
+                                                            </v-btn>
+                                                        </v-card-actions>
+                                                    </v-card>
+                                                </v-dialog>
+                                            </v-toolbar>
+                                        </template>
+                                    </v-data-table>
+                                </v-card>
+
                             </v-tabs-window-item>
 
                             <v-tabs-window-item value="five">
