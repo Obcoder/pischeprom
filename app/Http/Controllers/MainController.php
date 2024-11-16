@@ -13,7 +13,7 @@ class MainController extends Controller
     public function index()
     {
         $categories = Category::all();
-//        $good = Good::inRandomOrder()->first();
+        $good = Good::inRandomOrder()->first();
 //        $goodOfTheDay = GoodOfTheDay::create([
 //            'good_id' => $good->id,
 //            'date' => date('Y-m-d'),
@@ -22,6 +22,7 @@ class MainController extends Controller
         $data = [
             'categories' => $categories,
 //            'goodOfTheDay' => $goodOfTheDay,
+        'good' => $good,
         ];
 
         return Inertia::render('Welcome', $data);

@@ -24,6 +24,7 @@ const props = defineProps({
         type: Object,
     },
     goodOfTheDay: Object,
+    good: Object,
 });
 let show = ref(false);
 
