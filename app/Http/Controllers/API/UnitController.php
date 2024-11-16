@@ -43,10 +43,10 @@ class UnitController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Unit $unit)
+    public function show(string $id)
     {
         $data = [
-            'unit' => $unit,
+            $unit = Unit::with('uris')->findOrFail($id),
         ];
         return Inertia::render('Unit', $data);
     }
