@@ -9,7 +9,7 @@ use Inertia\Inertia;
 class UnitController extends Controller
 {
     public function show($id){
-        $data = ['unit' => $unit->find($id)];
+        $data = ['unit' => Unit::find($id)];
         return Inertia::render('Unit', $data);
     }
 }
