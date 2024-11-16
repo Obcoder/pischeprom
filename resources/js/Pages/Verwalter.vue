@@ -321,13 +321,15 @@ function storeProduct(){
                                                flat
                                                density="comfortable"
                                     >
-                                        <v-text-field
-                                            v-model="searchProducts"
-                                            label="Filter products"
-                                            prepend-inner-icon="mdi-magnify"
-                                            variant="outlined"
-                                            single-line
-                                        ></v-text-field>
+                                        <v-toolbar-items>
+                                            <v-text-field
+                                                v-model="searchProducts"
+                                                label="Filter products"
+                                                prepend-inner-icon="mdi-magnify"
+                                                variant="outlined"
+                                                single-line
+                                            ></v-text-field>
+                                        </v-toolbar-items>
 
                                         <v-divider
                                             class="mx-4"
