@@ -8,9 +8,9 @@ use Inertia\Inertia;
 
 class UnitController extends Controller
 {
-    public function show(Unit $unit){
+    public function show(string $id){
         $data = [
-            'unit' => Unit::findOrFail($unit->id),
+            'unit' => Unit::findOrFail($id),
         ];
         return Inertia::render('Unit', $data);
     }
