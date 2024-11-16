@@ -14,15 +14,15 @@ class MainController extends Controller
     {
         $categories = Category::all();
         $good = Good::inRandomOrder()->first();
-//        $goodOfTheDay = GoodOfTheDay::create([
-//            'good_id' => $good->id,
-//            'date' => date('Y-m-d'),
-//                                             ]);
+        $goodOfTheDay = GoodOfTheDay::create([
+            'good_id' => $good->id,
+            'date' => date('Y-m-d'),
+                                             ]);
 
         $data = [
             'categories' => $categories,
-//            'goodOfTheDay' => $goodOfTheDay,
-        'good' => $good,
+            'goodOfTheDay' => $goodOfTheDay,
+            'good' => $good,
         ];
 
         return Inertia::render('Welcome', $data);
