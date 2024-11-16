@@ -1,6 +1,6 @@
 <script setup>
 import {onMounted, ref} from "vue";
-import {Head, useForm, Link} from "@inertiajs/vue3";
+import {Head, useForm, Link, router} from "@inertiajs/vue3";
 import axios from "axios";
 import { mergeProps } from 'vue'
 import NavLink from "@/Components/NavLink.vue";
@@ -55,6 +55,10 @@ const formProduct = useForm({
     eng: null,
     zh: null,
 })
+
+const showUnit = (routeName, id) =>{
+    router.visit(route('unit.show'), id);
+}
 
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
@@ -302,9 +306,9 @@ function storeProduct(){
                                               hover="hover"
                                 >
                                     <template v-slot:item.name="{ item }">
-                                        <Link :href="route('unit.show', item.id)">
+                                        <v-card :href="showUnit('unit.show', item.id)">
                                             {{item.name}}
-                                        </Link>
+                                        </v-card>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
