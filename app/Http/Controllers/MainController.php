@@ -21,7 +21,7 @@ class MainController extends Controller
 
         $data = [
             'categories' => $categories,
-            'goodOfTheDay' => $goodOfTheDay,
+            'goodOfTheDay' => $goodOfTheDay::with('good')->get(),
         ];
 
         return Inertia::render('Welcome', $data);
