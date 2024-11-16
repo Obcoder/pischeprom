@@ -313,19 +313,8 @@ function storeProduct(){
                             <v-tabs-window-item value="three">
 
                                 <v-card
-                                    title="Products"
                                     flat
                                 >
-                                    <template v-slot:text>
-                                        <v-text-field
-                                            v-model="searchProducts"
-                                            label="Filter products"
-                                            prepend-inner-icon="mdi-magnify"
-                                            variant="outlined"
-                                            single-line
-                                        ></v-text-field>
-                                    </template>
-
                                     <v-data-table
                                         :headers="headersProducts"
                                         :items="listProducts"
@@ -335,6 +324,14 @@ function storeProduct(){
                                             <v-toolbar
                                                 flat
                                             >
+                                                <v-text-field
+                                                    v-model="searchProducts"
+                                                    label="Filter products"
+                                                    prepend-inner-icon="mdi-magnify"
+                                                    variant="outlined"
+                                                    single-line
+                                                ></v-text-field>
+
                                                 <v-divider
                                                     class="mx-4"
                                                     inset
