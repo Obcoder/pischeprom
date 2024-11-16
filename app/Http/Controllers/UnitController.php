@@ -8,7 +8,8 @@ use Inertia\Inertia;
 
 class UnitController extends Controller
 {
-    public function show(Unit $unit){
+    public function show($id){
+        $unit = Unit::findOrFail($id);
         $data = [
             'unit' => $unit,
         ];
