@@ -56,10 +56,6 @@ const formProduct = useForm({
     zh: null,
 })
 
-const showUnit = (routeName, id) =>{
-    router.visit(route('unit.show'), id);
-}
-
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
         // handle success
@@ -306,9 +302,9 @@ function storeProduct(){
                                               hover="hover"
                                 >
                                     <template v-slot:item.name="{ item }">
-                                        <v-card :href="showUnit('unit.show', item.id)">
+                                        <a :href="route('unit.show', item.id)">
                                             {{item.name}}
-                                        </v-card>
+                                        </a>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
