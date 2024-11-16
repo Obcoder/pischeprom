@@ -11,5 +11,7 @@ class Product extends Model
 
     protected $fillable = [
         'rus',
+        'eng',
+        'zh',
     ];
 }

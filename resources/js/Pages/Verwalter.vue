@@ -51,6 +51,8 @@ const formUri = useForm({
 })
 const formProduct = useForm({
     rus: null,
+    eng: null,
+    zh: null,
 })
 
 function getManufacturers(){
@@ -330,7 +332,6 @@ function storeProduct(){
                                                         label="Filter products"
                                                         prepend-inner-icon="mdi-magnify"
                                                         variant="outlined"
-                                                        single-line
                                                     ></v-text-field>
                                                 </v-col>
                                                 <v-col cols="3">
@@ -348,20 +349,27 @@ function storeProduct(){
                                                                 New Item
                                                             </v-btn>
                                                         </template>
+
                                                         <v-card>
                                                             <v-card-text>
                                                                 <v-container>
                                                                     <v-row>
-                                                                        <v-col
-                                                                            cols="12"
-                                                                            md="4"
-                                                                            sm="6"
-                                                                        >
-                                                                            <v-text-field
-                                                                                v-model="formProduct.rus"
-                                                                                label="Product"
-                                                                            ></v-text-field>
-                                                                        </v-col>
+                                                                        <v-text-field
+                                                                            v-model="formProduct.rus"
+                                                                            label="Product"
+                                                                        ></v-text-field>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-text-field
+                                                                            v-model="formProduct.eng"
+                                                                            label="Product eng"
+                                                                        ></v-text-field>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-text-field
+                                                                            v-model="formProduct.zh"
+                                                                            label="Product zh"
+                                                                        ></v-text-field>
                                                                     </v-row>
                                                                 </v-container>
                                                             </v-card-text>
@@ -375,6 +383,9 @@ function storeProduct(){
                                                                 >
                                                                     Cancel
                                                                 </v-btn>
+
+                                                                <v-divider></v-divider>
+
                                                                 <v-btn
                                                                     color="blue-darken-1"
                                                                     variant="text"
