@@ -15,7 +15,7 @@ class MainController extends Controller
         $categories = Category::all();
         $good = Good::inRandomOrder()->first();
         $goodOfTheDay = GoodOfTheDay::create([
-            'good_id' => $good['id'],
+            'good_id' => $good->id,
             'date' => date('Y-m-d'),
                                              ]);
 
