@@ -302,7 +302,7 @@ function storeProduct(){
                                               hover="hover"
                                 >
                                     <template v-slot:item.name="{ item }">
-                                        <Link :href="route('unit.show')" :data="{ item }" target="_blank">
+                                        <Link :href="route('unit.show')" :data="{ id: item.id }" target="_blank">
                                             {{item.name}}
                                         </Link>
                                     </template>
