@@ -6,7 +6,7 @@ const props = defineProps({
 
 <template>
     <Head>
-        <title>Unit::{{unit.name}}</title>
+        <title>Unit</title>
     </Head>
 
     <v-container>
