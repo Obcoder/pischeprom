@@ -109,7 +109,7 @@ let show = ref(false);
             <v-col>
                 <v-card title="Акция дня">
                     <v-card-text>
-                        {{goodOfTheDay.good}}
+                        {{goodOfTheDay.good.name}}
                     </v-card-text>
                 </v-card>
             </v-col>
