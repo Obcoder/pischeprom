@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Unit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class UnitController extends Controller
 {
@@ -44,7 +45,8 @@ class UnitController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $unit = Unit::find($id);
+        return Inertia::render('Unit', [$unit]);
     }
 
     /**

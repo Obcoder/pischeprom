@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\ManufacturerController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -31,12 +32,14 @@ Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
 //                     A         P         I
 //                          G         E         T
 //
+Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
+    ->name('api.units');
+Route::get('/verwalter/unit/{unit?}', [UnitController::class, 'show'])
+    ->name('unit');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
     ->name('api.products');
-Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
-    ->name('api.units');
 Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
     ->name('api.uris');
 Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
