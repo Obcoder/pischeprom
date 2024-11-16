@@ -35,7 +35,7 @@ Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
 Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
     ->name('api.units');
 Route::get('/verwalter/unit/{unit?}', [UnitController::class, 'show'])
-    ->name('unit');
+    ->name('unit.show');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
