@@ -17,12 +17,11 @@ class MainController extends Controller
         $goodOfTheDay = GoodOfTheDay::create([
             'good_id' => $good->id,
             'date' => date('Y-m-d'),
-                                             ]);
+                                                 ]);
 
         $data = [
             'categories' => $categories,
             'goodOfTheDay' => $goodOfTheDay,
-            'good' => $good,
         ];
 
         return Inertia::render('Welcome', $data);
