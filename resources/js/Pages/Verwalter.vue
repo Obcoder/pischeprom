@@ -302,7 +302,7 @@ function storeProduct(){
                                               hover="hover"
                                 >
                                     <template v-slot:item.name="{ item }">
-                                        <Link :href="route('unit.show', item.id)">
+                                        <Link href="/verwalter/unit/" + item>
                                             {{item.name}}
                                         </Link>
                                     </template>
