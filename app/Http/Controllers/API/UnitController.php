@@ -45,8 +45,9 @@ class UnitController extends Controller
      */
     public function show(Unit $unit)
     {
+        $id = $unit->id;
         $data = [
-            'unit' => $unit,
+            'unit' => $unit::find($id),
         ];
         return Inertia::render('Unit', $data);
     }
