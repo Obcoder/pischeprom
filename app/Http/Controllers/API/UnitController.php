@@ -43,10 +43,12 @@ class UnitController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Unit $unit)
     {
-        $unit = Unit::find($id);
-        return Inertia::render('Unit', $unit);
+        $data = [
+            'unit' => $unit,
+        ];
+        return Inertia::render('Unit', $data);
     }
 
     /**
