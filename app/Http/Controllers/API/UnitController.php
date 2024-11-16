@@ -16,7 +16,7 @@ class UnitController extends Controller
     public function index()
     {
         $units = DB::table('units')
-            ->select('units.name')
+            ->select('id', 'name', 'created_at')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -43,11 +43,10 @@ class UnitController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Unit $unit)
+    public function show(string $id)
     {
-        $id = $unit->id;
         $data = [
-            'unit' => $unit::find($id),
+            'unit' => Unit::findOrFail($id),
         ];
         return Inertia::render('Unit', $data);
     }
