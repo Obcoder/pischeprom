@@ -316,9 +316,10 @@ function storeProduct(){
                                     flat
                                     color="grey"
                                 >
-                                    <v-toolbar
-                                        flat
-                                        density="comfortable"
+                                    <v-toolbar class="py-2"
+                                               color="green"
+                                               flat
+                                               density="comfortable"
                                     >
                                         <v-text-field
                                             v-model="searchProducts"
