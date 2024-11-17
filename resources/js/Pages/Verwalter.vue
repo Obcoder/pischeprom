@@ -230,7 +230,8 @@ function storeGood(){
                                             </template>
 
                                             <template v-slot:default="{ isActive }">
-                                                <v-card>
+                                                <v-card width="337"
+                                                >
                                                     <v-card-title>Form Good</v-card-title>
                                                     <v-card-text>
                                                         <v-form @submit.prevent>
