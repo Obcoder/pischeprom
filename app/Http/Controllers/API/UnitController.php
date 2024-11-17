@@ -46,7 +46,8 @@ class UnitController extends Controller
     public function show(string $id)
     {
         $data = [
-            'unit' => Unit::findOrFail($id),
+            'unit' => Unit::with('uris')
+                ->findOrFail($id),
         ];
         return Inertia::render('Unit', $data);
     }

@@ -13,7 +13,16 @@ const props = defineProps({
         <v-row>
             <v-col></v-col>
             <v-col>
-                {{unit.name}}
+                <v-card>
+                    <v-card-title>{{unit.name}}</v-card-title>
+                    <v-card-subtitle>
+                        <v-sheet>
+                            <div v-for="uri in unit.uris">
+                                {{uri.address}}
+                            </div>
+                        </v-sheet>
+                    </v-card-subtitle>
+                </v-card>
             </v-col>
             <v-col></v-col>
         </v-row>
