@@ -14,9 +14,10 @@ const props = defineProps({
             <v-col></v-col>
             <v-col>
                 <v-card>
-                    <v-card-title>{{unit.name}}</v-card-title>
+                    <v-card-title class="bg-orange-accent-3">
+                        {{unit.name}}</v-card-title>
                     <v-card-subtitle>
-                        <v-sheet color="deep-orange-darken-2">
+                        <v-sheet>
                             <div v-for="uri in unit.uris"
                             >
                                 <a :href="uri.address"
