@@ -34,9 +34,10 @@ let listProducts = ref();
 let listUnits = ref();
 let listUris = ref();
 let listCategories = ref();
+let searchUnits = ref('');
+let searchGoods = ref('');
 let headersGoods = ref([]);
 let headersProducts = ref([]);
-let searchUnits = ref('');
 let searchProducts = ref('');
 let tab = ref();
 let selectedUris = ref([]);
@@ -54,6 +55,10 @@ const formProduct = useForm({
     rus: null,
     eng: null,
     zh: null,
+})
+const formGood = useForm({
+    name: null,
+    ava_image: null,
 })
 
 function getManufacturers(){
@@ -153,6 +158,16 @@ function storeProduct(){
         },
     });
 }
+function storeGood(){
+    formGood.post(route('api.good.store'), {
+        replace: false,
+        preserveState: false,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formGood.reset();
+        },
+    });
+}
 </script>
 
 <template>
@@ -191,7 +206,74 @@ function storeProduct(){
 
                     <v-card-text>
                         <v-tabs-window v-model="tab">
-                            <!--     U N I T S     -->
+
+                            <!--          G O O D S          -->
+                            <v-tabs-window-item value="one">
+                                <v-row>
+                                    <v-col cols="9">
+                                        <v-text-field label="Поиск: Товары"
+                                                      v-model="searchGoods"
+                                                      variant="outlined"
+                                                      class="mt-1 py-1"
+                                        ></v-text-field>
+                                    </v-col>
+                                    <v-col cols="3">
+                                        <v-dialog transition="dialog-top-transition"
+                                                  width="auto"
+                                        >
+                                            <template v-slot:activator="{ props: activatorProps }">
+                                                <v-btn
+                                                    v-bind="activatorProps"
+                                                    text="Новый товар"
+                                                    block
+                                                ></v-btn>
+                                            </template>
+
+                                            <template v-slot:default="{ isActive }">
+                                                <v-card>
+                                                    <v-card-title>Form Good</v-card-title>
+                                                    <v-card-text>
+                                                        <v-form @submit.prevent>
+                                                            <v-row>
+                                                                <v-text-field v-model="formGood.name"
+                                                                              label="Good name"
+                                                                              variant="outlined"
+                                                                ></v-text-field>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-file-input v-model="formGood.ava_image"
+                                                                              label="Good's avatar"
+                                                                              chips
+                                                                ></v-file-input>
+                                                            </v-row>
+                                                        </v-form>
+                                                    </v-card-text>
+                                                    <v-card-actions>
+                                                        <v-spacer></v-spacer>
+                                                        <v-divider></v-divider>
+
+                                                        <v-btn text="save"
+                                                               @click="storeGood"
+                                                               variant="plain"
+                                                               color="indigo-lighten-4"
+                                                        ></v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </template>
+                                        </v-dialog>
+                                    </v-col>
+                                </v-row>
+                                <v-data-table :items="goods"
+                                              :headers="headersGoods"
+                                              :search="searchGoods"
+                                              density="compact"
+                                              hover="hover"
+                                >
+                                </v-data-table>
+                            </v-tabs-window-item>
+                            <!--          E N D  G O O D S          -->
+
+                            <!--          U N I T S          -->
                             <v-tabs-window-item value="four">
                                 <v-row>
                                     <v-col cols="9">
@@ -309,15 +391,6 @@ function storeProduct(){
                                 </v-data-table>
                             </v-tabs-window-item>
                             <!--     E N D  U N I T S     -->
-
-                            <v-tabs-window-item value="one">
-                                <v-data-table :items="goods"
-                                              :headers="headersGoods"
-                                              density="compact"
-                                              hover="hover"
-                                >
-                                </v-data-table>
-                            </v-tabs-window-item>
 
                             <v-tabs-window-item value="two">
                                 <v-data-table :items="manufacturers"

@@ -34,7 +34,7 @@ Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
 //
 Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
     ->name('api.units');
-Route::get('/unit/{id}', [UnitController::class, 'show'])
+Route::get('/verwalter/unit/{id}', [UnitController::class, 'show'])
     ->name('unit.show');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
@@ -53,3 +53,5 @@ Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, '
     ->name('api.uri.store');
 Route::post('/api/product/store', [\App\Http\Controllers\API\ProductController::class, 'store'])
     ->name('api.product.store');
+Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class, 'store'])
+    ->name('api.good.store');

@@ -8,4 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 class Good extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'ava_image',
+    ];
 }
