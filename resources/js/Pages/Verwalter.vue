@@ -28,12 +28,14 @@ onMounted(()=>{
     getUnits();
     getUris();
     getCategories();
+    getCountries();
 })
 let manufacturers = ref();
 let listProducts = ref();
 let listUnits = ref();
 let listUris = ref();
 let listCategories = ref();
+let listCountries = ref();
 let searchUnits = ref('');
 let searchGoods = ref('');
 let headersGoods = ref([]);
@@ -126,6 +128,19 @@ function getCategories(){
             // always executed
         });
 }
+function getCountries(){
+    axios.get(route('api.countries')).then(function (response) {
+        // handle success
+        listCountries.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        })
+        .finally(function () {
+            // always executed
+        });
+}
 
 function storeUnit(){
     formUnit.uris = selectedUris.value;
@@ -201,6 +216,9 @@ function storeGood(){
                         </v-tab>
                         <v-tab value="six">
                             Categories
+                        </v-tab>
+                        <v-tab value="seven">
+                            Countries
                         </v-tab>
                     </v-tabs>
 
@@ -503,6 +521,13 @@ function storeGood(){
 
                             <v-tabs-window-item value="six">
                                 <v-data-table :items="listCategories"
+                                              density="compact"
+                                              hover="hover"
+                                ></v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="seven">
+                                <v-data-table :items="listCountries"
                                               density="compact"
                                               hover="hover"
                                 ></v-data-table>

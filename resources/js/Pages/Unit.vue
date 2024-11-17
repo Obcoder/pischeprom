@@ -11,7 +11,6 @@ const props = defineProps({
 
     <v-container>
         <v-row>
-            <v-col></v-col>
             <v-col>
                 <v-card>
                     <v-card-title class="bg-orange-accent-3">
@@ -30,6 +29,7 @@ const props = defineProps({
                     </v-card-subtitle>
                 </v-card>
             </v-col>
+            <v-col></v-col>
             <v-col></v-col>
         </v-row>
     </v-container>

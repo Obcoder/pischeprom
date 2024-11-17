@@ -45,6 +45,9 @@ Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index
 Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
     ->name('api.categories');
 
+Route::apiResource('api/countries', \App\Http\Controllers\API\CountryController::class)
+    ->name('index', 'api.countries');
+
 
 //                           P        O         S         T
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
