@@ -25,7 +25,7 @@ Route::get('/glycerol/', [\App\Http\Controllers\GlycerolController::class, 'inde
 Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'index'])
     ->name('goods');
 
-Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
+Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
 
 
@@ -34,7 +34,7 @@ Route::get('/verwalter/', [\App\Http\Controllers\Verwalter::class, 'index'])
 //
 Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
     ->name('api.units');
-Route::get('/verwalter/unit/{id}', [UnitController::class, 'show'])
+Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
     ->name('unit.show');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');

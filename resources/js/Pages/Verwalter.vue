@@ -230,7 +230,7 @@ function storeGood(){
                                             </template>
 
                                             <template v-slot:default="{ isActive }">
-                                                <v-card width="434"
+                                                <v-card width="567"
                                                 >
                                                     <v-card-title>Form Good</v-card-title>
                                                     <v-card-text>
@@ -267,6 +267,7 @@ function storeGood(){
                                 <v-data-table :items="goods"
                                               :headers="headersGoods"
                                               :search="searchGoods"
+                                              items-per-page="16"
                                               density="compact"
                                               hover="hover"
                                 >
