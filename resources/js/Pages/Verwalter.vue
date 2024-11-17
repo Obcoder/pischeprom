@@ -160,8 +160,8 @@ function storeProduct(){
 }
 function storeGood(){
     formGood.post(route('api.good.store'), {
-        replace: false,
-        preserveState: false,
+        replace: true,
+        preserveState: true,
         preserveScroll: true,
         onSuccess: ()=> {
             formGood.reset();
@@ -230,7 +230,7 @@ function storeGood(){
                                             </template>
 
                                             <template v-slot:default="{ isActive }">
-                                                <v-card width="337"
+                                                <v-card width="434"
                                                 >
                                                     <v-card-title>Form Good</v-card-title>
                                                     <v-card-text>
@@ -256,7 +256,7 @@ function storeGood(){
                                                         <v-btn text="save"
                                                                @click="storeGood"
                                                                variant="plain"
-                                                               color="indigo-lighten-4"
+                                                               color="indigo-darken-4"
                                                         ></v-btn>
                                                     </v-card-actions>
                                                 </v-card>
