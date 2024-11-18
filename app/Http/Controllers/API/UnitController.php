@@ -15,9 +15,8 @@ class UnitController extends Controller
      */
     public function index()
     {
-        $units = DB::table('units')
-            ->select('id', 'name', 'created_at')
-            ->orderBy('created_at', 'desc')
+        $units = Unit::with('uris')
+            ->with('labels')
             ->get();
 
         return $units;

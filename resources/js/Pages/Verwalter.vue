@@ -452,7 +452,7 @@ function storeGood(){
                                 <v-data-table :items="listUnits"
                                               :headers="headersUnits"
                                               :search="searchUnits"
-                                              items-per-page="12"
+                                              items-per-page="16"
                                               density="compact"
                                               hover="hover"
                                 >
