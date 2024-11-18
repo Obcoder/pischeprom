@@ -591,6 +591,7 @@ function storeGood(){
                                     <template v-slot:item.flag="{item}">
                                         <v-img :src="item.flag"
                                                width="50"
+                                               class="border border-1 border-gray-200"
                                         ></v-img>
                                     </template>
                                 </v-data-table>
