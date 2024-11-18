@@ -43,7 +43,6 @@ onMounted(()=>{
         },
         {
             title: 'codeTelefon',
-            key: 'codeTelefon',
             value: 'codeTelefon',
         },
     ];
