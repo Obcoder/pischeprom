@@ -328,7 +328,7 @@ function storeGood(){
                                             </template>
 
                                             <template v-slot:default="{ isActive }">
-                                                <v-card min-width="600px">
+                                                <v-card min-width="700px">
                                                     <v-toolbar title="Unit form"></v-toolbar>
 
                                                     <v-card-text class="text-h2 pa-12">
