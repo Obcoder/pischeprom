@@ -45,10 +45,6 @@ onMounted(()=>{
             title: 'codeTelefon',
             key: 'codeTelefon',
         },
-        {
-            title: 'codeISO',
-            key: 'codeISO',
-        },
     ];
 
     getManufacturers();
@@ -585,6 +581,7 @@ function storeGood(){
                             <v-tabs-window-item value="seven">
                                 <v-data-table :items="listCountries"
                                               :headers="headersCountries"
+                                              items-per-page="12"
                                               density="compact"
                                               hover="hover"
                                 >
