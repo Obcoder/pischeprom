@@ -5,7 +5,10 @@
 
     <v-layout class="rounded rounded-md">
 
-        <v-navigation-drawer>
+        <v-navigation-drawer v-model="drawer"
+                             :location="$vuetify.display.mobile ? 'bottom' : undefined"
+                             temporary
+        >
             <v-list>
                 <v-list-item>
                     <Link href="/">
@@ -26,10 +29,11 @@
         </v-navigation-drawer>
 
         <v-app-bar color="#800000"
-                   collapse
         >
             <template v-slot:prepend>
-                <v-app-bar-nav-icon></v-app-bar-nav-icon>
+                <v-app-bar-nav-icon variant="text"
+                                    @click.stop="drawer = !drawer"
+                ></v-app-bar-nav-icon>
             </template>
             <v-app-bar-title>
                 <Link href="/">ПИЩЕПРОМ-СЕРВЕР</Link>
@@ -119,6 +123,7 @@ const links = [
     'Blog',
     'Contact Us',
 ];
+let drawer = ref(true);
 let listProducts = ref();
 
 onMounted(()=>{
