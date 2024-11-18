@@ -60,7 +60,7 @@
                 </v-list>
             </v-menu>
 
-            <Link :href="route('/Seaprom')">Рыба</Link>
+            <Link href="/Seaprom">Рыба</Link>
 
         </v-app-bar>
 
