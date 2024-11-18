@@ -7,7 +7,6 @@
 
         <v-navigation-drawer v-model="drawer"
                              :location="$vuetify.display.mobile ? 'bottom' : undefined"
-                             temporary
         >
             <v-list>
                 <v-list-item>
