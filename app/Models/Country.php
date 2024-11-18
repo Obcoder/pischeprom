@@ -12,7 +12,7 @@ class Country extends Model
     protected $fillable = [
         'name',
         'flag',
-        'codeTelefon',
-        'codeISO',
+        'сodeTelefon',
+        'сodeISO',
     ];
 }

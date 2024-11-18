@@ -49,10 +49,6 @@ onMounted(()=>{
             title: 'сodeISO',
             key: 'сodeISO',
         },
-        {
-            title: 'created_at',
-            value: 'created_at',
-        },
     ];
 
     getManufacturers();
