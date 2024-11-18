@@ -16,25 +16,23 @@ const props = defineProps({
                     <v-card-title class="bg-orange-accent-3">
                         {{unit.name}}</v-card-title>
                     <v-card-subtitle class="d-flex">
-                        <v-row>
-                            <v-sheet>
-                                <div v-for="uri in unit.uris"
+                        <v-sheet>
+                            <div v-for="uri in unit.uris"
+                            >
+                                <a :href="uri.address"
+                                   target="_blank"
                                 >
-                                    <a :href="uri.address"
-                                       target="_blank"
-                                    >
-                                        {{uri.address}}
-                                    </a>
-                                </div>
-                            </v-sheet>
-                        </v-row>
-                        <v-row>
-                            <v-sheet>
-                                <div v-for="label in unit.labels">
-                                    {{label.name}}
-                                </div>
-                            </v-sheet>
-                        </v-row>
+                                    {{uri.address}}
+                                </a>
+                            </div>
+                        </v-sheet>
+                    </v-card-subtitle>
+                    <v-card-subtitle>
+                        <v-sheet>
+                            <div v-for="label in unit.labels">
+                                {{label.name}}
+                            </div>
+                        </v-sheet>
                     </v-card-subtitle>
                 </v-card>
             </v-col>
