@@ -45,6 +45,10 @@ onMounted(()=>{
             title: 'codeTelefon',
             value: 'codeTelefon',
         },
+        {
+            title: 'codeISO',
+            key: 'codeISO',
+        },
     ];
 
     getManufacturers();
