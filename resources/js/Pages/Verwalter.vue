@@ -49,7 +49,7 @@ onMounted(()=>{
             title: 'codeISO',
             key: 'codeISO',
         },
-    ]
+    ];
 
     getManufacturers();
     getProducts();
