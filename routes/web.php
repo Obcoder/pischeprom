@@ -27,15 +27,14 @@ Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'inde
 
 Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
-
+Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
+    ->name('unit.show');
 
 //                     A         P         I
 //                          G         E         T
 //
 Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
     ->name('api.units');
-Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
-    ->name('unit.show');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
@@ -47,6 +46,8 @@ Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::cl
 
 Route::apiResource('api/countries', \App\Http\Controllers\API\CountryController::class)
     ->name('index', 'api.countries');
+Route::apiResource('api/labels', \App\Http\Controllers\API\LabelController::class)
+    ->name('index', 'api.labels');
 
 
 //                           P        O         S         T

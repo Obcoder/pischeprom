@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Label;
 use Illuminate\Http\Request;
 
 class LabelController extends Controller
@@ -12,7 +13,8 @@ class LabelController extends Controller
      */
     public function index()
     {
-        //
+        $labels = Label::all();
+        return $labels;
     }
 
     /**

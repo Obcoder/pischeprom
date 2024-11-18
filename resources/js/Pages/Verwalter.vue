@@ -29,6 +29,7 @@ onMounted(()=>{
     getUris();
     getCategories();
     getCountries();
+    apiIndexLabels();
 })
 let manufacturers = ref();
 let listProducts = ref();
@@ -36,6 +37,7 @@ let listUnits = ref();
 let listUris = ref();
 let listCategories = ref();
 let listCountries = ref();
+let listLabels = ref();
 let searchUnits = ref('');
 let searchGoods = ref('');
 let headersGoods = ref([]);
@@ -49,6 +51,7 @@ let dialogFormProduct = ref(false);
 const formUnit = useForm({
     name: null,
     uris: null,
+    labels: null,
 });
 const formUri = useForm({
     address: null,
@@ -139,6 +142,14 @@ function getCountries(){
         })
         .finally(function () {
             // always executed
+        });
+}
+function apiIndexLabels(){
+    axios.get(route('api.labels')).then(function (response) {
+        listLabels.value = response.data;
+    })
+        .catch(function (error) {
+            console.log(error);
         });
 }
 
@@ -321,7 +332,7 @@ function storeGood(){
                                                     <v-toolbar title="Unit form"></v-toolbar>
 
                                                     <v-card-text class="text-h2 pa-12">
-                                                        <form @submit.prevent>
+                                                        <v-form @submit.prevent>
                                                             <v-container>
                                                                 <v-row>
                                                                     <v-text-field v-model="formUnit.name"
@@ -378,8 +389,19 @@ function storeGood(){
                                                                         </v-dialog>
                                                                     </v-col>
                                                                 </v-row>
+                                                                <v-row>
+                                                                    <v-col cols="4">
+                                                                        <v-select v-model="formUnit.labels"
+                                                                                  :items="listLabels"
+                                                                                  :item-value="'id'"
+                                                                                  :item-title="'name'"
+                                                                                  label="Labels"
+                                                                                  multiple
+                                                                        ></v-select>
+                                                                    </v-col>
+                                                                </v-row>
                                                             </v-container>
-                                                        </form>
+                                                        </v-form>
                                                     </v-card-text>
 
                                                     <v-card-actions class="justify-end">
