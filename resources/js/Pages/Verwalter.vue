@@ -10,6 +10,16 @@ const props = defineProps({
     uris: Object,
 })
 onMounted(()=>{
+    headersUnits.value = [
+        {
+            title: 'name',
+            key: 'name',
+        },
+        {
+            title: 'labels',
+            key: 'labels',
+        },
+    ];
     headersGoods.value = [
         {
             title: 'name',
@@ -20,6 +30,24 @@ onMounted(()=>{
         {
             title: 'rus',
             key: 'rus',
+        },
+    ];
+    headersCountries.value = [
+        {
+            title: 'flag',
+            key: 'flag',
+        },
+        {
+            title: 'name',
+            key: 'name',
+        },
+        {
+            title: 'codeTelefon',
+            key: 'codeTelefon',
+        },
+        {
+            title: 'codeISO',
+            key: 'codeISO',
         },
     ]
 
@@ -40,8 +68,10 @@ let listCountries = ref();
 let listLabels = ref();
 let searchUnits = ref('');
 let searchGoods = ref('');
+let headersUnits = ref('');
 let headersGoods = ref([]);
 let headersProducts = ref([]);
+let headersCountries = ref();
 let searchProducts = ref('');
 let tab = ref();
 let selectedUris = ref([]);
@@ -176,9 +206,9 @@ function storeUri(){
 }
 function storeProduct(){
     formProduct.post(route('api.product.store'), {
-        replace: false,
+        replace: true,
         preserveState: true,
-        preserveScroll: false,
+        preserveScroll: true,
         onSuccess: ()=> {
             formProduct.reset();
         },
@@ -420,6 +450,7 @@ function storeGood(){
                                 </v-row>
 
                                 <v-data-table :items="listUnits"
+                                              :headers="headersUnits"
                                               :search="searchUnits"
                                               items-per-page="12"
                                               density="compact"
@@ -429,6 +460,11 @@ function storeGood(){
                                         <Link :href="route('unit.show', item.id)">
                                             {{ item.name }}
                                         </Link>
+                                    </template>
+                                    <template v-slot:item.labels="{item}">
+                                        <v-chip v-for="(label, index) in item.labels">
+                                            {{label.name}}
+                                        </v-chip>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
@@ -448,11 +484,9 @@ function storeGood(){
                                     flat
                                     color="grey"
                                 >
-                                    <v-data-table
-                                        :headers="headersProducts"
-                                        :items="listProducts"
-                                        :search="searchProducts"
-                                    >
+                                    <v-data-table :headers="headersProducts"
+                                                  :items="listProducts"
+                                                  :search="searchProducts">
                                         <template v-slot:top>
                                             <v-row>
                                                 <v-col cols="9">
@@ -550,6 +584,7 @@ function storeGood(){
 
                             <v-tabs-window-item value="seven">
                                 <v-data-table :items="listCountries"
+                                              :headers="headersCountries"
                                               density="compact"
                                               hover="hover"
                                 ></v-data-table>
