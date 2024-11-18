@@ -587,7 +587,13 @@ function storeGood(){
                                               :headers="headersCountries"
                                               density="compact"
                                               hover="hover"
-                                ></v-data-table>
+                                >
+                                    <template v-slot:item.flag="{item}">
+                                        <v-img :src="item.flag"
+                                               width="50"
+                                        ></v-img>
+                                    </template>
+                                </v-data-table>
                             </v-tabs-window-item>
 
                         </v-tabs-window>
