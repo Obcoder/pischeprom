@@ -18,7 +18,7 @@
                 <v-list-item>
                     <v-list>
                         <v-list-item v-for="product in listProducts">
-                            {{product.name}}
+                            {{product.rus}}
                         </v-list-item>
                     </v-list>
                 </v-list-item>
