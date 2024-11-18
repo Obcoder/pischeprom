@@ -13,7 +13,8 @@ class CountryController extends Controller
      */
     public function index()
     {
-        return Country::all();
+        $countries = Country::all();
+        return $countries;
     }
 
     /**
