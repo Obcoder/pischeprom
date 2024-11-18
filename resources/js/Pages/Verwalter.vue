@@ -243,23 +243,23 @@ function storeGood(){
                         <v-tab value="four">
                             Units
                         </v-tab>
+                        <v-tab value="three">
+                            Products
+                        </v-tab>
                         <v-tab value="one">
                             Goods
                         </v-tab>
                         <v-tab value="two">
                             Manufacturers
                         </v-tab>
-                        <v-tab value="three">
-                            Products
-                        </v-tab>
-                        <v-tab value="five">
-                            Uris
-                        </v-tab>
                         <v-tab value="six">
                             Categories
                         </v-tab>
                         <v-tab value="seven">
                             Countries
+                        </v-tab>
+                        <v-tab value="five">
+                            Uris
                         </v-tab>
                     </v-tabs>
 

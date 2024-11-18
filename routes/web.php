@@ -29,6 +29,9 @@ Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
 Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
     ->name('unit.show');
+Route::get('Seaprom', function (){
+    return Inertia::render('Seaprom');
+});
 
 //                     A         P         I
 //                          G         E         T
