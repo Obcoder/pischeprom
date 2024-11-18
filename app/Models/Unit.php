@@ -18,4 +18,10 @@ class Unit extends Model
         return $this->belongsToMany(Uri::class)
             ->using(unit_uri::class);
     }
+
+    public function labels()
+    {
+        return $this->belongsToMany(Label::class)
+            ->using(label_unit::class);
+    }
 }
