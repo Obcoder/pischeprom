@@ -43,7 +43,7 @@ onMounted(()=>{
         },
         {
             title: 'сodeTelefon',
-            value: 'сodeTelefon',
+            key: 'сodeTelefon',
         },
         {
             title: 'сodeISO',
