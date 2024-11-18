@@ -17,6 +17,7 @@ class UnitController extends Controller
     {
         $units = Unit::with('uris')
             ->with('labels')
+            ->orderByDesc('created_at')
             ->get();
 
         return $units;
