@@ -26,6 +26,7 @@
         </v-navigation-drawer>
 
         <v-app-bar color="#800000"
+                   collapse
         >
             <template v-slot:prepend>
                 <v-app-bar-nav-icon></v-app-bar-nav-icon>
