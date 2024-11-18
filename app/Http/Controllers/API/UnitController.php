@@ -38,6 +38,7 @@ class UnitController extends Controller
     {
         $unit = Unit::create($request->all());
         $unit->uris()->attach($request->input('uris'));
+        $unit->labels()->attach($request->input('labels'));
     }
 
     /**
