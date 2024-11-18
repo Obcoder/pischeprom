@@ -46,8 +46,8 @@ onMounted(()=>{
             value: 'сodeTelefon',
         },
         {
-            title: 'codeISO',
-            key: 'codeISO',
+            title: 'сodeISO',
+            key: 'сodeISO',
         },
         {
             title: 'created_at',
