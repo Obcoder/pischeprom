@@ -15,6 +15,13 @@
                 <v-list-item>
                     <Link :href="route('goods')">Все товары</Link>
                 </v-list-item>
+                <v-list-item>
+                    <v-list>
+                        <v-list-item v-for="product in listProducts">
+                            {{product.name}}
+                        </v-list-item>
+                    </v-list>
+                </v-list-item>
             </v-list>
         </v-navigation-drawer>
 
@@ -95,13 +102,14 @@
 </template>
 
 <script setup>
-import { Head, Link } from "@inertiajs/vue3";
+import {Head, Link, router} from "@inertiajs/vue3";
 import { logo } from "@/Pages/Helpers/consts.js";
+import {onMounted, ref} from "vue";
+import axios from "axios";
 
 const props = defineProps({
     categories: Object,
 })
-
 const links = [
     'Home',
     'About Us',
@@ -110,5 +118,19 @@ const links = [
     'Blog',
     'Contact Us',
 ];
+let listProducts = ref();
+
+onMounted(()=>{
+    indexProducts();
+})
+
+function indexProducts(){
+    axios.get(route('api.products')).then(function (response) {
+        listProducts.value = response.data;
+    })
+        .catch(function (error) {
+            console.log(error);
+        });
+}
 
 </script>
