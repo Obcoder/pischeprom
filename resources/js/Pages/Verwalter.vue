@@ -486,7 +486,9 @@ function storeGood(){
                                 >
                                     <v-data-table :headers="headersProducts"
                                                   :items="listProducts"
-                                                  :search="searchProducts">
+                                                  :search="searchProducts"
+                                                  items-per-page="16"
+                                    >
                                         <template v-slot:top>
                                             <v-row>
                                                 <v-col cols="9">
@@ -496,6 +498,7 @@ function storeGood(){
                                                         label="Filter products"
                                                         prepend-inner-icon="mdi-magnify"
                                                         variant="outlined"
+                                                        clearable
                                                     ></v-text-field>
                                                 </v-col>
                                                 <v-col cols="3">
