@@ -7,7 +7,9 @@ const props = defineProps({
 let da = new Date();
 function timeDiff(time){
     let d = new Date();
-    return Math.abs(d - time);
+    let diffMilliseconds = d - Date.parse(time);
+    let denominator = 1000 * 3600 * 24;
+    return Math.round(diffMilliseconds/denominator);
 }
 </script>
 
@@ -56,21 +58,15 @@ function timeDiff(time){
                                 </v-chip>
                             </v-col>
                             <v-col>
-                                <v-sheet>
-                                    {{stage.pivot.startDate}}
-                                </v-sheet>
                                 <v-sheet class="font-sans text-sm">
-                                    {{date.format(stage.startDate, 'normalDate')}}
+                                    {{date.format(stage.pivot.startDate, 'normalDate')}}
                                 </v-sheet>
                                 <v-sheet>
-                                    {{date.format(stage.startDate, 'year')}}
+                                    {{date.format(stage.pivot.startDate, 'year')}}
                                 </v-sheet>
                                 <v-chip color="red-darken-4">
-                                    {{Math.round((da - Date.parse(stage.pivot.startDate))/(1000 * 3600 * 24))}}
+                                    {{timeDiff(stage.pivot.startDate)}}
                                 </v-chip>
-                                <div class="bg-zinc-100 text-zinc-900">
-                                    {{timeDiff(stage.startDate)}}
-                                </div>
                             </v-col>
                         </v-row>
                     </v-card-text>
