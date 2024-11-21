@@ -58,14 +58,17 @@ function timeDiff(time){
                                 </v-chip>
                             </v-col>
                             <v-col>
-                                <v-sheet class="font-sans text-sm">
-                                    {{date.format(stage.pivot.startDate, 'normalDate')}}
-                                </v-sheet>
-                                <v-sheet>
-                                    {{date.format(stage.pivot.startDate, 'year')}}
-                                </v-sheet>
-                                <v-card title="Дней прошло">
+                                <v-card title="Timing">
+                                    <v-card-subtitle>
+                                        <v-sheet class="font-sans text-sm">
+                                            {{date.format(stage.pivot.startDate, 'normalDate')}}
+                                        </v-sheet>
+                                        <v-sheet>
+                                            {{date.format(stage.pivot.startDate, 'year')}}
+                                        </v-sheet>
+                                    </v-card-subtitle>
                                     <v-card-text>
+                                        Дней прошло:
                                         <v-chip>
                                             {{timeDiff(stage.pivot.startDate)}}
                                         </v-chip>
