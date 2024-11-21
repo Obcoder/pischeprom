@@ -18,7 +18,7 @@ function timeDiff(time){
 
     <v-container>
         <v-row>
-            <v-col cols="4">
+            <v-col cols="2">
                 <v-card>
                     <v-card-title class="bg-orange-accent-3">
                         {{unit.name}}</v-card-title>
@@ -43,7 +43,7 @@ function timeDiff(time){
                     </v-card-subtitle>
                 </v-card>
             </v-col>
-            <v-col cols="3">
+            <v-col>
                 <v-card>
                     <v-card-title class="bg-gray-100">
                         Stages
