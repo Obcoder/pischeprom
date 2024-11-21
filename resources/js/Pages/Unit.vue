@@ -66,7 +66,7 @@ function timeDiff(time){
                                     {{date.format(stage.startDate, 'year')}}
                                 </v-sheet>
                                 <v-chip class="text-red-700">
-                                    {{da - Date.parse(stage.pivot.startDate)}}
+                                    {{Math.round(da - Date.parse(stage.pivot.startDate) / (1000 * 3600 * 24))}}
                                 </v-chip>
                                 <div class="bg-zinc-100 text-zinc-900">
                                     {{timeDiff(stage.startDate)}}
