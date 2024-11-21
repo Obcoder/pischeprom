@@ -58,7 +58,7 @@ const props = defineProps({
                                     {{date.format(stage.created_at, 'year')}}
                                 </v-sheet>
                                 <v-chip>
-                                    {{(Date.now() - Date.parse(stage.created_at)).toString()}}
+                                    {{(Date.now() - Date.parse(stage.created_at.toString()))}}
                                 </v-chip>
                             </v-col>
                         </v-row>
