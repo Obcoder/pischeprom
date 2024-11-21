@@ -57,7 +57,7 @@ function timeDiff(time){
                             </v-col>
                             <v-col cols="3">
                                 <v-sheet>
-                                    {{stage.startDate}}
+                                    {{stage.pivot}}
                                 </v-sheet>
                                 <v-sheet class="font-sans text-sm">
                                     {{date.format(stage.startDate, 'normalDate')}}
@@ -66,7 +66,7 @@ function timeDiff(time){
                                     {{date.format(stage.startDate, 'year')}}
                                 </v-sheet>
                                 <v-chip class="text-red-700">
-                                    Now - StartDate{{Date.now() - stage.startDate}}
+                                    {{Date.now() - stage.startDate}}
                                 </v-chip>
                                 <div class="bg-zinc-100 text-zinc-900">
                                     {{timeDiff(stage.startDate)}}
