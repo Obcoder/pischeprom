@@ -4,7 +4,7 @@ const date = useDate()
 const props = defineProps({
     unit: Object,
 })
-
+let da = new Date();
 function timeDiff(time){
     let d = new Date();
     return Math.abs(d - time);
@@ -50,12 +50,12 @@ function timeDiff(time){
                     </v-card-title>
                     <v-card-text class="text-amber">
                         <v-row v-for="stage in unit.stages">
-                            <v-col cols="8">
+                            <v-col>
                                 <v-chip >
                                     {{stage.name}}
                                 </v-chip>
                             </v-col>
-                            <v-col cols="3">
+                            <v-col>
                                 <v-sheet>
                                     {{stage.pivot.startDate}}
                                 </v-sheet>
@@ -66,7 +66,7 @@ function timeDiff(time){
                                     {{date.format(stage.startDate, 'year')}}
                                 </v-sheet>
                                 <v-chip class="text-red-700">
-                                    {{new Date()}}
+                                    {{da - stage.pivot.startDate}}
                                 </v-chip>
                                 <div class="bg-zinc-100 text-zinc-900">
                                     {{timeDiff(stage.startDate)}}
