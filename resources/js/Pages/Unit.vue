@@ -4,6 +4,10 @@ const date = useDate()
 const props = defineProps({
     unit: Object,
 })
+
+function timeDiff(time){
+    return new Date() - time;
+}
 </script>
 
 <template>
@@ -62,6 +66,9 @@ const props = defineProps({
                                 </v-chip>
                                 <div>
                                     {{Date.now()}}
+                                </div>
+                                <div>
+                                    {{timeDiff(stage.created_at)}}
                                 </div>
                             </v-col>
                         </v-row>
