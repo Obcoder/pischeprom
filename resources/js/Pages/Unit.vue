@@ -1,4 +1,6 @@
 <script setup>
+import { useDate } from 'vuetify'
+const date = useDate()
 const props = defineProps({
     unit: Object,
 })
@@ -49,8 +51,11 @@ const props = defineProps({
                                 </v-chip>
                             </v-col>
                             <v-col cols="3">
+                                <v-sheet class="font-sans text-sm">
+                                    {{date.format(stage.created_at, 'normalDate')}}
+                                </v-sheet>
                                 <v-sheet>
-                                    {{stage.created_at}}
+                                    {{date.format(stage.created_at, 'year')}}
                                 </v-sheet>
                             </v-col>
                         </v-row>
