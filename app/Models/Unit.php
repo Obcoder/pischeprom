@@ -27,6 +27,7 @@ class Unit extends Model
     public function stages()
     {
         return $this->belongsToMany(Stage::class)
-            ->using(stage_unit::class);
+            ->using(stage_unit::class)
+            ->withPivot('startDate', 'endDate');
     }
 }
