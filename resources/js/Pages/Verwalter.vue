@@ -487,7 +487,9 @@ function storeGood(){
                                     <v-data-table :headers="headersProducts"
                                                   :items="listProducts"
                                                   :search="searchProducts"
-                                                  items-per-page="16"
+                                                  items-per-page="24"
+                                                  density="compact"
+                                                  hover="hover"
                                     >
                                         <template v-slot:top>
                                             <v-row>
@@ -588,7 +590,7 @@ function storeGood(){
                             <v-tabs-window-item value="seven">
                                 <v-data-table :items="listCountries"
                                               :headers="headersCountries"
-                                              items-per-page="12"
+                                              items-per-page="20"
                                               density="compact"
                                               hover="hover"
                                 >
