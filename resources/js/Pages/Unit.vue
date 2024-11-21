@@ -45,7 +45,7 @@ const props = defineProps({
                     </v-card-title>
                     <v-card-text class="text-amber">
                         <v-row v-for="stage in unit.stages">
-                            <v-col cols="9">
+                            <v-col cols="8">
                                 <v-chip >
                                     {{stage.name}}
                                 </v-chip>
@@ -56,6 +56,9 @@ const props = defineProps({
                                 </v-sheet>
                                 <v-sheet>
                                     {{date.format(stage.created_at, 'year')}}
+                                </v-sheet>
+                                <v-sheet>
+                                    {{Date.now() - stage.created_at}}
                                 </v-sheet>
                             </v-col>
                         </v-row>

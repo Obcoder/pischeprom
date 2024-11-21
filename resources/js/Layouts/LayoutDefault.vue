@@ -98,7 +98,7 @@
                 {{ link }}
             </v-btn>
             <v-col class="text-center mt-4" cols="12">
-                {{ new Date().getFullYear() }} — <strong>ООО "Пищепром-сервер"</strong>
+                2022 - {{ new Date().getFullYear() }} — <strong>ООО "Пищепром-сервер"</strong>
             </v-col>
         </v-row>
     </v-footer>
