@@ -49,6 +49,7 @@ class UnitController extends Controller
         $data = [
             'unit' => Unit::with('uris')
                 ->with('labels')
+                ->with('stages')
                 ->findOrFail($id),
         ];
         return Inertia::render('Unit', $data);

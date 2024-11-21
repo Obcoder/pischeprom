@@ -36,7 +36,18 @@ const props = defineProps({
                     </v-card-subtitle>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title class="bg-gray-100">
+                        Stages
+                    </v-card-title>
+                    <v-card-text class="text-amber">
+                        <v-chip v-for="stage in unit.stages">
+                            {{stage.name}}
+                        </v-chip>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-col></v-col>
         </v-row>
     </v-container>

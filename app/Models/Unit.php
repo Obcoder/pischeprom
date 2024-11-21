@@ -24,4 +24,9 @@ class Unit extends Model
         return $this->belongsToMany(Label::class)
             ->using(label_unit::class);
     }
+    public function stages()
+    {
+        return $this->belongsToMany(Stage::class)
+            ->using(stage_unit::class);
+    }
 }
