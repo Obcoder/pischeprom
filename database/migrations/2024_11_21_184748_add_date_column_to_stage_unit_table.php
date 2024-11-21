@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('stage_unit', function (Blueprint $table) {
-            $table->date('startDate')->default(DB::raw('CURRENT_TIMESTAMP'))->after('id');
+            $table->date('startDate')->nullable()->after('id');
             $table->date('endDate')->nullable()->after('startDate');
         });
     }
