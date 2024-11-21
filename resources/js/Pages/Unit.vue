@@ -66,12 +66,12 @@ function timeDiff(time){
                                     {{date.format(stage.startDate, 'year')}}
                                 </v-sheet>
                                 <v-chip>
-                                    {{Math.abs(Date.now() - Date.parse(stage.startDate))}}
+                                    {{new Date(Date.now()) - stage.startDate}}
                                 </v-chip>
                                 <div>
                                     {{Date.now()}}
                                 </div>
-                                <div class="bg-zinc-200 text-bg-zinc-900">
+                                <div class="bg-zinc-200 text-zinc-900">
                                     {{timeDiff(stage.startDate)}}
                                 </div>
                             </v-col>
