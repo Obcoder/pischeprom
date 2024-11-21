@@ -68,11 +68,7 @@ function timeDiff(time){
                                 <v-chip>
                                     {{new Date(Date.now()) - stage.startDate}}
                                 </v-chip>
-                                <v-chip>Date now</v-chip>
-                                <div>
-                                    {{ new Date.now()}}
-                                </div>
-                                <div class="bg-zinc-200 text-zinc-900">
+                                <div class="bg-zinc-100 text-zinc-900">
                                     {{timeDiff(stage.startDate)}}
                                 </div>
                             </v-col>
