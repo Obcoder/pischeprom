@@ -6,7 +6,8 @@ const props = defineProps({
 })
 
 function timeDiff(time){
-    return new Date() - time;
+    let d = new Date();
+    return Math.abs(d - time);
 }
 </script>
 
