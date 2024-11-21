@@ -90,6 +90,7 @@ const formProduct = useForm({
     rus: null,
     eng: null,
     zh: null,
+    es: null,
 })
 const formGood = useForm({
     name: null,
@@ -206,9 +207,9 @@ function storeUri(){
 }
 function storeProduct(){
     formProduct.post(route('api.product.store'), {
-        replace: true,
+        replace: false,
         preserveState: true,
-        preserveScroll: true,
+        preserveScroll: false,
         onSuccess: ()=> {
             formProduct.reset();
         },
@@ -538,6 +539,12 @@ function storeGood(){
                                                                         <v-text-field
                                                                             v-model="formProduct.zh"
                                                                             label="Product zh"
+                                                                        ></v-text-field>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-text-field
+                                                                            v-model="formProduct.es"
+                                                                            label="Product es"
                                                                         ></v-text-field>
                                                                     </v-row>
                                                                 </v-container>

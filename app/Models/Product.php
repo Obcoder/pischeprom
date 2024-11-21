@@ -13,5 +13,6 @@ class Product extends Model
         'rus',
         'eng',
         'zh',
+        'es',
     ];
 }
