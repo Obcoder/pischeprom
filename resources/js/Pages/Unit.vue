@@ -57,19 +57,19 @@ function timeDiff(time){
                             </v-col>
                             <v-col cols="3">
                                 <v-sheet class="font-sans text-sm">
-                                    {{date.format(stage.created_at, 'normalDate')}}
+                                    {{date.format(stage.startDate, 'normalDate')}}
                                 </v-sheet>
                                 <v-sheet>
-                                    {{date.format(stage.created_at, 'year')}}
+                                    {{date.format(stage.startDate, 'year')}}
                                 </v-sheet>
                                 <v-chip>
-                                    {{Math.abs(Date.now() - Date.parse(stage.created_at)) / 60}}
+                                    {{Math.abs(Date.now() - Date.parse(stage.startDate))}}
                                 </v-chip>
                                 <div>
                                     {{Date.now()}}
                                 </div>
                                 <div>
-                                    {{timeDiff(stage.created_at)}}
+                                    {{timeDiff(stage.startDate}}
                                 </div>
                             </v-col>
                         </v-row>
