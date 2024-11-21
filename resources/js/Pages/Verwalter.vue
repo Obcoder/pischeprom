@@ -522,7 +522,7 @@ function storeGood(){
 
                                                         <v-card>
                                                             <v-card-text>
-                                                                <v-container>
+                                                                <v-form @submit.prevent>
                                                                     <v-row>
                                                                         <v-text-field
                                                                             v-model="formProduct.rus"
@@ -547,7 +547,7 @@ function storeGood(){
                                                                             label="Product es"
                                                                         ></v-text-field>
                                                                     </v-row>
-                                                                </v-container>
+                                                                </v-form>
                                                             </v-card-text>
 
                                                             <v-card-actions>
