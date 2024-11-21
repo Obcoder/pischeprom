@@ -69,7 +69,7 @@ function timeDiff(time){
                                     {{Date.now()}}
                                 </div>
                                 <div>
-                                    {{timeDiff(stage.startDate}}
+                                    {{timeDiff(stage.startDate)}}
                                 </div>
                             </v-col>
                         </v-row>
