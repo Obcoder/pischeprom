@@ -57,8 +57,8 @@ onMounted(()=>{
         },
         {
             title: 'entity',
-            key: 'entity_classification_id',
-        }
+            key: 'entity',
+        },
     ]
 
     getManufacturers();
