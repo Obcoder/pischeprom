@@ -658,7 +658,7 @@ function storeGood(){
                                         </v-row>
                                     </template>
                                     <template v-slot:item.entity="{item}">
-                                        {{item.entityClass.name}}
+                                        {{item.entity.name}}
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
