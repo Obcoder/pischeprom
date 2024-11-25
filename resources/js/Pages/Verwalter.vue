@@ -57,7 +57,7 @@ onMounted(()=>{
         },
         {
             title: 'entity',
-            key: 'entity',
+            key: 'entityClass',
         },
     ]
 
@@ -658,7 +658,7 @@ function storeGood(){
                                         </v-row>
                                     </template>
                                     <template v-slot:item.entity="{item}">
-                                        {{item.entity.name}}
+                                        {{item.entityClass.name}}
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
