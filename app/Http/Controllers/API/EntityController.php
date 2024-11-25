@@ -11,9 +11,14 @@ class EntityController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $entities = Entity::all();
+        $like = $request->search;
+        $entities = Entity::where(function ($query) use ($like) {
+            $query->where('name', 'like', '%' . $like . '%');
+        })
+            ->orderBy('name')
+            ->get();
         return $entities;
     }
 
