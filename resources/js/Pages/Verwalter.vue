@@ -50,6 +50,16 @@ onMounted(()=>{
             key: 'сodeISO',
         },
     ];
+    headersEntities.value = [
+        {
+            title: 'name',
+            key: 'name',
+        },
+        {
+            title: 'entity',
+            key: 'entity_classification_id',
+        }
+    ]
 
     getManufacturers();
     getProducts();
@@ -75,6 +85,7 @@ let headersUnits = ref('');
 let headersGoods = ref([]);
 let headersProducts = ref([]);
 let headersCountries = ref();
+let headersEntities = ref();
 let searchProducts = ref('');
 let tab = ref();
 let selectedUris = ref([]);
@@ -644,6 +655,9 @@ function storeGood(){
                                             </v-col>
                                             <v-col cols="3"></v-col>
                                         </v-row>
+                                    </template>
+                                    <template v-slot:item.entity="{item}">
+                                        {{item.entityClass.name}}
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>

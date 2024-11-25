@@ -8,4 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class Entity extends Model
 {
     use HasFactory;
+
+    public function entityClass()
+    {
+        return $this->belongsTo(EntityClassification::class)
+            ->withDefault();
+    }
 }

@@ -17,8 +17,10 @@ class EntityController extends Controller
         $entities = Entity::where(function ($query) use ($like) {
             $query->where('name', 'like', '%' . $like . '%');
         })
+            ->with('entityClass')
             ->orderBy('name')
             ->get();
+
         return $entities;
     }
 
