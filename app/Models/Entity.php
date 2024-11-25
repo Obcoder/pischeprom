@@ -11,7 +11,6 @@ class Entity extends Model
 
     public function entityClass()
     {
-        return $this->belongsTo(EntityClassification::class)
-            ->withDefault();
+        return $this->hasOne(EntityClassification::class)->withDefault();
     }
 }
