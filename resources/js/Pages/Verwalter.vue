@@ -642,6 +642,7 @@ function storeGood(){
 
                             <v-tabs-window-item value="eight">
                                 <v-data-table :items="listEntities"
+                                              :headers="headersEntities"
                                               density="compact"
                                               hover="hover"
                                 >
