@@ -58,6 +58,7 @@ onMounted(()=>{
     getCategories();
     getCountries();
     apiIndexLabels();
+    apiIndexEntities();
 })
 let manufacturers = ref();
 let listProducts = ref();
@@ -66,8 +67,10 @@ let listUris = ref();
 let listCategories = ref();
 let listCountries = ref();
 let listLabels = ref();
+let listEntities = ref();
 let searchUnits = ref('');
 let searchGoods = ref('');
+let searchEntities = ref('');
 let headersUnits = ref('');
 let headersGoods = ref([]);
 let headersProducts = ref([]);
@@ -183,6 +186,18 @@ function apiIndexLabels(){
             console.log(error);
         });
 }
+function apiIndexEntities(like){
+    axios.get(route('api.entities'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response) {
+        listEntities.value = response.data;
+    })
+        .catch(function (error) {
+            console.log(error);
+        });
+}
 
 function storeUnit(){
     formUnit.uris = selectedUris.value;
@@ -212,6 +227,7 @@ function storeProduct(){
         preserveScroll: false,
         onSuccess: ()=> {
             formProduct.reset();
+            getProducts();
         },
     });
 }
@@ -261,6 +277,9 @@ function storeGood(){
                         </v-tab>
                         <v-tab value="five">
                             Uris
+                        </v-tab>
+                        <v-tab value="eight">
+                            Entities
                         </v-tab>
                     </v-tabs>
 
@@ -606,6 +625,25 @@ function storeGood(){
                                                width="50"
                                                class="border border-1 border-gray-200"
                                         ></v-img>
+                                    </template>
+                                </v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="eight">
+                                <v-data-table :items="listEntities"
+                                              density="compact"
+                                              hover="hover"
+                                >
+                                    <template v-slot:top>
+                                        <v-row>
+                                            <v-col cols="9">
+                                                <v-text-field v-model="searchEntities"
+                                                              @input="apiIndexEntities(searchEntities)"
+                                                              placeholder="search"
+                                                ></v-text-field>
+                                            </v-col>
+                                            <v-col cols="3"></v-col>
+                                        </v-row>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>

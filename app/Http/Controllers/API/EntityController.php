@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Entity;
 use Illuminate\Http\Request;
 
 class EntityController extends Controller
@@ -12,7 +13,8 @@ class EntityController extends Controller
      */
     public function index()
     {
-        //
+        $entities = Entity::all();
+        return $entities;
     }
 
     /**

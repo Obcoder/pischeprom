@@ -51,6 +51,8 @@ Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryControlle
     ->name('index', 'api.countries');
 Route::apiResource('api/labels', \App\Http\Controllers\API\LabelController::class)
     ->name('index', 'api.labels');
+Route::apiResource('api/entities', \App\Http\Controllers\API\EntityController::class)
+    ->name('index', 'api.entities');
 
 
 //                           P        O         S         T
