@@ -4,6 +4,7 @@ import {onMounted, ref} from "vue";
 const date = useDate()
 const props = defineProps({
     unit: Object,
+    products: Object,
 })
 let headersConsumptions = ref();
 let da = new Date();
@@ -115,7 +116,7 @@ onMounted(()=>{
                                   class="text-sm"
                     >
                         <template v-slot:item.product_id="{item}">
-                            {{item.product}}
+                            {{item}}
                         </template>
                     </v-data-table>
                 </v-card>
