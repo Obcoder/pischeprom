@@ -89,6 +89,9 @@ function timeDiff(time){
                                   density="comfortable"
                                   hover="hover"
                     ></v-data-table>
+                    <v-sheet v-for="consumption in unit.consumptions">
+                        {{consumption.products}}
+                    </v-sheet>
                 </v-card>
             </v-col>
         </v-row>
