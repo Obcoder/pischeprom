@@ -35,7 +35,7 @@ class Unit extends Model
     }
     public function productConsumption()
     {
-        return $this->hasOne(Product::class)
+        return $this->hasOneThrough(Product::class, Consumption::class)
             ->withDefault();
     }
 }
