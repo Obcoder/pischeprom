@@ -115,7 +115,7 @@ onMounted(()=>{
                                   class="text-sm"
                     >
                         <template v-slot:item.product_id="{item}">
-                            {{item}}
+                            {{item.product}}
                         </template>
                     </v-data-table>
                 </v-card>
