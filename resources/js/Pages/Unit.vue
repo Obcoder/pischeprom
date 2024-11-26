@@ -1,9 +1,11 @@
 <script setup>
 import { useDate } from 'vuetify'
+import {onMounted, ref} from "vue";
 const date = useDate()
 const props = defineProps({
     unit: Object,
 })
+let headersConsumptions = ref();
 let da = new Date();
 function timeDiff(time){
     let d = new Date();
@@ -11,6 +13,27 @@ function timeDiff(time){
     let denominator = 1000 * 3600 * 24;
     return Math.round(diffMilliseconds/denominator);
 }
+
+onMounted(()=>{
+    headersConsumptions.value = [
+        {
+            title: 'created',
+            key: 'created_at',
+        },
+        {
+            title: 'Product',
+            key: 'product_id',
+        },
+        {
+            title: 'Quantity',
+            key: 'quantity',
+        },
+        {
+            title: 'Measure',
+            key: 'measure_id',
+        },
+    ]
+})
 </script>
 
 <template>
@@ -86,9 +109,14 @@ function timeDiff(time){
             <v-col cols="3">
                 <v-card title="Consumptions">
                     <v-data-table :items="unit.consumptions"
+                                  :headers="headersConsumptions"
                                   density="comfortable"
                                   hover="hover"
-                    ></v-data-table>
+                    >
+                        <template v-slot:item.Product="{item}">
+                            {{item.consumption.product}}
+                        </template>
+                    </v-data-table>
                 </v-card>
             </v-col>
         </v-row>
