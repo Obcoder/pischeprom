@@ -33,4 +33,9 @@ class Unit extends Model
     public function consumptions(){
         return $this->hasMany(Consumption::class);
     }
+    public function productConsumption()
+    {
+        return $this->belongsTo(Product::class)
+            ->withDefault();
+    }
 }

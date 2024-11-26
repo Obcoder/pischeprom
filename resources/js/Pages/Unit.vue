@@ -22,7 +22,7 @@ onMounted(()=>{
         },
         {
             title: 'Product',
-            key: 'consumption.product',
+            key: 'product_id',
         },
         {
             title: 'Quantity',
