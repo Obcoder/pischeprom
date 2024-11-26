@@ -22,7 +22,7 @@ onMounted(()=>{
         },
         {
             title: 'Product',
-            key: 'product_id',
+            key: 'productsConsumption',
         },
         {
             title: 'Quantity',
@@ -106,15 +106,16 @@ onMounted(()=>{
             <v-col></v-col>
         </v-row>
         <v-row>
-            <v-col cols="3">
+            <v-col cols="4">
                 <v-card title="Consumptions">
                     <v-data-table :items="unit.consumptions"
                                   :headers="headersConsumptions"
                                   density="comfortable"
                                   hover="hover"
+                                  class="text-sm"
                     >
-                        <template v-slot:item.Product="{item}">
-                            {{item.consumption.product}}
+                        <template v-slot:item.productsConsumption="{item}">
+                            {{item.productsConsumption.name}}
                         </template>
                     </v-data-table>
                 </v-card>
