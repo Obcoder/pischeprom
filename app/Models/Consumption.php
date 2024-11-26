@@ -9,8 +9,4 @@ class Consumption extends Model
 {
     use HasFactory;
 
-    public function product()
-    {
-        return $this->belongsTo(Product::class);
-    }
 }
