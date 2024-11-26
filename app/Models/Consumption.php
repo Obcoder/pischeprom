@@ -11,6 +11,6 @@ class Consumption extends Model
 
     public function product()
     {
-        return $this->hasOne(Product::class);
+        return $this->hasOneThrough(Product::class, Consumption::class);
     }
 }
