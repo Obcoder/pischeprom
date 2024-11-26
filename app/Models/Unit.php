@@ -33,8 +33,4 @@ class Unit extends Model
     public function consumptions(){
         return $this->hasMany(Consumption::class);
     }
-    public function productConsumption()
-    {
-        return $this->hasOneThrough(Product::class, Consumption::class);
-    }
 }
