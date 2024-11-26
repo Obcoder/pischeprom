@@ -31,6 +31,7 @@ class Unit extends Model
             ->withPivot('startDate', 'endDate');
     }
     public function consumptions(){
-        return $this->hasMany(Consumption::class);
+        return $this->hasMany(Consumption::class)
+            ->with('product');
     }
 }
