@@ -114,8 +114,8 @@ onMounted(()=>{
                                   hover="hover"
                                   class="text-sm"
                     >
-                        <template v-slot:item.product="{item}">
-                            {{item.name}}
+                        <template v-slot:item.product_id="{item}">
+                            {{item}}
                         </template>
                     </v-data-table>
                 </v-card>
