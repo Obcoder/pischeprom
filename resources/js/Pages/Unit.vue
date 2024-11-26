@@ -19,7 +19,8 @@ function timeDiff(time){
     </Head>
 
     <v-container>
-        <v-row>
+        <v-row class="h-1/3"
+        >
             <v-col cols="2">
                 <v-card>
                     <v-card-title class="bg-orange-accent-3">
@@ -80,6 +81,16 @@ function timeDiff(time){
                 </v-card>
             </v-col>
             <v-col></v-col>
+        </v-row>
+        <v-row>
+            <v-col cols="3">
+                <v-card title="Consumptions">
+                    <v-data-table :items="unit.consumptions"
+                                  density="comfortable"
+                                  hover="hover"
+                    ></v-data-table>
+                </v-card>
+            </v-col>
         </v-row>
     </v-container>
 </template>

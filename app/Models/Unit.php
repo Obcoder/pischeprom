@@ -30,4 +30,7 @@ class Unit extends Model
             ->using(stage_unit::class)
             ->withPivot('startDate', 'endDate');
     }
+    public function consumptions(){
+        return $this->hasMany(Consumption::class);
+    }
 }
