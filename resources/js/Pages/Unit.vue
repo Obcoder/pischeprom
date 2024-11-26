@@ -114,9 +114,6 @@ onMounted(()=>{
                                   hover="hover"
                                   class="text-sm"
                     >
-                        <template v-slot:item.product="{item}">
-                            {{item.consumptions.product}}
-                        </template>
                     </v-data-table>
                 </v-card>
             </v-col>
