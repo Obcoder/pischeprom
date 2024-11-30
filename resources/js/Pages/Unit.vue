@@ -122,7 +122,7 @@ onMounted(()=>{
                             {{date.format(item.created_at, 'fullDateWithWeekday')}}
                         </template>
                         <template v-slot:item.measure_id="{item}">
-                            {{date.format(item.measure.name)}}
+                            {{item.measure.name}}
                         </template>
                     </v-data-table>
                 </v-card>
