@@ -116,7 +116,7 @@ onMounted(()=>{
                                   class="text-sm"
                     >
                         <template v-slot:item.product_id="{item}">
-                            {{item.product}}
+                            {{item.product.rus}}
                         </template>
                         <template v-slot:item.created_at="{item}">
                             {{date.format(item.created_at, 'fullDateWithWeekday')}}
