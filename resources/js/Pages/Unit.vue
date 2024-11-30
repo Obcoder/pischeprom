@@ -119,7 +119,7 @@ onMounted(()=>{
                             {{item.product.rus}}
                         </template>
                         <template v-slot:item.created_at="{item}">
-                            {{date.format(item.created_at, 'fullDateWithWeekday')}}
+                            {{date.format(item.created_at, 'fullDate')}}
                         </template>
                         <template v-slot:item.measure_id="{item}">
                             {{item.measure.name}}
