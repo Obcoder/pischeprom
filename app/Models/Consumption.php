@@ -14,4 +14,8 @@ class Consumption extends Model
         return $this->belongsTo(Product::class)
             ->withDefault();
     }
+    public function measure(){
+        return $this->belongsTo(Measure::class)
+            ->withDefault();
+    }
 }
