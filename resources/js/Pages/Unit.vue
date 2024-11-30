@@ -118,6 +118,9 @@ onMounted(()=>{
                         <template v-slot:item.product_id="{item}">
                             {{item}}
                         </template>
+                        <template v-slot:item.created_at="{item}">
+                            {{date.format(item.created_at, 'fullDateWithWeekday')}}
+                        </template>
                     </v-data-table>
                 </v-card>
             </v-col>
