@@ -51,7 +51,7 @@ class UnitController extends Controller
             'unit' => Unit::with('uris')
                 ->with('labels')
                 ->with('stages')
-                ->with('consumptions')
+                ->with('consumptions.product')
                 ->findOrFail($id),
         ];
         return Inertia::render('Unit', $data);
