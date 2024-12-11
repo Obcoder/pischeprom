@@ -36,7 +36,7 @@ let show = ref(false);
         <v-row>
             <v-col cols="3">
                 <v-card>
-                    Лецитины
+                    <v-card-title>Лецитины</v-card-title>
                 </v-card>
             </v-col>
             <v-col cols="3">

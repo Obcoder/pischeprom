@@ -60,6 +60,20 @@ onMounted(()=>{
             key: 'entityClass',
         },
     ]
+    headersChecks.value = [
+        {
+            title: 'date',
+            key: 'date',
+        },
+        {
+            title: 'Entity',
+            key: 'entity_id',
+        },
+        {
+            title: 'Amount',
+            key: 'amount',
+        },
+    ]
 
     getManufacturers();
     getProducts();
@@ -69,6 +83,7 @@ onMounted(()=>{
     getCountries();
     apiIndexLabels();
     apiIndexEntities();
+    apiIndexChecks();
 })
 let manufacturers = ref();
 let listProducts = ref();
@@ -78,6 +93,7 @@ let listCategories = ref();
 let listCountries = ref();
 let listLabels = ref();
 let listEntities = ref();
+let listChecks = ref();
 let searchUnits = ref('');
 let searchGoods = ref('');
 let searchEntities = ref('');
@@ -86,6 +102,7 @@ let headersGoods = ref([]);
 let headersProducts = ref([]);
 let headersCountries = ref();
 let headersEntities = ref();
+let headersChecks = ref();
 let searchProducts = ref('');
 let tab = ref();
 let selectedUris = ref([]);
@@ -209,6 +226,14 @@ function apiIndexEntities(like){
             console.log(error);
         });
 }
+function apiIndexChecks(){
+    axios.get(route('api.checks')).then(function (response) {
+        listChecks.value = response.data;
+    })
+        .catch(function (error) {
+            console.log(error);
+        });
+}
 
 function storeUnit(){
     formUnit.uris = selectedUris.value;
@@ -261,7 +286,7 @@ function storeGood(){
 
     <v-container>
         <v-row>
-            <v-col cols="2"></v-col>
+            <v-col cols="1"></v-col>
             <v-col cols="8">
                 <v-card>
                     <v-tabs
@@ -291,6 +316,9 @@ function storeGood(){
                         </v-tab>
                         <v-tab value="eight">
                             Entities
+                        </v-tab>
+                        <v-tab value="nine">
+                            Checks
                         </v-tab>
                     </v-tabs>
 
@@ -660,11 +688,22 @@ function storeGood(){
                                 </v-data-table>
                             </v-tabs-window-item>
 
+                            <--!          C H E C K S          -->
+                            <v-tabs-window-item value="nine">
+                                <v-data-table :items="listChecks"
+                                              :headers="headersChecks"
+                                >
+                                    <template v-slot:item.entity_id="{item}">
+                                        {{item.entity.name}}
+                                    </template>
+                                </v-data-table>
+                            </v-tabs-window-item>
+
                         </v-tabs-window>
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col cols="2"></v-col>
+            <v-col cols="1"></v-col>
         </v-row>
     </v-container>
 </template>
