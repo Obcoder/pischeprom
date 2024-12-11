@@ -45,7 +45,7 @@ onMounted(()=>{
     <v-container>
         <v-row class="h-1/3"
         >
-            <v-col cols="2">
+            <v-col cols="6">
                 <v-card>
                     <v-card-title class="bg-orange-accent-3">
                         {{unit.name}}</v-card-title>
@@ -70,7 +70,31 @@ onMounted(()=>{
                     </v-card-subtitle>
                 </v-card>
             </v-col>
-            <v-col>
+            <v-col></v-col>
+            <v-col></v-col>
+        </v-row>
+        <v-row>
+            <v-col cols="4">
+                <v-card title="Consumptions">
+                    <v-data-table :items="unit.consumptions"
+                                  :headers="headersConsumptions"
+                                  density="comfortable"
+                                  hover="hover"
+                                  class="text-sm"
+                    >
+                        <template v-slot:item.product_id="{item}">
+                            {{item.product.rus}}
+                        </template>
+                        <template v-slot:item.created_at="{item}">
+                            {{date.format(item.created_at, 'fullDate')}}
+                        </template>
+                        <template v-slot:item.measure_id="{item}">
+                            {{item.measure.name}}
+                        </template>
+                    </v-data-table>
+                </v-card>
+            </v-col>
+            <v-col cols="4">
                 <v-card>
                     <v-card-title class="bg-gray-100">
                         Stages
@@ -102,29 +126,6 @@ onMounted(()=>{
                             </v-col>
                         </v-row>
                     </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col></v-col>
-        </v-row>
-        <v-row>
-            <v-col cols="4">
-                <v-card title="Consumptions">
-                    <v-data-table :items="unit.consumptions"
-                                  :headers="headersConsumptions"
-                                  density="comfortable"
-                                  hover="hover"
-                                  class="text-sm"
-                    >
-                        <template v-slot:item.product_id="{item}">
-                            {{item.product.rus}}
-                        </template>
-                        <template v-slot:item.created_at="{item}">
-                            {{date.format(item.created_at, 'fullDate')}}
-                        </template>
-                        <template v-slot:item.measure_id="{item}">
-                            {{item.measure.name}}
-                        </template>
-                    </v-data-table>
                 </v-card>
             </v-col>
         </v-row>
