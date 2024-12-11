@@ -49,6 +49,11 @@ let show = ref(false);
                     <v-card-title>Масло сливочное</v-card-title>
                 </v-card>
             </v-col>
+            <v-col cols="3">
+                <v-card>
+                    <v-card-title>Агары</v-card-title>
+                </v-card>
+            </v-col>
         </v-row>
         <v-row>
             <v-col>
