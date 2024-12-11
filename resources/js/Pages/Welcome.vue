@@ -39,6 +39,16 @@ let show = ref(false);
                     Лецитины
                 </v-card>
             </v-col>
+            <v-col cols="3">
+                <v-card>
+                    <v-card-title>Молоко сухое</v-card-title>
+                </v-card>
+            </v-col>
+            <v-col cols="3">
+                <v-card>
+                    <v-card-title>Масло сливочное</v-card-title>
+                </v-card>
+            </v-col>
         </v-row>
         <v-row>
             <v-col>
