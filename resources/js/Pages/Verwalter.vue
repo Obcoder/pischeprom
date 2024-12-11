@@ -688,7 +688,7 @@ function storeGood(){
                                 </v-data-table>
                             </v-tabs-window-item>
 
-                            <--!          C H E C K S          -->
+                            <!--          C H E C K S          -->
                             <v-tabs-window-item value="nine">
                                 <v-data-table :items="listChecks"
                                               :headers="headersChecks"
