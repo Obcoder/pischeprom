@@ -14,7 +14,7 @@ class CheckController extends Controller
     public function index()
     {
         $checks = Check::with('entity')
-            ->orderBy('created_at', 'desc')
+            ->orderBy('date', 'desc')
             ->get();
         return $checks;
     }
