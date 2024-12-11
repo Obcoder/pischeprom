@@ -34,6 +34,13 @@ let show = ref(false);
 
     <v-container>
         <v-row>
+            <v-col cols="3">
+                <v-card>
+                    Лецитины
+                </v-card>
+            </v-col>
+        </v-row>
+        <v-row>
             <v-col>
                 <v-card>
                     <v-img
