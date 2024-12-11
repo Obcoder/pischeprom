@@ -692,6 +692,9 @@ function storeGood(){
                             <v-tabs-window-item value="nine">
                                 <v-data-table :items="listChecks"
                                               :headers="headersChecks"
+                                              items-per-page="25"
+                                              density="compact"
+                                              hover="hover"
                                 >
                                     <template v-slot:item.entity_id="{item}">
                                         {{item.entity.name}}
