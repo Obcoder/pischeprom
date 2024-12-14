@@ -59,9 +59,16 @@ let show = ref(false);
         <v-row>
             <v-col cols="4">
                 <v-card>
+                    <v-img height="200"
+                           src="https://storage.yandexcloud.net/cold-reserve/GIElems/shutterstock_1476761888-3.webp"
+                           cover
+                    ></v-img>
                     <v-card-title>
                         {{productsCount + " товарных наименований"}}
                     </v-card-title>
+                    <v-card-text>
+                        Наша работа - поддерживать наиболее возможный ассортимент номенклатуры пищевых добавок, ингредиентов и сырья.
+                    </v-card-text>
                 </v-card>
             </v-col>
         </v-row>
