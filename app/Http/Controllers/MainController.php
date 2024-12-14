@@ -20,11 +20,13 @@ class MainController extends Controller
             'date' => date('Y-m-d'),
                                                  ]);
         $productsCount = Product::count();
+        $goodsCount = Good::count();
 
         $data = [
             'categories' => $categories,
             'goodOfTheDay' => $goodOfTheDay::with('good')->find($goodOfTheDay->id),
             'productsCount' => $productsCount,
+            'goodsCount' => $goodsCount,
         ];
 
         return Inertia::render('Welcome', $data);

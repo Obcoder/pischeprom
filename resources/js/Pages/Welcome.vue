@@ -25,6 +25,7 @@ const props = defineProps({
     },
     goodOfTheDay: Object,
     productsCount: Number,
+    goodsCount: Number,
 });
 let show = ref(false);
 
@@ -65,6 +66,9 @@ let show = ref(false);
                     ></v-img>
                     <v-card-title>
                         {{productsCount + " товарных наименований"}}
+                    </v-card-title>
+                    <v-card-title>
+                        {{goodsCount + " товаров"}}
                     </v-card-title>
                     <v-card-text>
                         ПИЩЕПРОМ-СЕРВЕР - работа по поддержанию наиболее возможного ассортимента номенклатуры пищевых добавок, ингредиентов и сырья.
