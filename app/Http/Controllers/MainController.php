@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\GoodOfTheDay;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -18,10 +19,12 @@ class MainController extends Controller
             'good_id' => $good->id,
             'date' => date('Y-m-d'),
                                                  ]);
+        $productsCount = Product::count();
 
         $data = [
             'categories' => $categories,
             'goodOfTheDay' => $goodOfTheDay::with('good')->find($goodOfTheDay->id),
+            'productsCount' => $productsCount,
         ];
 
         return Inertia::render('Welcome', $data);

@@ -24,6 +24,7 @@ const props = defineProps({
         type: Object,
     },
     goodOfTheDay: Object,
+    productsCount: Number,
 });
 let show = ref(false);
 
@@ -52,6 +53,15 @@ let show = ref(false);
             <v-col cols="3">
                 <v-card>
                     <v-card-title>Агары</v-card-title>
+                </v-card>
+            </v-col>
+        </v-row>
+        <v-row>
+            <v-col cols="4">
+                <v-card>
+                    <v-card-title>
+                        {{productsCount + " товарных наименований"}}
+                    </v-card-title>
                 </v-card>
             </v-col>
         </v-row>
