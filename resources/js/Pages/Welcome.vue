@@ -59,6 +59,13 @@ let show = ref(false);
         </v-row>
         <v-row>
             <v-col cols="4">
+                <v-card title="Акция дня">
+                    <v-card-text>
+                        {{goodOfTheDay.good.name}}
+                    </v-card-text>
+                </v-card>
+            </v-col>
+            <v-col cols="4">
                 <v-card>
                     <v-img height="200"
                            src="https://storage.yandexcloud.net/cold-reserve/GIElems/shutterstock_1476761888-3.webp"
@@ -167,14 +174,6 @@ let show = ref(false);
                             </v-card-text>
                         </div>
                     </v-expand-transition>
-                </v-card>
-            </v-col>
-
-            <v-col>
-                <v-card title="Акция дня">
-                    <v-card-text>
-                        {{goodOfTheDay.good.name}}
-                    </v-card-text>
                 </v-card>
             </v-col>
         </v-row>
