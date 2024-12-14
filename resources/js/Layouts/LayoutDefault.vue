@@ -1,6 +1,7 @@
 <template>
     <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="ПИЩЕПРОМ-СЕРВЕР.рф Пищевые ингредиенты, пищевые добавки, пищевое сырье, поставки для предприятий пищевой отрасли, поддержка технологов, помощь закупщикам и технологам пищевых предприятий">
     </Head>
 
     <v-layout class="rounded rounded-md">
