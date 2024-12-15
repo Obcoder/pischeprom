@@ -32,7 +32,7 @@ Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });
-Route::get('/Ameise/check/{id}/', [\App\Http\Controllers\CheckController::class])
+Route::get('/Ameise/check/{id}/', [\App\Http\Controllers\CheckController::class, 'show'])
     ->name('check.show');
 
 //                     A         P         I
