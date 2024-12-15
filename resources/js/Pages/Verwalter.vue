@@ -74,6 +74,12 @@ onMounted(()=>{
             key: 'amount',
         },
     ]
+    headersComponents.value = [
+        {
+            title: 'name',
+            key: 'name',
+        },
+    ]
 
     getManufacturers();
     getProducts();
@@ -84,7 +90,9 @@ onMounted(()=>{
     apiIndexLabels();
     apiIndexEntities();
     apiIndexChecks();
+    apiIndexComponents();
 })
+let tab = ref();
 let manufacturers = ref();
 let listProducts = ref();
 let listUnits = ref();
@@ -94,9 +102,11 @@ let listCountries = ref();
 let listLabels = ref();
 let listEntities = ref();
 let listChecks = ref();
+let listComponents = ref();
 let searchUnits = ref('');
 let searchGoods = ref('');
 let searchEntities = ref('');
+let searchComponents = ref('');
 let headersUnits = ref('');
 let headersGoods = ref([]);
 let headersProducts = ref([]);
@@ -104,7 +114,6 @@ let headersCountries = ref();
 let headersEntities = ref();
 let headersChecks = ref();
 let searchProducts = ref('');
-let tab = ref();
 let selectedUris = ref([]);
 let dialogUri = ref(false);
 let dialogFormProduct = ref(false);
@@ -126,6 +135,9 @@ const formProduct = useForm({
 const formGood = useForm({
     name: null,
     ava_image: null,
+})
+const  formComponent = useForm({
+    name: null,
 })
 
 function getManufacturers(){
@@ -234,6 +246,13 @@ function apiIndexChecks(){
             console.log(error);
         });
 }
+function apiIndexComponents(){
+    axios.get(route('api.components')).then(function (response) {
+        listComponents.value = response.data;
+    }).catch(function (error) {
+            console.log(error);
+        });
+}
 
 function storeUnit(){
     formUnit.uris = selectedUris.value;
@@ -274,6 +293,17 @@ function storeGood(){
         preserveScroll: true,
         onSuccess: ()=> {
             formGood.reset();
+        },
+    });
+}
+function storeComponent(){
+    formGood.post(route('api.component.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formComponent.reset();
+            apiIndexComponents();
         },
     });
 }
@@ -319,6 +349,9 @@ function storeGood(){
                         </v-tab>
                         <v-tab value="nine">
                             Checks
+                        </v-tab>
+                        <v-tab value="ten">
+                            Components
                         </v-tab>
                     </v-tabs>
 
@@ -699,6 +732,70 @@ function storeGood(){
                                     <template v-slot:item.entity_id="{item}">
                                         {{item.entity.name}}
                                     </template>
+                                </v-data-table>
+                            </v-tabs-window-item>
+                            <!--          E N D  C H E C K S          -->
+
+                            <!--          C O M P O N E N T S          -->
+                            <v-tabs-window-item value="ten">
+                                <v-container>
+                                    <v-row>
+                                        <v-col>
+                                            <v-text-field v-model="searchComponents"
+                                                          label="search components"
+                                                          variant="solo"
+                                            ></v-text-field>
+                                        </v-col>
+                                        <v-col>
+                                            <v-dialog
+                                                transition="dialog-top-transition"
+                                                width="auto"
+                                            >
+                                                <template v-slot:activator="{ props: activatorProps }">
+                                                    <v-btn
+                                                        v-bind="activatorProps"
+                                                        text="Добавить"
+                                                        block
+                                                    ></v-btn>
+                                                </template>
+
+                                                <template v-slot:default="{ isActive }">
+                                                    <v-card>
+                                                        <v-card-title>Component Form</v-card-title>
+                                                        <v-card-text>
+                                                            <v-form @submit.prevent>
+                                                                <v-row>
+                                                                    <v-text-field v-model="formComponent.name"
+                                                                                  label="Name"
+                                                                    ></v-text-field>
+                                                                </v-row>
+                                                                <v-row>
+                                                                    <v-row>
+                                                                        <v-col></v-col>
+                                                                        <v-col>
+                                                                            <v-btn text="save"
+                                                                                   variant="outlined"
+                                                                                   @click="storeComponent"
+                                                                            ></v-btn>
+                                                                        </v-col>
+                                                                        <v-col></v-col>
+                                                                    </v-row>
+                                                                </v-row>
+                                                            </v-form>
+                                                        </v-card-text>
+                                                    </v-card>
+                                                </template>
+                                            </v-dialog>
+                                        </v-col>
+                                    </v-row>
+                                </v-container>
+                                <v-data-table :items="listComponents"
+                                              :headers="headersComponents"
+                                              :search="searchComponents"
+                                              items-per-page="25"
+                                              density="compact"
+                                              hover="hover"
+                                >
                                 </v-data-table>
                             </v-tabs-window-item>
 
