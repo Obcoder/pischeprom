@@ -815,7 +815,7 @@ function storeCheck(){
                                         {{item.entity.name}}
                                     </template>
                                     <template v-slot:item.amount="{item}">
-                                        <NavLink :href="route('check', item.id)"
+                                        <NavLink :href="route('api.check.show', item.id)"
                                         >
                                             {{item.amount}}
                                         </NavLink>

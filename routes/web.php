@@ -32,9 +32,8 @@ Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });
-Route::get('Ameise/check/{id}/', function ($id){
-    return Inertia::render('Check', $id);
-})->name('check');
+Route::apiResource('/Ameise/check/{id}/', [\App\Http\Controllers\API\CheckController::class])
+    ->name('show', 'api.check.show');
 
 //                     A         P         I
 //                          G         E         T
