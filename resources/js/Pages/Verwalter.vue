@@ -136,7 +136,7 @@ const formGood = useForm({
     name: null,
     ava_image: null,
 })
-const  formComponent = useForm({
+const formComponent = useForm({
     name: null,
 })
 
