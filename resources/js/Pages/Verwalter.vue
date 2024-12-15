@@ -113,6 +113,7 @@ let headersProducts = ref([]);
 let headersCountries = ref();
 let headersEntities = ref();
 let headersChecks = ref();
+let headersComponents = ref();
 let searchProducts = ref('');
 let selectedUris = ref([]);
 let dialogUri = ref(false);
@@ -747,9 +748,8 @@ function storeComponent(){
                                             ></v-text-field>
                                         </v-col>
                                         <v-col>
-                                            <v-dialog
-                                                transition="dialog-top-transition"
-                                                width="auto"
+                                            <v-dialog transition="dialog-top-transition"
+                                                      width="auto"
                                             >
                                                 <template v-slot:activator="{ props: activatorProps }">
                                                     <v-btn
