@@ -54,7 +54,8 @@ Route::apiResource('api/labels', \App\Http\Controllers\API\LabelController::clas
 Route::apiResource('api/entities', \App\Http\Controllers\API\EntityController::class)
     ->name('index', 'api.entities');
 Route::apiResource('api/checks', \App\Http\Controllers\API\CheckController::class)
-    ->name('index', 'api.checks');
+    ->name('index', 'api.checks')
+    ->name('store', 'api.checks.store');
 Route::apiResource('api/components', \App\Http\Controllers\API\ComponentController::class)
     ->name('index', 'api.components')
     ->name('store', 'api.components.store');

@@ -24,7 +24,7 @@ class CheckController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $check = Check::create($request->all());
     }
 
     /**

@@ -140,6 +140,11 @@ const formGood = useForm({
 const formComponent = useForm({
     name: null,
 })
+const formCheck = useForm({
+    date: null,
+    entity_id: null,
+    amount: null,
+})
 
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
@@ -305,6 +310,17 @@ function storeComponent(){
         onSuccess: ()=> {
             formComponent.reset();
             apiIndexComponents();
+        },
+    });
+}
+function storeCheck(){
+    formCheck.post(route('api.checks.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formCheck.reset();
+            apiIndexChecks();
         },
     });
 }
@@ -724,6 +740,63 @@ function storeComponent(){
 
                             <!--          C H E C K S          -->
                             <v-tabs-window-item value="nine">
+                                <v-row>
+                                    <v-col cols="7">
+                                        <v-date-picker></v-date-picker>
+                                    </v-col>
+                                    <v-col cols="5">
+                                        <v-dialog transition="dialog-top-transition"
+                                                  width="602"
+                                        >
+                                            <template v-slot:activator="{ props: activatorProps }">
+                                                <v-btn
+                                                    v-bind="activatorProps"
+                                                    text="+ check"
+                                                    block
+                                                ></v-btn>
+                                            </template>
+
+                                            <template v-slot:default="{ isActive }">
+                                                <v-card>
+                                                    <v-card-title>Check form</v-card-title>
+                                                    <v-card-text>
+                                                        <v-form @submit.prevent>
+                                                            <v-row>
+                                                                <v-col>
+                                                                    <v-select :items="listEntities"
+                                                                              :item-title="'name'"
+                                                                              :item-value="'id'"
+                                                                    ></v-select>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col>
+                                                                    <v-date-picker v-model="formCheck.date"
+                                                                    ></v-date-picker>
+                                                                </v-col>
+                                                                <v-col>
+                                                                    <v-text-field v-model="formCheck.amount"
+                                                                                  label="Amount"
+                                                                    ></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col></v-col>
+                                                                <v-col></v-col>
+                                                                <v-col>
+                                                                    <v-btn text="save"
+                                                                           variant="plain"
+                                                                           @click="storeCheck"
+                                                                    ></v-btn>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </v-form>
+                                                    </v-card-text>
+                                                </v-card>
+                                            </template>
+                                        </v-dialog>
+                                    </v-col>
+                                </v-row>
                                 <v-data-table :items="listChecks"
                                               :headers="headersChecks"
                                               items-per-page="25"
