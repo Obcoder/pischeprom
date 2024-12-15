@@ -2,6 +2,8 @@
 import {onMounted, ref} from "vue";
 import {Head, useForm, Link, router} from "@inertiajs/vue3";
 import axios from "axios";
+import DayJsAdapter from '@date-io/dayjs'
+import DateFnsAdapter from '@date-io/date-fns'
 import { mergeProps } from 'vue'
 import NavLink from "@/Components/NavLink.vue";
 const props = defineProps({
@@ -777,6 +779,7 @@ function storeCheck(){
                                                             <v-row>
                                                                 <v-col>
                                                                     <v-date-picker v-model="formCheck.date"
+                                                                                   show-adjacent-months
                                                                     ></v-date-picker>
                                                                 </v-col>
                                                                 <v-col>
