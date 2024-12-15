@@ -33,10 +33,7 @@ class CheckController extends Controller
      */
     public function show(string $id)
     {
-        $check = Check::with('entity')
-            ->find($id);
-
-        return Inertia::render('Checks', $check);
+        //
     }
 
     /**
