@@ -749,7 +749,7 @@ function storeComponent(){
                                         </v-col>
                                         <v-col>
                                             <v-dialog transition="dialog-top-transition"
-                                                      width="auto"
+                                                      width="301"
                                             >
                                                 <template v-slot:activator="{ props: activatorProps }">
                                                     <v-btn
