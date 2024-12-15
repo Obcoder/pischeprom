@@ -768,6 +768,8 @@ function storeCheck(){
                                                                     <v-select :items="listEntities"
                                                                               :item-title="'name'"
                                                                               :item-value="'id'"
+                                                                              v-model="formCheck.entity_id"
+                                                                              label="Сущность"
                                                                     ></v-select>
                                                                 </v-col>
                                                             </v-row>
