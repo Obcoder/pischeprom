@@ -298,7 +298,7 @@ function storeGood(){
     });
 }
 function storeComponent(){
-    formGood.post(route('api.component.store'), {
+    formComponent.post(route('api.components.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: true,

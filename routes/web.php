@@ -57,7 +57,7 @@ Route::apiResource('api/checks', \App\Http\Controllers\API\CheckController::clas
     ->name('index', 'api.checks');
 Route::apiResource('api/components', \App\Http\Controllers\API\ComponentController::class)
     ->name('index', 'api.components')
-    ->name('store', 'api.component.store');
+    ->name('store', 'api.components.store');
 
 
 //                           P        O         S         T
