@@ -12,6 +12,6 @@ class CheckController extends Controller
             'check' => Check::findOrFail($id),
         ];
 
-        return Inertia::render('Checks', $data);
+        return Inertia::render('Check', $data);
     }
 }
