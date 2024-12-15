@@ -18,4 +18,10 @@ class Check extends Model
     public function entity(){
         return $this->belongsTo(Entity::class);
     }
+
+    public function commodities()
+    {
+        return $this->belongsToMany(Commodity::class)
+            ->using(check_commodity::class);
+    }
 }

@@ -814,6 +814,12 @@ function storeCheck(){
                                     <template v-slot:item.entity_id="{item}">
                                         {{item.entity.name}}
                                     </template>
+                                    <template v-slot:item.amount="{item}">
+                                        <NavLink :href="route('check', item.id)"
+                                        >
+                                            {{item.amount}}
+                                        </NavLink>
+                                    </template>
                                 </v-data-table>
                             </v-tabs-window-item>
                             <!--          E N D  C H E C K S          -->

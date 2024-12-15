@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Check;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CheckController extends Controller
 {
@@ -32,7 +33,10 @@ class CheckController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $check = Check::with('entity')
+            ->find($id);
+
+        return Inertia::render('Checks', $check);
     }
 
     /**
