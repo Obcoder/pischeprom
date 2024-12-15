@@ -61,6 +61,10 @@ onMounted(()=>{
     ]
     headersChecks.value = [
         {
+            title: 'id',
+            key: 'id',
+        },
+        {
             title: 'date',
             key: 'date',
         },
