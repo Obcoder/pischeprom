@@ -770,6 +770,7 @@ function storeCheck(){
                                                                               :item-value="'id'"
                                                                               v-model="formCheck.entity_id"
                                                                               label="Сущность"
+                                                                              variant="outlined"
                                                                     ></v-select>
                                                                 </v-col>
                                                             </v-row>
