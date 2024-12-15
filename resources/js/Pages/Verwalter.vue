@@ -742,7 +742,9 @@ function storeCheck(){
                             <v-tabs-window-item value="nine">
                                 <v-row>
                                     <v-col cols="7">
-                                        <v-date-picker></v-date-picker>
+                                        <v-menu>
+                                            <v-date-picker></v-date-picker>
+                                        </v-menu>
                                     </v-col>
                                     <v-col cols="5">
                                         <v-dialog transition="dialog-top-transition"
@@ -785,7 +787,7 @@ function storeCheck(){
                                                                 <v-col></v-col>
                                                                 <v-col>
                                                                     <v-btn text="save"
-                                                                           variant="plain"
+                                                                           variant="outlined"
                                                                            @click="storeCheck"
                                                                     ></v-btn>
                                                                 </v-col>
