@@ -14,7 +14,7 @@ onMounted(()=>{
 </script>
 
 <template>
-    <v-container>
+    <v-container class="border border-1 rounded">
         <v-row>
             <v-col>
                 {{date.format(check.date, 'fullDate')}}
@@ -29,7 +29,9 @@ onMounted(()=>{
         <v-row>
             <v-col></v-col>
             <v-col>
-                {{check.commodities}}
+                <v-data-table :items="listCommodities"
+                              hover="hover"
+                ></v-data-table>
             </v-col>
             <v-col></v-col>
         </v-row>
