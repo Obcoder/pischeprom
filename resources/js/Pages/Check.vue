@@ -1,7 +1,5 @@
 <script setup>
-const props = defineProps({
-    check: Object,
-})
+
 </script>
 
 <template>
@@ -9,7 +7,7 @@ const props = defineProps({
         <v-row>
             <v-col></v-col>
             <v-col>
-                {{check.amount}}
+                Check
             </v-col>
             <v-col></v-col>
         </v-row>
