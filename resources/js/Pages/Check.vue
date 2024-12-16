@@ -29,7 +29,7 @@ onMounted(()=>{
         <v-row>
             <v-col></v-col>
             <v-col>
-                {{listCommodities}}
+                {{check.commodities}}
             </v-col>
             <v-col></v-col>
         </v-row>
