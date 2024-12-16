@@ -10,9 +10,9 @@ class CheckController extends Controller
 {
     public function show(string $id){
         $data = [
-            'check' => Check::findOrFail($id)
-                ->with('entity')
-                ->with('commodities'),
+            'check' => Check::with('entity')
+                ->with('commodities')
+                ->findOrFail($id),
         ];
 
         return Inertia::render('Check', $data);
