@@ -53,6 +53,7 @@ onMounted(()=>{
             <v-col></v-col>
             <v-col>
                 <v-data-table :items="listCommodities"
+                              :headers="headersCommodities"
                               hover="hover"
                 >
                     <template v-slot:item.quantity="{item}">
