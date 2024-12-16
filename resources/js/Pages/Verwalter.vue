@@ -815,10 +815,10 @@ function storeCheck(){
                                         {{item.entity.name}}
                                     </template>
                                     <template v-slot:item.amount="{item}">
-                                        <NavLink :href="route('check.show', item.id)"
+                                        <Link :href="route('check.show', item.id)"
                                         >
                                             {{item.amount}}
-                                        </NavLink>
+                                        </Link>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
