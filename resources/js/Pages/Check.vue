@@ -22,7 +22,7 @@ onMounted(()=>{
         },
         {
             title: 'measure',
-            key: 'pivot.measure',
+            key: 'pivot.measure_id',
         },
         {
             title: 'price',
@@ -50,18 +50,18 @@ onMounted(()=>{
             </v-col>
         </v-row>
         <v-row>
-            <v-col></v-col>
+            <v-col cols="1"></v-col>
             <v-col>
                 <v-data-table :items="listCommodities"
                               :headers="headersCommodities"
                               hover="hover"
                 >
-                    <template v-slot:item.quantity="{item}">
-
+                    <template v-slot:item.measure_id="{item}">
+                        {{item.measure.name}}
                     </template>
                 </v-data-table>
             </v-col>
-            <v-col></v-col>
+            <v-col cols="1"></v-col>
         </v-row>
     </v-container>
 </template>
