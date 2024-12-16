@@ -29,8 +29,7 @@ onMounted(()=>{
         <v-row>
             <v-col></v-col>
             <v-col>
-                <v-data-table :items="listCommodities">
-                </v-data-table>
+                {{listCommodities}}
             </v-col>
             <v-col></v-col>
         </v-row>
