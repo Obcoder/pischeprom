@@ -19,9 +19,6 @@ Route::middleware([
     })->name('dashboard');
 });
 
-Route::get('/glycerol/', [\App\Http\Controllers\GlycerolController::class, 'index'])
-    ->name('glycerol');
-
 Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'index'])
     ->name('goods');
 
@@ -29,11 +26,11 @@ Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
 Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
     ->name('unit.show');
+Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
+    ->name('check.show');
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });
-Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
-    ->name('check.show');
 
 //                     A         P         I
 //                          G         E         T

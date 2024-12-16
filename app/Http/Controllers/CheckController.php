@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Check;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CheckController extends Controller
 {
