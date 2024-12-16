@@ -8,8 +8,31 @@ const props = defineProps({
     check: Object,
 })
 let listCommodities = ref();
+let headersCommodities = ref();
 onMounted(()=>{
     listCommodities.value = props.check.commodities;
+    headersCommodities.value = [
+        {
+            title: 'name',
+            key: 'name',
+        },
+        {
+            title: 'quantity',
+            key: 'pivot.quantity',
+        },
+        {
+            title: 'measure',
+            key: 'pivot.measure',
+        },
+        {
+            title: 'price',
+            key: 'pivot.price',
+        },
+        {
+            title: 'total_price',
+            key: 'pivot.total_price',
+        },
+    ]
 })
 </script>
 
@@ -31,7 +54,11 @@ onMounted(()=>{
             <v-col>
                 <v-data-table :items="listCommodities"
                               hover="hover"
-                ></v-data-table>
+                >
+                    <template v-slot:item.quantity="{item}">
+
+                    </template>
+                </v-data-table>
             </v-col>
             <v-col></v-col>
         </v-row>

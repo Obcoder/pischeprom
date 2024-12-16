@@ -23,6 +23,6 @@ class Check extends Model
     {
         return $this->belongsToMany(Commodity::class)
             ->using(check_commodity::class)
-            ->withPivot('quantity');
+            ->withPivot('quantity', 'measure_id', 'price', 'total_price');
     }
 }
