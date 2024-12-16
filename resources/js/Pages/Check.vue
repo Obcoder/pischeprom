@@ -1,14 +1,15 @@
 <script setup>
-import LayoutDefault from "@/Layouts/LayoutDefault.vue";
 import {useDate} from "vuetify";
 import {Link} from "@inertiajs/vue3";
-const date = useDate();
+import {onMounted, ref} from "vue";
 
-defineOptions({
-    layout: LayoutDefault,
-})
+const date = useDate();
 const props = defineProps({
     check: Object,
+})
+let listCommodities = ref();
+onMounted(()=>{
+    listCommodities.value = props.check.commodities;
 })
 </script>
 
@@ -28,7 +29,7 @@ const props = defineProps({
         <v-row>
             <v-col></v-col>
             <v-col>
-                <v-data-table :items="check.commodities">
+                <v-data-table :items="listCommodities">
                 </v-data-table>
             </v-col>
             <v-col></v-col>
