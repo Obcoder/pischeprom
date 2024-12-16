@@ -22,6 +22,7 @@ class Check extends Model
     public function commodities()
     {
         return $this->belongsToMany(Commodity::class)
-            ->using(check_commodity::class);
+            ->using(check_commodity::class)
+            ->withPivot('quantity');
     }
 }
