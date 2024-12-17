@@ -831,6 +831,7 @@ function storeCheck(){
                                             <v-text-field v-model="searchComponents"
                                                           label="search components"
                                                           variant="solo"
+                                                          clearable
                                             ></v-text-field>
                                         </v-col>
                                         <v-col>
