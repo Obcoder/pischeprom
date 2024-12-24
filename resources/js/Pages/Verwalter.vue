@@ -942,6 +942,7 @@ async function sendMail() {
                                         </button>
                                     </form>
                                     <p v-if="successMessage" class="mt-4 text-green-600 text-center">{{ successMessage }}</p>
+                                    <p></p>
                                 </div>
                             </v-tabs-window-item>
 
