@@ -316,6 +316,8 @@ function storeComponent(){
         },
     });
 }
+
+
 function storeCheck(){
     formCheck.post(route('api.checks.store'), {
         replace: false,
@@ -327,6 +329,23 @@ function storeCheck(){
         },
     });
 }
+
+let email = ref('');
+let message = ref('');
+let successMessage = ref('');
+
+async function sendMail() {
+    try {
+        const response = await axios.post('/api/mail', {
+            'email': email.value,
+            'message': message.value,
+        });
+        successMessage.value = response.data.message;
+    } catch(error){
+        console.log(error);
+    }
+}
+
 </script>
 
 <template>
@@ -372,6 +391,9 @@ function storeCheck(){
                         </v-tab>
                         <v-tab value="ten">
                             Components
+                        </v-tab>
+                        <v-tab value="eleven">
+                            Email work
                         </v-tab>
                     </v-tabs>
 
@@ -884,6 +906,43 @@ function storeCheck(){
                                               hover="hover"
                                 >
                                 </v-data-table>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item value="eleven">
+                                <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md border border-gray-200">
+                                    <h1 class="text-2xl font-bold text-center text-gray-800 mb-4">📧 Отправить письмо</h1>
+                                    <form @submit.prevent="sendMail" class="space-y-4">
+                                        <div>
+                                            <label for="email" class="block text-sm font-medium text-gray-700">Email:</label>
+                                            <input
+                                                type="email"
+                                                v-model="email"
+                                                id="email"
+                                                placeholder="Введите ваш email"
+                                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label for="message" class="block text-sm font-medium text-gray-700">Сообщение:</label>
+                                            <textarea
+                                                v-model="message"
+                                                id="message"
+                                                placeholder="Введите ваше сообщение"
+                                                rows="4"
+                                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                required
+                                            ></textarea>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                        >
+                                            Отправить
+                                        </button>
+                                    </form>
+                                    <p v-if="successMessage" class="mt-4 text-green-600 text-center">{{ successMessage }}</p>
+                                </div>
                             </v-tabs-window-item>
 
                         </v-tabs-window>

@@ -69,3 +69,6 @@ Route::post('/api/product/store', [\App\Http\Controllers\API\ProductController::
     ->name('api.product.store');
 Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class, 'store'])
     ->name('api.good.store');
+
+Route::post('/api/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
+    ->name('api.mail');
