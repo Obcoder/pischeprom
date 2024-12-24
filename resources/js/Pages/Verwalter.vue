@@ -923,6 +923,7 @@ async function sendMail() {
                                                 required
                                             />
                                         </div>
+                                        <v-spacer></v-spacer>
                                         <div>
                                             <label for="message" class="block text-sm font-medium text-gray-700">Сообщение:</label>
                                             <textarea
