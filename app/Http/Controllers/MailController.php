@@ -15,6 +15,7 @@ class MailController extends Controller
         $body = [
             'email' => $request->email,
             'message' => $request->message,
+            'sender' => 'Obcoder',
             'subject' => 'Новое письмо'
         ];
         Mail::raw($body['message'], function ($message) use ($body) {
