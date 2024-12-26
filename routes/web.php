@@ -70,5 +70,23 @@ Route::post('/api/product/store', [\App\Http\Controllers\API\ProductController::
 Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class, 'store'])
     ->name('api.good.store');
 
+/*
+|--------------------------------------------------------------------------
+|                       E M A I L S  J O B S
+|--------------------------------------------------------------------------
+|
+|
+|
+ */
 Route::post('/api/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');
+Route::get('/send-email', function () {
+    $data = [
+        'title' => 'Test Email from Laravel',
+        'message' => 'This is a test email sent via Elastic Email.'
+    ];
+
+    Mail::to('obcoder@gmail.com')->send(new TestEmail($data));
+
+    return 'Email sent successfully!';
+});
