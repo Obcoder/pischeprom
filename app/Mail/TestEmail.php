@@ -26,7 +26,7 @@ class TestEmail extends Mailable
     {
         return $this->from(config('mail.from.address'))
             ->subject('Test Email')
-            ->view('emails.myFirstEmail')
+            ->view('emails.funEmail')
             ->with('data', $this->data);
     }
 
@@ -46,7 +46,7 @@ class TestEmail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'view.name',
+            view: 'emails.funEmail',
         );
     }
 
