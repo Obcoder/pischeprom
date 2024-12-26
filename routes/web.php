@@ -5,6 +5,8 @@ use App\Http\Controllers\ManufacturerController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Mail\TestEmail;
+use Illuminate\Support\Facades\Mail;
 
 Route::get('/', [\App\Http\Controllers\MainController::class, 'index'])
     ->name('home');
