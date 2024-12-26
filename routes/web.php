@@ -82,6 +82,7 @@ Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class,
  */
 Route::post('/api/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');
+
 Route::get('/send-email', function () {
     $data = [
         'title' => 'Test Email from Laravel',
