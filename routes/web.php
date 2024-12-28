@@ -60,6 +60,8 @@ Route::apiResource('api/checks', \App\Http\Controllers\API\CheckController::clas
 Route::apiResource('api/components', \App\Http\Controllers\API\ComponentController::class)
     ->name('index', 'api.components')
     ->name('store', 'api.components.store');
+Route::apiResource('api/regions', \App\Http\Controllers\API\RegionController::class)
+    ->name('index', 'api.regions');
 
 
 //                           P        O         S         T

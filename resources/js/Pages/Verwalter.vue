@@ -94,6 +94,7 @@ onMounted(()=>{
     apiIndexEntities();
     apiIndexChecks();
     apiIndexComponents();
+    apiIndexRegions();
 })
 let tab = ref();
 let manufacturers = ref();
@@ -102,6 +103,7 @@ let listUnits = ref();
 let listUris = ref();
 let listCategories = ref();
 let listCountries = ref();
+let listRegions = ref();
 let listLabels = ref();
 let listEntities = ref();
 let listChecks = ref();
@@ -261,6 +263,13 @@ function apiIndexComponents(){
     }).catch(function (error) {
             console.log(error);
         });
+}
+function apiIndexRegions(){
+    axios.get(route('api.regions')).then(function (response) {
+        listRegions.value = response.data;
+    }).catch(function (error) {
+        console.log(error);
+    });
 }
 
 function storeUnit(){
@@ -727,20 +736,35 @@ async function sendMail() {
                                 ></v-data-table>
                             </v-tabs-window-item>
 
+                            _________________________________________________
+                            |
+                            |       G E O G R A P H Y
+                            |________________________________________________
                             <v-tabs-window-item value="seven">
-                                <v-data-table :items="listCountries"
-                                              :headers="headersCountries"
-                                              items-per-page="20"
-                                              density="compact"
-                                              hover="hover"
-                                >
-                                    <template v-slot:item.flag="{item}">
-                                        <v-img :src="item.flag"
-                                               width="50"
-                                               class="border border-1 border-gray-200"
-                                        ></v-img>
-                                    </template>
-                                </v-data-table>
+                                <v-row>
+                                    <v-col>
+                                        <v-data-table :items="listCountries"
+                                                      :headers="headersCountries"
+                                                      items-per-page="20"
+                                                      density="compact"
+                                                      hover="hover"
+                                        >
+                                            <template v-slot:item.flag="{item}">
+                                                <v-img :src="item.flag"
+                                                       width="50"
+                                                       class="border border-1 border-gray-200"
+                                                ></v-img>
+                                            </template>
+                                        </v-data-table>
+                                    </v-col>
+                                    <v-col>
+                                        <v-data-table :items="listRegions"
+                                                      items-per-page="20"
+                                                      density="compact"
+                                                      hover="hover"
+                                        ></v-data-table>
+                                    </v-col>
+                                </v-row>
                             </v-tabs-window-item>
 
                             <v-tabs-window-item value="eight">
