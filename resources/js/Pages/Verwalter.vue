@@ -736,10 +736,12 @@ async function sendMail() {
                                 ></v-data-table>
                             </v-tabs-window-item>
 
+                            <!--
                             _________________________________________________
                             |
                             |       G E O G R A P H Y
                             |________________________________________________
+                            -->
                             <v-tabs-window-item value="seven">
                                 <v-row>
                                     <v-col>
