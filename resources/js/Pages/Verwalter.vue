@@ -2,12 +2,27 @@
 import {onMounted, ref} from "vue";
 import {Head, useForm, Link, router} from "@inertiajs/vue3";
 import axios from "axios";
-import NavLink from "@/Components/NavLink.vue";
 const props = defineProps({
     title: String,
     goods: Object,
     uris: Object,
 })
+
+const headersRegions = ref([
+    {
+        title: 'Регион',
+        key: 'name',
+    },
+    {
+        title: 'Страна',
+        key: 'country',
+    },
+    {
+        title: 'Площадь',
+        key: 'area',
+    },
+]);
+
 onMounted(()=>{
     headersUnits.value = [
         {
@@ -762,10 +777,15 @@ async function sendMail() {
                                         </v-col>
                                         <v-col>
                                             <v-data-table :items="listRegions"
+                                                          :headers="headersRegions"
                                                           items-per-page="20"
                                                           density="compact"
                                                           hover="hover"
-                                            ></v-data-table>
+                                            >
+                                                <template v-slot:item.country="{item}">
+                                                    {{item.country.name}}
+                                                </template>
+                                            </v-data-table>
                                         </v-col>
                                     </v-row>
                                 </v-container>

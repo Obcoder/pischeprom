@@ -13,7 +13,8 @@ class RegionController extends Controller
      */
     public function index()
     {
-        $regions = Region::all();
+        $regions = Region::with('country')
+            ->get();
 
         return $regions;
     }
