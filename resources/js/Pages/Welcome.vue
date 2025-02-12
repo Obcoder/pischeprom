@@ -1,7 +1,7 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import {ref} from "vue";
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 defineOptions({
     layout: LayoutDefault,
 })

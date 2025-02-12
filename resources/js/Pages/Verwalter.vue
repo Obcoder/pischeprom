@@ -2,6 +2,11 @@
 import {onMounted, ref} from "vue";
 import {Head, useForm, Link, router} from "@inertiajs/vue3";
 import axios from "axios";
+import LayoutDefault from '@/Layouts/LayoutDefault.vue';
+import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+defineOptions({
+    layout: VerwalterLayout,
+})
 const props = defineProps({
     title: String,
     goods: Object,
