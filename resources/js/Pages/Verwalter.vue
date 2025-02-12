@@ -362,7 +362,7 @@ async function sendMail() {
         <title>УТ</title>
     </Head>
 
-    <v-container>
+    <v-container fluid>
         <v-row>
             <v-col cols="1"></v-col>
             <v-col cols="8">
