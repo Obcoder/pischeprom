@@ -26,6 +26,6 @@ class Product extends Model
 
     public function action()
     {
-        return $this->hasManyThrough(Action::class, product_unit::class);
+        return $this->hasOneThrough(Action::class, product_unit::class);
     }
 }
