@@ -33,7 +33,7 @@ class Unit extends Model
     public function consumptions(){
         return $this->hasMany(Consumption::class);
     }
-    public function productsRelations()
+    public function products()
     {
         return $this->belongsToMany(Product::class)
             ->using(product_unit::class)
