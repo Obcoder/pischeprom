@@ -379,7 +379,7 @@ async function sendMail() {
 
 <template>
     <Head>
-        <title>УТ</title>
+        <title>Gb</title>
     </Head>
 
     <v-container fluid>
@@ -394,17 +394,17 @@ async function sendMail() {
                         <v-tab value="four">
                             Units
                         </v-tab>
+                        <v-tab value="components">
+                            Components
+                        </v-tab>
                         <v-tab value="three">
                             Products
                         </v-tab>
-                        <v-tab value="one">
-                            Goods
-                        </v-tab>
-                        <v-tab value="two">
-                            Manufacturers
-                        </v-tab>
                         <v-tab value="six">
                             Categories
+                        </v-tab>
+                        <v-tab value="goods">
+                            Goods
                         </v-tab>
                         <v-tab value="seven">
                             Countries
@@ -418,8 +418,8 @@ async function sendMail() {
                         <v-tab value="nine">
                             Checks
                         </v-tab>
-                        <v-tab value="ten">
-                            Components
+                        <v-tab value="two">
+                            Manufacturers
                         </v-tab>
                         <v-tab value="eleven">
                             Email work
@@ -429,8 +429,82 @@ async function sendMail() {
                     <v-card-text>
                         <v-tabs-window v-model="tab">
 
+                            <!--
+                            ___________________________________________________________________________________
+                            |
+                            |           * * *   C O M P O N E N T S   * * *
+                            |
+                            -----------------------------------------------------------------------------------
+                            -->
+                            <v-tabs-window-item value="components">
+                                <v-container>
+                                    <v-row>
+                                        <v-col cols="8">
+                                            <v-text-field v-model="searchComponents"
+                                                          label="search components"
+                                                          variant="solo"
+                                                          clearable
+                                            ></v-text-field>
+                                        </v-col>
+                                        <v-col cols="4">
+                                            <v-dialog transition="dialog-top-transition"
+                                                      width="605"
+                                            >
+                                                <template v-slot:activator="{ props: activatorProps }">
+                                                    <v-btn
+                                                        v-bind="activatorProps"
+                                                        text="Добавить"
+                                                        block
+                                                        variant="elevated"
+                                                        color="purple"
+                                                    ></v-btn>
+                                                </template>
+                                                <template v-slot:default="{ isActive }">
+                                                    <v-card>
+                                                        <v-card-title>Form Component</v-card-title>
+                                                        <v-card-text>
+                                                            <v-form @submit.prevent>
+                                                                <v-row>
+                                                                    <v-text-field v-model="formComponent.name"
+                                                                                  label="Name"
+                                                                                  variant="outlined"
+                                                                    ></v-text-field>
+                                                                </v-row>
+                                                                <v-row>
+                                                                    <v-row>
+                                                                        <v-col></v-col>
+                                                                        <v-col>
+                                                                            <v-btn text="save"
+                                                                                   variant="elevated"
+                                                                                   @click="storeComponent"
+                                                                                   color="purple-darken-4"
+                                                                            ></v-btn>
+                                                                        </v-col>
+                                                                        <v-col></v-col>
+                                                                    </v-row>
+                                                                </v-row>
+                                                            </v-form>
+                                                        </v-card-text>
+                                                    </v-card>
+                                                </template>
+                                            </v-dialog>
+                                        </v-col>
+                                    </v-row>
+                                </v-container>
+                                <v-data-table :items="listComponents"
+                                              :headers="headersComponents"
+                                              :search="searchComponents"
+                                              items-per-page="25"
+                                              density="compact"
+                                              hover="hover"
+                                >
+                                </v-data-table>
+                            </v-tabs-window-item>
+                            <!--      E N D  C O M P O N E N T S      -->
+
+
                             <!--          G O O D S          -->
-                            <v-tabs-window-item value="one">
+                            <v-tabs-window-item value="goods">
                                 <v-row>
                                     <v-col cols="9">
                                         <v-text-field label="Поиск: Товары"
@@ -897,69 +971,6 @@ async function sendMail() {
                                 </v-data-table>
                             </v-tabs-window-item>
                             <!--          E N D  C H E C K S          -->
-
-                            <!--          C O M P O N E N T S          -->
-                            <v-tabs-window-item value="ten">
-                                <v-container>
-                                    <v-row>
-                                        <v-col>
-                                            <v-text-field v-model="searchComponents"
-                                                          label="search components"
-                                                          variant="solo"
-                                                          clearable
-                                            ></v-text-field>
-                                        </v-col>
-                                        <v-col>
-                                            <v-dialog transition="dialog-top-transition"
-                                                      width="301"
-                                            >
-                                                <template v-slot:activator="{ props: activatorProps }">
-                                                    <v-btn
-                                                        v-bind="activatorProps"
-                                                        text="Добавить"
-                                                        block
-                                                    ></v-btn>
-                                                </template>
-
-                                                <template v-slot:default="{ isActive }">
-                                                    <v-card>
-                                                        <v-card-title>Component Form</v-card-title>
-                                                        <v-card-text>
-                                                            <v-form @submit.prevent>
-                                                                <v-row>
-                                                                    <v-text-field v-model="formComponent.name"
-                                                                                  label="Name"
-                                                                    ></v-text-field>
-                                                                </v-row>
-                                                                <v-row>
-                                                                    <v-row>
-                                                                        <v-col></v-col>
-                                                                        <v-col>
-                                                                            <v-btn text="save"
-                                                                                   variant="outlined"
-                                                                                   @click="storeComponent"
-                                                                            ></v-btn>
-                                                                        </v-col>
-                                                                        <v-col></v-col>
-                                                                    </v-row>
-                                                                </v-row>
-                                                            </v-form>
-                                                        </v-card-text>
-                                                    </v-card>
-                                                </template>
-                                            </v-dialog>
-                                        </v-col>
-                                    </v-row>
-                                </v-container>
-                                <v-data-table :items="listComponents"
-                                              :headers="headersComponents"
-                                              :search="searchComponents"
-                                              items-per-page="25"
-                                              density="compact"
-                                              hover="hover"
-                                >
-                                </v-data-table>
-                            </v-tabs-window-item>
 
                             <v-tabs-window-item value="eleven">
                                 <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md border border-gray-200">
