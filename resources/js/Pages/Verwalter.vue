@@ -580,7 +580,7 @@ async function sendMail() {
                                            :href="uri.address"
                                            target="_blank"
                                            class="text-sm text-gray-600"
-                                           >{{uri.uri}}</a>
+                                           >{{uri.address}}</a>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
