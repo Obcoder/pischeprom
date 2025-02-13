@@ -582,6 +582,12 @@ async function sendMail() {
                                            class="text-sm text-gray-600"
                                            >{{uri.address}}</a>
                                     </template>
+                                    <template v-slot:item.products="{item}">
+                                        <span v-for="product in item.products">
+                                            {{product.rus}}
+                                            {{product.pivot.action}}
+                                        </span>
+                                    </template>
                                 </v-data-table>
                             </v-tabs-window-item>
                             <!--     E N D  U N I T S     -->
