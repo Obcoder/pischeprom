@@ -26,7 +26,6 @@ class Product extends Model
 
     public function action()
     {
-        return $this->hasOne(Action::class, 'action_id', 'id')
-            ->using(product_unit::class);
+        return $this->hasOneThrough(Action::class, product_unit::class, 'product_id', 'id', 'id', 'action_id');
     }
 }
