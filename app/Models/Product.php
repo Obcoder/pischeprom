@@ -26,7 +26,7 @@ class Product extends Model
 
     public function action()
     {
-        return $this->belongsTo(Action::class)
+        return $this->belongsTo(Action::class, 'action_id', 'id', 'product_unit')
             ->withDefault();
     }
 }
