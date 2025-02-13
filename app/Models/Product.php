@@ -24,8 +24,8 @@ class Product extends Model
             ->withTimestamps();
     }
 
-    public function actions()
+    public function action()
     {
-        return $this->belongsToMany(Action::class, 'product_unit', 'product_id', 'action_id');
+        return $this->hasOneThrough(Action::class, 'product_unit', 'product_id', 'action_id');
     }
 }
