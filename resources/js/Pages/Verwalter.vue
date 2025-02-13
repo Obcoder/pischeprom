@@ -385,7 +385,7 @@ async function sendMail() {
     <v-container fluid>
         <v-row>
             <v-col cols="1"></v-col>
-            <v-col cols="8">
+            <v-col cols="10">
                 <v-card>
                     <v-tabs
                         v-model="tab"
