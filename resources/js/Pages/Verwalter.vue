@@ -583,10 +583,14 @@ async function sendMail() {
                                            >{{uri.address}}</a>
                                     </template>
                                     <template v-slot:item.products="{item}">
-                                        <span v-for="product in item.products">
-                                            {{product.rus}}
-                                            {{product.actions}}
-                                        </span>
+                                        <div v-for="product in item.products">
+                                            <span v-for="action in product.actions">
+                                                {{action.name}}
+                                            </span>
+                                            <span >
+                                                {{product.rus}}
+                                            </span>
+                                        </div>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
