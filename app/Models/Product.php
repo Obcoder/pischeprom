@@ -15,4 +15,17 @@ class Product extends Model
         'zh',
         'es',
     ];
+
+    public function units()
+    {
+        return $this->belongsToMany(Unit::class)
+            ->using(product_unit::class)
+            ->withPivot(['action_id'])
+            ->withTimestamps();
+    }
+
+    public function action()
+    {
+        return $this->belongsTo(Action::class, 'product_unit', 'product_id', 'action_id');
+    }
 }

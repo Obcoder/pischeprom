@@ -37,6 +37,7 @@ class Unit extends Model
     {
         return $this->belongsToMany(Product::class)
             ->using(product_unit::class)
-            ->withPivot('action_id');
+            ->withPivot('action_id')
+            ->withTimestamps();
     }
 }
