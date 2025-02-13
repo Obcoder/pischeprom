@@ -7,7 +7,7 @@ import {Link} from "@inertiajs/vue3";
         <v-navigation-drawer>
             <v-list>
                 <v-list-item>
-                    <Link :href="https://пищепром-сервер.рф/">
+                    <Link :href="'https://пищепром-сервер.рф/'">
                         Пищепром-Сервер
                     </Link>
                 </v-list-item>
