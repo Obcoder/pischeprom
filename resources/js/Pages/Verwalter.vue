@@ -2,7 +2,6 @@
 import {onMounted, ref} from "vue";
 import {Head, useForm, Link, router} from "@inertiajs/vue3";
 import axios from "axios";
-import LayoutDefault from '@/Layouts/LayoutDefault.vue';
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,
@@ -29,7 +28,7 @@ const headersUnits = ref([
     },
     {
         title: 'Actions',
-        key: 'productsRelations',
+        key: 'products',
     }
 ]);
 const headersRegions = ref([
@@ -113,9 +112,10 @@ onMounted(()=>{
         },
     ]
 
+    apiIndexUnits();
+
     getManufacturers();
     getProducts();
-    getUnits();
     getUris();
     getCategories();
     getCountries();
@@ -179,6 +179,16 @@ const formCheck = useForm({
     amount: null,
 })
 
+function apiIndexUnits(){
+    axios.get(route('api.units')).then(function (response) {
+        // handle success
+        listUnits.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        });
+}
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
         // handle success
@@ -196,19 +206,6 @@ function getProducts(){
     axios.get(route('api.products')).then(function (response) {
         // handle success
         listProducts.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        })
-        .finally(function () {
-            // always executed
-        });
-}
-function getUnits(){
-    axios.get(route('api.units')).then(function (response) {
-        // handle success
-        listUnits.value = response.data;
     })
         .catch(function (error) {
             // handle error
@@ -563,8 +560,8 @@ async function sendMail() {
                                 <v-data-table :items="listUnits"
                                               :headers="headersUnits"
                                               :search="searchUnits"
-                                              items-per-page="21"
-                                              density="compact"
+                                              items-per-page="27"
+                                              density="comfortable"
                                               hover="hover"
                                 >
                                     <template v-slot:item.name="{ item }">
@@ -573,9 +570,17 @@ async function sendMail() {
                                         </Link>
                                     </template>
                                     <template v-slot:item.labels="{item}">
-                                        <v-chip v-for="(label, index) in item.labels">
+                                        <v-chip v-for="(label, index) in item.labels"
+                                        >
                                             {{label.name}}
                                         </v-chip>
+                                    </template>
+                                    <template v-slot:item.uris="{item}">
+                                        <a v-for="uri in item.uris"
+                                           :href="uri.uri"
+                                           target="_blank"
+                                           class="text-sm text-gray-600"
+                                           >{{uri.uri}}</a>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
@@ -646,8 +651,8 @@ async function sendMail() {
                                 <v-data-table :items="listComponents"
                                               :headers="headersComponents"
                                               :search="searchComponents"
-                                              items-per-page="25"
-                                              density="compact"
+                                              items-per-page="27"
+                                              density="comfortable"
                                               hover="hover"
                                 >
                                 </v-data-table>

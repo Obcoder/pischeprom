@@ -37,8 +37,6 @@ Route::get('Seaprom', function (){
 //                     A         P         I
 //                          G         E         T
 //
-Route::get('/api/units/', [\App\Http\Controllers\API\UnitController::class, 'index'])
-    ->name('api.units');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
@@ -48,6 +46,8 @@ Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index
 Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
     ->name('api.categories');
 
+Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
+    ->name('index', 'api.units');
 Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryController::class)
     ->name('index', 'api.countries');
 Route::apiResource('api/labels', \App\Http\Controllers\API\LabelController::class)
