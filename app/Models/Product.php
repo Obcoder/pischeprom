@@ -26,6 +26,6 @@ class Product extends Model
 
     public function action()
     {
-        return $this->belongsToMany(Action::class, 'product_unit', 'product_id', 'action_id');
+        return $this->belongsToMany(Action::class, 'product_unit', 'action_id', 'product_id');
     }
 }
