@@ -577,7 +577,7 @@ async function sendMail() {
                                     </template>
                                     <template v-slot:item.uris="{item}">
                                         <a v-for="uri in item.uris"
-                                           :href="uri.uri"
+                                           :href="uri.address"
                                            target="_blank"
                                            class="text-sm text-gray-600"
                                            >{{uri.uri}}</a>
