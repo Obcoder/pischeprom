@@ -36,6 +36,7 @@ class Unit extends Model
     public function productsRelations()
     {
         return $this->belongsToMany(Product::class)
+            ->using(product_unit::class)
             ->withPivot('action_id');
     }
 }
