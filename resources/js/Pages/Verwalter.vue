@@ -560,7 +560,7 @@ async function sendMail() {
                                 <v-data-table :items="listUnits"
                                               :headers="headersUnits"
                                               :search="searchUnits"
-                                              items-per-page="27"
+                                              items-per-page="101"
                                               density="comfortable"
                                               hover="hover"
                                 >
@@ -585,7 +585,7 @@ async function sendMail() {
                                     <template v-slot:item.products="{item}">
                                         <div v-for="product in item.products">
                                             <span class="mr-1">
-                                                {{product.action}}
+                                                {{product.action.name}}
                                             </span>
                                             <span >
                                                 {{product.rus}}
