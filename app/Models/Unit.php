@@ -33,4 +33,9 @@ class Unit extends Model
     public function consumptions(){
         return $this->hasMany(Consumption::class);
     }
+    public function productsRelations()
+    {
+        return $this->belongsToMany(Product::class)
+            ->withPivot('action_id');
+    }
 }
