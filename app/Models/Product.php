@@ -26,7 +26,6 @@ class Product extends Model
 
     public function action()
     {
-        return $this->belongsTo(Action::class, 'action_id', 'id', 'product_unit')
-            ->withDefault();
+        return $this->hasManyThrough(Action::class, product_unit::class);
     }
 }
