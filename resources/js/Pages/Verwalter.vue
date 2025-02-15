@@ -31,6 +31,12 @@ const headersUnits = ref([
         key: 'products',
     }
 ]);
+const headersProducts = [
+    {
+        title: 'rus',
+        key: 'rus',
+    },
+];
 const headersRegions = ref([
     {
         title: 'Регион',
@@ -51,12 +57,6 @@ onMounted(()=>{
         {
             title: 'name',
             key: 'name',
-        },
-    ];
-    headersProducts.value = [
-        {
-            title: 'rus',
-            key: 'rus',
         },
     ];
     headersCountries.value = [
@@ -142,7 +142,6 @@ let searchGoods = ref('');
 let searchEntities = ref('');
 let searchComponents = ref('');
 let headersGoods = ref([]);
-let headersProducts = ref([]);
 let headersCountries = ref();
 let headersEntities = ref();
 let headersChecks = ref();
@@ -846,11 +845,11 @@ async function sendMail() {
                                                 </v-col>
                                             </v-row>
                                         </template>
-                                        <template v-slot:item.name="{item}">
+                                        <template v-slot:item.rus="{item}">
                                             <Link :href="route('product.show', item.id)"
                                                   class="text-blue-950"
                                             >
-                                                {{item.name}}
+                                                {{item.rus}}
                                             </Link>
                                         </template>
                                     </v-data-table>
