@@ -585,7 +585,7 @@ async function sendMail() {
                                     <template v-slot:item.products="{item}">
                                         <div v-for="product in item.products">
                                             <span class="mr-1">
-                                                {{product.pivot.action.name}}
+                                                {{product.pivot.action}}
                                             </span>
                                             <span >
                                                 {{product.rus}}
