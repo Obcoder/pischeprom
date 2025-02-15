@@ -15,8 +15,15 @@ const props = defineProps({
             <v-col>
                 <v-row>
                     <v-sheet color="purple">
-                        {{product.name}}
+                        {{product.rus}}
+                    </v-sheet><v-sheet color="purple">
+                        {{product.eng}}
+                    </v-sheet><v-sheet color="purple">
+                        {{product.zh}}
+                    </v-sheet><v-sheet color="purple">
+                        {{product.es}}
                     </v-sheet>
+
                 </v-row>
             </v-col>
             <v-col></v-col>
