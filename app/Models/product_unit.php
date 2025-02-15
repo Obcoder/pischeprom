@@ -8,6 +8,6 @@ class product_unit extends Pivot
 {
     public function action()
     {
-        return $this->belongsTo(Action::class);
+        return $this->belongsTo(Action::class, 'action_id');
     }
 }

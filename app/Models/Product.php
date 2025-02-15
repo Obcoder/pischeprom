@@ -23,9 +23,4 @@ class Product extends Model
             ->withPivot(['action_id'])
             ->withTimestamps();
     }
-
-    public function action()
-    {
-        return $this->hasOneThrough(Action::class, product_unit::class, 'product_id', 'id', 'id', 'action_id');
-    }
 }

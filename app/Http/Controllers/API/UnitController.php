@@ -18,7 +18,7 @@ class UnitController extends Controller
         $units = Unit::with('uris')
             ->with('labels')
             ->with('consumptions')
-            ->with('products.action')
+            ->with('products')
             ->orderByDesc('created_at')
             ->get();
 
