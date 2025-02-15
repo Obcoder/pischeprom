@@ -847,7 +847,9 @@ async function sendMail() {
                                             </v-row>
                                         </template>
                                         <template v-slot:item.name="{item}">
-                                            <Link :href="route('product.show', item.id)">
+                                            <Link :href="route('product.show', item.id)"
+                                                  class="text-blue-950"
+                                            >
                                                 {{item.name}}
                                             </Link>
                                         </template>
