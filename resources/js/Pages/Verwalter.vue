@@ -583,7 +583,7 @@ async function sendMail() {
                                            >{{uri.address}}</a>
                                     </template>
                                     <template v-slot:item.products="{item}">
-                                        <div v-for="product in item.products">
+                                        <div v-for="product in item.products" :key="product.id">
                                             <span class="mr-1">
                                                 {{product.pivot}}
                                             </span>
