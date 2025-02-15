@@ -14,4 +14,12 @@ class product_unit extends Pivot
         return $this->belongsTo(Action::class, 'action_id')
             ->withDefault();
     }
+
+    public function toArray()
+    {
+        $array = parent::toArray();
+        $array['action'] = $this->action->name ?? null; // Заменяем action_id на action.name
+        unset($array['action_id']); // Убираем action_id
+        return $array;
+    }
 }
