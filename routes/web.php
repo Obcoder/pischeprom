@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\ManufacturerController;
+use App\Models\Product;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -33,6 +34,10 @@ Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });
+Route::get('/Ameise/product/{id}', function ($id) {
+    $Product = Product::findOrFail($id);
+    return Inertia::render('Product', $Product);
+})->name('product.show');
 
 //                     A         P         I
 //                          G         E         T
