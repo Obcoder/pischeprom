@@ -15,8 +15,7 @@ class UnitController extends Controller
      */
     public function index()
     {
-        $units = Unit::with('uris')
-            ->with('labels')
+        $units = Unit::with('labels')
             ->with('consumptions')
             ->with('products')
             ->orderByDesc('created_at')

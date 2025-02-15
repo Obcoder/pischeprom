@@ -13,6 +13,10 @@ class Unit extends Model
         'name',
     ];
 
+    protected $with = [
+        'uris',
+    ];
+
     public function uris()
     {
         return $this->belongsToMany(Uri::class)
