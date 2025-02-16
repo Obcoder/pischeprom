@@ -27,6 +27,17 @@ function apiIndexUris(){
             // always executed
         });
 }
+function storeUri(){
+    formUri.post(route('api.uri.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formUri.reset();
+            apiIndexUris();
+        },
+    });
+}
 
 const headersUnits = ref([
     {
@@ -308,16 +319,6 @@ function storeUnit(){
         },
     });
 }
-function storeUri(){
-    formUri.post(route('api.uri.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formUri.reset();
-        },
-    });
-}
 function storeProduct(){
     formProduct.post(route('api.product.store'), {
         replace: false,
@@ -499,7 +500,7 @@ async function sendMail() {
                                                                         ></v-btn>
 
                                                                         <v-dialog v-model="dialogUri"
-                                                                                  width="301"
+                                                                                  width="501"
                                                                         >
                                                                             <v-card>
                                                                                 <v-toolbar title="FORM: Uri"></v-toolbar>
