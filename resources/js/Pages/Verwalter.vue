@@ -6,12 +6,27 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,
 })
+
 const props = defineProps({
     title: String,
     goods: Object,
-    uris: Object,
     actions: Object,
 })
+
+let listUris = ref();
+function apiIndexUris(){
+    axios.get(route('api.uris')).then(function (response) {
+        // handle success
+        listUris.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        })
+        .finally(function () {
+            // always executed
+        });
+}
 
 const headersUnits = ref([
     {
@@ -113,10 +128,10 @@ onMounted(()=>{
     ]
 
     apiIndexUnits();
+    apiIndexUris();
 
     getManufacturers();
     getProducts();
-    getUris();
     getCategories();
     getCountries();
     apiIndexLabels();
@@ -129,7 +144,6 @@ let tab = ref();
 let manufacturers = ref();
 let listProducts = ref();
 let listUnits = ref();
-let listUris = ref();
 let listCategories = ref();
 let listCountries = ref();
 let listRegions = ref();
@@ -205,19 +219,6 @@ function getProducts(){
     axios.get(route('api.products')).then(function (response) {
         // handle success
         listProducts.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        })
-        .finally(function () {
-            // always executed
-        });
-}
-function getUris(){
-    axios.get(route('api.uris')).then(function (response) {
-        // handle success
-        listUris.value = response.data;
     })
         .catch(function (error) {
             // handle error
@@ -482,14 +483,13 @@ async function sendMail() {
                                                                 </v-row>
                                                                 <v-row>
                                                                     <v-col cols="9">
-                                                                        <v-autocomplete
-                                                                            v-model="selectedUris"
-                                                                            :items="props.uris"
-                                                                            :item-value="'id'"
-                                                                            :item-title="'address'"
-                                                                            label="Uris selected"
-                                                                            chips
-                                                                            multiple
+                                                                        <v-autocomplete v-model="selectedUris"
+                                                                                        :items="props.uris"
+                                                                                        :item-value="'id'"
+                                                                                        :item-title="'address'"
+                                                                                        label="Uris selected"
+                                                                                        chips
+                                                                                        multiple
                                                                         ></v-autocomplete>
                                                                     </v-col>
                                                                     <v-col cols="3">
