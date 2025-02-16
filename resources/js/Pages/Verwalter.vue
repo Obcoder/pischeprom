@@ -456,7 +456,7 @@ async function sendMail() {
                                     <v-col cols="3">
                                         <v-dialog
                                             transition="dialog-top-transition"
-                                            width="auto"
+                                            width="990"
                                         >
                                             <template v-slot:activator="{ props: activatorProps }">
                                                 <v-btn
