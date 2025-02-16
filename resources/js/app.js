@@ -5,6 +5,7 @@ import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import { createMetaManager, defaultConfig } from 'vue-meta';
 
 // Vuetify
 import 'vuetify/styles'
@@ -36,6 +37,7 @@ createInertiaApp({
             .use(ZiggyVue)
             .use(vuetify)
             .use(VuetifyInertiaLink)
+            .use(createMetaManager(defaultConfig))
             .mount(el);
     },
     progress: {
