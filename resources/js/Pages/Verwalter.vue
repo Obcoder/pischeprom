@@ -484,7 +484,7 @@ async function sendMail() {
                                                                 <v-row>
                                                                     <v-col cols="9">
                                                                         <v-autocomplete v-model="selectedUris"
-                                                                                        :items="props.uris"
+                                                                                        :items="listUris"
                                                                                         :item-value="'id'"
                                                                                         :item-title="'address'"
                                                                                         label="Uris selected"
