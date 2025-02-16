@@ -1,2 +1,5 @@
 User-agent: *
-Disallow:
+Allow: /
+
+Sitemap: https://пищепром-сервер.рф/sitemap.xml
+Host: https://пищепром-сервер.рф
