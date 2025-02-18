@@ -59,7 +59,8 @@ onMounted(()=>{
                        variant="elevated"
                        color="green"
                 ></v-btn>
-                <v-dialog width="990"
+                <v-dialog v-model="showFormEntity"
+                          width="990"
                           transition="dialog-top-transition"
                 >
                     <template v-slot:default="{ isActive }">
