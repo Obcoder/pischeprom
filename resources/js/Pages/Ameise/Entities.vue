@@ -98,7 +98,7 @@ onMounted(()=>{
         </v-toolbar>
         <v-row>
             <v-col>
-                <v-list>
+                <v-list lines="two">
                     <v-list-item v-for="entity in listEntities">
                         <v-list-item-subtitle>
                             {{entity.classification.name}}
