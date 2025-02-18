@@ -34,7 +34,7 @@ function storeEntity(){
 
 let listEntityClassifications = ref();
 function apiIndexEntityClassifications(){
-    axios.get(route()).then(function (response){
+    axios.get(route('api.entitiesclassifications')).then(function (response){
         listEntityClassifications.value = response.data;
     }).catch(function (error){
         console.log(error);
