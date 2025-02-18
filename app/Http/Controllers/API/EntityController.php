@@ -14,7 +14,8 @@ class EntityController extends Controller
     public function index(Request $request)
     {
         $like = $request->search;
-        $entities = Entity::where(function ($query) use ($like) {
+        $entities = Entity::with('classification')
+            ->where(function ($query) use ($like) {
             $query->where('name', 'like', '%' . $like . '%');
         })
             ->orderBy('name')
