@@ -100,6 +100,9 @@ onMounted(()=>{
             <v-col>
                 <v-list>
                     <v-list-item v-for="entity in listEntities">
+                        <v-list-item-subtitle>
+                            {{entity.classification.name}}
+                        </v-list-item-subtitle>
                         {{entity.name}}
                     </v-list-item>
                 </v-list>
