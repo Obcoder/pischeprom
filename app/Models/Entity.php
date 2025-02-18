@@ -9,7 +9,16 @@ class Entity extends Model
 {
     use HasFactory;
 
-    public function entityClass()
+    protected $fillable = [
+        'name',
+        'entity_classification_id',
+    ];
+
+    protected $with = [
+        'entityClassification',
+    ];
+
+    public function entityClassification()
     {
         return $this->belongsTo(EntityClassification::class)
             ->withDefault();
