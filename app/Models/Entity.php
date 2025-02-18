@@ -13,4 +13,14 @@ class Entity extends Model
         'name',
         'entity_classification_id',
     ];
+
+    protected $with = [
+        'classification',
+    ];
+
+    public function classification()
+    {
+        return $this->belongsTo(EntityClassification::class)
+            ->withDefault();
+    }
 }
