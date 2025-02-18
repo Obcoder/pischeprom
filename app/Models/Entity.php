@@ -11,13 +11,14 @@ class Entity extends Model
 
     protected $fillable = [
         'name',
+        'entity_classification_id',
     ];
 
     protected $with = [
-        'entityClassification',
+        'classification',
     ];
 
-    public function entityClassification()
+    public function classification()
     {
         return $this->belongsTo(EntityClassification::class)
             ->withDefault();
