@@ -20,7 +20,6 @@ class Entity extends Model
 
     public function classification()
     {
-        return $this->belongsTo(EntityClassification::class)
-            ->withDefault();
+        return $this->hasMany(EntityClassification::class);
     }
 }
