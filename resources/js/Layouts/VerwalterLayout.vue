@@ -17,12 +17,19 @@ import {Link} from "@inertiajs/vue3";
             </v-list>
         </v-navigation-drawer>
 
-        <v-app-bar :elevation="2" rounded>
+        <v-app-bar :elevation="2" rounded
+                   scroll-behavior="fade-image elevate"
+                   image="https://picsum.photos/1920/1080?random"
+        >
             <template v-slot:prepend>
                 <v-app-bar-nav-icon></v-app-bar-nav-icon>
             </template>
 
-            <v-app-bar-title>Großbuch</v-app-bar-title>
+            <v-app-bar-title>
+                <Link :href="route('verwalter')">
+                    <span>Großbuch</span>
+                </Link>
+            </v-app-bar-title>
             <v-app-bar-title>
                 <Link :href="route('ameise.fluxmonitor')">
                     <span>M</span>
