@@ -24,7 +24,7 @@ import {Link} from "@inertiajs/vue3";
 
             <v-app-bar-title>Großbuch</v-app-bar-title>
             <v-app-bar-title>
-                <Link :href="route('Ameise.fluxmonitor')">
+                <Link :href="route('ameise.fluxmonitor')">
                     <span>M</span>
                 </Link>
             </v-app-bar-title>
