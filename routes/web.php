@@ -78,6 +78,8 @@ Route::apiResource('api/components', \App\Http\Controllers\API\ComponentControll
     ->name('store', 'api.components.store');
 Route::apiResource('api/regions', \App\Http\Controllers\API\RegionController::class)
     ->name('index', 'api.regions');
+Route::apiResource('api/telephones', \App\Http\Controllers\API\TelephoneController::class)
+    ->name('index', 'api.telephones');
 
 
 //                           P        O         S         T

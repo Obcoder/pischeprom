@@ -39,6 +39,27 @@ function storeUri(){
     });
 }
 
+let listTelephones = ref();
+let searchTelephones = ref();
+let showFormTelephone = ref(false);
+const formTelephone = useForm({
+    number: null,
+})
+function apiIndexTelephones(like){
+    axios.get(route('api.telephones'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response) {
+        // handle success
+        listTelephones.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        });
+}
+
 const headersUnits = ref([
     {
         title: 'name',
@@ -103,16 +124,6 @@ onMounted(()=>{
             key: 'сodeISO',
         },
     ];
-    headersEntities.value = [
-        {
-            title: 'name',
-            key: 'name',
-        },
-        {
-            title: 'entity',
-            key: 'entityClass',
-        },
-    ]
     headersChecks.value = [
         {
             title: 'id',
@@ -140,6 +151,7 @@ onMounted(()=>{
 
     apiIndexUnits();
     apiIndexUris();
+    apiIndexTelephones();
 
     getManufacturers();
     getProducts();
@@ -164,11 +176,9 @@ let listChecks = ref();
 let listComponents = ref();
 let searchUnits = ref('');
 let searchGoods = ref('');
-let searchEntities = ref('');
 let searchComponents = ref('');
 let headersGoods = ref([]);
 let headersCountries = ref();
-let headersEntities = ref();
 let headersChecks = ref();
 let headersComponents = ref();
 let searchProducts = ref('');
@@ -418,8 +428,8 @@ async function sendMail() {
                         <v-tab value="five">
                             Uris
                         </v-tab>
-                        <v-tab value="eight">
-                            Entities
+                        <v-tab value="telephones">
+                            Telephones
                         </v-tab>
                         <v-tab value="nine">
                             Checks
@@ -855,7 +865,6 @@ async function sendMail() {
                                         </template>
                                     </v-data-table>
                                 </v-card>
-
                             </v-tabs-window-item>
 
                             <v-tabs-window-item value="five">
@@ -864,6 +873,38 @@ async function sendMail() {
                                               hover="hover"
                                 ></v-data-table>
                             </v-tabs-window-item>
+
+                            <!--
+                            _____________________________________________________
+                            |                                                   |
+                            |           T E L E P H O N E S  T A B              |
+                            |                                                   |
+                            -----------------------------------------------------
+                            -->
+
+                            <v-tabs-window-item value="telephones">
+                                <v-row>
+                                    <v-text-field v-model="searchTelephones"
+                                                  @input="apiIndexTelephones(searchTelephones)"
+                                                  density="comfortable"
+                                                  label="search Telephones"
+                                                  variant="solo"
+                                    ></v-text-field>
+                                </v-row>
+                                <v-row>
+                                    <v-list>
+                                        <v-list-item v-for="telephone in listTelephones">
+                                            <span>{{telephone.number}}</span>
+                                        </v-list-item>
+                                    </v-list>
+                                </v-row>
+                            </v-tabs-window-item>
+
+                            <!--
+                            |----------------------------------------------------|
+                            |           E N D  T E L E P H O N E S               |
+                            |____________________________________________________|
+                            -->
 
                             <v-tabs-window-item value="six">
                                 <v-data-table :items="listCategories"
@@ -912,25 +953,7 @@ async function sendMail() {
                                 </v-container>
                             </v-tabs-window-item>
 
-                            <v-tabs-window-item value="eight">
-                                <v-data-table :items="listEntities"
-                                              :headers="headersEntities"
-                                              density="compact"
-                                              hover="hover"
-                                >
-                                    <template v-slot:top>
-                                        <v-row>
-                                            <v-col cols="9">
-                                                <v-text-field v-model="searchEntities"
-                                                              @input="apiIndexEntities(searchEntities)"
-                                                              placeholder="search"
-                                                ></v-text-field>
-                                            </v-col>
-                                            <v-col cols="3"></v-col>
-                                        </v-row>
-                                    </template>
-                                </v-data-table>
-                            </v-tabs-window-item>
+
 
                             <!--          C H E C K S          -->
                             <v-tabs-window-item value="nine">
