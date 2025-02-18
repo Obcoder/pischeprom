@@ -11,6 +11,9 @@ import {Link} from "@inertiajs/vue3";
                         Пищепром-Сервер
                     </Link>
                 </v-list-item>
+                <v-list-item>
+                    <Link :href="route('Ameise.entities')">Entities</Link>
+                </v-list-item>
             </v-list>
         </v-navigation-drawer>
 

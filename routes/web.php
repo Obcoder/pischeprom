@@ -27,6 +27,9 @@ Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'inde
 
 Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
+Route::get('/Ameise/entities/', function (){
+    return Inertia::render('Ameise/Entities');
+})->name('Ameise.entities');
 Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
     ->name('unit.show');
 Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
@@ -58,9 +61,9 @@ Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class
     ->name('index', 'api.units');
 Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryController::class)
     ->name('index', 'api.countries');
-Route::apiResource('api/labels', \App\Http\Controllers\API\LabelController::class)
+Route::apiResource('api/labels/', \App\Http\Controllers\API\LabelController::class)
     ->name('index', 'api.labels');
-Route::apiResource('api/entities', \App\Http\Controllers\API\EntityController::class)
+Route::apiResource('api/entities/', \App\Http\Controllers\API\EntityController::class)
     ->name('index', 'api.entities');
 Route::apiResource('api/checks', \App\Http\Controllers\API\CheckController::class)
     ->name('index', 'api.checks')
