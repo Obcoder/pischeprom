@@ -21,5 +21,16 @@ onMounted(()=>{
 </script>
 
 <template>
-    {{listEntities}}
+    <v-container>
+        <v-row>
+            <v-col>
+                <v-list>
+                    <v-list-item v-for="entity in listEntities">
+                        {{entity.name}}
+                    </v-list-item>
+                </v-list>
+            </v-col>
+            <v-col></v-col>
+        </v-row>
+    </v-container>
 </template>

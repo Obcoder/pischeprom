@@ -17,7 +17,8 @@ import {Link} from "@inertiajs/vue3";
             </v-list>
         </v-navigation-drawer>
 
-        <v-app-bar :elevation="2" rounded
+        <v-app-bar :elevation="2"
+                   rounded
                    scroll-behavior="fade-image elevate"
                    image="https://picsum.photos/1920/1080?random"
         >
