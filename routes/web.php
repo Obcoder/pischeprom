@@ -24,9 +24,11 @@ Route::middleware([
 
 Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'index'])
     ->name('goods');
-
 Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
+Route::get('/Ameise/FluxMonitor/', function (){
+    return Inertia::render('FluxMonitor');
+})->name('ameise.fluxmonitor');
 Route::get('/Ameise/entities/', function (){
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');
