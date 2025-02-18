@@ -16,7 +16,7 @@ class Entity extends Model
 
     public function classification()
     {
-        return $this->belongsTo(EntityClassification::class)
+        return $this->belongsTo(EntityClassification::class , 'entity_classification_id')
             ->withDefault();
     }
 }
