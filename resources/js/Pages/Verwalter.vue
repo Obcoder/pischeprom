@@ -575,7 +575,9 @@ async function sendMail() {
                                               hover="hover"
                                 >
                                     <template v-slot:item.name="{ item }">
-                                        <Link :href="route('unit.show', item.id)">
+                                        <Link :href="route('unit.show', item.id)"
+                                              class="font-Sowjetschablone"
+                                        >
                                             {{ item.name }}
                                         </Link>
                                     </template>
