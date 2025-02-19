@@ -14,7 +14,9 @@ const props = defineProps({
             <v-col></v-col>
             <v-col>
                 <v-row>
-                    <v-sheet color="purple">
+                    <v-sheet color="purple"
+                             class="font-Typingrad"
+                    >
                         {{product.rus}}
                     </v-sheet><v-sheet color="purple">
                         {{product.eng}}

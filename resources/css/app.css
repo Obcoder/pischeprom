@@ -2,6 +2,10 @@
     font-family: 'Sowjetschablone';
     src: url("/resources/fonts/Sowjetschablone.ttf") format('truetype');
 }
+@font-face {
+    font-family: 'Typingrad';
+    src: url("/resources/fonts/Typingrad.otf") format('opentype');
+}
 
 @tailwind base;
 @tailwind components;

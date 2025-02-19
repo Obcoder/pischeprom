@@ -17,6 +17,7 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
                 Sowjetschablone: ['Sowjetschablone', ...defaultTheme.fontFamily.sans],
+                Typingrad: ['Typingrad', ...defaultTheme.fontFamily.sans],
             },
         },
     },
