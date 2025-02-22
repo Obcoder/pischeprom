@@ -29,6 +29,9 @@ Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('ameise.fluxmonitor');
+Route::get('/Ameise/units/', function (){
+    return Inertia::render('Ameise/Units');
+})->name('Ameise.units');
 Route::get('/Ameise/entities/', function (){
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');
@@ -50,15 +53,6 @@ Route::get('/Ameise/product/{id}', function ($id) {
 //                     A         P         I
 //                          G         E         T
 //
-Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
-    ->name('api.manufacturers');
-Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
-    ->name('api.products');
-Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
-    ->name('api.uris');
-Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
-    ->name('api.categories');
-
 Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
     ->name('index', 'api.units');
 Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryController::class)
@@ -80,6 +74,15 @@ Route::apiResource('api/regions', \App\Http\Controllers\API\RegionController::cl
     ->name('index', 'api.regions');
 Route::apiResource('api/telephones', \App\Http\Controllers\API\TelephoneController::class)
     ->name('index', 'api.telephones');
+
+Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
+    ->name('api.manufacturers');
+Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
+    ->name('api.products');
+Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
+    ->name('api.uris');
+Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
+    ->name('api.categories');
 
 
 //                           P        O         S         T
