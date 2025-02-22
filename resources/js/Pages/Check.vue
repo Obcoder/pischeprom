@@ -7,6 +7,9 @@ const date = useDate();
 const props = defineProps({
     check: Object,
 })
+
+let showAddCommodity = ref(false);
+
 let listCommodities = ref();
 let headersCommodities = ref();
 onMounted(()=>{
@@ -39,6 +42,15 @@ onMounted(()=>{
 <template>
     <v-container class="border border-1 rounded">
         <v-row>
+            <v-col></v-col>
+            <v-col></v-col>
+            <v-col cols="1">
+                <v-btn text="+ commodity"
+                       @click="showAddCommodity =! showAddCommodity"
+                ></v-btn>
+            </v-col>
+        </v-row>
+        <v-row>
             <v-col>
                 {{date.format(check.date, 'fullDate')}}
             </v-col>
@@ -56,6 +68,13 @@ onMounted(()=>{
                               :headers="headersCommodities"
                               hover="hover"
                 >
+                    <template v-slot:top>
+                        <v-form @submit.prevent
+                                v-if="showAddCommodity"
+                        >
+                            <v-select></v-select>
+                        </v-form>
+                    </template>
                     <template v-slot:item.measure_id="{item}">
                         {{item.measure.name}}
                     </template>
