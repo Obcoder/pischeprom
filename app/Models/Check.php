@@ -29,7 +29,8 @@ class Check extends Model
     }
     public function measure()
     {
-        return $this->hasOneThrough(Measure::class, check_commodity::class, 'measure_id', 'id', 'id', 'measure_id')
-            ->withDefault();
+        return $this->belongsToMany(Measure::class)
+            ->using(check_commodity::class)
+            ->withPivot('commodity_id','quantity', 'price', 'total_price');
     }
 }
