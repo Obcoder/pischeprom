@@ -15,6 +15,8 @@ class Check extends Model
         'amount',
     ];
 
+    protected $with = ['entity', 'measure'];
+
     public function entity(){
         return $this->belongsTo(Entity::class);
     }
@@ -24,5 +26,9 @@ class Check extends Model
         return $this->belongsToMany(Commodity::class)
             ->using(check_commodity::class)
             ->withPivot('quantity', 'measure_id', 'price', 'total_price');
+    }
+    public function measure()
+    {
+        return $this->belongsTo(Measure::class);
     }
 }

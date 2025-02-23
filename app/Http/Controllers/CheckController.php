@@ -10,8 +10,7 @@ class CheckController extends Controller
 {
     public function show(string $id){
         $data = [
-            'check' => Check::with('entity')
-                ->with('commodities')
+            'check' => Check::with('commodities')
                 ->findOrFail($id),
         ];
 
