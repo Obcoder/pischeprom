@@ -3,18 +3,17 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Measure;
+use App\Models\Check;
 use Illuminate\Http\Request;
 
-class MeasureController extends Controller
+class CheckCommodityController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $measures = Measure::all();
-        return $measures;
+        //
     }
 
     /**
@@ -22,7 +21,8 @@ class MeasureController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $check = Check::find($request->check_id);
+        $check->commodities()->attach($request->all());
     }
 
     /**

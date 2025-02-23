@@ -74,6 +74,8 @@ Route::apiResource('api/regions', \App\Http\Controllers\API\RegionController::cl
     ->name('index', 'api.regions');
 Route::apiResource('api/telephones', \App\Http\Controllers\API\TelephoneController::class)
     ->name('index', 'api.telephones');
+Route::apiResource('api/measures/', \App\Http\Controllers\API\MeasureController::class)
+    ->name('index', 'api.measures');
 
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
@@ -94,6 +96,8 @@ Route::post('/api/product/store', [\App\Http\Controllers\API\ProductController::
     ->name('api.product.store');
 Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class, 'store'])
     ->name('api.good.store');
+Route::post('/api/checkcommodity/store', \App\Http\Controllers\API\CheckCommodityController::class)
+    ->name('api.checkcommodity.store');
 
 /*
 |--------------------------------------------------------------------------
