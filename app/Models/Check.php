@@ -29,6 +29,7 @@ class Check extends Model
     }
     public function measure()
     {
-        return $this->belongsTo(Measure::class);
+        return $this->hasOneThrough(Measure::class, check_commodity::class)
+            ->withDefault();
     }
 }
