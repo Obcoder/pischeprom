@@ -23,7 +23,7 @@ function apiIndexUnits(like, limit){
 }
 
 onMounted(()=>{
-    apiIndexUnits('', limitUnits);
+    apiIndexUnits('', limitUnits.value);
 })
 </script>
 
