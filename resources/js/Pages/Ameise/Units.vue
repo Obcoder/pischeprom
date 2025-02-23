@@ -54,9 +54,17 @@ onMounted(()=>{
                     <v-list-item v-for="unit in listUnits"
                                  class="rounded border border-emerald-900"
                     >
-                        <span class="font-FIFARussia2018 font-[11px]"
-                        >
-                            {{unit.name}}</span>
+                        <v-card>
+                            <v-card-title>
+                                <span class="font-FIFARussia2018 font-[11px]"
+                                >
+                                    {{unit.name}}</span>
+                            </v-card-title>
+                            <v-card-text>
+                                <v-chip v-if="unit.entities != null"
+                                >{{unit.entities.count}}</v-chip>
+                            </v-card-text>
+                        </v-card>
                     </v-list-item>
                 </v-list>
             </v-col>

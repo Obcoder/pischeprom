@@ -45,5 +45,9 @@ class Unit extends Model
             ->withPivot('action_id')
             ->withTimestamps();
     }
-
+    public function entities()
+    {
+        return $this->belongsToMany(Entity::class)
+            ->using(entity_unit::class);
+    }
 }
