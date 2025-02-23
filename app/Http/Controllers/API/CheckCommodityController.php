@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Check;
+use App\Models\check_commodity;
 use Illuminate\Http\Request;
 
 class CheckCommodityController extends Controller
@@ -21,8 +22,7 @@ class CheckCommodityController extends Controller
      */
     public function store(Request $request)
     {
-        $check = Check::find($request->check_id);
-        $check->commodities()->attach($request->all());
+        $commodity = check_commodity::create($request->all());
     }
 
     /**
