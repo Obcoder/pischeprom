@@ -61,8 +61,8 @@ onMounted(()=>{
                                     {{unit.name}}</span>
                             </v-card-title>
                             <v-card-text>
-                                <v-chip v-if="unit.entities != null"
-                                >{{unit.entities.count}}</v-chip>
+                                <v-chip v-if="unit.entities.length > 0"
+                                >{{unit.entities.length}}</v-chip>
                             </v-card-text>
                         </v-card>
                     </v-list-item>
