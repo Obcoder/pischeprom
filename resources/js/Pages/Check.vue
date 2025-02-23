@@ -105,7 +105,7 @@ onMounted(()=>{
         <v-row>
             <v-col cols="1"></v-col>
             <v-col>
-                <v-data-table :items="listCommodities"
+                <v-data-table :items="listCommoditiesInCheck"
                               :headers="headersCommodities"
                               hover="hover"
                 >
