@@ -942,7 +942,7 @@ async function sendMail() {
                                         <v-col>
                                             <v-data-table :items="listRegions"
                                                           :headers="headersRegions"
-                                                          items-per-page="20"
+                                                          items-per-page="100"
                                                           density="compact"
                                                           hover="hover"
                                             >
