@@ -91,15 +91,15 @@ onMounted(()=>{
                 ></v-btn>
             </v-col>
         </v-row>
-        <v-row>
+        <v-row class="rounded border border-black-1">
             <v-col>
                 {{date.format(check.date, 'fullDate')}}
             </v-col>
             <v-col>
-                {{check.amount}}
+                {{check.entity.name}}
             </v-col>
             <v-col>
-                {{check.entity.name}}
+                {{check.amount}}
             </v-col>
         </v-row>
         <v-row>
