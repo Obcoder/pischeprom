@@ -6,6 +6,14 @@
     font-family: 'Typingrad';
     src: url("/resources/fonts/Typingrad.otf") format('opentype');
 }
+@font-face {
+    font-family: 'FIFARussia2018';
+    src: url("/resources/fonts/FIFARussia2018.ttf") format('truetype');
+}
+@font-face {
+    font-family: 'Rubik-Medium';
+    src: url("/resources/fonts/Rubik-Medium.ttf") format('truetype');
+}
 
 @tailwind base;
 @tailwind components;

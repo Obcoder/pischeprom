@@ -13,12 +13,16 @@ class UnitController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $units = Unit::with('labels')
+        $like = $request->search;
+        $limit = $request->limit;
+        $units = Unit::where('name', 'like', "%{$like}%")
+            ->with('labels')
             ->with('consumptions')
             ->with('products')
             ->orderByDesc('created_at')
+            ->limit($limit)
             ->get();
 
         return $units;

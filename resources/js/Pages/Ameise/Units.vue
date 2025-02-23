@@ -6,11 +6,14 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
+let searchUnitsLike = ref('');
+let limitUnits = ref(107);
 let listUnits = ref();
-function apiIndexUnits(like){
+function apiIndexUnits(like, limit){
     axios.get(route('api.units'), {
         params: {
             search: like,
+            limit: limit,
         }
     }).then(function (response){
         listUnits.value = response.data;
@@ -20,17 +23,37 @@ function apiIndexUnits(like){
 }
 
 onMounted(()=>{
-    apiIndexUnits('');
+    apiIndexUnits('', limitUnits);
 })
 </script>
 
 <template>
     <v-container>
         <v-row>
+            <v-col cols="6">
+                <v-text-field v-model="searchUnitsLike"
+                              @input="apiIndexUnits(searchUnitsLike, limitUnits)"
+                              label="Search"
+                              variant="outlined"
+                              density="compact"
+                ></v-text-field>
+            </v-col>
+            <v-col cols="3">
+                <v-label>Limit</v-label>
+                <input type="number"
+                       v-model="limitUnits"
+                       @change="apiIndexUnits(searchUnitsLike, limitUnits)"
+                >
+            </v-col>
+            <v-col cols="3"></v-col>
+        </v-row>
+        <v-row>
             <v-col>
                 <v-list>
                     <v-list-item v-for="unit in listUnits">
-                        <span>{{unit.name}}</span>
+                        <span class="font-RubikMedium font-[11px]"
+                        >
+                            {{unit.name}}</span>
                     </v-list-item>
                 </v-list>
             </v-col>
