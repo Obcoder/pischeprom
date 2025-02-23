@@ -47,11 +47,14 @@ onMounted(()=>{
             </v-col>
             <v-col cols="3"></v-col>
         </v-row>
+
         <v-row>
             <v-col>
                 <v-list>
-                    <v-list-item v-for="unit in listUnits">
-                        <span class="font-RubikMedium font-[11px]"
+                    <v-list-item v-for="unit in listUnits"
+                                 class="rounded border border-emerald-900"
+                    >
+                        <span class="font-FIFARussia2018 font-[11px]"
                         >
                             {{unit.name}}</span>
                     </v-list-item>

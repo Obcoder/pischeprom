@@ -15,6 +15,7 @@ class Unit extends Model
 
     protected $with = [
         'uris',
+        'labels',
     ];
 
     public function uris()
