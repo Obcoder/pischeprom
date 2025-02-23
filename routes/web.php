@@ -76,6 +76,8 @@ Route::apiResource('api/telephones', \App\Http\Controllers\API\TelephoneControll
     ->name('index', 'api.telephones');
 Route::apiResource('api/measures/', \App\Http\Controllers\API\MeasureController::class)
     ->name('index', 'api.measures');
+Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
+    ->name('index', 'api.commodities');
 
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');

@@ -11,7 +11,7 @@ const props = defineProps({
 })
 
 let showAddCommodity = ref(false);
-let listCommodities = ref();
+let listCommoditiesInCheck = ref();
 const headersCommodities = ref([
         {
             title: 'name',
@@ -35,6 +35,15 @@ const headersCommodities = ref([
         },
     ]
 );
+
+let listCommoditiesAll = ref();
+function apiIndexCommodities(){
+    axios.get(route('api.commodities')).then(function (response){
+        listCommoditiesAll.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    });
+}
 
 let listMeasures = ref();
 function apiIndexMeasures(){
@@ -65,7 +74,8 @@ function storeCommodityToCheck(){
 }
 
 onMounted(()=>{
-    listCommodities.value = props.check.commodities;
+    listCommoditiesInCheck.value = props.check.commodities;
+    apiIndexCommodities();
     apiIndexMeasures();
 })
 </script>
@@ -105,7 +115,7 @@ onMounted(()=>{
                         >
                             <v-row>
                                 <v-col>
-                                    <v-select :items="listCommodities"
+                                    <v-select :items="listCommoditiesAll"
                                               :item-value="'id'"
                                               :item-title="'name'"
                                               variant="solo"
