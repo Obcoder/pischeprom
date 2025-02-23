@@ -16,7 +16,7 @@ const headersCommodities = ref([
         {
             title: 'name',
             key: 'name',
-            class: 'bg-red',
+            class: 'bg-red-100',
         },
         {
             title: 'quantity',
@@ -33,7 +33,7 @@ const headersCommodities = ref([
         {
             title: 'total_price',
             key: 'pivot.total_price',
-            class: 'bg-green',
+            class: 'bg-green-300',
         },
     ]
 );
