@@ -23,9 +23,15 @@ class Product extends Model
             ->withPivot(['action_id'])
             ->withTimestamps();
     }
-    public function consumptions()
+    public function consumers(): HasManyThrough
     {
-        return $this
-            ->belongsToMany(Consumption::class, 'consumptions', 'product_id', 'id');
+        return $this->hasManyThrough(
+            Unit::class, // Модель конечной таблицы
+            Consumption::class, // Промежуточная таблица
+            'product_id', // Внешний ключ в `consumptions`, который ссылается на `products`
+            'id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
+            'id', // Локальный ключ в `products`
+            'unit_id' // Локальный ключ в `consumptions`
+        );
     }
 }
