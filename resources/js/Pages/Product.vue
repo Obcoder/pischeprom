@@ -38,8 +38,8 @@ const props = defineProps({
                     <v-card-title>Consumptions</v-card-title>
                     <v-card-text>
                         <v-list>
-                            <v-list-item v-for="consumption in product.consumptions">
-                                {{consumption}}
+                            <v-list-item v-for="consumer in product.consumers">
+                                {{consumer.name}}
                             </v-list-item>
                         </v-list>
                     </v-card-text>

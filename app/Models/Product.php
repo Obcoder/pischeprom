@@ -16,6 +16,10 @@ class Product extends Model
         'es',
     ];
 
+    protected $with = [
+        'consumers',
+    ];
+
     public function units()
     {
         return $this->belongsToMany(Unit::class)
@@ -29,9 +33,9 @@ class Product extends Model
             Unit::class, // Модель конечной таблицы
             Consumption::class, // Промежуточная таблица
             'product_id', // Внешний ключ в `consumptions`, который ссылается на `products`
-            'id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
+            'unit_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
             'id', // Локальный ключ в `products`
-            'unit_id' // Локальный ключ в `consumptions`
+            'id' // Локальный ключ в `consumptions`
         );
     }
 }
