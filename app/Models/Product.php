@@ -33,6 +33,7 @@ class Product extends Model
             'id', // Локальный ключ в `products`
             'id' // Локальный ключ в `consumptions`
         )->using(Consumption::class)
+            ->with('measure')
             ->withPivot(['quantity', 'measure_id']);
     }
 }
