@@ -9,6 +9,10 @@ class Consumption extends Model
 {
     use HasFactory;
 
+    protected $with = [
+        'measures',
+    ];
+
     public function product()
     {
         return $this->belongsTo(Product::class)

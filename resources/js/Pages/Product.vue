@@ -37,10 +37,13 @@ const props = defineProps({
                 <v-card>
                     <v-card-title>Consumptions</v-card-title>
                     <v-card-text>
+                        <v-data-table :items="product.consumers"
+                                      density="compact"
+                        ></v-data-table>
                         <v-list>
-                            <v-data-table :items="product.consumers"
-                                          density="compact"
-                            ></v-data-table>
+                            <v-list-item v-for="consumer in product.consumers">
+                                {{product.pivot.measure}}
+                            </v-list-item>
                         </v-list>
                     </v-card-text>
                 </v-card>
