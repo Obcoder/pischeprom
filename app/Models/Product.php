@@ -25,13 +25,13 @@ class Product extends Model
     }
     public function consumers()
     {
-        return $this->hasManyThrough(
+        return $this->belongsToMany(
             Unit::class, // Модель конечной таблицы
             'consumptions', // Промежуточная таблица
             'product_id', // Внешний ключ в `consumptions`, который ссылается на `products`
-            'id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
+            'unit_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
             'id', // Локальный ключ в `products`
-            'unit_id' // Локальный ключ в `consumptions`
+            'id' // Локальный ключ в `consumptions`
         );
     }
 }
