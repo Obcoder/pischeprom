@@ -33,9 +33,9 @@ class Product extends Model
             Unit::class, // Модель конечной таблицы
             'consumptions', // Промежуточная таблица
             'product_id', // Внешний ключ в `consumptions`, который ссылается на `products`
-            'unit_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
+            'id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
             'id', // Локальный ключ в `products`
-            'id' // Локальный ключ в `consumptions`
+            'unit_id' // Локальный ключ в `consumptions`
         );
     }
 }
