@@ -27,7 +27,7 @@ class Product extends Model
             ->withPivot(['action_id'])
             ->withTimestamps();
     }
-    public function consumers(): HasManyThrough
+    public function consumers()
     {
         return $this->hasManyThrough(
             Unit::class, // Модель конечной таблицы
