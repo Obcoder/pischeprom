@@ -12,9 +12,6 @@ class Consumption extends Pivot
 
     protected $table = 'consumptions';
     protected $fillable = ['product_id', 'unit_id', 'quantity', 'measure_id'];
-    protected $with = [
-        'measure',
-    ];
 
     public function product()
     {
@@ -23,6 +20,7 @@ class Consumption extends Pivot
     }
     public function measure()
     {
-        return $this->belongsTo(Measure::class, 'measure_id', 'id');
+        return $this->belongsTo(Measure::class, 'measure_id', 'id')
+            ->withDefault();
     }
 }
