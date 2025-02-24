@@ -25,7 +25,7 @@ class Product extends Model
     }
     public function consumptions()
     {
-        return $this->belongsToMany(Consumption::class, 'consumptions', 'product_id', 'id')
-            ->using(consumption::class);
+        return $this
+            ->belongsToMany(Consumption::class, 'consumptions', 'product_id', 'id');
     }
 }
