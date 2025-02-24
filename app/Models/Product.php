@@ -31,9 +31,9 @@ class Product extends Model
     {
         return $this->hasManyThrough(
             Unit::class, // Модель конечной таблицы
-            Consumption::class, // Промежуточная таблица
-            'product_id', // Внешний ключ в `consumptions`, который ссылается на `products`
-            'unit_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
+            'consumptions', // Промежуточная таблица
+            'unit_id', // Внешний ключ в `consumptions`, который ссылается на `products`
+            'products_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
             'id', // Локальный ключ в `products`
             'id' // Локальный ключ в `consumptions`
         );
