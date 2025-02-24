@@ -10,6 +10,8 @@ class Consumption extends Pivot
 {
     use HasFactory;
 
+    protected $table = 'consumptions';
+    protected $fillable = ['product_id', 'unit_id', 'quantity', 'measure_id'];
     protected $with = [
         'measure',
     ];
@@ -19,8 +21,8 @@ class Consumption extends Pivot
         return $this->belongsTo(Product::class)
             ->withDefault();
     }
-    public function measure(){
-        return $this->hasOne(Measure::class, 'measure_id', 'id')
-            ->withDefault();
+    public function measure()
+    {
+        return $this->belongsTo(Measure::class, 'measure_id', 'id');
     }
 }
