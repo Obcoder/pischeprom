@@ -20,7 +20,7 @@ class Consumption extends Pivot
             ->withDefault();
     }
     public function measure(){
-        return $this->belongsTo(Measure::class)
+        return $this->belongsTo(Measure::class, 'measure_id', 'id')
             ->withDefault();
     }
 }
