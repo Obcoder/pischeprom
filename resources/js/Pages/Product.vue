@@ -11,22 +11,39 @@ const props = defineProps({
 <template>
     <v-container fluid>
         <v-row>
-            <v-col></v-col>
             <v-col>
-                <v-row>
-                    <v-sheet color="purple"
-                             class="font-Typingrad"
+                <v-card>
+                    <v-card-title color="indigo"
+                                  class="font-Typingrad text-black"
                     >
                         {{product.rus}}
-                    </v-sheet><v-sheet color="purple">
-                        {{product.eng}}
-                    </v-sheet><v-sheet color="purple">
-                        {{product.zh}}
-                    </v-sheet><v-sheet color="purple">
-                        {{product.es}}
-                    </v-sheet>
-
-                </v-row>
+                    </v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item>
+                                {{product.eng}}
+                            </v-list-item>
+                            <v-list-item>
+                                {{product.zh}}
+                            </v-list-item>
+                            <v-list-item>
+                                {{product.es}}
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title>Consumptions</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="consumption in product.consumptions">
+                                {{consumption}}
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
             </v-col>
             <v-col></v-col>
         </v-row>

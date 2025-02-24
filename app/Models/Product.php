@@ -23,4 +23,9 @@ class Product extends Model
             ->withPivot(['action_id'])
             ->withTimestamps();
     }
+    public function consumptions()
+    {
+        return $this->belongsToMany(Consumption::class)
+            ->using(consumption::class);
+    }
 }
