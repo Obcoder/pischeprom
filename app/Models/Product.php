@@ -16,10 +16,6 @@ class Product extends Model
         'es',
     ];
 
-    protected $with = [
-        'consumers',
-    ];
-
     public function units()
     {
         return $this->belongsToMany(Unit::class)
