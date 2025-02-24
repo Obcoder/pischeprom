@@ -44,6 +44,7 @@ Route::get('Seaprom', function (){
 });
 Route::get('/Ameise/product/{id}', function ($id) {
     $product = Product::with('consumers.product')
+        ->with('consumers.unit')
         ->with('consumers.measure')
         ->findOrFail($id);
     return Inertia::render('Product', ['product'=>$product]);

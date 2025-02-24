@@ -6,6 +6,21 @@ defineOptions({
 const props = defineProps({
     product: Object,
 })
+
+const headerConsumers = [
+    {
+        title: 'Unit',
+        key: 'unit',
+    },
+    {
+        title: 'Кол-во',
+        key: 'quantity',
+    },
+    {
+        title: 'ед изм',
+        key: 'measure',
+    },
+]
 </script>
 
 <template>
@@ -38,13 +53,16 @@ const props = defineProps({
                     <v-card-title>Consumptions</v-card-title>
                     <v-card-text>
                         <v-data-table :items="product.consumers"
+                                      :headers="headerConsumers"
                                       density="compact"
-                        ></v-data-table>
-                        <v-list>
-                            <v-list-item v-for="consumer in product.consumers">
-                                {{consumer.measure.name}}
-                            </v-list-item>
-                        </v-list>
+                        >
+                            <template v-slot:item.unit="{item}">
+                                {{item.unit.name}}
+                            </template>
+                            <template v-slot:item.measure="{item}">
+                                {{item.measure.name}}
+                            </template>
+                        </v-data-table>
                     </v-card-text>
                 </v-card>
             </v-col>
