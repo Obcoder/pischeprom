@@ -42,7 +42,7 @@ const props = defineProps({
                         ></v-data-table>
                         <v-list>
                             <v-list-item v-for="consumer in product.consumers">
-                                {{consumer.pivot}}
+                                {{consumer.pivot.measure}}
                             </v-list-item>
                         </v-list>
                     </v-card-text>

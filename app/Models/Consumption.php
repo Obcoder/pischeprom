@@ -11,7 +11,7 @@ class Consumption extends Pivot
     use HasFactory;
 
     protected $with = [
-        'measures',
+        'measure',
     ];
 
     public function product()
