@@ -16,6 +16,10 @@ class Product extends Model
         'es',
     ];
 
+    protected $with = [
+        'consumers',
+    ];
+
     public function units()
     {
         return $this->belongsToMany(Unit::class)
@@ -28,8 +32,8 @@ class Product extends Model
         return $this->hasManyThrough(
             Unit::class, // Модель конечной таблицы
             'consumptions', // Промежуточная таблица
-            'unit_id', // Внешний ключ в `consumptions`, который ссылается на `products`
-            'products_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
+            'product_id', // Внешний ключ в `consumptions`, который ссылается на `products`
+            'unit_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
             'id', // Локальный ключ в `products`
             'id' // Локальный ключ в `consumptions`
         );
