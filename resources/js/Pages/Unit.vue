@@ -39,7 +39,8 @@ onMounted(()=>{
 
 const sendEmail = async () => {
     try {
-        const response = await axios.post(route('api.mail'))
+        const response = await axios.post(route('api.mail'));
+        console.log(response);
     } catch (error) {
         console.error('Ошибка при отправке:', error);
     }
