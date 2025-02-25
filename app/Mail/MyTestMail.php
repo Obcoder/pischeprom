@@ -25,7 +25,7 @@ class MyTestMail extends Mailable
 
     public function build()
     {
-        return $this->from(config('mail.from.address'))
+        return $this->from(config('mail.from.address'), config('mail.from.name'))
             ->subject('ПИЩЕПРОМ-СЕРВЕР::Лецитины, Глицерин, Кунжут')
             ->view('emails.funEmail')
             ->with('details', $this->details);
