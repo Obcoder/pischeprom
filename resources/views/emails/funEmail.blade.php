@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
         table{
-            border: #0d47a1;
+            border: #0d47a1 solid 1px;
             border-radius: 4px;
         }
         tr.hover{
