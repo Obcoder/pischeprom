@@ -39,16 +39,9 @@ onMounted(()=>{
 
 const sendEmail = async () => {
     try {
-        const response = await axios.post('http://127.0.0.1:8000/api/send-email', {
-            email: 'tradelognets@gmail.com',
-            title: 'ПИЩЕПРОМ-СЕРВЕР::',
-            body: 'ЭТО ЧТО-ТО НЕВЕРОЯТНОЕ',
-        });
-
-        message.value = response.data.message;
+        const response = await axios.post(route('api.mail'))
     } catch (error) {
         console.error('Ошибка при отправке:', error);
-        message.value = 'Ошибка при отправке письма';
     }
 };
 </script>

@@ -4,8 +4,8 @@
     <title>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</title>
 </head>
 <body>
-<h1>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h1>
-<table>
+<h2>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h2>
+<table class="rounded border border-1">
     <tr>
         <th>Лецитин</th>
         <th>Глицерин</th>
@@ -18,4 +18,10 @@
     </tr>
 </table>
 </body>
+<footer>
+    Пищепром-Сервер
+    <span class="font-Sowjetschablone"
+    >
+        +7-905-753-26-48</span>
+</footer>
 </html>
