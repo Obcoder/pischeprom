@@ -27,6 +27,6 @@ class MailController extends Controller
                 ->subject($body['subject']);
         });
 
-        return 'Mail sent';
+        return response()->json(['message' => 'Mail sent successfully']);
     }
 }
