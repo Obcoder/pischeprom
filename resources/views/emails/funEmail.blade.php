@@ -4,10 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tbl {
+            @apply bg-blue-500 text-white px-4 py-2 rounded;
+        }
+    </style>
 </head>
 <body>
 <h2>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h2>
-<table class="rounded border border-1">
+<table class="tbl">
     <tr>
         <th>Лецитин</th>
         <th>Глицерин</th>
