@@ -7,20 +7,24 @@ use Illuminate\Support\Facades\Mail;
 
 class MailController extends Controller
 {
-    public function sendMail(Request $request){
-        $request->validate([
-            'email' => 'required|email',
-            'message' => 'required'
-        ]);
+    public function sendMail(){
+//        $request->validate([
+//            'email' => 'required|email',
+//            'message' => 'required'
+//        ]);
+//        $body = [
+//            'email' => $request->email,
+//            'message' => $request->message,
+//            'subject' => 'Новое письмо'
+//        ];
         $body = [
-            'email' => $request->email,
-            'message' => $request->message,
-            'subject' => 'Новое письмо'
+            'email' => 'tradelognets@gmail.com',
+            'message' => 'Это просто невероятно!!!',
+            'subject' => 'ПИЩЕПРОМ-СЕРВЕР::Новое письмо'
         ];
         Mail::raw($body['message'], function ($message) use ($body) {
             $message->to($body['email'])
                 ->subject($body['subject']);
-
         });
 
         return 'Mail sent';
