@@ -25,7 +25,8 @@ class MyTestMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Тестовое письмо')
+        return $this->from(config('mail.from.address'))
+            ->subject('ПИЩЕПРОМ-СЕРВЕР::Лецитины, Глицерин, Кунжут')
             ->view('emails.funEmail')
             ->with('details', $this->details);
     }
@@ -36,7 +37,7 @@ class MyTestMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'My Test Mail',
+            subject: 'ПИЩЕПРОМ-СЕРВЕР::Лецитины, Глицерин, Кунжут',
         );
     }
 

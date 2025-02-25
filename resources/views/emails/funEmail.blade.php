@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Test Email</title>
+    <title>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</title>
 </head>
 <body>
 <h1>Урррраааа! Работает!!!</h1>

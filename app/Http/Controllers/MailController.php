@@ -17,15 +17,24 @@ class MailController extends Controller
 //            'message' => $request->message,
 //            'subject' => 'Новое письмо'
 //        ];
-        $body = [
-            'email' => 'tradelognets@gmail.com',
-            'message' => 'Это просто невероятно!!!',
-            'subject' => 'ПИЩЕПРОМ-СЕРВЕР::Новое письмо'
+//        $body = [
+//            'email' => 'tradelognets@gmail.com',
+//            'message' => 'Это просто невероятно!!!',
+//            'subject' => 'ПИЩЕПРОМ-СЕРВЕР::Новое письмо'
+//        ];
+//        Mail::raw($body['message'], function ($message) use ($body) {
+//            $message->to($body['email'])
+//                ->subject($body['subject']);
+//        });
+
+
+        $details = [
+            'title' => 'Привет!',
+            'body' => 'Это тестовое письмо от Laravel.'
         ];
-        Mail::raw($body['message'], function ($message) use ($body) {
-            $message->to($body['email'])
-                ->subject($body['subject']);
-        });
+
+        Mail::to('tradelognets@gmail.com')->send(new MyTestMail($details));
+
 
         return response()->json(['message' => 'Mail sent successfully']);
     }
