@@ -109,8 +109,8 @@ Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodi
 |
 |
  */
-Route::post('/api/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
-    ->name('api.mail');
+//Route::post('/api/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
+//    ->name('api.mail');
 
 Route::get('/send-email', function () {
     $data = [
