@@ -47,7 +47,7 @@ class MyTestMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.funEmail',
+            view: 'emails.myFirstEmail',
         );
     }
 
