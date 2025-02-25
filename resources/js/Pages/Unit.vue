@@ -35,6 +35,22 @@ onMounted(()=>{
         },
     ]
 })
+
+
+const sendEmail = async () => {
+    try {
+        const response = await axios.post('http://127.0.0.1:8000/api/send-email', {
+            email: 'tradelognets@gmail.com',
+            title: 'ПИЩЕПРОМ-СЕРВЕР::',
+            body: 'ЭТО ЧТО-ТО НЕВЕРОЯТНОЕ',
+        });
+
+        message.value = response.data.message;
+    } catch (error) {
+        console.error('Ошибка при отправке:', error);
+        message.value = 'Ошибка при отправке письма';
+    }
+};
 </script>
 
 <template>
@@ -128,6 +144,12 @@ onMounted(()=>{
                     </v-card-text>
                 </v-card>
             </v-col>
+        </v-row>
+        <v-row>
+            <v-btn @click="sendEmail"
+                   text="Отправляем email"
+                   variant="elevated"
+            ></v-btn>
         </v-row>
     </v-container>
 </template>
