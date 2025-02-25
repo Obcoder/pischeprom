@@ -5,7 +5,7 @@
 </head>
 <body>
 <h1>Урррраааа! Работает!!!</h1>
-<h1>{{ $data['title'] }}</h1>
-<p>{{ $data['message'] }}</p>
+<h1>{{ $details['title'] }}</h1>
+<p>{{ $details['message'] }}</p>
 </body>
 </html>

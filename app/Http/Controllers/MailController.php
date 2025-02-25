@@ -31,7 +31,8 @@ class MailController extends Controller
 
         $details = [
             'title' => 'Привет!',
-            'body' => 'Это тестовое письмо от Laravel.'
+            'body' => 'Это тестовое письмо от Laravel.',
+            'message' => 'Кунжут = 260 руб/кг; Лецитин подсолнечный = 440 руб/кг',
         ];
 
         Mail::to('tradelognets@gmail.com')->send(new MyTestMail($details));

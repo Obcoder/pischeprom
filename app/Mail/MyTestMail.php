@@ -48,7 +48,6 @@ class MyTestMail extends Mailable
     {
         return new Content(
             view: 'emails.funEmail',
-            with: ['details' => $this->details],
         );
     }
 
