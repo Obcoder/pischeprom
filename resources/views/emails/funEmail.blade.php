@@ -6,22 +6,19 @@
     <style>
         table{
             border: #0d47a1 solid 1px;
-            border-radius: 4px;
-        }
-        tr.hover{
-            background: #4dd0e1;
+            border-radius: 2px;
         }
     </style>
 </head>
 <body>
 <h3>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h3>
 <table>
-    <tr>
+    <tr style="background: brown; color: black">
         <th>Лецитин</th>
         <th>Глицерин</th>
         <th>Кунжут</th>
     </tr>
-    <tr>
+    <tr style="color: black; padding: 5px">
         <td>от 90 руб/кг</td>
         <td>от 174 руб/кг</td>
         <td>от 260 руб/кг</td>
