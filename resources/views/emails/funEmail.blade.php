@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .tbl {
-            @apply bg-blue-500 text-white px-4 py-2 rounded;
+        table{
+            border: #0d47a1;
+            border-radius: 4px;
+        }
+        tr.hover{
+            background: #4dd0e1;
         }
     </style>
 </head>
 <body>
-<h2>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h2>
-<table class="tbl">
+<h3>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h3>
+<table>
     <tr>
         <th>Лецитин</th>
         <th>Глицерин</th>
