@@ -12,7 +12,7 @@
 </head>
 <body>
 <h3>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h3>
-<table>
+<table style="width: max-content">
     <tr style="background: brown; color: black">
         <th>Лецитин</th>
         <th>Глицерин</th>
