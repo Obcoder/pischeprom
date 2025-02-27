@@ -1,6 +1,7 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
+import {Link} from "@inertiajs/vue3";
 import axios from "axios";
 defineOptions({
     layout: VerwalterLayout,
@@ -56,9 +57,11 @@ onMounted(()=>{
                     >
                         <v-card>
                             <v-card-title>
-                                <span class="font-FIFARussia2018 font-[11px]"
-                                >
+                                <Link :href="route('unit.show', unit.id)">
+                                    <span class="font-FIFARussia2018 font-[11px]"
+                                    >
                                     {{unit.name}}</span>
+                                </Link>
                             </v-card-title>
                             <v-card-text>
                                 <v-chip v-if="unit.entities.length > 0"
