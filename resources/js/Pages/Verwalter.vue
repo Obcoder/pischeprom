@@ -982,7 +982,7 @@ async function sendMail() {
                                 </v-container>
                             </v-tabs-window-item>
 
-                            <v-tabs-window-item>
+                            <v-tabs-window-item value="cities">
                                 <v-data-table :items="listCities"
                                               :headers="headersCities"
                                               items-per-page="200"
