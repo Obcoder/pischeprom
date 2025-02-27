@@ -383,6 +383,10 @@ const headersCities = [
         title: 'name',
         key: 'name',
     },
+    {
+        title: 'population',
+        key: 'population',
+    },
 ]
 const formCity = useForm({
     name: null,
