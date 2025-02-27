@@ -15,7 +15,7 @@ class CityController extends Controller
     {
         $like = $request->search;
         $cities = City::where('name', 'like', "%{$like}%")
-            ->orderBy('populstion', 'desc')
+            ->orderBy('population', 'desc')
             ->get();
         return $cities;
     }
