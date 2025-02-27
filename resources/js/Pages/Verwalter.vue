@@ -162,6 +162,7 @@ onMounted(()=>{
     apiIndexChecks();
     apiIndexComponents();
     apiIndexRegions();
+    apiIndexCities();
 })
 let tab = ref();
 let manufacturers = ref();
@@ -375,6 +376,29 @@ function storeCheck(){
     });
 }
 
+let listCities = ref();
+let searchCitiesLike = ref();
+const headersCities = [
+    {
+        title: 'name',
+        key: 'name',
+    },
+]
+const formCity = useForm({
+    name: null,
+})
+function apiIndexCities(like){
+    axios.get(route('api.cities'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
+        listCities.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    });
+}
+
 let email = ref('');
 let message = ref('');
 let successMessage = ref('');
@@ -424,6 +448,9 @@ async function sendMail() {
                         </v-tab>
                         <v-tab value="seven">
                             Countries
+                        </v-tab>
+                        <v-tab value="cities">
+                            Cities
                         </v-tab>
                         <v-tab value="five">
                             Uris
@@ -953,6 +980,15 @@ async function sendMail() {
                                         </v-col>
                                     </v-row>
                                 </v-container>
+                            </v-tabs-window-item>
+
+                            <v-tabs-window-item>
+                                <v-data-table :items="listCities"
+                                              :headers="headersCities"
+                                              items-per-page="200"
+                                              density="compact"
+                                              hover="hover"
+                                ></v-data-table>
                             </v-tabs-window-item>
 
 
