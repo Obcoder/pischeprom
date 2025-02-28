@@ -988,7 +988,9 @@ async function sendMail() {
                                 </v-container>
                             </v-tabs-window-item>
 
+                            <!--
                             * * * * *     C I T I E S     * * * * *
+                            -->
 
                             <v-tabs-window-item value="cities">
                                 <v-data-table :items="listCities"
@@ -1015,20 +1017,22 @@ async function sendMail() {
                                                 <v-dialog v-model="showFormCity"
                                                           width="1000"
                                                 >
-                                                    <v-card>
-                                                        <v-card-title>Form City</v-card-title>
-                                                        <v-card-text>
-                                                            <v-form @submit.prevent>
-                                                                <v-row>
-                                                                    <v-text-field v-model="formCity.name"
-                                                                                  label="Название"
-                                                                                  variant="outlined"
-                                                                                  density="comfortable"
-                                                                    ></v-text-field>
-                                                                </v-row>
-                                                            </v-form>
-                                                        </v-card-text>
-                                                    </v-card>
+                                                    <template v-slot:default="{ isActive }">
+                                                        <v-card>
+                                                            <v-card-title>Form City</v-card-title>
+                                                            <v-card-text>
+                                                                <v-form @submit.prevent>
+                                                                    <v-row>
+                                                                        <v-text-field v-model="formCity.name"
+                                                                                      label="Название"
+                                                                                      variant="outlined"
+                                                                                      density="comfortable"
+                                                                        ></v-text-field>
+                                                                    </v-row>
+                                                                </v-form>
+                                                            </v-card-text>
+                                                        </v-card>
+                                                    </template>
                                                 </v-dialog>
                                             </v-col>
                                         </v-row>
@@ -1036,7 +1040,9 @@ async function sendMail() {
                                 </v-data-table>
                             </v-tabs-window-item>
 
+                            <!--
                             * * * * *     E N D  C I T I E S     * * * * *
+                            -->
 
                             <!--          C H E C K S          -->
                             <v-tabs-window-item value="nine">
