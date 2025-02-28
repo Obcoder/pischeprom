@@ -376,6 +376,7 @@ function storeCheck(){
     });
 }
 
+//   * * *   C I T I E S   * * *
 let listCities = ref();
 let searchCitiesLike = ref();
 const headersCities = [
@@ -388,6 +389,7 @@ const headersCities = [
         key: 'population',
     },
 ]
+let showFormCity = ref(false)
 const formCity = useForm({
     name: null,
 })
@@ -986,16 +988,55 @@ async function sendMail() {
                                 </v-container>
                             </v-tabs-window-item>
 
+                            * * * * *     C I T I E S     * * * * *
+
                             <v-tabs-window-item value="cities">
                                 <v-data-table :items="listCities"
                                               :headers="headersCities"
                                               items-per-page="200"
                                               density="compact"
                                               hover="hover"
-                                ></v-data-table>
+                                >
+                                    <template v-slot:top>
+                                        <v-row>
+                                            <v-col>
+                                                <v-text-field v-model="searchCitiesLike"
+                                                              @input="apiIndexCities(searchCitiesLike)"
+                                                              label="Поиск городов по like"
+                                                              variant="underlined"
+                                                              density="compact"
+                                                              color="blue"
+                                                ></v-text-field>
+                                            </v-col>
+                                            <v-col>
+                                                <v-btn text="+ city"
+                                                       v-model="showFormCity"
+                                                ></v-btn>
+                                                <v-dialog v-model="showFormCity"
+                                                          width="1000"
+                                                >
+                                                    <v-card>
+                                                        <v-card-title>Form City</v-card-title>
+                                                        <v-card-text>
+                                                            <v-form @submit.prevent>
+                                                                <v-row>
+                                                                    <v-text-field v-model="formCity.name"
+                                                                                  label="Название"
+                                                                                  variant="outlined"
+                                                                                  density="comfortable"
+                                                                    ></v-text-field>
+                                                                </v-row>
+                                                            </v-form>
+                                                        </v-card-text>
+                                                    </v-card>
+                                                </v-dialog>
+                                            </v-col>
+                                        </v-row>
+                                    </template>
+                                </v-data-table>
                             </v-tabs-window-item>
 
-
+                            * * * * *     E N D  C I T I E S     * * * * *
 
                             <!--          C H E C K S          -->
                             <v-tabs-window-item value="nine">
