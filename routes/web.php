@@ -79,7 +79,8 @@ Route::apiResource('api/measures/', \App\Http\Controllers\API\MeasureController:
 Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
     ->name('index', 'api.commodities');
 Route::apiResource('/api/cities', \App\Http\Controllers\API\CityController::class)
-    ->name('index', 'api.cities');
+    ->name('index', 'api.cities')
+    ->name('store', 'api.city.store');
 
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');

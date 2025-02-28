@@ -388,10 +388,21 @@ const headersCities = [
         title: 'population',
         key: 'population',
     },
+    {
+        title: 'wiki',
+        key: 'wiki',
+    },
+    {
+        title: 'Регион',
+        key: 'region_id',
+    },
 ]
 let showFormCity = ref(false)
 const formCity = useForm({
     name: null,
+    population: null,
+    wiki: null,
+    region_id: null,
 })
 function apiIndexCities(like){
     axios.get(route('api.cities'), {
@@ -404,6 +415,19 @@ function apiIndexCities(like){
         console.log(error);
     });
 }
+function storeCity(){
+    formCity.post(route('api.city.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formCity.reset();
+            apiIndexCities();
+        },
+    })
+}
+
+//   E N D  C I T I E S
 
 let email = ref('');
 let message = ref('');
@@ -1008,6 +1032,7 @@ async function sendMail() {
                                                               variant="underlined"
                                                               density="compact"
                                                               color="blue"
+                                                              class="my-3"
                                                 ></v-text-field>
                                             </v-col>
                                             <v-col>
@@ -1016,7 +1041,7 @@ async function sendMail() {
                                                        @click="showFormCity = !showFormCity"
                                                 ></v-btn>
                                                 <v-dialog v-model="showFormCity"
-                                                          width="1000"
+                                                          width="767"
                                                 >
                                                     <template v-slot:default="{ isActive }">
                                                         <v-card>
@@ -1024,14 +1049,49 @@ async function sendMail() {
                                                             <v-card-text>
                                                                 <v-form @submit.prevent>
                                                                     <v-row>
-                                                                        <v-text-field v-model="formCity.name"
-                                                                                      label="Название"
+                                                                        <v-text-field v-model="formCity.wiki"
+                                                                                      label="Wiki"
                                                                                       variant="outlined"
                                                                                       density="comfortable"
                                                                         ></v-text-field>
                                                                     </v-row>
+                                                                    <v-row>
+                                                                        <v-col cols="8">
+                                                                            <v-text-field v-model="formCity.name"
+                                                                                          label="Название"
+                                                                                          variant="outlined"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                        <v-col cols="4">
+                                                                            <v-text-field v-model="formCity.population"
+                                                                                          label="Население"
+                                                                                          variant="outlined"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-autocomplete :items="listRegions"
+                                                                                            :item-title="'name'"
+                                                                                            :item-value="'id'"
+                                                                                            label="Регион"
+                                                                                            density="comfortable"
+                                                                                            color="purple"
+                                                                                            v-model="formCity.region_id"
+                                                                            ></v-autocomplete>
+                                                                        </v-col>
+                                                                    </v-row>
                                                                 </v-form>
                                                             </v-card-text>
+                                                            <v-card-actions>
+                                                                <v-btn @click="storeCity"
+                                                                       text="сохранить"
+                                                                       variant="elevated"
+                                                                       color="green">
+                                                                </v-btn>
+                                                            </v-card-actions>
                                                         </v-card>
                                                     </template>
                                                 </v-dialog>

@@ -8,4 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class City extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'wiki',
+        'population',
+        'region_id',
+    ];
 }
