@@ -1013,6 +1013,7 @@ async function sendMail() {
                                             <v-col>
                                                 <v-btn text="+ city"
                                                        v-model="showFormCity"
+                                                       @click="showFormCity = !showFormCity"
                                                 ></v-btn>
                                                 <v-dialog v-model="showFormCity"
                                                           width="1000"
