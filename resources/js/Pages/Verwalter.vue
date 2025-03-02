@@ -1122,6 +1122,11 @@ async function sendMail() {
                                             </v-col>
                                         </v-row>
                                     </template>
+                                    <template v-slot:item.name="{item}">
+                                        <Link :href="route('city.show', item.id)">
+                                            <span>{{item.name}}</span>
+                                        </Link>
+                                    </template>
                                     <template v-slot:item.yandexmapsgeo="{item}">
                                         <a :href="item.yandexmapsgeo"
                                            target="_blank"

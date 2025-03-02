@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\ManufacturerController;
+use App\Models\City;
 use App\Models\Product;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +50,10 @@ Route::get('/Ameise/product/{id}', function ($id) {
         ->findOrFail($id);
     return Inertia::render('Product', ['product'=>$product]);
 })->name('product.show');
+Route::get('/Ameise/city/{id}', function ($id) {
+    $city = City::findOrFail($id);
+    return Inertia::render('Ameise/City', ['city'=>$city]);
+})->name('city.show');
 
 //                     A         P         I
 //                          G         E         T
