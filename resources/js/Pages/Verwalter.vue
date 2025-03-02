@@ -1136,6 +1136,9 @@ async function sendMail() {
                                         </a>
                                     </template>
                                 </v-data-table>
+                                <template v-slot:item.region_id="{item}">
+                                    {{item.region.name}}
+                                </template>
                             </v-tabs-window-item>
 
                             <!--

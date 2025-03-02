@@ -17,4 +17,11 @@ class City extends Model
         'yandexmapsgeo',
         'twogis',
     ];
+
+    protected $with = ['region'];
+
+    public function region(){
+        return $this->belongsTo(Region::class)
+            ->withDefault();
+    }
 }
