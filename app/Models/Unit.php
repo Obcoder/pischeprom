@@ -51,7 +51,7 @@ class Unit extends Model
             ->using(entity_unit::class);
     }
 
-    public function builldings()
+    public function buildings()
     {
         return $this->belongsToMany(Building::class)
             ->using(building_unit::class);
