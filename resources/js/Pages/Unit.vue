@@ -157,7 +157,19 @@ const sendEmail = async () => {
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title>Cities</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="building in unit.buildings"
+                            >
+                                {{building.city.name}}
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-col></v-col>
         </v-row>
     </v-container>
