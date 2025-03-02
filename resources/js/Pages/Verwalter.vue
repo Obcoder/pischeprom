@@ -1135,10 +1135,10 @@ async function sendMail() {
                                             2gis
                                         </a>
                                     </template>
+                                    <template v-slot:item.region_id="{item}">
+                                        {{item.region.name}}
+                                    </template>
                                 </v-data-table>
-                                <template v-slot:item.region_id="{item}">
-                                    {{item}}
-                                </template>
                             </v-tabs-window-item>
 
                             <!--
