@@ -145,5 +145,18 @@ const sendEmail = async () => {
                    variant="elevated"
             ></v-btn>
         </v-row>
+        <v-row>
+            <v-col>
+                <v-card color="puple">
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="building in unit.buildings">
+                                {{building.address}}
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+        </v-row>
     </v-container>
 </template>
