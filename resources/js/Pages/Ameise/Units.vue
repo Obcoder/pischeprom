@@ -70,7 +70,7 @@ function apiIndexBuildings(){
 // Функция для корректного отображения "Город - Адрес"
 const formatBuildingTitle = (building) => {
     if (!building) return '';
-    return `${building.city?.name || 'Неизвестный город'} - ${building.address}`;
+    return `${building.city?.name || ' - '} , ${building.address}`;
 };
 
 const formUnit = useForm({
