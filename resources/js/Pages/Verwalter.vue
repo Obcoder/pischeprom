@@ -6,7 +6,6 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,
 })
-
 const props = defineProps({
     title: String,
     goods: Object,
@@ -26,17 +25,6 @@ function apiIndexUris(){
         .finally(function () {
             // always executed
         });
-}
-function storeUri(){
-    formUri.post(route('api.uri.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formUri.reset();
-            apiIndexUris();
-        },
-    });
 }
 
 let listTelephones = ref();
@@ -171,7 +159,6 @@ let listUnits = ref();
 let listCategories = ref();
 let listCountries = ref();
 let listRegions = ref();
-let listLabels = ref();
 let listEntities = ref();
 let listChecks = ref();
 let listComponents = ref();
@@ -183,18 +170,9 @@ let headersCountries = ref();
 let headersChecks = ref();
 let headersComponents = ref();
 let searchProducts = ref('');
-let selectedUris = ref([]);
 let dialogUri = ref(false);
 let dialogFormProduct = ref(false);
 
-const formUnit = useForm({
-    name: null,
-    uris: null,
-    labels: null,
-});
-const formUri = useForm({
-    address: null,
-})
 const formProduct = useForm({
     rus: null,
     eng: null,
@@ -276,14 +254,6 @@ function getCountries(){
             // always executed
         });
 }
-function apiIndexLabels(){
-    axios.get(route('api.labels')).then(function (response) {
-        listLabels.value = response.data;
-    })
-        .catch(function (error) {
-            console.log(error);
-        });
-}
 function apiIndexEntities(like){
     axios.get(route('api.entities'), {
         params: {
@@ -316,18 +286,6 @@ function apiIndexRegions(){
         listRegions.value = response.data;
     }).catch(function (error) {
         console.log(error);
-    });
-}
-
-function storeUnit(){
-    formUnit.uris = selectedUris.value;
-    formUnit.post(route('api.units.store'), {
-        replace: false,
-        preserveState: false,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formUnit.reset();
-        },
     });
 }
 function storeProduct(){
@@ -527,106 +485,6 @@ async function sendMail() {
                                                       variant="outlined"
                                                       class="mt-1 py-1 ring-0 focus:outline-none"
                                         ></v-text-field>
-                                    </v-col>
-                                    <v-col cols="3">
-                                        <v-dialog
-                                            transition="dialog-top-transition"
-                                            width="990"
-                                        >
-                                            <template v-slot:activator="{ props: activatorProps }">
-                                                <v-btn
-                                                    v-bind="activatorProps"
-                                                    text="Новый Unit"
-                                                    block
-                                                    variant="text"
-                                                    color="teal-lighten-3"
-                                                ></v-btn>
-                                            </template>
-                                            <template v-slot:default="{ isActive }">
-                                                <v-card>
-                                                    <v-toolbar title="Form Unit"></v-toolbar>
-
-                                                    <v-card-text class="text-h2 pa-12">
-                                                        <v-form @submit.prevent>
-                                                            <v-container>
-                                                                <v-row>
-                                                                    <v-text-field v-model="formUnit.name"
-                                                                                  label="Name"
-                                                                                  variant="outlined"
-                                                                    ></v-text-field>
-                                                                </v-row>
-                                                                <v-row>
-                                                                    <v-col cols="9">
-                                                                        <v-autocomplete v-model="selectedUris"
-                                                                                        :items="listUris"
-                                                                                        :item-value="'id'"
-                                                                                        :item-title="'address'"
-                                                                                        label="Uris selected"
-                                                                                        chips
-                                                                                        multiple
-                                                                        ></v-autocomplete>
-                                                                    </v-col>
-                                                                    <v-col cols="3">
-                                                                        <v-btn class="my-2"
-                                                                               text="+ uri"
-                                                                               @click="dialogUri = true"
-                                                                        ></v-btn>
-
-                                                                        <v-dialog v-model="dialogUri"
-                                                                                  width="501"
-                                                                        >
-                                                                            <v-card>
-                                                                                <v-toolbar title="FORM: Uri"></v-toolbar>
-                                                                                <v-card-text>
-                                                                                    <v-form @submit.prevent>
-                                                                                        <v-row>
-                                                                                            <v-text-field v-model="formUri.address"
-                                                                                                          label="Uri address"
-                                                                                                          variant="outlined"
-                                                                                            ></v-text-field>
-                                                                                        </v-row>
-                                                                                        <v-row>
-                                                                                            <v-col cols="4">
-                                                                                                <v-btn
-                                                                                                    text="store"
-                                                                                                    block
-                                                                                                    @click="storeUri"
-                                                                                                ></v-btn>
-                                                                                            </v-col>
-                                                                                        </v-row>
-                                                                                    </v-form>
-                                                                                </v-card-text>
-                                                                            </v-card>
-                                                                        </v-dialog>
-                                                                    </v-col>
-                                                                </v-row>
-                                                                <v-row>
-                                                                    <v-col cols="4">
-                                                                        <v-select v-model="formUnit.labels"
-                                                                                  :items="listLabels"
-                                                                                  :item-value="'id'"
-                                                                                  :item-title="'name'"
-                                                                                  label="Labels"
-                                                                                  multiple
-                                                                        ></v-select>
-                                                                    </v-col>
-                                                                </v-row>
-                                                            </v-container>
-                                                        </v-form>
-                                                    </v-card-text>
-
-                                                    <v-card-actions class="justify-end">
-                                                        <v-btn
-                                                            text="Close"
-                                                            @click="isActive.value = false"
-                                                        ></v-btn>
-                                                        <v-btn text="Сохранить"
-                                                               @click="storeUnit"
-                                                        ></v-btn>
-                                                    </v-card-actions>
-                                                </v-card>
-                                            </template>
-                                        </v-dialog>
                                     </v-col>
                                 </v-row>
 

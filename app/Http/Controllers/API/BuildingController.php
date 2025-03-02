@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Building;
 use Illuminate\Http\Request;
 
 class BuildingController extends Controller
@@ -12,7 +13,8 @@ class BuildingController extends Controller
      */
     public function index()
     {
-        //
+        $buildings = Building::all();
+        return $buildings;
     }
 
     /**

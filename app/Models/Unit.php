@@ -50,4 +50,10 @@ class Unit extends Model
         return $this->belongsToMany(Entity::class)
             ->using(entity_unit::class);
     }
+
+    public function builldings()
+    {
+        return $this->belongsToMany(Building::class)
+            ->using(building_unit::class);
+    }
 }
