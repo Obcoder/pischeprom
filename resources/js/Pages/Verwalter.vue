@@ -12,6 +12,15 @@ const props = defineProps({
     actions: Object,
 })
 
+let listLabels = ref();
+function apiIndexLabels(){
+    axios.get(route('api.labels')).then(function (response) {
+        listLabels.value = response.data;
+    })
+        .catch(function (error) {
+            console.log(error);
+        });
+}
 let listUris = ref();
 function apiIndexUris(){
     axios.get(route('api.uris')).then(function (response) {
@@ -150,7 +159,7 @@ onMounted(()=>{
     apiIndexChecks();
     apiIndexComponents();
     apiIndexRegions();
-    apiIndexCities('');
+    apiIndexCities();
 })
 let tab = ref();
 let manufacturers = ref();
