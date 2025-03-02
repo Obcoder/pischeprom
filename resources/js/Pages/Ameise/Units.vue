@@ -155,7 +155,7 @@ onMounted(()=>{
                                                        @click="showFormUri = true"
                                                 ></v-btn>
 
-                                                <v-dialog v-model="dialogUri"
+                                                <v-dialog v-model="showFormUri"
                                                           width="501"
                                                 >
                                                     <v-card>
