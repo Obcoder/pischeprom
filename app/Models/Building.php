@@ -8,4 +8,14 @@ use Illuminate\Database\Eloquent\Model;
 class Building extends Model
 {
     use HasFactory;
+
+    protected $with = [
+        'city',
+    ];
+
+    public function city()
+    {
+        return $this->belongsTo(City::class)
+            ->withDefault();
+    }
 }

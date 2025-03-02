@@ -13,7 +13,8 @@ class BuildingController extends Controller
      */
     public function index()
     {
-        $buildings = Building::all();
+        $buildings = Building::orderBy('created_at', 'desc')
+            ->get();
         return $buildings;
     }
 

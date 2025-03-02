@@ -198,7 +198,7 @@ onMounted(()=>{
                                             <v-col>
                                                 <v-autocomplete v-model="formUnit.buildings"
                                                                 :items="listBuildings"
-                                                                :item-title="'address'"
+                                                                :item-title="`${building.city?.name || 'Неизвестный город'} - ${building.name}`"
                                                                 :item-value="'id'"
                                                                 label="Buildings"
                                                                 color="blue"
