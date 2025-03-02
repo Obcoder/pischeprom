@@ -67,6 +67,11 @@ function apiIndexBuildings(){
             console.log(error);
         });
 }
+// Функция для корректного отображения "Город - Адрес"
+const formatBuildingTitle = (building) => {
+    if (!building) return '';
+    return `${building.city?.name || 'Неизвестный город'} - ${building.address}`;
+};
 
 const formUnit = useForm({
     name: null,
@@ -198,7 +203,7 @@ onMounted(()=>{
                                             <v-col>
                                                 <v-autocomplete v-model="formUnit.buildings"
                                                                 :items="listBuildings"
-                                                                :item-title="'building.city.name - address'"
+                                                                :item-title="formatBuildingTitle"
                                                                 :item-value="'id'"
                                                                 label="Buildings"
                                                                 color="blue"
