@@ -157,6 +157,8 @@ const sendEmail = async () => {
                     </v-card-text>
                 </v-card>
             </v-col>
+            <v-col></v-col>
+            <v-col></v-col>
         </v-row>
     </v-container>
 </template>

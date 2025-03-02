@@ -22,7 +22,6 @@ class UnitController extends Controller
             ->with('consumptions')
             ->with('products')
             ->with('entities')
-            ->with('buildings')
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get();
@@ -58,6 +57,7 @@ class UnitController extends Controller
             'unit' => Unit::with('uris')
                 ->with('labels')
                 ->with('stages')
+                ->with('buildings')
                 ->with('consumptions.product')
                 ->with('consumptions.measure')
                 ->findOrFail($id),
