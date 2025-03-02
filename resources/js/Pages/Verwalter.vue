@@ -150,7 +150,7 @@ onMounted(()=>{
     apiIndexChecks();
     apiIndexComponents();
     apiIndexRegions();
-    apiIndexCities();
+    apiIndexCities('');
 })
 let tab = ref();
 let manufacturers = ref();
