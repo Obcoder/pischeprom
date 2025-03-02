@@ -14,5 +14,7 @@ class City extends Model
         'wiki',
         'population',
         'region_id',
+        'yandexmapsgeo',
+        'twogis',
     ];
 }

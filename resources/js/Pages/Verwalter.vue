@@ -396,6 +396,10 @@ const headersCities = [
         title: 'Регион',
         key: 'region_id',
     },
+    {
+        title: 'Maps',
+        key: 'yandexmapsgeo',
+    },
 ]
 let showFormCity = ref(false)
 const formCity = useForm({
@@ -403,6 +407,8 @@ const formCity = useForm({
     population: null,
     wiki: null,
     region_id: null,
+    yandexmapsgeo: null,
+    twogis: null,
 })
 function apiIndexCities(like){
     axios.get(route('api.cities'), {
@@ -1083,6 +1089,24 @@ async function sendMail() {
                                                                             ></v-autocomplete>
                                                                         </v-col>
                                                                     </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-text-field v-model="formCity.yandexmapsgeo"
+                                                                                          label="yandex.ru/maps/geo/"
+                                                                                          variant="solo"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-text-field v-model="formCity.twogis"
+                                                                                          label="2GIS"
+                                                                                          variant="solo"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
                                                                 </v-form>
                                                             </v-card-text>
                                                             <v-card-actions>
@@ -1097,6 +1121,19 @@ async function sendMail() {
                                                 </v-dialog>
                                             </v-col>
                                         </v-row>
+                                    </template>
+                                    <template v-slot:item.yandexmapsgeo="{item}">
+                                        <a :href="item.yandexmapsgeo"
+                                           target="_blank"
+                                           class="mx-3"
+                                        >
+                                            yandex</a>
+                                        <a :href="item.twogis"
+                                           target="_blank"
+                                           class="mx-3"
+                                           >
+                                            2gis
+                                        </a>
                                     </template>
                                 </v-data-table>
                             </v-tabs-window-item>
