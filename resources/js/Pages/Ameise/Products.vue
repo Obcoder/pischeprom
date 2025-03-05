@@ -23,7 +23,14 @@ function apiIndexProducts(){
         });
 }
 const headersProducts = [
-    'name',
+    {
+        title: 'rus',
+        key: 'rus',
+    },
+    {
+        title: 'eng',
+        key: 'eng',
+    },
 ]
 let showFormProduct = ref(false);
 const formProduct = useForm({

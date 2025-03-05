@@ -92,8 +92,6 @@ Route::apiResource('/api/cities', \App\Http\Controllers\API\CityController::clas
 
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
-Route::get('/api/products/', [\App\Http\Controllers\API\ProductController::class, 'index'])
-    ->name('api.products');
 Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
     ->name('api.uris');
 Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
