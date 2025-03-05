@@ -675,6 +675,14 @@ async function sendMail() {
                             </v-tabs-window-item>
 
 
+                            <v-tabs-window-item value="five">
+                                <v-data-table :items="listUris"
+                                              density="compact"
+                                              hover="hover"
+                                ></v-data-table>
+                            </v-tabs-window-item>
+
+                            <!--
                             _____________________________________________________
                             |                                                   |
                             |           T E L E P H O N E S  T A B              |
