@@ -14,8 +14,10 @@ class ProductController extends Controller
      */
     public function index()
     {
-        $products = DB::table('products')
-            ->select('products.id', 'products.rus')
+//        $products = DB::table('products')
+//            ->select('products.id', 'products.rus')
+//            ->get();
+        $products = Product::orderBy('created_at', 'desc')
             ->get();
 
         return $products;

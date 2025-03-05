@@ -51,7 +51,7 @@ Route::get('/Ameise/product/{id}', function ($id) {
         ->with('consumers.unit')
         ->with('consumers.measure')
         ->findOrFail($id);
-    return Inertia::render('Product', ['product'=>$product]);
+    return Inertia::render('Ameise/Product', ['product'=>$product]);
 })->name('product.show');
 Route::get('/Ameise/city/{id}', function ($id) {
     $city = City::findOrFail($id);
