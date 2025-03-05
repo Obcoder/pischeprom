@@ -17,6 +17,9 @@ import {Link} from "@inertiajs/vue3";
                 <v-list-item>
                     <Link :href="route('Ameise.units')">Units</Link>
                 </v-list-item>
+                <v-list-item>
+                    <Link :href="route('Ameise.products')">Products</Link>
+                </v-list-item>
             </v-list>
         </v-navigation-drawer>
 

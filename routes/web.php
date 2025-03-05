@@ -43,6 +43,9 @@ Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });
+Route::get('/Ameise/products/', function (){
+    return Inertia::render('Ameise/Products');
+})->name('Ameise.products');
 Route::get('/Ameise/product/{id}', function ($id) {
     $product = Product::with('consumers.product')
         ->with('consumers.unit')
