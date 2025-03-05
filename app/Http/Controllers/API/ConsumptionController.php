@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Consumption;
 use Illuminate\Http\Request;
 
 class ConsumptionController extends Controller
@@ -20,7 +21,7 @@ class ConsumptionController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $consumption = Consumption::create($request->all());
     }
 
     /**

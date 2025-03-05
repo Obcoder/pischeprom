@@ -12,7 +12,13 @@ class Consumption extends Pivot
     use HasFactory;
 
     protected $table = 'consumptions';
-    protected $fillable = ['product_id', 'unit_id', 'quantity', 'measure_id'];
+    protected $fillable =
+        [
+            'product_id',
+            'unit_id',
+            'quantity',
+            'measure_id'
+        ];
 
     public function unit(): BelongsTo
     {
