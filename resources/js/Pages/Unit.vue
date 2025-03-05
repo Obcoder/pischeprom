@@ -1,12 +1,14 @@
 <script setup>
 import { useDate } from 'vuetify'
 import {onMounted, ref} from "vue";
+import axios from "axios";
+import {useForm} from "@inertiajs/vue3";
 const date = useDate()
 const props = defineProps({
     unit: Object,
     products: Object,
 })
-let headersConsumptions = ref();
+
 let da = new Date();
 function timeDiff(time){
     let d = new Date();
@@ -14,26 +16,62 @@ function timeDiff(time){
     let denominator = 1000 * 3600 * 24;
     return Math.round(diffMilliseconds/denominator);
 }
+let listProducts = ref()
+function apiIndexProducts(){
+    axios.get('api.products').then(function (response){
+        listProducts.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
+let listMeasures = ref()
+function apiIndexMeasures(){
+    axios.get('api.measures').then(function (response){
+        listMeasures.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
+
+const headersConsumptions = ref([
+    {
+        title: 'created',
+        key: 'created_at',
+    },
+    {
+        title: 'Product',
+        key: 'product_id',
+    },
+    {
+        title: 'Quantity',
+        key: 'quantity',
+    },
+    {
+        title: 'Measure',
+        key: 'measure_id',
+    },
+])
+let showFormConsumption = ref()
+const formConsumption = useForm({
+    unit_id: null,
+    product_id: null,
+    quantity: null,
+    measure_id: null,
+})
+function storeConsumption(){
+    formConsumption.post(route('api.consumption.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formConsumption.reset();
+        },
+    })
+}
 
 onMounted(()=>{
-    headersConsumptions.value = [
-        {
-            title: 'created',
-            key: 'created_at',
-        },
-        {
-            title: 'Product',
-            key: 'product_id',
-        },
-        {
-            title: 'Quantity',
-            key: 'quantity',
-        },
-        {
-            title: 'Measure',
-            key: 'measure_id',
-        },
-    ]
+    apiIndexProducts();
+    apiIndexMeasures();
 })
 
 
@@ -84,7 +122,7 @@ const sendEmail = async () => {
             <v-col></v-col>
         </v-row>
         <v-row>
-            <v-col cols="4">
+            <v-col cols="5">
                 <v-card title="Consumptions">
                     <v-data-table :items="unit.consumptions"
                                   :headers="headersConsumptions"
@@ -92,6 +130,43 @@ const sendEmail = async () => {
                                   hover="hover"
                                   class="text-sm"
                     >
+                        <template v-slot:top>
+                            <v-row>
+                                <v-col>
+                                    <v-btn @click="showFormConsumption = !showFormConsumption"
+                                           text="добавить"
+                                           variant="elevated"
+                                    ></v-btn>
+                                </v-col>
+                            </v-row>
+                            <v-row v-if="showFormConsumption">
+                                <v-form @submit.prevent>
+                                    <v-row>
+                                        <v-col>
+                                            <v-autocomplete :items="listProducts"
+                                                            :item-title="'rus'"
+                                                            :item-value="'id'"
+                                            ></v-autocomplete>
+                                        </v-col>
+                                        <v-col>
+                                            <v-text-field label="quantity"></v-text-field>
+                                        </v-col>
+                                        <v-col>
+                                            <v-select :items="listMeasures"
+                                                      :item-title="'name'"
+                                                      :item-value="'id'"
+                                            ></v-select>
+                                        </v-col>
+                                        <v-col>
+                                            <v-btn @click="storeConsumption"
+                                                   text="label"
+                                                   variant="flat"
+                                            ></v-btn>
+                                        </v-col>
+                                    </v-row>
+                                </v-form>
+                            </v-row>
+                        </template>
                         <template v-slot:item.product_id="{item}">
                             {{item.product.rus}}
                         </template>
