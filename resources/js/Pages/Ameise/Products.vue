@@ -25,6 +25,7 @@ function apiIndexProducts(){
 const headersProducts = [
     'name',
 ]
+let showFormProduct = ref(false);
 const formProduct = useForm({
     rus: null,
     eng: null,
@@ -66,7 +67,7 @@ onMounted(()=>{
                                 </v-col>
                                 <v-col cols="3">
                                     <v-dialog
-                                        v-model="dialogFormProduct"
+                                        v-model="showFormProduct"
                                         max-width="500px"
                                     >
                                         <template v-slot:activator="{ props }">
@@ -144,13 +145,6 @@ onMounted(()=>{
                         </template>
                     </v-data-table>
                 </v-card>
-                </v-tabs-window-item>
-
-                <v-tabs-window-item value="five">
-                    <v-data-table :items="listUris"
-                                  density="compact"
-                                  hover="hover"
-                    ></v-data-table>
             </v-col>
         </v-row>
     </v-container>

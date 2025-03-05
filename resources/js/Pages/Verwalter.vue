@@ -667,8 +667,6 @@ async function sendMail() {
 
 
 
-
-
                             <v-tabs-window-item value="two">
                                 <v-data-table :items="manufacturers"
                                               density="compact"
