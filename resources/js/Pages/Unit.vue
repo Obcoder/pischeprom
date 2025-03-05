@@ -134,22 +134,31 @@ const sendEmail = async () => {
                                 ></v-btn>
                             </v-col>
                         </v-row>
-                        <v-row v-if="showFormConsumption">
-                            <v-form @submit.prevent>
+                        <v-row>
+                            <v-form v-if="showFormConsumption"
+                                    @submit.prevent
+                            >
                                 <v-row>
                                     <v-col>
                                         <v-autocomplete :items="listProducts"
                                                         :item-title="'rus'"
                                                         :item-value="'id'"
+                                                        v-model="formConsumption.product_id"
+                                                        variant="outlined"
                                         ></v-autocomplete>
                                     </v-col>
                                     <v-col>
-                                        <v-text-field label="quantity"></v-text-field>
+                                        <v-text-field v-model="formConsumption.quantity"
+                                                      label="quantity"
+                                                      variant="solo"
+                                        ></v-text-field>
                                     </v-col>
                                     <v-col>
                                         <v-select :items="listMeasures"
                                                   :item-title="'name'"
                                                   :item-value="'id'"
+                                                  v-model="formConsumption.measure_id"
+                                                  variant="outlined"
                                         ></v-select>
                                     </v-col>
                                     <v-col>
