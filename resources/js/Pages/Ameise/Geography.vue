@@ -23,7 +23,7 @@ function loadData(routeName, list, like){
             search: like,
         }
     }).then(function (response){
-        list.value.splice(0, list.value.length, ...response.data);
+        list.value = [...response.data];
         console.log(buildings.value);
     }).catch(function (error){
         console.log(error);
