@@ -145,7 +145,8 @@ const sendEmail = async () => {
                             <template v-slot:top>
                                 <v-form @submit.prevent
                                         v-if="showFormConsumption"
-                                >
+                                        style="border: 2px solid red; padding: 20px;">
+                                    <p>DEBUG TEXT</p>
                                     <v-row>
                                         <v-col>
                                             <v-autocomplete :items="listProducts"
