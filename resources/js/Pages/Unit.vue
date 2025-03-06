@@ -127,6 +127,8 @@ const sendEmail = async () => {
                     <v-card-title>Consumptions</v-card-title>
                     <v-card-text>
                         <v-row>
+                            <v-col></v-col>
+                            <v-col></v-col>
                             <v-col>
                                 <v-btn @click="showFormConsumption = !showFormConsumption"
                                        text="добавить"
@@ -134,48 +136,48 @@ const sendEmail = async () => {
                                 ></v-btn>
                             </v-col>
                         </v-row>
-                        <v-row>
-                            <v-form v-if="showFormConsumption"
-                                    @submit.prevent
-                            >
-                                <v-row>
-                                    <v-col>
-                                        <v-autocomplete :items="listProducts"
-                                                        :item-title="'rus'"
-                                                        :item-value="'id'"
-                                                        v-model="formConsumption.product_id"
-                                                        variant="outlined"
-                                        ></v-autocomplete>
-                                    </v-col>
-                                    <v-col>
-                                        <v-text-field v-model="formConsumption.quantity"
-                                                      label="quantity"
-                                                      variant="solo"
-                                        ></v-text-field>
-                                    </v-col>
-                                    <v-col>
-                                        <v-select :items="listMeasures"
-                                                  :item-title="'name'"
-                                                  :item-value="'id'"
-                                                  v-model="formConsumption.measure_id"
-                                                  variant="outlined"
-                                        ></v-select>
-                                    </v-col>
-                                    <v-col>
-                                        <v-btn @click="storeConsumption"
-                                               text="label"
-                                               variant="flat"
-                                        ></v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-form>
-                        </v-row>
                         <v-data-table :items="unit.consumptions"
                                       :headers="headersConsumptions"
                                       density="comfortable"
                                       hover="hover"
                                       class="text-sm"
                         >
+                            <template v-slot:top>
+                                <v-form v-if="showFormConsumption"
+                                        @submit.prevent
+                                >
+                                    <v-row>
+                                        <v-col>
+                                            <v-autocomplete :items="listProducts"
+                                                            :item-title="'rus'"
+                                                            :item-value="'id'"
+                                                            v-model="formConsumption.product_id"
+                                                            variant="outlined"
+                                            ></v-autocomplete>
+                                        </v-col>
+                                        <v-col>
+                                            <v-text-field v-model="formConsumption.quantity"
+                                                          label="quantity"
+                                                          variant="solo"
+                                            ></v-text-field>
+                                        </v-col>
+                                        <v-col>
+                                            <v-select :items="listMeasures"
+                                                      :item-title="'name'"
+                                                      :item-value="'id'"
+                                                      v-model="formConsumption.measure_id"
+                                                      variant="outlined"
+                                            ></v-select>
+                                        </v-col>
+                                        <v-col>
+                                            <v-btn @click="storeConsumption"
+                                                   text="label"
+                                                   variant="flat"
+                                            ></v-btn>
+                                        </v-col>
+                                    </v-row>
+                                </v-form>
+                            </template>
                             <template v-slot:item.product_id="{item}">
                                 {{item.product.rus}}
                             </template>
