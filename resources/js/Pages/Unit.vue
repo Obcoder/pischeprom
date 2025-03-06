@@ -61,10 +61,11 @@ const formConsumption = useForm({
 function storeConsumption(){
     formConsumption.post(route('api.consumption.store'), {
         replace: false,
-        preserveState: false,
+        preserveState: true,
         preserveScroll: false,
         onSuccess: ()=> {
             formConsumption.reset();
+            showFormConsumption.value = false;
         },
     })
 }
