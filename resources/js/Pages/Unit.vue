@@ -132,23 +132,17 @@ const sendEmail = async () => {
                 <v-card>
                     <v-card-title>
                         Consumptions
+                    </v-card-title>
+                    <v-card-subtitle>
                         <v-btn @click="showFormConsumption = !showFormConsumption"
                                text="добавить"
-                               variant="elevated"
+                               variant="text"
                         ></v-btn>
-                    </v-card-title>
-                    <v-card-text>
-                        <v-data-table :items="unit.consumptions"
-                                      :headers="headersConsumptions"
-                                      density="comfortable"
-                                      hover="hover"
-                                      class="text-sm"
-                        >
-                            <template v-slot:top>
+                        <v-dialog v-model="showFormConsumption">
+                            <v-card>
                                 <v-form @submit.prevent
                                         v-if="showFormConsumption"
                                         style="border: 2px solid red; padding: 20px;">
-                                    <p>DEBUG TEXT</p>
                                     <v-row>
                                         <v-col>
                                             <v-autocomplete :items="listProducts"
@@ -182,7 +176,16 @@ const sendEmail = async () => {
                                         </v-col>
                                     </v-row>
                                 </v-form>
-                            </template>
+                            </v-card>
+                        </v-dialog>
+                    </v-card-subtitle>
+                    <v-card-text>
+                        <v-data-table :items="unit.consumptions"
+                                      :headers="headersConsumptions"
+                                      density="comfortable"
+                                      hover="hover"
+                                      class="text-sm"
+                        >
                             <template v-slot:item.product_id="{item}">
                                 <Link :href="route('product.show', item.product_id)">
                                     {{item.product.rus}}
