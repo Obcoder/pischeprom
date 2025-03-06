@@ -30,7 +30,6 @@ class City extends Model
 
     public function buildings()
     {
-        return $this->belongsTo(Building::class)
-            ->withDefault();
+        return $this->hasMany(Building::class);
     }
 }
