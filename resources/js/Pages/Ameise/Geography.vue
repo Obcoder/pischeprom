@@ -24,6 +24,7 @@ function loadData(routeName, list, like){
         }
     }).then(function (response){
         list.value = response.data;
+        list = list.value;
     }).catch(function (error){
         console.log(error);
     })
