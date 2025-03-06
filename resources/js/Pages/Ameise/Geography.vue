@@ -47,7 +47,7 @@ onMounted(()=> {
                 </v-tabs>
                 <v-card-text>
                     <v-tabs-window v-model="tab">
-                        <v-tabs-window-item value="counties">
+                        <v-tabs-window-item value="countries">
                             <v-row>
                                 <v-col>
                                     <v-card>
