@@ -105,6 +105,8 @@ Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionCon
 Route::apiResource('/api/buildings', \App\Http\Controllers\API\BuildingController::class)
     ->name('index', 'api.buildings')
     ->name('store', 'api.building.store');
+Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
+    ->name('store', 'api.building_unit.store');
 
 
 //                           P        O         S         T

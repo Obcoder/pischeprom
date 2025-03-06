@@ -74,6 +74,39 @@ function storeConsumption(){
     });
 }
 
+let showFormBuilding = ref();
+let buildings = ref([]);
+function apiIndexBuildings(like){
+    axios.get(route('api.buildings'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
+        buildings.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
+const formatBuildingTitle = (building) => {
+    if (!building) return '';
+    return `${building.city?.name || ' - '} , ${building.address}`;
+};
+const formBuildingUnit = useForm({
+    building_id: null,
+    unit_id: props.unit.id,
+    location_id: null,
+})
+function storeBuildingUnit(){
+    formBuildingUnit.post(route('api.building_unit.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formBuildingUnit.reset();
+        },
+    })
+}
+
 onMounted(()=> {
     apiIndexProducts();
     apiIndexMeasures();
@@ -238,11 +271,49 @@ const sendEmail = async () => {
                 </v-card>
             </v-col>
         </v-row>
-        <v-row>
+        <v-row class="flex flex-row">
             <v-btn @click="sendEmail"
                    text="Отправляем email"
                    variant="elevated"
             ></v-btn>
+            <v-btn @click="showFormBuilding"
+                   text="+ Building"
+                   variant="elevated"
+                   color="deep-orange"
+            ></v-btn>
+            <v-dialog v-model="showFormBuilding"
+                      width="815"
+            >
+                <template v-slot:default="{isActive}">
+                    <v-form @submit.prevent>
+                        <v-row>
+                            <v-col>
+                                <v-autocomplete :items="buildings"
+                                                :item-title="formatBuildingTitle"
+                                                :item-value="'id'"
+                                                v-model="formBuildingUnit.building_id"
+                                                variant="outlined"
+                                                density="comfortable"
+                                                color="blue-grey"
+                                ></v-autocomplete>
+                            </v-col>
+                        </v-row>
+                        <v-row>
+                            <v-col></v-col>
+                            <v-col></v-col>
+                            <v-col></v-col>
+                            <v-col>
+                                <v-btn @click="storeBuildingUnit"
+                                       text="store"
+                                       density="comfortable"
+                                       variant="outlined"
+                                       color="black"
+                                ></v-btn>
+                            </v-col>
+                        </v-row>
+                    </v-form>
+                </template>
+            </v-dialog>
         </v-row>
         <v-row>
             <v-col>
