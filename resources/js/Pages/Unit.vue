@@ -18,7 +18,7 @@ function timeDiff(time){
 }
 let listProducts = ref();
 function apiIndexProducts(){
-    axios.get("api.products").then(function (response){
+    axios.get(route('api.products')).then(function (response){
         listProducts.value = response.data;
     }).catch(function (error){
         console.log(error);
@@ -26,7 +26,7 @@ function apiIndexProducts(){
 }
 let listMeasures = ref();
 function apiIndexMeasures(){
-    axios.get('api.measures').then(function (response){
+    axios.get(route('api.measures')).then(function (response){
         listMeasures.value = response.data;
     }).catch(function (error){
         console.log(error);
