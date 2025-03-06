@@ -11,9 +11,11 @@ class BuildingController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $buildings = Building::orderBy('created_at', 'desc')
+        $like = $request->search;
+        $buildings = Building::where('address', 'like', '%' . $like . '%')
+            ->orderBy('created_at', 'desc')
             ->get();
         return $buildings;
     }

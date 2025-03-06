@@ -17,8 +17,12 @@ let arrayData = [
     { name: 'buildings', list: buildings },
 ];
 
-function loadData(routeName, list){
-    axios.get(route(routeName)).then(function (response){
+function loadData(routeName, list, like){
+    axios.get(route(routeName), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
         list.value = response.data;
     }).catch(function (error){
         console.log(error);
