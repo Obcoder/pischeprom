@@ -107,7 +107,7 @@ Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class,
 Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])
     ->name('api.checkcommodity.store');
 Route::post('/api/consumption/store', [\App\Http\Controllers\API\ConsumptionController::class, 'store'])
-    ->name( 'api.product.store');
+    ->name( 'api.consumption.store');
 
 /*
 |--------------------------------------------------------------------------
