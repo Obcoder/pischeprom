@@ -31,7 +31,7 @@ function loadData(routeName, list, like){
 
 let tab = ref();
 
-let searchBuildings = ref();
+let searchBuildingsLike = ref();
 
 onMounted(()=> {
     arrayData.forEach((element) => {
@@ -105,8 +105,8 @@ onMounted(()=> {
                                         <v-card>
                                             <v-card-title>Buildings</v-card-title>
                                             <v-card-text>
-                                                <v-text-field v-model="searchBuildings"
-                                                              @input="loadData('api.buildings', buildings)"
+                                                <v-text-field v-model="searchBuildingsLike"
+                                                              @input="loadData('api.buildings', buildings, searchBuildingsLike)"
                                                               variant="outlined"
                                                               density="compact"
                                                               class="text-sm"
