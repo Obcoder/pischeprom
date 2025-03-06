@@ -69,6 +69,8 @@ function storeConsumption(){
         preserveScroll: false,
         onSuccess: ()=> {
             formConsumption.reset();
+            showFormConsumption = false;
+            console.log("Форма скрыта:", showFormConsumption);
         },
     });
 }
