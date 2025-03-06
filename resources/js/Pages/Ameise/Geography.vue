@@ -23,8 +23,8 @@ function loadData(routeName, list, like){
             search: like,
         }
     }).then(function (response){
+        console.log(list);
         list.value = response.data;
-        list = list.value;
     }).catch(function (error){
         console.log(error);
     })
