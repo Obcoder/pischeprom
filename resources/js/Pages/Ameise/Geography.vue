@@ -145,7 +145,7 @@ function storeBuilding(){
                                                             ></v-text-field>
                                                         </v-col>
                                                         <v-col cols="3">
-                                                            <v-btn @click="showFormBuilding"
+                                                            <v-btn @click="showFormBuilding = !showFormBuilding"
                                                                    text="+ building"
                                                                    variant="elevated"
                                                                    density="compact"
