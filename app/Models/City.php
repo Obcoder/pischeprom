@@ -18,10 +18,18 @@ class City extends Model
         'twogis',
     ];
 
-    protected $with = ['region'];
+    protected $with = [
+        'region',
+        'buildings',
+    ];
 
     public function region(){
         return $this->belongsTo(Region::class)
             ->withDefault();
+    }
+
+    public function buildings()
+    {
+        return $this->hasMany(Building::class);
     }
 }
