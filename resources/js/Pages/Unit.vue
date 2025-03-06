@@ -150,30 +150,35 @@ const sendEmail = async () => {
                                         v-if="showFormConsumption"
                                         style="border: 2px solid red; padding: 20px;">
                                     <v-row>
-                                        <v-col>
+                                        <v-col cols="7">
                                             <v-autocomplete :items="listProducts"
                                                             :item-title="'rus'"
                                                             :item-value="'id'"
                                                             v-model="formConsumption.product_id"
                                                             variant="outlined"
+                                                            density="compact"
                                             ></v-autocomplete>
                                         </v-col>
-                                        <v-col>
+                                        <v-col cols="3">
                                             <v-text-field v-model="formConsumption.quantity"
                                                           label="quantity"
                                                           variant="solo"
+                                                          density="compact"
                                             ></v-text-field>
                                         </v-col>
-                                        <v-col>
+                                        <v-col cols="2">
                                             <v-select :items="listMeasures"
                                                       :item-title="'name'"
                                                       :item-value="'id'"
                                                       v-model="formConsumption.measure_id"
                                                       variant="outlined"
+                                                      density="compact"
                                             ></v-select>
                                         </v-col>
                                     </v-row>
                                     <v-row>
+                                        <v-col></v-col>
+                                        <v-col></v-col>
                                         <v-col>
                                             <v-btn @click="storeConsumption"
                                                    text="store"
