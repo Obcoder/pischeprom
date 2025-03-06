@@ -207,11 +207,13 @@ function storeBuilding(){
                                                     </v-row>
                                                     <v-row>
                                                         <v-col>
-                                                            <v-list>
+                                                            <v-list :lines="false"
+                                                                    density="compact"
+                                                            >
                                                                 <v-list-item v-for="building in buildings" :key="building.id">
-                                                                    <v-list-item-title>
+                                                                    <v-list-item-subtitle>
                                                                         {{building.city.name}}
-                                                                    </v-list-item-title>
+                                                                    </v-list-item-subtitle>
                                                                     {{building.address}}
                                                                 </v-list-item>
                                                             </v-list>
