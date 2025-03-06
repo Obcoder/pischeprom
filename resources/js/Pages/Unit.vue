@@ -67,7 +67,7 @@ function storeConsumption(){
             formConsumption.reset();
             showFormConsumption.value = false;
         },
-    })
+    });
 }
 
 onMounted(()=> {
@@ -127,7 +127,7 @@ const sendEmail = async () => {
                 <v-card>
                     <v-card-title>
                         Consumptions
-                        <v-btn @click="showFormConsumption = !showFormConsumption"
+                        <v-btn @click="showFormConsumption = true" v-if="!showFormConsumption"
                                text="добавить"
                                variant="elevated"
                         ></v-btn>
