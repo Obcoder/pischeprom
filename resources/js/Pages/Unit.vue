@@ -286,33 +286,38 @@ const sendEmail = async () => {
                       width="815"
             >
                 <template v-slot:default="{isActive}">
-                    <v-form @submit.prevent>
-                        <v-row>
-                            <v-col>
-                                <v-autocomplete :items="buildings"
-                                                :item-title="formatBuildingTitle"
-                                                :item-value="'id'"
-                                                v-model="formBuildingUnit.building_id"
-                                                variant="outlined"
-                                                density="comfortable"
-                                                color="blue-grey"
-                                ></v-autocomplete>
-                            </v-col>
-                        </v-row>
-                        <v-row>
-                            <v-col></v-col>
-                            <v-col></v-col>
-                            <v-col></v-col>
-                            <v-col>
-                                <v-btn @click="storeBuildingUnit"
-                                       text="store"
-                                       density="comfortable"
-                                       variant="outlined"
-                                       color="black"
-                                ></v-btn>
-                            </v-col>
-                        </v-row>
-                    </v-form>
+                    <v-card color="lime-accent-4">
+                        <v-card-title>Form Building</v-card-title>
+                        <v-card-text>
+                            <v-form @submit.prevent>
+                                <v-row>
+                                    <v-col>
+                                        <v-autocomplete :items="buildings"
+                                                        :item-title="formatBuildingTitle"
+                                                        :item-value="'id'"
+                                                        v-model="formBuildingUnit.building_id"
+                                                        variant="outlined"
+                                                        density="comfortable"
+                                                        color="blue-grey"
+                                        ></v-autocomplete>
+                                    </v-col>
+                                </v-row>
+                                <v-row>
+                                    <v-col></v-col>
+                                    <v-col></v-col>
+                                    <v-col></v-col>
+                                    <v-col>
+                                        <v-btn @click="storeBuildingUnit"
+                                               text="store"
+                                               density="comfortable"
+                                               variant="outlined"
+                                               color="black"
+                                        ></v-btn>
+                                    </v-col>
+                                </v-row>
+                            </v-form>
+                        </v-card-text>
+                    </v-card>
                 </template>
             </v-dialog>
         </v-row>
