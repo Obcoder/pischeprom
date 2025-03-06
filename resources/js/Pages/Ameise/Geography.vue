@@ -6,15 +6,15 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
-let countries = ref();
-let regions = ref();
-let cities = ref();
-let buildings = ref();
+let countries = ref([]);
+let regions = ref([]);
+let cities = ref([]);
+let buildings = ref([]);
 let arrayData = [
     { name: 'countries', list: countries },
     { name: 'regions', list: regions },
     { name: 'cities', list: cities },
-    { name: 'buildings', list: buildings.value },
+    { name: 'buildings', list: buildings },
 ];
 
 function loadData(routeName, list, like){
@@ -24,7 +24,6 @@ function loadData(routeName, list, like){
         }
     }).then(function (response){
         list.value = response.data;
-        console.log(buildings.value);
     }).catch(function (error){
         console.log(error);
     })
@@ -37,6 +36,7 @@ let searchBuildingsLike = ref();
 onMounted(()=> {
     arrayData.forEach((element) => {
         loadData('api.' + element.name, element.list);
+        console.log(element.list);
     })
 })
 </script>
