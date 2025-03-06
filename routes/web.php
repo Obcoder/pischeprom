@@ -54,7 +54,7 @@ Route::get('/Ameise/product/{id}', function ($id) {
     return Inertia::render('Ameise/Product', ['product'=>$product]);
 })->name('product.show');
 Route::get('/Ameise/city/{id}', function ($id) {
-    $city = City::findOrFail($id);
+    $city = City::with('buildings')->findOrFail($id);
     return Inertia::render('Ameise/City', ['city'=>$city]);
 })->name('city.show');
 Route::get('/Ameise/Geography/', function (){

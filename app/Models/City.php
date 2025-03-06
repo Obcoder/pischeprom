@@ -20,7 +20,6 @@ class City extends Model
 
     protected $with = [
         'region',
-        'buildings',
     ];
 
     public function region(){
