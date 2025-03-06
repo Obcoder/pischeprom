@@ -69,7 +69,7 @@ function storeConsumption(){
         preserveScroll: false,
         onSuccess: ()=> {
             formConsumption.reset();
-            showFormConsumption = false;
+            showFormConsumption.value = false;
         },
     });
 }
