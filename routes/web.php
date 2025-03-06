@@ -57,6 +57,9 @@ Route::get('/Ameise/city/{id}', function ($id) {
     $city = City::findOrFail($id);
     return Inertia::render('Ameise/City', ['city'=>$city]);
 })->name('city.show');
+Route::get('/Ameise/Geography/', function (){
+    return Inertia::render('Ameise/Geography');
+})->name('Ameise.geography');
 
 //                     A         P         I
 //                          G         E         T
