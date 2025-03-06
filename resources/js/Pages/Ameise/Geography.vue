@@ -23,7 +23,7 @@ function loadData(routeName, list, like){
             search: like,
         }
     }).then(function (response){
-        list.value = [...response.data];
+        list.value = response.data;
         console.log(buildings.value);
     }).catch(function (error){
         console.log(error);
@@ -113,7 +113,7 @@ onMounted(()=> {
                                                               class="text-sm"
                                                 ></v-text-field>
                                                 <v-list>
-                                                    <v-list-item v-for="building in buildings" :key="building.id">
+                                                    <v-list-item v-for="building in buildings.value" :key="building.id">
                                                         {{building.address}}
                                                     </v-list-item>
                                                 </v-list>
