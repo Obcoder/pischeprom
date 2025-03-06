@@ -16,15 +16,15 @@ function timeDiff(time){
     let denominator = 1000 * 3600 * 24;
     return Math.round(diffMilliseconds/denominator);
 }
-let listProducts = ref()
+let listProducts = ref();
 function apiIndexProducts(){
-    axios.get('api.products').then(function (response){
+    axios.get("api.products").then(function (response){
         listProducts.value = response.data;
     }).catch(function (error){
         console.log(error);
     })
 }
-let listMeasures = ref()
+let listMeasures = ref();
 function apiIndexMeasures(){
     axios.get('api.measures').then(function (response){
         listMeasures.value = response.data;
@@ -51,7 +51,7 @@ const headersConsumptions = ref([
         key: 'measure_id',
     },
 ])
-let showFormConsumption = ref()
+let showFormConsumption = ref(false)
 const formConsumption = useForm({
     unit_id: props.unit.id,
     product_id: null,
@@ -69,7 +69,7 @@ function storeConsumption(){
     })
 }
 
-onMounted(()=>{
+onMounted(()=> {
     apiIndexProducts();
     apiIndexMeasures();
 })
@@ -124,18 +124,14 @@ const sendEmail = async () => {
         <v-row>
             <v-col cols="5">
                 <v-card>
-                    <v-card-title>Consumptions</v-card-title>
+                    <v-card-title>
+                        Consumptions
+                        <v-btn @click="showFormConsumption = !showFormConsumption"
+                               text="добавить"
+                               variant="elevated"
+                        ></v-btn>
+                    </v-card-title>
                     <v-card-text>
-                        <v-row>
-                            <v-col></v-col>
-                            <v-col></v-col>
-                            <v-col>
-                                <v-btn @click="showFormConsumption = !showFormConsumption"
-                                       text="добавить"
-                                       variant="elevated"
-                                ></v-btn>
-                            </v-col>
-                        </v-row>
                         <v-data-table :items="unit.consumptions"
                                       :headers="headersConsumptions"
                                       density="comfortable"
