@@ -2,11 +2,15 @@
 import { useDate } from 'vuetify'
 import {onMounted, ref} from "vue";
 import axios from "axios";
-import {useForm} from "@inertiajs/vue3";
+import {useForm, Link} from "@inertiajs/vue3";
 const date = useDate()
 const props = defineProps({
     unit: Object,
     products: Object,
+})
+import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+defineOptions({
+    layout: VerwalterLayout,
 })
 
 let da = new Date();
@@ -60,12 +64,11 @@ const formConsumption = useForm({
 })
 function storeConsumption(){
     formConsumption.post(route('api.consumption.store'), {
-        replace: true,
+        replace: false,
         preserveState: true,
         preserveScroll: false,
         onSuccess: ()=> {
             formConsumption.reset();
-            showFormConsumption.value = false;
         },
     });
 }
@@ -166,17 +169,21 @@ const sendEmail = async () => {
                                                       variant="outlined"
                                             ></v-select>
                                         </v-col>
+                                    </v-row>
+                                    <v-row>
                                         <v-col>
                                             <v-btn @click="storeConsumption"
                                                    text="store"
-                                                   variant="text"
+                                                   variant="outlined"
                                             ></v-btn>
                                         </v-col>
                                     </v-row>
                                 </v-form>
                             </template>
                             <template v-slot:item.product_id="{item}">
-                                {{item.product.rus}}
+                                <Link :href="route('product.show', item.product_id)">
+                                    {{item.product.rus}}
+                                </Link>
                             </template>
                             <template v-slot:item.created_at="{item}">
                                 {{date.format(item.created_at, 'fullDate')}}
