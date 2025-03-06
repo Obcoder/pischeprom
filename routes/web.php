@@ -96,6 +96,10 @@ Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index
 Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
     ->name('api.categories');
 
+Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionController::class)
+    ->name('index', 'api.consumptions')
+    ->name('store', 'api.consumption.store');
+
 
 //                           P        O         S         T
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
