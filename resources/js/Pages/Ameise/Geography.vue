@@ -11,8 +11,11 @@ let regions = ref();
 let cities = ref();
 let buildings = ref();
 let arrayData = [
-    countries, regions, cities, buildings,
-]
+    { name: 'countries', list: countries },
+    { name: 'regions', list: regions },
+    { name: 'cities', list: cities },
+    { name: 'buildings', list: buildings },
+];
 
 function loadData(routeName, list){
     axios.get(route(routeName)).then(function (response){
@@ -24,7 +27,7 @@ function loadData(routeName, list){
 
 onMounted(()=> {
     arrayData.forEach((element) => {
-        loadData('api.' + element, element);
+        loadData('api.' + element.name, element.list);
     })
 })
 </script>
