@@ -2,6 +2,7 @@
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
+import {useForm} from "@inertiajs/vue3";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -48,6 +49,22 @@ function apiIndexBuildings(like){
         buildings.value = response.data;
     }).catch(function (error){
         console.log(error);
+    })
+}
+let showFormBuilding = ref(false);
+const formBuilding = useForm({
+    address: null,
+    city_id: null,
+    postcode: null,
+})
+function storeBuilding(){
+    formBuilding.post(route('api.building.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formBuilding.reset();
+        },
     })
 }
 </script>
@@ -117,17 +134,87 @@ function apiIndexBuildings(like){
                                         <v-card>
                                             <v-card-title>Buildings</v-card-title>
                                             <v-card-text>
-                                                <v-text-field v-model="searchBuildingsLike"
-                                                              @input="apiIndexBuildings(searchBuildingsLike)"
-                                                              variant="outlined"
-                                                              density="compact"
-                                                              class="text-sm"
-                                                ></v-text-field>
-                                                <v-list>
-                                                    <v-list-item v-for="building in buildings" :key="building.id">
-                                                        {{building.address}}
-                                                    </v-list-item>
-                                                </v-list>
+                                                <v-container>
+                                                    <v-row>
+                                                        <v-col cols="9">
+                                                            <v-text-field v-model="searchBuildingsLike"
+                                                                          @input="apiIndexBuildings(searchBuildingsLike)"
+                                                                          variant="outlined"
+                                                                          density="compact"
+                                                                          class="text-sm"
+                                                            ></v-text-field>
+                                                        </v-col>
+                                                        <v-col cols="3">
+                                                            <v-btn @click="showFormBuilding"
+                                                                   text="+ building"
+                                                                   variant="elevated"
+                                                                   density="compact"
+                                                                   color="yellow"
+                                                            ></v-btn>
+                                                            <v-dialog v-model="showFormBuilding"
+                                                                      width="700"
+
+                                                            >
+                                                                <template v-slot:default="{isActive}">
+                                                                    <v-card>
+                                                                        <v-card-title>Form Building</v-card-title>
+                                                                        <v-card-text>
+                                                                            <v-form @submit.prevent>
+                                                                                <v-row>
+                                                                                    <v-col cols="7">
+                                                                                        <v-text-field v-model="formBuilding.address"
+                                                                                                      label="Address"
+                                                                                                      variant="outlined"
+                                                                                                      density="comfortable"
+                                                                                        ></v-text-field>
+                                                                                    </v-col>
+                                                                                    <v-col cols="5">
+                                                                                        <v-autocomplete :items="cities"
+                                                                                                        :item-value="'id'"
+                                                                                                        :item-title="'name'"
+                                                                                                        v-model="formBuilding.city_id"
+                                                                                                        label="Город"
+                                                                                                        variant="outlined"
+                                                                                                        density="comfortable"
+                                                                                                        color="teal"
+                                                                                                        chips
+                                                                                        ></v-autocomplete>
+                                                                                    </v-col>
+                                                                                </v-row>
+                                                                                <v-row>
+                                                                                    <v-col>
+                                                                                        <v-text-field v-model="formBuilding.postcode"
+                                                                                                      label="Postcode"
+                                                                                                      variant="outlined"
+                                                                                                      density="comfortable"
+                                                                                        ></v-text-field>
+                                                                                    </v-col>
+                                                                                    <v-col></v-col>
+                                                                                    <v-col>
+                                                                                        <v-btn @click="storeBuilding"
+                                                                                               text="store"
+                                                                                               variant="outlined"
+                                                                                               density="comfortable"
+                                                                                        ></v-btn>
+                                                                                    </v-col>
+                                                                                </v-row>
+                                                                            </v-form>
+                                                                        </v-card-text>
+                                                                    </v-card>
+                                                                </template>
+                                                            </v-dialog>
+                                                        </v-col>
+                                                    </v-row>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-list>
+                                                                <v-list-item v-for="building in buildings" :key="building.id">
+                                                                    {{building.address}}
+                                                                </v-list-item>
+                                                            </v-list>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
                                             </v-card-text>
                                         </v-card>
                                     </v-col>

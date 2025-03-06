@@ -13,6 +13,12 @@ class Building extends Model
         'city',
     ];
 
+    protected $fillable = [
+        'address',
+        'city_id',
+        'postcode',
+    ]
+
     public function city()
     {
         return $this->belongsTo(City::class)

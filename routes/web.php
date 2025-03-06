@@ -103,7 +103,8 @@ Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionCon
     ->name('index', 'api.consumptions')
     ->name('store', 'api.consumption.store');
 Route::apiResource('/api/buildings', \App\Http\Controllers\API\BuildingController::class)
-    ->name('index', 'api.buildings');
+    ->name('index', 'api.buildings')
+    ->name('store', 'api.building.store');
 
 
 //                           P        O         S         T
