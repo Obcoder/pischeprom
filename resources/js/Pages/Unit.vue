@@ -137,10 +137,15 @@ const sendEmail = async () => {
                                text="добавить"
                                variant="text"
                         ></v-btn>
-                        <v-dialog v-model="showFormConsumption"
-                                  width="900"
+                    </v-card-subtitle>
+                    <v-card-text>
+                        <v-data-table :items="unit.consumptions"
+                                      :headers="headersConsumptions"
+                                      density="comfortable"
+                                      hover="hover"
+                                      class="text-sm"
                         >
-                            <v-card>
+                            <template v-slot:top>
                                 <v-form @submit.prevent
                                         v-if="showFormConsumption"
                                         style="border: 2px solid red; padding: 20px;">
@@ -177,16 +182,7 @@ const sendEmail = async () => {
                                         </v-col>
                                     </v-row>
                                 </v-form>
-                            </v-card>
-                        </v-dialog>
-                    </v-card-subtitle>
-                    <v-card-text>
-                        <v-data-table :items="unit.consumptions"
-                                      :headers="headersConsumptions"
-                                      density="comfortable"
-                                      hover="hover"
-                                      class="text-sm"
-                        >
+                            </template>
                             <template v-slot:item.product_id="{item}">
                                 <Link :href="route('product.show', item.product_id)">
                                     {{item.product.rus}}
