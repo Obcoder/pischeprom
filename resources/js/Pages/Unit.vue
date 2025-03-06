@@ -89,7 +89,7 @@ function apiIndexBuildings(like){
 }
 const formatBuildingTitle = (building) => {
     if (!building) return '';
-    return `${building.city?.name || ': '} , ${building.address}`;
+    return `${building.city?.name || ' - '}: ${building.address}`;
 };
 const formBuildingUnit = useForm({
     building_id: null,
@@ -286,7 +286,7 @@ const sendEmail = async () => {
                       width="815"
             >
                 <template v-slot:default="{isActive}">
-                    <v-card color="lime-accent-4">
+                    <v-card color="yellow-lighten-3">
                         <v-card-title>Form Building</v-card-title>
                         <v-card-text>
                             <v-form @submit.prevent>
