@@ -12,15 +12,12 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(): \Illuminate\Database\Eloquent\Collection
     {
 //        $products = DB::table('products')
 //            ->select('products.id', 'products.rus')
 //            ->get();
-        $products = Product::orderBy('created_at', 'desc')
-            ->get();
-
-        return $products;
+        return Product::all();
     }
 
     /**

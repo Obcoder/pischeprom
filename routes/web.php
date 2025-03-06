@@ -82,14 +82,13 @@ Route::apiResource('api/regions', \App\Http\Controllers\API\RegionController::cl
     ->name('index', 'api.regions');
 Route::apiResource('api/telephones', \App\Http\Controllers\API\TelephoneController::class)
     ->name('index', 'api.telephones');
-Route::apiResource('api/measures/', \App\Http\Controllers\API\MeasureController::class)
+Route::apiResource('/api/measures/', \App\Http\Controllers\API\MeasureController::class)
     ->name('index', 'api.measures');
 Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
     ->name('index', 'api.commodities');
 Route::apiResource('/api/cities', \App\Http\Controllers\API\CityController::class)
     ->name('index', 'api.cities')
     ->name('store', 'api.city.store');
-
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
@@ -103,8 +102,6 @@ Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class,
     ->name('api.units.store');
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
     ->name('api.uri.store');
-Route::post('/api/product/store', [\App\Http\Controllers\API\ProductController::class, 'store'])
-    ->name('api.product.store');
 Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class, 'store'])
     ->name('api.good.store');
 Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])

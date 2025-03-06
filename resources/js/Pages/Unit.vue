@@ -167,8 +167,8 @@ const sendEmail = async () => {
                                         </v-col>
                                         <v-col>
                                             <v-btn @click="storeConsumption"
-                                                   text="label"
-                                                   variant="flat"
+                                                   text="store"
+                                                   variant="text"
                                             ></v-btn>
                                         </v-col>
                                     </v-row>
