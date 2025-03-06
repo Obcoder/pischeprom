@@ -113,7 +113,7 @@ onMounted(()=> {
                                                               class="text-sm"
                                                 ></v-text-field>
                                                 <v-list>
-                                                    <v-list-item v-for="building in buildings">
+                                                    <v-list-item v-for="building in buildings.value">
                                                         {{building.address}}
                                                     </v-list-item>
                                                 </v-list>
