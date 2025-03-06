@@ -107,13 +107,13 @@ onMounted(()=> {
                                             <v-card-title>Buildings</v-card-title>
                                             <v-card-text>
                                                 <v-text-field v-model="searchBuildingsLike"
-                                                              @input="loadData('api.buildings', buildings, searchBuildingsLike)"
+                                                              @input="loadData('api.buildings', buildings.value, searchBuildingsLike)"
                                                               variant="outlined"
                                                               density="compact"
                                                               class="text-sm"
                                                 ></v-text-field>
                                                 <v-list>
-                                                    <v-list-item v-for="building in buildings.value">
+                                                    <v-list-item v-for="building in buildings">
                                                         {{building.address}}
                                                     </v-list-item>
                                                 </v-list>
