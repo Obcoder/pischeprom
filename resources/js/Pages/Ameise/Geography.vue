@@ -14,7 +14,7 @@ let arrayData = [
     { name: 'countries', list: countries },
     { name: 'regions', list: regions },
     { name: 'cities', list: cities },
-    { name: 'buildings', list: buildings },
+    { name: 'buildings', list: buildings.value },
 ];
 
 function loadData(routeName, list, like){
@@ -113,7 +113,7 @@ onMounted(()=> {
                                                               class="text-sm"
                                                 ></v-text-field>
                                                 <v-list>
-                                                    <v-list-item v-for="building in buildings.value" :key="building.id">
+                                                    <v-list-item v-for="building in buildings" :key="building.id">
                                                         {{building.address}}
                                                     </v-list-item>
                                                 </v-list>
