@@ -9,8 +9,6 @@ Route::get('/user', function (Request $request) {
 
 Route::apiResource('/products', \App\Http\Controllers\API\ProductController::class)
     ->name('index', 'api.products');
-Route::apiResource('/buildings', \App\Http\Controllers\API\BuildingController::class)
-    ->name('index', 'api.buildings');
 
 Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');
