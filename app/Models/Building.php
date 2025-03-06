@@ -17,7 +17,7 @@ class Building extends Model
         'address',
         'city_id',
         'postcode',
-    ]
+    ];
 
     public function city()
     {
