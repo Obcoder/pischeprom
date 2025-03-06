@@ -30,7 +30,7 @@ class City extends Model
 
     public function buildings()
     {
-        return $this->belongsToMany(Building::class)
-            ->using(building_unit::class);
+        return $this->belongsTo(Building::class)
+            ->withDefault();
     }
 }
