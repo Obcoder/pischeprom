@@ -70,7 +70,6 @@ function storeConsumption(){
         onSuccess: ()=> {
             formConsumption.reset();
             showFormConsumption = false;
-            console.log("Форма скрыта:", showFormConsumption);
         },
     });
 }
@@ -138,7 +137,9 @@ const sendEmail = async () => {
                                text="добавить"
                                variant="text"
                         ></v-btn>
-                        <v-dialog v-model="showFormConsumption">
+                        <v-dialog v-model="showFormConsumption"
+                                  width="900"
+                        >
                             <v-card>
                                 <v-form @submit.prevent
                                         v-if="showFormConsumption"
