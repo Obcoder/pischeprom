@@ -10,6 +10,7 @@ Route::get('/user', function (Request $request) {
 Route::apiResource('/products', \App\Http\Controllers\API\ProductController::class)
     ->name('index', 'api.products');
 Route::apiResource('/consumptions', \App\Http\Controllers\API\ConsumptionController::class)
+    ->name('index', 'api.consumptions')
     ->name('store', 'api.consumption.store');
 Route::apiResource('/buildings', \App\Http\Controllers\API\BuildingController::class)
     ->name('index', 'api.buildings');
