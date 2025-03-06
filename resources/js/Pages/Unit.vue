@@ -89,7 +89,7 @@ function apiIndexBuildings(like){
 }
 const formatBuildingTitle = (building) => {
     if (!building) return '';
-    return `${building.city?.name || ' - '} , ${building.address}`;
+    return `${building.city?.name || ': '} , ${building.address}`;
 };
 const formBuildingUnit = useForm({
     building_id: null,
@@ -110,6 +110,7 @@ function storeBuildingUnit(){
 onMounted(()=> {
     apiIndexProducts();
     apiIndexMeasures();
+    apiIndexBuildings();
 })
 
 
