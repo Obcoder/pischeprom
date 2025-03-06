@@ -23,7 +23,6 @@ function loadData(routeName, list, like){
             search: like,
         }
     }).then(function (response){
-        console.log(list);
         list.value = response.data;
     }).catch(function (error){
         console.log(error);
@@ -32,14 +31,25 @@ function loadData(routeName, list, like){
 
 let tab = ref();
 
-let searchBuildingsLike = ref();
-
 onMounted(()=> {
     arrayData.forEach((element) => {
         loadData('api.' + element.name, element.list);
         console.log(element.list);
     })
 })
+
+let searchBuildingsLike = ref();
+function apiIndexBuildings(like){
+    axios.get(route('api.buildings'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
+        buildings.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
 </script>
 
 <template>
@@ -108,7 +118,7 @@ onMounted(()=> {
                                             <v-card-title>Buildings</v-card-title>
                                             <v-card-text>
                                                 <v-text-field v-model="searchBuildingsLike"
-                                                              @input="loadData('api.buildings', buildings, searchBuildingsLike)"
+                                                              @input="apiIndexBuildings(searchBuildingsLike)"
                                                               variant="outlined"
                                                               density="compact"
                                                               class="text-sm"
