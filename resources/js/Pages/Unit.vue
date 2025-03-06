@@ -127,7 +127,7 @@ const sendEmail = async () => {
                 <v-card>
                     <v-card-title>
                         Consumptions
-                        <v-btn @click="showFormConsumption = true" v-if="!showFormConsumption"
+                        <v-btn @click="showFormConsumption = !showFormConsumption"
                                text="добавить"
                                variant="elevated"
                         ></v-btn>
@@ -140,8 +140,8 @@ const sendEmail = async () => {
                                       class="text-sm"
                         >
                             <template v-slot:top>
-                                <v-form v-if="showFormConsumption"
-                                        @submit.prevent
+                                <v-form @submit.prevent
+                                        v-if="showFormConsumption"
                                 >
                                     <v-row>
                                         <v-col>
