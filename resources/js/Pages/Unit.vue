@@ -276,7 +276,7 @@ const sendEmail = async () => {
                    text="Отправляем email"
                    variant="elevated"
             ></v-btn>
-            <v-btn @click="showFormBuilding"
+            <v-btn @click="showFormBuilding = !showFormBuilding"
                    text="+ Building"
                    variant="elevated"
                    color="deep-orange"
