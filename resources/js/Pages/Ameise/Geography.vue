@@ -61,10 +61,11 @@ function storeBuilding(){
     formBuilding.post(route('api.building.store'), {
         replace: false,
         preserveState: true,
-        preserveScroll: true,
+        preserveScroll: false,
         onSuccess: ()=> {
             formBuilding.reset();
         },
+        only: ['buildings'],
     })
 }
 </script>
@@ -213,6 +214,9 @@ function storeBuilding(){
                                                                 <v-list-item v-for="building in buildings" :key="building.id">
                                                                     <v-list-item-subtitle>
                                                                         {{building.city.name}}
+                                                                    </v-list-item-subtitle>
+                                                                    <v-list-item-subtitle>
+                                                                        {{building.city.region.name}}
                                                                     </v-list-item-subtitle>
                                                                     {{building.address}}
                                                                 </v-list-item>
