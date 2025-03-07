@@ -91,12 +91,6 @@ onMounted(()=>{
                             <v-card-text>
                                 <v-form @submit.prevent>
                                     <v-row>
-                                        <v-text-field v-model="formEntity.name"
-                                                      label="Name"
-                                                      variant="outlined"
-                                        ></v-text-field>
-                                    </v-row>
-                                    <v-row>
                                         <v-select :items="listEntityClassifications"
                                                   :item-value="'id'"
                                                   :item-title="'name'"
@@ -106,10 +100,18 @@ onMounted(()=>{
                                         ></v-select>
                                     </v-row>
                                     <v-row>
+                                        <v-text-field v-model="formEntity.name"
+                                                      label="Name"
+                                                      variant="outlined"
+                                        ></v-text-field>
+                                    </v-row>
+                                    <v-row>
                                         <v-autocomplete :items="telephones"
                                                         :item-value="'id'"
                                                         :item-title="'number'"
                                                         v-model="formEntity.telephones"
+                                                        label="Telephones"
+                                                        placeholder="number without +7"
                                                         variant="outlined"
                                                         density="comfortable"
                                                         color="purple-darken-4"
@@ -132,8 +134,11 @@ onMounted(()=>{
         </v-row>
         <v-row>
             <v-col>
-                <v-list lines="one">
-                    <v-list-item v-for="entity in listEntities">
+                <v-list lines="one"
+                >
+                    <v-list-item v-for="entity in listEntities"
+                                 class="hover:bg-blue-700"
+                    >
                         <v-list-item-subtitle>
                             {{entity.classification.name}}
                         </v-list-item-subtitle>
