@@ -109,6 +109,11 @@ onMounted(()=>{
                             <h3>{{entity.name}}</h3>
                             <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
                         </v-sheet>
+
+                        <v-divider :thickness="3"
+                                   class="border-opacity-75"
+                                   color="info"
+                        ></v-divider>
                     </v-list-item>
                 </v-list>
             </v-col>
