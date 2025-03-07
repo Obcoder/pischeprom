@@ -8,8 +8,13 @@ defineOptions({
 })
 
 let listEntities = ref();
-function apiIndexEntities(){
-    axios.get(route('api.entities')).then(function (response){
+let searchEntitiesLike = ref();
+function apiIndexEntities(like){
+    axios.get(route('api.entities'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
         listEntities.value = response.data;
     }).catch(function (error){
         console.log(error);
@@ -94,23 +99,29 @@ onMounted(()=>{
                         </v-card>
                     </template>
                 </v-dialog>
+                <v-text-field width="100"
+                              label="Search"
+                              v-model="searchEntitiesLike"
+                              variant="solo"
+                              density="compact"
+                              @input="apiIndexEntities(searchEntitiesLike)"
+                ></v-text-field>
             </v-toolbar-items>
         </v-toolbar>
         <v-row>
             <v-col>
-                <v-list lines="two">
+                <v-list lines="one">
                     <v-list-item v-for="entity in listEntities">
                         <v-list-item-subtitle>
                             {{entity.classification.name}}
                         </v-list-item-subtitle>
-                        <v-sheet elevation="4"
-                                 rounded
+                        <v-sheet rounded
                         >
                             <h3>{{entity.name}}</h3>
                             <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
                         </v-sheet>
 
-                        <v-divider :thickness="3"
+                        <v-divider :thickness="2"
                                    class="border-opacity-75"
                                    color="info"
                         ></v-divider>
