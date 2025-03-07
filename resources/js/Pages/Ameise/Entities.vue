@@ -103,7 +103,12 @@ onMounted(()=>{
                         <v-list-item-subtitle>
                             {{entity.classification.name}}
                         </v-list-item-subtitle>
-                        {{entity.name}}
+                        <v-sheet elevation="4"
+                                 rounded
+                        >
+                            <h3>{{entity.name}}</h3>
+                            <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
+                        </v-sheet>
                     </v-list-item>
                 </v-list>
             </v-col>
