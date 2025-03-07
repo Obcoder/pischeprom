@@ -33,9 +33,13 @@ Route::get('/Ameise/FluxMonitor/', function (){
 Route::get('/Ameise/units/', function (){
     return Inertia::render('Ameise/Units');
 })->name('Ameise.units');
+
+// E N T I T I E S
 Route::get('/Ameise/entities/', function (){
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');
+
+
 Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
     ->name('unit.show');
 Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])

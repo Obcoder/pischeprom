@@ -3,25 +3,16 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Entity;
 use Illuminate\Http\Request;
 
-class EntityController extends Controller
+class EntityTelephoneController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index()
     {
-        $like = $request->search;
-        $entities = Entity::with('telephones')
-            ->where(function ($query) use ($like) {
-            $query->where('name', 'like', '%' . $like . '%');
-        })
-            ->orderBy('name')
-            ->get();
-
-        return $entities;
+        //
     }
 
     /**
@@ -29,7 +20,7 @@ class EntityController extends Controller
      */
     public function store(Request $request)
     {
-        $entity = Entity::create($request->all());
+        //
     }
 
     /**
