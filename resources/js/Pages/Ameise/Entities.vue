@@ -24,6 +24,7 @@ let showFormEntity = ref(false);
 let formEntity = useForm({
     name: null,
     entity_classification_id: null,
+    telephones: null,
 })
 function storeEntity(){
     formEntity.post(route('api.entity.store'), {
@@ -46,9 +47,19 @@ function apiIndexEntityClassifications(){
     })
 }
 
+let telephones = ref();
+function apiIndexTelephones(){
+    axios.get(route('api.telephones')).then(function (response){
+        telephones.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
+
 onMounted(()=>{
     apiIndexEntities();
     apiIndexEntityClassifications();
+    apiIndexTelephones();
 })
 </script>
 
@@ -93,6 +104,18 @@ onMounted(()=>{
                                                   variant="outlined"
                                                   label="Вид"
                                         ></v-select>
+                                    </v-row>
+                                    <v-row>
+                                        <v-autocomplete :items="telephones"
+                                                        :item-value="'id'"
+                                                        :item-title="'number'"
+                                                        v-model="formEntity.telephones"
+                                                        variant="outlined"
+                                                        density="comfortable"
+                                                        color="purple-darken-4"
+                                                        multiple
+                                                        chips
+                                        ></v-autocomplete>
                                     </v-row>
                                 </v-form>
                             </v-card-text>

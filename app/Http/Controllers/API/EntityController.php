@@ -30,6 +30,7 @@ class EntityController extends Controller
     public function store(Request $request)
     {
         $entity = Entity::create($request->all());
+        $entity->telephones()->attach($request->telephones);
     }
 
     /**
