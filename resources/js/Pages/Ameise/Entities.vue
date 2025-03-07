@@ -54,15 +54,21 @@ onMounted(()=>{
 
 <template>
     <v-container>
-        <v-toolbar border
-                   density="compact"
-                   title="Entities"
-        >
-            <v-toolbar-items>
+        <v-row>
+            <v-col>
+                <v-text-field v-model="searchEntitiesLike"
+                              @input="apiIndexEntities(searchEntitiesLike)"
+                              label="Search"
+                              variant="solo"
+                              density="compact"
+                ></v-text-field>
+            </v-col>
+            <v-col></v-col>
+            <v-col>
                 <v-btn text="+"
                        @click="showFormEntity = true"
                        variant="elevated"
-                       color="green"
+                       color="purple-darken-4"
                 ></v-btn>
                 <v-dialog v-model="showFormEntity"
                           width="990"
@@ -99,15 +105,8 @@ onMounted(()=>{
                         </v-card>
                     </template>
                 </v-dialog>
-                <v-text-field width="100"
-                              label="Search"
-                              v-model="searchEntitiesLike"
-                              variant="solo"
-                              density="compact"
-                              @input="apiIndexEntities(searchEntitiesLike)"
-                ></v-text-field>
-            </v-toolbar-items>
-        </v-toolbar>
+            </v-col>
+        </v-row>
         <v-row>
             <v-col>
                 <v-list lines="one">
