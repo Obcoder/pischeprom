@@ -13,7 +13,8 @@ class LabelController extends Controller
      */
     public function index()
     {
-        $labels = Label::all();
+        $labels = Label::orderBy('rank')
+            ->get();
         return $labels;
     }
 
