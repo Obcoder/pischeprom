@@ -39,6 +39,17 @@ const formProduct = useForm({
     zh: null,
     es: null,
 })
+function storeProduct(){
+    formProduct.post(route('api.product.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formProduct.reset();
+            apiIndexProducts(searchProducts);
+        },
+    })
+}
 
 onMounted(()=>{
     apiIndexProducts();
