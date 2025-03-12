@@ -53,16 +53,16 @@ class UnitController extends Controller
      */
     public function show(string $id)
     {
-        $data = [
-            'unit' => Unit::with('uris')
-                ->with('labels')
-                ->with('stages')
-                ->with('buildings')
-                ->with('consumptions.product')
-                ->with('consumptions.measure')
-                ->findOrFail($id),
-        ];
-        return Inertia::render('Unit', $data);
+//        $data = [
+//            'unit' => Unit::with('uris')
+//                ->with('labels')
+//                ->with('stages')
+//                ->with('buildings')
+//                ->with('consumptions.product')
+//                ->with('consumptions.measure')
+//                ->findOrFail($id),
+//        ];
+//        return Inertia::render('Unit', $data);
     }
 
     /**

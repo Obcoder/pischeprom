@@ -38,7 +38,12 @@ Route::get('/Ameise/units/', function (){
 })->name('Ameise.units');
 Route::get('/Ameise/unit/{id}', function ($id){
     $data = [
-        'unit' => Unit::with('entities.telephones')->findOrFail($id),
+        'unit' => Unit::with('entities.telephones')
+            ->with('stages')
+            ->with('buildings')
+            ->with('consumptions.product')
+            ->with('consumptions.measure')
+            ->findOrFail($id),
     ];
     return Inertia::render('Unit', $data);
 })->name('unit.show');
