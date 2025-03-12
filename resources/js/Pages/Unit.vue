@@ -130,7 +130,7 @@ const headersEntities = ref([
     },
     {
         title: 'Телефоны',
-        key: 'telephones.number',
+        key: 'telephones',
     },
 ])
 
@@ -192,7 +192,15 @@ const sendEmail = async () => {
                         <v-data-table :items="unit.entities"
                                       :headers="headersEntities"
                                       hover="true"
-                        ></v-data-table>
+                        >
+                            <template v-slot:item.telephones="{item}">
+                                <v-sheet>
+                                    <div v-for="telephone in item.telephones">
+                                        {{telephone.number}}
+                                    </div>
+                                </v-sheet>
+                            </template>
+                        </v-data-table>
                     </v-card-text>
                 </v-card>
             </v-col>
