@@ -76,6 +76,9 @@ Route::get('/Ameise/Geography/', function (){
 //
 Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
     ->name('index', 'api.units');
+Route::apiResource('/api/products', \App\Http\Controllers\API\ProductController::class)
+    ->name('index', 'api.products')
+    ->name('store', 'api.product.store');
 Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryController::class)
     ->name('index', 'api.countries');
 Route::apiResource('api/labels/', \App\Http\Controllers\API\LabelController::class)
