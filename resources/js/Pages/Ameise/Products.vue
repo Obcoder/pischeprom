@@ -67,7 +67,7 @@ onMounted(()=>{
                     <v-data-table :headers="headersProducts"
                                   :items="listProducts"
                                   :search="searchProducts"
-                                  items-per-page="24"
+                                  items-per-page="124"
                                   density="compact"
                                   hover="hover"
                     >
