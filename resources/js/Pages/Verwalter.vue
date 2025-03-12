@@ -56,6 +56,17 @@ function apiIndexTelephones(like){
             console.log(error);
         });
 }
+function storeTelephone(){
+    formTelephone.post(route('api.telephone.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formTelephone.reset();
+            apiIndexTelephones();
+        },
+    })
+}
 
 const headersUnits = ref([
     {
@@ -692,12 +703,56 @@ async function sendMail() {
 
                             <v-tabs-window-item value="telephones">
                                 <v-row>
-                                    <v-text-field v-model="searchTelephones"
-                                                  @input="apiIndexTelephones(searchTelephones)"
-                                                  density="comfortable"
-                                                  label="search Telephones"
-                                                  variant="solo"
-                                    ></v-text-field>
+                                   <v-col cols="10">
+                                       <v-text-field v-model="searchTelephones"
+                                                     @input="apiIndexTelephones(searchTelephones)"
+                                                     density="comfortable"
+                                                     label="search Telephones"
+                                                     variant="solo"
+                                       ></v-text-field>
+                                   </v-col>
+                                   <v-col cols="2">
+                                       <v-btn @click="showFormTelephone = !showFormTelephone"
+                                              text="New telephone"
+                                              variant="elevated"
+                                              color="purple"
+                                       ></v-btn>
+                                       <v-dialog v-model="showFormTelephone"
+                                                 width="600"
+                                       >
+                                           <template v-slot:default="{ isActive }">
+                                               <v-card>
+                                                   <v-card-title>Form Telephone</v-card-title>
+                                                   <v-card-text>
+                                                       <v-form @submit.prevent>
+                                                           <v-row>
+                                                               <v-col>
+                                                                   <v-text-field v-model="formTelephone.number"
+                                                                                 label="Number"
+                                                                                 placeholder="+...."
+                                                                                 variant="outlined"
+                                                                                 color="red"
+                                                                   ></v-text-field>
+                                                               </v-col>
+                                                           </v-row>
+                                                       </v-form>
+                                                   </v-card-text>
+                                                   <v-card-actions>
+                                                       <v-divider vertical
+                                                                  thickness="1"
+                                                                  opacity="90"
+                                                                  ></v-divider>
+
+                                                       <v-btn @click="storeTelephone"
+                                                              text="save"
+                                                              variant="elevated"
+                                                              color="success"
+                                                       ></v-btn>
+                                                   </v-card-actions>
+                                               </v-card>
+                                           </template>
+                                       </v-dialog>
+                                   </v-col>
                                 </v-row>
                                 <v-row>
                                     <v-list>

@@ -25,7 +25,7 @@ class TelephoneController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $telephone = Telephone::create($request->all());
     }
 
     /**
