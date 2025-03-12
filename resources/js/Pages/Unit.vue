@@ -119,6 +119,20 @@ function apiIndexEntities(like){
         console.log(error);
     })
 }
+const headersEntities = ref([
+    {
+        title: 'Вид',
+        key: 'classification.name',
+    },
+    {
+        title: 'name',
+        key: 'name',
+    },
+    {
+        title: 'Телефоны',
+        key: 'telephones',
+    },
+])
 
 onMounted(()=> {
     apiIndexProducts();
@@ -176,6 +190,7 @@ const sendEmail = async () => {
                     <v-card-title>Entities</v-card-title>
                     <v-card-text>
                         <v-data-table :items="unit.entities"
+                                      :headers="headersEntities"
                                       hover="true"
                         ></v-data-table>
                     </v-card-text>
