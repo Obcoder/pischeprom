@@ -130,7 +130,7 @@ const headersEntities = ref([
     },
     {
         title: 'Телефоны',
-        key: 'telephones',
+        key: 'telephones.number',
     },
 ])
 
