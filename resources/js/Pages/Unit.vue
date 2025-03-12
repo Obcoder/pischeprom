@@ -107,10 +107,24 @@ function storeBuildingUnit(){
     })
 }
 
+let entities = ref();
+function apiIndexEntities(like){
+    axios.get(route('api.entities'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
+        entities.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
+
 onMounted(()=> {
     apiIndexProducts();
     apiIndexMeasures();
     apiIndexBuildings();
+    apiIndexEntities();
 })
 
 
@@ -157,7 +171,16 @@ const sendEmail = async () => {
                     </v-card-subtitle>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title>Entities</v-card-title>
+                    <v-card-text>
+                        <v-data-table :items="props.unit.entities"
+                                      hover="true"
+                        ></v-data-table>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-col></v-col>
         </v-row>
         <v-row>

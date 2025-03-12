@@ -4,6 +4,7 @@ use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\ManufacturerController;
 use App\Models\City;
 use App\Models\Product;
+use App\Models\Unit;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -30,18 +31,21 @@ Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('ameise.fluxmonitor');
+
+//     U N I T S
 Route::get('/Ameise/units/', function (){
     return Inertia::render('Ameise/Units');
 })->name('Ameise.units');
+Route::get('/Ameise/unit/{id}', function ($id){
+    $unit = Unit::with('entities')->findOrFail($id);
+    return Inertia::render('Unit', $unit);
+})->name('unit.show');
 
 // E N T I T I E S
 Route::get('/Ameise/entities/', function (){
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');
 
-
-Route::get('/Ameise/unit/{id}', [UnitController::class, 'show'])
-    ->name('unit.show');
 Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
     ->name('check.show');
 Route::get('Seaprom', function (){
