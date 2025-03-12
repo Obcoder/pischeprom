@@ -175,7 +175,7 @@ const sendEmail = async () => {
                 <v-card>
                     <v-card-title>Entities</v-card-title>
                     <v-card-text>
-                        <v-data-table :items="props.unit.entities"
+                        <v-data-table :items="unit.entities"
                                       hover="true"
                         ></v-data-table>
                     </v-card-text>
