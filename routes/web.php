@@ -127,6 +127,9 @@ Route::apiResource('/api/buildings', \App\Http\Controllers\API\BuildingControlle
     ->name('store', 'api.building.store');
 Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
     ->name('store', 'api.building_unit.store');
+Route::apiResource('/api/messages', \App\Http\Controllers\API\MessageController::class)
+    ->name('index', 'api.messages')
+    ->name('store', 'api.message.store');
 
 
 //                           P        O         S         T

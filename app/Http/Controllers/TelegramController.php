@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Message;
 use Illuminate\Http\Request;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
@@ -46,6 +47,9 @@ class TelegramController extends Controller
             $chat = Chat::create([
                 'numbers' => $chatId,
                                      ]);
+            $message = Message::create([
+                'content' => $text,
+                                       ]);
 
             // Логируем информацию о сообщении
             Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
