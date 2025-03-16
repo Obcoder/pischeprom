@@ -12,4 +12,10 @@ Route::get('/user', function (Request $request) {
 Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');
 
+/*
+ * ------------------
+ *  T E L E G R A M
+ * __________________
+ */
+Route::post('/webhook', [TelegramController::class, 'webhook']);
 Route::post('/telegram/send-message', [TelegramController::class, 'sendMessage']);

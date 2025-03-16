@@ -160,10 +160,3 @@ Route::get('/send-email', function () {
 
     return 'Email sent successfully!';
 });
-
-/*
- * ------------------
- *  T E L E G R A M
- * __________________
- */
-Route::post('/webhook', [TelegramController::class, 'webhook']);
