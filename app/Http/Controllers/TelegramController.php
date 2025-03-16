@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use App\Models\Chat;
 
 class TelegramController extends Controller
 {
@@ -30,6 +31,7 @@ class TelegramController extends Controller
 
     public function webhook(Request $request)
     {
+        $chat = null;
         // Получаем данные из тела запроса
         $update = $request->getContent();
         $update = json_decode($update, true);
@@ -40,6 +42,11 @@ class TelegramController extends Controller
             $chatId = $message['chat']['id'];
             $text = $message['text'];
 
+            //Сохраняем chatID в БД
+            $chat = Chat::create([
+                'numbers' => $chatId,
+                                     ]);
+
             // Логируем информацию о сообщении
             Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
 
@@ -48,6 +55,8 @@ class TelegramController extends Controller
         }
 
         // Возвращаем успешный ответ
-        return response()->json(['status' => 'Message received']);
+        return response()->json(['status' => 'Message received',
+                                    'chat' => $chat,
+                                    ]);
     }
 }
