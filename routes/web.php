@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Mail\TestEmail;
 use Illuminate\Support\Facades\Mail;
+use App\Http\Controllers\TelegramController;
 
 Route::get('/', [\App\Http\Controllers\MainController::class, 'index'])
     ->name('home');
@@ -159,3 +160,10 @@ Route::get('/send-email', function () {
 
     return 'Email sent successfully!';
 });
+
+/*
+ * ------------------
+ *  T E L E G R A M
+ * __________________
+ */
+Route::post('/webhook', [TelegramController::class, 'webhook']);

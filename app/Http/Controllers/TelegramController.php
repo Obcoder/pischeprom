@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class TelegramController extends Controller
 {
@@ -25,5 +26,28 @@ class TelegramController extends Controller
         $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
 
         return response()->json(['status' => 'Message sent!']);
+    }
+
+    public function webhook(Request $request)
+    {
+        // Получаем данные из тела запроса
+        $update = $request->getContent();
+        $update = json_decode($update, true);
+
+        // Получаем сообщение
+        $message = $update['message'] ?? null;
+        if ($message) {
+            $chatId = $message['chat']['id'];
+            $text = $message['text'];
+
+            // Логируем информацию о сообщении
+            Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
+
+            // Ответное сообщение
+            //$this->telegram->sendMessage($chatId, "Получено ваше сообщение: " . $text);
+        }
+
+        // Возвращаем успешный ответ
+        return response()->json(['status' => 'Message received']);
     }
 }
