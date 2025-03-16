@@ -32,7 +32,6 @@ class TelegramController extends Controller
 
     public function webhook(Request $request)
     {
-        $chat = null;
         // Получаем данные из тела запроса
         $update = $request->getContent();
         $update = json_decode($update, true);
@@ -44,23 +43,20 @@ class TelegramController extends Controller
             $text = $message['text'];
 
             //Сохраняем chatID в БД
-            $chat = Chat::create([
-                'numbers' => $chatId,
-                                     ]);
+            $chat = Chat::firstOrCreate(['numbers' => $chatId]);
             $message = Message::create([
                 'content' => $text,
+                'chat_id' => $chat->id,
                                        ]);
 
             // Логируем информацию о сообщении
-            Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
+            //Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
 
             // Ответное сообщение
             //$this->telegram->sendMessage($chatId, "Получено ваше сообщение: " . $text);
         }
 
         // Возвращаем успешный ответ
-        return response()->json(['status' => 'Message received',
-                                    'chat' => $chat,
-                                    ]);
+        return response()->json(['status' => 'Message received']);
     }
 }
