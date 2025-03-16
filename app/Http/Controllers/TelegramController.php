@@ -19,7 +19,7 @@ class TelegramController extends Controller
     {
         $validated = $request->validate([
                                             'chat_id' => 'required|string',
-                                            'message' => 'required|string'
+                                            'text' => 'required|string'
                                         ]);
 
         $this->telegramService->sendMessage($validated['chat_id'], $validated['message']);
