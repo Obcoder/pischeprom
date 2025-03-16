@@ -22,7 +22,7 @@ class TelegramController extends Controller
                                             'text' => 'required|string'
                                         ]);
 
-        $this->telegramService->sendMessage($validated['chat_id'], $validated['message']);
+        $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
 
         return response()->json(['status' => 'Message sent!']);
     }
