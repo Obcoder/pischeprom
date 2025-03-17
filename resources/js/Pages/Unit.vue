@@ -161,7 +161,7 @@ const sendEmail = async () => {
     <v-container>
         <v-row class="h-1/3"
         >
-            <v-col cols="6">
+            <v-col cols="4">
                 <v-card>
                     <v-card-title class="bg-orange-accent-3">
                         {{unit.name}}</v-card-title>
@@ -212,6 +212,9 @@ const sendEmail = async () => {
                         <v-list>
                             <v-list-item v-for="label in unit.labels">
                                 <span>{{label.name}}</span>
+                                <v-divider thickness="1"
+                                           opacity="100"
+                                ></v-divider>
                             </v-list-item>
                         </v-list>
                     </v-card-text>
