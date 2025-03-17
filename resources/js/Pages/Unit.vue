@@ -158,7 +158,7 @@ const sendEmail = async () => {
         <title>Unit</title>
     </Head>
 
-    <v-container>
+    <v-container fluid>
         <v-row class="h-1/3"
         >
             <v-col cols="4">
@@ -226,6 +226,22 @@ const sendEmail = async () => {
             </v-col>
         </v-row>
         <v-row>
+            <v-col>
+                <v-card>
+                    <v-card-title class="bg-cyan-900"
+                    >
+                        Узлы</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="building in unit.buildings"
+                            >
+                                <span class="block mr-2">{{building.address}}</span>
+                                <span class="block mr-2">{{building.city.name}}</span>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-col cols="5">
                 <v-card>
                     <v-card-title>
@@ -385,33 +401,6 @@ const sendEmail = async () => {
                     </v-card>
                 </template>
             </v-dialog>
-        </v-row>
-        <v-row>
-            <v-col>
-                <v-card color="puple">
-                    <v-card-text>
-                        <v-list>
-                            <v-list-item v-for="building in unit.buildings">
-                                {{building.address}}
-                            </v-list-item>
-                        </v-list>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col>
-                <v-card>
-                    <v-card-title>Cities</v-card-title>
-                    <v-card-text>
-                        <v-list>
-                            <v-list-item v-for="building in unit.buildings"
-                            >
-                                {{building.city.name}}
-                            </v-list-item>
-                        </v-list>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col></v-col>
         </v-row>
     </v-container>
 </template>
