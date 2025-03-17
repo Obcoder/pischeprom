@@ -1,6 +1,6 @@
 <script setup>
 import {onMounted, ref} from "vue";
-import {Head, useForm, Link, router} from "@inertiajs/vue3";
+import {Head, useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
@@ -99,74 +99,24 @@ const headersRegions = ref([
         title: 'Площадь',
         key: 'area',
     },
-]);
+])
+const headersCatalogs = ref([
+    {
+        title: 'name',
+        key: 'name',
+    },
+    {
+        title: 'uri',
+        key: 'uri',
+    },
+    {
+        title: 'rank',
+        key: 'rank',
+    },
+])
 
-onMounted(()=>{
-    headersGoods.value = [
-        {
-            title: 'name',
-            key: 'name',
-        },
-    ];
-    headersCountries.value = [
-        {
-            title: 'flag',
-            key: 'flag',
-        },
-        {
-            title: 'name',
-            key: 'name',
-        },
-        {
-            title: 'сodeTelefon',
-            key: 'сodeTelefon',
-        },
-        {
-            title: 'сodeISO',
-            key: 'сodeISO',
-        },
-    ];
-    headersChecks.value = [
-        {
-            title: 'id',
-            key: 'id',
-        },
-        {
-            title: 'date',
-            key: 'date',
-        },
-        {
-            title: 'Entity',
-            key: 'entity_id',
-        },
-        {
-            title: 'Amount',
-            key: 'amount',
-        },
-    ]
-    headersComponents.value = [
-        {
-            title: 'name',
-            key: 'name',
-        },
-    ]
-
-    apiIndexUnits();
-    apiIndexUris();
-    apiIndexTelephones();
-
-    getManufacturers();
-    getProducts();
-    getCategories();
-    getCountries();
-    apiIndexLabels();
-    apiIndexEntities();
-    apiIndexChecks();
-    apiIndexComponents();
-    apiIndexRegions();
-    apiIndexCities();
-})
 let tab = ref();
+let catalogs = ref();
 let manufacturers = ref();
 let listProducts = ref();
 let listUnits = ref();
@@ -400,6 +350,14 @@ function storeCity(){
 }
 
 //   E N D  C I T I E S
+// C A T A L O G S
+function apiIndexCatalogs(){
+    axios.get(route('api.catalogs')).then(function (response){
+        catalogs.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
 
 let email = ref('');
 let message = ref('');
@@ -417,6 +375,72 @@ async function sendMail() {
     }
 }
 
+onMounted(()=>{
+    headersGoods.value = [
+        {
+            title: 'name',
+            key: 'name',
+        },
+    ];
+    headersCountries.value = [
+        {
+            title: 'flag',
+            key: 'flag',
+        },
+        {
+            title: 'name',
+            key: 'name',
+        },
+        {
+            title: 'сodeTelefon',
+            key: 'сodeTelefon',
+        },
+        {
+            title: 'сodeISO',
+            key: 'сodeISO',
+        },
+    ];
+    headersChecks.value = [
+        {
+            title: 'id',
+            key: 'id',
+        },
+        {
+            title: 'date',
+            key: 'date',
+        },
+        {
+            title: 'Entity',
+            key: 'entity_id',
+        },
+        {
+            title: 'Amount',
+            key: 'amount',
+        },
+    ]
+    headersComponents.value = [
+        {
+            title: 'name',
+            key: 'name',
+        },
+    ]
+
+    apiIndexCatalogs();
+    apiIndexUnits();
+    apiIndexUris();
+    apiIndexTelephones();
+
+    getManufacturers();
+    getProducts();
+    getCategories();
+    getCountries();
+    apiIndexLabels();
+    apiIndexEntities();
+    apiIndexChecks();
+    apiIndexComponents();
+    apiIndexRegions();
+    apiIndexCities();
+})
 </script>
 
 <template>
@@ -433,8 +457,8 @@ async function sendMail() {
                         v-model="tab"
                         bg-color="primary"
                     >
-                        <v-tab value="four">
-                            Units
+                        <v-tab value="catalogs">
+                            Catalogs
                         </v-tab>
                         <v-tab value="components">
                             Components
@@ -470,69 +494,19 @@ async function sendMail() {
 
                     <v-card-text>
                         <v-tabs-window v-model="tab">
-
                             <!--
-                            * * * * * * * * * * * * * * * * * * * * * * * * *
-                            _________________________________________________
-                            |                                               |
-                            |                                               |
-                            |                   U N I T S                   |
-                            |                                               |
-                            |                                               |
-                            -------------------------------------------------
-                            * * * * * * * * * * * * * * * * * * * * * * * * *
-                                      -->
-                            <v-tabs-window-item value="four">
-                                <v-row>
-                                    <v-col cols="9">
-                                        <v-text-field v-model="searchUnits"
-                                                      label="Искать по Units"
-                                                      variant="outlined"
-                                                      class="mt-1 py-1 ring-0 focus:outline-none"
-                                        ></v-text-field>
-                                    </v-col>
-                                </v-row>
-
-                                <v-data-table :items="listUnits"
-                                              :headers="headersUnits"
-                                              :search="searchUnits"
-                                              items-per-page="101"
+                            + + + + + + +    C A T A L O G S   + + + + + + + +
+                              -->
+                            <v-tabs-window-item value="catalogs">
+                                <v-data-table :items="catalogs"
+                                              :headers="headersCatalogs"
                                               density="comfortable"
-                                              hover="hover"
-                                >
-                                    <template v-slot:item.name="{ item }">
-                                        <Link :href="route('unit.show', item.id)"
-                                              class="font-Sowjetschablone"
-                                        >
-                                            {{ item.name }}
-                                        </Link>
-                                    </template>
-                                    <template v-slot:item.labels="{item}">
-                                        <v-chip v-for="(label, index) in item.labels"
-                                        >
-                                            {{label.name}}
-                                        </v-chip>
-                                    </template>
-                                    <template v-slot:item.uris="{item}">
-                                        <a v-for="uri in item.uris"
-                                           :href="uri.address"
-                                           target="_blank"
-                                           class="text-sm text-gray-600"
-                                           >{{uri.address}}</a>
-                                    </template>
-                                    <template v-slot:item.products="{item}">
-                                        <div v-for="product in item.products" :key="product.id">
-                                            <span class="mr-1">
-                                                {{product.pivot.action}}
-                                            </span>
-                                            <span >
-                                                {{product.rus}}
-                                            </span>
-                                        </div>
-                                    </template>
-                                </v-data-table>
+                                              hover="true"
+                                ></v-data-table>
                             </v-tabs-window-item>
-                            <!--     E N D  U N I T S     -->
+                            <!--
+                            -------------- E N D   C A T A L O G S ---------------------------
+                              -->
 
                             <!--
                             ___________________________________________________________________________________

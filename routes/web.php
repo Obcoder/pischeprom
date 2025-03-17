@@ -80,56 +80,58 @@ Route::get('/Ameise/Geography/', function (){
 //                     A         P         I
 //                          G         E         T
 //
-Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
-    ->name('index', 'api.units');
+Route::apiResource('/api/buildings', \App\Http\Controllers\API\BuildingController::class)
+    ->name('index', 'api.buildings')
+    ->name('store', 'api.building.store');
+Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
+    ->name('store', 'api.building_unit.store');
+Route::apiResource('/api/catalogs', \App\Http\Controllers\API\CatalogController::class)
+    ->name('index', 'api.catalogs');
+Route::apiResource('/api/checks', \App\Http\Controllers\API\CheckController::class)
+    ->name('index', 'api.checks')
+    ->name('store', 'api.checks.store');
+Route::apiResource('/api/cities', \App\Http\Controllers\API\CityController::class)
+    ->name('index', 'api.cities')
+    ->name('store', 'api.city.store');
+Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
+    ->name('index', 'api.commodities');
+Route::apiResource('/api/components', \App\Http\Controllers\API\ComponentController::class)
+    ->name('index', 'api.components')
+    ->name('store', 'api.components.store');
+Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionController::class)
+    ->name('index', 'api.consumptions')
+    ->name('store', 'api.consumption.store');
+Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryController::class)
+    ->name('index', 'api.countries');
+Route::apiResource('/api/entities/', \App\Http\Controllers\API\EntityController::class)
+    ->name('index', 'api.entities')
+    ->name('store', 'api.entity.store');
+Route::apiResource('/api/entitiesclassifications/', \App\Http\Controllers\API\EntitiesClassification::class)
+    ->name('index', 'api.entitiesclassifications');
+Route::apiResource('/api/labels', \App\Http\Controllers\API\LabelController::class)
+    ->name('index', 'api.labels');
+Route::apiResource('/api/measures/', \App\Http\Controllers\API\MeasureController::class)
+    ->name('index', 'api.measures');
+Route::apiResource('/api/messages', \App\Http\Controllers\API\MessageController::class)
+    ->name('index', 'api.messages')
+    ->name('store', 'api.message.store');
 Route::apiResource('/api/products', \App\Http\Controllers\API\ProductController::class)
     ->name('index', 'api.products')
     ->name('store', 'api.product.store');
-Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryController::class)
-    ->name('index', 'api.countries');
-Route::apiResource('api/labels/', \App\Http\Controllers\API\LabelController::class)
-    ->name('index', 'api.labels');
-Route::apiResource('api/entities/', \App\Http\Controllers\API\EntityController::class)
-    ->name('index', 'api.entities')
-    ->name('store', 'api.entity.store');
-Route::apiResource('api/entitiesclassifications/', \App\Http\Controllers\API\EntitiesClassification::class)
-    ->name('index', 'api.entitiesclassifications');
-Route::apiResource('api/checks', \App\Http\Controllers\API\CheckController::class)
-    ->name('index', 'api.checks')
-    ->name('store', 'api.checks.store');
-Route::apiResource('api/components', \App\Http\Controllers\API\ComponentController::class)
-    ->name('index', 'api.components')
-    ->name('store', 'api.components.store');
-Route::apiResource('api/regions', \App\Http\Controllers\API\RegionController::class)
+Route::apiResource('/api/regions', \App\Http\Controllers\API\RegionController::class)
     ->name('index', 'api.regions');
 Route::apiResource('/api/telephones', \App\Http\Controllers\API\TelephoneController::class)
     ->name('index', 'api.telephones')
     ->name('store', 'api.telephone.store');
-Route::apiResource('/api/measures/', \App\Http\Controllers\API\MeasureController::class)
-    ->name('index', 'api.measures');
-Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
-    ->name('index', 'api.commodities');
-Route::apiResource('/api/cities', \App\Http\Controllers\API\CityController::class)
-    ->name('index', 'api.cities')
-    ->name('store', 'api.city.store');
+Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
+    ->name('index', 'api.units');
+
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
     ->name('api.uris');
 Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
     ->name('api.categories');
-
-Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionController::class)
-    ->name('index', 'api.consumptions')
-    ->name('store', 'api.consumption.store');
-Route::apiResource('/api/buildings', \App\Http\Controllers\API\BuildingController::class)
-    ->name('index', 'api.buildings')
-    ->name('store', 'api.building.store');
-Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
-    ->name('store', 'api.building_unit.store');
-Route::apiResource('/api/messages', \App\Http\Controllers\API\MessageController::class)
-    ->name('index', 'api.messages')
-    ->name('store', 'api.message.store');
 
 
 //                           P        O         S         T
