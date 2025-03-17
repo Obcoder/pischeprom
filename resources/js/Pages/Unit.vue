@@ -186,26 +186,7 @@ const sendEmail = async () => {
                     </v-card-subtitle>
                 </v-card>
             </v-col>
-            <v-col>
-                <v-card>
-                    <v-card-title>Entities</v-card-title>
-                    <v-card-text>
-                        <v-data-table :items="unit.entities"
-                                      :headers="headersEntities"
-                                      hover="true"
-                        >
-                            <template v-slot:item.telephones="{item}">
-                                <v-sheet>
-                                    <div v-for="telephone in item.telephones">
-                                        {{telephone.number}}
-                                    </div>
-                                </v-sheet>
-                            </template>
-                        </v-data-table>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col>
+            <v-col cols="2">
                 <v-card>
                     <v-card-title>Labels</v-card-title>
                     <v-card-text>
@@ -222,6 +203,25 @@ const sendEmail = async () => {
                         <v-btn text="добавить"
                         ></v-btn>
                     </v-card-actions>
+                </v-card>
+            </v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title class="bg-orange-200 text-slate-800">Entities</v-card-title>
+                    <v-card-text>
+                        <v-data-table :items="unit.entities"
+                                      :headers="headersEntities"
+                                      hover="true"
+                        >
+                            <template v-slot:item.telephones="{item}">
+                                <v-sheet>
+                                    <div v-for="telephone in item.telephones">
+                                        {{telephone.number}}
+                                    </div>
+                                </v-sheet>
+                            </template>
+                        </v-data-table>
+                    </v-card-text>
                 </v-card>
             </v-col>
         </v-row>
