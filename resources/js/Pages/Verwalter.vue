@@ -502,7 +502,13 @@ onMounted(()=>{
                                               :headers="headersCatalogs"
                                               density="comfortable"
                                               hover="true"
-                                ></v-data-table>
+                                >
+                                    <template v-slot:item.uri="{item}">
+                                        <a :href="item.uri" target="_blank">
+                                            {{item.uri}}
+                                        </a>
+                                    </template>
+                                </v-data-table>
                             </v-tabs-window-item>
                             <!--
                             -------------- E N D   C A T A L O G S ---------------------------

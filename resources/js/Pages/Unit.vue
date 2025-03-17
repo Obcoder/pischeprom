@@ -13,13 +13,6 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
-let da = new Date();
-function timeDiff(time){
-    let d = new Date();
-    let diffMilliseconds = d - Date.parse(time);
-    let denominator = 1000 * 3600 * 24;
-    return Math.round(diffMilliseconds/denominator);
-}
 let listProducts = ref();
 function apiIndexProducts(){
     axios.get(route('api.products')).then(function (response){
@@ -36,25 +29,6 @@ function apiIndexMeasures(){
         console.log(error);
     })
 }
-
-const headersConsumptions = ref([
-    {
-        title: 'created',
-        key: 'created_at',
-    },
-    {
-        title: 'Product',
-        key: 'product_id',
-    },
-    {
-        title: 'Quantity',
-        key: 'quantity',
-    },
-    {
-        title: 'Measure',
-        key: 'measure_id',
-    },
-])
 let showFormConsumption = ref(false)
 const formConsumption = useForm({
     unit_id: props.unit.id,
@@ -119,6 +93,26 @@ function apiIndexEntities(like){
         console.log(error);
     })
 }
+
+
+const headersConsumptions = ref([
+    {
+        title: 'created',
+        key: 'created_at',
+    },
+    {
+        title: 'Product',
+        key: 'product_id',
+    },
+    {
+        title: 'Quantity',
+        key: 'quantity',
+    },
+    {
+        title: 'Measure',
+        key: 'measure_id',
+    },
+])
 const headersEntities = ref([
     {
         title: 'Вид',
@@ -134,6 +128,7 @@ const headersEntities = ref([
     },
 ])
 
+
 onMounted(()=> {
     apiIndexProducts();
     apiIndexMeasures();
@@ -141,7 +136,13 @@ onMounted(()=> {
     apiIndexEntities();
 })
 
-
+let da = new Date();
+function timeDiff(time){
+    let d = new Date();
+    let diffMilliseconds = d - Date.parse(time);
+    let denominator = 1000 * 3600 * 24;
+    return Math.round(diffMilliseconds/denominator);
+}
 const sendEmail = async () => {
     try {
         const response = await axios.post(route('api.mail'));
@@ -204,7 +205,22 @@ const sendEmail = async () => {
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title>Labels</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="label in unit.labels">
+                                <span>{{label.name}}</span>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-btn text="добавить"
+                        ></v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-col>
         </v-row>
         <v-row>
             <v-col cols="5">
