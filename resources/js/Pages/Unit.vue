@@ -3,14 +3,14 @@ import { useDate } from 'vuetify'
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm, Link} from "@inertiajs/vue3";
+import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+defineOptions({
+    layout: VerwalterLayout,
+})
 const date = useDate()
 const props = defineProps({
     unit: Object,
     products: Object,
-})
-import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-defineOptions({
-    layout: VerwalterLayout,
 })
 
 let listProducts = ref();
@@ -29,6 +29,7 @@ function apiIndexMeasures(){
         console.log(error);
     })
 }
+
 let showFormConsumption = ref(false)
 const formConsumption = useForm({
     unit_id: props.unit.id,
@@ -89,6 +90,57 @@ function apiIndexEntities(like){
         }
     }).then(function (response){
         entities.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
+
+let showFormAttachEntity = ref(false);
+const formAttachEntity = useForm({
+    entity_id: null,
+    unit_id: props.unit.id,
+})
+function attachEntity(){
+    formAttachEntity.post(route('api.entity_unit.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAttachEntity.reset();
+        },
+    })
+}
+
+let entityClassifications = ref();
+function apiIndexEntityClassifications(){
+    axios.get(route('api.entitiesclassifications')).then(function (response){
+        entityClassifications.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
+let showFormCreateEntity = ref(false)
+let formEntity = useForm({
+    name: null,
+    entity_classification_id: null,
+    telephones: null,
+})
+function storeEntity(){
+    formEntity.post(route('api.entity.store'), {
+        replace: false,
+        preserveState: false,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formEntity.reset();
+            apiIndexEntities();
+        },
+    })
+}
+
+let telephones = ref();
+function apiIndexTelephones(){
+    axios.get(route('api.telephones')).then(function (response){
+        telephones.value = response.data;
     }).catch(function (error){
         console.log(error);
     })
@@ -208,6 +260,96 @@ const sendEmail = async () => {
             <v-col>
                 <v-card>
                     <v-card-title class="bg-orange-200 text-slate-800">Entities</v-card-title>
+                    <v-card-subtitle>
+                        <v-btn text="Прикрепить"
+                               @click="showFormAttachEntity = !showFormAttachEntity"
+                               density="comfortable"
+                               variant="text"
+                        ></v-btn>
+                        <v-dialog v-model="showFormAttachEntity"
+                                  width="880"
+                        >
+                            <template v-slot:default="{isActive}">
+                                <v-card>
+                                    <v-card-title>Attach Entity</v-card-title>
+                                    <v-card-text>
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-autocomplete :items="entities"
+                                                                :item-title="'name'"
+                                                                :item-value="'id'"
+                                                                v-model="formAttachEntity.entity_id"
+                                                                label="Entity"
+                                                                density="comfortable"
+                                                ></v-autocomplete>
+                                            </v-row>
+                                        </v-form>
+                                    </v-card-text>
+                                    <v-card-actions>
+                                        <v-btn text="store"
+                                               @click="attachEntity"
+                                               variant="outlined"
+                                               color="pink-darken-4"
+                                        ></v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </template>
+                        </v-dialog>
+                        <v-btn text="Создать"
+                               @click="showFormCreateEntity = !showFormCreateEntity"
+                               density="comfortable"
+                               variant="text"
+                        ></v-btn>
+                        <v-dialog v-model="showFormCreateEntity"
+                                  width="990"
+                                  transition="dialog-top-transition"
+                        >
+                            <template v-slot:default="{ isActive }">
+                                <v-card>
+                                    <v-card-title>Form Entity</v-card-title>
+                                    <v-card-text>
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-select :items="entityClassifications"
+                                                          :item-value="'id'"
+                                                          :item-title="'name'"
+                                                          v-model="formEntity.entity_classification_id"
+                                                          variant="outlined"
+                                                          label="Вид"
+                                                ></v-select>
+                                            </v-row>
+                                            <v-row>
+                                                <v-text-field v-model="formEntity.name"
+                                                              label="Name"
+                                                              variant="outlined"
+                                                ></v-text-field>
+                                            </v-row>
+                                            <v-row>
+                                                <v-autocomplete :items="telephones"
+                                                                :item-value="'id'"
+                                                                :item-title="'number'"
+                                                                v-model="formEntity.telephones"
+                                                                label="Telephones"
+                                                                placeholder="number without +7"
+                                                                variant="outlined"
+                                                                density="comfortable"
+                                                                color="purple-darken-4"
+                                                                multiple
+                                                                chips
+                                                ></v-autocomplete>
+                                            </v-row>
+                                        </v-form>
+                                    </v-card-text>
+                                    <v-card-actions>
+                                        <v-btn @click="storeEntity"
+                                               text="сохранить"
+                                               variant="flat"
+                                        ></v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </template>
+                        </v-dialog>
+                    </v-card-subtitle>
                     <v-card-text>
                         <v-data-table :items="unit.entities"
                                       :headers="headersEntities"
