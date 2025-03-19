@@ -188,6 +188,7 @@ onMounted(()=> {
     apiIndexEntities();
     apiIndexEntityClassifications();
     apiIndexTelephones();
+})
 
 let da = new Date();
 function timeDiff(time){
