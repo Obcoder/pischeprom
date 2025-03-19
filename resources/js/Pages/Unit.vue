@@ -217,8 +217,7 @@ const sendEmail = async () => {
         >
             <v-col cols="4">
                 <v-card>
-                    <v-card-title class="bg-orange-accent-3">
-                        {{unit.name}}</v-card-title>
+                    <v-card-title class="bg-orange-accent-3">{{unit.name}}</v-card-title>
                     <v-card-subtitle class="d-flex">
                         <v-sheet>
                             <div v-for="uri in unit.uris"
@@ -231,13 +230,19 @@ const sendEmail = async () => {
                             </div>
                         </v-sheet>
                     </v-card-subtitle>
-                    <v-card-subtitle>
-                        <v-sheet>
-                            <div v-for="label in unit.labels">
-                                {{label.name}}
-                            </div>
-                        </v-sheet>
-                    </v-card-subtitle>
+                    <v-card-text>
+                        <v-banner>
+                            <v-banner-text>
+                                <v-list>
+                                    <v-list-item v-for="telephone in unit.telephones"
+                                                 class="text-slate-800"
+                                    >
+                                        {{telephone.number}}
+                                    </v-list-item>
+                                </v-list>
+                            </v-banner-text>
+                        </v-banner>
+                    </v-card-text>
                 </v-card>
             </v-col>
             <v-col cols="2">

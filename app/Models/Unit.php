@@ -16,6 +16,7 @@ class Unit extends Model
     protected $with = [
         'uris',
         'labels',
+        'telephones',
     ];
 
     public function uris()
@@ -56,5 +57,10 @@ class Unit extends Model
     {
         return $this->belongsToMany(Building::class)
             ->using(building_unit::class);
+    }
+    public function telephones()
+    {
+        return $this->belongsToMany(Telephone::class)
+            ->using(telephone_unit::class);
     }
 }
