@@ -45,6 +45,11 @@ import {Link} from "@inertiajs/vue3";
                     <span>M</span>
                 </Link>
             </v-app-bar-title>
+            <v-app-bar-title>
+                <Link :href="route('Ameise.botany')">
+                    <span>Botany</span>
+                </Link>
+            </v-app-bar-title>
 
             <template v-slot:append>
                 <v-btn icon="mdi-heart"></v-btn>

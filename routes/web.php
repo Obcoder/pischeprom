@@ -76,6 +76,9 @@ Route::get('/Ameise/city/{id}', function ($id) {
 Route::get('/Ameise/Geography/', function (){
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
+Route::get('/Ameise/Botany/', function (){
+    return Inertia::render('Ameise/Botany');
+})->name('Ameise.botany');
 
 //                     A         P         I
 //                          G         E         T
@@ -110,6 +113,8 @@ Route::apiResource('/api/entitiesclassifications/', \App\Http\Controllers\API\En
     ->name('index', 'api.entitiesclassifications');
 Route::apiResource('/api/entity_unit', \App\Http\Controllers\API\EntityUnitController::class)
     ->name('store', 'api.entity_unit.store');
+Route::apiResource('/api/genera', \App\Http\Controllers\API\GenusController::class)
+    ->name('index', 'api.genera');
 Route::apiResource('/api/labels', \App\Http\Controllers\API\LabelController::class)
     ->name('index', 'api.labels');
 Route::apiResource('/api/measures/', \App\Http\Controllers\API\MeasureController::class)
