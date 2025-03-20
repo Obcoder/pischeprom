@@ -46,10 +46,13 @@ class TelegramController extends Controller
 
             //Сохраняем chatID в БД
             $chat = Chat::firstOrCreate(['numbers' => $chatId]);
-            $message = Message::create([
-                'content' => $text,
-                'chat_id' => $chat->id,
-                                       ]);
+
+            if ($text) { // Добавляем проверку
+                $message = Message::create([
+                                               'content' => $text,
+                                               'chat_id' => $chat->id,
+                                           ]);
+            }
 
             // Логируем информацию о сообщении
             //Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
