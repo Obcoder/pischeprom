@@ -18,5 +18,5 @@ Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
  * __________________
  */
 Route::post('/webhook', [TelegramController::class, 'webhook']);
-Route::post('/telegram/send-message', [TelegramController::class, 'sendMessage'])
+Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class, 'sendMessage'])
     ->name('api.telegram.sendMessage');
