@@ -40,7 +40,7 @@ class TelegramController extends Controller
         $message = $update['message'] ?? null;
         if ($message) {
             $chatId = $message['chat']['id'];
-            $text = $message['text'];
+            $text = $message['text'] ?? null; // Проверяем текст
             $photo = $message['photo'] ?? null; // Массив фото
             $caption = $message['caption'] ?? null; // Подпись к фото
 
