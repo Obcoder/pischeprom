@@ -3,6 +3,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use TelegramBot\Api\BotApi;
+use Illuminate\Support\Facades\Log;
 
 class TelegramService
 {
@@ -15,8 +16,15 @@ class TelegramService
 
     public function sendMessage($chatId, $message)
     {
-        return $this->telegram->sendMessage($chatId, $message);
+        try {
+            // Отправка сообщения в Telegram
+            $this->telegram->sendMessage($chatId, $message);
+        } catch (\Exception $e) {
+            Log::error("Ошибка при отправке сообщения: " . $e->getMessage());
+            throw $e;  // Перебрасываем исключение для дальнейшей обработки в контроллере
+        }
     }
+
 
     public function getFileUrl(string $fileId): string
     {

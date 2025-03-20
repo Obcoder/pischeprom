@@ -25,10 +25,17 @@ class TelegramController extends Controller
                                             'text' => 'required|string'
                                         ]);
 
-        $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
-
-        return response()->json(['status' => 'Message sent!']);
+        try {
+            // Отправка сообщения через сервис
+            $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
+            return response()->json(['status' => 'Message sent!']);
+        } catch (\Exception $e) {
+            // Логирование ошибки
+            Log::error("Ошибка при отправке сообщения: " . $e->getMessage());
+            return response()->json(['error' => 'Failed to send message'], 500);
+        }
     }
+
 
     public function webhook(Request $request)
     {
