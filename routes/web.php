@@ -29,9 +29,18 @@ Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'inde
     ->name('goods');
 Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
+Route::get('/Ameise/Botany/', function (){
+    return Inertia::render('Ameise/Botany');
+})->name('Ameise.botany');
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('ameise.fluxmonitor');
+////////////      T E L E G R A M  B O T      /////////////////////
+/// __________________________________________________________ ////
+Route::get('/Ameise/TelegramBot/', function (){
+    return Inertia::render('Ameise/TelegramBot');
+})->name('ameise.telegrambot');
+///E N D//////////////////////////////////////////////////////////
 
 //     U N I T S
 Route::get('/Ameise/units/', function (){
@@ -76,9 +85,7 @@ Route::get('/Ameise/city/{id}', function ($id) {
 Route::get('/Ameise/Geography/', function (){
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
-Route::get('/Ameise/Botany/', function (){
-    return Inertia::render('Ameise/Botany');
-})->name('Ameise.botany');
+
 
 //                     A         P         I
 //                          G         E         T

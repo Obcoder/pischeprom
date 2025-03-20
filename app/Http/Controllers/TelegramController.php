@@ -41,6 +41,8 @@ class TelegramController extends Controller
         if ($message) {
             $chatId = $message['chat']['id'];
             $text = $message['text'];
+            $photo = $message['photo'] ?? null; // Массив фото
+            $caption = $message['caption'] ?? null; // Подпись к фото
 
             //Сохраняем chatID в БД
             $chat = Chat::firstOrCreate(['numbers' => $chatId]);
@@ -54,6 +56,23 @@ class TelegramController extends Controller
 
             // Ответное сообщение
             //$this->telegram->sendMessage($chatId, "Получено ваше сообщение: " . $text);
+        }
+
+        if ($photo) {
+            // Берем самое большое фото (последний элемент массива)
+            $largestPhoto = end($photo);
+            $fileId = $largestPhoto['file_id'];
+
+            // Сохраняем в БД
+            Message::create([
+                                'content' => "[Фото] $fileId",
+                                'chat_id' => $chat->id,
+                            ]);
+
+            // Получаем прямую ссылку на файл
+            $fileUrl = $this->getFileUrl($fileId);
+
+            Log::info("Фото получено: $fileUrl");
         }
 
         // Возвращаем успешный ответ

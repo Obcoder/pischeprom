@@ -23,6 +23,10 @@ import {Link} from "@inertiajs/vue3";
                 <v-list-item>
                     <Link :href="route('Ameise.geography')">Geography</Link>
                 </v-list-item>
+                <v-list-item>
+                    <Link :href="route('ameise.telegrambot')"
+                          color="blue-darken-1">Telegram</Link>
+                </v-list-item>
             </v-list>
         </v-navigation-drawer>
 
