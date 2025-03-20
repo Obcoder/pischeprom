@@ -6,7 +6,7 @@ use TelegramBot\Api\BotApi;
 
 class TelegramService
 {
-    protected BotApi $telegram;
+    protected $telegram;
 
     public function __construct()
     {
