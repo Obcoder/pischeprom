@@ -97,6 +97,8 @@ Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnit
     ->name('store', 'api.building_unit.store');
 Route::apiResource('/api/catalogs', \App\Http\Controllers\API\CatalogController::class)
     ->name('index', 'api.catalogs');
+Route::apiResource('/api/chats', \App\Http\Controllers\API\ChatController::class)
+    ->name('index', 'api.chats');
 Route::apiResource('/api/checks', \App\Http\Controllers\API\CheckController::class)
     ->name('index', 'api.checks')
     ->name('store', 'api.checks.store');

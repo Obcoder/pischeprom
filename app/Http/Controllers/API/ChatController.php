@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Chat;
 use Illuminate\Http\Request;
 
 class ChatController extends Controller
@@ -12,7 +13,8 @@ class ChatController extends Controller
      */
     public function index()
     {
-        //
+        $chats = Chat::orderBy('created_at', 'desc')->get();
+        return $chats;
     }
 
     /**
