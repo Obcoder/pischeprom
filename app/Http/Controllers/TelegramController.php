@@ -18,7 +18,7 @@ class TelegramController extends Controller
         $this->telegramService = $telegramService;
     }
 
-    public function sendMessage(Request $request): JsonResponse
+    public function sendMessage(Request $request)
     {
         $validated = $request->validate([
                                             'chat_id' => 'required|string',
@@ -28,10 +28,7 @@ class TelegramController extends Controller
         try {
             // Отправка сообщения через сервис
             $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
-            $message = Message::create([
-                'content' => $validated['text'],
-                'chat_id' => $validated['chat_id'],
-                                       ]);
+            $message = Message::create($request->all());
         } catch (\Exception $e) {
             // Логирование ошибки
             Log::error("Ошибка при отправке сообщения: " . $e->getMessage());
