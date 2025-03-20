@@ -87,6 +87,7 @@ onMounted(()=>{
         <v-row>
             <v-col>
                 <v-data-table :items="messages"
+                              items-per-page="500"
                               density="comfortable"
                               hover="true"
                 ></v-data-table>
