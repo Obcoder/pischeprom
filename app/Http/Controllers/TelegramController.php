@@ -60,7 +60,7 @@ class TelegramController extends Controller
 
         if ($photo) {
             // Берем самое большое фото (последний элемент массива)
-            $largestPhoto = end($photo);
+            $largestPhoto = array_pop($photo);
             $fileId = $largestPhoto['file_id'];
 
             // Сохраняем в БД
@@ -70,11 +70,12 @@ class TelegramController extends Controller
                             ]);
 
             // Получаем прямую ссылку на файл
-            $fileUrl = $this->getFileUrl($fileId);
+            $fileUrl = $this->telegramService->getFileUrl($fileId);
 
             Log::info("Фото получено: $fileUrl");
         }
 
+        Log::info('Пришли данные из Telegram:', $update);
         // Возвращаем успешный ответ
         return response()->json(['status' => 'Message received']);
     }
