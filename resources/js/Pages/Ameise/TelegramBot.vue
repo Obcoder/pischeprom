@@ -8,7 +8,7 @@ defineOptions({
 
 let messages = ref();
 function indexMessages(){
-    axios.get(route('api.products')).then(function (response){
+    axios.get(route('api.messages')).then(function (response){
         messages.value = response.data;
     }).catch(function (error){
         console.log(error);
