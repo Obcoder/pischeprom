@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 
 class TelegramService
 {
-    protected $telegram;
+    protected BotApi $telegram;
 
     public function __construct()
     {

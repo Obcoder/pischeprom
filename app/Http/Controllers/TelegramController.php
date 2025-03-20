@@ -28,11 +28,14 @@ class TelegramController extends Controller
         try {
             // Отправка сообщения через сервис
             $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
-            return response()->json(['status' => 'Message sent!']);
+            $message = Message::create([
+                'content' => $validated['text'],
+                'chat_id' => $validated['chat_id'],
+                                       ]);
         } catch (\Exception $e) {
             // Логирование ошибки
             Log::error("Ошибка при отправке сообщения: " . $e->getMessage());
-            return response()->json(['error' => 'Failed to send message'], 500);
+//            return response()->json(['error' => 'Failed to send message'], 500);
         }
     }
 
