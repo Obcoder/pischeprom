@@ -32,7 +32,7 @@ async function sendTelegramMessage(chat, message) {
             chat_id: chat,
             text: message,
         });
-        return data;
+        // return data;
     } catch (error) {
         console.error('Ошибка при отправке сообщения:', error);
     }
