@@ -29,8 +29,8 @@ class TelegramController extends Controller
             // Отправка сообщения через сервис
             $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
             $message = Message::create([
-                'chat_id' => $validated['chat_id'],
-                'content' => $validated['text'],
+                'chat_id' => $request->chat_id,
+                'content' => $request->text,
                                        ]);
         } catch (\Exception $e) {
             // Логирование ошибки

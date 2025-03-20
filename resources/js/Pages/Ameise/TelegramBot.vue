@@ -29,12 +29,15 @@ let message = ref();
 async function sendTelegramMessage(chat, message) {
     try {
         const { data } = await axios.post(route('api.telegram.sendMessage'), {
-            chat_id: chat,
-            text: message,
+            chat_id: chat.toString(),
+            text: message.toString(),
         });
-        // return data;
+        return data;
     } catch (error) {
         console.error('Ошибка при отправке сообщения:', error);
+    } finally {
+        chat.value = null;
+        message.value = null;
     }
 }
 onMounted(()=>{
