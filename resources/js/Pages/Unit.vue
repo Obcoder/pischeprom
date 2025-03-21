@@ -181,18 +181,17 @@ const headersEntities = ref([
 ])
 
 let files = ref();
-const fetchFiles = async (name) => {
-    try {
-        const response = await axios.get(route('api.unit.getFiles'), {
-            params: {
-                unitName: name,
-            }
-        });
+function fetchFiles(name){
+    axios.get(route('api.unit.getFiles'), {
+        params: {
+            unitName: name,
+        }
+    }).then(function (response){
         files.value = response.data;
-    } catch (error) {
+    }).catch (function  (error) {
         console.error('Ошибка загрузки файлов:', error);
-    }
-};
+    })
+}
 
 onMounted(()=> {
     apiIndexProducts();
