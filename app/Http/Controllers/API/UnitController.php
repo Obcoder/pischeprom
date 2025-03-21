@@ -111,7 +111,7 @@ class UnitController extends Controller
             $encodedFilePath = urlencode($file);
 
             // Формируем правильный URL для файла
-            $url = "{$baseUrl}/" . env('YANDEX_CLOUD_BUCKET') . "/{$encodedFilePath}";
+            $url = "{$baseUrl}/" . env('YANDEX_CLOUD_BUCKET') . "/{$file}";
 
             return [
                 'name' => basename($file),
