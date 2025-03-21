@@ -93,9 +93,9 @@ class UnitController extends Controller
         //
     }
 
-    public function getUnitFiles($unitName): array
+    public function getUnitFiles($unitId): array
     {
-        $path = "units/{$unitName}/"; // Путь внутри storage/app/units/{unit_name}
+        $path = "/units/{$unitId}/"; // Путь внутри storage/app/units/{unit_name}
 
         if (!Storage::exists($path)) {
             return []; // Если папки нет, вернуть пустой список
