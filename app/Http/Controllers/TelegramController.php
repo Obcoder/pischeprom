@@ -50,10 +50,15 @@ class TelegramController extends Controller
         $update = $request->getContent();
         $update = json_decode($update, true);
 
+        $update_id = $update['update_id'] ?? null;
         // Получаем сообщение
         $message = $update['message'] ?? null;
         if ($message) {
+            $message_id = $message['message_id'] ?? null;
+            $date = $message['date'] ?? null;
             $chatId = $message['chat']['id'];
+            $first_name = $message['chat']['first_name'] ?? null;
+            $last_name = $message['chat']['last_name'] ?? null;
             $text = $message['text'] ?? null; // Проверяем текст
             $photo = $message['photo'] ?? null; // Массив фото
             $caption = $message['caption'] ?? null; // Подпись к фото
@@ -94,6 +99,6 @@ class TelegramController extends Controller
 
         Log::info('Пришли данные из Telegram:', $update);
         // Возвращаем успешный ответ
-        return response()->json(['status' => 'Message received']);
+        //return response()->json(['status' => 'Message received']);
     }
 }
