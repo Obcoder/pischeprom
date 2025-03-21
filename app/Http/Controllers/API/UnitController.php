@@ -107,7 +107,7 @@ class UnitController extends Controller
         return array_map(function ($file) {
             return [
                 'name' => basename($file),
-                'url' => Storage::url($file),
+                'url' => Storage::disk('yandex')->path($file),
             ];
         }, $files);
     }
