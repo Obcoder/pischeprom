@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Unit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -46,6 +47,9 @@ class UnitController extends Controller
         $unit->uris()->attach($request->input('uris'));
         $unit->labels()->attach($request->input('labels'));
         $unit->buildings()->attach($request->input('buildings'));
+
+        // Создаем "папку" в S3 (на самом деле это просто пустой файл, так как в S3 нет папок)
+        Storage::disk('yandex')->put("units/{$unit->id}/placeholder.txt", '');
     }
 
     /**

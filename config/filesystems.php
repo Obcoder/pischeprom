@@ -56,6 +56,16 @@ return [
             'throw' => false,
         ],
 
+        'yandex' => [
+            'driver' => 's3',
+            'key' => env('YANDEX_CLOUD_ACCESS_KEY_ID'),
+            'secret' => env('YANDEX_CLOUD_SECRET_ACCESS_KEY'),
+            'region' => 'ru-central1', // У Yandex только один регион
+            'bucket' => env('YANDEX_CLOUD_BUCKET'),
+            'url' => env('YANDEX_CLOUD_URL', 'https://storage.yandexcloud.net'),
+            'endpoint' => env('YANDEX_CLOUD_ENDPOINT', 'https://storage.yandexcloud.net'),
+        ],
+
     ],
 
     /*
