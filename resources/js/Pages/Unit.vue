@@ -182,7 +182,7 @@ const headersEntities = ref([
 
 let files = ref();
 function fetchFiles(id){
-    axios.get(route('api.unit.getFiles'), { id: id }).then(function (response){
+    axios.get(`/api/units/${id}/files`).then(function (response){
         files.value = response.data;
     }).catch (function  (error) {
         console.error('Ошибка загрузки файлов:', error);

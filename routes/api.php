@@ -20,4 +20,10 @@ Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
 Route::post('/webhook', [TelegramController::class, 'webhook']);
 Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class, 'sendMessage'])
     ->name('api.telegram.sendMessage');
-
+/*
+ * --------------------------
+ * S T O R A G E
+ * --------------------------
+ */
+Route::get('/units/{id}/files', [\App\Http\Controllers\API\UnitController::class, 'getUnitFiles'])
+    ->name('api.unit.getFiles');
