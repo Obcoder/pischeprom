@@ -102,12 +102,12 @@ class UnitController extends Controller
         }
 
         $files = Storage::disk('yandex')->files($path); // Получить список файлов
-        // Формируем URL для каждого файла
 
+        // Формируем URL для каждого файла
         return array_map(function ($file) {
             return [
                 'name' => basename($file),
-                'url' => Storage::disk('yandex')->path($file),
+                'url' => Storage::disk('yandex')->url($file),
             ];
         }, $files);
     }
