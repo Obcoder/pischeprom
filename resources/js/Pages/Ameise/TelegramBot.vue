@@ -29,8 +29,8 @@ let message = ref();
 async function sendTelegramMessage(chat, message) {
     try {
         const { data } = await axios.post(route('api.telegram.sendMessage'), {
-            chat_id: chat.toString(),
-            text: message.toString(),
+            chat_id: chat,
+            text: message,
         });
         // axios.post(route('api.message.store'), {
         //     chat_id: chat,
@@ -41,9 +41,6 @@ async function sendTelegramMessage(chat, message) {
         return data;
     } catch (error) {
         console.error('Ошибка при отправке сообщения:', error);
-    } finally {
-        chat.value = null;
-        message.value = null;
     }
 }
 onMounted(()=>{
@@ -67,11 +64,16 @@ onMounted(()=>{
                         <v-card-title>Form Message</v-card-title>
                         <v-card-text>
                             <v-row>
-                                <v-text-field v-model="chat"
-                                              label="chat_id"
-                                              variant="outlined"
-                                              color="black"
-                                ></v-text-field>
+                                <v-autocomplete :items="chats"
+                                                :item-title="'first_name'"
+                                                :item-value="'id'"
+                                                v-model="chat"
+                                                label="chat"
+                                                placeholder="Выбери chat"
+                                                variant="outlined"
+                                                density="compact"
+                                                color="black"
+                                ></v-autocomplete>
                             </v-row>
                             <v-row>
                                 <v-textarea v-model="message"
