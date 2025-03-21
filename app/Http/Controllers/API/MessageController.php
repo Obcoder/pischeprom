@@ -13,7 +13,8 @@ class MessageController extends Controller
      */
     public function index()
     {
-        $messages = Message::all();
+        $messages = Message::orderBy('created_at', 'desc')
+            ->get();
         return $messages;
     }
 

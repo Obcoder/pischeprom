@@ -41,6 +41,9 @@ async function sendTelegramMessage(chat, message) {
         return data;
     } catch (error) {
         console.error('Ошибка при отправке сообщения:', error);
+    } finally {
+        message.value = null;
+        indexMessages();
     }
 }
 onMounted(()=>{
