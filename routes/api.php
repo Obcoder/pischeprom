@@ -25,5 +25,5 @@ Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class
  * S T O R A G E
  * --------------------------
  */
-Route::get('/units/{id}/files', [\App\Http\Controllers\API\UnitController::class, 'getUnitFiles'])
+Route::get('/units/{name}/files', [\App\Http\Controllers\API\UnitController::class, 'getUnitFiles'])
     ->name('api.unit.getFiles');

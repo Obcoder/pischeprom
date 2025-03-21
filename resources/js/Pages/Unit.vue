@@ -181,8 +181,8 @@ const headersEntities = ref([
 ])
 
 let files = ref();
-function fetchFiles(id){
-    axios.get(`/api/units/${id}/files`).then(function (response){
+function fetchFiles(name){
+    axios.get(route('api.unit.getFiles'), {name: name}).then(function (response){
         files.value = response.data;
     }).catch (function  (error) {
         console.error('Ошибка загрузки файлов:', error);
@@ -196,7 +196,7 @@ onMounted(()=> {
     apiIndexEntities();
     apiIndexEntityClassifications();
     apiIndexTelephones();
-    fetchFiles(props.unit.id)
+    fetchFiles(props.unit.name)
 })
 
 let da = new Date();
