@@ -182,4 +182,10 @@ Route::get('/send-email', function () {
     return 'Email sent successfully!';
 });
 
-
+/*
+ * --------------------------
+ * S T O R A G E
+ * --------------------------
+ */
+Route::get('/units/{name}/files', [\App\Http\Controllers\API\UnitController::class, 'getUnitFiles'])
+    ->name('api.unit.getFiles');
