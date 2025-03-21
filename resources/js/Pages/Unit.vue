@@ -180,6 +180,19 @@ const headersEntities = ref([
     },
 ])
 
+let files = ref();
+const fetchFiles = async (name) => {
+    try {
+        const response = await axios.get(route('api.unit.getFiles'), {
+            params: {
+                unitName: name,
+            }
+        });
+        files.value = response.data;
+    } catch (error) {
+        console.error('Ошибка загрузки файлов:', error);
+    }
+};
 
 onMounted(()=> {
     apiIndexProducts();
@@ -188,6 +201,7 @@ onMounted(()=> {
     apiIndexEntities();
     apiIndexEntityClassifications();
     apiIndexTelephones();
+    fetchFiles(props.unit.name)
 })
 
 let da = new Date();
@@ -550,6 +564,11 @@ const sendEmail = async () => {
                     </v-card>
                 </template>
             </v-dialog>
+        </v-row>
+        <v-row>
+            <v-col>
+                {{files}}
+            </v-col>
         </v-row>
     </v-container>
 </template>
