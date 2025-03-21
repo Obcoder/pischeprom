@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Entity extends Model
 {
@@ -23,9 +24,12 @@ class Entity extends Model
         return $this->belongsTo(EntityClassification::class , 'entity_classification_id')
             ->withDefault();
     }
-
     public function telephones()
     {
         return $this->belongsToMany(Telephone::class);
+    }
+    public function chats(): BelongsToMany
+    {
+        return $this->belongsToMany(Chat::class);
     }
 }

@@ -15,6 +15,7 @@ class EntityController extends Controller
     {
         $like = $request->search;
         $entities = Entity::with('telephones')
+            ->with('chats')
             ->where(function ($query) use ($like) {
             $query->where('name', 'like', '%' . $like . '%');
         })

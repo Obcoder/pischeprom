@@ -139,19 +139,27 @@ onMounted(()=>{
                     <v-list-item v-for="entity in listEntities"
                                  class="hover:bg-blue-700"
                     >
-                        <v-list-item-subtitle>
-                            {{entity.classification.name}}
-                        </v-list-item-subtitle>
-                        <v-sheet rounded
-                        >
-                            <h3>{{entity.name}}</h3>
-                            <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
-                        </v-sheet>
-
-                        <v-divider :thickness="2"
-                                   class="border-opacity-75"
-                                   color="info"
-                        ></v-divider>
+                        <v-list-item-title>
+                            {{entity.name}}
+                        </v-list-item-title>
+                        <v-row>
+                            <v-col>
+                                {{entity.classification.name}}
+                            </v-col>
+                            <v-col>
+                                <v-row v-for="chat in entity.chats">
+                                    <v-col>
+                                        {{chat.numbers}}
+                                    </v-col>
+                                    <v-col>
+                                        {{chat.first_name}}
+                                    </v-col>
+                                </v-row>
+                            </v-col>
+                            <v-col>
+                                <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
+                            </v-col>
+                        </v-row>
                     </v-list-item>
                 </v-list>
             </v-col>
