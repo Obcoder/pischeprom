@@ -95,7 +95,7 @@ class UnitController extends Controller
 
     public function getUnitFiles($unitId): array
     {
-        $path = "pps/units/{$unitId}"; // Путь внутри storage/app/units/{unit_name}
+        $path = "/units/{$unitId}";
 
         if (!Storage::disk('yandex')->exists($path)) {
             return ['папки нет! ☹️']; // Если папки нет, вернуть пустой список
