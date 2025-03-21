@@ -105,9 +105,13 @@ class UnitController extends Controller
 
         // Формируем URL для каждого файла
         return array_map(function ($file) {
+            $bucket = env('YANDEX_CLOUD_BUCKET');
+            $baseUrl = env('YANDEX_CLOUD_URL');
+            $url = "{$baseUrl}/{$bucket}/{$file}";
+
             return [
                 'name' => basename($file),
-                'url' => Storage::disk('yandex')->url($file),
+                'url' => $url,
             ];
         }, $files);
     }
