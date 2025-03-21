@@ -66,7 +66,7 @@ onMounted(()=>{
                             <v-row>
                                 <v-autocomplete :items="chats"
                                                 :item-title="'first_name'"
-                                                :item-value="'id'"
+                                                :item-value="'numbers'"
                                                 v-model="chat"
                                                 label="chat"
                                                 placeholder="Выбери chat"
