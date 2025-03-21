@@ -187,5 +187,5 @@ Route::get('/send-email', function () {
  * S T O R A G E
  * --------------------------
  */
-Route::get('/units/{unitName}/files', [\App\Http\Controllers\API\UnitController::class, 'getUnitFiles'])
+Route::get('/units/{id}/files', [\App\Http\Controllers\API\UnitController::class, 'getUnitFiles'])
     ->name('api.unit.getFiles');
