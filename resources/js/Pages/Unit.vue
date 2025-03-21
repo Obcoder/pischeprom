@@ -562,8 +562,11 @@ const sendEmail = async () => {
         </v-row>
         <v-row>
             <v-col>
-                <v-data-table :items="files"
-                ></v-data-table>
+                <v-list>
+                    <v-list-item v-for="file in files">
+                        <a :href="file.url" target="_blank">{{ file.name }}</a>
+                    </v-list-item>
+                </v-list>
             </v-col>
         </v-row>
     </v-container>

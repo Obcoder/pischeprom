@@ -101,6 +101,14 @@ class UnitController extends Controller
             return ['папки нет! ☹️: '. $path]; // Если папки нет, вернуть пустой список
         }
 
-        return Storage::disk('yandex')->files($path); // Получить список файлов
+        $files = Storage::disk('yandex')->files($path); // Получить список файлов
+        // Формируем URL для каждого файла
+
+        return array_map(function ($file) {
+            return [
+                'name' => basename($file),
+                'url' => Storage::url($file),
+            ];
+        }, $files);
     }
 }
