@@ -137,14 +137,15 @@ onMounted(()=>{
                 <v-list lines="one"
                 >
                     <v-list-item v-for="entity in listEntities"
-                                 class="hover:bg-blue-700"
+                                 class="hover:bg-blue-200"
                     >
                         <v-list-item-title>
                             {{entity.name}}
                         </v-list-item-title>
+                        <v-list-item-subtitle>{{entity.classification.name}}</v-list-item-subtitle>
                         <v-row>
                             <v-col>
-                                {{entity.classification.name}}
+                                <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
                             </v-col>
                             <v-col>
                                 <v-row v-for="chat in entity.chats">
@@ -157,7 +158,11 @@ onMounted(()=>{
                                 </v-row>
                             </v-col>
                             <v-col>
-                                <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
+                                <v-row v-for="unit in entity.units">
+                                    <v-col>
+                                        {{unit.name}}
+                                    </v-col>
+                                </v-row>
                             </v-col>
                         </v-row>
                     </v-list-item>
