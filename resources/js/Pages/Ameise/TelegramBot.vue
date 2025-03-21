@@ -32,12 +32,12 @@ async function sendTelegramMessage(chat, message) {
             chat_id: chat.toString(),
             text: message.toString(),
         });
-        axios.post(route('api.message.store'), {
-            chat_id: chat,
-            content: message,
-        }).catch(function (error){
-            console.log()
-        })
+        // axios.post(route('api.message.store'), {
+        //     chat_id: chat,
+        //     content: message,
+        // }).catch(function (error){
+        //     console.log()
+        // })
         return data;
     } catch (error) {
         console.error('Ошибка при отправке сообщения:', error);
