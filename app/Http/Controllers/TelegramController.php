@@ -67,10 +67,15 @@ class TelegramController extends Controller
             $chat = Chat::firstOrCreate(['numbers' => $chatId]);
 
             if ($text) { // Добавляем проверку
-                $message = Message::create([
-                                               'content' => $text,
-                                               'chat_id' => $chat->id,
-                                           ]);
+                $message = Message::create(
+                    [
+                        'content' => $text,
+                        'chat_id' => $chat->id,
+                        'message_id' => $message_id,
+                        'date' => $date,
+                        'update_id' => $update_id,
+                    ]
+                );
             }
 
             // Логируем информацию о сообщении
