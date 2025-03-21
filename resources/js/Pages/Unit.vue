@@ -196,7 +196,7 @@ onMounted(()=> {
     apiIndexEntities();
     apiIndexEntityClassifications();
     apiIndexTelephones();
-    fetchFiles(props.unit.name)
+    fetchFiles(props.unit.id)
 })
 
 let da = new Date();
