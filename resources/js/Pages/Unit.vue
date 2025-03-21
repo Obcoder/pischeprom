@@ -562,7 +562,8 @@ const sendEmail = async () => {
         </v-row>
         <v-row>
             <v-col>
-                {{files}}
+                <v-data-table :items="files"
+                ></v-data-table>
             </v-col>
         </v-row>
     </v-container>
