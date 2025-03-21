@@ -98,7 +98,7 @@ class UnitController extends Controller
         $path = "/units/{$unitId}/"; // Путь внутри storage/app/units/{unit_name}
 
         if (!Storage::exists($path)) {
-            return []; // Если папки нет, вернуть пустой список
+            return ['папки нет! ☹️']; // Если папки нет, вернуть пустой список
         }
 
         return Storage::files($path); // Получить список файлов
