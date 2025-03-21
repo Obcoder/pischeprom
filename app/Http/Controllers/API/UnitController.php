@@ -97,10 +97,10 @@ class UnitController extends Controller
     {
         $path = "units/{$unitId}"; // Путь внутри storage/app/units/{unit_name}
 
-        if (!Storage::exists($path)) {
+        if (!Storage::disk('yandex')->exists($path)) {
             return ['папки нет! ☹️']; // Если папки нет, вернуть пустой список
         }
 
-        return Storage::files($path); // Получить список файлов
+        return Storage::disk('yandex')->files($path); // Получить список файлов
     }
 }
