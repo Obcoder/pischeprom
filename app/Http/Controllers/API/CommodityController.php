@@ -11,9 +11,11 @@ class CommodityController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $commodities = Commodity::orderBy('name')
+        $like = $request->search;
+        $commodities = Commodity::where('name', 'like', '%'.$like.'%')
+            ->orderBy('name')
             ->get();
         return $commodities;
     }
@@ -23,7 +25,7 @@ class CommodityController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $commodity = Commodity::create($request->all());
     }
 
     /**

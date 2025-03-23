@@ -57,14 +57,15 @@ Route::get('/Ameise/unit/{id}', function ($id){
     ];
     return Inertia::render('Unit', $data);
 })->name('unit.show');
-
-// E N T I T I E S
 Route::get('/Ameise/entities/', function (){
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');
 
 Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
     ->name('check.show');
+Route::get('/Ameise/Commodities/', function (){
+    return Inertia::render('Ameise/Commodities');
+})->name('Ameise.commodities');
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });
@@ -106,7 +107,8 @@ Route::apiResource('/api/cities', \App\Http\Controllers\API\CityController::clas
     ->name('index', 'api.cities')
     ->name('store', 'api.city.store');
 Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
-    ->name('index', 'api.commodities');
+    ->name('index', 'api.commodities')
+    ->name('store', 'api.commodity.store');
 Route::apiResource('/api/components', \App\Http\Controllers\API\ComponentController::class)
     ->name('index', 'api.components')
     ->name('store', 'api.components.store');
