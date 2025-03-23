@@ -112,7 +112,7 @@ onMounted(()=>{
                               hover="hover"
                 >
                     <template v-slot:top>
-                        <v-sheet v-model="showAddCommodity">
+                        <v-sheet v-if="showAddCommodity">
                             <v-form @submit.prevent
                                     class="bg-emerald-600 p-1 border border-1 border-lime-950"
                             >
