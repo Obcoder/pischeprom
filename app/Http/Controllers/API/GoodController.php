@@ -32,6 +32,7 @@ class GoodController extends Controller
     public function store(Request $request)
     {
         $good = Good::create($request->all());
+        return $good;
     }
 
     /**

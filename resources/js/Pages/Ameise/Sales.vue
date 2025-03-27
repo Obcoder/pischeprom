@@ -2,9 +2,12 @@
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
+import {useDate} from "vuetify";
 defineOptions({
     layout: VerwalterLayout,
 })
+
+const date = useDate()
 
 let sales = ref();
 function indexSales(){
@@ -58,6 +61,9 @@ onMounted(()=>{
                               density="compact"
                               hover="true"
                 >
+                    <template v-slot:item.created_at="{item}">
+                        <span>{{date.fullDateTime24h(item.created_at)}}</span>
+                    </template>
                     <template v-slot:item.entity_id="{item}">
                         {{item.entity.name}}
                     </template>

@@ -4,9 +4,12 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm} from "@inertiajs/vue3";
+import {useDate} from "vuetify";
 defineOptions({
     layout: VerwalterLayout,
 })
+
+const date = useDate()
 
 let goods = ref();
 function indexGoods(){
