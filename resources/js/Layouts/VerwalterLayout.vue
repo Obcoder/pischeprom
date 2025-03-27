@@ -30,6 +30,11 @@ import {Link} from "@inertiajs/vue3";
                     <Link :href="route('ameise.telegrambot')"
                           color="blue-darken-1">Telegram</Link>
                 </v-list-item>
+                <v-list-item>
+                    <Link :href="route('Ameise.sales')">
+                        Продажи
+                    </Link>
+                </v-list-item>
             </v-list>
         </v-navigation-drawer>
 

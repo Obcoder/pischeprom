@@ -35,6 +35,10 @@ Route::get('/Ameise/Botany/', function (){
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('ameise.fluxmonitor');
+//     S A L E S
+Route::get('/Ameise/Sales/', function (){
+    return Inertia::render('Ameise/Sales');
+})->name('Ameise.sales');
 ////////////      T E L E G R A M  B O T      /////////////////////
 /// __________________________________________________________ ////
 Route::get('/Ameise/TelegramBot/', function (){
@@ -138,6 +142,8 @@ Route::apiResource('/api/products', \App\Http\Controllers\API\ProductController:
     ->name('store', 'api.product.store');
 Route::apiResource('/api/regions', \App\Http\Controllers\API\RegionController::class)
     ->name('index', 'api.regions');
+Route::apiResource('/api/sales/', \App\Http\Controllers\API\SaleController::class)
+    ->name('index', 'api.sales');
 Route::apiResource('/api/telephones', \App\Http\Controllers\API\TelephoneController::class)
     ->name('index', 'api.telephones')
     ->name('store', 'api.telephone.store');
