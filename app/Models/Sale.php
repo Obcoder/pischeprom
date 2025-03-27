@@ -22,4 +22,9 @@ class Sale extends Model
     {
         return $this->belongsTo(Entity::class);
     }
+    public function goods()
+    {
+        return $this->belongsToMany(Good::class)
+            ->withPivot('quantity', 'price', 'measure_id', 'total');
+    }
 }

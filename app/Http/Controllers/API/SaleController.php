@@ -14,6 +14,7 @@ class SaleController extends Controller
     public function index()
     {
         $sales = Sale::orderBy('date', 'desc')
+            ->with('goods.measure')
             ->get();
         return $sales;
     }
@@ -31,7 +32,8 @@ class SaleController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $sale = Sale::find($id);
+        return $sale;
     }
 
     /**

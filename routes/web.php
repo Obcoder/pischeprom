@@ -143,7 +143,8 @@ Route::apiResource('/api/products', \App\Http\Controllers\API\ProductController:
 Route::apiResource('/api/regions', \App\Http\Controllers\API\RegionController::class)
     ->name('index', 'api.regions');
 Route::apiResource('/api/sales/', \App\Http\Controllers\API\SaleController::class)
-    ->name('index', 'api.sales');
+    ->name('index', 'api.sales')
+    ->name('show', 'api.sale.store');
 Route::apiResource('/api/telephones', \App\Http\Controllers\API\TelephoneController::class)
     ->name('index', 'api.telephones')
     ->name('store', 'api.telephone.store');
