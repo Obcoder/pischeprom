@@ -32,6 +32,9 @@ Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
 Route::get('/Ameise/Botany/', function (){
     return Inertia::render('Ameise/Botany');
 })->name('Ameise.botany');
+Route::get('/Ameise/Cities', function (){
+    return Inertia::render('Ameise/Cities');
+})->name('Ameise.cities');
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('ameise.fluxmonitor');

@@ -12,6 +12,9 @@ import {Link} from "@inertiajs/vue3";
                     </Link>
                 </v-list-item>
                 <v-list-item>
+                    <Link :href="route('Ameise.cities')">Города</Link>
+                </v-list-item>
+                <v-list-item>
                     <Link :href="route('Ameise.entities')">Entities</Link>
                 </v-list-item>
                 <v-list-item>
