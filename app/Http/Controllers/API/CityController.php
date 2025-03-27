@@ -26,6 +26,7 @@ class CityController extends Controller
     public function store(Request $request)
     {
         $city = City::create($request->all());
+        return redirect()->route('Ameise.cities');
     }
 
     /**
