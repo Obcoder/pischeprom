@@ -133,7 +133,7 @@ onMounted(()=>{
                     </template>
                 </v-dialog>
             </v-col>
-            <v-col cols="6">
+            <v-col cols="5">
                 <v-data-table :items="sales"
                               :headers="headersSales"
                               items-per-page="250"
@@ -170,12 +170,12 @@ onMounted(()=>{
                                 </span>
                             </v-col>
                             <v-col cols="1">
-                                <span>
+                                <span class="text-[10px]">
                                     {{good.pivot.quantity}}
                                 </span>
                             </v-col>
                             <v-col>
-                                <span>
+                                <span class="text-sm">
                                     {{good.pivot.total}}
                                 </span>
                             </v-col>
