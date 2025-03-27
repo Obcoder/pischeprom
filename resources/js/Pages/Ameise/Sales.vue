@@ -15,6 +15,25 @@ function indexSales(){
     })
 }
 
+const headersSales = [
+    {
+        title: 'Created',
+        key: 'created_at',
+    },
+    {
+        title: 'Дата',
+        key: 'date',
+    },
+    {
+        title: 'Entity',
+        key: 'entity_id',
+    },
+    {
+        title: 'Total',
+        key: 'total',
+    },
+]
+
 onMounted(()=>{
     indexSales();
 })
@@ -25,9 +44,14 @@ onMounted(()=>{
         <v-row>
             <v-col>
                 <v-data-table :items="sales"
+                              :headers="headersSales"
                               density="compact"
                               hover="true"
-                ></v-data-table>
+                >
+                    <template v-slot:item.entity_id="{item}">
+                        {{item.entity.name}}
+                    </template>
+                </v-data-table>
             </v-col>
             <v-col></v-col>
             <v-col></v-col>
