@@ -80,14 +80,13 @@ onMounted(()=>{
 </script>
 
 <template>
-    <v-container>
+    <v-container fluid>
         <v-row>
             <v-col cols="1">
                 <v-dialog width="1000">
                     <template v-slot:activator="{ props: activatorProps }">
                         <v-btn v-bind="activatorProps"
                                text="Новая продажа"
-                               block
                         ></v-btn>
                     </template>
                     <template v-slot:default="{isActive}">
@@ -160,17 +159,17 @@ onMounted(()=>{
                 <v-list>
                     <v-list-item v-for="good in sale.goods">
                         <v-row>
-                            <v-col>
+                            <v-col cols="8">
                                 <span class="cursor-pointer text-sm font-sans">
                                     {{good.name}}
                                 </span>
                             </v-col>
-                            <v-col>
+                            <v-col cols="1">
                                 <span class="text-[11px]">
                                     {{good.pivot.price}}
                                 </span>
                             </v-col>
-                            <v-col>
+                            <v-col cols="1">
                                 <span>
                                     {{good.pivot.quantity}}
                                 </span>
