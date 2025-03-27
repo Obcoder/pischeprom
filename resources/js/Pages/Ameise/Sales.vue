@@ -38,7 +38,6 @@ let goods = ref();
 function showGoods(id){
     axios.get(route('api.sales.show', id)).then(function (response){
         goods.value = response.data
-        alert(goods.value)
     }).catch(function (error){
         console.log(error)
     });
@@ -70,7 +69,7 @@ onMounted(()=>{
                 </v-data-table>
             </v-col>
             <v-col>
-                {{goods}}
+                {{goods.goods}}
             </v-col>
             <v-col></v-col>
         </v-row>
