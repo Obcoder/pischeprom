@@ -32,12 +32,12 @@ const headersCities = [
 let cities = ref();
 let searchCitiesLike = ref();
 function indexCities(like){
-    axios.get(route('api.cities'), {
+    axios.get(route('api.cities.index'), {
         params: {
             search: like,
         }
     }).then(function (response){
-        listCities.value = response.data;
+        cities.value = response.data;
     }).catch(function (error){
         console.log(error);
     });

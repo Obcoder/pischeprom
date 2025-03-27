@@ -113,9 +113,6 @@ Route::apiResource('/api/chats', \App\Http\Controllers\API\ChatController::class
 Route::apiResource('/api/checks', \App\Http\Controllers\API\CheckController::class)
     ->name('index', 'api.checks')
     ->name('store', 'api.checks.store');
-Route::apiResource('/api/cities', \App\Http\Controllers\API\CityController::class)
-    ->name('index', 'api.cities')
-    ->name('store', 'api.city.store');
 Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
     ->name('index', 'api.commodities')
     ->name('store', 'api.commodity.store');
