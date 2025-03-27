@@ -32,8 +32,8 @@ class SaleController extends Controller
      */
     public function show(string $id)
     {
-//        $sale = Sale::find($id);
-//        return $sale;
+        $sale = Sale::find($id);
+        return $sale;
     }
 
     /**
