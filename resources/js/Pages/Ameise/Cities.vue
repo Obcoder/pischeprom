@@ -57,7 +57,7 @@ function storeCity(){
         preserveScroll: true,
         onSuccess: ()=> {
             formCity.reset();
-            apiIndexCities();
+            indexCities(searchCitiesLike)
         },
     })
 }
@@ -185,7 +185,9 @@ onMounted(()=>{
                         </v-row>
                     </template>
                     <template v-slot:item.name="{item}">
-                        <Link :href="route('city.show', item.id)">
+                        <Link :href="route('city.show', item.id)"
+                              class="text-xl font-bold font-Typingrad"
+                        >
                             <span>{{item.name}}</span>
                         </Link>
                     </template>
