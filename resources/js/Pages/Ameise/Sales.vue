@@ -62,7 +62,9 @@ onMounted(()=>{
                         {{item.entity.name}}
                     </template>
                     <template v-slot:item.total="{item}">
-                        <span @click="showGoods(item.id)">
+                        <span @click="showGoods(item.id)"
+                              class="cursor-pointer"
+                        >
                             {{item.total}}
                         </span>
                     </template>
@@ -71,7 +73,23 @@ onMounted(()=>{
             <v-col>
                 <v-list>
                     <v-list-item v-for="good in sale.goods">
-                        {{good.name}}
+                        <v-row>
+                            <v-col>
+                                <span class="cursor-pointer">
+                                    {{good.name}}
+                                </span>
+                            </v-col>
+                            <v-col>
+                                <span>
+                                    {{good.pivot.price}}
+                                </span>
+                            </v-col>
+                            <v-col>
+                                <span>
+                                    {{good.pivot.quantity}}
+                                </span>
+                            </v-col>
+                        </v-row>
                     </v-list-item>
                 </v-list>
             </v-col>
