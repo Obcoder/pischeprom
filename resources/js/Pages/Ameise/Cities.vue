@@ -104,7 +104,7 @@ onMounted(()=>{
                                 <v-dialog width="800"
                                 >
                                     <template v-slot:activator="{props: activatorProps}">
-                                        <v-btn v-model="activatorProps"
+                                        <v-btn v-bind="activatorProps"
                                                text="+ город"
                                                variant="elevated"
                                                density="comfortable"
