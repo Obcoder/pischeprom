@@ -4,6 +4,7 @@ import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useDate} from "vuetify";
 import {useForm} from "@inertiajs/vue3";
+import {format} from "date-fns";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -31,6 +32,11 @@ let formSale = useForm({
     entity_id: null,
     total: null,
 })
+function formatDate(){
+    if (formSale.date){
+        format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
+    }
+}
 function storeSale(){
     formSale.post(route('api.sales.store'), {
         replace: false,
@@ -106,7 +112,9 @@ onMounted(()=>{
                                     </v-row>
                                     <v-row>
                                         <v-col>
-                                            <v-date-picker v-model="formSale.date"></v-date-picker>
+                                            <v-date-picker v-model="formSale.date"
+                                                           @input="formatDate"
+                                            ></v-date-picker>
                                         </v-col>
                                         <v-col>
                                             <v-text-field v-model="formSale.total"

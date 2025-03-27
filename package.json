@@ -23,6 +23,7 @@
         "vue": "^3.3.13"
     },
     "dependencies": {
+        "date-fns": "^4.1.0",
         "vue-meta": "^3.0.0-alpha.2",
         "vuetify": "^3.7.0",
         "vuetify-inertia-link": "^1.0.7"
