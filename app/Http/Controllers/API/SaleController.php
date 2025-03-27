@@ -25,7 +25,7 @@ class SaleController extends Controller
     public function store(Request $request)
     {
         $sale = Sale::create($request->all());
-        return Inertia::render('Ameise/Sales', $sale);
+        return redirect()->route('Ameise.sales');
     }
 
     /**

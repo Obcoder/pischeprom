@@ -32,11 +32,6 @@ let formSale = useForm({
     entity_id: null,
     total: null,
 })
-// function formatDate(){
-//     if (formSale.date){
-//         format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
-//     }
-// }
 function storeSale(){
     formSale.date = format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
     formSale.post(route('api.sales.store'), {
