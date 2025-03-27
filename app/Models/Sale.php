@@ -26,7 +26,6 @@ class Sale extends Model
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class)
-            ->using(good_sale::class)
-            ->withPivot('quantity', 'price', 'measure_id', 'total');
+            ->using(good_sale::class);
     }
 }
