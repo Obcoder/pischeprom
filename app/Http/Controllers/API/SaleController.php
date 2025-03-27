@@ -32,7 +32,8 @@ class SaleController extends Controller
      */
     public function show(string $id)
     {
-        $sale = Sale::findOrFail($id);
+        $sale = Sale::with('goods')
+            ->findOrFail($id);
         return $sale;
     }
 
