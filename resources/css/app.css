@@ -14,6 +14,10 @@
     font-family: 'Rubik-Medium';
     src: url("/resources/fonts/Rubik-Medium.ttf") format('truetype');
 }
+@font-face {
+    font-family: 'Comfortaa-VariableFont_wght';
+    src: url("/resources/fonts/Comfortaa-VariableFont_wght.ttf") format('truetype');
+}
 
 @tailwind base;
 @tailwind components;
