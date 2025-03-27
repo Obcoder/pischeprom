@@ -57,7 +57,7 @@ function storeCity(){
         preserveScroll: true,
         onSuccess: ()=> {
             formCity.reset();
-            indexCities(searchCitiesLike)
+            indexCities(searchCitiesLike.value)
         },
     })
 }
