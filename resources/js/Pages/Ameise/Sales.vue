@@ -40,6 +40,7 @@ function storeSale(){
         preserveScroll: false,
         onSuccess: ()=> {
             formSale.reset()
+            indexSales()
         },
     })
 }
