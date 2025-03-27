@@ -18,6 +18,10 @@
     font-family: 'Comfortaa-VariableFont_wght';
     src: url("/resources/fonts/Comfortaa-VariableFont_wght.ttf") format('truetype');
 }
+@font-face {
+    font-family: 'OrelegaOne-Regular';
+    src: url("/resources/fonts/OrelegaOne-Regular.ttf") format('truetype');
+}
 
 @tailwind base;
 @tailwind components;

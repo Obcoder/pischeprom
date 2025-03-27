@@ -21,6 +21,7 @@ export default {
                 FIFARussia2018: ['FIFARussia2018', ...defaultTheme.fontFamily.sans],
                 RubikMedium: ['Rubik-Medium', ...defaultTheme.fontFamily.sans],
                 ComfortaaVariableFont: ['Comfortaa-VariableFont_wght', ...defaultTheme.fontFamily.sans],
+                OrelegaOneRegular: ['OrelegaOne-Regular', ...defaultTheme.fontFamily.sans],
             },
         },
     },

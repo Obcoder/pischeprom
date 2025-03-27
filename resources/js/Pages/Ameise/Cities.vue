@@ -186,7 +186,7 @@ onMounted(()=>{
                     </template>
                     <template v-slot:item.name="{item}">
                         <Link :href="route('city.show', item.id)"
-                              class="text-xl font-bold font-ComfortaaVariableFont"
+                              class="font-OrelegaOneRegular"
                         >
                             <span>{{item.name}}</span>
                         </Link>
