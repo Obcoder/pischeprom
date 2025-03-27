@@ -3,6 +3,7 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useDate} from "vuetify";
+import {useForm} from "@inertiajs/vue3";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -15,6 +16,29 @@ function indexSales(){
         sales.value = response.data
     }).catch(function (error){
         console.log(error)
+    })
+}
+let entities = ref()
+function indexEntities(){
+    axios.get(route('api.entities')).then(function (response){
+        entities.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+let formSale = useForm({
+    date: null,
+    entity_id: null,
+    total: null,
+})
+function storeSale(){
+    formSale.post(route('api.sales.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formSale.reset()
+        },
     })
 }
 
@@ -47,13 +71,66 @@ function showGoods(id){
 }
 
 onMounted(()=>{
-    indexSales();
+    indexSales()
+    indexEntities()
 })
 </script>
 
 <template>
     <v-container>
         <v-row>
+            <v-col cols="1">
+                <v-dialog width="1000">
+                    <template v-slot:activator="{ props: activatorProps }">
+                        <v-btn v-bind="activatorProps"
+                               text="Новая продажа"
+                               block
+                        ></v-btn>
+                    </template>
+                    <template v-slot:default="{isActive}">
+                        <v-card>
+                            <v-card-title>Form Sale</v-card-title>
+                            <v-card-text>
+                                <v-form @submit.prevent>
+                                    <v-row>
+                                        <v-col>
+                                            <v-autocomplete :items="entities"
+                                                            :item-value="'id'"
+                                                            :item-title="'name'"
+                                                            v-model="formSale.entity_id"
+                                                            density="compact"
+                                                            variant="outlined"
+                                                            chips
+                                            ></v-autocomplete>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row>
+                                        <v-col>
+                                            <v-date-picker v-model="formSale.date"></v-date-picker>
+                                        </v-col>
+                                        <v-col>
+                                            <v-text-field v-model="formSale.total"
+                                                          label="Total"
+                                                          placeholder="Сумма продажи"
+                                                          density="comfortable"
+                                                          variant="solo"
+                                            ></v-text-field>
+                                        </v-col>
+                                    </v-row>
+                                </v-form>
+                            </v-card-text>
+                            <v-card-actions>
+                                <v-btn text="store"
+                                       @click="storeSale"
+                                       variant="elevated"
+                                       density="comfortable"
+                                       color="purple"
+                                ></v-btn>
+                            </v-card-actions>
+                        </v-card>
+                    </template>
+                </v-dialog>
+            </v-col>
             <v-col>
                 <v-data-table :items="sales"
                               :headers="headersSales"

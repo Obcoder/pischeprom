@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Good;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class GoodController extends Controller
 {
@@ -32,7 +33,7 @@ class GoodController extends Controller
     public function store(Request $request)
     {
         $good = Good::create($request->all());
-        return $good;
+        return Inertia::render('Ameise/Goods');
     }
 
     /**

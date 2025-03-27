@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class SaleController extends Controller
 {
@@ -24,6 +25,7 @@ class SaleController extends Controller
     public function store(Request $request)
     {
         $sale = Sale::create($request->all());
+        return Inertia::render('Ameise/Sales', $sale);
     }
 
     /**
