@@ -35,8 +35,8 @@ const headersSales = [
 ]
 
 let goods = ref();
-function showGoods(sale){
-    axios.get(route('api.sale.store'), sale.id).then(function (response){
+function showGoods(sale_id){
+    axios.get(route('api.sale.show'), sale_id).then(function (response){
         goods.value = response.data
     }).catch(function (error){
         console.log(error)
@@ -62,7 +62,7 @@ onMounted(()=>{
                         {{item.entity.name}}
                     </template>
                     <template v-slot:item.total="{item}">
-                        <span @click="showGoods(item)">
+                        <span @click="showGoods(item.id)">
                             {{item.total}}
                         </span>
                     </template>
