@@ -35,6 +35,9 @@ Route::get('/Ameise/Botany/', function (){
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('ameise.fluxmonitor');
+Route::get('/Ameise/Goods/', function (){
+    return Inertia::render('Ameise/Goods');
+})->name('Ameise.goods');
 //     S A L E S
 Route::get('/Ameise/Sales/', function (){
     return Inertia::render('Ameise/Sales');
