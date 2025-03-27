@@ -34,14 +34,14 @@ const headersSales = [
     },
 ]
 
-let goods = ref();
-function showGoods(sale_id){
-    axios.get(route('api.sale.show', sale_id)).then(function (response){
-        goods.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
+// let goods = ref();
+// function showGoods(sale_id){
+//     axios.get(route('api.sale.show', sale_id)).then(function (response){
+//         goods.value = response.data
+//     }).catch(function (error){
+//         console.log(error)
+//     })
+// }
 
 onMounted(()=>{
     indexSales();
@@ -62,18 +62,14 @@ onMounted(()=>{
                         {{item.entity.name}}
                     </template>
                     <template v-slot:item.total="{item}">
-                        <span @click="showGoods(item.id)">
+                        <span>
                             {{item.total}}
                         </span>
                     </template>
                 </v-data-table>
             </v-col>
             <v-col>
-                <v-list>
-                    <v-list-item v-for="good in goods">
-                        {{good.name}}
-                    </v-list-item>
-                </v-list>
+
             </v-col>
             <v-col></v-col>
         </v-row>
