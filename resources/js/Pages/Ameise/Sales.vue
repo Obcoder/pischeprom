@@ -62,7 +62,7 @@ onMounted(()=>{
                               hover="true"
                 >
                     <template v-slot:item.created_at="{item}">
-                        <span>{{date.fullDateTime24h(item.created_at)}}</span>
+                        <span>{{date.format(item.created_at, 'fullDateWithWeekday')}}</span>
                     </template>
                     <template v-slot:item.entity_id="{item}">
                         {{item.entity.name}}
