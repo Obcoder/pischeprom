@@ -41,7 +41,7 @@ function showGoods(id){
     }).catch(function (error){
         console.log(error)
     });
-    alert()
+    alert(goods.value)
 }
 
 onMounted(()=>{
