@@ -8,6 +8,15 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+Route::apiResource('sales', \App\Http\Controllers\API\SaleController::class)->names(
+    [
+        'index' => 'api.sales.index',
+        'show'  => 'api.sales.show',
+        'store' => 'api.sales.store',
+        'update' => 'api.sales.update',
+        'destroy' => 'api.sales.destroy',
+    ]);
+
 
 Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');

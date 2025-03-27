@@ -36,7 +36,7 @@ const headersSales = [
 
 let goods = ref();
 function showGoods(id){
-    axios.get(route(`/api/sales/${id}`)).then(function (response){
+    axios.get(route(route('api.sales.show', id))).then(function (response){
         goods.value = response.data
     }).catch(function (error){
         console.log(error)
