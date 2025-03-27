@@ -8,7 +8,7 @@ defineOptions({
 
 let sales = ref();
 function indexSales(){
-    axios.get(route('api.sales')).then(function (response){
+    axios.get(route('api.sales.index')).then(function (response){
         sales.value = response.data
     }).catch(function (error){
         console.log(error)
