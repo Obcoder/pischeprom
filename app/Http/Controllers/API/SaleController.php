@@ -14,7 +14,7 @@ class SaleController extends Controller
     public function index()
     {
         $sales = Sale::orderBy('date', 'desc')
-            ->with('goods.measure')
+            ->with('goods')
             ->get();
         return $sales;
     }
