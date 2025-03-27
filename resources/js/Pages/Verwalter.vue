@@ -376,12 +376,6 @@ async function sendMail() {
 }
 
 onMounted(()=>{
-    headersGoods.value = [
-        {
-            title: 'name',
-            key: 'name',
-        },
-    ];
     headersCountries.value = [
         {
             title: 'flag',
@@ -465,9 +459,6 @@ onMounted(()=>{
                         </v-tab>
                         <v-tab value="six">
                             Categories
-                        </v-tab>
-                        <v-tab value="goods">
-                            Goods
                         </v-tab>
                         <v-tab value="seven">
                             Countries
@@ -586,75 +577,6 @@ onMounted(()=>{
                                 </v-data-table>
                             </v-tabs-window-item>
                             <!--      E N D  C O M P O N E N T S      -->
-
-
-                            <!--          G O O D S          -->
-                            <v-tabs-window-item value="goods">
-                                <v-row>
-                                    <v-col cols="9">
-                                        <v-text-field label="Поиск: Товары"
-                                                      v-model="searchGoods"
-                                                      variant="outlined"
-                                                      class="mt-1 py-1"
-                                        ></v-text-field>
-                                    </v-col>
-                                    <v-col cols="3">
-                                        <v-dialog transition="dialog-top-transition"
-                                                  width="auto"
-                                        >
-                                            <template v-slot:activator="{ props: activatorProps }">
-                                                <v-btn
-                                                    v-bind="activatorProps"
-                                                    text="Новый товар"
-                                                    block
-                                                ></v-btn>
-                                            </template>
-
-                                            <template v-slot:default="{ isActive }">
-                                                <v-card width="567"
-                                                >
-                                                    <v-card-title>Form Good</v-card-title>
-                                                    <v-card-text>
-                                                        <v-form @submit.prevent>
-                                                            <v-row>
-                                                                <v-text-field v-model="formGood.name"
-                                                                              label="Good name"
-                                                                              variant="outlined"
-                                                                ></v-text-field>
-                                                            </v-row>
-                                                            <v-row>
-                                                                <v-file-input v-model="formGood.ava_image"
-                                                                              label="Good's avatar"
-                                                                              chips
-                                                                ></v-file-input>
-                                                            </v-row>
-                                                        </v-form>
-                                                    </v-card-text>
-                                                    <v-card-actions>
-                                                        <v-spacer></v-spacer>
-                                                        <v-divider></v-divider>
-
-                                                        <v-btn text="save"
-                                                               @click="storeGood"
-                                                               variant="plain"
-                                                               color="indigo-darken-4"
-                                                        ></v-btn>
-                                                    </v-card-actions>
-                                                </v-card>
-                                            </template>
-                                        </v-dialog>
-                                    </v-col>
-                                </v-row>
-                                <v-data-table :items="goods"
-                                              :headers="headersGoods"
-                                              :search="searchGoods"
-                                              items-per-page="16"
-                                              density="compact"
-                                              hover="hover"
-                                >
-                                </v-data-table>
-                            </v-tabs-window-item>
-                            <!--          E N D  G O O D S          -->
 
 
 

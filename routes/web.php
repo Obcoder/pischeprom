@@ -161,8 +161,6 @@ Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class,
     ->name('api.units.store');
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
     ->name('api.uri.store');
-Route::post('/api/good/store', [\App\Http\Controllers\API\GoodController::class, 'store'])
-    ->name('api.good.store');
 Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])
     ->name('api.checkcommodity.store');
 

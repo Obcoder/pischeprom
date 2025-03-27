@@ -13,7 +13,9 @@ class GoodController extends Controller
      */
     public function index()
     {
-        //
+        $goods = Good::orderBy('created_at', 'desc')
+            ->get();
+        return $goods;
     }
 
     /**
