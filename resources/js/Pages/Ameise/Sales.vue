@@ -69,7 +69,11 @@ onMounted(()=>{
                 </v-data-table>
             </v-col>
             <v-col>
-                {{sale}}
+                <v-list>
+                    <v-list-item v-for="good in sale.goods">
+                        {{good.name}}
+                    </v-list-item>
+                </v-list>
             </v-col>
             <v-col></v-col>
         </v-row>
