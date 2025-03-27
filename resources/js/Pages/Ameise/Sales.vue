@@ -1,6 +1,6 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
 import axios from "axios";
 defineOptions({
     layout: VerwalterLayout,
@@ -14,6 +14,10 @@ function indexSales(){
         console.log(error)
     })
 }
+
+onMounted(()=>{
+    indexSales();
+})
 </script>
 
 <template>
