@@ -34,10 +34,10 @@ const headersSales = [
     },
 ]
 
-let goods = ref();
+let sale = ref();
 function showGoods(id){
     axios.get(route('api.sales.show', id)).then(function (response){
-        goods.value = response.data
+        sale.value = response.data
     }).catch(function (error){
         console.log(error)
     });
@@ -69,7 +69,7 @@ onMounted(()=>{
                 </v-data-table>
             </v-col>
             <v-col>
-                {{goods.goods}}
+                {{sale}}
             </v-col>
             <v-col></v-col>
         </v-row>

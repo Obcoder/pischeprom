@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Sale extends Model
 {
@@ -22,7 +23,7 @@ class Sale extends Model
     {
         return $this->belongsTo(Entity::class);
     }
-    public function goods()
+    public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class)
             ->using(good_sale::class)
