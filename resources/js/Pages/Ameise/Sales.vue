@@ -40,7 +40,8 @@ function showGoods(sale_id){
         goods.value = response.data
     }).catch(function (error){
         console.log(error)
-    })
+    });
+    alert('clicked')
 }
 
 onMounted(()=>{
