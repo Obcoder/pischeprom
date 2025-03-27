@@ -38,6 +38,7 @@ function formatDate(){
     }
 }
 function storeSale(){
+    formSale.date = format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
     formSale.post(route('api.sales.store'), {
         replace: false,
         preserveState: true,
@@ -112,9 +113,7 @@ onMounted(()=>{
                                     </v-row>
                                     <v-row>
                                         <v-col>
-                                            <v-date-picker v-model="formSale.date"
-                                                           @input="formatDate"
-                                            ></v-date-picker>
+                                            <v-date-picker v-model="formSale.date"></v-date-picker>
                                         </v-col>
                                         <v-col>
                                             <v-text-field v-model="formSale.total"
