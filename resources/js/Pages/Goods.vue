@@ -16,10 +16,11 @@
         <v-row class="d-flex justify-start">
             <v-card v-for="good in goods"
                     color="red-lighten-2"
+                    class="mx-3"
             >
                 <div class="d-flex">
                     <div>
-                        <v-card-title class="text-h6">
+                        <v-card-title class="text-base font-sans">
                             {{good.name}}
                         </v-card-title>
                         <v-card-actions>
@@ -28,13 +29,21 @@
                                    class="ms-2"
                                    variant="tonal"
                             ></v-btn>
+                            <v-divider opacity="80"
+                                       color="grey"
+                            ></v-divider>
+                            <v-btn text="подробнее"
+                                   density="comfortable"
+                                   class="ms-2"
+                                   variant="flat"
+                            ></v-btn>
                         </v-card-actions>
                     </div>
 
                     <v-avatar
-                        class="ma-3"
-                        rounded="0"
-                        size="125"
+                        class="ga-1"
+                        rounded="1"
+                        size="112"
                     >
                         <v-img :src="good.ava_image || logo"></v-img>
                     </v-avatar>
