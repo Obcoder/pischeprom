@@ -12,9 +12,10 @@ class GoodController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $goods = Good::orderBy('created_at', 'desc')
+        $goods = Good::where('name', 'like', '%' . $request->search . '%')
+            ->orderBy('created_at', 'desc')
             ->get();
         return $goods;
     }
