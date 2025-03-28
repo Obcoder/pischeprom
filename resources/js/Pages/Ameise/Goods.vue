@@ -113,35 +113,31 @@ onMounted(()=>{
             <v-col></v-col>
         </v-row>
         <v-row>
-            <v-col>
-                <v-col class="flex flex-row">
-                    <v-card v-for="good in goods"
-                            color="#952175">
-                        <div class="d-flex">
-                            <div>
-                                <v-card-title class="text-h6">
-                                    {{good.name}}
-                                </v-card-title>
-                                <v-card-actions>
-                                    <v-btn
-                                        class="ms-2"
-                                        icon="mdi-play"
-                                        variant="text"
-                                    ></v-btn>
-                                </v-card-actions>
-                            </div>
+            <v-card v-for="good in goods"
+                    color="#952175">
+                <div class="d-flex">
+                    <div>
+                        <v-card-title class="text-h6">
+                            {{good.name}}
+                        </v-card-title>
+                        <v-card-actions>
+                            <v-btn
+                                class="ms-2"
+                                icon="mdi-play"
+                                variant="text"
+                            ></v-btn>
+                        </v-card-actions>
+                    </div>
 
-                            <v-avatar
-                                class="ma-3"
-                                rounded="0"
-                                size="125"
-                            >
-                                <v-img :src="good.ava_image || logo"></v-img>
-                            </v-avatar>
-                        </div>
-                    </v-card>
-                </v-col>
-            </v-col>
+                    <v-avatar
+                        class="ma-3"
+                        rounded="0"
+                        size="125"
+                    >
+                        <v-img :src="good.ava_image || logo"></v-img>
+                    </v-avatar>
+                </div>
+            </v-card>
         </v-row>
     </v-container>
 </template>
