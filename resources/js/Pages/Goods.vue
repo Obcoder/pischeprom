@@ -13,7 +13,7 @@
             <v-col></v-col>
             <v-col></v-col>
         </v-row>
-        <v-row class="d-flex justify-lg-space-around">
+        <v-row class="d-flex justify-start">
             <v-card v-for="good in goods"
                     color="red-lighten-2"
             >
@@ -23,10 +23,10 @@
                             {{good.name}}
                         </v-card-title>
                         <v-card-actions>
-                            <v-btn
-                                class="ms-2"
-                                icon="mdi-play"
-                                variant="text"
+                            <v-btn text="заказать"
+                                   density="comfortable"
+                                   class="ms-2"
+                                   variant="tonal"
                             ></v-btn>
                         </v-card-actions>
                     </div>
