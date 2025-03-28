@@ -52,7 +52,7 @@ onMounted(()=>{
 </script>
 
 <template>
-    <v-container>
+    <v-container fluid>
         <v-row>
             <v-col>
                 <v-row>
@@ -109,25 +109,37 @@ onMounted(()=>{
                         </v-dialog>
                     </v-col>
                 </v-row>
-                <v-data-table :items="goods"
-                              :headers="headersGoods"
-                              :search="searchGoods"
-                              items-per-page="90"
-                              density="compact"
-                              hover="hover"
-                >
-                    <template v-slot:item.ava_image="{item}">
-                        <v-img :src="item.ava_image || logo"
-                               alt="Avatar"
-                               width="50"
-                               height="50"
-                               cover
-                               class="rounded"
-                        />
-                    </template>
-                </v-data-table>
             </v-col>
             <v-col></v-col>
+        </v-row>
+        <v-row>
+            <v-col class="flex flex-row">
+                <v-card v-for="good in goods"
+                        color="#952175">
+                    <div class="d-flex flex-no-wrap justify-space-between">
+                        <div>
+                            <v-card-title class="text-h5">
+                                {{good.name}}
+                            </v-card-title>
+                            <v-card-actions>
+                                <v-btn
+                                    class="ms-2"
+                                    icon="mdi-play"
+                                    variant="text"
+                                ></v-btn>
+                            </v-card-actions>
+                        </div>
+
+                        <v-avatar
+                            class="ma-3"
+                            rounded="0"
+                            size="125"
+                        >
+                            <v-img src={{good.ava_image}}></v-img>
+                        </v-avatar>
+                    </div>
+                </v-card>
+            </v-col>
         </v-row>
     </v-container>
 </template>
