@@ -15,12 +15,13 @@
         </v-row>
         <v-row class="d-flex justify-start">
             <v-card v-for="good in goods"
-                    color="red-lighten-2"
-                    class="mx-3"
+                    color="white"
+                    class="mx-3 border border-1 border-pink-950 border-opacity-75"
+                    rounded
             >
                 <div class="d-flex">
                     <div>
-                        <v-card-title class="text-base font-sans">
+                        <v-card-title class="text-xs font-sans bg-teal-200">
                             {{good.name}}
                         </v-card-title>
                         <v-card-actions>
@@ -31,6 +32,7 @@
                             ></v-btn>
                             <v-divider opacity="80"
                                        color="grey"
+                                       vertical
                             ></v-divider>
                             <v-btn text="подробнее"
                                    density="comfortable"
@@ -42,8 +44,9 @@
 
                     <v-avatar
                         class="ga-1"
-                        rounded="1"
                         size="112"
+                        rounded
+                        border
                     >
                         <v-img :src="good.ava_image || logo"></v-img>
                     </v-avatar>
