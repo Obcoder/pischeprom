@@ -19,7 +19,7 @@
             >
                 <v-card v-for="good in goods"
                         :key="good.id"
-                        class="w-24 mr-2"
+                        class="w-60 mr-2"
                         rounded
                 >
                     <v-img :src="good.ava_image || logo"></v-img>
