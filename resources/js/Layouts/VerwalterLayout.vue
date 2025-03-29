@@ -59,7 +59,7 @@ import {Link} from "@inertiajs/vue3";
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
-                <Link :href="route('ameise.fluxmonitor')">
+                <Link :href="route('Ameise.fluxmonitor')">
                     <span>M</span>
                 </Link>
             </v-app-bar-title>

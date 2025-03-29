@@ -37,7 +37,7 @@ Route::get('/Ameise/Cities', function (){
 })->name('Ameise.cities');
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
-})->name('ameise.fluxmonitor');
+})->name('Ameise.fluxmonitor');
 Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');

@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\CityController;
+use App\Http\Controllers\API\StageController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -36,7 +37,16 @@ Route::apiResource('sales', \App\Http\Controllers\API\SaleController::class)->na
         'update' => 'api.sales.update',
         'destroy' => 'api.sales.destroy',
     ]);
-
+Route::apiResource('stages', StageController::class)
+    ->names(
+        [
+            'index' => 'api.stages.index',
+            'show'  => 'api.stages.show',
+            'store' => 'api.stages.store',
+            'update' => 'api.stages.update',
+            'destroy' => 'api.stages.destroy',
+        ]
+    );
 
 Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');
