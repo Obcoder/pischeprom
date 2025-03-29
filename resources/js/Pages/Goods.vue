@@ -25,9 +25,10 @@
                         class="mx-3 border border-1 border-pink-950 border-opacity-75"
                         rounded
                 >
+                    <v-img :src="good.ava_image || logo"></v-img>
                     <div class="d-flex">
                         <div>
-                            <v-card-title class="text-xs font-sans bg-teal-200">
+                            <v-card-title class="text-h6 text-md-h5 text-lg-h4 font-sans">
                                 {{good.name}}
                             </v-card-title>
                             <v-card-actions>
