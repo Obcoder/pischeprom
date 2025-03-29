@@ -25,13 +25,24 @@ onMounted(()=>{
         <title>Flux Monitor</title>
     </Head>
 
-    <v-container>
+    <v-container fluid>
         <v-row>
             <v-col v-for="stage in stages"
                    cols="3"
             >
                 <v-card>
                     <v-card-title>{{stage.name}}</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="unit in stage.units"
+                                         class="text-xs"
+                            >
+                                <Link :href="route('api.unit', unit.id)">
+                                    {{unit.name}}
+                                </Link>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
                 </v-card>
             </v-col>
             <v-col></v-col>

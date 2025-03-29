@@ -13,7 +13,8 @@ class StageController extends Controller
      */
     public function index()
     {
-        $stages = Stage::all();
+        $stages = Stage::with('units')
+            ->get();
         return $stages;
     }
 
