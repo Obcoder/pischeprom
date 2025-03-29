@@ -15,7 +15,7 @@
         </v-row>
         <v-row>
             <v-col cols="12"
-                   class="flex flex-row"
+                   class="flex flex-row flex-wrap"
             >
                 <v-card v-for="good in goods"
                         :key="good.id"
