@@ -37,7 +37,9 @@ onMounted(()=>{
                             <v-list-item v-for="unit in stage.units"
                                          class="text-xs"
                             >
-                                {{unit.name}}
+                                <Link :href="route('unit.show', unit.id)">
+                                    {{unit.name}}
+                                </Link>
                             </v-list-item>
                         </v-list>
                     </v-card-text>
