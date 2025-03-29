@@ -17,7 +17,9 @@ class ProductController extends Controller
 //        $products = DB::table('products')
 //            ->select('products.id', 'products.rus')
 //            ->get();
-        return Product::all();
+        return Product::with('goods')
+            ->orderBy('created_at', 'desc')
+            ->get();
     }
 
     /**
@@ -41,7 +43,8 @@ class ProductController extends Controller
      */
     public function show(string $id)
     {
-
+        $product = Product::with('goods')->findOrFail($id);
+        return $product;
     }
 
     /**

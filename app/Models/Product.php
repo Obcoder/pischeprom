@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Product extends Model
 {
@@ -33,5 +34,9 @@ class Product extends Model
             'id', // Локальный ключ в `products`
             'id' // Локальный ключ в `consumptions`
         );
+    }
+    public function goods(): BelongsToMany
+    {
+        return $this->belongsToMany(Good::class);
     }
 }
