@@ -28,8 +28,7 @@ const headerConsumers = [
         <v-row>
             <v-col>
                 <v-card>
-                    <v-card-title color="indigo"
-                                  class="font-Typingrad text-black"
+                    <v-card-title class="font-Typingrad text-black bg-indigo"
                     >
                         {{product.rus}}
                     </v-card-title>
@@ -50,6 +49,21 @@ const headerConsumers = [
             </v-col>
             <v-col>
                 <v-card>
+                    <v-card-title>Goods</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="good in product.goods">
+                                {{good.name}}
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+            <v-col></v-col>
+        </v-row>
+        <v-row>
+            <v-col>
+                <v-card>
                     <v-card-title>Consumptions</v-card-title>
                     <v-card-text>
                         <v-data-table :items="product.consumers"
@@ -63,21 +77,6 @@ const headerConsumers = [
                                 {{item.measure.name}}
                             </template>
                         </v-data-table>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col></v-col>
-        </v-row>
-        <v-row>
-            <v-col>
-                <v-card>
-                    <v-card-title>Goods</v-card-title>
-                    <v-card-text>
-                        <v-list>
-                            <v-list-item v-for="good in product.goods">
-                                {{good.name}}
-                            </v-list-item>
-                        </v-list>
                     </v-card-text>
                 </v-card>
             </v-col>
