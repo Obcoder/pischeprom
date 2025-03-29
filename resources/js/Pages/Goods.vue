@@ -17,7 +17,6 @@
             <v-col v-for="good in goods"
                    :key="good.id"
                    cols="2"
-                   sm="6"
             >
                 <v-card color="white"
                         class="mx-2"
