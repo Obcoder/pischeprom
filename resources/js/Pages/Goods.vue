@@ -17,12 +17,12 @@
             <v-col v-for="good in goods"
                    :key="good.id"
                    cols="12"
-                   sm="8"
-                   md="5"
-                   lg="2"
+                   sm="10"
+                   md="6"
+                   lg="4"
             >
                 <v-card color="white"
-                        class="mx-3 border border-1 border-pink-950 border-opacity-75"
+                        class="mx-2"
                         rounded
                 >
                     <v-img :src="good.ava_image || logo"></v-img>
@@ -48,15 +48,6 @@
                                 ></v-btn>
                             </v-card-actions>
                         </div>
-
-                        <v-avatar
-                            class="ga-1"
-                            size="112"
-                            rounded
-                            border
-                        >
-                            <v-img :src="good.ava_image || logo"></v-img>
-                        </v-avatar>
                     </div>
                 </v-card>
             </v-col>
