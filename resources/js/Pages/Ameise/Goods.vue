@@ -11,6 +11,16 @@ defineOptions({
 
 const date = useDate()
 
+const headersGoods = [
+    {
+        title: 'Avatar',
+        key: 'ava_image',
+    },
+    {
+        title: 'name',
+        key: 'name',
+    },
+];
 let goods = ref();
 function indexGoods(){
     axios.get(route('api.goods.index')).then(function (response){
@@ -23,6 +33,7 @@ let searchGoods = ref();
 const formGood = useForm({
     name: null,
     ava_image: null,
+    products: null,
 })
 function storeGood(){
     formGood.post(route('api.goods.store'), {
@@ -35,19 +46,18 @@ function storeGood(){
     })
 }
 
-const headersGoods = [
-    {
-        title: 'Avatar',
-        key: 'ava_image',
-    },
-    {
-        title: 'name',
-        key: 'name',
-    },
-];
+let products = ref();
+function indexProducts(){
+    axios.get(route('api.products.index')).then(function (response){
+        products.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 
 onMounted(()=>{
     indexGoods()
+    indexProducts()
 })
 </script>
 
@@ -91,6 +101,21 @@ onMounted(()=>{
                                                               label="Good's avatar"
                                                               chips
                                                 ></v-file-input>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col cols="12">
+                                                    <v-autocomplete :items="products"
+                                                                    :item-title="'rus'"
+                                                                    :item-value="'id'"
+                                                                    v-model="formGood.products"
+                                                                    label="Products"
+                                                                    placeholder="Выбери Product"
+                                                                    density="compact"
+                                                                    variant="outlined"
+                                                                    color="red"
+                                                                    multiple
+                                                    ></v-autocomplete>
+                                                </v-col>
                                             </v-row>
                                         </v-form>
                                     </v-card-text>

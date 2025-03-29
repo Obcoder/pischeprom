@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\CityController;
+use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\StageController;
 
 Route::get('/user', function (Request $request) {
@@ -29,6 +30,16 @@ Route::apiResource('goods', GoodController::class)
                 'update' => 'api.goods.update',
                 'destroy' => 'api.goods.destroy'
             ]);
+Route::apiResource('products', ProductController::class)
+    ->names(
+        [
+            'index' => 'api.products.index',
+            'show'  => 'api.products.show',
+            'store' => 'api.products.store',
+            'update' => 'api.products.update',
+            'destroy' => 'api.products.destroy',
+        ]
+    );
 Route::apiResource('sales', \App\Http\Controllers\API\SaleController::class)->names(
     [
         'index' => 'api.sales.index',
