@@ -17,7 +17,7 @@
             <v-col>
                 <v-card v-for="good in goods"
                         :key="good.id"
-                        class="w-50 mr-2"
+                        class="w-12 mr-2"
                         rounded
                 >
                     <v-img :src="good.ava_image || logo"></v-img>
