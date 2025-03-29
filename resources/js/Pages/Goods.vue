@@ -13,13 +13,13 @@
             <v-col></v-col>
             <v-col></v-col>
         </v-row>
-        <v-row>
+        <v-row class="h-100">
             <v-col v-for="good in goods"
                    :key="good.id"
                    cols="12"
-                   sm="6"
-                   md="4"
-                   lg="3"
+                   sm="4"
+                   md="8"
+                   lg="12"
             >
                 <v-card color="white"
                         class="mx-3 border border-1 border-pink-950 border-opacity-75"
@@ -28,7 +28,7 @@
                     <v-img :src="good.ava_image || logo"></v-img>
                     <div class="d-flex">
                         <div>
-                            <v-card-subtitle class="font-sans">
+                            <v-card-subtitle class="font-sans text-wrap">
                                 {{good.name}}
                             </v-card-subtitle>
                             <v-card-actions>
