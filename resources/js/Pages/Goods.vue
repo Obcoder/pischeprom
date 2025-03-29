@@ -14,7 +14,9 @@
             <v-col></v-col>
         </v-row>
         <v-row>
-            <v-col>
+            <v-col cols="12"
+                   class="flex flex-row"
+            >
                 <v-card v-for="good in goods"
                         :key="good.id"
                         class="w-12 mr-2"
