@@ -28,7 +28,7 @@
                     <v-img :src="good.ava_image || logo"></v-img>
                     <div class="d-flex">
                         <div>
-                            <v-card-subtitle class="text-h6 text-md-h5 text-lg-h4 font-sans">
+                            <v-card-subtitle class="font-sans">
                                 {{good.name}}
                             </v-card-subtitle>
                             <v-card-actions>
