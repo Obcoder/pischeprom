@@ -47,9 +47,9 @@ class GoodController extends Controller
         $filename = 'avatar-'. $file->getSize(). '.' . $file->getClientOriginalExtension(); // avatar.jpg/png
         $path = "goods/{$good->id}/{$filename}";
         // Сохраняем файл в S3
-        Storage::disk('s3')->put($path, file_get_contents($file));
+        Storage::disk('yandex')->put($path, file_get_contents($file));
         // Получаем URL
-        $url = Storage::disk('s3')->url($path);
+        $url = Storage::disk('yandex')->url($path);
         // Сохраняем в БД
         $good->update(['ava_image' => $url]);
 
