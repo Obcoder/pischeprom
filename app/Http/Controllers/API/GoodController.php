@@ -44,12 +44,13 @@ class GoodController extends Controller
         Storage::disk('yandex')->put("goods/{$good->id}/ . $good->name .json", json_encode($good));
 
         $file = $request->file('ava_image');
+        $bucket = config('filesystems.disks.yandex.bucket');
         $filename = 'avatar-'. $file->getSize(). '.' . $file->getClientOriginalExtension(); // avatar.jpg/png
         $path = "goods/{$good->id}/{$filename}";
         // Сохраняем файл в S3
         Storage::disk('yandex')->put($path, file_get_contents($file));
-        // Получаем URL
-        $url = Storage::disk('yandex')->url($path);
+        /// Принудительно формируем корректный URL
+        $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
         // Сохраняем в БД
         $good->update(['ava_image' => $url]);
 
