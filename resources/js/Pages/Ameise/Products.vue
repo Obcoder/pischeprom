@@ -167,3 +167,12 @@ onMounted(()=>{
         </v-row>
     </v-container>
 </template>
+
+<style scoped>
+input{
+    outline: none;
+}
+input:focus{
+    outline: none;
+}
+</style>

@@ -91,18 +91,6 @@ onMounted(()=>{
                                     <v-card-text>
                                         <v-form @submit.prevent>
                                             <v-row>
-                                                <v-text-field v-model="formGood.name"
-                                                              label="Good name"
-                                                              variant="outlined"
-                                                ></v-text-field>
-                                            </v-row>
-                                            <v-row>
-                                                <v-file-input v-model="formGood.ava_image"
-                                                              label="Good's avatar"
-                                                              chips
-                                                ></v-file-input>
-                                            </v-row>
-                                            <v-row>
                                                 <v-col cols="12"
                                                 >
                                                     <v-autocomplete :items="products"
@@ -117,6 +105,18 @@ onMounted(()=>{
                                                                     multiple
                                                     ></v-autocomplete>
                                                 </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-text-field v-model="formGood.name"
+                                                              label="Good name"
+                                                              variant="outlined"
+                                                ></v-text-field>
+                                            </v-row>
+                                            <v-row>
+                                                <v-file-input v-model="formGood.ava_image"
+                                                              label="Good's avatar"
+                                                              chips
+                                                ></v-file-input>
                                             </v-row>
                                         </v-form>
                                     </v-card-text>
@@ -157,3 +157,12 @@ onMounted(()=>{
         </v-row>
     </v-container>
 </template>
+
+<style scoped>
+input{
+    outline: none;
+}
+input:focus{
+    outline: none;
+}
+</style>

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Good;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Inertia\Inertia;
 
 class GoodController extends Controller
 {
@@ -34,9 +33,26 @@ class GoodController extends Controller
      */
     public function store(Request $request)
     {
+        $request->validate(
+            [
+                'file' => 'image|mimes:jpg,jpeg,png|max:2048',
+            ]
+        );
+
         $good = Good::create($request->all());
         $good->products()->attach($request->input('products'));
-        Storage::disk('yandex')->put("goods/{$good->id}/' . $good->name . '.json", json_encode($good));
+        Storage::disk('yandex')->put("goods/{$good->id}/ . $good->name .json", json_encode($good));
+
+        $file = $request->file('ava_image');
+        $filename = 'avatar-'. $file->getSize(). '.' . $file->getClientOriginalExtension(); // avatar.jpg/png
+        $path = "goods/{$good->id}/{$filename}";
+        // Сохраняем файл в S3
+        Storage::disk('s3')->put($path, file_get_contents($file));
+        // Получаем URL
+        $url = Storage::disk('s3')->url($path);
+        // Сохраняем в БД
+        $good->update(['ava_image' => $url]);
+
         return redirect()->route('Ameise.goods');
     }
 
