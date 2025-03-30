@@ -10,7 +10,7 @@ defineOptions({
 let listProducts = ref();
 let searchProducts = ref();
 function apiIndexProducts(){
-    axios.get(route('api.products')).then(function (response) {
+    axios.get(route('api.products.index')).then(function (response) {
         // handle success
         listProducts.value = response.data;
     })
@@ -40,7 +40,7 @@ const formProduct = useForm({
     es: null,
 })
 function storeProduct(){
-    formProduct.post(route('api.product.store'), {
+    formProduct.post(route('api.products.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: true,

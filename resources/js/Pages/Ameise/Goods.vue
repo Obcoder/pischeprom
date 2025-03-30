@@ -103,7 +103,8 @@ onMounted(()=>{
                                                 ></v-file-input>
                                             </v-row>
                                             <v-row>
-                                                <v-col cols="12">
+                                                <v-col cols="12"
+                                                >
                                                     <v-autocomplete :items="products"
                                                                     :item-title="'rus'"
                                                                     :item-value="'id'"
