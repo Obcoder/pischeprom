@@ -15,7 +15,7 @@ const props = defineProps({
 
 let listProducts = ref();
 function apiIndexProducts(){
-    axios.get(route('api.products')).then(function (response){
+    axios.get(route('api.products.index')).then(function (response){
         listProducts.value = response.data;
     }).catch(function (error){
         console.log(error);
