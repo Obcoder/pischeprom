@@ -42,6 +42,7 @@ function storeGood(){
         preserveScroll: false,
         onSuccess: ()=> {
             formGood.reset()
+            indexGoods(searchGoods)
         },
     })
 }
