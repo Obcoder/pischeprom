@@ -45,7 +45,7 @@ class GoodController extends Controller
 
         $file = $request->file('ava_image');
         $filename = 'avatar-'. $file->getSize(). '.' . $file->getClientOriginalExtension(); // avatar.jpg/png
-        $path = "pps/goods/{$good->id}/{$filename}";
+        $path = "goods/{$good->id}/{$filename}";
         // Сохраняем файл в S3
         Storage::disk('yandex')->put($path, file_get_contents($file));
         // Получаем URL
