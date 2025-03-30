@@ -64,7 +64,6 @@ return [
             'bucket' => env('YANDEX_CLOUD_BUCKET'),
             'url' => env('YANDEX_CLOUD_URL', 'https://storage.yandexcloud.net'),
             'endpoint' => env('YANDEX_CLOUD_ENDPOINT', 'https://storage.yandexcloud.net'),
-            'use_path_style_endpoint' => true, // Иногда нужно добавить
         ],
 
     ],
