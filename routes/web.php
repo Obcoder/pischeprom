@@ -64,6 +64,7 @@ Route::get('/Ameise/units/', function (){
 Route::get('/Ameise/unit/{id}', function ($id){
     $data = [
         'unit' => Unit::with('entities.telephones')
+            ->with('entities.sales')
             ->with('stages')
             ->with('buildings')
             ->with('consumptions.product')
