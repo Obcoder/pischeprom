@@ -63,88 +63,93 @@ onMounted(()=>{
     indexEntities()
 })
 </script>
+
 <template>
-    <v-row>
-        <v-col cols="7">
-            <v-menu>
-                <v-date-picker></v-date-picker>
-            </v-menu>
-        </v-col>
-        <v-col cols="5">
-            <v-dialog transition="dialog-top-transition"
-                      width="602"
-            >
-                <template v-slot:activator="{ props: activatorProps }">
-                    <v-btn
-                        v-bind="activatorProps"
-                        text="+ check"
-                        block
-                    ></v-btn>
-                </template>
+    <v-container>
+        <v-row>
+            <v-col cols="7">
+                <v-menu>
+                    <v-date-picker></v-date-picker>
+                </v-menu>
+            </v-col>
+            <v-col cols="5">
+                <v-dialog transition="dialog-top-transition"
+                          width="602"
+                >
+                    <template v-slot:activator="{ props: activatorProps }">
+                        <v-btn
+                            v-bind="activatorProps"
+                            text="+ check"
+                            block
+                        ></v-btn>
+                    </template>
 
-                <template v-slot:default="{ isActive }">
-                    <v-card>
-                        <v-card-title>Check form</v-card-title>
-                        <v-card-text>
-                            <v-form @submit.prevent>
-                                <v-row>
-                                    <v-col>
-                                        <v-autocomplete :items="entities"
-                                                        :item-title="'name'"
-                                                        :item-value="'id'"
-                                                        v-model="formCheck.entity_id"
-                                                        label="Сущность"
-                                                        variant="outlined"
-                                                        density="compact"
-                                        ></v-autocomplete>
-                                    </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-col>
-                                        <input type="date" v-model="formCheck.date">
-                                    </v-col>
-                                    <v-col>
-                                        <v-text-field v-model="formCheck.amount"
-                                                      label="Amount"
-                                                      density="comfortable"
-                                                      variant="outlined"
-                                        ></v-text-field>
-                                    </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-col></v-col>
-                                    <v-col></v-col>
-                                    <v-col>
-                                        <v-btn text="save"
-                                               variant="outlined"
-                                               @click="storeCheck"
-                                        ></v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-form>
-                        </v-card-text>
-                    </v-card>
-                </template>
-            </v-dialog>
-        </v-col>
-    </v-row>
-    <v-data-table :items="checks"
-                  :headers="headersChecks"
-                  items-per-page="125"
-                  density="compact"
-                  hover="hover"
-    >
-        <template v-slot:item.entity_id="{item}">
-            {{item.entity.name}}
-        </template>
-        <template v-slot:item.amount="{item}">
-            <Link :href="route('checks.show', item.id)">
-                {{item.amount}}
-            </Link>
-        </template>
-    </v-data-table>
+                    <template v-slot:default="{ isActive }">
+                        <v-card>
+                            <v-card-title>Check form</v-card-title>
+                            <v-card-text>
+                                <v-form @submit.prevent>
+                                    <v-row>
+                                        <v-col>
+                                            <v-autocomplete :items="entities"
+                                                            :item-title="'name'"
+                                                            :item-value="'id'"
+                                                            v-model="formCheck.entity_id"
+                                                            label="Сущность"
+                                                            variant="outlined"
+                                                            density="compact"
+                                            ></v-autocomplete>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row>
+                                        <v-col>
+                                            <input type="date" v-model="formCheck.date">
+                                        </v-col>
+                                        <v-col>
+                                            <v-text-field v-model="formCheck.amount"
+                                                          label="Amount"
+                                                          density="comfortable"
+                                                          variant="outlined"
+                                            ></v-text-field>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row>
+                                        <v-col></v-col>
+                                        <v-col></v-col>
+                                        <v-col>
+                                            <v-btn text="save"
+                                                   variant="outlined"
+                                                   @click="storeCheck"
+                                            ></v-btn>
+                                        </v-col>
+                                    </v-row>
+                                </v-form>
+                            </v-card-text>
+                        </v-card>
+                    </template>
+                </v-dialog>
+            </v-col>
+        </v-row>
+        <v-row>
+            <v-col cols="2"></v-col>
+            <v-col cols="8">
+                <v-data-table :items="checks"
+                              :headers="headersChecks"
+                              items-per-page="125"
+                              density="compact"
+                              hover="hover"
+                >
+                    <template v-slot:item.entity_id="{item}">
+                        {{item.entity.name}}
+                    </template>
+                    <template v-slot:item.amount="{item}">
+                        <Link :href="route('checks.show', item.id)">
+                            {{item.amount}}
+                        </Link>
+                    </template>
+                </v-data-table>
+            </v-col>
+            <v-col cols="2"></v-col>
+        </v-row>
+    </v-container>
 </template>
-
-<style scoped>
-
-</style>
