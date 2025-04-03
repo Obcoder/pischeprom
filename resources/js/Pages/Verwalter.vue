@@ -37,11 +37,6 @@ function apiIndexUris(){
 }
 
 let listTelephones = ref();
-let searchTelephones = ref();
-let showFormTelephone = ref(false);
-const formTelephone = useForm({
-    number: null,
-})
 function apiIndexTelephones(like){
     axios.get(route('api.telephones'), {
         params: {
@@ -55,17 +50,6 @@ function apiIndexTelephones(like){
             // handle error
             console.log(error);
         });
-}
-function storeTelephone(){
-    formTelephone.post(route('api.telephone.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formTelephone.reset();
-            apiIndexTelephones();
-        },
-    })
 }
 
 const headersUnits = ref([
@@ -375,7 +359,6 @@ onMounted(()=>{
     apiIndexChecks();
     apiIndexComponents();
     apiIndexRegions();
-    apiIndexCities();
 })
 </script>
 
@@ -407,9 +390,6 @@ onMounted(()=>{
                         </v-tab>
                         <v-tab value="five">
                             Uris
-                        </v-tab>
-                        <v-tab value="telephones">
-                            Telephones
                         </v-tab>
                         <v-tab value="nine">
                             Checks
@@ -533,82 +513,6 @@ onMounted(()=>{
                                               hover="hover"
                                 ></v-data-table>
                             </v-tabs-window-item>
-
-                            <!--
-                            _____________________________________________________
-                            |                                                   |
-                            |           T E L E P H O N E S  T A B              |
-                            |                                                   |
-                            -----------------------------------------------------
-                            -->
-
-                            <v-tabs-window-item value="telephones">
-                                <v-row>
-                                   <v-col cols="10">
-                                       <v-text-field v-model="searchTelephones"
-                                                     @input="apiIndexTelephones(searchTelephones)"
-                                                     density="comfortable"
-                                                     label="search Telephones"
-                                                     variant="solo"
-                                       ></v-text-field>
-                                   </v-col>
-                                   <v-col cols="2">
-                                       <v-btn @click="showFormTelephone = !showFormTelephone"
-                                              text="New telephone"
-                                              variant="elevated"
-                                              color="purple"
-                                       ></v-btn>
-                                       <v-dialog v-model="showFormTelephone"
-                                                 width="600"
-                                       >
-                                           <template v-slot:default="{ isActive }">
-                                               <v-card>
-                                                   <v-card-title>Form Telephone</v-card-title>
-                                                   <v-card-text>
-                                                       <v-form @submit.prevent>
-                                                           <v-row>
-                                                               <v-col>
-                                                                   <v-text-field v-model="formTelephone.number"
-                                                                                 label="Number"
-                                                                                 placeholder="+...."
-                                                                                 variant="outlined"
-                                                                                 color="red"
-                                                                   ></v-text-field>
-                                                               </v-col>
-                                                           </v-row>
-                                                       </v-form>
-                                                   </v-card-text>
-                                                   <v-card-actions>
-                                                       <v-divider vertical
-                                                                  thickness="1"
-                                                                  opacity="90"
-                                                                  ></v-divider>
-
-                                                       <v-btn @click="storeTelephone"
-                                                              text="save"
-                                                              variant="elevated"
-                                                              color="success"
-                                                       ></v-btn>
-                                                   </v-card-actions>
-                                               </v-card>
-                                           </template>
-                                       </v-dialog>
-                                   </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-list>
-                                        <v-list-item v-for="telephone in listTelephones">
-                                            <span>{{telephone.number}}</span>
-                                        </v-list-item>
-                                    </v-list>
-                                </v-row>
-                            </v-tabs-window-item>
-
-                            <!--
-                            |----------------------------------------------------|
-                            |           E N D  T E L E P H O N E S               |
-                            |____________________________________________________|
-                            -->
 
                             <v-tabs-window-item value="six">
                                 <v-data-table :items="listCategories"

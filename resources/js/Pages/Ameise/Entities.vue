@@ -3,13 +3,15 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm} from "@inertiajs/vue3";
+import {useDate} from "vuetify";
 defineOptions({
     layout: VerwalterLayout,
 })
+const date = useDate()
 
 let listEntities = ref();
 let searchEntitiesLike = ref();
-function apiIndexEntities(like){
+function indexEntities(like){
     axios.get(route('api.entities'), {
         params: {
             search: like,
@@ -48,18 +50,51 @@ function apiIndexEntityClassifications(){
 }
 
 let telephones = ref();
-function apiIndexTelephones(){
-    axios.get(route('api.telephones')).then(function (response){
-        telephones.value = response.data;
-    }).catch(function (error){
-        console.log(error);
+function indexTelephones(like){
+    axios.get(route('api.telephones.index'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response) {
+        // handle success
+        listTelephones.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        });
+}
+let searchTelephones = ref();
+let showFormTelephone = ref(false);
+const formTelephone = useForm({
+    number: null,
+})
+function storeTelephone(){
+    formTelephone.post(route('api.telephones.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formTelephone.reset();
+            indexTelephones();
+        },
     })
 }
+const headersTelephones = [
+    {
+        title: 'Number',
+        key: 'number',
+    },
+    {
+        title: 'Создан',
+        key: 'created_at'
+    },
+]
 
 onMounted(()=>{
-    apiIndexEntities();
+    indexEntities();
     apiIndexEntityClassifications();
-    apiIndexTelephones();
+    indexTelephones();
 })
 </script>
 
@@ -68,7 +103,7 @@ onMounted(()=>{
         <v-row>
             <v-col>
                 <v-text-field v-model="searchEntitiesLike"
-                              @input="apiIndexEntities(searchEntitiesLike)"
+                              @input="indexEntities(searchEntitiesLike)"
                               label="Search"
                               variant="solo"
                               density="compact"
@@ -169,6 +204,70 @@ onMounted(()=>{
                 </v-list>
             </v-col>
             <v-col></v-col>
+            <v-col cols="1">
+                <v-row>
+                    <v-col cols="10">
+                        <v-text-field v-model="searchTelephones"
+                                      @input="indexTelephones(searchTelephones)"
+                                      density="comfortable"
+                                      label="search Telephones"
+                                      variant="solo"
+                        ></v-text-field>
+                    </v-col>
+                    <v-col cols="2">
+                        <v-btn @click="showFormTelephone = !showFormTelephone"
+                               text="New telephone"
+                               variant="elevated"
+                               color="purple"
+                        ></v-btn>
+                        <v-dialog v-model="showFormTelephone"
+                                  width="600"
+                        >
+                            <template v-slot:default="{ isActive }">
+                                <v-card>
+                                    <v-card-title>Form Telephone</v-card-title>
+                                    <v-card-text>
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-text-field v-model="formTelephone.number"
+                                                                  label="Number"
+                                                                  placeholder="+...."
+                                                                  variant="outlined"
+                                                                  color="red"
+                                                    ></v-text-field>
+                                                </v-col>
+                                            </v-row>
+                                        </v-form>
+                                    </v-card-text>
+                                    <v-card-actions>
+                                        <v-divider vertical
+                                                   thickness="1"
+                                                   opacity="90"
+                                        ></v-divider>
+
+                                        <v-btn @click="storeTelephone"
+                                               text="save"
+                                               variant="elevated"
+                                               color="success"
+                                        ></v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </template>
+                        </v-dialog>
+                    </v-col>
+                </v-row>
+                <v-data-table :items="telephones"
+                              density="compact"
+                              hover="true"
+                >
+                    <template v-slot:item.created_at="{item}">
+                        <span>
+                            {{date.format(item.created_at, 'fullDate')}}
+                        </span>
+                    </template>
+                </v-data-table>
+            </v-col>
         </v-row>
     </v-container>
 </template>

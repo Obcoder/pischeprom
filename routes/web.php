@@ -35,6 +35,9 @@ Route::get('/Ameise/Botany/', function (){
 Route::get('/Ameise/Cities', function (){
     return Inertia::render('Ameise/Cities');
 })->name('Ameise.cities');
+Route::get('/Ameise/entities/', function (){
+    return Inertia::render('Ameise/Entities');
+})->name('Ameise.entities');
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('Ameise.fluxmonitor');
@@ -67,10 +70,6 @@ Route::get('/Ameise/unit/{id}', function ($id){
     ];
     return Inertia::render('Unit', $data);
 })->name('unit.show');
-Route::get('/Ameise/entities/', function (){
-    return Inertia::render('Ameise/Entities');
-})->name('Ameise.entities');
-
 Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
     ->name('check.show');
 Route::get('/Ameise/Commodities/', function (){
@@ -143,9 +142,6 @@ Route::apiResource('/api/messages', \App\Http\Controllers\API\MessageController:
     ->name('store', 'api.message.store');
 Route::apiResource('/api/regions', \App\Http\Controllers\API\RegionController::class)
     ->name('index', 'api.regions');
-Route::apiResource('/api/telephones', \App\Http\Controllers\API\TelephoneController::class)
-    ->name('index', 'api.telephones')
-    ->name('store', 'api.telephone.store');
 Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
     ->name('index', 'api.units');
 

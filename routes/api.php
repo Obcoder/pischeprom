@@ -7,6 +7,7 @@ use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\StageController;
+use App\Http\Controllers\API\TelephoneController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -56,6 +57,16 @@ Route::apiResource('stages', StageController::class)
             'store' => 'api.stages.store',
             'update' => 'api.stages.update',
             'destroy' => 'api.stages.destroy',
+        ]
+    );
+Route::apiResource('telephones', TelephoneController::class)
+    ->names(
+        [
+            'index' => 'api.telephones.index',
+            'show'  => 'api.telephones.show',
+            'store' => 'api.telephones.store',
+            'update' => 'api.telephones.update',
+            'destroy' => 'api.telephones.destroy',
         ]
     );
 
