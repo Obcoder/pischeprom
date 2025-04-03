@@ -8,6 +8,7 @@ use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CountryController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\ProductController;
+use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\TelephoneController;
 
@@ -61,6 +62,16 @@ Route::apiResource('products', ProductController::class)
             'store' => 'api.products.store',
             'update' => 'api.products.update',
             'destroy' => 'api.products.destroy',
+        ]
+    );
+Route::apiResource('regions', RegionController::class)
+    ->names(
+        [
+            'index' => 'api.regions.index',
+            'show'  => 'api.regions.show',
+            'store' => 'api.regions.store',
+            'update' => 'api.regions.update',
+            'destroy' => 'api.regions.destroy',
         ]
     );
 Route::apiResource('sales', \App\Http\Controllers\API\SaleController::class)->names(

@@ -134,8 +134,6 @@ Route::apiResource('/api/measures/', \App\Http\Controllers\API\MeasureController
 Route::apiResource('/api/messages', \App\Http\Controllers\API\MessageController::class)
     ->name('index', 'api.messages')
     ->name('store', 'api.message.store');
-Route::apiResource('/api/regions', \App\Http\Controllers\API\RegionController::class)
-    ->name('index', 'api.regions');
 Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
     ->name('index', 'api.units');
 
