@@ -22,7 +22,7 @@ class UnitController extends Controller
             ->with('labels')
             ->with('consumptions')
             ->with('products')
-            ->with('entities')
+            ->with('entities.sales')
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get();

@@ -240,17 +240,23 @@ const sendEmail = async () => {
                         </v-sheet>
                     </v-card-subtitle>
                     <v-card-text>
-                        <v-banner>
-                            <v-banner-text>
+                        <v-list>
+                            <v-list-item v-for="telephone in unit.telephones"
+                                         class="text-slate-800"
+                            >
+                                {{telephone.number}}
+                            </v-list-item>
+                        </v-list>
+                        <v-list>
+                            <v-list-item v-for="entity in unit.entities">
+                                <v-list-item-subtitle>{{entity.name}}</v-list-item-subtitle>
                                 <v-list>
-                                    <v-list-item v-for="telephone in unit.telephones"
-                                                 class="text-slate-800"
-                                    >
-                                        {{telephone.number}}
+                                    <v-list-item v-for="sale in entity.sales">
+                                        {{sale.total}}
                                     </v-list-item>
                                 </v-list>
-                            </v-banner-text>
-                        </v-banner>
+                            </v-list-item>
+                        </v-list>
                     </v-card-text>
                 </v-card>
             </v-col>
