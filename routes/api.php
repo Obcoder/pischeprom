@@ -16,16 +16,7 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::apiResource('buildings', BuildingController::class)
-    ->names(
-        [
-            'index' => 'api.buildings.index',
-            'show' => 'api.buildings.show',
-            'store' => 'api.buildings.store',
-            'update' => 'api.buildings.update',
-            'destroy' => 'api.buildings.destroy',
-        ]
-    );
+Route::apiResource('buildings', BuildingController::class);
 Route::apiResource('cities', CityController::class)
     ->names(
         [

@@ -52,7 +52,7 @@ function storeConsumption(){
 let showFormBuilding = ref();
 let buildings = ref([]);
 function apiIndexBuildings(like){
-    axios.get(route('api.buildings'), {
+    axios.get(route('buildings.index'), {
         params: {
             search: like,
         }
