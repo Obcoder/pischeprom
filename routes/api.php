@@ -4,8 +4,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\BuildingController;
-use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\CityController;
+use App\Http\Controllers\API\CountryController;
+use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\TelephoneController;
@@ -32,6 +33,16 @@ Route::apiResource('cities', CityController::class)
             'store' => 'api.city.store',
             'update' => 'api.city.update',
             'destroy' => 'api.city.destroy',
+        ]
+    );
+Route::apiResource('countries', CountryController::class)
+    ->names(
+        [
+            'index' => 'api.countries.index',
+            'show' => 'api.countries.show',
+            'store' => 'api.countries.store',
+            'update' => 'api.countries.update',
+            'destroy' => 'api.countries.destroy',
         ]
     );
 Route::apiResource('goods', GoodController::class)

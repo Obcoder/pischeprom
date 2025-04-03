@@ -57,7 +57,6 @@ Route::get('/Ameise/TelegramBot/', function (){
     return Inertia::render('Ameise/TelegramBot');
 })->name('ameise.telegrambot');
 ///E N D//////////////////////////////////////////////////////////
-
 //     U N I T S
 Route::get('/Ameise/units/', function (){
     return Inertia::render('Ameise/Units');
@@ -119,8 +118,6 @@ Route::apiResource('/api/components', \App\Http\Controllers\API\ComponentControl
 Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionController::class)
     ->name('index', 'api.consumptions')
     ->name('store', 'api.consumption.store');
-Route::apiResource('/api/countries/', \App\Http\Controllers\API\CountryController::class)
-    ->name('index', 'api.countries');
 Route::apiResource('/api/entities/', \App\Http\Controllers\API\EntityController::class)
     ->name('index', 'api.entities')
     ->name('store', 'api.entity.store');

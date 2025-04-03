@@ -41,7 +41,7 @@ onMounted(()=> {
 
 let searchBuildingsLike = ref();
 function apiIndexBuildings(like){
-    axios.get(route('api.buildings'), {
+    axios.get(route('api.buildings.index'), {
         params: {
             search: like,
         }
@@ -58,7 +58,7 @@ const formBuilding = useForm({
     postcode: null,
 })
 function storeBuilding(){
-    formBuilding.post(route('api.building.store'), {
+    formBuilding.post(route('api.buildings.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,
