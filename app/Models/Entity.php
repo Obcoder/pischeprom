@@ -40,6 +40,7 @@ class Entity extends Model
     }
     public function sales(): HasMany
     {
-        return $this->hasMany(Sale::class);
+        return $this->hasMany(Sale::class)
+            ->orderByDesc('date');
     }
 }
