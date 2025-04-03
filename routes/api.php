@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramController;
+use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\ProductController;
@@ -13,6 +14,16 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+Route::apiResource('buildings', BuildingController::class)
+    ->names(
+        [
+            'index' => 'api.buildings.index',
+            'show' => 'api.buildings.show',
+            'store' => 'api.buildings.store',
+            'update' => 'api.buildings.update',
+            'destroy' => 'api.buildings.destroy',
+        ]
+    );
 Route::apiResource('cities', CityController::class)
     ->names(
         [

@@ -34,7 +34,7 @@ let tab = ref();
 
 onMounted(()=> {
     arrayData.forEach((element) => {
-        loadData('api.' + element.name, element.list);
+        loadData('api.' + element.name + '.index', element.list);
         console.log(element.list);
     })
 })

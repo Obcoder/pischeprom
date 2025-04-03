@@ -41,6 +41,9 @@ Route::get('/Ameise/entities/', function (){
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('Ameise.fluxmonitor');
+Route::get('/Ameise/Geography/', function (){
+    return Inertia::render('Ameise/Geography');
+})->name('Ameise.geography');
 Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');
@@ -93,17 +96,11 @@ Route::get('/Ameise/city/{id}', function ($id) {
     $city = City::with('buildings')->findOrFail($id);
     return Inertia::render('Ameise/City', ['city'=>$city]);
 })->name('city.show');
-Route::get('/Ameise/Geography/', function (){
-    return Inertia::render('Ameise/Geography');
-})->name('Ameise.geography');
 
 
 //                     A         P         I
 //                          G         E         T
 //
-Route::apiResource('/api/buildings', \App\Http\Controllers\API\BuildingController::class)
-    ->name('index', 'api.buildings')
-    ->name('store', 'api.building.store');
 Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
     ->name('store', 'api.building_unit.store');
 Route::apiResource('/api/catalogs', \App\Http\Controllers\API\CatalogController::class)

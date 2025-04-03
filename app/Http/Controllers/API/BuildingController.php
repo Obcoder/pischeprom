@@ -26,6 +26,7 @@ class BuildingController extends Controller
     public function store(Request $request)
     {
         $building = Building::create($request->all());
+        return redirect()->route('Ameise.geography');
     }
 
     /**
