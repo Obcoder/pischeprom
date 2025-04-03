@@ -57,7 +57,7 @@ function indexTelephones(like){
         }
     }).then(function (response) {
         // handle success
-        listTelephones.value = response.data;
+        telephones.value = response.data;
     })
         .catch(function (error) {
             // handle error
@@ -204,7 +204,7 @@ onMounted(()=>{
                 </v-list>
             </v-col>
             <v-col></v-col>
-            <v-col cols="1">
+            <v-col cols="2">
                 <v-row>
                     <v-col cols="10">
                         <v-text-field v-model="searchTelephones"
@@ -257,16 +257,18 @@ onMounted(()=>{
                         </v-dialog>
                     </v-col>
                 </v-row>
-                <v-data-table :items="telephones"
-                              density="compact"
-                              hover="true"
-                >
-                    <template v-slot:item.created_at="{item}">
-                        <span>
-                            {{date.format(item.created_at, 'fullDate')}}
-                        </span>
-                    </template>
-                </v-data-table>
+                <v-row>
+                    <v-col cols="12">
+                        <v-data-table :items="telephones"
+                                      density="compact"
+                                      hover="true"
+                        >
+                            <template v-slot:item.created_at="{item}">
+                                <span>{{date.format(item.created_at, 'fullDate')}}</span>
+                            </template>
+                        </v-data-table>
+                    </v-col>
+                </v-row>
             </v-col>
         </v-row>
     </v-container>
