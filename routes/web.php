@@ -70,7 +70,7 @@ Route::get('/Ameise/unit/{id}', function ($id){
             ->with('consumptions.measure')
             ->findOrFail($id),
     ];
-    return Inertia::render('Unit', $data);
+    return Inertia::render('Ameise/Unit', $data);
 })->name('unit.show');
 Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
     ->name('check.show');
