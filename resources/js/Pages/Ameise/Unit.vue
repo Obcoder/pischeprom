@@ -247,16 +247,6 @@ const sendEmail = async () => {
                                 {{telephone.number}}
                             </v-list-item>
                         </v-list>
-                        <v-list>
-                            <v-list-item v-for="entity in unit.entities">
-                                <v-list-item-subtitle v-if="entity.sales.length > 0">{{entity.name}}</v-list-item-subtitle>
-                                <v-list>
-                                    <v-list-item v-for="sale in entity.sales">
-                                        {{sale.total}}
-                                    </v-list-item>
-                                </v-list>
-                            </v-list-item>
-                        </v-list>
                     </v-card-text>
                 </v-card>
             </v-col>
@@ -517,54 +507,76 @@ const sendEmail = async () => {
                 </v-card>
             </v-col>
         </v-row>
-        <v-row class="flex flex-row">
-            <v-btn @click="sendEmail"
-                   text="Отправляем email"
-                   variant="elevated"
-            ></v-btn>
-            <v-btn @click="showFormBuilding = !showFormBuilding"
-                   text="+ Building"
-                   variant="elevated"
-                   color="deep-orange"
-            ></v-btn>
-            <v-dialog v-model="showFormBuilding"
-                      width="815"
-            >
-                <template v-slot:default="{isActive}">
-                    <v-card color="yellow-lighten-3">
-                        <v-card-title>Form Building</v-card-title>
-                        <v-card-text>
-                            <v-form @submit.prevent>
+        <v-row>
+            <v-col>
+                <v-btn @click="sendEmail"
+                       text="Отправляем email"
+                       variant="elevated"
+                ></v-btn>
+                <v-btn @click="showFormBuilding = !showFormBuilding"
+                       text="+ Building"
+                       variant="elevated"
+                       color="deep-orange"
+                ></v-btn>
+                <v-dialog v-model="showFormBuilding"
+                          width="815"
+                >
+                    <template v-slot:default="{isActive}">
+                        <v-card color="yellow-lighten-3">
+                            <v-card-title>Form Building</v-card-title>
+                            <v-card-text>
+                                <v-form @submit.prevent>
+                                    <v-row>
+                                        <v-col>
+                                            <v-autocomplete :items="buildings"
+                                                            :item-title="formatBuildingTitle"
+                                                            :item-value="'id'"
+                                                            v-model="formBuildingUnit.building_id"
+                                                            variant="outlined"
+                                                            density="comfortable"
+                                                            color="blue-grey"
+                                            ></v-autocomplete>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row>
+                                        <v-col></v-col>
+                                        <v-col></v-col>
+                                        <v-col></v-col>
+                                        <v-col>
+                                            <v-btn @click="storeBuildingUnit"
+                                                   text="store"
+                                                   density="comfortable"
+                                                   variant="outlined"
+                                                   color="black"
+                                            ></v-btn>
+                                        </v-col>
+                                    </v-row>
+                                </v-form>
+                            </v-card-text>
+                        </v-card>
+                    </template>
+                </v-dialog>
+            </v-col>
+            <v-col>
+                <v-list>
+                    <v-list-item v-for="entity in unit.entities">
+                        <v-list-item-subtitle v-if="entity.sales.length > 0">{{entity.name}}</v-list-item-subtitle>
+                        <v-list>
+                            <v-list-item v-for="sale in entity.sales">
                                 <v-row>
                                     <v-col>
-                                        <v-autocomplete :items="buildings"
-                                                        :item-title="formatBuildingTitle"
-                                                        :item-value="'id'"
-                                                        v-model="formBuildingUnit.building_id"
-                                                        variant="outlined"
-                                                        density="comfortable"
-                                                        color="blue-grey"
-                                        ></v-autocomplete>
+                                        {{date.format(sale.date, 'fullDate')}}
                                     </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-col></v-col>
-                                    <v-col></v-col>
-                                    <v-col></v-col>
                                     <v-col>
-                                        <v-btn @click="storeBuildingUnit"
-                                               text="store"
-                                               density="comfortable"
-                                               variant="outlined"
-                                               color="black"
-                                        ></v-btn>
+                                        {{sale.total}}
                                     </v-col>
                                 </v-row>
-                            </v-form>
-                        </v-card-text>
-                    </v-card>
-                </template>
-            </v-dialog>
+                            </v-list-item>
+                        </v-list>
+                    </v-list-item>
+                </v-list>
+            </v-col>
+            <v-col></v-col>
         </v-row>
         <v-row>
             <v-col>
