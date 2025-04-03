@@ -83,16 +83,7 @@ Route::apiResource('stages', StageController::class)
             'destroy' => 'api.stages.destroy',
         ]
     );
-Route::apiResource('telephones', TelephoneController::class)
-    ->names(
-        [
-            'index' => 'api.telephones.index',
-            'show'  => 'api.telephones.show',
-            'store' => 'api.telephones.store',
-            'update' => 'api.telephones.update',
-            'destroy' => 'api.telephones.destroy',
-        ]
-    );
+Route::apiResource('telephones', TelephoneController::class);
 
 Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');

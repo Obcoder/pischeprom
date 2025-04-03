@@ -139,7 +139,7 @@ function storeEntity(){
 
 let telephones = ref();
 function apiIndexTelephones(){
-    axios.get(route('api.telephones')).then(function (response){
+    axios.get(route('telephones.index')).then(function (response){
         telephones.value = response.data;
     }).catch(function (error){
         console.log(error);
