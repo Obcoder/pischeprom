@@ -32,6 +32,11 @@ Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
 Route::get('/Ameise/Botany/', function (){
     return Inertia::render('Ameise/Botany');
 })->name('Ameise.botany');
+Route::get('Ameise/checks', function (){
+    return Inertia::render('Ameise/Checks');
+})->name('Ameise.checks');
+Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
+    ->name('checks.show');
 Route::get('/Ameise/Cities', function (){
     return Inertia::render('Ameise/Cities');
 })->name('Ameise.cities');
@@ -73,8 +78,6 @@ Route::get('/Ameise/unit/{id}', function ($id){
     ];
     return Inertia::render('Ameise/Unit', $data);
 })->name('unit.show');
-Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
-    ->name('check.show');
 Route::get('/Ameise/Commodities/', function (){
     return Inertia::render('Ameise/Commodities');
 })->name('Ameise.commodities');
@@ -107,9 +110,6 @@ Route::apiResource('/api/catalogs', \App\Http\Controllers\API\CatalogController:
     ->name('index', 'api.catalogs');
 Route::apiResource('/api/chats', \App\Http\Controllers\API\ChatController::class)
     ->name('index', 'api.chats');
-Route::apiResource('/api/checks', \App\Http\Controllers\API\CheckController::class)
-    ->name('index', 'api.checks')
-    ->name('store', 'api.checks.store');
 Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
     ->name('index', 'api.commodities')
     ->name('store', 'api.commodity.store');

@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\BuildingController;
+use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CountryController;
 use App\Http\Controllers\API\GoodController;
@@ -17,16 +18,8 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::apiResource('buildings', BuildingController::class);
-Route::apiResource('cities', CityController::class)
-    ->names(
-        [
-            'index' => 'api.cities.index',
-            'show' => 'api.cities.show',
-            'store' => 'api.city.store',
-            'update' => 'api.city.update',
-            'destroy' => 'api.city.destroy',
-        ]
-    );
+Route::apiResource('checks', CheckController::class);
+Route::apiResource('cities', CityController::class);
 Route::apiResource('countries', CountryController::class)
     ->names(
         [
