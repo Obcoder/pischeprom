@@ -38,9 +38,8 @@ class Entity extends Model
     {
         return $this->belongsToMany(Unit::class);
     }
-    public function sales(): BelongsTo
+    public function sales(): HasMany
     {
-        return $this->belongsTo(Sale::class)
-            ->withDefault();
+        return $this->hasMany(Sale::class);
     }
 }
