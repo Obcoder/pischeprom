@@ -249,7 +249,7 @@ const sendEmail = async () => {
                         </v-list>
                         <v-list>
                             <v-list-item v-for="entity in unit.entities">
-                                <v-list-item-subtitle v-if="entity.sales != null">{{entity.name}}</v-list-item-subtitle>
+                                <v-list-item-subtitle v-if="entity.sales.length > 0">{{entity.name}}</v-list-item-subtitle>
                                 <v-list>
                                     <v-list-item v-for="sale in entity.sales">
                                         {{sale.total}}
