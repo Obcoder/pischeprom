@@ -30,6 +30,9 @@ import {Link} from "@inertiajs/vue3";
                     <Link :href="route('Ameise.commodities')">Commodities</Link>
                 </v-list-item>
                 <v-list-item>
+                    <Link :href="route('Ameise.checks')">Checks</Link>
+                </v-list-item>
+                <v-list-item>
                     <Link :href="route('Ameise.geography')">Geography</Link>
                 </v-list-item>
                 <v-list-item>
