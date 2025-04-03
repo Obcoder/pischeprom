@@ -204,7 +204,7 @@ onMounted(()=>{
                 </v-list>
             </v-col>
             <v-col></v-col>
-            <v-col cols="2">
+            <v-col cols="3">
                 <v-row>
                     <v-col cols="10">
                         <v-text-field v-model="searchTelephones"
@@ -260,6 +260,7 @@ onMounted(()=>{
                 <v-row>
                     <v-col cols="12">
                         <v-data-table :items="telephones"
+                                      :headers="headersTelephones"
                                       density="compact"
                                       hover="true"
                         >
