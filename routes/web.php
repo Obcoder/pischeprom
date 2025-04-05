@@ -119,9 +119,6 @@ Route::apiResource('/api/components', \App\Http\Controllers\API\ComponentControl
 Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionController::class)
     ->name('index', 'api.consumptions')
     ->name('store', 'api.consumption.store');
-Route::apiResource('/api/entities/', \App\Http\Controllers\API\EntityController::class)
-    ->name('index', 'api.entities')
-    ->name('store', 'api.entity.store');
 Route::apiResource('/api/entitiesclassifications/', \App\Http\Controllers\API\EntitiesClassification::class)
     ->name('index', 'api.entitiesclassifications');
 Route::apiResource('/api/entity_unit', \App\Http\Controllers\API\EntityUnitController::class)
