@@ -76,7 +76,7 @@ function storeTelephone(){
         preserveScroll: true,
         onSuccess: ()=> {
             formTelephone.reset();
-            indexTelephones();
+            indexTelephones(searchTelephones)
         },
     })
 }
@@ -171,7 +171,7 @@ onMounted(()=>{
             <v-col>
                 <v-list lines="one"
                 >
-                    <v-list-item v-for="entity in listEntities"
+                    <v-list-item v-for="entity in entities"
                                  class="hover:bg-blue-200"
                     >
                         <v-list-item-title>
