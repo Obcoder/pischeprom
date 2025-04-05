@@ -3,12 +3,11 @@ import { logo } from "@/Pages/Helpers/consts.js";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
-import {useForm} from "@inertiajs/vue3";
+import {Head, useForm} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
 defineOptions({
     layout: VerwalterLayout,
 })
-
 const date = useDate()
 
 const headersGoods = [
@@ -23,7 +22,7 @@ const headersGoods = [
 ];
 let goods = ref();
 function indexGoods(){
-    axios.get(route('api.goods.index')).then(function (response){
+    axios.get(route('goods.index')).then(function (response){
         goods.value = response.data
     }).catch(function (error){
         console.log(error)
@@ -36,7 +35,7 @@ const formGood = useForm({
     products: null,
 })
 function storeGood(){
-    formGood.post(route('api.goods.store'), {
+    formGood.post(route('goods.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,
@@ -49,7 +48,7 @@ function storeGood(){
 
 let products = ref();
 function indexProducts(){
-    axios.get(route('api.products.index')).then(function (response){
+    axios.get(route('products.index')).then(function (response){
         products.value = response.data
     }).catch(function (error){
         console.log(error)
@@ -63,6 +62,10 @@ onMounted(()=>{
 </script>
 
 <template>
+    <Head>
+        <title>Goods - Товары</title>
+    </Head>
+
     <v-container>
         <v-row>
             <v-col>
