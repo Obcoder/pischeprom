@@ -13,7 +13,7 @@ const date = useDate()
 
 let sales = ref();
 function indexSales(){
-    axios.get(route('api.sales.index')).then(function (response){
+    axios.get(route('sales.index')).then(function (response){
         sales.value = response.data
     }).catch(function (error){
         console.log(error)
@@ -21,7 +21,7 @@ function indexSales(){
 }
 let entities = ref()
 function indexEntities(){
-    axios.get(route('api.entities')).then(function (response){
+    axios.get(route('entities.index')).then(function (response){
         entities.value = response.data
     }).catch(function (error){
         console.log(error)
@@ -34,7 +34,7 @@ let formSale = useForm({
 })
 function storeSale(){
     formSale.date = format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
-    formSale.post(route('api.sales.store'), {
+    formSale.post(route('sales.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,
@@ -66,7 +66,7 @@ const headersSales = [
 
 let sale = ref();
 function showGoods(id){
-    axios.get(route('api.sales.show', id)).then(function (response){
+    axios.get(route('sales.show', id)).then(function (response){
         sale.value = response.data
     }).catch(function (error){
         console.log(error)

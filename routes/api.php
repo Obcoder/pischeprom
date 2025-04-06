@@ -11,6 +11,7 @@ use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\RegionController;
+use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\TelephoneController;
 
@@ -26,14 +27,7 @@ Route::apiResource('entities', EntityController::class);
 Route::apiResource('goods', GoodController::class);
 Route::apiResource('products', ProductController::class);
 Route::apiResource('regions', RegionController::class);
-Route::apiResource('sales', \App\Http\Controllers\API\SaleController::class)->names(
-    [
-        'index' => 'api.sales.index',
-        'show'  => 'api.sales.show',
-        'store' => 'api.sales.store',
-        'update' => 'api.sales.update',
-        'destroy' => 'api.sales.destroy',
-    ]);
+Route::apiResource('sales', SaleController::class);
 Route::apiResource('stages', StageController::class);
 Route::apiResource('telephones', TelephoneController::class);
 
