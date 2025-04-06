@@ -88,6 +88,9 @@ function indexGoods(){
 const formAttachGood = useForm({
     good_id: null,
     sale_id: null,
+    quantity: null,
+    measure_id: null,
+    price: null,
 })
 function attachGood(){
     formAttachGood.post(route('goodsales.store'), {
@@ -100,11 +103,20 @@ function attachGood(){
         },
     })
 }
+const measures = ref()
+function indexMeasures(){
+    axios.get(route('measures.index')).then(function (response){
+        measures.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 
 onMounted(()=>{
     indexSales()
     indexEntities()
     indexGoods()
+    indexMeasures()
 })
 </script>
 
@@ -174,6 +186,7 @@ onMounted(()=>{
                                @click="showFormAttachGood = !showFormAttachGood"
                                variant="elevated"
                                color="grey"
+                               class="p-2"
                         ></v-btn>
                         <v-dialog v-model="showFormAttachGood"
                                   width="800"
@@ -183,17 +196,44 @@ onMounted(()=>{
                                     <v-card-title>Form Attach Good</v-card-title>
                                     <v-card-text>
                                         <v-form @submit.prevent>
+                                            <v-row class="hidden">
+                                                {{formAttachGood.sale_id = item.id}}
+                                            </v-row>
                                             <v-row>
                                                 <v-col>
                                                     <v-autocomplete :items="goods"
                                                                     :item-value="'id'"
                                                                     :item-title="'name'"
                                                                     v-model="formAttachGood.good_id"
+                                                                    label="Good"
                                                     ></v-autocomplete>
                                                 </v-col>
                                             </v-row>
-                                            <v-row class="hidden">
-                                                {{formAttachGood.sale_id = item.id}}
+                                            <v-row>
+                                                <v-col cols="3">
+                                                    <v-text-field v-model="formAttachGood.quantity"
+                                                                  label="Количество"
+                                                                  variant="outlined"
+                                                                  density="compact"
+                                                    ></v-text-field>
+                                                </v-col>
+                                                <v-col cols="3">
+                                                    <v-select :items="measures"
+                                                              :item-value="'id'"
+                                                              :item-title="'name'"
+                                                              v-model="formAttachGood.measure_id"
+                                                              label="Measures"
+                                                              variant="outlined"
+                                                              density="compact"
+                                                    ></v-select>
+                                                </v-col>
+                                                <v-col cols="6">
+                                                    <v-text-field v-model="formAttachGood.price"
+                                                                  label="Price"
+                                                                  variant="outlined"
+                                                                  density="comfortable"
+                                                    ></v-text-field>
+                                                </v-col>
                                             </v-row>
                                         </v-form>
                                     </v-card-text>
