@@ -127,9 +127,6 @@ Route::apiResource('/api/genera', \App\Http\Controllers\API\GenusController::cla
     ->name('index', 'api.genera');
 Route::apiResource('/api/labels', \App\Http\Controllers\API\LabelController::class)
     ->name('index', 'api.labels');
-Route::apiResource('/api/messages', \App\Http\Controllers\API\MessageController::class)
-    ->name('index', 'api.messages')
-    ->name('store', 'api.message.store');
 Route::apiResource('/api/units/', App\Http\Controllers\API\UnitController::class)
     ->name('index', 'api.units');
 

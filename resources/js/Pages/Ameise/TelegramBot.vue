@@ -2,13 +2,41 @@
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
+import {useDate} from "vuetify";
+const date = useDate()
 defineOptions({
     layout: VerwalterLayout,
 })
 
+const headersMessages = [
+    {
+        title: 'Content',
+        key: 'content',
+    },
+    {
+        title: 'Created',
+        key: 'created_at',
+    },
+    {
+        title: 'Chat',
+        key: 'chat_id',
+    },
+    {
+        title: 'Date',
+        key: 'date',
+    },
+    {
+        title: 'message_id',
+        key: 'message_id',
+    },
+    {
+        title: 'update_id',
+        key: 'update_id',
+    },
+]
 let messages = ref();
 function indexMessages(){
-    axios.get(route('api.messages')).then(function (response){
+    axios.get(route('messages.index')).then(function (response){
         messages.value = response.data;
     }).catch(function (error){
         console.log(error);
@@ -95,10 +123,24 @@ onMounted(()=>{
         <v-row>
             <v-col>
                 <v-data-table :items="messages"
+                              :headers="headersMessages"
                               items-per-page="500"
-                              density="comfortable"
+                              density="compact"
                               hover="true"
-                ></v-data-table>
+                >
+                    <template v-slot:item.content="{item}">
+                        <span class="font-sans text-sm">{{item.content}}</span>
+                    </template>
+                    <template v-slot:item.created_at="{item}">
+                        <span class="font-sans text-sm">{{date.format(item.created_at, 'fullDateTime24h')}}</span>
+                    </template>
+                    <template v-slot:item.chat_id="{item}">
+                        <span>{{item.chat.first_name}}</span>
+                    </template>
+                    <template v-slot:item.date="{item}">
+                        <<span>{{date.format(item.date, 'fullDate')}}</span>
+                    </template>
+                </v-data-table>
             </v-col>
             <v-col>
                 <v-data-table :items="chats"
