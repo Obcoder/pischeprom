@@ -4,7 +4,6 @@ import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm, Link} from "@inertiajs/vue3";
 import { useHead } from '@vueuse/head'
-import unit from "@/Pages/Ameise/Unit.vue";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,
