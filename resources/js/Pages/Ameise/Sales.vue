@@ -265,6 +265,9 @@ onMounted(()=>{
                                             ></v-text-field>
                                         </v-col>
                                     </v-row>
+                                    <v-row>
+                                        <v-col>{{formAttachGood.quantity * formAttachGood.price}}</v-col>
+                                    </v-row>
                                 </v-form>
                             </v-card-text>
                             <v-card-actions>
