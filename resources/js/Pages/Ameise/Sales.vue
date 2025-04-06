@@ -67,7 +67,7 @@ const headersSales = [
     },
 ]
 
-let sale = reactive({});
+let sale = ref()
 function showSale(id){
     axios.get(route('sales.show', id)).then(function (response){
         sale.value = response.data
