@@ -62,7 +62,7 @@ class GoodController extends Controller
      */
     public function show(string $id)
     {
-        //
+        return Good::findOrFail($id);
     }
 
     /**

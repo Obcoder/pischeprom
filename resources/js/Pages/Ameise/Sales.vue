@@ -126,6 +126,14 @@ function indexGoods(){
         console.log(error)
     })
 }
+const good = ref({})
+function showGood(id){
+    axios.get(route('goods.show', id)).then(function (response){
+        good.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 onMounted(()=>{
     indexSales()
     indexEntities()
@@ -236,7 +244,10 @@ onMounted(()=>{
                                                             :item-title="'name'"
                                                             v-model="formAttachGood.good_id"
                                                             label="Good"
+                                                            variant="outlined"
+                                                            @input="showGood(formAttachGood.good_id)"
                                             ></v-autocomplete>
+                                            <div>{{good}}</div>
                                         </v-col>
                                     </v-row>
                                     <v-row>
