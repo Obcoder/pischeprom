@@ -21,10 +21,10 @@ function indexProducts(){
         console.log(error);
     })
 }
-let listMeasures = ref();
-function apiIndexMeasures(){
-    axios.get(route('api.measures')).then(function (response){
-        listMeasures.value = response.data;
+let measures = ref();
+function indexMeasures(){
+    axios.get(route('measures.index')).then(function (response){
+        measures.value = response.data;
     }).catch(function (error){
         console.log(error);
     })
@@ -204,9 +204,9 @@ const sendEmail = async () => {
 
 onMounted(()=> {
     indexEntities()
+    indexMeasures()
     indexProducts()
     indexTelephones()
-    apiIndexMeasures();
     apiIndexBuildings();
     apiIndexEntityClassifications();
     fetchFiles(props.unit.name)
@@ -430,12 +430,13 @@ onMounted(()=> {
                                             ></v-text-field>
                                         </v-col>
                                         <v-col cols="2">
-                                            <v-select :items="listMeasures"
-                                                      :item-title="'name'"
+                                            <v-select :items="measures"
                                                       :item-value="'id'"
+                                                      :item-title="'name'"
                                                       v-model="formConsumption.measure_id"
                                                       variant="outlined"
                                                       density="compact"
+                                                      color="blue-grey-darken-1"
                                             ></v-select>
                                         </v-col>
                                     </v-row>
