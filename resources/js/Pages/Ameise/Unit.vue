@@ -3,6 +3,7 @@ import { useDate } from 'vuetify'
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm, Link} from "@inertiajs/vue3";
+import { useHead } from '@vueuse/head'
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,
@@ -211,13 +212,16 @@ onMounted(()=> {
     apiIndexEntityClassifications();
     fetchFiles(props.unit.name)
 })
+
+useHead({
+    title: `Unit: ${unit.name}`,
+    meta: [
+        { name: 'description', content: `Информация о блоке ${unit.name}` }
+    ]
+})
 </script>
 
 <template>
-    <Head>
-        <title>Unit</title>
-    </Head>
-
     <v-container fluid>
         <v-row class="h-1/3"
         >
@@ -225,22 +229,33 @@ onMounted(()=> {
                 <v-card>
                     <v-card-title class="bg-orange-accent-3">{{unit.name}}</v-card-title>
                     <v-card-text>
-                        <v-list>
-                            <v-list-item v-for="uri in unit.uris">
-                                <a :href="uri.address"
-                                   target="_blank"
-                                >
-                                    {{uri.address}}
-                                </a>
-                            </v-list-item>
-                        </v-list>
-                        <v-list>
-                            <v-list-item v-for="telephone in unit.telephones"
-                                         class="text-slate-800"
-                            >
-                                {{telephone.number}}
-                            </v-list-item>
-                        </v-list>
+                        <v-row>
+                            <v-col>
+                                <v-list>
+                                    <v-list-item v-for="file in files">
+                                        <a :href="file.url" target="_blank">{{ file.name }}</a>
+                                    </v-list-item>
+                                </v-list>
+                            </v-col>
+                            <v-col>
+                                <v-list>
+                                    <v-list-item v-for="uri in unit.uris">
+                                        <a :href="uri.address"
+                                           target="_blank"
+                                        >
+                                            {{uri.address}}
+                                        </a>
+                                    </v-list-item>
+                                </v-list>
+                                <v-list>
+                                    <v-list-item v-for="telephone in unit.telephones"
+                                                 class="text-slate-800"
+                                    >
+                                        {{telephone.number}}
+                                    </v-list-item>
+                                </v-list>
+                            </v-col>
+                        </v-row>
                     </v-card-text>
                 </v-card>
             </v-col>
@@ -359,6 +374,8 @@ onMounted(()=> {
                     <v-card-text>
                         <v-data-table :items="unit.entities"
                                       :headers="headersEntities"
+                                      items-per-page="3"
+                                      density="compact"
                                       hover="true"
                         >
                             <template v-slot:item.telephones="{item}">
@@ -572,15 +589,6 @@ onMounted(()=> {
                 </v-list>
             </v-col>
             <v-col></v-col>
-        </v-row>
-        <v-row>
-            <v-col>
-                <v-list>
-                    <v-list-item v-for="file in files">
-                        <a :href="file.url" target="_blank">{{ file.name }}</a>
-                    </v-list-item>
-                </v-list>
-            </v-col>
         </v-row>
     </v-container>
 </template>
