@@ -67,7 +67,7 @@ const headersSales = [
     },
 ]
 
-let sale = ref();
+let sale = ref([]);
 function showGoods(id){
     axios.get(route('sales.show', id)).then(function (response){
         sale.value = response.data
@@ -82,14 +82,6 @@ const snackbar = ref({
     show: false,
     text: '',
 });
-const goods = ref()
-function indexGoods(){
-    axios.get(route('goods.index')).then(function (response){
-        goods.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
 const formAttachGood = useForm({
     good_id: null,
     sale_id: null,
@@ -98,13 +90,7 @@ const formAttachGood = useForm({
     price: null,
 })
 function openAttachDialog(sale) {
-    formAttachGood.value = {
-        sale_id: sale.id,
-        good_id: null,
-        quantity: null,
-        measure_id: null,
-        price: null,
-    };
+    formAttachGood.sale_id = sale.id
     showFormAttachGood.value = true;
 }
 function attachGood(){
@@ -124,7 +110,7 @@ function attachGood(){
         },
     })
 }
-const measures = ref()
+const measures = ref([])
 function indexMeasures(){
     axios.get(route('measures.index')).then(function (response){
         measures.value = response.data
@@ -132,7 +118,14 @@ function indexMeasures(){
         console.log(error)
     })
 }
-
+const goods = ref([])
+function indexGoods(){
+    axios.get(route('goods.index')).then(function (response){
+        goods.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 onMounted(()=>{
     indexSales()
     indexEntities()
