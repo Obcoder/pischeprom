@@ -13,10 +13,10 @@ const props = defineProps({
     products: Object,
 })
 
-let listProducts = ref();
-function apiIndexProducts(){
-    axios.get(route('api.products.index')).then(function (response){
-        listProducts.value = response.data;
+let products = ref();
+function indexProducts(){
+    axios.get(route('products.index')).then(function (response){
+        products.value = response.data;
     }).catch(function (error){
         console.log(error);
     })
@@ -48,7 +48,6 @@ function storeConsumption(){
         },
     });
 }
-
 let showFormBuilding = ref();
 let buildings = ref([]);
 function apiIndexBuildings(like){
@@ -83,8 +82,8 @@ function storeBuildingUnit(){
 }
 
 let entities = ref();
-function apiIndexEntities(like){
-    axios.get(route('api.entities'), {
+function indexEntities(like){
+    axios.get(route('entities.index'), {
         params: {
             search: like,
         }
@@ -94,7 +93,6 @@ function apiIndexEntities(like){
         console.log(error);
     })
 }
-
 let showFormAttachEntity = ref(false);
 const formAttachEntity = useForm({
     entity_id: null,
@@ -110,7 +108,6 @@ function attachEntity(){
         },
     })
 }
-
 let entityClassifications = ref();
 function apiIndexEntityClassifications(){
     axios.get(route('api.entitiesclassifications')).then(function (response){
@@ -131,14 +128,14 @@ function storeEntity(){
         preserveState: false,
         preserveScroll: false,
         onSuccess: ()=> {
-            formEntity.reset();
-            apiIndexEntities();
+            formEntity.reset()
+            indexEntities()
         },
     })
 }
 
 let telephones = ref();
-function apiIndexTelephones(){
+function indexTelephones(){
     axios.get(route('telephones.index')).then(function (response){
         telephones.value = response.data;
     }).catch(function (error){
@@ -189,16 +186,6 @@ function fetchFiles(name){
     })
 }
 
-onMounted(()=> {
-    apiIndexProducts();
-    apiIndexMeasures();
-    apiIndexBuildings();
-    apiIndexEntities();
-    apiIndexEntityClassifications();
-    apiIndexTelephones();
-    fetchFiles(props.unit.name)
-})
-
 let da = new Date();
 function timeDiff(time){
     let d = new Date();
@@ -213,7 +200,17 @@ const sendEmail = async () => {
     } catch (error) {
         console.error('Ошибка при отправке:', error);
     }
-};
+}
+
+onMounted(()=> {
+    indexEntities()
+    indexProducts()
+    indexTelephones()
+    apiIndexMeasures();
+    apiIndexBuildings();
+    apiIndexEntityClassifications();
+    fetchFiles(props.unit.name)
+})
 </script>
 
 <template>
@@ -227,19 +224,16 @@ const sendEmail = async () => {
             <v-col cols="4">
                 <v-card>
                     <v-card-title class="bg-orange-accent-3">{{unit.name}}</v-card-title>
-                    <v-card-subtitle class="d-flex">
-                        <v-sheet>
-                            <div v-for="uri in unit.uris"
-                            >
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="uri in unit.uris">
                                 <a :href="uri.address"
                                    target="_blank"
                                 >
                                     {{uri.address}}
                                 </a>
-                            </div>
-                        </v-sheet>
-                    </v-card-subtitle>
-                    <v-card-text>
+                            </v-list-item>
+                        </v-list>
                         <v-list>
                             <v-list-item v-for="telephone in unit.telephones"
                                          class="text-slate-800"
@@ -420,7 +414,7 @@ const sendEmail = async () => {
                                         style="border: 2px solid red; padding: 20px;">
                                     <v-row>
                                         <v-col cols="7">
-                                            <v-autocomplete :items="listProducts"
+                                            <v-autocomplete :items="products"
                                                             :item-title="'rus'"
                                                             :item-value="'id'"
                                                             v-model="formConsumption.product_id"

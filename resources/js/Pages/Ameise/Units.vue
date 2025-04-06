@@ -8,7 +8,7 @@ defineOptions({
 })
 
 let searchUnitsLike = ref('');
-let limitUnits = ref(107);
+let limitUnits = ref(135);
 let listUnits = ref();
 let listUris = ref();
 function apiIndexUnits(like, limit){
