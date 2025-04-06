@@ -233,11 +233,9 @@ onMounted(()=>{
                             <v-card-title>Form Attach Good</v-card-title>
                             <v-card-text>
                                 <v-form @submit.prevent>
-                                    <v-row class="hidden">
-                                        {{formAttachGood.sale_id = item.id}}
-                                    </v-row>
                                     <v-row>
                                         <v-col>
+                                            <span>{{item.id}}</span>
                                             <v-autocomplete :items="goods"
                                                             :item-value="'id'"
                                                             :item-title="'name'"
