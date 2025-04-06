@@ -305,8 +305,9 @@ onMounted(()=>{
                 </v-snackbar>
             </v-col>
             <v-col>
-                <v-list>
-                    <v-list-item v-for="good in sale.goods">
+                <v-list density="compact">
+                    <v-list-item v-for="good in sale.goods"
+                    >
                         <v-row>
                             <v-col cols="8">
                                 <span class="cursor-pointer text-sm font-sans">
