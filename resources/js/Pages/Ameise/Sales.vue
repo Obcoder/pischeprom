@@ -1,6 +1,6 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {onMounted, ref} from "vue";
+import {onMounted, reactive, ref} from "vue";
 import axios from "axios";
 import {useDate} from "vuetify";
 import {useForm} from "@inertiajs/vue3";
@@ -126,7 +126,7 @@ function indexGoods(){
         console.log(error)
     })
 }
-const good = ref({})
+const good = reactive({})
 function showGood(id){
     axios.get(route('goods.show', id)).then(function (response){
         good.value = response.data
@@ -245,7 +245,7 @@ onMounted(()=>{
                                                             v-model="formAttachGood.good_id"
                                                             label="Good"
                                                             variant="outlined"
-                                                            @input="showGood(formAttachGood.good_id)"
+                                                            @change="showGood(formAttachGood.good_id)"
                                             ></v-autocomplete>
                                             <div>{{good}}</div>
                                         </v-col>
