@@ -214,9 +214,12 @@ onMounted(()=> {
 })
 
 useHead({
-    title: `Unit: ${unit.name}`,
+    title: `Unit: ${props.unit.name}`,
     meta: [
-        { name: 'description', content: `Информация о блоке ${unit.name}` }
+        {
+            name: 'description',
+            content: `Информация о блоке ${props.unit.name}`
+        }
     ]
 })
 </script>
