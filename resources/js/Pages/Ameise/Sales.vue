@@ -70,8 +70,7 @@ const headersSales = [
 let sale = reactive({});
 function showSale(id){
     axios.get(route('sales.show', id)).then(function (response){
-        sale.value = response.data
-        return sale
+        return sale.value = response.data
     }).catch(function (error){
         console.log(error)
     });
