@@ -290,7 +290,6 @@ onMounted(()=>{
                                        variant="text"
                                        density="compact"
                                        color="teal-lighten-2"
-                                       :loading="loadingAttach"
                                 ></v-btn>
                             </v-card-actions>
                         </v-card>
