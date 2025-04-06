@@ -34,7 +34,9 @@ class CheckController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $check = Check::with('commodities')
+            ->findOrFail($id);
+        return Inertia::render('Ameise/Check', ['check'=>$check]);
     }
 
     /**

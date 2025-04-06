@@ -35,8 +35,6 @@ Route::get('/Ameise/Botany/', function (){
 Route::get('Ameise/checks', function (){
     return Inertia::render('Ameise/Checks');
 })->name('Ameise.checks');
-Route::get('/Ameise/check/{id}', [\App\Http\Controllers\CheckController::class, 'show'])
-    ->name('checks.show');
 Route::get('/Ameise/Cities', function (){
     return Inertia::render('Ameise/Cities');
 })->name('Ameise.cities');
