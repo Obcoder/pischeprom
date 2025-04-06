@@ -211,7 +211,7 @@ onMounted(()=>{
                                variant="elevated"
                                color="grey"
                                density="compact"
-                               size="10"
+                               size="20"
                         ></v-btn>
                     </template>
                     <template v-slot:item.created_at="{item}">
