@@ -47,10 +47,10 @@ function apiIndexCommodities(){
     });
 }
 
-let listMeasures = ref();
-function apiIndexMeasures(){
-    axios.get(route('api.measures')).then(function (response){
-        listMeasures.value = response.data;
+let measures = ref();
+function indexMeasures(){
+    axios.get(route('measures.index')).then(function (response){
+        measures.value = response.data;
     }).catch(function (error){
         console.log(error);
     })
@@ -78,7 +78,7 @@ function storeCommodityToCheck(){
 onMounted(()=>{
     listCommoditiesInCheck.value = props.check.commodities;
     apiIndexCommodities();
-    apiIndexMeasures();
+    indexMeasures();
 })
 </script>
 
@@ -136,7 +136,7 @@ onMounted(()=>{
                                         ></v-text-field>
                                     </v-col>
                                     <v-col>
-                                        <v-select :items="listMeasures"
+                                        <v-select :items="measures"
                                                   :item-value="'id'"
                                                   :item-title="'name'"
                                                   variant="solo"
