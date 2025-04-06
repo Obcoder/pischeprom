@@ -121,7 +121,7 @@ onMounted(()=>{
             </v-dialog>
         </v-row>
         <v-row>
-            <v-col>
+            <v-col cols="8">
                 <v-data-table :items="messages"
                               :headers="headersMessages"
                               items-per-page="500"
@@ -138,11 +138,11 @@ onMounted(()=>{
                         <span>{{item.chat.first_name}}</span>
                     </template>
                     <template v-slot:item.date="{item}">
-                        <<span>{{date.format(item.date, 'fullDate')}}</span>
+                        <span>{{date.format(item.date, 'fullDate')}}</span>
                     </template>
                 </v-data-table>
             </v-col>
-            <v-col>
+            <v-col cols="3">
                 <v-data-table :items="chats"
                               density="comfortable"
                               hover="true"
