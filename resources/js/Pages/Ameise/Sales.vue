@@ -67,10 +67,11 @@ const headersSales = [
     },
 ]
 
-let sale = ref([]);
-function showGoods(id){
+let sale = reactive({});
+function showSale(id){
     axios.get(route('sales.show', id)).then(function (response){
         sale.value = response.data
+        return sale
     }).catch(function (error){
         console.log(error)
     });
@@ -90,6 +91,7 @@ const formAttachGood = useForm({
     price: null,
 })
 function openAttachDialog(sale) {
+    showSale(sale.id)
     formAttachGood.sale_id = sale.id
     showFormAttachGood.value = true;
 }
@@ -134,6 +136,7 @@ function showGood(id){
         console.log(error)
     })
 }
+
 onMounted(()=>{
     indexSales()
     indexEntities()
@@ -218,7 +221,7 @@ onMounted(()=>{
                         {{item.entity.name}}
                     </template>
                     <template v-slot:item.total="{item}">
-                        <span @click="showGoods(item.id)"
+                        <span @click="showSale(item.id)"
                               class="cursor-pointer"
                         >
                             {{item.total}}
@@ -236,7 +239,7 @@ onMounted(()=>{
                                 <v-form @submit.prevent>
                                     <v-row>
                                         <v-col cols="1">
-                                            <span>{{formAttachGood.sale_id}}</span>
+                                            <span>{{sale.total}}</span>
                                         </v-col>
                                         <v-col>
                                             <v-autocomplete :items="goods"
