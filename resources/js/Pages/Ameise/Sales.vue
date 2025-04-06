@@ -198,7 +198,7 @@ onMounted(()=>{
                     </template>
                 </v-dialog>
             </v-col>
-            <v-col cols="5">
+            <v-col cols="6">
                 <v-data-table :items="sales"
                               :headers="headersSales"
                               items-per-page="250"
@@ -210,14 +210,18 @@ onMounted(()=>{
                                @click="openAttachDialog(item)"
                                variant="elevated"
                                color="grey"
-                               class="p-2"
+                               density="compact"
+                               size="10"
                         ></v-btn>
                     </template>
                     <template v-slot:item.created_at="{item}">
-                        <span>{{date.format(item.created_at, 'fullDateWithWeekday')}}</span>
+                        <span class="text-sm">{{date.format(item.created_at, 'fullDateWithWeekday')}}</span>
+                    </template>
+                    <template v-slot:item.date="{item}">
+                        <span class="text-sm">{{date.format(item.date, 'fullDate')}}</span>
                     </template>
                     <template v-slot:item.entity_id="{item}">
-                        {{item.entity.name}}
+                        <span class="text-sm">{{item.entity.name}}</span>
                     </template>
                     <template v-slot:item.total="{item}">
                         <span @click="showSale(item.id)"
@@ -328,7 +332,6 @@ onMounted(()=>{
                     </v-list-item>
                 </v-list>
             </v-col>
-            <v-col></v-col>
         </v-row>
     </v-container>
 </template>
