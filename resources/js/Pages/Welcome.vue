@@ -59,14 +59,6 @@ let show = ref(false);
             </v-col>
         </v-row>
         <v-row>
-            <CocoaButterClassification></CocoaButterClassification>
-            <v-col cols="4">
-                <v-card title="Акция дня">
-                    <v-card-text>
-                        {{goodOfTheDay.good.name}}
-                    </v-card-text>
-                </v-card>
-            </v-col>
             <v-col cols="4">
                 <v-card>
                     <v-img height="200"
@@ -83,6 +75,9 @@ let show = ref(false);
                         ПИЩЕПРОМ-СЕРВЕР - работа по поддержанию наиболее возможного ассортимента номенклатуры пищевых добавок, ингредиентов и сырья.
                     </v-card-text>
                 </v-card>
+            </v-col>
+            <v-col cols="4">
+                <CocoaButterClassification></CocoaButterClassification>
             </v-col>
             <v-col cols="4">
                 <v-card>
@@ -125,6 +120,15 @@ let show = ref(false);
                         Фосфатидные концентраты широко используются при производстве комбикормов для сельскохозяйственных животных и птицы. Это обусловлено их физиологической ролью в питании, так как они содержат до 65% фосфолипидов и являются источником незаменимых жирных кислот, витаминов группы В, Е и F. Кроме того, фосфатидные концентраты способствуют повышению продуктивности животных за счёт улучшения усвоения корма и нормализации обмена веществ. Подсолнечные фосфатидные концентраты обладают рядом преимуществ перед соевыми аналогами благодаря отсутствию антипитательных факторов (ингибиторов трипсина) и аллергенов.
                     </v-card-text>
                 </v-card>
+            </v-col>
+            <v-col>
+                <v-col cols="4">
+                    <v-card title="Акция дня">
+                        <v-card-text>
+                            {{goodOfTheDay.good.name}}
+                        </v-card-text>
+                    </v-card>
+                </v-col>
             </v-col>
             <v-col>
                 <v-card
