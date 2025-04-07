@@ -1,7 +1,8 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
 import {ref} from "vue";
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
+import CocoaButterClassification from "@/Components/CocoaButterClassification.vue";
+import LayoutDefault from '@/Layouts/LayoutDefault.vue';
 defineOptions({
     layout: LayoutDefault,
 })
@@ -58,6 +59,7 @@ let show = ref(false);
             </v-col>
         </v-row>
         <v-row>
+            <CocoaButterClassification></CocoaButterClassification>
             <v-col cols="4">
                 <v-card title="Акция дня">
                     <v-card-text>
