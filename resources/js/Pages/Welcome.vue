@@ -47,15 +47,15 @@ useHead({
 <template>
     <v-container fluid>
         <v-row>
-            <v-col>
+            <v-col class="flex flex-row">
                 <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
-                       :width="275"
+                       :width="267"
                        aspect-ratio="1/1"
                        cover
                        rounded
                 ></v-img>
                 <v-img src="https://storage.yandexcloud.net/pps/goods/26/1024%D1%85628_5.jpg"
-                       :width="275"
+                       :width="267"
                        aspect-ratio="1/1"
                        cover
                        rounded
