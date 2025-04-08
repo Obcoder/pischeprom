@@ -130,10 +130,12 @@ useHead({
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col cols="4">
+        </v-row>
+        <v-row>
+            <v-col>
                 <CocoaButterClassification></CocoaButterClassification>
             </v-col>
-            <v-col cols="4">
+            <v-col>
                 <v-card>
                     <v-img height="200"
                            src="https://storage.yandexcloud.net/cold-reserve/Goods/Cocoa/butter/buttercocoa-borrowed-01-330.jpg"
