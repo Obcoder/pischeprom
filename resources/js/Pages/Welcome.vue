@@ -1,8 +1,9 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import {Link} from '@inertiajs/vue3';
 import {ref} from "vue";
 import CocoaButterClassification from "@/Components/CocoaButterClassification.vue";
 import LayoutDefault from '@/Layouts/LayoutDefault.vue';
+import {useHead} from "@vueuse/head";
 defineOptions({
     layout: LayoutDefault,
 })
@@ -28,14 +29,33 @@ const props = defineProps({
     productsCount: Number,
     goodsCount: Number,
 });
-let show = ref(false);
 
+let show = ref(false)
+
+useHead({
+    title: `ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий`,
+    meta: [
+        {
+            name: 'description',
+            content: `ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий.
+            Создаем логистическую сеть для снижения транспортных расходов при доставке товаров.`,
+        }
+    ]
+})
 </script>
 
 <template>
-    <Head title="ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий" />
-
-    <v-container>
+    <v-container fluid>
+        <v-row>
+            <v-sheet>
+                <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
+                       :width="325"
+                       aspect-ratio="16/9"
+                       cover
+                       rounded
+                ></v-img>
+            </v-sheet>
+        </v-row>
         <v-row>
             <v-col cols="3">
                 <v-card>
