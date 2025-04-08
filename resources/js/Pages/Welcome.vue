@@ -53,7 +53,7 @@ useHead({
                    cover
                    rounded
             ></v-img>
-            <v-img src=""
+
         </v-row>
         <v-row>
             <v-col cols="3">
