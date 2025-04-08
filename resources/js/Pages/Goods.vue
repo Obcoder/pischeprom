@@ -1,3 +1,42 @@
+<script setup>
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
+import {logo} from "@/Pages/Helpers/consts.js";
+import {onMounted, ref} from "vue";
+import axios from "axios";
+import {useHead} from "@vueuse/head";
+defineOptions({
+    layout: LayoutDefault,
+})
+
+let goods = ref()
+function indexGoods(like){
+    axios.get(route('goods.index'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
+        goods.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+let searchGoods = ref()
+
+onMounted(()=>{
+    indexGoods()
+})
+
+useHead({
+    title: `Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки`,
+    meta: [
+        {
+            name: 'description',
+            content: `Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки`,
+        }
+    ]
+})
+</script>
+
 <template>
     <v-container fluid>
         <v-row>
@@ -47,31 +86,3 @@
         </v-row>
     </v-container>
 </template>
-
-<script setup>
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
-import {logo} from "@/Pages/Helpers/consts.js";
-import {onMounted, ref} from "vue";
-import axios from "axios";
-defineOptions({
-    layout: LayoutDefault,
-})
-
-let goods = ref()
-function indexGoods(like){
-    axios.get(route('api.goods.index'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response){
-        goods.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-let searchGoods = ref()
-
-onMounted(()=>{
-    indexGoods()
-})
-</script>

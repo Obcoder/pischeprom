@@ -3,8 +3,9 @@ import { logo } from "@/Pages/Helpers/consts.js";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
-import {Head, useForm} from "@inertiajs/vue3";
+import {useForm} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
+import {useHead} from "@vueuse/head";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -59,13 +60,19 @@ onMounted(()=>{
     indexGoods()
     indexProducts()
 })
+
+useHead({
+    title: `Товары`,
+    meta: [
+        {
+            name: 'description',
+            content: `Товары в бд`,
+        }
+    ]
+})
 </script>
 
 <template>
-    <Head>
-        <title>Goods - Товары</title>
-    </Head>
-
     <v-container>
         <v-row>
             <v-col>
