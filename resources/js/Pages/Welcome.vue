@@ -46,7 +46,7 @@ useHead({
 
 <template>
     <v-container fluid>
-        <v-row>
+        <v-row class="h-100">
             <v-col cols="2">
                 <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
                        aspect-ratio="1/1"
