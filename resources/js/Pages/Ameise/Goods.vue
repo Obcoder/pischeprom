@@ -163,7 +163,7 @@ useHead({
                                    height="50"
                                    cover
                                    class="rounded"
-                            />
+                            ></v-img>
                         </v-badge>
                     </template>
                 </v-data-table>
