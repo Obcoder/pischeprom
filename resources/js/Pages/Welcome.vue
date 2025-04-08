@@ -53,7 +53,12 @@ useHead({
                    cover
                    rounded
             ></v-img>
-
+            <v-img src="https://storage.yandexcloud.net/pps/goods/26/1024%D1%85628_5.jpg"
+                   :width="275"
+                   aspect-ratio="1/1"
+                   cover
+                   rounded
+            ></v-img>
         </v-row>
         <v-row>
             <v-col cols="3">
