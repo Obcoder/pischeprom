@@ -47,7 +47,7 @@ useHead({
 <template>
     <v-container fluid>
         <v-row>
-            <v-col>
+            <v-col cols="2">
                 <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
                        :width="267"
                        aspect-ratio="1/1"
@@ -55,8 +55,8 @@ useHead({
                        rounded
                 ></v-img>
             </v-col>
-            <v-col>
-                <v-img src="https://storage.yandexcloud.net/pps/goods/26/1024%D1%85628_5.jpg"
+            <v-col cols="2">
+                <v-img src="https://storage.yandexcloud.net/pps/goods/26/raspberries-03%231-1.jpg"
                        :width="267"
                        aspect-ratio="1/1"
                        cover
