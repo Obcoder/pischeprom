@@ -49,7 +49,6 @@ useHead({
         <v-row>
             <v-col cols="2">
                 <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
-                       :width="267"
                        aspect-ratio="1/1"
                        cover
                        rounded
