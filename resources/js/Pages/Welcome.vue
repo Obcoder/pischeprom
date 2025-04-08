@@ -75,6 +75,13 @@ useHead({
                        rounded
                 ></v-img>
             </v-col>
+            <v-col cols="2">
+                <v-img src="https://storage.yandexcloud.net/pps/classes/%D0%9B%D0%BE%D1%81%D0%BE%D1%81%D1%8C/fishflesh-ava-01.jpg"
+                       aspect-ratio="1/1"
+                       cover
+                       rounded
+                ></v-img>
+            </v-col>
         </v-row>
         <v-row>
             <v-col cols="3">
