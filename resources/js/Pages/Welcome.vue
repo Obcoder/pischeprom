@@ -68,8 +68,8 @@ useHead({
                        rounded
                 ></v-img>
             </v-col>
-            <v-col>
-                <v-img src="https://storage.yandexcloud.net/pps/goods/7/sunflower-lecithin-powder-500x500.webp"
+            <v-col cols="2">
+                <v-img src="https://storage.yandexcloud.net/pps/classes/%D0%90%D1%80%D0%B0%D1%85%D0%B8%D1%81/%D0%B0%D1%80%D0%B0%D1%85%D0%B8%D1%81%D0%B2%D1%81%D0%BA%D0%BE%D1%80%D0%BB%D1%83%D0%BF%D0%B5-ava-01%231-1.jpg"
                        aspect-ratio="1/1"
                        cover
                        rounded
