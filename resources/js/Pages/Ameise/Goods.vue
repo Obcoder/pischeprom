@@ -66,7 +66,7 @@ useHead({
     meta: [
         {
             name: 'description',
-            content: `Товары в бд`,
+            content: `Товары в БД ПИЩЕПРОМ-СЕРВЕРА`,
         }
     ]
 })
@@ -154,13 +154,17 @@ useHead({
                               hover="hover"
                 >
                     <template v-slot:item.ava_image="{item}">
-                        <v-img :src="item.ava_image || logo"
-                               alt="Avatar"
-                               width="50"
-                               height="50"
-                               cover
-                               class="rounded"
-                        />
+                        <v-badge content="{{item.id}}"
+                                 color="teal"
+                                 >
+                            <v-img :src="item.ava_image || logo"
+                                   alt="Avatar"
+                                   width="50"
+                                   height="50"
+                                   cover
+                                   class="rounded"
+                            />
+                        </v-badge>
                     </template>
                 </v-data-table>
             </v-col>

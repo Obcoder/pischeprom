@@ -47,14 +47,13 @@ useHead({
 <template>
     <v-container fluid>
         <v-row>
-            <v-sheet>
-                <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
-                       :width="325"
-                       aspect-ratio="16/9"
-                       cover
-                       rounded
-                ></v-img>
-            </v-sheet>
+            <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
+                   :width="275"
+                   aspect-ratio="1/1"
+                   cover
+                   rounded
+            ></v-img>
+            <v-img src=""
         </v-row>
         <v-row>
             <v-col cols="3">
