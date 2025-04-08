@@ -154,7 +154,7 @@ useHead({
                               hover="hover"
                 >
                     <template v-slot:item.ava_image="{item}">
-                        <v-badge content="{{item.id}}"
+                        <v-badge content="item.id"
                                  color="teal"
                                  >
                             <v-img :src="item.ava_image || logo"
