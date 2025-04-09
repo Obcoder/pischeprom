@@ -172,7 +172,9 @@ onMounted(()=>{
                 <v-list lines="one"
                 >
                     <v-list-item v-for="entity in entities"
-                                 class="hover:bg-blue-200"
+                                 class="hover:teal-lighten-3"
+                                 rounded
+                                 base-color="teal-lighten-5"
                     >
                         <v-list-item-title>
                             {{entity.name}}
@@ -200,6 +202,9 @@ onMounted(()=>{
                                 </v-row>
                             </v-col>
                         </v-row>
+                        <v-divider opacity="0.71"
+                                   thickness="2"
+                                   color="teal-darken-3"></v-divider>
                     </v-list-item>
                 </v-list>
             </v-col>
@@ -261,6 +266,7 @@ onMounted(()=>{
                     <v-col cols="12">
                         <v-data-table :items="telephones"
                                       :headers="headersTelephones"
+                                      items-per-page="25"
                                       density="compact"
                                       hover="true"
                         >
