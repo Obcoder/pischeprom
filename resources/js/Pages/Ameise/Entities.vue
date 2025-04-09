@@ -174,7 +174,6 @@ onMounted(()=>{
                     <v-list-item v-for="entity in entities"
                                  class="hover:teal-lighten-3"
                                  rounded
-                                 base-color="teal-lighten-5"
                     >
                         <v-list-item-title>
                             {{entity.name}}
