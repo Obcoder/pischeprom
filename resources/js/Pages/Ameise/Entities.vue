@@ -173,6 +173,14 @@ onMounted(()=>{
                 >
                     <v-list-item v-for="entity in entities"
                                  class="hover:teal-lighten-3"
+                                 base-color="teal-darken-3"
+                                 border="border"
+                                 color="teal-lighten-5"
+                                 density="comfortable"
+                                 elevation="1"
+                                 link
+                                 ripple
+                                 slim
                                  rounded
                     >
                         <v-list-item-title>
