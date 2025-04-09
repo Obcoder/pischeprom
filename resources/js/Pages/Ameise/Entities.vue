@@ -173,7 +173,7 @@ onMounted(()=>{
                 >
                     <v-list-item v-for="entity in entities"
                                  class="hover:teal-lighten-3"
-                                 base-color="teal-darken-3"
+                                 base-color="teal-darken-4"
                                  border="border"
                                  color="teal-lighten-5"
                                  density="comfortable"
@@ -187,6 +187,9 @@ onMounted(()=>{
                             {{entity.name}}
                         </v-list-item-title>
                         <v-list-item-subtitle>{{entity.classification.name}}</v-list-item-subtitle>
+                        <v-divider opacity="0.75"
+                                   thickness="1"
+                                   color="teal-darken-3"></v-divider>
                         <v-row>
                             <v-col>
                                 <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
@@ -209,9 +212,6 @@ onMounted(()=>{
                                 </v-row>
                             </v-col>
                         </v-row>
-                        <v-divider opacity="0.71"
-                                   thickness="2"
-                                   color="teal-darken-3"></v-divider>
                     </v-list-item>
                 </v-list>
             </v-col>
