@@ -32,7 +32,7 @@ const headersCities = [
 let cities = ref();
 let searchCitiesLike = ref();
 function indexCities(like){
-    axios.get(route('api.cities.index'), {
+    axios.get(route('cities.index'), {
         params: {
             search: like,
         }
@@ -51,7 +51,7 @@ const formCity = useForm({
     twogis: null,
 })
 function storeCity(){
-    formCity.post(route('api.city.store'), {
+    formCity.post(route('cities.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: true,
@@ -64,7 +64,7 @@ function storeCity(){
 
 let regions = ref();
 function indexRegions(){
-    axios.get(route('api.regions')).then(function (response){
+    axios.get(route('regions.index')).then(function (response){
         regions.value = response.data
     }).catch(function (error){
         console.log(error)
