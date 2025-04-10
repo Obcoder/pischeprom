@@ -257,6 +257,19 @@ useHead({
                                         {{telephone.number}}
                                     </v-list-item>
                                 </v-list>
+                                <v-list>
+                                    <v-list-item v-for="email in unit.emails"
+                                                 base-color="teal-darken-4"
+                                                 border
+                                                 color="teal-lighten-5"
+                                                 density="comfortable"
+                                                 elevation="1"
+                                                 slim
+                                                 rounded
+                                    >
+                                        {{email.address}}
+                                    </v-list-item>
+                                </v-list>
                             </v-col>
                         </v-row>
                     </v-card-text>

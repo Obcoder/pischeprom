@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Unit extends Model
 {
@@ -17,9 +18,14 @@ class Unit extends Model
         'uris',
         'labels',
         'telephones',
+        'emails',
     ];
 
-    public function uris()
+    public function emails(): BelongsToMany
+    {
+        return $this->belongsToMany(Email::class);
+    }
+    public function uris(): BelongsToMany
     {
         return $this->belongsToMany(Uri::class)
             ->using(unit_uri::class);
