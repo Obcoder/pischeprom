@@ -14,7 +14,6 @@ const props = defineProps({
     products: Object,
 })
 
-const unit = ref()
 const emails = ref([])
 const products = ref([])
 
@@ -23,7 +22,7 @@ const showFormConsumption = ref(false)
 
 function fetchUnit(id){
     axios.get(route('units.show'), id).then(function (response){
-        unit.value = response.data
+        props.unit.value = response.data
     }).catch(function (error){
         console.log()
     })
@@ -265,7 +264,7 @@ useHead({
         <v-row>
             <v-col cols="4">
                 <v-card>
-                    <v-card-title class="bg-5E35B1"
+                    <v-card-title class="bg-emerald-500"
                     >
                         {{unit.name}}</v-card-title>
                     <v-card-subtitle>
@@ -293,7 +292,6 @@ useHead({
                                                                     density="comfortable"
                                                                     item-color="deep-orange"
                                                                     label="Emails"
-                                                                    rounded
                                                     ></v-autocomplete>
                                                 </v-col>
                                             </v-row>
