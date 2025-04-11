@@ -3,11 +3,12 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import {Link, useForm} from "@inertiajs/vue3";
 import axios from "axios";
+import {useHead} from "@vueuse/head";
 defineOptions({
     layout: VerwalterLayout,
 })
 
-const units = ref()
+const units = ref([])
 let listUris = ref();
 let searchUnitsLike = ref('');
 let limitUnits = ref(135);
@@ -60,7 +61,7 @@ function apiIndexLabels(){
 }
 let listBuildings = ref();
 function apiIndexBuildings(){
-    axios.get(route('api.buildings')).then(function (response) {
+    axios.get(route('buildings.index')).then(function (response) {
         listBuildings.value = response.data;
     })
         .catch(function (error) {
@@ -95,6 +96,16 @@ onMounted(()=>{
     apiIndexUris();
     apiIndexLabels();
     apiIndexBuildings();
+})
+
+useHead({
+    title: `Units: ${units.value.length}`,
+    meta: [
+        {
+            name: 'description',
+            content: `Все units in db`,
+        }
+    ]
 })
 </script>
 
