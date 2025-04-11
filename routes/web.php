@@ -75,7 +75,7 @@ Route::get('/Ameise/unit/{id}', function ($id){
             ->findOrFail($id),
     ];
     return Inertia::render('Ameise/Unit', $data);
-})->name('unit.show');
+})->name('web.unit.show');
 Route::get('/Ameise/Commodities/', function (){
     return Inertia::render('Ameise/Commodities');
 })->name('Ameise.commodities');

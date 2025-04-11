@@ -246,22 +246,24 @@ useHead({
             <v-col cols="4">
                 <v-list>
                     <v-list-item v-for="unit in units"
+                                 :key="unit.id"
                                  class="border-emerald-900"
                                  elevation="0"
                                  density="comfortable"
                                  border
                                  rounded
                     >
-                        <Link :href="route('units.show', unit.id)"
-                              class="font-RubikMedium"
-                        >
-                            <v-list-item-title>
+                        <v-list-item-title>
+                            <Link :href="route('web.unit.show', unit.id)"
+                                  class="font-RubikMedium hover:underline"
+                            >
                                 {{unit.name}}
-                            </v-list-item-title>
-                        </Link>
+                            </Link>
+                        </v-list-item-title>
                         <v-row>
                             <v-col cols="8">
                                 <div v-for="label in unit.labels"
+                                     :key="label.id"
                                      class="text-xs"
                                 >
                                     {{label.name}}
