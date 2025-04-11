@@ -123,8 +123,6 @@ Route::apiResource('/api/entity_unit', \App\Http\Controllers\API\EntityUnitContr
     ->name('store', 'api.entity_unit.store');
 Route::apiResource('/api/genera', \App\Http\Controllers\API\GenusController::class)
     ->name('index', 'api.genera');
-Route::apiResource('/api/labels', \App\Http\Controllers\API\LabelController::class)
-    ->name('index', 'api.labels');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 Route::get('/api/uris/', [\App\Http\Controllers\API\UriController::class, 'index'])
@@ -136,6 +134,8 @@ Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::cl
 //                           P        O         S         T
 Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitController::class, 'store'])
     ->name('emailgood.store');
+Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
+    ->name('web.labelunit.store');
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
     ->name('api.units.store');
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])

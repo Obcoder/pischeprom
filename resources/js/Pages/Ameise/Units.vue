@@ -52,7 +52,7 @@ function storeUri(){
 }
 let listLabels = ref();
 function apiIndexLabels(){
-    axios.get(route('api.labels')).then(function (response) {
+    axios.get(route('labels.index')).then(function (response) {
         listLabels.value = response.data;
     })
         .catch(function (error) {
@@ -255,7 +255,7 @@ useHead({
                     >
                         <v-list-item-title>
                             <Link :href="route('web.unit.show', unit.id)"
-                                  class="font-RubikMedium hover:underline"
+                                  class="font-sans"
                             >
                                 {{unit.name}}
                             </Link>

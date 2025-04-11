@@ -15,9 +15,11 @@ const props = defineProps({
 })
 
 const emails = ref([])
+const labels = ref([])
 const products = ref([])
 
 const dialogFormAttachEmail = ref(false)
+const dialogFormAttachLabel = ref(false)
 const showFormConsumption = ref(false)
 
 function fetchUnit(id){
@@ -31,6 +33,13 @@ function fetchUnit(id){
 function indexEmails(){
     axios.get(route('emails.index')).then(function (response){
         emails.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+function indexLabels(){
+    axios.get(route('labels.index')).then(function (response){
+        labels.value = response.data
     }).catch(function (error){
         console.log(error)
     })
@@ -237,10 +246,26 @@ function attachEmail(){
         },
     })
 }
+const formAttachLabel = useForm({
+    label_id: null,
+    unit_id: props.unit.id,
+})
+function attachLabel(){
+    formAttachLabel.post(route('web.labelunit.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAttachLabel.reset()
+            fetchUnit(props.unit.value.id)
+        },
+    })
+}
 
 onMounted(()=> {
     indexEmails()
     indexEntities()
+    indexLabels()
     indexMeasures()
     indexProducts()
     indexTelephones()
@@ -265,7 +290,7 @@ useHead({
         <v-row>
             <v-col cols="4">
                 <v-card>
-                    <v-card-title class="bg-stone-400"
+                    <v-card-title class="bg-rose-800 text-stone-100"
                     >
                         {{unit.name}}</v-card-title>
                     <v-card-subtitle>
@@ -289,7 +314,6 @@ useHead({
                                                                     :item-value="'id'"
                                                                     :item-title="'address'"
                                                                     v-model="formAttachEmail.email_id"
-                                                                    auto-select-first
                                                                     bg-color="amber-lighten-5"
                                                                     color="deep-orange-darken-4"
                                                                     density="comfortable"
@@ -309,7 +333,7 @@ useHead({
                                         <v-btn text="attach"
                                                @click="attachEmail"
                                                variant="flat"
-                                               density="compact"></v-btn>
+                                               density="comfortable"></v-btn>
                                     </v-card-actions>
                                 </v-card>
                             </template>
@@ -374,7 +398,45 @@ useHead({
                     </v-card-text>
                     <v-card-actions>
                         <v-btn text="добавить"
+                               @click="dialogFormAttachLabel = !dialogFormAttachLabel"
+                               variant="flat"
+                               density="comfortable"
                         ></v-btn>
+                        <v-dialog v-model="dialogFormAttachLabel"
+                                  width="900"
+                                  >
+                            <template v-slot:default="{isActive}">
+                                <v-card>
+                                    <v-card-title>Form attach Label</v-card-title>
+                                    <v-card-text>
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-autocomplete :items="labels"
+                                                                    :item-value="'id'"
+                                                                    :item-title="'name'"
+                                                                    v-model="formAttachLabel.label_id"
+                                                                    label="Labels"
+                                                                    variant="outlined"
+                                                                    density="comfortable"
+                                                    ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                        </v-form>
+                                    </v-card-text>
+                                    <v-card-actions>
+                                        <v-divider vertical
+                                                   opacity="0.85"
+                                                   thickness="1"
+                                                   color="puple"></v-divider>
+                                        <v-btn text="attach"
+                                               @click="attachLabel"
+                                               variant="flat"
+                                               density="comfortable"></v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </template>
+                        </v-dialog>
                     </v-card-actions>
                 </v-card>
             </v-col>
