@@ -377,15 +377,15 @@ useHead({
                                                  rounded
                                     >
                                         <v-row>
-                                            <v-col cols="10">
+                                            <v-col cols="9">
                                                 {{email.address}}
                                             </v-col>
-                                            <v-col cols="2">
+                                            <v-col cols="3">
                                                 <v-btn @click="sendEmail(email.address)"
                                                        text=">>>"
                                                        elevation="1"
+                                                       variant="plain"
                                                        density="compact"
-                                                       rounded
                                                        color="cyan-darken-3"
                                                 ></v-btn>
                                             </v-col>
