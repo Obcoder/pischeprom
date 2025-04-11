@@ -36,6 +36,9 @@ import {Link} from "@inertiajs/vue3";
                     <Link :href="route('Ameise.geography')">Geography</Link>
                 </v-list-item>
                 <v-list-item>
+                    <Link :href="route('Ameise.contactsCentre')">Contacts centre</Link>
+                </v-list-item>
+                <v-list-item>
                     <Link :href="route('ameise.telegrambot')"
                           color="blue-darken-1">Telegram</Link>
                 </v-list-item>

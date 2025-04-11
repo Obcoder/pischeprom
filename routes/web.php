@@ -38,6 +38,9 @@ Route::get('Ameise/checks', function (){
 Route::get('/Ameise/Cities', function (){
     return Inertia::render('Ameise/Cities');
 })->name('Ameise.cities');
+Route::get('/Ameise/ContactsCentre', function (){
+    return Inertia::render('Ameise/ContactsCentre');
+})->name('Ameise.contactsCenter');
 Route::get('/Ameise/entities/', function (){
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');

@@ -760,7 +760,14 @@ useHead({
                     </v-list-item>
                 </v-list>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title>Sendings</v-card-title>
+                    <v-card-text>
+
+                    </v-card-text>
+                </v-card>
+            </v-col>
         </v-row>
     </v-container>
 </template>

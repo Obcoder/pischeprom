@@ -13,7 +13,8 @@ class EmailController extends Controller
      */
     public function index()
     {
-        return Email::orderBy('created_at', 'desc')
+        return Email::with('sendings')
+            ->orderBy('created_at', 'desc')
             ->get();
     }
 
