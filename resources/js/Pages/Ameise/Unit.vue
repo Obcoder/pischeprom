@@ -28,7 +28,7 @@ function fetchUnit(id){
     })
 }
 
-function indexEmail(){
+function indexEmails(){
     axios.get(route('emails.index')).then(function (response){
         emails.value = response.data
     }).catch(function (error){
@@ -239,6 +239,7 @@ function attachEmail(){
 }
 
 onMounted(()=> {
+    indexEmails()
     indexEntities()
     indexMeasures()
     indexProducts()
@@ -289,9 +290,11 @@ useHead({
                                                                     v-model="formAttachEmail.email_id"
                                                                     auto-select-first
                                                                     bg-color="amber-lighten-5"
+                                                                    color="deep-orange-darken-4"
                                                                     density="comfortable"
                                                                     item-color="deep-orange"
                                                                     label="Emails"
+                                                                    variant="outlined"
                                                     ></v-autocomplete>
                                                 </v-col>
                                             </v-row>
