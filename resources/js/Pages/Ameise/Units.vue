@@ -7,12 +7,12 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
+const units = ref()
+let listUris = ref();
 let searchUnitsLike = ref('');
 let limitUnits = ref(135);
-let listUnits = ref();
-let listUris = ref();
-function apiIndexUnits(like, limit){
-    axios.get(route('api.units'), {
+function indexUnits(like, limit){
+    axios.get(route('units.index'), {
         params: {
             search: like,
             limit: limit,
@@ -80,7 +80,7 @@ const formUnit = useForm({
     buildings: null,
 });
 function storeUnit(){
-    formUnit.post(route('api.units.store'), {
+    formUnit.post(route('units.store'), {
         replace: false,
         preserveState: false,
         preserveScroll: false,
@@ -91,7 +91,7 @@ function storeUnit(){
 }
 
 onMounted(()=>{
-    apiIndexUnits('', limitUnits.value);
+    indexUnits('', limitUnits.value);
     apiIndexUris();
     apiIndexLabels();
     apiIndexBuildings();
@@ -103,7 +103,7 @@ onMounted(()=>{
         <v-row>
             <v-col cols="7">
                 <v-text-field v-model="searchUnitsLike"
-                              @input="apiIndexUnits(searchUnitsLike, limitUnits)"
+                              @input="indexUnits(searchUnitsLike, limitUnits)"
                               label="Search"
                               variant="outlined"
                               density="compact"
@@ -113,7 +113,7 @@ onMounted(()=>{
                 <v-label>Limit</v-label>
                 <input type="number"
                        v-model="limitUnits"
-                       @change="apiIndexUnits(searchUnitsLike, limitUnits)"
+                       @change="indexUnits(searchUnitsLike, limitUnits)"
                 >
             </v-col>
             <v-col cols="2">
@@ -232,24 +232,33 @@ onMounted(()=>{
         </v-row>
 
         <v-row>
-            <v-col>
+            <v-col cols="4">
                 <v-list>
-                    <v-list-item v-for="unit in listUnits"
-                                 class="rounded border border-emerald-900"
+                    <v-list-item v-for="unit in units"
+                                 class="border-emerald-900"
+                                 elevation="0"
+                                 density="comfortable"
+                                 border
+                                 rounded
                     >
-                        <v-card>
-                            <v-card-title>
-                                <Link :href="route('unit.show', unit.id)">
+                        <v-list-item-title>
+                            <Link :href="route('unit.show', unit.id)">
                                     <span class="font-FIFARussia2018 font-[11px]"
                                     >
                                     {{unit.name}}</span>
-                                </Link>
-                            </v-card-title>
-                            <v-card-text>
+                            </Link>
+                        </v-list-item-title>
+                        <v-row>
+                            <v-col cols="8">
+                                <div v-for="label in unit.labels">
+                                    {{label.name}}
+                                </div>
+                            </v-col>
+                            <v-col cols="4">
                                 <v-chip v-if="unit.entities.length > 0"
                                 >{{unit.entities.length}}</v-chip>
-                            </v-card-text>
-                        </v-card>
+                            </v-col>
+                        </v-row>
                     </v-list-item>
                 </v-list>
             </v-col>

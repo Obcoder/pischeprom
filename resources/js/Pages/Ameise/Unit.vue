@@ -15,6 +15,11 @@ const props = defineProps({
 })
 
 const unit = ref()
+const emails = ref([])
+const products = ref([])
+
+const dialogFormAttachEmail = ref(false)
+const showFormConsumption = ref(false)
 
 function fetchUnit(id){
     axios.get(route('units.show'), id).then(function (response){
@@ -23,7 +28,14 @@ function fetchUnit(id){
         console.log()
     })
 }
-let products = ref();
+
+function indexEmail(){
+    axios.get(route('emails.index')).then(function (response){
+        emails.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 function indexProducts(){
     axios.get(route('products.index')).then(function (response){
         products.value = response.data;
@@ -40,7 +52,6 @@ function indexMeasures(){
     })
 }
 
-let showFormConsumption = ref(false)
 const formConsumption = useForm({
     unit_id: props.unit.id,
     product_id: null,
@@ -259,10 +270,38 @@ useHead({
                         {{unit.name}}</v-card-title>
                     <v-card-subtitle>
                         <v-btn text="+email"
-                               @click="attachEmail"
+                               @click="dialogFormAttachEmail = !dialogFormAttachEmail"
                                variant="flat"
                                size="30"
                                density="compact"></v-btn>
+                        <v-dialog v-model="dialogFormAttachEmail"
+                                  width="900"
+                                  >
+                            <template v-slot:default="{isActive}">
+                                <v-card>
+                                    <v-card-title>Form Attach Email</v-card-title>
+                                    <v-card-text>
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-autocomplete :items="emails"
+                                                                    :item-value="'id'"
+                                                                    :item-title="'address'"
+                                                                    v-model="formAttachEmail.email_id"
+                                                                    auto-select-first
+                                                                    bg-color="amber-lighten-5"
+                                                                    density="comfortable"
+                                                                    item-color="deep-orange"
+                                                                    label="Emails"
+                                                                    rounded
+                                                    ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                        </v-form>
+                                    </v-card-text>
+                                </v-card>
+                            </template>
+                        </v-dialog>
                     </v-card-subtitle>
                     <v-card-text>
                         <v-row>
