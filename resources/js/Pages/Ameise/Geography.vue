@@ -139,7 +139,7 @@ function storeBuilding(){
                                                     <v-row>
                                                         <v-col cols="9">
                                                             <v-text-field v-model="searchBuildingsLike"
-                                                                          @input="apiIndexBuildings(searchBuildingsLike)"
+                                                                          @input="indexBuildings(searchBuildingsLike)"
                                                                           variant="outlined"
                                                                           density="compact"
                                                                           class="text-sm"
@@ -211,7 +211,10 @@ function storeBuilding(){
                                                             <v-list :lines="false"
                                                                     density="compact"
                                                             >
-                                                                <v-list-item v-for="building in buildings" :key="building.id">
+                                                                <v-list-item v-for="building in buildings"
+                                                                             :key="building.id"
+                                                                             class="hover:bg-rose-200"
+                                                                >
                                                                     <v-list-item-subtitle>
                                                                         {{building.city.name}}
                                                                     </v-list-item-subtitle>
