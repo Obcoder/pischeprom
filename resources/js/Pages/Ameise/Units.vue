@@ -253,15 +253,17 @@ useHead({
                                  rounded
                     >
                         <v-list-item-title>
-                            <Link :href="route('units.show', unit.id)">
-                                    <span class="font-FIFARussia2018 font-[11px]"
-                                    >
-                                    {{unit.name}}</span>
+                            <Link :href="route('units.show', unit.id)"
+                                  class="font-RubikMedium"
+                            >
+                                {{unit.name}}
                             </Link>
                         </v-list-item-title>
                         <v-row>
                             <v-col cols="8">
-                                <div v-for="label in unit.labels">
+                                <div v-for="label in unit.labels"
+                                     class="text-xs"
+                                >
                                     {{label.name}}
                                 </div>
                             </v-col>
