@@ -131,7 +131,7 @@ Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitControll
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
     ->name('web.labelunit.store');
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
-    ->name('api.units.store');
+    ->name('web.unit.store');
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
     ->name('api.uri.store');
 Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])

@@ -81,12 +81,13 @@ const formUnit = useForm({
     buildings: null,
 });
 function storeUnit(){
-    formUnit.post(route('units.store'), {
+    formUnit.post(route('web.unit.store'), {
         replace: false,
-        preserveState: false,
+        preserveState: true,
         preserveScroll: false,
         onSuccess: ()=> {
             formUnit.reset();
+            indexUnits(searchUnitsLike, 100)
         },
     });
 }
