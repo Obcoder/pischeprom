@@ -265,15 +265,16 @@ useHead({
         <v-row>
             <v-col cols="4">
                 <v-card>
-                    <v-card-title class="bg-emerald-500"
+                    <v-card-title class="bg-stone-400"
                     >
                         {{unit.name}}</v-card-title>
                     <v-card-subtitle>
                         <v-btn text="+email"
                                @click="dialogFormAttachEmail = !dialogFormAttachEmail"
                                variant="flat"
-                               size="30"
-                               density="compact"></v-btn>
+                               density="compact"
+                               class="text-xs"
+                        ></v-btn>
                         <v-dialog v-model="dialogFormAttachEmail"
                                   width="900"
                                   >
@@ -300,6 +301,16 @@ useHead({
                                             </v-row>
                                         </v-form>
                                     </v-card-text>
+                                    <v-card-actions>
+                                        <v-divider vertical
+                                                   opacity="0.85"
+                                                   color="amber"></v-divider>
+
+                                        <v-btn text="attach"
+                                               @click="attachEmail"
+                                               variant="flat"
+                                               density="compact"></v-btn>
+                                    </v-card-actions>
                                 </v-card>
                             </template>
                         </v-dialog>
