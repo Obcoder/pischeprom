@@ -8,4 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 class Sending extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'email_id',
+        'subject',
+    ];
 }
