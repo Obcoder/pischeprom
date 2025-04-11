@@ -14,6 +14,15 @@ const props = defineProps({
     products: Object,
 })
 
+const unit = ref()
+
+function fetchUnit(id){
+    axios.get(route('units.show'), id).then(function (response){
+        unit.value = response.data
+    }).catch(function (error){
+        console.log()
+    })
+}
 let products = ref();
 function indexProducts(){
     axios.get(route('products.index')).then(function (response){
@@ -203,6 +212,22 @@ const sendEmail = async () => {
     }
 }
 
+const formAttachEmail = useForm({
+    email_id: null,
+    unit_id: props.unit.id,
+})
+function attachEmail(){
+    formAttachEmail.post(route('emailgood.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAttachEmail.reset()
+            fetchUnit(props.unit.value.id)
+        },
+    })
+}
+
 onMounted(()=> {
     indexEntities()
     indexMeasures()
@@ -226,11 +251,19 @@ useHead({
 
 <template>
     <v-container fluid>
-        <v-row class="h-1/3"
-        >
+        <v-row>
             <v-col cols="4">
                 <v-card>
-                    <v-card-title class="bg-orange-accent-3">{{unit.name}}</v-card-title>
+                    <v-card-title class="bg-5E35B1"
+                    >
+                        {{unit.name}}</v-card-title>
+                    <v-card-subtitle>
+                        <v-btn text="+email"
+                               @click="attachEmail"
+                               variant="flat"
+                               size="30"
+                               density="compact"></v-btn>
+                    </v-card-subtitle>
                     <v-card-text>
                         <v-row>
                             <v-col>

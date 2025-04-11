@@ -17,6 +17,7 @@ use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\TelephoneController;
+use App\Http\Controllers\API\UnitController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -36,6 +37,7 @@ Route::apiResource('regions', RegionController::class);
 Route::apiResource('sales', SaleController::class);
 Route::apiResource('stages', StageController::class);
 Route::apiResource('telephones', TelephoneController::class);
+Route::apiResource('units', UnitController::class);
 
 Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');
