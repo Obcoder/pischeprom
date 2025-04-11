@@ -256,7 +256,7 @@ useHead({
                     >
                         <v-list-item-title>
                             <Link :href="route('web.unit.show', unit.id)"
-                                  class="font-sans"
+                                  class="font-RubikMedium"
                             >
                                 {{unit.name}}
                             </Link>
