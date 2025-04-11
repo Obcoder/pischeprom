@@ -87,7 +87,7 @@ function storeUnit(){
         preserveScroll: false,
         onSuccess: ()=> {
             formUnit.reset();
-            indexUnits(searchUnitsLike, 100)
+            indexUnits(searchUnitsLike.value, 100)
         },
     });
 }
@@ -254,13 +254,11 @@ useHead({
                                  border
                                  rounded
                     >
-                        <v-list-item-title>
-                            <Link :href="route('web.unit.show', unit.id)"
-                                  class="font-RubikMedium"
-                            >
-                                {{unit.name}}
-                            </Link>
-                        </v-list-item-title>
+                        <Link :href="route('web.unit.show', unit.id)"
+                              class="font-RubikMedium"
+                        >
+                            {{unit.name}}
+                        </Link>
                         <v-row>
                             <v-col cols="8">
                                 <div v-for="label in unit.labels"
