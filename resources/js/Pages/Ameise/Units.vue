@@ -242,7 +242,7 @@ onMounted(()=>{
                                  rounded
                     >
                         <v-list-item-title>
-                            <Link :href="route('unit.show', unit.id)">
+                            <Link :href="route('units.show', unit.id)">
                                     <span class="font-FIFARussia2018 font-[11px]"
                                     >
                                     {{unit.name}}</span>
