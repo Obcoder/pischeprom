@@ -34,14 +34,14 @@ let tab = ref();
 
 onMounted(()=> {
     arrayData.forEach((element) => {
-        loadData('api.' + element.name + '.index', element.list);
+        loadData(element.name + '.index', element.list);
         console.log(element.list);
     })
 })
 
 let searchBuildingsLike = ref();
-function apiIndexBuildings(like){
-    axios.get(route('api.buildings.index'), {
+function indexBuildings(like){
+    axios.get(route('buildings.index'), {
         params: {
             search: like,
         }
@@ -58,7 +58,7 @@ const formBuilding = useForm({
     postcode: null,
 })
 function storeBuilding(){
-    formBuilding.post(route('api.buildings.store'), {
+    formBuilding.post(route('buildings.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,
@@ -71,7 +71,7 @@ function storeBuilding(){
 </script>
 
 <template>
-    <v-container fluid>
+    <v-container>
         <v-row>
             <v-col>
                 <v-card>
