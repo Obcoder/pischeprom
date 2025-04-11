@@ -383,8 +383,9 @@ useHead({
                                             <v-col cols="2">
                                                 <v-btn @click="sendEmail(email.address)"
                                                        text=">>>"
-                                                       variant="elevated"
-                                                       size="21"
+                                                       elevation="1"
+                                                       size="36"
+                                                       density="compact"
                                                 ></v-btn>
                                             </v-col>
                                         </v-row>

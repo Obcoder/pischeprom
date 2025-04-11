@@ -29,7 +29,10 @@ class MailController extends Controller
             'title' => 'Ингредиенты, Сырьё, Добавки',
         ];
 
-        Mail::to($email)->send(new MyTestMail($details));
+        Mail::to($email)
+            ->bcc('tradelognets@gmail.com')
+            ->send(new MyTestMail($details));
+
 
         return response()->json(['message' => 'Mail sent successfully']);
     }
