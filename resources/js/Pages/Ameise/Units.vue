@@ -19,7 +19,7 @@ function indexUnits(like, limit){
             limit: limit,
         }
     }).then(function (response){
-        listUnits.value = response.data;
+        units.value = response.data
     }).catch(function (error){
         console.log();
     });
