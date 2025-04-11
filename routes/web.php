@@ -54,12 +54,6 @@ Route::get('/Ameise/Goods/', function (){
 Route::get('/Ameise/Sales/', function (){
     return Inertia::render('Ameise/Sales');
 })->name('Ameise.sales');
-////////////      T E L E G R A M  B O T      /////////////////////
-/// __________________________________________________________ ////
-Route::get('/Ameise/TelegramBot/', function (){
-    return Inertia::render('Ameise/TelegramBot');
-})->name('ameise.telegrambot');
-///E N D//////////////////////////////////////////////////////////
 //     U N I T S
 Route::get('/Ameise/units/', function (){
     return Inertia::render('Ameise/Units');
@@ -164,3 +158,10 @@ Route::get('/send-email', function () {
 
     return 'Email sent successfully!';
 });
+
+////////////      T E L E G R A M  B O T      /////////////////////
+/// __________________________________________________________ ////
+Route::get('/Ameise/TelegramBot/', function (){
+    return Inertia::render('Ameise/TelegramBot');
+})->name('ameise.telegrambot');
+///E N D//////////////////////////////////////////////////////////

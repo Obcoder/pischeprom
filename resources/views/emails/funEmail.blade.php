@@ -8,6 +8,9 @@
             border: #0d47a1 solid 1px;
             border-radius: 2px;
         }
+        td{
+            padding: 2px;
+        }
     </style>
 </head>
 <body>
@@ -17,11 +20,13 @@
         <th>Лецитин</th>
         <th>Глицерин</th>
         <th>Кунжут</th>
+        <th>Какао-порошок</th>
     </tr>
     <tr style="color: black; padding: 5px">
         <td>от 90 руб/кг</td>
         <td>от 174 руб/кг</td>
         <td>от 260 руб/кг</td>
+        <td>от 760 руб/кг</td>
     </tr>
 </table>
 </body>

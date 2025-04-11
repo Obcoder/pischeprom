@@ -8,16 +8,13 @@ use App\Mail\MyTestMail;
 
 class MailController extends Controller
 {
-    public function sendMail(){
-//        $request->validate([
-//            'email' => 'required|email',
+    public function sendMail(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email',
 //            'message' => 'required'
-//        ]);
-//        $body = [
-//            'email' => $request->email,
-//            'message' => $request->message,
-//            'subject' => 'Новое письмо'
-//        ];
+        ]);
+        $email = $request->input('email');
 //        $body = [
 //            'email' => 'tradelognets@gmail.com',
 //            'message' => 'Это просто невероятно!!!',
@@ -28,14 +25,11 @@ class MailController extends Controller
 //                ->subject($body['subject']);
 //        });
 
-
         $details = [
-            'title' => 'Привет!',
+            'title' => 'Ингредиенты, Сырьё, Добавки',
         ];
 
-        Mail::to('tradelognets@gmail.com')
-            ->send(new MyTestMail($details));
-
+        Mail::to($email)->send(new MyTestMail($details));
 
         return response()->json(['message' => 'Mail sent successfully']);
     }

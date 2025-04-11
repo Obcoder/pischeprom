@@ -222,15 +222,6 @@ function timeDiff(time){
     let denominator = 1000 * 3600 * 24;
     return Math.round(diffMilliseconds/denominator);
 }
-const sendEmail = async () => {
-    try {
-        const response = await axios.post(route('api.mail'));
-        // console.log(response);
-    } catch (error) {
-        console.error('Ошибка при отправке:', error);
-    }
-}
-
 const formAttachEmail = useForm({
     email_id: null,
     unit_id: props.unit.id,
@@ -262,6 +253,16 @@ function attachLabel(){
     })
 }
 
+const sendEmail = async (email) => {
+    try {
+        const response = await axios.post(route('api.mail'), {
+            email: email,
+        })
+        console.log(response);
+    } catch (error) {
+        console.error('Ошибка при отправке:', error);
+    }
+}
 onMounted(()=> {
     indexEmails()
     indexEntities()
@@ -375,7 +376,18 @@ useHead({
                                                  slim
                                                  rounded
                                     >
-                                        {{email.address}}
+                                        <v-row>
+                                            <v-col cols="10">
+                                                {{email.address}}
+                                            </v-col>
+                                            <v-col cols="2">
+                                                <v-btn @click="sendEmail(email.address)"
+                                                       text=">>>"
+                                                       variant="elevated"
+                                                       size="21"
+                                                ></v-btn>
+                                            </v-col>
+                                        </v-row>
                                     </v-list-item>
                                 </v-list>
                             </v-col>
@@ -683,10 +695,6 @@ useHead({
         </v-row>
         <v-row>
             <v-col>
-                <v-btn @click="sendEmail"
-                       text="Отправляем email"
-                       variant="elevated"
-                ></v-btn>
                 <v-btn @click="showFormBuilding = !showFormBuilding"
                        text="+ Building"
                        variant="elevated"
