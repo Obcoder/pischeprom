@@ -14,7 +14,6 @@ class EmailController extends Controller
     public function index()
     {
         return Email::with('sendings')
-            ->with('sendings.count')
             ->orderBy('created_at', 'desc')
             ->get();
     }
