@@ -100,7 +100,7 @@ onMounted(()=>{
 })
 
 useHead({
-    title: `Units: ${units.value.length}`,
+    title: `Units: ${units.length}`,
     meta: [
         {
             name: 'description',
@@ -245,7 +245,7 @@ useHead({
 
         <v-row>
             <v-col cols="4">
-                <v-list>
+                <v-list lines="two">
                     <v-list-item v-for="unit in units"
                                  :key="unit.id"
                                  class="border-emerald-900"
@@ -254,11 +254,15 @@ useHead({
                                  border
                                  rounded
                     >
-                        <Link :href="route('web.unit.show', unit.id)"
-                              class="font-RubikMedium"
-                        >
-                            <span>{{unit.name}}</span>
-                        </Link>
+                        <v-row>
+                            <v-col>
+                                <Link :href="route('web.unit.show', unit.id)"
+                                      class="font-RubikMedium"
+                                >
+                                    <span>{{unit.name}}</span>
+                                </Link>
+                            </v-col>
+                        </v-row>
                         <v-row>
                             <v-col cols="8">
                                 <div v-for="label in unit.labels"
