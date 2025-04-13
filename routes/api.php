@@ -20,6 +20,7 @@ use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
+use App\Http\Controllers\API\UriController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -42,6 +43,7 @@ Route::apiResource('sales', SaleController::class);
 Route::apiResource('stages', StageController::class);
 Route::apiResource('telephones', TelephoneController::class);
 Route::apiResource('units', UnitController::class);
+Route::apiResource('uris', UriController::class);
 
 Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
     ->name('api.mail');

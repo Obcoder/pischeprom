@@ -130,6 +130,8 @@ Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::cl
 
 
 //                           P        O         S         T
+Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])
+    ->name('api.checkcommodity.store');
 Route::post('/api/email/store', [\App\Http\Controllers\API\EmailController::class, 'store'])
     ->name('web.email.store');
 Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitController::class, 'store'])
@@ -141,9 +143,7 @@ Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class,
 Route::post('/api/unituri/store', [UnitUriController::class, 'store'])
     ->name('web.unituri.store');
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
-    ->name('api.uri.store');
-Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])
-    ->name('api.checkcommodity.store');
+    ->name('web.uri.store');
 
 /*
 |--------------------------------------------------------------------------

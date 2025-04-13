@@ -40,7 +40,7 @@ const formUri = useForm({
     address: null,
 })
 function storeUri(){
-    formUri.post(route('api.uri.store'), {
+    formUri.post(route('web.uri.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,

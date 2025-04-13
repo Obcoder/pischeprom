@@ -14,8 +14,42 @@ const props = defineProps({
     products: Object,
 })
 
+const headersConsumptions = ref([
+    {
+        title: 'created',
+        key: 'created_at',
+    },
+    {
+        title: 'Product',
+        key: 'product_id',
+    },
+    {
+        title: 'Quantity',
+        key: 'quantity',
+    },
+    {
+        title: 'Measure',
+        key: 'measure_id',
+    },
+])
+const headersEntities = ref([
+    {
+        title: 'Вид',
+        key: 'classification.name',
+    },
+    {
+        title: 'name',
+        key: 'name',
+    },
+    {
+        title: 'Телефоны',
+        key: 'telephones',
+    },
+])
+
 const buildings = ref([])
 const emails = ref([])
+const entities = ref()
 const labels = ref([])
 const measures = ref()
 const products = ref([])
@@ -23,13 +57,22 @@ const telephones = ref()
 const uris = ref([])
 
 const dialogFormAddEmail = ref(false)
+const dialogFormAddUri = ref(false)
 const dialogFormAttachEmail = ref(false)
 const dialogFormAttachLabel = ref(false)
 const dialogFormAttachUri = ref(false)
+const showFormBuilding = ref(false)
 const showFormConsumption = ref(false)
 
 const formAddEmail = useForm({
     address: null,
+})
+const formAddUri = useForm({
+    address: null,
+})
+const formAttachEntity = useForm({
+    entity_id: null,
+    unit_id: props.unit.id,
 })
 const formAttachUri = useForm({
     unit_id: props.unit.id,
@@ -114,14 +157,13 @@ function indexUris(){
     })
 }
 
-function storeEmail(){
-    formAddEmail.post(route('web.email.store'), {
+function storeBuildingUnit(){
+    formBuildingUnit.post(route('api.building_unit.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,
         onSuccess: ()=> {
-            formAddEmail.reset();
-            indexEmails()
+            formBuildingUnit.reset();
         },
     })
 }
@@ -136,7 +178,28 @@ function storeConsumption(){
         },
     });
 }
-let showFormBuilding = ref();
+function storeEmail(){
+    formAddEmail.post(route('web.email.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAddEmail.reset();
+            indexEmails()
+        },
+    })
+}
+function storeEntity(){
+    formEntity.post(route('api.entity.store'), {
+        replace: false,
+        preserveState: false,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formEntity.reset()
+            indexEntities()
+        },
+    })
+}
 function apiIndexBuildings(like){
     axios.get(route('buildings.index'), {
         params: {
@@ -148,23 +211,9 @@ function apiIndexBuildings(like){
         console.log(error);
     })
 }
-function storeBuildingUnit(){
-    formBuildingUnit.post(route('api.building_unit.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formBuildingUnit.reset();
-        },
-    })
-}
 
-let entities = ref();
 let showFormAttachEntity = ref(false);
-const formAttachEntity = useForm({
-    entity_id: null,
-    unit_id: props.unit.id,
-})
+
 function attachEntity(){
     formAttachEntity.post(route('api.entity_unit.store'), {
         replace: false,
@@ -189,50 +238,6 @@ let formEntity = useForm({
     entity_classification_id: null,
     telephones: null,
 })
-function storeEntity(){
-    formEntity.post(route('api.entity.store'), {
-        replace: false,
-        preserveState: false,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formEntity.reset()
-            indexEntities()
-        },
-    })
-}
-
-const headersConsumptions = ref([
-    {
-        title: 'created',
-        key: 'created_at',
-    },
-    {
-        title: 'Product',
-        key: 'product_id',
-    },
-    {
-        title: 'Quantity',
-        key: 'quantity',
-    },
-    {
-        title: 'Measure',
-        key: 'measure_id',
-    },
-])
-const headersEntities = ref([
-    {
-        title: 'Вид',
-        key: 'classification.name',
-    },
-    {
-        title: 'name',
-        key: 'name',
-    },
-    {
-        title: 'Телефоны',
-        key: 'telephones',
-    },
-])
 
 let files = ref();
 function fetchFiles(name){
@@ -288,6 +293,18 @@ function attachUri(){
         onSuccess: ()=> {
             formAttachUri.reset()
             fetchUnit(props.unit.id)
+        },
+    })
+}
+function storeUri(){
+    formAddUri.post(route('web.uri.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAddUri.reset()
+            fetchUnit(props.unit.id)
+            dialogFormAddUri.value = false
         },
     })
 }
@@ -450,6 +467,45 @@ useHead({
                                                 </v-col>
                                             </v-row>
                                         </v-form>
+                                        <v-divider color="purple"
+                                                   opacity="0.9"></v-divider>
+
+                                        <v-btn text="new uri"
+                                               @click="dialogFormAddUri = !dialogFormAddUri"
+                                               flat
+                                               density="comfortable"
+                                               ></v-btn>
+                                        <v-dialog v-model="dialogFormAddUri"
+                                                  width="900">
+                                            <template v-slot:default="{isActive}">
+                                                <v-card>
+                                                    <v-card-title>Form adding new Uri</v-card-title>
+                                                    <v-card-text>
+                                                        <v-form @submit.prevent>
+                                                            <v-row>
+                                                                <v-col>
+                                                                    <v-text-field v-model="formAddUri.address"
+                                                                                  label="Uri address"
+                                                                                  variant="outlined"
+                                                                                  density="comfortable"
+                                                                    ></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </v-form>
+                                                    </v-card-text>
+                                                    <v-card-actions>
+                                                        <v-divider vertical
+                                                                   color="black"
+                                                                   opacity="0.89"></v-divider>
+                                                        <v-btn text="store"
+                                                               @click="storeUri"
+                                                               flat
+                                                               density="comfortable"
+                                                               color="pink-accent-4"></v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </template>
+                                        </v-dialog>
                                     </v-card-text>
                                     <v-card-actions>
                                         <v-divider vertical
