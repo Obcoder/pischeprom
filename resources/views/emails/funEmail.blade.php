@@ -92,8 +92,7 @@
             <tr>
                 <td style="width: 30%; text-align: left; vertical-align: middle;">
                     <img src="https://storage.yandexcloud.net/cold-reserve/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg"
-                         alt="Логотип компании ПИЩЕПРОМ-СЕРВЕР"
-                         style="max-height: 50px;">
+                         alt="Логотип компании ПИЩЕПРОМ-СЕРВЕР">
                 </td>
                 <td style="width: 70%; text-align: right; vertical-align: middle;">
                     <h1 style="margin: 0; font-size: 18px;">ПИЩЕПРОМ-СЕРВЕР</h1>
