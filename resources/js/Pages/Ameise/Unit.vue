@@ -801,7 +801,7 @@ useHead({
         </v-row>
         <v-row>
             <v-col>
-                <v-card>
+                <v-card v-if="unit.emails.sendings.length > 0">
                     <v-card-title class="bg-fuchsia-950 text-fuchsia-100"
                     >
                         Sendings
