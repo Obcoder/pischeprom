@@ -22,6 +22,7 @@ export default {
                 RubikMedium: ['Rubik-Medium', ...defaultTheme.fontFamily.sans],
                 ComfortaaVariableFont: ['Comfortaa-VariableFont_wght', ...defaultTheme.fontFamily.sans],
                 OrelegaOneRegular: ['OrelegaOne-Regular', ...defaultTheme.fontFamily.sans],
+                UnderdogRegular: ['Underdog-Regular', ...defaultTheme.fontFamily.sans],
             },
         },
     },

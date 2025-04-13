@@ -257,7 +257,7 @@ useHead({
                         <Link :href="route('web.unit.show', unit.id)"
                               class="font-RubikMedium"
                         >
-                            {{unit.name}}
+                            <span>{{unit.name}}</span>
                         </Link>
                         <v-row>
                             <v-col cols="8">

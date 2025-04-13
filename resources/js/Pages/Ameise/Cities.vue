@@ -3,6 +3,7 @@ import {Link, useForm} from "@inertiajs/vue3";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
+import {useHead} from "@vueuse/head";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -29,7 +30,8 @@ const headersCities = [
         key: 'yandexmapsgeo',
     },
 ]
-let cities = ref();
+let cities = ref()
+let regions = ref()
 let searchCitiesLike = ref();
 function indexCities(like){
     axios.get(route('cities.index'), {
@@ -42,6 +44,14 @@ function indexCities(like){
         console.log(error);
     });
 }
+function indexRegions(){
+    axios.get(route('regions.index')).then(function (response){
+        regions.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+
 const formCity = useForm({
     name: null,
     population: null,
@@ -62,18 +72,19 @@ function storeCity(){
     })
 }
 
-let regions = ref();
-function indexRegions(){
-    axios.get(route('regions.index')).then(function (response){
-        regions.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-
 onMounted(()=>{
     indexCities()
     indexRegions()
+})
+
+useHead({
+    title: `Cities: Города, пгт, сёла, деревни, станицы`,
+    meta: [
+        {
+            name: 'description',
+            content: `Все cities in db`,
+        }
+    ]
 })
 </script>
 
@@ -186,15 +197,15 @@ onMounted(()=>{
                     </template>
                     <template v-slot:item.name="{item}">
                         <Link :href="route('city.show', item.id)"
-                              class="font-OrelegaOneRegular"
                         >
-                            <span>{{item.name}}</span>
+                            <span class="font-UnderdogRegular text-2xl"
+                            >
+                                {{item.name}}</span>
                         </Link>
                     </template>
                     <template v-slot:item.wiki="{item}">
-                        <a :href="item.wiki"
-                           target="_blank"
-                           class="text-[12px] text-zinc-800"
+                        <a :href="item.wiki" target="_blank"
+                           class="text-xs text-zinc-800"
                         >
                             {{item.wiki}}
                         </a>
