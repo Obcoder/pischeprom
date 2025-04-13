@@ -303,7 +303,7 @@ function storeUri(){
         preserveScroll: false,
         onSuccess: ()=> {
             formAddUri.reset()
-            fetchUnit(props.unit.id)
+            indexUris()
             dialogFormAddUri.value = false
         },
     })
@@ -531,7 +531,7 @@ useHead({
                                 </v-list>
                             </v-col>
                             <v-col>
-                                <v-list>
+                                <v-list density="compact">
                                     <v-list-item v-for="uri in unit.uris">
                                         <a :href="uri.address"
                                            target="_blank"
