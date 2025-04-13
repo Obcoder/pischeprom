@@ -7,6 +7,21 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
+const headersEmails = [
+    {
+        title: 'date',
+        key: 'created_at',
+    },
+    {
+        title: 'email',
+        key: 'address',
+    },
+    {
+        title: 'Count',
+        key: 'sendings.count',
+    },
+]
+
 const emails = ref()
 
 function indexEmails(){
@@ -37,8 +52,11 @@ useHead({
         <v-row>
             <v-col>
                 <v-data-table :items="emails"
+                              :headers="headersEmails"
                               density="compact"
-                              ></v-data-table>
+                              hover
+                              >
+                </v-data-table>
             </v-col>
             <v-col></v-col>
             <v-col></v-col>
