@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
+        @media only screen and (max-width: 600px) {
+            .header-table td {
+                display: block;
+                width: 100% !important;
+                text-align: center !important;
+            }
+
+            .header-table img {
+                margin: 0 auto 10px auto;
+            }
+        }
         body {
             font-family: Arial, sans-serif;
             background-color: #f4f4f4;
@@ -22,14 +33,14 @@
         }
 
         .header {
-            background-color: #D32F2F;
-            color: #FFCA28;
+            background-color: #B71C1C;
+            color: #FFE082;
             padding: 20px;
             text-align: center;
         }
 
         .header img {
-            max-width: 120px;
+            max-width: 100px;
             margin-bottom: 10px;
         }
 
@@ -77,11 +88,24 @@
 <body>
 <div class="container">
     <div class="header">
-        <img src="https://storage.yandexcloud.net/cold-reserve/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg"
-             alt="Логотип компании ПИЩЕПРОМ-СЕРВЕР"/>
-        <h1>ПИЩЕПРОМ-СЕРВЕР</h1>
-        <p>Надёжный поставщик сырья для пищевой промышленности</p>
+        <table class="header-table" width="100%" cellpadding="0" cellspacing="0" style="width: 100%;">
+            <tr>
+                <td style="width: 30%; text-align: left; vertical-align: middle;">
+                    <img src="https://storage.yandexcloud.net/cold-reserve/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg"
+                         alt="Логотип компании ПИЩЕПРОМ-СЕРВЕР"
+                         style="max-height: 50px;">
+                </td>
+                <td style="width: 70%; text-align: right; vertical-align: middle;">
+                    <h1 style="margin: 0; font-size: 18px;">ПИЩЕПРОМ-СЕРВЕР</h1>
+                    <p style="margin: 4px 0 0 0; font-size: 12px;">
+                        ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий.
+                        Создаем логистическую сеть для снижения транспортных расходов при доставке товаров.
+                    </p>
+                </td>
+            </tr>
+        </table>
     </div>
+
     <div class="content">
         <p><strong>Коммерческое предложение</strong></p>
         <p>Компания <strong>ПИЩЕПРОМ-СЕРВЕР</strong> предлагает к закупке:</p>
@@ -111,6 +135,10 @@
     <div class="footer">
         Пищепром-Сервер<br />
         <span class="phone">+7-905-753-26-48</span>
+        <div>
+            Запросы в ТГ:<br />
+            <span>pischepromserver_bot</span>
+        </div>
     </div>
 </div>
 </body>
