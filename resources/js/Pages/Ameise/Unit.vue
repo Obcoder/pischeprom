@@ -764,7 +764,25 @@ useHead({
                 <v-card>
                     <v-card-title>Sendings</v-card-title>
                     <v-card-text>
-
+                        <v-list>
+                            <v-list-item v-for="email in unit.emails">
+                                <v-row>
+                                    <v-col>
+                                        <span>{{email.address}}</span>
+                                    </v-col>
+                                </v-row>
+                                <v-row>
+                                    <v-col>
+                                        <v-list lines="two">
+                                            <v-list-item v-for="sending in email.sendings">
+                                                <span>{{sending.created_at}}</span>
+                                                <span>{{sending.subject}}</span>
+                                            </v-list-item>
+                                        </v-list>
+                                    </v-col>
+                                </v-row>
+                            </v-list-item>
+                        </v-list>
                     </v-card-text>
                 </v-card>
             </v-col>
