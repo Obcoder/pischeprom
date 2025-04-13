@@ -317,7 +317,7 @@ const sendEmail = async (email, subject) => {
         const response = await axios.post(route('api.mail'), {
             email: email,
             subject: subject,
-            products: selectedProducts.value,
+            products: selectedProducts,
         })
         console.log(response);
         fetchUnit(props.unit.value.id)
