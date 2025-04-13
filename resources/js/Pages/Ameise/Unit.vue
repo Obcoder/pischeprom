@@ -562,12 +562,12 @@ useHead({
                                             <v-col cols="9">
                                                 {{email.address}}
                                             </v-col>
-                                            <v-col cols="3">
+                                            <v-col cols="3" class="d-flex justify-center align-center">
                                                 <v-btn @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР::Лецитины, Глицерин, Кунжут, Какао-порошок, Какао-масло')"
                                                        text=">>>"
+                                                       size="small"
                                                        elevation="1"
                                                        flat
-                                                       size="40"
                                                        density="comfortable"
                                                        color="cyan-darken-3"
                                                 ></v-btn>
