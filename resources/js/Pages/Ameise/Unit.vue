@@ -317,7 +317,7 @@ const sendEmail = async (email, subject) => {
         const response = await axios.post(route('api.mail'), {
             email: email,
             subject: subject,
-            products: selectedProducts,
+            products: selectedProduct.value,
         })
         console.log(response);
         fetchUnit(props.unit.value.id)
@@ -596,7 +596,7 @@ useHead({
                                                                            color="orange"
                                                                            opacity="0.9"></v-divider>
                                                                 <v-btn text="send"
-                                                                       @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР:: ' + selectedProducts)"
+                                                                       @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР:: ')"
                                                                        flat
                                                                        density="comfortable"
                                                                        color="orange"></v-btn>
