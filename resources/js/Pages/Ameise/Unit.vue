@@ -571,7 +571,54 @@ useHead({
                 <v-card>
                     <v-card-title class="bg-cyan-900"
                     >
-                        Узлы</v-card-title>
+                        Узлы
+                    </v-card-title>
+                    <v-card-subtitle>
+                        <v-btn @click="showFormBuilding = !showFormBuilding"
+                               text="+ Building"
+                               variant="elevated"
+                               density="compact"
+                               color="deep-orange"
+                        ></v-btn>
+                        <v-dialog v-model="showFormBuilding"
+                                  width="815"
+                        >
+                            <template v-slot:default="{isActive}">
+                                <v-card color="yellow-lighten-3">
+                                    <v-card-title>Form Building</v-card-title>
+                                    <v-card-text>
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-autocomplete :items="buildings"
+                                                                    :item-title="formatBuildingTitle"
+                                                                    :item-value="'id'"
+                                                                    v-model="formBuildingUnit.building_id"
+                                                                    variant="outlined"
+                                                                    density="comfortable"
+                                                                    color="blue-grey"
+                                                    ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col></v-col>
+                                                <v-col></v-col>
+                                                <v-col></v-col>
+                                                <v-col>
+                                                    <v-btn @click="storeBuildingUnit"
+                                                           text="store"
+                                                           density="comfortable"
+                                                           variant="outlined"
+                                                           color="black"
+                                                    ></v-btn>
+                                                </v-col>
+                                            </v-row>
+                                        </v-form>
+                                    </v-card-text>
+                                </v-card>
+                            </template>
+                        </v-dialog>
+                    </v-card-subtitle>
                     <v-card-text>
                         <v-list>
                             <v-list-item v-for="building in unit.buildings"
@@ -697,49 +744,7 @@ useHead({
         </v-row>
         <v-row>
             <v-col>
-                <v-btn @click="showFormBuilding = !showFormBuilding"
-                       text="+ Building"
-                       variant="elevated"
-                       color="deep-orange"
-                ></v-btn>
-                <v-dialog v-model="showFormBuilding"
-                          width="815"
-                >
-                    <template v-slot:default="{isActive}">
-                        <v-card color="yellow-lighten-3">
-                            <v-card-title>Form Building</v-card-title>
-                            <v-card-text>
-                                <v-form @submit.prevent>
-                                    <v-row>
-                                        <v-col>
-                                            <v-autocomplete :items="buildings"
-                                                            :item-title="formatBuildingTitle"
-                                                            :item-value="'id'"
-                                                            v-model="formBuildingUnit.building_id"
-                                                            variant="outlined"
-                                                            density="comfortable"
-                                                            color="blue-grey"
-                                            ></v-autocomplete>
-                                        </v-col>
-                                    </v-row>
-                                    <v-row>
-                                        <v-col></v-col>
-                                        <v-col></v-col>
-                                        <v-col></v-col>
-                                        <v-col>
-                                            <v-btn @click="storeBuildingUnit"
-                                                   text="store"
-                                                   density="comfortable"
-                                                   variant="outlined"
-                                                   color="black"
-                                            ></v-btn>
-                                        </v-col>
-                                    </v-row>
-                                </v-form>
-                            </v-card-text>
-                        </v-card>
-                    </template>
-                </v-dialog>
+
             </v-col>
             <v-col>
                 <v-list>
@@ -762,9 +767,15 @@ useHead({
             </v-col>
             <v-col>
                 <v-card>
-                    <v-card-title>Sendings</v-card-title>
+                    <v-card-title class="bg-fuchsia-950 text-fuchsia-100"
+                    >
+                        Sendings
+                    </v-card-title>
                     <v-card-text>
-                        <v-list>
+                        <v-list lines="two"
+                                density="compact"
+                                variant="outlined"
+                        >
                             <v-list-item v-for="email in unit.emails">
                                 <v-row>
                                     <v-col>
@@ -773,10 +784,16 @@ useHead({
                                 </v-row>
                                 <v-row>
                                     <v-col>
-                                        <v-list lines="two">
+                                        <v-list>
                                             <v-list-item v-for="sending in email.sendings">
-                                                <span>{{sending.created_at}}</span>
-                                                <span>{{sending.subject}}</span>
+                                                <v-row>
+                                                    <v-col>
+                                                        <span class="text-sm">{{date.format(sending.created_at, 'fullDate')}}</span>
+                                                    </v-col>
+                                                    <v-col class="text-xs">
+                                                        <span>{{sending.subject}}</span>
+                                                    </v-col>
+                                                </v-row>
                                             </v-list-item>
                                         </v-list>
                                     </v-col>
