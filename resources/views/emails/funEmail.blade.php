@@ -60,7 +60,7 @@
         }
 
         tr.data:hover{
-            background-color: #fb8c00;
+            background-color: #DAA520;
         }
 
         th {
