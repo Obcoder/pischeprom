@@ -10,6 +10,10 @@ class Email extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'address',
+    ];
+
     public function sendings(): HasMany
     {
         return $this->hasMany(Sending::class);
