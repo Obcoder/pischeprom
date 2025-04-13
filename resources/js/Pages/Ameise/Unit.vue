@@ -567,6 +567,7 @@ useHead({
                                                        text=">>>"
                                                        elevation="1"
                                                        flat
+                                                       size="40"
                                                        density="comfortable"
                                                        color="cyan-darken-3"
                                                 ></v-btn>
