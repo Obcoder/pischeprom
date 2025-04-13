@@ -744,7 +744,44 @@ useHead({
         </v-row>
         <v-row>
             <v-col>
-
+                <v-card>
+                    <v-card-title class="bg-fuchsia-950 text-fuchsia-100"
+                    >
+                        Sendings
+                    </v-card-title>
+                    <v-card-text>
+                        <v-list density="compact"
+                                variant="outlined"
+                        >
+                            <v-list-item v-for="email in unit.emails">
+                                <v-row>
+                                    <v-col>
+                                        <span class="text-sm bg-fuchsia-200 text-fuchsia-950"
+                                        >
+                                            {{email.address}}
+                                        </span>
+                                    </v-col>
+                                </v-row>
+                                <v-row>
+                                    <v-col>
+                                        <v-list density="compact">
+                                            <v-list-item v-for="sending in email.sendings">
+                                                <v-row>
+                                                    <v-col>
+                                                        <span class="text-sm">{{date.format(sending.created_at, 'fullDate')}}</span>
+                                                    </v-col>
+                                                    <v-col class="text-xs">
+                                                        <span>{{sending.subject}}</span>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-list-item>
+                                        </v-list>
+                                    </v-col>
+                                </v-row>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
             </v-col>
             <v-col>
                 <v-list>
@@ -766,42 +803,7 @@ useHead({
                 </v-list>
             </v-col>
             <v-col>
-                <v-card>
-                    <v-card-title class="bg-fuchsia-950 text-fuchsia-100"
-                    >
-                        Sendings
-                    </v-card-title>
-                    <v-card-text>
-                        <v-list lines="two"
-                                density="compact"
-                                variant="outlined"
-                        >
-                            <v-list-item v-for="email in unit.emails">
-                                <v-row>
-                                    <v-col>
-                                        <span>{{email.address}}</span>
-                                    </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-col>
-                                        <v-list>
-                                            <v-list-item v-for="sending in email.sendings">
-                                                <v-row>
-                                                    <v-col>
-                                                        <span class="text-sm">{{date.format(sending.created_at, 'fullDate')}}</span>
-                                                    </v-col>
-                                                    <v-col class="text-xs">
-                                                        <span>{{sending.subject}}</span>
-                                                    </v-col>
-                                                </v-row>
-                                            </v-list-item>
-                                        </v-list>
-                                    </v-col>
-                                </v-row>
-                            </v-list-item>
-                        </v-list>
-                    </v-card-text>
-                </v-card>
+
             </v-col>
         </v-row>
     </v-container>
