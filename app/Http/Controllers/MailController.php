@@ -27,17 +27,19 @@ class MailController extends Controller
 //                ->subject($body['subject']);
 //        });
 
+        $subject = $request->input('subject');
         $details = [
             'title' => 'Ингредиенты, Сырьё, Добавки',
         ];
 
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
-            ->send(new MyTestMail($details));
+            ->send(new MyTestMail($details, $subject));
 
         Sending::create(
             [
                 'email_id' => Email::where('address', $email)->firstOrFail()->id,
+                'subject' => $subject,
             ]
         );
 

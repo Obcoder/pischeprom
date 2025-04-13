@@ -1,39 +1,117 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-        table{
-            border: #0d47a1 solid 1px;
-            border-radius: 2px;
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
         }
-        td{
-            padding: 2px;
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+        }
+
+        .header {
+            background-color: #D32F2F;
+            color: #FFCA28;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header img {
+            max-width: 120px;
+            margin-bottom: 10px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th {
+            background-color: #1976d2;
+            color: #fff;
+            padding: 10px;
+            text-align: left;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .footer {
+            background-color: #eeeeee;
+            text-align: center;
+            font-size: 14px;
+            color: #555;
+            padding: 10px 20px;
+        }
+
+        .phone {
+            font-weight: bold;
+            color: #0d47a1;
         }
     </style>
 </head>
 <body>
-<h3>ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:</h3>
-<table style="width: max-content">
-    <tr style="background: brown; color: black">
-        <th>Лецитин</th>
-        <th>Глицерин</th>
-        <th>Кунжут</th>
-        <th>Какао-порошок</th>
-    </tr>
-    <tr style="color: black; padding: 5px">
-        <td>от 90 руб/кг</td>
-        <td>от 174 руб/кг</td>
-        <td>от 260 руб/кг</td>
-        <td>от 760 руб/кг</td>
-    </tr>
-</table>
+<div class="container">
+    <div class="header">
+        <img src="https://storage.yandexcloud.net/cold-reserve/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg"
+             alt="Логотип компании ПИЩЕПРОМ-СЕРВЕР"/>
+        <h1>ПИЩЕПРОМ-СЕРВЕР</h1>
+        <p>Надёжный поставщик сырья для пищевой промышленности</p>
+    </div>
+    <div class="content">
+        <p><strong>Коммерческое предложение</strong></p>
+        <p>Компания <strong>ПИЩЕПРОМ-СЕРВЕР</strong> предлагает к закупке:</p>
+        <table>
+            <tr>
+                <th>Товар</th>
+                <th>Цена</th>
+            </tr>
+            <tr>
+                <td>Лецитин</td>
+                <td>от 90 руб/кг</td>
+            </tr>
+            <tr>
+                <td>Глицерин</td>
+                <td>от 174 руб/кг</td>
+            </tr>
+            <tr>
+                <td>Кунжут</td>
+                <td>от 260 руб/кг</td>
+            </tr>
+            <tr>
+                <td>Какао-порошок</td>
+                <td>от 760 руб/кг</td>
+            </tr>
+        </table>
+    </div>
+    <div class="footer">
+        Пищепром-Сервер<br />
+        <span class="phone">+7-905-753-26-48</span>
+    </div>
+</div>
 </body>
-<footer>
-    Пищепром-Сервер
-    <span class="font-Sowjetschablone"
-    >
-        +7-905-753-26-48</span>
-</footer>
 </html>

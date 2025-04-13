@@ -309,10 +309,11 @@ function storeUri(){
     })
 }
 
-const sendEmail = async (email) => {
+const sendEmail = async (email, subject) => {
     try {
         const response = await axios.post(route('api.mail'), {
             email: email,
+            subject: subject,
         })
         console.log(response);
         fetchUnit(props.unit.id)
@@ -562,11 +563,11 @@ useHead({
                                                 {{email.address}}
                                             </v-col>
                                             <v-col cols="3">
-                                                <v-btn @click="sendEmail(email.address)"
+                                                <v-btn @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР::Лецитины, Глицерин, Кунжут, Какао-порошок, Какао-масло')"
                                                        text=">>>"
                                                        elevation="1"
-                                                       variant="plain"
-                                                       density="compact"
+                                                       flat
+                                                       density="comfortable"
                                                        color="cyan-darken-3"
                                                 ></v-btn>
                                             </v-col>
