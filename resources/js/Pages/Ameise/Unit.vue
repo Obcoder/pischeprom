@@ -801,7 +801,7 @@ useHead({
         </v-row>
         <v-row>
             <v-col>
-                <v-card v-if="unit.emails.sendings.length > 0">
+                <v-card>
                     <v-card-title class="bg-fuchsia-950 text-fuchsia-100"
                     >
                         Sendings
@@ -813,7 +813,8 @@ useHead({
                             <v-list-item v-for="email in unit.emails">
                                 <v-row>
                                     <v-col>
-                                        <span class="text-sm bg-fuchsia-200 text-fuchsia-950"
+                                        <span v-if="email.sendings.length > 0"
+                                              class="p-1 text-sm bg-fuchsia-200 text-fuchsia-950"
                                         >
                                             {{email.address}}
                                         </span>
