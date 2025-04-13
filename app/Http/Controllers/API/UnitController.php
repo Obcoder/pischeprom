@@ -23,7 +23,6 @@ class UnitController extends Controller
             ->with('consumptions')
             ->with('products')
             ->with('entities.sales')
-            ->with('emails.sendings')
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get();

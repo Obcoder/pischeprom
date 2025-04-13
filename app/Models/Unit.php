@@ -18,6 +18,7 @@ class Unit extends Model
         'uris',
         'labels',
         'telephones',
+        'emails.sendings',
     ];
 
     public function emails(): BelongsToMany
