@@ -121,15 +121,15 @@
                 <td>Лецитин</td>
                 <td>от 90 руб/кг</td>
             </tr>
-            <tr>
+            <tr class="data">
                 <td>Глицерин</td>
                 <td>от 174 руб/кг</td>
             </tr>
-            <tr>
+            <tr class="data">
                 <td>Кунжут</td>
                 <td>от 260 руб/кг</td>
             </tr>
-            <tr>
+            <tr class="data">
                 <td>Какао-порошок</td>
                 <td>от 760 руб/кг</td>
             </tr>
