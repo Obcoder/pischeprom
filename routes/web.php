@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\API\UnitController;
+use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\ManufacturerController;
 use App\Models\City;
 use App\Models\Product;
@@ -137,6 +138,8 @@ Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitControll
     ->name('web.labelunit.store');
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
     ->name('web.unit.store');
+Route::post('/api/unituri/store', [UnitUriController::class, 'store'])
+    ->name('web.unituri.store');
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
     ->name('api.uri.store');
 Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])

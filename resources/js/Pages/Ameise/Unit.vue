@@ -14,14 +14,43 @@ const props = defineProps({
     products: Object,
 })
 
+const buildings = ref([])
 const emails = ref([])
 const labels = ref([])
+const measures = ref()
 const products = ref([])
+const telephones = ref()
+const uris = ref([])
 
 const dialogFormAddEmail = ref(false)
 const dialogFormAttachEmail = ref(false)
 const dialogFormAttachLabel = ref(false)
+const dialogFormAttachUri = ref(false)
 const showFormConsumption = ref(false)
+
+const formAddEmail = useForm({
+    address: null,
+})
+const formAttachUri = useForm({
+    unit_id: props.unit.id,
+    uri_id: null,
+})
+const formBuildingUnit = useForm({
+    building_id: null,
+    unit_id: props.unit.id,
+    location_id: null,
+})
+const formConsumption = useForm({
+    unit_id: props.unit.id,
+    product_id: null,
+    quantity: null,
+    measure_id: null,
+})
+
+const formatBuildingTitle = (building) => {
+    if (!building) return '';
+    return `${building.city?.name || ' - '}: ${building.address}`;
+};
 
 function fetchUnit(id){
     axios.get(route('units.show'), id).then(function (response){
@@ -38,11 +67,29 @@ function indexEmails(){
         console.log(error)
     })
 }
+function indexEntities(like){
+    axios.get(route('entities.index'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
+        entities.value = response.data;
+    }).catch(function (error){
+        console.log(error);
+    })
+}
 function indexLabels(){
     axios.get(route('labels.index')).then(function (response){
         labels.value = response.data
     }).catch(function (error){
         console.log(error)
+    })
+}
+function indexMeasures(){
+    axios.get(route('measures.index')).then(function (response){
+        measures.value = response.data;
+    }).catch(function (error){
+        console.log(error);
     })
 }
 function indexProducts(){
@@ -52,18 +99,21 @@ function indexProducts(){
         console.log(error);
     })
 }
-let measures = ref();
-function indexMeasures(){
-    axios.get(route('measures.index')).then(function (response){
-        measures.value = response.data;
+function indexTelephones(){
+    axios.get(route('telephones.index')).then(function (response){
+        telephones.value = response.data;
     }).catch(function (error){
         console.log(error);
     })
 }
+function indexUris(){
+    axios.get(route('uris.index')).then(function (response){
+        uris.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 
-const formAddEmail = useForm({
-    address: null,
-})
 function storeEmail(){
     formAddEmail.post(route('web.email.store'), {
         replace: false,
@@ -75,12 +125,6 @@ function storeEmail(){
         },
     })
 }
-const formConsumption = useForm({
-    unit_id: props.unit.id,
-    product_id: null,
-    quantity: null,
-    measure_id: null,
-})
 function storeConsumption(){
     formConsumption.post(route('api.consumption.store'), {
         replace: false,
@@ -93,7 +137,6 @@ function storeConsumption(){
     });
 }
 let showFormBuilding = ref();
-let buildings = ref([]);
 function apiIndexBuildings(like){
     axios.get(route('buildings.index'), {
         params: {
@@ -105,15 +148,6 @@ function apiIndexBuildings(like){
         console.log(error);
     })
 }
-const formatBuildingTitle = (building) => {
-    if (!building) return '';
-    return `${building.city?.name || ' - '}: ${building.address}`;
-};
-const formBuildingUnit = useForm({
-    building_id: null,
-    unit_id: props.unit.id,
-    location_id: null,
-})
 function storeBuildingUnit(){
     formBuildingUnit.post(route('api.building_unit.store'), {
         replace: false,
@@ -126,17 +160,6 @@ function storeBuildingUnit(){
 }
 
 let entities = ref();
-function indexEntities(like){
-    axios.get(route('entities.index'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response){
-        entities.value = response.data;
-    }).catch(function (error){
-        console.log(error);
-    })
-}
 let showFormAttachEntity = ref(false);
 const formAttachEntity = useForm({
     entity_id: null,
@@ -177,16 +200,6 @@ function storeEntity(){
         },
     })
 }
-
-let telephones = ref();
-function indexTelephones(){
-    axios.get(route('telephones.index')).then(function (response){
-        telephones.value = response.data;
-    }).catch(function (error){
-        console.log(error);
-    })
-}
-
 
 const headersConsumptions = ref([
     {
@@ -267,6 +280,17 @@ function attachLabel(){
         },
     })
 }
+function attachUri(){
+    formAttachUri.post(route('web.unituri.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAttachUri.reset()
+            fetchUnit(props.unit.id)
+        },
+    })
+}
 
 const sendEmail = async (email) => {
     try {
@@ -286,6 +310,7 @@ onMounted(()=> {
     indexMeasures()
     indexProducts()
     indexTelephones()
+    indexUris()
     apiIndexBuildings();
     apiIndexEntityClassifications();
     fetchFiles(props.unit.name)
@@ -393,6 +418,48 @@ useHead({
                                                @click="attachEmail"
                                                variant="flat"
                                                density="comfortable"></v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </template>
+                        </v-dialog>
+                        <v-btn text="+uri"
+                               @click="dialogFormAttachUri = !dialogFormAttachUri"
+                               variant="flat"
+                               density="compact"
+                               class="text-xs"
+                        ></v-btn>
+                        <v-dialog v-model="dialogFormAttachUri"
+                                  width="900">
+                            <template v-slot:default="{isActive}">
+                                <v-card>
+                                    <v-card-title>Form attach Uri</v-card-title>
+                                    <v-card-text>
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-autocomplete :items="uris"
+                                                                    :item-value="'id'"
+                                                                    :item-title="'address'"
+                                                                    v-model="formAttachUri.uri_id"
+                                                                    label="Uri"
+                                                                    placeholder="select Uri"
+                                                                    variant="outlined"
+                                                                    density="comfortable"
+                                                                    item-color="red-darken-2"
+                                                    ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                        </v-form>
+                                    </v-card-text>
+                                    <v-card-actions>
+                                        <v-divider vertical
+                                                   color="red"
+                                                   opacity="0.88"></v-divider>
+                                        <v-btn text="attach"
+                                               @click="attachUri"
+                                               variant="flat"
+                                               density="comfortable"
+                                               color="red-darken-1"></v-btn>
                                     </v-card-actions>
                                 </v-card>
                             </template>
