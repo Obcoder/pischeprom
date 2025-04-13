@@ -14,16 +14,24 @@ const headersCities = [
         key: 'name',
     },
     {
+        title: 'Регион',
+        key: 'region_id',
+    },
+    {
+        title: 'Широта',
+        key: 'latitude',
+    },
+    {
+        title: 'Долгота',
+        key: 'longitude',
+    },
+    {
         title: 'population',
         key: 'population',
     },
     {
         title: 'wiki',
         key: 'wiki',
-    },
-    {
-        title: 'Регион',
-        key: 'region_id',
     },
     {
         title: 'Maps',
@@ -92,7 +100,7 @@ useHead({
     <v-container>
         <v-row>
             <v-col></v-col>
-            <v-col cols="8">
+            <v-col cols="11">
                 <v-data-table :items="cities"
                               :headers="headersCities"
                               items-per-page="200"
@@ -106,9 +114,10 @@ useHead({
                                               @input="indexCities(searchCitiesLike)"
                                               label="Поиск городов по like"
                                               variant="underlined"
-                                              density="compact"
+                                              density="comfortable"
                                               color="blue"
                                               class="my-3"
+                                              flat
                                 ></v-text-field>
                             </v-col>
                             <v-col>
@@ -224,11 +233,16 @@ useHead({
                         </a>
                     </template>
                     <template v-slot:item.region_id="{item}">
-                        {{item.region.name}}
+                        <span class="text-sm font-mono">{{item.region.name}}</span>
+                    </template>
+                    <template v-slot:item.latitude="{item}">
+                        <span class="text-sm">{{item.latitude}}</span>
+                    </template>
+                    <template v-slot:item.longitude="{item}">
+                        <span class="text-xs">{{item.longitude}}</span>
                     </template>
                 </v-data-table>
             </v-col>
-            <v-col></v-col>
         </v-row>
     </v-container>
 </template>
