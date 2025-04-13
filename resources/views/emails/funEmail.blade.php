@@ -117,22 +117,12 @@
                 <th>Товар</th>
                 <th>Цена</th>
             </tr>
-            <tr class="data">
-                <td>Лецитин</td>
-                <td>от 90 руб/кг</td>
-            </tr>
-            <tr class="data">
-                <td>Глицерин</td>
-                <td>от 174 руб/кг</td>
-            </tr>
-            <tr class="data">
-                <td>Кунжут</td>
-                <td>от 260 руб/кг</td>
-            </tr>
-            <tr class="data">
-                <td>Какао-порошок</td>
-                <td>от 760 руб/кг</td>
-            </tr>
+            @foreach($details['products'] as $product)
+                <tr class="data">
+                    <td><strong>{{ $product['name'] }}</strong></td>
+                    <td style="vertical-align: top;">цена</td>
+                </tr>
+            @endforeach
         </table>
     </div>
     <div class="footer">

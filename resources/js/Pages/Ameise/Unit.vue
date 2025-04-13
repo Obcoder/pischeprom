@@ -581,13 +581,15 @@ useHead({
                                                     <template v-slot:default="{isActive}">
                                                         <v-card>
                                                             <v-card-title>Form Send Email</v-card-title>
-                                                            <v-card-text>
+                                                            <v-card-text class="d-flex flex-row mb-2">
                                                                 <v-checkbox v-for="product in products"
                                                                             :key="product.id"
                                                                             v-model="selectedProducts"
                                                                             :label="product.rus"
                                                                             :value="product.rus"
+                                                                            density="compact"
                                                                 ></v-checkbox>
+                                                                <v-sheet>{{selectedProducts}}</v-sheet>
                                                             </v-card-text>
                                                             <v-card-actions>
                                                                 <v-divider vertical
