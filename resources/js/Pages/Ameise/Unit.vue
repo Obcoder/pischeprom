@@ -316,7 +316,7 @@ const sendEmail = async (email, subject) => {
             subject: subject,
         })
         console.log(response);
-        fetchUnit(props.unit.id)
+        fetchUnit(props.unit.value.id)
         indexEmails()
     } catch (error) {
         console.error('Ошибка при отправке:', error);
