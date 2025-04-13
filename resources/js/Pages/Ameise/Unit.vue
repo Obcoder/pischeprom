@@ -61,8 +61,11 @@ const dialogFormAddUri = ref(false)
 const dialogFormAttachEmail = ref(false)
 const dialogFormAttachLabel = ref(false)
 const dialogFormAttachUri = ref(false)
+const dialogFormSendEmail = ref(false)
 const showFormBuilding = ref(false)
 const showFormConsumption = ref(false)
+
+const selectedProducts = ref([])
 
 const formAddEmail = useForm({
     address: null,
@@ -314,6 +317,7 @@ const sendEmail = async (email, subject) => {
         const response = await axios.post(route('api.mail'), {
             email: email,
             subject: subject,
+            products: selectedProducts,
         })
         console.log(response);
         fetchUnit(props.unit.value.id)
@@ -564,14 +568,40 @@ useHead({
                                                 {{email.address}}
                                             </v-col>
                                             <v-col cols="3" class="d-flex justify-center align-center">
-                                                <v-btn @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР::Лецитины, Глицерин, Кунжут, Какао-порошок, Какао-масло')"
-                                                       text=">>>"
+                                                <v-btn text=">>>"
+                                                       @click="dialogFormSendEmail = !dialogFormSendEmail"
                                                        size="small"
-                                                       elevation="1"
                                                        flat
                                                        density="comfortable"
                                                        color="cyan-darken-3"
                                                 ></v-btn>
+                                                <v-dialog v-model="dialogFormSendEmail"
+                                                          width="1000"
+                                                >
+                                                    <template v-slot:default="{isActive}">
+                                                        <v-card>
+                                                            <v-card-title>Form Send Email</v-card-title>
+                                                            <v-card-text>
+                                                                <v-checkbox v-for="product in products"
+                                                                            :key="product.id"
+                                                                            v-model="selectedProducts"
+                                                                            :label="product.rus"
+                                                                            :value="product.rus"
+                                                                ></v-checkbox>
+                                                            </v-card-text>
+                                                            <v-card-actions>
+                                                                <v-divider vertical
+                                                                           color="orange"
+                                                                           opacity="0.9"></v-divider>
+                                                                <v-btn text="send"
+                                                                       @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР:: ' + selectedProducts.join(', '))"
+                                                                       flat
+                                                                       density="comfortable"
+                                                                       color="orange"></v-btn>
+                                                            </v-card-actions>
+                                                        </v-card>
+                                                    </template>
+                                                </v-dialog>
                                             </v-col>
                                         </v-row>
                                     </v-list-item>

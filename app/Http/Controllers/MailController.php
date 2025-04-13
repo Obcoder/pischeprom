@@ -28,8 +28,10 @@ class MailController extends Controller
 //        });
 
         $subject = $request->input('subject');
+        $products = $request->input('products');
         $details = [
             'title' => 'Ингредиенты, Сырьё, Добавки',
+            'products' => $products,
         ];
 
         Mail::to($email)
