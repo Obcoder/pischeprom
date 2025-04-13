@@ -38,9 +38,11 @@ const headersCities = [
         key: 'yandexmapsgeo',
     },
 ]
-let cities = ref()
-let regions = ref()
+
+const cities = ref()
+const regions = ref()
 let searchCitiesLike = ref();
+
 function indexCities(like){
     axios.get(route('cities.index'), {
         params: {
@@ -67,6 +69,8 @@ const formCity = useForm({
     region_id: null,
     yandexmapsgeo: null,
     twogis: null,
+    latitude: null,
+    longitude: null,
 })
 function storeCity(){
     formCity.post(route('cities.store'), {
@@ -178,6 +182,22 @@ useHead({
                                                                           variant="solo"
                                                                           density="comfortable"
                                                             ></v-text-field>
+                                                        </v-col>
+                                                    </v-row>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-text-field v-model="formCity.latitude"
+                                                                          label="Широта"
+                                                                          variant="outlined"
+                                                                          density="comfortable"
+                                                                          ></v-text-field>
+                                                        </v-col>
+                                                        <v-col>
+                                                            <v-text-field v-model="formCity.longitude"
+                                                                          label="Долгота"
+                                                                          variant="outlined"
+                                                                          density="comfortable"
+                                                                          ></v-text-field>
                                                         </v-col>
                                                     </v-row>
                                                     <v-row>
