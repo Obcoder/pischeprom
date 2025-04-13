@@ -31,7 +31,7 @@ class EmailController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        Email::create($request->all());
     }
 
     /**

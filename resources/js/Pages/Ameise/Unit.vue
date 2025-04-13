@@ -18,6 +18,7 @@ const emails = ref([])
 const labels = ref([])
 const products = ref([])
 
+const dialogFormAddEmail = ref(false)
 const dialogFormAttachEmail = ref(false)
 const dialogFormAttachLabel = ref(false)
 const showFormConsumption = ref(false)
@@ -60,6 +61,20 @@ function indexMeasures(){
     })
 }
 
+const formAddEmail = useForm({
+    address: null,
+})
+function storeEmail(){
+    formAddEmail.post(route('web.email.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAddEmail.reset();
+            indexEmails()
+        },
+    })
+}
 const formConsumption = useForm({
     unit_id: props.unit.id,
     product_id: null,
@@ -322,6 +337,48 @@ useHead({
                                                                     label="Emails"
                                                                     variant="outlined"
                                                     ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col cols="3">
+                                                    <v-btn text="новый email"
+                                                           @click="dialogFormAddEmail = !dialogFormAddEmail"
+                                                           variant="flat"
+                                                           density="compact"
+                                                           ></v-btn>
+                                                    <v-dialog v-model="dialogFormAddEmail"
+                                                              width="850"
+                                                    >
+                                                        <template v-slot:default="{isActive}">
+                                                            <v-card>
+                                                                <v-card-title>Form Adding new Email</v-card-title>
+                                                                <v-card-text>
+                                                                    <v-form @submit.prevent>
+                                                                        <v-row>
+                                                                            <v-col>
+                                                                                <v-text-field v-model="formAddEmail.address"
+                                                                                              label="Email address"
+                                                                                              variant="outlined"
+                                                                                              density="comfortable"
+                                                                                              ></v-text-field>
+                                                                            </v-col>
+                                                                        </v-row>
+                                                                    </v-form>
+                                                                </v-card-text>
+                                                                <v-card-actions>
+                                                                    <v-divider vertical
+                                                                               color="grey"
+                                                                               opacity="0.88"
+                                                                               ></v-divider>
+                                                                    <v-btn text="store"
+                                                                           @click="storeEmail"
+                                                                           variant="flat"
+                                                                           flat
+                                                                           density="comfortable"></v-btn>
+                                                                </v-card-actions>
+                                                            </v-card>
+                                                        </template>
+                                                    </v-dialog>
                                                 </v-col>
                                             </v-row>
                                         </v-form>

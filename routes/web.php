@@ -129,6 +129,8 @@ Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::cl
 
 
 //                           P        O         S         T
+Route::post('/api/email/store', [\App\Http\Controllers\API\EmailController::class, 'store'])
+    ->name('web.email.store');
 Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitController::class, 'store'])
     ->name('emailgood.store');
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
