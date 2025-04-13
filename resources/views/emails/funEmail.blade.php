@@ -42,6 +42,7 @@
         .header img {
             max-width: 100px;
             margin-bottom: 10px;
+            border-radius: 80%;
         }
 
         .header h1 {
@@ -60,8 +61,8 @@
         }
 
         th {
-            background-color: #1976d2;
-            color: #fff;
+            background-color: #B71C1C;
+            color: #FFE082;
             padding: 10px;
             text-align: left;
         }
