@@ -35,8 +35,7 @@
         .header {
             background-color: #B71C1C;
             color: #FFE082;
-            padding: 20px;
-            text-align: center;
+            padding: 10px;
         }
 
         .header img {
