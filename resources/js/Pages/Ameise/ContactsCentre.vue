@@ -17,7 +17,7 @@ const headersEmails = [
         key: 'address',
     },
     {
-        title: 'Count',
+        title: 'кол-во отправок',
         key: 'sendings.length',
     },
 ]
