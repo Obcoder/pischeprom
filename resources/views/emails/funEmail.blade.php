@@ -59,6 +59,10 @@
             margin-top: 10px;
         }
 
+        tr.data:hover{
+            background-color: #fb8c00;
+        }
+
         th {
             background-color: #B71C1C;
             color: #FFE082;
@@ -113,7 +117,7 @@
                 <th>Товар</th>
                 <th>Цена</th>
             </tr>
-            <tr>
+            <tr class="data">
                 <td>Лецитин</td>
                 <td>от 90 руб/кг</td>
             </tr>
