@@ -117,9 +117,9 @@
                 <th>Товар</th>
                 <th>Цена</th>
             </tr>
-            @foreach($details['products'] as $product)
+            @foreach($products as $product)
                 <tr class="data">
-                    <td><strong>{{ $product['rus'] }}</strong></td>
+                    <td><strong>{{ $product }}</strong></td>
                     <td style="vertical-align: top;">цена</td>
                 </tr>
             @endforeach
