@@ -32,7 +32,7 @@ class RegionController extends Controller
      */
     public function show(string $id)
     {
-        //
+        return Region::with('country')->findOrFail($id);
     }
 
     /**

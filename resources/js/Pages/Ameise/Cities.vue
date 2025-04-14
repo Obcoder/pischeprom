@@ -107,7 +107,7 @@ useHead({
             <v-col cols="11">
                 <v-data-table :items="cities"
                               :headers="headersCities"
-                              items-per-page="200"
+                              items-per-page="500"
                               density="compact"
                               hover="hover"
                 >
@@ -253,7 +253,9 @@ useHead({
                         </a>
                     </template>
                     <template v-slot:item.region_id="{item}">
-                        <span class="text-sm font-mono">{{item.region.name}}</span>
+                        <Link :href="route('Ameise.region', item.region.id)">
+                            <span class="text-sm font-mono">{{item.region.name}}</span>
+                        </Link>
                     </template>
                     <template v-slot:item.latitude="{item}">
                         <span class="text-sm">{{item.latitude}}</span>
