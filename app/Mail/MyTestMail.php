@@ -30,6 +30,7 @@ class MyTestMail extends Mailable
         return $this->from(config('mail.from.address'), config('mail.from.name'))
             ->subject($this->subjectLine)
             ->view('emails.funEmail')
+            ->text('emails.funEmail_plain')
             ->with('details', $this->details);
     }
 
