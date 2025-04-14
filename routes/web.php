@@ -40,6 +40,12 @@ Route::get('Ameise/checks', function (){
 Route::get('/Ameise/Cities', function (){
     return Inertia::render('Ameise/Cities');
 })->name('Ameise.cities');
+Route::get('/Ameise/city/{id}', function ($id) {
+    $data = [
+        'city' => City::with('buildings')->findOrFail($id)
+    ];
+    return Inertia::render('Ameise/City', $data);
+})->name('city.show');
 //   C O N T A C T S C E N T R E
 Route::get('/Ameise/ContactsCentre', function (){
     return Inertia::render('Ameise/ContactsCentre');
@@ -60,7 +66,7 @@ Route::get('/Ameise/Goods/', function (){
 //   R E G I O N
 Route::get('/Ameise/region/{id}', function ($id){
     $data = [
-        'region' => Region::with('country')->findOrFail($id)
+        'region' => Region::with('cities')->findOrFail($id)
     ];
     return Inertia::render('Ameise/Region', $data);
 })->name('Ameise.region');
@@ -101,10 +107,6 @@ Route::get('/Ameise/product/{id}', function ($id) {
         ->findOrFail($id);
     return Inertia::render('Ameise/Product', ['product'=>$product]);
 })->name('product.show');
-Route::get('/Ameise/city/{id}', function ($id) {
-    $city = City::with('buildings')->findOrFail($id);
-    return Inertia::render('Ameise/City', ['city'=>$city]);
-})->name('city.show');
 Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'index'])
     ->name('goods');
 

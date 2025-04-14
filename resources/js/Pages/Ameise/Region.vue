@@ -1,5 +1,6 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import {Link} from "@inertiajs/vue3";
 import {ref} from "vue";
 import axios from "axios";
 defineOptions({
@@ -27,6 +28,19 @@ function fetchRegion(id){
             <v-col>
                 <span>{{props.region.name}}</span>
             </v-col>
+            <v-col></v-col>
+        </v-row>
+        <v-row>
+            <v-col>
+                <div v-for="city in region.cities"
+                     class="p-2 my-1 font-UnderdogRegular text-sm text-fuchsia-900 border border-fuchsia-950 rounded"
+                >
+                    <Link :href="route('city.show', city.id)">
+                        <span>{{city.name}}</span>
+                    </Link>
+                </div>
+            </v-col>
+            <v-col></v-col>
             <v-col></v-col>
         </v-row>
     </v-container>
