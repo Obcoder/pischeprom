@@ -33,7 +33,18 @@ const props = defineProps({
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title>Entities</v-card-title>
+                    <v-card-text>
+                        <div v-for="entity in city.entities"
+                             class="p-2 my-1 mt-0 font-UnderdogRegular text-sm text-fuchsia-900 border border-fuchsia-950 rounded"
+                             >
+                            <span>{{entity.name}}</span>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-col></v-col>
         </v-row>
     </v-container>

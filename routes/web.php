@@ -42,7 +42,7 @@ Route::get('/Ameise/Cities', function (){
 })->name('Ameise.cities');
 Route::get('/Ameise/city/{id}', function ($id) {
     $data = [
-        'city' => City::with('buildings')->findOrFail($id)
+        'city' => City::with('buildings')->with('entities')->findOrFail($id)
     ];
     return Inertia::render('Ameise/City', $data);
 })->name('city.show');
