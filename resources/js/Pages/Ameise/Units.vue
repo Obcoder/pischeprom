@@ -9,7 +9,7 @@ defineOptions({
 })
 
 const units = ref([])
-let listUris = ref();
+const uris = ref([])
 let searchUnitsLike = ref('');
 let limitUnits = ref(135);
 function indexUnits(like, limit){
@@ -24,13 +24,9 @@ function indexUnits(like, limit){
         console.log();
     });
 }
-function apiIndexUris(){
-    axios.get(route('api.uris'), {
-        params: {
-
-        }
-    }).then(function (response){
-        listUris.value = response.data;
+function indexUris(){
+    axios.get(route('uris.index')).then(function (response){
+        uris.value = response.data
     }).catch(function (error){
         console.log(error);
     });
@@ -94,7 +90,7 @@ function storeUnit(){
 
 onMounted(()=>{
     indexUnits('', limitUnits.value);
-    apiIndexUris();
+    indexUris()
     apiIndexLabels();
     apiIndexBuildings();
 })
@@ -158,7 +154,7 @@ useHead({
                                         <v-row>
                                             <v-col cols="9">
                                                 <v-autocomplete v-model="formUnit.uris"
-                                                                :items="listUris"
+                                                                :items="uris"
                                                                 :item-value="'id'"
                                                                 :item-title="'address'"
                                                                 label="Uris selected"
