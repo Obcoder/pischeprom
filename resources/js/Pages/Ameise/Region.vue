@@ -10,11 +10,11 @@ const props = defineProps({
     region: Object,
 })
 
-const region = ref()
+const regionShow = ref()
 
 function fetchRegion(id){
     axios.get(route('regions.show', id)).then(function (response){
-        region.value = response.data
+        regionShow.value = response.data
     }).catch(function (error){
         console.log(error)
     })
@@ -26,7 +26,7 @@ function fetchRegion(id){
         <v-row>
             <v-col></v-col>
             <v-col>
-                <span>{{props.region.name}}</span>
+                <span>{{region.name}}</span>
             </v-col>
             <v-col></v-col>
         </v-row>
