@@ -53,6 +53,11 @@ const headersSelectProductsForSending = ref(
             align: 'start',
             key: 'rus',
         },
+        {
+            title: 'Цена',
+            align: 'start',
+            key: 'price',
+        },
     ]
 )
 
@@ -595,10 +600,17 @@ useHead({
                                                                               :items="products"
                                                                               :headers="headersSelectProductsForSending"
                                                                               :item-value="'id'"
-                                                                              items-per-page="25"
+                                                                              items-per-page="100"
                                                                               show-select
+                                                                              return-object
                                                                               density="compact"
-                                                                ></v-data-table>
+                                                                >
+                                                                    <template v-slot:item.price="{item}">
+                                                                        <v-text-field label="Цена"
+                                                                                      variant="outlined"
+                                                                        ></v-text-field>
+                                                                    </template>
+                                                                </v-data-table>
                                                                 <pre>{{selectedProducts}}</pre>
                                                             </v-card-text>
                                                             <v-card-actions>
