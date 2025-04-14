@@ -46,6 +46,15 @@ const headersEntities = ref([
         key: 'telephones',
     },
 ])
+const headersSelectProductsForSending = ref(
+    [
+        {
+            title: 'Name',
+            align: 'start',
+            key: 'rus',
+        },
+    ]
+)
 
 const buildings = ref([])
 const emails = ref([])
@@ -581,17 +590,16 @@ useHead({
                                                     <template v-slot:default="{isActive}">
                                                         <v-card>
                                                             <v-card-title>Form Send Email</v-card-title>
-                                                            <v-card-text class="d-flex flex-row flex-wrap mb-1">
-                                                                <v-checkbox v-for="product in products"
-                                                                            :key="product.id"
-                                                                            v-model="selectedProducts"
-                                                                            :label="product.rus"
-                                                                            :value="product.rus"
-                                                                            density="compact"
-                                                                            class="text-xs"
-                                                                            size="x-small"
-                                                                ></v-checkbox>
-                                                                <v-sheet>{{selectedProducts}}</v-sheet>
+                                                            <v-card-text>
+                                                                <v-data-table v-model="selectedProducts"
+                                                                              :items="products"
+                                                                              :headers="headersSelectProductsForSending"
+                                                                              item-value="name"
+                                                                              items-per-page="25"
+                                                                              show-select
+                                                                              density="compact"
+                                                                ></v-data-table>
+                                                                <pre>{{selectedProducts}}</pre>
                                                             </v-card-text>
                                                             <v-card-actions>
                                                                 <v-divider vertical
