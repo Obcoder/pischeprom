@@ -33,8 +33,8 @@ class MyTestMail extends Mailable
 //            ->subject($this->subjectLine)
             ->subject('ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки')
             ->view('emails.funEmail')
-            ->text('emails.funEmail_plain')
-            ->with('details', $this->details);
+            ->text('emails.funEmail_plain');
+//            ->with('details', $this->details);
     }
 
     /**
