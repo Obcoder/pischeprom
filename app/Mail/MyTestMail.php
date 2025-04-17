@@ -13,16 +13,18 @@ class MyTestMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $details;
-    public $subjectLine;
+//    public $details;
+    public string $subjectLine;
+    public array $products;
 
     /**
      * Create a new message instance.
      */
-    public function __construct($details, $subjectLine)
+    public function __construct($products, $subjectLine)
     {
-        $this->details = $details;
+//        $this->details = $details;
         $this->subjectLine = $subjectLine;
+        $this->products = $products;
     }
 
     public function build()

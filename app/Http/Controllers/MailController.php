@@ -15,6 +15,7 @@ class MailController extends Controller
         $request->validate([
             'email' => 'required|email',
 //            'message' => 'required'
+            'products' => 'array',
         ]);
         $email = $request->input('email');
 //        $body = [
@@ -36,7 +37,7 @@ class MailController extends Controller
 
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
-            ->send(new MyTestMail($details, $subject));
+            ->send(new MyTestMail($products, $subject));
 
         Sending::create(
             [
