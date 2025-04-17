@@ -119,7 +119,7 @@
             </tr>
             @foreach($details['products'] as $product)
                 <tr class="data">
-                    <td><strong>{{json_encode($product)}}</strong></td>
+                    <td><strong>{{$product->$product['rus']}}</strong></td>
 {{--                    <td style="vertical-align: top;">{{json_decode($product)}}</td>--}}
                 </tr>
             @endforeach
