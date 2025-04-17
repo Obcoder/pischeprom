@@ -34,8 +34,6 @@ class MailController extends Controller
             'products' => $products,
         ];
 
-        dd($products);
-
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
             ->send(new MyTestMail($details, $subject));

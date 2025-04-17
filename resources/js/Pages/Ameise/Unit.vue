@@ -327,6 +327,7 @@ function storeUri(){
 }
 
 const sendEmail = async (email, subject) => {
+    console.log(selectedProducts.value)
     try {
         const response = await axios.post(route('api.mail'), {
             email: email,
