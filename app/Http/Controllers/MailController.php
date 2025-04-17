@@ -35,7 +35,7 @@ class MailController extends Controller
 
         $details = array(
             'title' => 'Ингредиенты, Сырьё, Добавки',
-            'products' => json_encode($products),);
+            'products' => $products,);
 
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
