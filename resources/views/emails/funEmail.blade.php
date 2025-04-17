@@ -119,8 +119,8 @@
             </tr>
             @foreach($details['products'] as $product)
                 <tr class="data">
-                    <td><strong>{{ $product }}</strong></td>
-                    <td style="vertical-align: top;">цена</td>
+                    <td><strong>{{$product['name']}}</strong></td>
+                    <td style="vertical-align: top;">{{$product['price']}}</td>
                 </tr>
             @endforeach
         </table>

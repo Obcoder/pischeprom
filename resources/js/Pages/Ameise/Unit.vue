@@ -340,6 +340,16 @@ const sendEmail = async (email, subject) => {
         console.error('Ошибка при отправке:', error);
     }
 }
+
+const onSelectedProductsUpdate = (newSelected) => {
+    // Добавим поле price, если его нет
+    selectedProducts.value = newSelected.map(product => ({
+        ...product,
+        price: product.price ?? ''
+    }));
+};
+
+
 onMounted(()=> {
     indexEmails()
     indexEntities()
@@ -601,13 +611,16 @@ useHead({
                                                                               :headers="headersSelectProductsForSending"
                                                                               :item-value="'id'"
                                                                               items-per-page="100"
+                                                                              @update:model-value="onSelectedProductsUpdate"
                                                                               show-select
                                                                               return-object
                                                                               density="compact"
+                                                                              hover
                                                                 >
                                                                     <template v-slot:item.price="{item}">
                                                                         <v-text-field label="Цена"
                                                                                       variant="outlined"
+                                                                                      v-model="item.price"
                                                                         ></v-text-field>
                                                                     </template>
                                                                 </v-data-table>
