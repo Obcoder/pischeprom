@@ -35,7 +35,7 @@ class MailController extends Controller
 
         $details = [
             'title' => 'Ингредиенты, Сырьё, Добавки',
-            'products' => $products,
+            'products' => collect($products),
         ];
 
         Mail::to($email)
