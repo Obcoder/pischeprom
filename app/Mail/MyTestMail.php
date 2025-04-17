@@ -15,16 +15,17 @@ class MyTestMail extends Mailable
 
 //    public $details;
     public string $subjectLine;
-    public array $products;
+    public $details;
+//    public array $products;
 
     /**
      * Create a new message instance.
      */
-    public function __construct($products, $subjectLine)
+    public function __construct($details, $subjectLine)
     {
-//        $this->details = $details;
+        $this->details = $details;
         $this->subjectLine = $subjectLine;
-        $this->products = $products;
+//        $this->products = $products;
     }
 
     public function build()
@@ -33,8 +34,8 @@ class MyTestMail extends Mailable
 //            ->subject($this->subjectLine)
             ->subject('ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки')
             ->view('emails.funEmail')
-            ->text('emails.funEmail_plain');
-//            ->with('details', $this->details);
+            ->text('emails.funEmail_plain')
+            ->with('details', $this->details);
     }
 
     /**
