@@ -29,13 +29,13 @@ class MailController extends Controller
 //        });
 
         $subject = $request->input('subject');
-        $products = $request->input('products');
+        $products = collect($request->input('products'));
 
         logger('Products:', $products);
 
         $details = [
             'title' => 'Ингредиенты, Сырьё, Добавки',
-            'products' => collect($products),
+            'products' => $products,
         ];
 
         Mail::to($email)
