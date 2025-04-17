@@ -609,7 +609,6 @@ useHead({
                                                                 <v-data-table v-model="selectedProducts"
                                                                               :items="products"
                                                                               :headers="headersSelectProductsForSending"
-                                                                              :item-value="'id'"
                                                                               items-per-page="100"
                                                                               @update:model-value="onSelectedProductsUpdate"
                                                                               show-select
