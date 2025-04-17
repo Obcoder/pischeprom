@@ -117,14 +117,18 @@
                 <th>Товар</th>
                 <th>Цена</th>
             </tr>
-            @foreach($details['products'] as $product)
-                <tr class="data">
-                    <td><strong>{{$product['id']}}</strong></td>
-                    <td style="vertical-align: top;">{{$product['price']}}</td>
-                </tr>
-            @endforeach
+{{--            @foreach($details['products'] as $product)--}}
+{{--                <tr class="data">--}}
+{{--                    <td><strong>{{$product['id']}}</strong></td>--}}
+{{--                    <td style="vertical-align: top;">{{$product['price']}}</td>--}}
+{{--                </tr>--}}
+{{--            @endforeach--}}
+
         </table>
     </div>
+<div>
+    {{print_r($details['products'])}}
+</div>
     <div class="footer">
         Пищепром-Сервер<br />
         <span class="phone">+7-905-753-26-48</span>
