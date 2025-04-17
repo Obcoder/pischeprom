@@ -119,7 +119,7 @@
             </tr>
             @foreach($products as $product)
                 <tr class="data">
-                    <td><strong>{{$product[0]['id']}}</strong></td>
+                    <td><strong>{{$product->id}}</strong></td>
 {{--                    <td style="vertical-align: top;">{{json_decode($product)}}</td>--}}
                 </tr>
             @endforeach

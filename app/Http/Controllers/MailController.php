@@ -37,7 +37,7 @@ class MailController extends Controller
 
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
-            ->send(new MyTestMail($products, $subject));
+            ->send(new MyTestMail(json_encode($products), $subject));
 
         Sending::create(
             [
