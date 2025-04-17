@@ -2,7 +2,7 @@
 
 Компания ПИЩЕПРОМ-СЕРВЕР предлагает к закупке:
 
-@foreach($products as $product)
+@foreach($details['$products'] as $product)
     - {{ $product }} — цена
 @endforeach
 
