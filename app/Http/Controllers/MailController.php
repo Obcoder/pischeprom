@@ -35,7 +35,6 @@ class MailController extends Controller
             'products' => $products,
         ];
 
-        dump($products);
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
             ->send(new MyTestMail($products, $subject));
