@@ -126,9 +126,6 @@
 
         </table>
     </div>
-<div>
-    {{print_r($details['products'])}}
-</div>
     <div class="footer">
         Пищепром-Сервер<br />
         <span class="phone">+7-905-753-26-48</span>
