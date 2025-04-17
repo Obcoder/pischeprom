@@ -119,8 +119,8 @@
             </tr>
             @foreach($products as $product)
                 <tr class="data">
-                    <td><strong>{{$product->rus}}</strong></td>
-                    <td style="vertical-align: top;">{{$product->price}}</td>
+                    <td><strong>{{$product['rus']}}</strong></td>
+                    <td style="vertical-align: top;">{{$product['price']}}</td>
                 </tr>
             @endforeach
 
