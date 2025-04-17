@@ -30,6 +30,9 @@ class MailController extends Controller
 
         $subject = $request->input('subject');
         $products = $request->input('products');
+
+        logger('Products:', $products);
+
         $details = [
             'title' => 'Ингредиенты, Сырьё, Добавки',
             'products' => $products,
