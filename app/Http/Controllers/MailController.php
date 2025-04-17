@@ -29,14 +29,13 @@ class MailController extends Controller
 //        });
 
         $subject = $request->input('subject');
-        $products = collect($request->input('products'));
+        $products = $request->input('products');
 
 //        logger('Products:', $products);
 
-        $details = [
+        $details = array(
             'title' => 'Ингредиенты, Сырьё, Добавки',
-            'products' => $products,
-        ];
+            'products' => json_encode($products),);
 
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
