@@ -7,15 +7,16 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\MyTestMail;
 use App\Models\Sending;
 use App\Models\Email;
+use Illuminate\Support\Facades\View;
 
 class MailController extends Controller
 {
-    public function sendMail(Request $request): \Illuminate\Http\JsonResponse
+    public function sendMail(Request $request)
     {
         $request->validate([
             'email' => 'required|email',
 //            'message' => 'required'
-            'products' => 'array',
+//            'products' => 'array',
         ]);
         $email = $request->input('email');
 //        $body = [
@@ -31,23 +32,29 @@ class MailController extends Controller
         $subject = $request->input('subject');
         $products = $request->input('products');
 
+        $details = [
+            'subject' => $subject,
+            'products' => $products,
+        ];
+        return View::make('email', $details);
+
 //        logger('Products:', $products);
 
-        $details = array(
-            'title' => 'Ингредиенты, Сырьё, Добавки',
-            'products' => $products,);
-
-        Mail::to($email)
-            ->bcc('tradelognets@gmail.com')
-            ->send(new MyTestMail($details, $subject));
-
-        Sending::create(
-            [
-                'email_id' => Email::where('address', $email)->firstOrFail()->id,
-                'subject' => $subject,
-            ]
-        );
-
-        return response()->json(['message' => 'Mail sent successfully']);
+//        $details = array(
+//            'title' => 'Ингредиенты, Сырьё, Добавки',
+//            'products' => $products,);
+//
+//        Mail::to($email)
+//            ->bcc('tradelognets@gmail.com')
+//            ->send(new MyTestMail($details, $subject));
+//
+//        Sending::create(
+//            [
+//                'email_id' => Email::where('address', $email)->firstOrFail()->id,
+//                'subject' => $subject,
+//            ]
+//        );
+//
+//        return response()->json(['message' => 'Mail sent successfully']);
     }
 }
