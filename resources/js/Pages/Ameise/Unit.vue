@@ -631,7 +631,7 @@ useHead({
                                                                            color="orange"
                                                                            opacity="0.9"></v-divider>
                                                                 <v-btn text="send"
-                                                                       @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР:: ' + selectedProducts.join(', '))"
+                                                                       @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР:: ' + selectedProducts.map(u => u.rus).join(', '))"
                                                                        flat
                                                                        density="comfortable"
                                                                        color="orange"></v-btn>

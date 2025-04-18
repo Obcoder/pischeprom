@@ -21,11 +21,10 @@ class MyTestMail extends Mailable
     /**
      * Create a new message instance.
      */
-//    public function __construct($details, $subjectLine)
-    public function __construct($details)
+    public function __construct($details, $subjectLine)
     {
         $this->details = $details;
-//        $this->subjectLine = $subjectLine;
+        $this->subjectLine = $subjectLine;
 //        $this->products = $products;
     }
 

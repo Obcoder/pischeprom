@@ -29,7 +29,7 @@ class MailController extends Controller
 //                ->subject($body['subject']);
 //        });
 
-//        $subject = $request->input('subject');
+        $subject = $request->input('subject');
         $products = $request->input('products');
         // если вдруг приходит строка, распарсить
         if (is_string($products)) {
@@ -46,13 +46,13 @@ class MailController extends Controller
 
         Mail::to($email)
             ->bcc('tradelognets@gmail.com')
-//            ->send(new MyTestMail($details, $subject));
-            ->send(new MyTestMail($details));
+            ->send(new MyTestMail($details, $subject));
+//            ->send(new MyTestMail($details));
 
         Sending::create(
             [
                 'email_id' => Email::where('address', $email)->firstOrFail()->id,
-                'subject' => $products,
+                'subject' => $subject,
             ]
         );
 
