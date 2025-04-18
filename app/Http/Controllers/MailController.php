@@ -31,31 +31,35 @@ class MailController extends Controller
 
         $subject = $request->input('subject');
         $products = $request->input('products');
+        // если вдруг приходит строка, распарсить
+        if (is_string($products)) {
+            $products = json_decode($products, true);
+        }
 
         $details = [
             'subject' => $subject,
             'products' => $products,
         ];
 
-        return View::make('emails.funEmail', $details);
+//        return View::make('emails.funEmail', $details);
 
-//        logger('Products:', $products);
+        logger('Products:', [$products]);
 
-//        $details = array(
-//            'title' => 'Ингредиенты, Сырьё, Добавки',
-//            'products' => $products,);
-//
-//        Mail::to($email)
-//            ->bcc('tradelognets@gmail.com')
-//            ->send(new MyTestMail($details, $subject));
-//
-//        Sending::create(
-//            [
-//                'email_id' => Email::where('address', $email)->firstOrFail()->id,
-//                'subject' => $subject,
-//            ]
-//        );
-//
-//        return response()->json(['message' => 'Mail sent successfully']);
+        $details = array(
+            'title' => 'Ингредиенты, Сырьё, Добавки',
+            'products' => $products,);
+
+        Mail::to($email)
+            ->bcc('tradelognets@gmail.com')
+            ->send(new MyTestMail($details, $subject));
+
+        Sending::create(
+            [
+                'email_id' => Email::where('address', $email)->firstOrFail()->id,
+                'subject' => $subject,
+            ]
+        );
+
+        return response()->json(['message' => 'Mail sent successfully']);
     }
 }

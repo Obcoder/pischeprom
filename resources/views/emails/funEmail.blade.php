@@ -117,10 +117,10 @@
                 <th>Товар</th>
                 <th>Цена</th>
             </tr>
-            @foreach($products as $product)
+            @foreach($details['products'] as $product)
                 <tr class="data">
-                    <td><strong>{!! $product !!}</strong></td>
-                    <td style="vertical-align: top;">{{json_decode($product)}}</td>
+                    <td><strong>{{$product['rus']}}</strong></td>
+                    <td style="vertical-align: top;">{{$product['price']}}</td>
 {{--                    @json($product)--}}
                 </tr>
             @endforeach
