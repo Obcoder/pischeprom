@@ -9,8 +9,12 @@ defineOptions({
 })
 const date = useDate()
 
-let entities = ref();
-let searchEntitiesLike = ref();
+const entities = ref()
+const telephones = ref()
+
+let searchEntitiesLike = ref()
+let searchTelephones = ref()
+
 function indexEntities(like){
     axios.get(route('entities.index'), {
         params: {
@@ -22,6 +26,21 @@ function indexEntities(like){
         console.log(error);
     })
 }
+function indexTelephones(like){
+    axios.get(route('telephones.index'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response) {
+        // handle success
+        telephones.value = response.data;
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        });
+}
+
 let showFormEntity = ref(false);
 let formEntity = useForm({
     name: null,
@@ -49,22 +68,6 @@ function apiIndexEntityClassifications(){
     })
 }
 
-let telephones = ref();
-function indexTelephones(like){
-    axios.get(route('telephones.index'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response) {
-        // handle success
-        telephones.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        });
-}
-let searchTelephones = ref();
 let showFormTelephone = ref(false);
 const formTelephone = useForm({
     number: null,
@@ -76,7 +79,7 @@ function storeTelephone(){
         preserveScroll: true,
         onSuccess: ()=> {
             formTelephone.reset();
-            indexTelephones(searchTelephones)
+            indexTelephones(searchTelephones.value)
         },
     })
 }
