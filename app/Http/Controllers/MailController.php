@@ -52,7 +52,8 @@ class MailController extends Controller
         Sending::create(
             [
                 'email_id' => Email::where('address', $email)->firstOrFail()->id,
-                'subject' => json_encode($products),
+//                'subject' => json_encode($products),
+                'subject' => $details['title'],
             ]
         );
 
