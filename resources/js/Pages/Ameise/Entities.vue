@@ -4,12 +4,13 @@ import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
+import {useHead} from "@vueuse/head";
 defineOptions({
     layout: VerwalterLayout,
 })
 const date = useDate()
 
-const entities = ref()
+const entities = ref([])
 const telephones = ref()
 
 let searchEntitiesLike = ref()
@@ -47,17 +48,7 @@ let formEntity = useForm({
     entity_classification_id: null,
     telephones: null,
 })
-function storeEntity(){
-    formEntity.post(route('entities.store'), {
-        replace: false,
-        preserveState: false,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formEntity.reset();
-            apiIndexEntities();
-        },
-    })
-}
+
 
 let listEntityClassifications = ref();
 function apiIndexEntityClassifications(){
@@ -72,6 +63,18 @@ let showFormTelephone = ref(false);
 const formTelephone = useForm({
     number: null,
 })
+
+function storeEntity(){
+    formEntity.post(route('entities.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formEntity.reset()
+            indexEntities();
+        },
+    })
+}
 function storeTelephone(){
     formTelephone.post(route('telephones.store'), {
         replace: false,
@@ -98,6 +101,16 @@ onMounted(()=>{
     indexEntities();
     apiIndexEntityClassifications();
     indexTelephones();
+})
+
+useHead({
+    title: `Entities: ${entities.value.length}`,
+    meta: [
+        {
+            name: 'description',
+            content: `Информация о блоке Entities`,
+        }
+    ]
 })
 </script>
 
