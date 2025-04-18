@@ -8,10 +8,12 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
+const labels = ref([])
 const units = ref([])
 const uris = ref([])
 let searchUnitsLike = ref('');
 let limitUnits = ref(135);
+
 function indexUnits(like, limit){
     axios.get(route('units.index'), {
         params: {
@@ -35,21 +37,9 @@ let showFormUri = ref(false);
 const formUri = useForm({
     address: null,
 })
-function storeUri(){
-    formUri.post(route('web.uri.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formUri.reset();
-            apiIndexUris();
-        },
-    });
-}
-let listLabels = ref();
 function apiIndexLabels(){
     axios.get(route('labels.index')).then(function (response) {
-        listLabels.value = response.data;
+        labels.value = response.data;
     })
         .catch(function (error) {
             console.log(error);
@@ -87,6 +77,17 @@ function storeUnit(){
         },
     });
 }
+function storeUri(){
+    formUri.post(route('web.uri.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formUri.reset();
+            indexUris()
+        },
+    });
+}
 
 onMounted(()=>{
     indexUnits('', limitUnits.value);
@@ -96,7 +97,7 @@ onMounted(()=>{
 })
 
 useHead({
-    title: `Units: ${units.length}`,
+    title: `Units: ${units.value.length}`,
     meta: [
         {
             name: 'description',
@@ -199,7 +200,7 @@ useHead({
                                         <v-row>
                                             <v-col cols="4">
                                                 <v-select v-model="formUnit.labels"
-                                                          :items="listLabels"
+                                                          :items="labels"
                                                           :item-value="'id'"
                                                           :item-title="'name'"
                                                           label="Labels"
