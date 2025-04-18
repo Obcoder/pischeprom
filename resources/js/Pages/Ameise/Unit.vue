@@ -326,12 +326,11 @@ function storeUri(){
     })
 }
 
-const sendEmail = async (email, subject) => {
+const sendEmail = async (email) => {
     console.log(selectedProducts.value)
     try {
         const response = await axios.post(route('api.mail'), {
             email: email,
-            subject: subject,
             products: selectedProducts.value,
         })
         console.log(response);
@@ -631,7 +630,7 @@ useHead({
                                                                            color="orange"
                                                                            opacity="0.9"></v-divider>
                                                                 <v-btn text="send"
-                                                                       @click="sendEmail(email.address, 'ПИЩЕПРОМ-СЕРВЕР:: ' + selectedProducts.map(u => u.rus).join(', '))"
+                                                                       @click="sendEmail(email.address)"
                                                                        flat
                                                                        density="comfortable"
                                                                        color="orange"></v-btn>
