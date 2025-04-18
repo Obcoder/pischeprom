@@ -118,11 +118,10 @@
                 <th>Цена</th>
             </tr>
             @foreach($products as $product)
-                @dd($products)
                 <tr class="data">
-{{--                    <td><strong>{!! $product !!}</strong></td>--}}
-{{--                    <td style="vertical-align: top;">{{json_decode($product)}}</td>--}}
-                    @json($product)
+                    <td><strong>{!! $product !!}</strong></td>
+                    <td style="vertical-align: top;">{{json_decode($product)}}</td>
+{{--                    @json($product)--}}
                 </tr>
             @endforeach
 
