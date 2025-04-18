@@ -36,7 +36,7 @@ class MailController extends Controller
             'subject' => $subject,
             'products' => $products,
         ];
-        return View::make('email', $details);
+        return View::make('emails.funEmail', $details);
 
 //        logger('Products:', $products);
 
