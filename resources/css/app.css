@@ -26,6 +26,10 @@
     font-family: 'Underdog-Regular';
     src: url("/resources/fonts/Underdog-Regular.ttf") format('truetype');
 }
+@font-face {
+    font-family: 'Screpka';
+    src: url("/resources/fonts/Screpka.ttf") format('truetype');
+}
 
 @tailwind base;
 @tailwind components;

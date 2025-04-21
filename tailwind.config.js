@@ -23,6 +23,7 @@ export default {
                 ComfortaaVariableFont: ['Comfortaa-VariableFont_wght', ...defaultTheme.fontFamily.sans],
                 OrelegaOneRegular: ['OrelegaOne-Regular', ...defaultTheme.fontFamily.sans],
                 UnderdogRegular: ['Underdog-Regular', ...defaultTheme.fontFamily.sans],
+                Screpka: ['Screpka', ...defaultTheme.fontFamily.sans],
             },
         },
     },

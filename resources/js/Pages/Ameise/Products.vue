@@ -7,12 +7,12 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
-let listProducts = ref();
+let products = ref();
 let searchProducts = ref();
 function indexProducts(){
     axios.get(route('products.index')).then(function (response) {
         // handle success
-        listProducts.value = response.data;
+        products.value = response.data
     })
         .catch(function (error) {
             // handle error
@@ -65,7 +65,7 @@ onMounted(()=>{
                     color="grey"
                 >
                     <v-data-table :headers="headersProducts"
-                                  :items="listProducts"
+                                  :items="products"
                                   :search="searchProducts"
                                   items-per-page="124"
                                   density="compact"
@@ -158,7 +158,7 @@ onMounted(()=>{
                             <Link :href="route('product.show', item.id)"
                                   class="text-blue-950"
                             >
-                                {{item.rus}}
+                                <span class="font-Screpka text-xl">{{item.rus}}</span>
                             </Link>
                         </template>
                     </v-data-table>
