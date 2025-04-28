@@ -158,7 +158,7 @@ onMounted(()=>{
                             <Link :href="route('product.show', item.id)"
                                   class="text-blue-950"
                             >
-                                <span class="font-Screpka text-xl">{{item.rus}}</span>
+                                <span class="font-ComfortaaVariableFont text-xl">{{item.rus}}</span>
                             </Link>
                         </template>
                     </v-data-table>
