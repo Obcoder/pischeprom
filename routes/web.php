@@ -50,6 +50,10 @@ Route::get('/Ameise/city/{id}', function ($id) {
     ];
     return Inertia::render('Ameise/City', $data);
 })->name('city.show');
+//   C O M M O D I T I E S
+Route::get('/Ameise/Commodities/', function (){
+    return Inertia::render('Ameise/Commodities');
+})->name('Ameise.commodities');
 //   C O N T A C T S  C E N T R E
 Route::get('/Ameise/ContactsCentre', function (){
     return Inertia::render('Ameise/ContactsCentre');
@@ -60,6 +64,7 @@ Route::get('/Ameise/entities/', function (){
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('Ameise.fluxmonitor');
+//   G E O G R A P H Y
 Route::get('/Ameise/Geography/', function (){
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
@@ -94,9 +99,6 @@ Route::get('/Ameise/unit/{id}', function ($id){
     ];
     return Inertia::render('Ameise/Unit', $data);
 })->name('web.unit.show');
-Route::get('/Ameise/Commodities/', function (){
-    return Inertia::render('Ameise/Commodities');
-})->name('Ameise.commodities');
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });

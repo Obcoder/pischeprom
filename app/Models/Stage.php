@@ -14,7 +14,7 @@ class Stage extends Model
         'name',
     ];
 
-    public function units():BelongsToMany
+    public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);
     }
