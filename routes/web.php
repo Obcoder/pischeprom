@@ -12,7 +12,6 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitUriController;
-use App\Http\Controllers\ManufacturerController;
 
 Route::get('/', [\App\Http\Controllers\MainController::class, 'index'])
     ->name('home');
@@ -29,9 +28,14 @@ Route::middleware([
 
 Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
     ->name('verwalter');
+//   B O T A N Y
 Route::get('/Ameise/Botany/', function (){
     return Inertia::render('Ameise/Botany');
 })->name('Ameise.botany');
+//   B R A N D S
+Route::get('/Ameise/brands', function (){
+    return Inertia::render('Ameise/Brands');
+})->name('Ameise.brands');
 //   C H E C K S
 Route::get('Ameise/checks', function (){
     return Inertia::render('Ameise/Checks');
@@ -46,7 +50,7 @@ Route::get('/Ameise/city/{id}', function ($id) {
     ];
     return Inertia::render('Ameise/City', $data);
 })->name('city.show');
-//   C O N T A C T S C E N T R E
+//   C O N T A C T S  C E N T R E
 Route::get('/Ameise/ContactsCentre', function (){
     return Inertia::render('Ameise/ContactsCentre');
 })->name('Ameise.contactsCentre');

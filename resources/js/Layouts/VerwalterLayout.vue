@@ -47,6 +47,11 @@ import {Link} from "@inertiajs/vue3";
                         Продажи
                     </Link>
                 </v-list-item>
+                <v-list-item>
+                    <Link :href="route('Ameise.brands')">
+                        Brands
+                    </Link>
+                </v-list-item>
             </v-list>
         </v-navigation-drawer>
 

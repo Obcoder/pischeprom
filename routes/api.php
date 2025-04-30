@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramController;
+use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\CityController;
@@ -26,6 +27,7 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+Route::apiResource('brands', BrandController::class);
 Route::apiResource('buildings', BuildingController::class);
 Route::apiResource('checks', CheckController::class);
 Route::apiResource('cities', CityController::class);
