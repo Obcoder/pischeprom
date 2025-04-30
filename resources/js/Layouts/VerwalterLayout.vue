@@ -52,6 +52,11 @@ import {Link} from "@inertiajs/vue3";
                         Brands
                     </Link>
                 </v-list-item>
+                <v-list-item>
+                    <Link :href="route('Ameise.yandex')">
+                        Yandex
+                    </Link>
+                </v-list-item>
             </v-list>
         </v-navigation-drawer>
 

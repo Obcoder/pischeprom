@@ -72,6 +72,18 @@ Route::get('/Ameise/Geography/', function (){
 Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');
+//   P R O D U C T S
+Route::get('/Ameise/products/', function (){
+    return Inertia::render('Ameise/Products');
+})->name('Ameise.products');
+Route::get('/Ameise/product/{id}', function ($id) {
+    $product = Product::with('consumers.product')
+        ->with('consumers.unit')
+        ->with('consumers.measure')
+        ->with('goods')
+        ->findOrFail($id);
+    return Inertia::render('Ameise/Product', ['product'=>$product]);
+})->name('product.show');
 //   R E G I O N
 Route::get('/Ameise/region/{id}', function ($id){
     $data = [
@@ -83,6 +95,10 @@ Route::get('/Ameise/region/{id}', function ($id){
 Route::get('/Ameise/Sales/', function (){
     return Inertia::render('Ameise/Sales');
 })->name('Ameise.sales');
+//   S E A P R O M
+Route::get('Seaprom', function (){
+    return Inertia::render('Seaprom');
+});
 //     U N I T S
 Route::get('/Ameise/units/', function (){
     return Inertia::render('Ameise/Units');
@@ -99,20 +115,11 @@ Route::get('/Ameise/unit/{id}', function ($id){
     ];
     return Inertia::render('Ameise/Unit', $data);
 })->name('web.unit.show');
-Route::get('Seaprom', function (){
-    return Inertia::render('Seaprom');
-});
-Route::get('/Ameise/products/', function (){
-    return Inertia::render('Ameise/Products');
-})->name('Ameise.products');
-Route::get('/Ameise/product/{id}', function ($id) {
-    $product = Product::with('consumers.product')
-        ->with('consumers.unit')
-        ->with('consumers.measure')
-        ->with('goods')
-        ->findOrFail($id);
-    return Inertia::render('Ameise/Product', ['product'=>$product]);
-})->name('product.show');
+//   Y A N D E X
+Route::get('/Ameise/yandex', function (){
+    return Inertia::render('Ameise/Yandex');
+})->name('Ameise.yandex');
+
 Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'index'])
     ->name('goods');
 
