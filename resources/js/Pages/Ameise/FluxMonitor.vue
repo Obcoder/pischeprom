@@ -53,7 +53,7 @@ useHead({
                             <v-list-item v-for="unit in stage.units"
                                          class="text-xs"
                             >
-                                <Link :href="route('unit.show', unit.id)">
+                                <Link :href="route('units.show', unit.id)">
                                     {{unit.name}}
                                 </Link>
                             </v-list-item>
