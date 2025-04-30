@@ -3,13 +3,15 @@ import {Head, useForm, Link} from "@inertiajs/vue3";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
+import {useHead} from "@vueuse/head";
 defineOptions({
     layout: VerwalterLayout,
 })
 
-let stages = ref();
+let stages = ref([])
+
 function indexStages(){
-    axios.get(route('api.stages.index')).then(function (response){
+    axios.get(route('stages.index')).then(function (response){
         stages.value = response.data
     }).catch(function (error){
         console.log(error)
@@ -19,18 +21,28 @@ function indexStages(){
 onMounted(()=>{
     indexStages()
 })
+
+useHead({
+    title: `Монитор текущей работы`,
+    meta: [
+        {
+            name: 'description',
+            content: `Монитор текущей работы`,
+        }
+    ]
+})
 </script>
 <template>
-    <Head>
-        <title>Flux Monitor</title>
-    </Head>
-
     <v-container fluid>
         <v-row>
-            <v-col v-for="stage in stages"
-                   cols="3"
+            <v-col>
+
+            </v-col>
+        </v-row>
+        <v-row>
+            <v-col cols="12"
             >
-                <v-card>
+                <v-card v-for="stage in stages">
                     <v-card-title>{{stage.name}}</v-card-title>
                     <v-card-text>
                         <v-list>

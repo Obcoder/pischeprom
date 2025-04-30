@@ -141,8 +141,6 @@ Route::apiResource('/api/genera', \App\Http\Controllers\API\GenusController::cla
     ->name('index', 'api.genera');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
-Route::get('/api/categories/', [\App\Http\Controllers\API\CategoryController::class, 'index'])
-    ->name('api.categories');
 
 
 //                           P        O         S         T

@@ -3,6 +3,7 @@ import {onMounted, ref} from "vue";
 import {Head, useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import {useHead} from "@vueuse/head";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -12,10 +13,26 @@ const props = defineProps({
     actions: Object,
 })
 
-let listLabels = ref();
+const categories = ref([])
+const labels = ref([])
+
+function indexCategories(){
+    axios.get(route('categories.index')).then(function (response) {
+        // handle success
+        categories.value = response.data
+    })
+        .catch(function (error) {
+            // handle error
+            console.log(error);
+        })
+        .finally(function () {
+            // always executed
+        });
+}
+
 function apiIndexLabels(){
     axios.get(route('api.labels')).then(function (response) {
-        listLabels.value = response.data;
+        labels.value = response.data
     })
         .catch(function (error) {
             console.log(error);
@@ -104,7 +121,6 @@ let catalogs = ref();
 let manufacturers = ref();
 let listProducts = ref();
 let listUnits = ref();
-let listCategories = ref();
 let listCountries = ref();
 let listRegions = ref();
 let listEntities = ref();
@@ -155,19 +171,6 @@ function getProducts(){
     axios.get(route('api.products')).then(function (response) {
         // handle success
         listProducts.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        })
-        .finally(function () {
-            // always executed
-        });
-}
-function getCategories(){
-    axios.get(route('api.categories')).then(function (response) {
-        // handle success
-        listCategories.value = response.data;
     })
         .catch(function (error) {
             // handle error
@@ -307,30 +310,50 @@ onMounted(()=>{
         },
     ]
 
+    indexCategories()
+
     apiIndexCatalogs();
     apiIndexUnits();
     apiIndexUris();
     apiIndexTelephones();
     getManufacturers();
     getProducts();
-    getCategories();
     getCountries();
     apiIndexLabels();
     apiIndexEntities();
     apiIndexComponents();
     apiIndexRegions();
 })
+
+useHead({
+    title: `Управление торговлей`,
+    meta: [
+        {
+            name: 'description',
+            content: `Управление торговлей`,
+        }
+    ]
+})
 </script>
 
 <template>
-    <Head>
-        <title>Gb</title>
-    </Head>
-
     <v-container fluid>
         <v-row>
-            <v-col cols="1"></v-col>
-            <v-col cols="10">
+            <v-col cols="2">
+                <v-card>
+                    <v-card-title>Categories</v-card-title>
+                    <v-card-text>
+                        <v-list variant="text"
+                                density="compact"
+                        >
+                            <v-list-item v-for="category in categories">
+                                <span>{{category.name}}</span>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+            <v-col>
                 <v-card>
                     <v-tabs
                         v-model="tab"
@@ -341,9 +364,6 @@ onMounted(()=>{
                         </v-tab>
                         <v-tab value="components">
                             Components
-                        </v-tab>
-                        <v-tab value="six">
-                            Categories
                         </v-tab>
                         <v-tab value="seven">
                             Countries
@@ -455,7 +475,6 @@ onMounted(()=>{
                             <!--      E N D  C O M P O N E N T S      -->
 
 
-
                             <v-tabs-window-item value="two">
                                 <v-data-table :items="manufacturers"
                                               density="compact"
@@ -463,16 +482,8 @@ onMounted(()=>{
                                 ></v-data-table>
                             </v-tabs-window-item>
 
-
                             <v-tabs-window-item value="five">
                                 <v-data-table :items="listUris"
-                                              density="compact"
-                                              hover="hover"
-                                ></v-data-table>
-                            </v-tabs-window-item>
-
-                            <v-tabs-window-item value="six">
-                                <v-data-table :items="listCategories"
                                               density="compact"
                                               hover="hover"
                                 ></v-data-table>
