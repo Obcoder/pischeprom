@@ -41,8 +41,12 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="12"
+                   class="flex flex-row"
             >
-                <v-card v-for="stage in stages">
+                <v-card v-for="stage in stages"
+                        variant="outlined"
+                        density="compact"
+                >
                     <v-card-title>{{stage.name}}</v-card-title>
                     <v-card-text>
                         <v-list>

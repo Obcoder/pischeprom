@@ -13,7 +13,9 @@ class BrandController extends Controller
      */
     public function index()
     {
-        return Brand::orderBy('name')->get();
+        return Brand::with('units')
+            ->orderBy('name')
+            ->get();
     }
 
     /**
