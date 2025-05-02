@@ -43,8 +43,9 @@ class Product extends Model
     {
         return $this->belongsToMany(Good::class);
     }
-    public function manufacturers(): HasMany
+    public function manufacturers(): BelongsToMany
     {
-        return $this->HasMany(Manufacturer::class);
+        return $this->BelongsToMany(Unit::class)
+            ->using(Manufacturer::class);
     }
 }
