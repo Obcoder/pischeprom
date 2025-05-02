@@ -14,6 +14,52 @@ const props = defineProps({
     products: Object,
 })
 
+const buildings = ref([])
+const emails = ref([])
+const entities = ref()
+const labels = ref([])
+const measures = ref()
+const products = ref([])
+const telephones = ref()
+const uris = ref([])
+
+const dialogFormAddEmail = ref(false)
+const dialogFormAddUri = ref(false)
+const dialogFormAttachEmail = ref(false)
+const dialogFormAttachLabel = ref(false)
+const dialogFormAttachUri = ref(false)
+const dialogFormSendEmail = ref(false)
+const showFormBuilding = ref(false)
+const showFormConsumption = ref(false)
+
+const selectedProducts = ref([])
+
+const formAddEmail = useForm({
+    address: null,
+})
+const formAddUri = useForm({
+    address: null,
+})
+const formAttachEntity = useForm({
+    entity_id: null,
+    unit_id: props.unit.id,
+})
+const formAttachUri = useForm({
+    unit_id: props.unit.id,
+    uri_id: null,
+})
+const formBuildingUnit = useForm({
+    building_id: null,
+    unit_id: props.unit.id,
+    location_id: null,
+})
+const formConsumption = useForm({
+    unit_id: props.unit.id,
+    product_id: null,
+    quantity: null,
+    measure_id: null,
+})
+
 const headersConsumptions = ref([
     {
         title: 'created',
@@ -60,52 +106,6 @@ const headersSelectProductsForSending = ref(
         },
     ]
 )
-
-const buildings = ref([])
-const emails = ref([])
-const entities = ref()
-const labels = ref([])
-const measures = ref()
-const products = ref([])
-const telephones = ref()
-const uris = ref([])
-
-const dialogFormAddEmail = ref(false)
-const dialogFormAddUri = ref(false)
-const dialogFormAttachEmail = ref(false)
-const dialogFormAttachLabel = ref(false)
-const dialogFormAttachUri = ref(false)
-const dialogFormSendEmail = ref(false)
-const showFormBuilding = ref(false)
-const showFormConsumption = ref(false)
-
-const selectedProducts = ref([])
-
-const formAddEmail = useForm({
-    address: null,
-})
-const formAddUri = useForm({
-    address: null,
-})
-const formAttachEntity = useForm({
-    entity_id: null,
-    unit_id: props.unit.id,
-})
-const formAttachUri = useForm({
-    unit_id: props.unit.id,
-    uri_id: null,
-})
-const formBuildingUnit = useForm({
-    building_id: null,
-    unit_id: props.unit.id,
-    location_id: null,
-})
-const formConsumption = useForm({
-    unit_id: props.unit.id,
-    product_id: null,
-    quantity: null,
-    measure_id: null,
-})
 
 const formatBuildingTitle = (building) => {
     if (!building) return '';
@@ -820,12 +820,21 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="3">
-                <v-card>
-                    <v-card-title>Manufactures</v-card-title>
+                <v-card elevation="3"
+                        border
+                >
+                    <v-card-title class="bg-green-800 text-lime-200"
+                    >
+                        manufactures
+                    </v-card-title>
                     <v-card-text>
-                        <v-list>
-                            <v-list-item v-for="product in unit.manufactures">
-                                <span>{{product.rus}}</span>
+                        <v-list density="compact"
+                        >
+                            <v-list-item v-for="product in unit.manufactures"
+                            >
+                                <span class="text-xs">
+                                    {{product.rus}}
+                                </span>
                             </v-list-item>
                         </v-list>
                     </v-card-text>
