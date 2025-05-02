@@ -832,9 +832,11 @@ useHead({
                         >
                             <v-list-item v-for="product in unit.manufactures"
                             >
-                                <span class="text-xs">
-                                    {{product.rus}}
-                                </span>
+                                <Link :href="route('product.show')">
+                                    <span class="text-xs">
+                                        {{product.rus}}
+                                    </span>
+                                </Link>
                             </v-list-item>
                         </v-list>
                     </v-card-text>
