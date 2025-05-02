@@ -33,7 +33,7 @@ const headerConsumers = [
                         {{product.rus}}
                     </v-card-title>
                     <v-card-text>
-                        <v-list>
+                        <v-list density="compact">
                             <v-list-item>
                                 {{product.eng}}
                             </v-list-item>
@@ -42,6 +42,20 @@ const headerConsumers = [
                             </v-list-item>
                             <v-list-item>
                                 {{product.es}}
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+            <v-col>
+                <v-card>
+                    <v-card-title class="bg-cyan-950 text-cyan-100"
+                    >
+                        Manufacturers</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="manufacturer in product.manufacturers">
+                                <span>{{manufacturer.unit.name}}</span>
                             </v-list-item>
                         </v-list>
                     </v-card-text>
@@ -59,7 +73,6 @@ const headerConsumers = [
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col></v-col>
         </v-row>
         <v-row>
             <v-col>

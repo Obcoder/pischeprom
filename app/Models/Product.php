@@ -16,6 +16,9 @@ class Product extends Model
         'zh',
         'es',
     ];
+    protected $with = [
+        'manufacturers',
+    ];
 
     public function units()
     {
@@ -38,5 +41,9 @@ class Product extends Model
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class);
+    }
+    public function manufacturers(): BelongsToMany
+    {
+        return $this->belongsToMany(Manufacturer::class);
     }
 }
