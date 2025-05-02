@@ -16,8 +16,8 @@ class Manufacturer extends Model
         'product_id',
     ];
 
-    public function unit(): HasOne
+    public function unit(): BelongsTo
     {
-        return $this->HasOne(Unit::class);
+        return $this->BelongsTo(Unit::class);
     }
 }
