@@ -26,7 +26,7 @@ const headerConsumers = [
 <template>
     <v-container fluid>
         <v-row>
-            <v-col>
+            <v-col cols="3">
                 <v-card>
                     <v-card-title class="font-Typingrad text-black bg-indigo"
                     >
@@ -75,7 +75,8 @@ const headerConsumers = [
             </v-col>
         </v-row>
         <v-row>
-            <v-col>
+            <v-col cols="3"></v-col>
+            <v-col cols="7">
                 <v-card>
                     <v-card-title>Consumptions</v-card-title>
                     <v-card-text>
@@ -93,7 +94,7 @@ const headerConsumers = [
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+            <v-col cols="3"></v-col>
         </v-row>
     </v-container>
 </template>
