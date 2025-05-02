@@ -154,7 +154,9 @@ function indexMeasures(){
 }
 function indexProducts(){
     axios.get(route('products.index')).then(function (response){
-        products.value = response.data;
+        products.value = response.data.sort((a, b) => {
+            return a.rus.localeCompare(b.rus) // сортировка по полю 'rus'
+        })
     }).catch(function (error){
         console.log(error);
     })
@@ -606,8 +608,8 @@ useHead({
                                                         <v-card>
                                                             <v-card-title>Form Send Email</v-card-title>
                                                             <v-card-text>
-                                                                <v-data-table v-model="selectedProducts"
-                                                                              :items="products"
+                                                                <v-data-table :items="products"
+                                                                              v-model="selectedProducts"
                                                                               :headers="headersSelectProductsForSending"
                                                                               items-per-page="100"
                                                                               @update:model-value="onSelectedProductsUpdate"
