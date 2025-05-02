@@ -45,7 +45,6 @@ class Product extends Model
     }
     public function manufacturers(): BelongsToMany
     {
-        return $this->BelongsToMany(Unit::class, 'manufacturers', 'product_id', 'unit_id')
-            ->using(Manufacturer::class);
+        return $this->BelongsToMany(Unit::class, 'manufacturers', 'product_id', 'unit_id');
     }
 }
