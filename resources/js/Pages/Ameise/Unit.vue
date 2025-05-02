@@ -819,6 +819,20 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
+            <v-col cols="3">
+                <v-card>
+                    <v-card-title>Manufactures</v-card-title>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="product in unit.manufactures">
+                                <span>{{product.rus}}</span>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+        </v-row>
+        <v-row>
             <v-col>
                 <v-card>
                     <v-card-title class="bg-cyan-900"

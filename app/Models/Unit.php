@@ -69,4 +69,8 @@ class Unit extends Model
         return $this->belongsToMany(Telephone::class)
             ->using(telephone_unit::class);
     }
+    public function manufactures()
+    {
+        return $this->belongsToMany(Product::class, 'manufacturers', 'product_id', 'unit_id');
+    }
 }
