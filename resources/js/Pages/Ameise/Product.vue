@@ -55,7 +55,7 @@ const headerConsumers = [
                     <v-card-text>
                         <v-list>
                             <v-list-item v-for="manufacturer in product.manufacturers">
-                                <span>{{manufacturer.unit.name}}</span>
+                                <span>{{manufacturer.name}}</span>
                             </v-list-item>
                         </v-list>
                     </v-card-text>
