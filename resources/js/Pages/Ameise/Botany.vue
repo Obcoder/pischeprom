@@ -88,8 +88,10 @@ useHead({
         <v-row>
             <v-col cols="4">
                 <v-text-field v-model="searchText"
+                              label="Поиск"
                               variant="underlined"
                               density="compact"
+                              class="rounded"
                 ></v-text-field>
             </v-col>
             <v-col cols="2">
@@ -107,7 +109,7 @@ useHead({
                     <v-list-item
                         v-for="genus in filteredGenera"
                         :key="genus.id"
-                        class="text-sm flex flex-row flex-wrap justify-space-between"
+                        class="text-sm flex flex-row flex-wrap justify-space-around"
                         density="compact"
                         variant="elevated"
                         :class="{
