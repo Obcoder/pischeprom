@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Plant;
 use Illuminate\Http\Request;
 
 class PlantController extends Controller
@@ -12,7 +13,7 @@ class PlantController extends Controller
      */
     public function index()
     {
-        //
+        return Plant::orderBy('name')->get();
     }
 
     /**

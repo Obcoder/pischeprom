@@ -8,6 +8,7 @@ use App\Models\Region;
 use App\Models\Unit;
 use App\Mail\TestEmail;
 use Illuminate\Support\Facades\Mail;
+use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\UnitController;
@@ -197,3 +198,8 @@ Route::get('/Ameise/TelegramBot/', function (){
     return Inertia::render('Ameise/TelegramBot');
 })->name('ameise.telegrambot');
 ///E N D//////////////////////////////////////////////////////////
+
+
+Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, 'toggleAgriculturable'])
+    ->name('genera.toggleAgriculturable');
+

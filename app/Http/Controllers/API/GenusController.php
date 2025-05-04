@@ -49,4 +49,13 @@ class GenusController extends Controller
     {
         //
     }
+
+    public function toggleAgriculturable(Genus $genus)
+    {
+        $genus->agriculturable = !$genus->agriculturable;
+        $genus->save();
+
+        return $genus;
+    }
+
 }
