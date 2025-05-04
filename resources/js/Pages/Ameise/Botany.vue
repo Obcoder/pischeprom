@@ -107,7 +107,7 @@ useHead({
                     <v-list-item
                         v-for="genus in filteredGenera"
                         :key="genus.id"
-                        class="text-sm"
+                        class="text-sm d-flex align-center justify-space-between"
                         density="compact"
                         variant="elevated"
                         :class="{
@@ -119,16 +119,17 @@ useHead({
                         }"
                         @click="toggleAgriculturable(genus)"
                     >
-                        <span v-if="genus.agriculturable" class="ml-1 mr-2">🌱</span>
-                        <span>{{genus.name}}</span>
+                        <div class="d-flex align-center">
+                            <span v-if="genus.agriculturable" class="mr-2">🌱</span>
+                            <span>{{ genus.name }}</span>
+                        </div>
                         <a :href="genus.wiki" target="_blank"
-                           class="mx-3 p-1 text-sm font-mono border rounded"
+                           class="p-1 text-sm font-mono border rounded ml-4"
                            @click.stop
                         >
                             w
                         </a>
                     </v-list-item>
-
                 </v-list>
             </v-col>
             <v-col cols="1"></v-col>
