@@ -195,14 +195,21 @@ useHead({
                                  }"
                                  @click="toggleAgriculturable(genus)"
                     >
-                        <span v-if="genus.agriculturable" class="mr-2">🌱</span>
-                        <span>{{ genus.name }}</span>
-                        <a :href="genus.wiki" target="_blank"
-                           class="grow text-sm font-RubikMedium border rounded ml-2 elevation-2 text-center"
-                           @click.stop
+                        <div v-if="genus.agriculturable"
+                             class="mr-1"
                         >
-                            wiki
-                        </a>
+                            <span>🌱</span>
+                        </div>
+                        <div class="size-14 flex-none">
+                            <span>{{ genus.name }}</span>
+                        </div>
+                        <div class="grow text-sm font-RubikMedium border rounded ml-2 elevation-2 text-center">
+                            <a :href="genus.wiki" target="_blank"
+                               @click.stop
+                            >
+                                wiki
+                            </a>
+                        </div>
                     </v-list-item>
                 </v-list>
             </v-col>
