@@ -19,7 +19,8 @@ const showOnlyAgriculturable = ref(false)
 
 const formGenus = useForm({
     name: null,
-    genus_id: null,
+    nameLat: null,
+    wiki: null,
 })
 
 function indexGenera(like){
@@ -145,22 +146,27 @@ useHead({
                                                           variant="outlined"
                                                           density="comfortable"></v-text-field>
                                         </v-col>
+                                        <v-col>
+                                            <v-text-field v-model="formGenus.nameLat"
+                                                          label="Latin"
+                                                          variant="outlined"
+                                                          density="comfortable"></v-text-field>
+                                        </v-col>
                                     </v-row>
                                     <v-row>
                                         <v-col>
-                                            <v-select :items="genera"
-                                                      :item-value="'id'"
-                                                      :item-title="'name'"
-                                                      v-model="formGenus.genus_id"
-                                                      label="Genus"
-                                                      variant="solo"
-                                                      density="comfortable"></v-select>
+                                            <v-text-field v-model="formGenus.wiki"
+                                                          label="WIKI"
+                                                          variant="solo"
+                                                          density="comfortable"></v-text-field>
                                         </v-col>
                                     </v-row>
                                 </v-form>
                             </v-card-text>
                             <v-card-actions>
-                                <v-divider opacity="0.88"></v-divider>
+                                <v-divider vertical
+                                           opacity="0.91"
+                                ></v-divider>
                                 <v-spacer></v-spacer>
                                 <v-btn text="store"
                                        @click="storeGenus"

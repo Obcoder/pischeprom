@@ -8,4 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class Genus extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'nameLat',
+        'wiki',
+    ];
 }
