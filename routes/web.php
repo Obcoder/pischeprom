@@ -148,8 +148,6 @@ Route::apiResource('/api/entitiesclassifications/', \App\Http\Controllers\API\En
     ->name('index', 'api.entitiesclassifications');
 Route::apiResource('/api/entity_unit', \App\Http\Controllers\API\EntityUnitController::class)
     ->name('store', 'api.entity_unit.store');
-Route::apiResource('/api/genera', \App\Http\Controllers\API\GenusController::class)
-    ->name('index', 'api.genera');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
 
