@@ -37,11 +37,6 @@ function indexPlants(like){
     })
 }
 
-function search(like){
-    indexGenera(like)
-    indexPlants(like)
-}
-
 function toggleAgriculturable(genus) {
     axios.patch(route('genera.toggleAgriculturable', genus.id))
         .then(response => {
@@ -58,12 +53,19 @@ function toggleAgriculturable(genus) {
 }
 
 const filteredGenera = computed(() => {
-    if (showOnlyAgriculturable.value) {
-        return genera.value.filter(g => g.agriculturable)
-    }
-    return genera.value
-})
+    let list = genera.value
 
+    if (showOnlyAgriculturable.value) {
+        list = list.filter(g => g.agriculturable)
+    }
+
+    if (searchText.value.trim()) {
+        const term = searchText.value.toLowerCase()
+        list = list.filter(g => g.name.toLowerCase().includes(term))
+    }
+
+    return list
+})
 
 onMounted(()=>{
     indexGenera()
@@ -86,7 +88,6 @@ useHead({
         <v-row>
             <v-col cols="4">
                 <v-text-field v-model="searchText"
-                              @input="search(searchText)"
                               variant="underlined"
                               density="compact"
                 ></v-text-field>
