@@ -3,6 +3,7 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {computed, onMounted, ref} from "vue";
 import axios from "axios";
 import {useHead} from "@vueuse/head";
+import {useForm} from "@inertiajs/vue3";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -10,9 +11,16 @@ defineOptions({
 const genera = ref([])
 const plants = ref([])
 
+const dialogFormGenus = ref(false)
+
 const searchText = ref('')
 
 const showOnlyAgriculturable = ref(false)
+
+const formGenus = useForm({
+    name: null,
+    genus_id: null,
+})
 
 function indexGenera(like){
     axios.get(route('genera.index'), {
@@ -34,6 +42,18 @@ function indexPlants(like){
         plants.value = response.data
     }).catch(function (error){
         console.log(error);
+    })
+}
+
+function storeGenus(){
+    formGenus.post(route('web.genus.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formGenus.reset()
+            indexGenera()
+        },
     })
 }
 
@@ -102,6 +122,56 @@ useHead({
                           density="compact"
                 />
             </v-col>
+            <v-col cols="1">
+                <v-btn text="+genus"
+                       @click="dialogFormGenus = !dialogFormGenus"
+                       variant="elevated"
+                       size="small"
+                       color="deep-purple"></v-btn>
+                <v-dialog v-model="dialogFormGenus"
+                          width="600"
+                          transition="dialog-left-transition"
+                          class="border-3"
+                >
+                    <template v-slot:default="{isActive}">
+                        <v-card>
+                            <v-card-title>Form Genus</v-card-title>
+                            <v-card-text>
+                                <v-form @submit.prevent>
+                                    <v-row>
+                                        <v-col>
+                                            <v-text-field v-model="formGenus.name"
+                                                          label="Name"
+                                                          variant="outlined"
+                                                          density="comfortable"></v-text-field>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row>
+                                        <v-col>
+                                            <v-select :items="genera"
+                                                      :item-value="'id'"
+                                                      :item-title="'name'"
+                                                      v-model="formGenus.genus_id"
+                                                      label="Genus"
+                                                      variant="solo"
+                                                      density="comfortable"></v-select>
+                                        </v-col>
+                                    </v-row>
+                                </v-form>
+                            </v-card-text>
+                            <v-card-actions>
+                                <v-divider opacity="0.88"></v-divider>
+                                <v-spacer></v-spacer>
+                                <v-btn text="store"
+                                       @click="storeGenus"
+                                       variant="elevated"
+                                       density="comfortable"
+                                       color="orange"></v-btn>
+                            </v-card-actions>
+                        </v-card>
+                    </template>
+                </v-dialog>
+            </v-col>
         </v-row>
         <v-row>
             <v-col cols="2">
@@ -123,7 +193,7 @@ useHead({
                         <span v-if="genus.agriculturable" class="mr-2">🌱</span>
                         <span>{{ genus.name }}</span>
                         <a :href="genus.wiki" target="_blank"
-                           class="text-sm font-mono border rounded ml-3 align-center"
+                           class="text-sm font-mono border rounded ml-3 elevation-2 align-end text-center"
                            @click.stop
                         >
                             w
@@ -135,7 +205,7 @@ useHead({
             <v-col cols="4">
                 <v-list>
                     <v-list-item v-for="plant in plants"
-                                 variant="plain"
+                                 variant="text"
                                  density="compact"
                                  color="light-green-lighten-5"
                                  class="text-xs"
@@ -166,5 +236,4 @@ useHead({
 .border-grey {
     border-color: #e0e0e0 !important;
 }
-
 </style>

@@ -159,6 +159,8 @@ Route::post('/api/email/store', [\App\Http\Controllers\API\EmailController::clas
     ->name('web.email.store');
 Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitController::class, 'store'])
     ->name('emailgood.store');
+Route::post('/api/genus/store', [GenusController::class, 'store'])
+    ->name('web.genus.store');
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
     ->name('web.labelunit.store');
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])

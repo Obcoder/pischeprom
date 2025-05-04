@@ -23,7 +23,7 @@ class GenusController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        Genus::create($request->all());
     }
 
     /**
