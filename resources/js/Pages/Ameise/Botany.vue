@@ -107,7 +107,7 @@ useHead({
                     <v-list-item
                         v-for="genus in filteredGenera"
                         :key="genus.id"
-                        class="text-sm d-flex"
+                        class="text-sm d-flex justify-space-between"
                         density="compact"
                         variant="elevated"
                         :class="{
@@ -124,7 +124,7 @@ useHead({
                             <span>{{ genus.name }}</span>
                         </div>
                         <a :href="genus.wiki" target="_blank"
-                           class="p-1 text-sm font-mono border rounded ml-4 justify-end"
+                           class="p-1 text-sm font-mono border rounded ml-4 inline-block"
                            @click.stop
                         >
                             w
