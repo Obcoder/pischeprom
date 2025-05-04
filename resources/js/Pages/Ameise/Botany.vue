@@ -183,7 +183,7 @@ useHead({
                 <v-list>
                     <v-list-item v-for="genus in filteredGenera"
                                  :key="genus.id"
-                                 class="flex flex-row text-sm"
+                                 class="text-sm"
                                  density="compact"
                                  variant="elevated"
                                  :class="{
@@ -195,20 +195,22 @@ useHead({
                                  }"
                                  @click="toggleAgriculturable(genus)"
                     >
-                        <div v-if="genus.agriculturable"
-                             class="mr-1"
-                        >
-                            <span>🌱</span>
-                        </div>
-                        <div class="size-14 flex-none">
-                            <span>{{ genus.name }}</span>
-                        </div>
-                        <div class="grow text-sm font-RubikMedium border rounded ml-2 elevation-2 text-center">
-                            <a :href="genus.wiki" target="_blank"
-                               @click.stop
+                        <div class="flex flex-row">
+                            <div v-if="genus.agriculturable"
+                                 class="mr-1"
                             >
-                                wiki
-                            </a>
+                                <span>🌱</span>
+                            </div>
+                            <div class="size-14 flex-none">
+                                <span>{{ genus.name }}</span>
+                            </div>
+                            <div class="grow text-sm font-RubikMedium border rounded ml-2 elevation-2 text-center">
+                                <a :href="genus.wiki" target="_blank"
+                                   @click.stop
+                                >
+                                    wiki
+                                </a>
+                            </div>
                         </div>
                     </v-list-item>
                 </v-list>
