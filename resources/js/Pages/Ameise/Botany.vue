@@ -119,12 +119,12 @@ useHead({
                         }"
                         @click="toggleAgriculturable(genus)"
                     >
-                        <div class="d-flex align-center inline-block justify-start">
+                        <div class="d-flex justify-start">
                             <span v-if="genus.agriculturable" class="mr-2">🌱</span>
                             <span>{{ genus.name }}</span>
                         </div>
                         <a :href="genus.wiki" target="_blank"
-                           class="p-1 text-sm font-mono border rounded ml-4 inline-block"
+                           class="p-1 text-sm font-mono border rounded ml-4"
                            @click.stop
                         >
                             w
