@@ -183,7 +183,7 @@ useHead({
                 <v-list>
                     <v-list-item v-for="genus in filteredGenera"
                                  :key="genus.id"
-                                 class="flex text-sm"
+                                 class="flex flex-row text-sm"
                                  density="compact"
                                  variant="elevated"
                                  :class="{
