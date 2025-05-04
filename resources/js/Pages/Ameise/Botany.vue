@@ -1,6 +1,6 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {onMounted, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import axios from "axios";
 import {useHead} from "@vueuse/head";
 defineOptions({
@@ -11,6 +11,8 @@ const genera = ref([])
 const plants = ref([])
 
 const searchText = ref('')
+
+const showOnlyAgriculturable = ref(false)
 
 function indexGenera(like){
     axios.get(route('genera.index'), {
@@ -55,6 +57,14 @@ function toggleAgriculturable(genus) {
         })
 }
 
+const filteredGenera = computed(() => {
+    if (showOnlyAgriculturable.value) {
+        return genera.value.filter(g => g.agriculturable)
+    }
+    return genera.value
+})
+
+
 onMounted(()=>{
     indexGenera()
     indexPlants()
@@ -74,17 +84,27 @@ useHead({
 <template>
     <v-container fluid>
         <v-row>
-            <v-text-field v-model="searchText"
-                          @input="search(searchText)"
-                          variant="underlined"
+            <v-col cols="4">
+                <v-text-field v-model="searchText"
+                              @input="search(searchText)"
+                              variant="underlined"
+                              density="compact"
+                ></v-text-field>
+            </v-col>
+            <v-col cols="2">
+                <v-switch v-model="showOnlyAgriculturable"
+                          label="Показать только пригодные для сельского хозяйства"
+                          color="green"
+                          inset
                           density="compact"
-            ></v-text-field>
+                />
+            </v-col>
         </v-row>
         <v-row>
             <v-col cols="2">
                 <v-list>
                     <v-list-item
-                        v-for="genus in genera"
+                        v-for="genus in filteredGenera"
                         :key="genus.id"
                         class="text-sm"
                         density="compact"
@@ -98,7 +118,7 @@ useHead({
                         }"
                         @click="toggleAgriculturable(genus)"
                     >
-                        <span v-if="genus.agriculturable" class="ml-1">🌱</span>
+                        <span v-if="genus.agriculturable" class="ml-1 mr-2">🌱</span>
                         <span>{{genus.name}}</span>
                         <a :href="genus.wiki" target="_blank"
                            class="mx-3 p-1 text-sm font-mono border rounded"
