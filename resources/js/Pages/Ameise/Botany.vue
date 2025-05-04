@@ -106,25 +106,24 @@ useHead({
         <v-row>
             <v-col cols="2">
                 <v-list>
-                    <v-list-item
-                        v-for="genus in filteredGenera"
-                        :key="genus.id"
-                        class="text-sm flex flex-row flex-wrap justify-space-around"
-                        density="compact"
-                        variant="elevated"
-                        :class="{
-                            'bg-light-green-lighten-4': genus.agriculturable,
-                            'bg-grey-lighten-4': !genus.agriculturable,
-                            'border': true,
-                            'border-green': genus.agriculturable,
-                            'border-grey': !genus.agriculturable
-                        }"
-                        @click="toggleAgriculturable(genus)"
+                    <v-list-item v-for="genus in filteredGenera"
+                                 :key="genus.id"
+                                 class="flex flex-row flex-wrap text-sm"
+                                 density="compact"
+                                 variant="elevated"
+                                 :class="{
+                                    'bg-light-green-lighten-4': genus.agriculturable,
+                                    'bg-grey-lighten-4': !genus.agriculturable,
+                                    'border': true,
+                                    'border-green': genus.agriculturable,
+                                    'border-grey': !genus.agriculturable
+                                 }"
+                                 @click="toggleAgriculturable(genus)"
                     >
                         <span v-if="genus.agriculturable" class="mr-2">🌱</span>
                         <span>{{ genus.name }}</span>
                         <a :href="genus.wiki" target="_blank"
-                           class="p-1 text-sm font-mono border rounded ml-4"
+                           class="text-sm font-mono border rounded ml-3"
                            @click.stop
                         >
                             w
