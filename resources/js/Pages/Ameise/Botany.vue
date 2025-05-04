@@ -99,8 +99,9 @@ useHead({
                         @click="toggleAgriculturable(genus)"
                     >
                         <span v-if="genus.agriculturable" class="ml-1">🌱</span>
+                        <span>{{genus.name}}</span>
                         <a :href="genus.wiki" target="_blank"
-                           class="mx-3 p-1 text-sm font-mono"
+                           class="mx-3 p-1 text-sm font-mono border rounded"
                            @click.stop
                         >
                             w
