@@ -107,7 +107,7 @@ useHead({
                     <v-list-item
                         v-for="genus in filteredGenera"
                         :key="genus.id"
-                        class="text-sm d-flex justify-space-between"
+                        class="text-sm d-flex flex-row flex-wrap justify-space-between"
                         density="compact"
                         variant="elevated"
                         :class="{
