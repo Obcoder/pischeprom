@@ -123,7 +123,7 @@ useHead({
                         <span v-if="genus.agriculturable" class="mr-2">🌱</span>
                         <span>{{ genus.name }}</span>
                         <a :href="genus.wiki" target="_blank"
-                           class="text-sm font-mono border rounded ml-3"
+                           class="text-sm font-mono border rounded ml-3 align-center"
                            @click.stop
                         >
                             w
