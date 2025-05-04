@@ -199,10 +199,10 @@ useHead({
                         <span v-if="genus.agriculturable" class="mr-2">🌱</span>
                         <span>{{ genus.name }}</span>
                         <a :href="genus.wiki" target="_blank"
-                           class="text-sm font-mono border rounded ml-3 elevation-2 align-end text-center"
+                           class="grow text-sm font-RubikMedium border rounded ml-2 elevation-2 text-center"
                            @click.stop
                         >
-                            w
+                            wiki
                         </a>
                     </v-list-item>
                 </v-list>
