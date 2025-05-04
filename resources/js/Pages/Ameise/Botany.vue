@@ -167,7 +167,6 @@ useHead({
                                 <v-divider vertical
                                            opacity="0.91"
                                 ></v-divider>
-                                <v-spacer></v-spacer>
                                 <v-btn text="store"
                                        @click="storeGenus"
                                        variant="elevated"
@@ -184,7 +183,7 @@ useHead({
                 <v-list>
                     <v-list-item v-for="genus in filteredGenera"
                                  :key="genus.id"
-                                 class="flex flex-row flex-wrap text-sm"
+                                 class="flex text-sm"
                                  density="compact"
                                  variant="elevated"
                                  :class="{
