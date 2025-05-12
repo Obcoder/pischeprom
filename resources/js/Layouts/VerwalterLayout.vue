@@ -1,5 +1,6 @@
 <script setup>
 import {Link} from "@inertiajs/vue3";
+import {route} from "ziggy-js";
 </script>
 
 <template>
@@ -37,6 +38,9 @@ import {Link} from "@inertiajs/vue3";
                 </v-list-item>
                 <v-list-item>
                     <Link :href="route('Ameise.contactsCentre')">Contacts centre</Link>
+                </v-list-item>
+                <v-list-item>
+                    <Link :href="route('Ameise/avito')">Avito</Link>
                 </v-list-item>
                 <v-list-item>
                     <Link :href="route('ameise.telegrambot')"

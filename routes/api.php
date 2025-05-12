@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
@@ -76,3 +77,12 @@ Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class
  */
 Route::get('/units/{name}/files', [\App\Http\Controllers\API\UnitController::class, 'getUnitFiles'])
     ->name('api.unit.getFiles');
+
+/*
+ * -------------------------
+ * A V I T O
+ * -------------------------
+ */
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/avito/ads', [AvitoController::class, 'getAds']);
+});

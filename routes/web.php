@@ -14,6 +14,7 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitUriController;
+use App\Http\Controllers\Verwalter;
 
 Route::get('/', [\App\Http\Controllers\MainController::class, 'index'])
     ->name('home');
@@ -28,8 +29,14 @@ Route::middleware([
     })->name('dashboard');
 });
 
-Route::get('/Ameise/', [\App\Http\Controllers\Verwalter::class, 'index'])
+//   * * * * * * * * *   A M E I S E   * * * * * * * * *
+Route::get('/Ameise/', [Verwalter::class, 'index'])
     ->name('verwalter');
+//   * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+//   A V I T O
+Route::get('/Ameise/Avito', function () {
+    return Inertia::render('Ameise/Avito');
+})->name('Ameise/avito');
 //   B O T A N Y
 Route::get('/Ameise/Botany/', function (){
     return Inertia::render('Ameise/Botany');

@@ -37,4 +37,10 @@ return [
         'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
         'scheme' => 'https',
     ],
+
+    'avito' => [
+        'client_id' => env('AVITO_CLIENT_ID'),
+        'client_secret' => env('AVITO_CLIENT_SECRET'),
+        'api_url' => env('AVITO_API_URL', 'https://api.avito.ru'),
+    ],
 ];
