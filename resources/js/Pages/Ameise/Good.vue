@@ -71,7 +71,7 @@ onMounted(() => {
         </v-row>
         <v-row v-else>
             <v-col lg="3" md="1">
-                <v-card>
+                <v-card class="w-full">
                     <v-img
                         :src="good.ava_image || '/default-image.jpg'"
                         :alt="good.name"
@@ -80,7 +80,11 @@ onMounted(() => {
                         cover
                         class="mb-4"
                     ></v-img>
-                    <v-card-title class="whitespace-normal">{{ good.name }}</v-card-title>
+                    <v-card-title>
+                        <div class="whitespace-normal">
+                            {{ good.name }}
+                        </div>
+                    </v-card-title>
                     <v-card-text>
                         <p>{{ good.description }}</p>
                     </v-card-text>
