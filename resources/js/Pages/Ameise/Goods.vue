@@ -3,7 +3,7 @@ import { logo } from "@/Pages/Helpers/consts.js";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
-import {useForm} from "@inertiajs/vue3";
+import {useForm, Link} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
 import {useHead} from "@vueuse/head";
 import {RouterLink} from "vue-router";
@@ -177,12 +177,11 @@ const generateSlug = (name) => {
                         </v-badge>
                     </template>
                     <template v-slot:item.name="{ item }">
-                        <RouterLink
-                            :to="route('goods.show', { id: item.id, slug: item.slug || generateSlug(item.name) })"
+                        <Link :href="route('goods.show', { id: item.id, slug: item.slug || generateSlug(item.name) })"
                             class="text-decoration-none"
                         >
                             {{ item.name }}
-                        </RouterLink>
+                        </Link>
                     </template>
                 </v-data-table>
             </v-col>
