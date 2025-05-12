@@ -69,8 +69,7 @@ onMounted(() => {
             </v-col>
         </v-row>
         <v-row v-else>
-            <v-col cols="12" md="3"></v-col>
-            <v-col cols="12" md="6">
+            <v-col cols="3" md="1">
                 <v-card>
                     <v-img
                         :src="good.ava_image || '/default-image.jpg'"
@@ -84,20 +83,25 @@ onMounted(() => {
                     <v-card-text>
                         <v-row>
                             <v-col>
-                                <v-list>
-                                    <v-list-item v-for="price in good.prices">
-                                        <span>{{price.price}}</span>
-                                    </v-list-item>
-                                </v-list>
+
                             </v-col>
                             <v-col>
-                                <p>{{ good.description }}</p>
+
                             </v-col>
                         </v-row>
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col cols="12" md="3"></v-col>
+            <v-col cols="4" md="3">
+                <p>{{ good.description }}</p>
+            </v-col>
+            <v-col cols="4" md="6">
+                <v-list>
+                    <v-list-item v-for="price in good.prices">
+                        <span>{{price.price}}</span>
+                    </v-list-item>
+                </v-list>
+            </v-col>
         </v-row>
     </v-container>
 </template>
