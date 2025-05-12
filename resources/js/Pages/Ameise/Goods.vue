@@ -177,7 +177,7 @@ const generateSlug = (name) => {
                         </v-badge>
                     </template>
                     <template v-slot:item.name="{ item }">
-                        <Link :href="route('goods.show', { id: item.id, slug: item.slug || generateSlug(item.name) })"
+                        <Link :href="route('Ameise.good.show', { id: item.id, slug: item.slug || generateSlug(item.name) })"
                             class="text-decoration-none"
                         >
                             {{ item.name }}

@@ -73,6 +73,9 @@ Route::get('/Ameise/Geography/', function (){
 Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');
+Route::get('/Ameise/goods/{id}/{slug?}', function (){
+    return Inertia::render('Ameise/Good');
+})->name('Ameise.good.show');
 //   P R O D U C T S
 Route::get('/Ameise/products/', function (){
     return Inertia::render('Ameise/Products');
