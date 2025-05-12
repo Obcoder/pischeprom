@@ -3,8 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AvitoService;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Request;
 
 class AvitoController extends Controller
 {
@@ -15,23 +14,13 @@ class AvitoController extends Controller
         $this->avitoService = $avitoService;
     }
 
-    /**
-     * Получение списка объявлений из Avito
-     */
-    public function getAds(): JsonResponse
+    public function getUserInfo(Request $request)
     {
         try {
-            $ads = $this->avitoService->getAds();
-            return response()->json([
-                                        'success' => true,
-                                        'data' => $ads,
-                                    ]);
+            $userInfo = $this->avitoService->getUserInfo();
+            return response()->json($userInfo);
         } catch (\Exception $e) {
-            Log::error('Avito API error: ' . $e->getMessage());
-            return response()->json([
-                                        'success' => false,
-                                        'message' => 'Failed to fetch ads from Avito',
-                                    ], 500);
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 }
