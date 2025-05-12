@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Good;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Models\City;
@@ -74,7 +75,10 @@ Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');
 Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
-    return Inertia::render('Ameise/Good', [$id]);
+    $data = [
+        'good' => Good::findOrFail($id),
+    ];
+    return Inertia::render('Ameise/Good', $data);
 })->name('Ameise.good.show');
 //   P R O D U C T S
 Route::get('/Ameise/products/', function (){
