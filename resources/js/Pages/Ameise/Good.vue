@@ -80,7 +80,7 @@ onMounted(() => {
                         cover
                         class="mb-4"
                     ></v-img>
-                    <v-card-title class="wrap-title">{{ good.name }}</v-card-title>
+                    <v-card-title class="whitespace-normal">{{ good.name }}</v-card-title>
                     <v-card-text>
                         <p>{{ good.description }}</p>
                     </v-card-text>
