@@ -76,7 +76,7 @@ Route::get('/Ameise/Goods/', function (){
 })->name('Ameise.goods');
 Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
     $data = [
-        'good' => Good::findOrFail($id),
+        'good' => Good::with('prices')->findOrFail($id),
     ];
     return Inertia::render('Ameise/Good', $data);
 })->name('Ameise.good.show');

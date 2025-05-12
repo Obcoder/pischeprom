@@ -73,7 +73,7 @@ onMounted(() => {
             <v-col cols="12" md="6">
                 <v-card>
                     <v-img
-                        :src="good.image_url || '/default-image.jpg'"
+                        :src="good.ava_image || '/default-image.jpg'"
                         :alt="good.name"
                         lazy-src="/placeholder.jpg"
                         aspect-ratio="1"
@@ -82,8 +82,18 @@ onMounted(() => {
                     ></v-img>
                     <v-card-title>{{ good.name }}</v-card-title>
                     <v-card-text>
-                        <p class="text-h6">Price: ${{ good.price }}</p>
-                        <p>{{ good.description }}</p>
+                        <v-row>
+                            <v-col>
+                                <v-list>
+                                    <v-list-item v-for="price in good.prices">
+                                        <span>{{price.price}}</span>
+                                    </v-list-item>
+                                </v-list>
+                            </v-col>
+                            <v-col>
+                                <p>{{ good.description }}</p>
+                            </v-col>
+                        </v-row>
                     </v-card-text>
                 </v-card>
             </v-col>
