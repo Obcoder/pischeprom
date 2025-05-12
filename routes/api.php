@@ -83,4 +83,4 @@ Route::get('/units/{name}/files', [\App\Http\Controllers\API\UnitController::cla
  * A V I T O
  * -------------------------
  */
-Route::middleware('auth:sanctum')->get('/avito/user', [AvitoController::class, 'getUserInfo']);
+Route::get('/avito/user', [AvitoController::class, 'getUserInfo']);

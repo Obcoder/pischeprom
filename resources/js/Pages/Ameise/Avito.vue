@@ -9,7 +9,7 @@ const loading = ref(false);
 const fetchAds = async () => {
     loading.value = true;
     try {
-        const response = await axios.get('/api/avito/ads', {
+        const response = await axios.get('/api/avito/user', {
             headers: {
                 Authorization: `Bearer ${localStorage.getItem('token')}`, // Предполагается, что токен хранится в localStorage
             },
