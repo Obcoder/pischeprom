@@ -4,6 +4,7 @@ import { ref, onMounted, computed } from "vue";
 import { useRoute } from "vue-router";
 import axios from "axios";
 import { useHead } from "@vueuse/head"; // Используем @vueuse/head
+import {route} from "ziggy-js"
 
 defineOptions({
     layout: VerwalterLayout,
@@ -17,7 +18,7 @@ const route = useRoute();
 // Загрузка данных товара
 const fetchGood = async () => {
     try {
-        const response = await axios.get(`/api/goods/${route.params.id}`);
+        const response = await axios.get(route('good.fetch'))
         good.value = response.data;
         loading.value = false;
     } catch (err) {
