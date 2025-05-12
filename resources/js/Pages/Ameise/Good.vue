@@ -13,7 +13,7 @@ defineOptions({
 const good = ref(null);
 const loading = ref(true);
 const error = ref(null);
-const route = useRoute();
+// const route = useRoute();
 
 // Загрузка данных товара
 const fetchGood = async () => {
