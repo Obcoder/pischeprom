@@ -6,6 +6,9 @@ import axios from "axios";
 import {useForm} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
 import {useHead} from "@vueuse/head";
+import {RouterLink} from "vue-router";
+import {route} from "ziggy-js";
+
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -70,6 +73,13 @@ useHead({
         }
     ]
 })
+// Функция для генерации slug, если он отсутствует
+const generateSlug = (name) => {
+    return name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+}
 </script>
 
 <template>
@@ -165,6 +175,14 @@ useHead({
                                    class="rounded"
                             ></v-img>
                         </v-badge>
+                    </template>
+                    <template v-slot:item.name="{ item }">
+                        <RouterLink
+                            :to="route('goods.show', { id: item.id, slug: item.slug || generateSlug(item.name) })"
+                            class="text-decoration-none"
+                        >
+                            {{ item.name }}
+                        </RouterLink>
                     </template>
                 </v-data-table>
             </v-col>

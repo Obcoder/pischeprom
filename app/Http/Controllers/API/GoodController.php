@@ -60,9 +60,16 @@ class GoodController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(string $id, $slug = null)
     {
-        return Good::findOrFail($id);
+        $good = Good::findOrFail($id);
+        // Проверка slug для SEO (опционально)
+        $expectedSlug = \Str::slug($good->name);
+        if ($slug && $slug !== $expectedSlug) {
+            return redirect()->route('goods.show', ['id' => $id, 'slug' => $expectedSlug], 301);
+        }
+
+        return $good;
     }
 
     /**
