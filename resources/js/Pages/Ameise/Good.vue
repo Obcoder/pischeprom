@@ -5,13 +5,14 @@ import { useRoute } from "vue-router";
 import axios from "axios";
 import { useHead } from "@vueuse/head"; // Используем @vueuse/head
 import {route} from "ziggy-js"
+import {useDate} from "vuetify";
 defineOptions({
     layout: VerwalterLayout,
 });
-
 const props = defineProps({
     good: Object,
 })
+const date = useDate()
 
 const good = ref(null);
 const loading = ref(true);
@@ -86,9 +87,16 @@ onMounted(() => {
                 </v-card>
             </v-col>
             <v-col lg="3" md="1">
-                <v-list>
+                <v-list border
+                        rounded
+                >
                     <v-list-item v-for="price in good.prices">
                         <v-row>
+                            <v-col>
+                                <span class="text-xs font-mono"
+                                >
+                                    {{date.format(price.created_at, 'fullDate')}}</span>
+                            </v-col>
                             <v-col>
                                 <span>{{price.price}}</span>
                             </v-col>
