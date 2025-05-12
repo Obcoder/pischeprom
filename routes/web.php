@@ -74,7 +74,7 @@ Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');
 Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
-    return Inertia::render('Ameise/Good', $id);
+    return Inertia::render('Ameise/Good', [$id]);
 })->name('Ameise.good.show');
 //   P R O D U C T S
 Route::get('/Ameise/products/', function (){
