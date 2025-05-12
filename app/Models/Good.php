@@ -34,6 +34,7 @@ class Good extends Model
     }
     public function prices(): HasMany
     {
-        return $this->hasMany(Price::class);
+        return $this->hasMany(Price::class)
+            ->orderBy('price', 'desc');
     }
 }
