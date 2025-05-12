@@ -62,7 +62,7 @@ class GoodController extends Controller
      */
     public function show(string $id, $slug = null)
     {
-        $good = Good::findOrFail($id);
+        $good = Good::with('prices')->findOrFail($id);
         // Проверка slug для SEO (опционально)
         $expectedSlug = \Str::slug($good->name);
         if ($slug && $slug !== $expectedSlug) {

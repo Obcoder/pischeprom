@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -33,8 +32,8 @@ class Good extends Model
     {
         return $this->belongsToMany(Product::class);
     }
-    public function prices(): BelongsTo
+    public function prices(): HasMany
     {
-        return $this->belongsTo(Price::class);
+        return $this->hasMany(Price::class);
     }
 }
