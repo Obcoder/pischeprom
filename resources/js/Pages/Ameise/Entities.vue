@@ -220,7 +220,8 @@ useHead({
                                                             placeholder="Адрес здания"
                                                             variant="outlined"
                                                             density="comfortable"
-                                                            color="teal"></v-autocomplete>
+                                                            color="teal"
+                                            ></v-autocomplete>
                                         </v-col>
                                     </v-row>
                                 </v-form>

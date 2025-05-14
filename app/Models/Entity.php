@@ -25,7 +25,7 @@ class Entity extends Model
 
     public function buildings(): BelongsToMany
     {
-        return $this->belongsToMany(Building::class);
+        return $this->belongsToMany(Building::class, 'building_entities');
     }
     public function classification()
     {
