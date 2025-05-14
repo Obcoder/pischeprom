@@ -33,7 +33,7 @@ class EntityController extends Controller
     {
         $entity = Entity::create($request->all());
         $entity->telephones()->attach($request->telephones);
-        return redirect()->route('Ameise.entities');
+        $entity->cities()->attach($request->cities);
     }
 
     /**

@@ -5,17 +5,27 @@ import axios from "axios";
 import {useForm} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
 import {useHead} from "@vueuse/head";
+import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,
 })
 const date = useDate()
 
+const cities = ref([])
 const entities = ref([])
 const telephones = ref()
 
 let searchEntitiesLike = ref()
 let searchTelephones = ref()
 
+const indexCities = async () => {
+    try {
+        const response = await axios.get(route('cities.index'))
+        cities.value = response.data;
+    } catch (error) {
+        console.log(error)
+    }
+}
 function indexEntities(like){
     axios.get(route('entities.index'), {
         params: {
@@ -43,10 +53,12 @@ function indexTelephones(like){
 }
 
 let showFormEntity = ref(false);
-let formEntity = useForm({
+
+const formEntity = useForm({
     name: null,
     entity_classification_id: null,
     telephones: null,
+    cities: null,
 })
 
 
@@ -65,13 +77,13 @@ const formTelephone = useForm({
 })
 
 function storeEntity(){
-    formEntity.post(route('entities.store'), {
+    formEntity.post(route('web.entity.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: true,
         onSuccess: ()=> {
             formEntity.reset()
-            indexEntities();
+            indexEntities()
         },
     })
 }
@@ -98,6 +110,7 @@ const headersTelephones = [
 ]
 
 onMounted(()=>{
+    indexCities()
     indexEntities();
     apiIndexEntityClassifications();
     indexTelephones();
@@ -157,18 +170,33 @@ useHead({
                                         ></v-text-field>
                                     </v-row>
                                     <v-row>
-                                        <v-autocomplete :items="telephones"
-                                                        :item-value="'id'"
-                                                        :item-title="'number'"
-                                                        v-model="formEntity.telephones"
-                                                        label="Telephones"
-                                                        placeholder="number without +7"
-                                                        variant="outlined"
-                                                        density="comfortable"
-                                                        color="purple-darken-4"
-                                                        multiple
-                                                        chips
-                                        ></v-autocomplete>
+                                        <v-col>
+                                            <v-autocomplete :items="telephones"
+                                                            :item-value="'id'"
+                                                            :item-title="'number'"
+                                                            v-model="formEntity.telephones"
+                                                            label="Telephones"
+                                                            placeholder="number without +7"
+                                                            variant="outlined"
+                                                            density="comfortable"
+                                                            color="purple-darken-4"
+                                                            multiple
+                                                            chips
+                                            ></v-autocomplete>
+                                        </v-col>
+                                        <v-col>
+                                            <v-autocomplete :items="cities"
+                                                            :item-value="'id'"
+                                                            :item-title="'name'"
+                                                            v-model="formEntity.cities"
+                                                            label="Cities"
+                                                            placeholder="Населенный пункт"
+                                                            variant="solo"
+                                                            density="comfortable"
+                                                            color="grey"
+                                                            multiple
+                                            ></v-autocomplete>
+                                        </v-col>
                                     </v-row>
                                 </v-form>
                             </v-card-text>

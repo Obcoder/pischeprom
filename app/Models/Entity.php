@@ -34,6 +34,10 @@ class Entity extends Model
     {
         return $this->belongsToMany(Chat::class);
     }
+    public function cities(): BelongsToMany
+    {
+        return $this->belongsToMany(City::class);
+    }
     public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);

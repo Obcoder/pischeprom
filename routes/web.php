@@ -9,6 +9,7 @@ use App\Models\Region;
 use App\Models\Unit;
 use App\Mail\TestEmail;
 use Illuminate\Support\Facades\Mail;
+use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\RegionController;
@@ -173,6 +174,9 @@ Route::post('/api/email/store', [\App\Http\Controllers\API\EmailController::clas
     ->name('web.email.store');
 Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitController::class, 'store'])
     ->name('emailgood.store');
+//     $ $ $ $ $     E N T I T Y     % % % % %
+Route::post('/entity/store', [EntityController::class, 'store'])
+    ->name('web.entity.store');
 Route::post('/api/genus/store', [GenusController::class, 'store'])
     ->name('web.genus.store');
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
