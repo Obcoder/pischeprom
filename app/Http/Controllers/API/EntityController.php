@@ -14,14 +14,12 @@ class EntityController extends Controller
     public function index(Request $request)
     {
         $like = $request->search;
-        $entities = Entity::with('telephones')
-            ->with('chats')
-            ->with('units')
-            ->with('sales_count')
-            ->where(function ($query) use ($like) {
+        $entities = Entity::with(['telephones', 'chats', 'units']) // связи
+        ->withCount('sales') // добавляем количество продаж
+        ->where(function ($query) use ($like) {
             $query->where('name', 'like', '%' . $like . '%');
         })
-            ->orderBy('sales_count', 'desc')
+            ->orderBy('sales_count', 'desc') // сортируем по количеству продаж
             ->get();
 
         return $entities;
