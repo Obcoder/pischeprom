@@ -1,5 +1,7 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import {Link} from "@inertiajs/vue3";
+import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -58,7 +60,7 @@ const headerConsumers = [
                                 <Link :href="route('web.unit.show', manufacturer.id)"
                                       class="font-OrelegaOneRegular"
                                 >
-                                    <span>{{manufacturer.id}}</span>
+                                    <span>{{manufacturer.name}}</span>
                                 </Link>
                             </v-list-item>
                         </v-list>
