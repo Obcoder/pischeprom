@@ -17,10 +17,11 @@ class EntityController extends Controller
         $entities = Entity::with('telephones')
             ->with('chats')
             ->with('units')
+            ->with('sales_count')
             ->where(function ($query) use ($like) {
             $query->where('name', 'like', '%' . $like . '%');
         })
-            ->orderBy('name')
+            ->orderBy('sales_count', 'desc')
             ->get();
 
         return $entities;

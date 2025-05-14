@@ -268,7 +268,7 @@ useHead({
                             </v-col>
                             <v-col>
                                 <div v-for="building in entity.buildings"
-                                     class="text-[7px]"
+                                     class="text-[8px]"
                                 >
                                     {{building.address}}
                                 </div>
