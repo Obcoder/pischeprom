@@ -212,7 +212,7 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
-            <v-col>
+            <v-col lg="6">
                 <v-list lines="one"
                 >
                     <v-list-item v-for="entity in entities"
