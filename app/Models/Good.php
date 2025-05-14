@@ -37,4 +37,9 @@ class Good extends Model
         return $this->hasMany(Price::class)
             ->orderBy('created_at', 'desc');
     }
+    public function sales(): BelongsToMany
+    {
+        return $this->belongsToMany(Sale::class)
+            ->withPivot('price', 'quantity', 'measure_id');
+    }
 }

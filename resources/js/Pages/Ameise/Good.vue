@@ -111,6 +111,25 @@ onMounted(() => {
                     </v-list-item>
                 </v-list>
             </v-col>
+            <v-col lg="3">
+                <v-list border
+                        rounded
+                >
+                    <v-list-item v-for="sale in good.sales">
+                        <v-row>
+                            <v-col>
+                                <span>{{sale.date}}</span>
+                            </v-col>
+                            <v-col>
+                                <span>{{sale.pivot.quantity}}</span>
+                            </v-col>
+                            <v-col>
+                                <span>{{sale.pivot.price}}</span>
+                            </v-col>
+                        </v-row>
+                    </v-list-item>
+                </v-list>
+            </v-col>
         </v-row>
     </v-container>
 </template>
