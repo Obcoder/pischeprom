@@ -55,7 +55,11 @@ const headerConsumers = [
                     <v-card-text>
                         <v-list>
                             <v-list-item v-for="manufacturer in product.manufacturers">
-                                <span>{{manufacturer.name}}</span>
+                                <Link :href="route('web.unit.show', manufacturer.id)"
+                                      class="font-OrelegaOneRegular"
+                                >
+                                    <span>{{manufacturer.id}}</span>
+                                </Link>
                             </v-list-item>
                         </v-list>
                     </v-card-text>
