@@ -20,8 +20,13 @@ class Entity extends Model
     protected $with = [
         'classification',
         'cities',
+        'buildings',
     ];
 
+    public function buildings(): BelongsToMany
+    {
+        return $this->belongsToMany(Building::class);
+    }
     public function classification()
     {
         return $this->belongsTo(EntityClassification::class , 'entity_classification_id')

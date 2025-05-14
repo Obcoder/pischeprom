@@ -11,6 +11,7 @@ defineOptions({
 })
 const date = useDate()
 
+const buildings = ref([])
 const cities = ref([])
 const entities = ref([])
 const telephones = ref()
@@ -18,6 +19,14 @@ const telephones = ref()
 let searchEntitiesLike = ref()
 let searchTelephones = ref()
 
+const indexBuildings = async ()=>{
+    try {
+        const response = await axios.get(route('buildings.index'))
+        buildings.value = response.data
+    } catch (error){
+        console.log(error)
+    }
+}
 const indexCities = async () => {
     try {
         const response = await axios.get(route('cities.index'))
@@ -57,6 +66,7 @@ let showFormEntity = ref(false);
 const formEntity = useForm({
     name: null,
     entity_classification_id: null,
+    buildings: null,
     telephones: null,
     cities: null,
 })
@@ -110,6 +120,7 @@ const headersTelephones = [
 ]
 
 onMounted(()=>{
+    indexBuildings()
     indexCities()
     indexEntities();
     apiIndexEntityClassifications();
@@ -155,21 +166,21 @@ useHead({
                             <v-card-text>
                                 <v-form @submit.prevent>
                                     <v-row>
-                                        <v-select :items="listEntityClassifications"
-                                                  :item-value="'id'"
-                                                  :item-title="'name'"
-                                                  v-model="formEntity.entity_classification_id"
-                                                  variant="outlined"
-                                                  label="Вид"
-                                        ></v-select>
-                                    </v-row>
-                                    <v-row>
                                         <v-text-field v-model="formEntity.name"
                                                       label="Name"
                                                       variant="outlined"
                                         ></v-text-field>
                                     </v-row>
                                     <v-row>
+                                        <v-col>
+                                            <v-select :items="listEntityClassifications"
+                                                      :item-value="'id'"
+                                                      :item-title="'name'"
+                                                      v-model="formEntity.entity_classification_id"
+                                                      variant="outlined"
+                                                      label="Вид"
+                                            ></v-select>
+                                        </v-col>
                                         <v-col>
                                             <v-autocomplete :items="telephones"
                                                             :item-value="'id'"
@@ -184,6 +195,8 @@ useHead({
                                                             chips
                                             ></v-autocomplete>
                                         </v-col>
+                                    </v-row>
+                                    <v-row>
                                         <v-col>
                                             <v-autocomplete :items="cities"
                                                             :item-value="'id'"
@@ -196,6 +209,18 @@ useHead({
                                                             color="grey"
                                                             multiple
                                             ></v-autocomplete>
+                                        </v-col>
+                                        <v-col>
+                                            <v-autocomplete :items="buildings"
+                                                            :item-value="'id'"
+                                                            :item-title="'address'"
+                                                            v-model="formEntity.buildings"
+                                                            multiple
+                                                            label="Buildings"
+                                                            placeholder="Адрес здания"
+                                                            variant="outlined"
+                                                            density="comfortable"
+                                                            color="teal"
                                         </v-col>
                                     </v-row>
                                 </v-form>

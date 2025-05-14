@@ -34,6 +34,7 @@ class EntityController extends Controller
         $entity = Entity::create($request->all());
         $entity->telephones()->attach($request->telephones);
         $entity->cities()->attach($request->cities);
+        $entity->buildings()->attach($request->buildings);
     }
 
     /**
