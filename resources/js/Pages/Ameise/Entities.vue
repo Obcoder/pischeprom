@@ -236,6 +236,11 @@ useHead({
                                    color="teal-darken-3"></v-divider>
                         <v-row>
                             <v-col>
+                                <div v-for="city in entity.cities">
+                                    <span class="text-xs font-serif text-slate-800">{{city.name}}</span>
+                                </div>
+                            </v-col>
+                            <v-col>
                                 <div v-for="telephone in entity.telephones">{{telephone.number}}</div>
                             </v-col>
                             <v-col>

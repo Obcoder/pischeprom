@@ -19,6 +19,7 @@ class Entity extends Model
 
     protected $with = [
         'classification',
+        'cities',
     ];
 
     public function classification()
