@@ -111,10 +111,7 @@ useHead({
                         <span class="text-xs">{{item.subject}}</span>
                     </template>
                     <template v-slot:item.email="{item}">
-                        <Link v-for="unit in item.units"
-                              :href="route('web.unit.show', unit.id)">
-                            {{unit.name}}
-                        </Link>
+                        <span>{{item.email.address}}</span>
                     </template>
                 </v-data-table>
             </v-col>
