@@ -3,9 +3,13 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useHead} from "@vueuse/head";
+import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,
 })
+
+const emails = ref()
+const sendings = ref([])
 
 const headersEmails = [
     {
@@ -22,8 +26,6 @@ const headersEmails = [
     },
 ]
 
-const emails = ref()
-
 function indexEmails(){
     axios.get(route('emails.index')).then(function (response){
         emails.value = response.data
@@ -31,9 +33,17 @@ function indexEmails(){
         console.log(error)
     })
 }
+function indexSendings(){
+    axios.get(route('sendings.index')).then(function (response){
+        sendings.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 
 onMounted(()=>{
     indexEmails()
+    indexSendings()
 })
 
 useHead({
@@ -58,7 +68,11 @@ useHead({
                               >
                 </v-data-table>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-data-table :items="sendings"
+                              density="compact"
+                              hover></v-data-table>
+            </v-col>
             <v-col></v-col>
         </v-row>
     </v-container>
