@@ -98,6 +98,7 @@ useHead({
             <v-col lg="6">
                 <v-data-table :items="sendings"
                               :headers="headersSendings"
+                              items-per-page="36"
                               density="compact"
                               hover>
                     <template v-slot:item.created_at="{item}">
