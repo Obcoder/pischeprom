@@ -84,15 +84,18 @@ useHead({
 <template>
     <v-container>
         <v-row>
-            <v-col cols="3">
+            <v-col lg="3">
                 <v-data-table :items="emails"
                               :headers="headersEmails"
                               density="compact"
                               hover
                 >
+                    <template v-slot:item.created_at="{item}">
+                        <span class="text-xs">{{date.format(item.created_at, 'fullDate')}}</span>
+                    </template>
                 </v-data-table>
             </v-col>
-            <v-col>
+            <v-col lg="6">
                 <v-data-table :items="sendings"
                               :headers="headersSendings"
                               density="compact"
@@ -100,7 +103,7 @@ useHead({
                     <template v-slot:item.created_at="{item}">
                         <v-row>
                             <v-col cols="9">
-                                <span>{{date.format(item.created_at, 'fullDate')}}</span>
+                                <span>{{date.format(item.created_at, 'fullDateTime')}}</span>
                             </v-col>
                             <v-col cols="3">
                                 <span>{{daysSinceSending(item.created_at)}}</span>
@@ -111,16 +114,14 @@ useHead({
                         <span class="text-xs">{{item.subject}}</span>
                     </template>
                     <template v-slot:item.email="{item}">
-                        <v-row>
-                            <div>{{item.email.address}}</div>
-                            <div>
-                                <Link v-for="unit in item.email.units"
-                                      :href="route('web.unit.show', unit.id)"
-                                >
-                                    {{unit.name}}
-                                </Link>
-                            </div>
-                        </v-row>
+                        <div>{{item.email.address}}</div>
+                        <div>
+                            <Link v-for="unit in item.email.units"
+                                  :href="route('web.unit.show', unit.id)"
+                            >
+                                {{unit.name}}
+                            </Link>
+                        </div>
                     </template>
                 </v-data-table>
             </v-col>
