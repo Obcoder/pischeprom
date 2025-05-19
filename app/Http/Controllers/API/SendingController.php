@@ -13,7 +13,8 @@ class SendingController extends Controller
      */
     public function index()
     {
-        return Sending::all();
+        return Sending::with('email.units')
+            ->get();
     }
 
     /**
