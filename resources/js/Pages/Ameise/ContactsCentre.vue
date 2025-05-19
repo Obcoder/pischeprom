@@ -39,7 +39,7 @@ const headersSendings = [
     },
     {
         title: 'Email',
-        key: 'email.address',
+        key: 'email',
     },
 ]
 
@@ -84,12 +84,12 @@ useHead({
 <template>
     <v-container>
         <v-row>
-            <v-col>
+            <v-col cols="3">
                 <v-data-table :items="emails"
                               :headers="headersEmails"
                               density="compact"
                               hover
-                              >
+                >
                 </v-data-table>
             </v-col>
             <v-col>
@@ -110,7 +110,7 @@ useHead({
                     <template v-slot:item.subject="{item}">
                         <span class="text-xs">{{item.subject}}</span>
                     </template>
-                    <template v-slot:item.email.address="{item}">
+                    <template v-slot:item.email="{item}">
                         <Link v-for="unit in item.units"
                               :href="route('web.unit.show', unit.id)">
                             {{unit.name}}
