@@ -25,6 +25,20 @@ const headersEmails = [
         key: 'sendings.length',
     },
 ]
+const headersSendings = [
+    {
+        title: 'Date',
+        key: 'created_at',
+    },
+    {
+        title: 'Subject',
+        key: 'subject',
+    },
+    {
+        title: 'Email',
+        key: 'email.address',
+    },
+]
 
 function indexEmails(){
     axios.get(route('emails.index')).then(function (response){
@@ -70,6 +84,7 @@ useHead({
             </v-col>
             <v-col>
                 <v-data-table :items="sendings"
+                              :headers="headersSendings"
                               density="compact"
                               hover></v-data-table>
             </v-col>
