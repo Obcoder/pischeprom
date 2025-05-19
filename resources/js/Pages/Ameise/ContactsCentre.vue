@@ -4,9 +4,11 @@ import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useHead} from "@vueuse/head";
 import {route} from "ziggy-js";
+import {useDate} from "vuetify";
 defineOptions({
     layout: VerwalterLayout,
 })
+const date = useDate()
 
 const emails = ref()
 const sendings = ref([])
@@ -55,6 +57,13 @@ function indexSendings(){
     })
 }
 
+const daysSinceSending = (createdAt) => {
+    const sendingDate = new Date(createdAt);
+    const today = new Date();
+    const diffTime = today - sendingDate;
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+};
+
 onMounted(()=>{
     indexEmails()
     indexSendings()
@@ -86,7 +95,18 @@ useHead({
                 <v-data-table :items="sendings"
                               :headers="headersSendings"
                               density="compact"
-                              hover></v-data-table>
+                              hover>
+                    <template v-slot:item.created_at="{item}">
+                        <v-row>
+                            <v-col cols="9">
+                                <span>{{date.format(item.created_at, 'fullDate')}}</span>
+                            </v-col>
+                            <v-col cols="3">
+                                <span>{{daysSinceSending(item.created_at)}}</span>
+                            </v-col>
+                        </v-row>
+                    </template>
+                </v-data-table>
             </v-col>
             <v-col></v-col>
         </v-row>
