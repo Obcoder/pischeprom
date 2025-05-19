@@ -111,7 +111,16 @@ useHead({
                         <span class="text-xs">{{item.subject}}</span>
                     </template>
                     <template v-slot:item.email="{item}">
-                        <span>{{item.email.address}}</span>
+                        <v-row>
+                            <v-col>{{item.email.address}}</v-col>
+                        </v-row>
+                        <v-row>
+                            <v-col>
+                                <div v-for="unit in item.email.units">
+                                    {{unit.name}}
+                                </div>
+                            </v-col>
+                        </v-row>
                     </template>
                 </v-data-table>
             </v-col>
