@@ -18,4 +18,8 @@ class Email extends Model
     {
         return $this->hasMany(Sending::class);
     }
+    public function units()
+    {
+        return $this->belongsToMany(Unit::class);
+    }
 }

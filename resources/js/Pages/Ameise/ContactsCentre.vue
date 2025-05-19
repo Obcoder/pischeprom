@@ -5,6 +5,7 @@ import axios from "axios";
 import {useHead} from "@vueuse/head";
 import {route} from "ziggy-js";
 import {useDate} from "vuetify";
+import {Link} from "@inertiajs/vue3";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -108,6 +109,12 @@ useHead({
                     </template>
                     <template v-slot:item.subject="{item}">
                         <span class="text-xs">{{item.subject}}</span>
+                    </template>
+                    <template v-slot:item.email="{item}">
+                        <Link v-for="unit in item.units"
+                              :href="route('web.unit.show', unit.id)">
+                            {{unit.name}}
+                        </Link>
                     </template>
                 </v-data-table>
             </v-col>
