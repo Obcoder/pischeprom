@@ -34,7 +34,12 @@ Route::middleware([
 //   * * * * * * * * *   A M E I S E   * * * * * * * * *
 Route::get('/Ameise/', [Verwalter::class, 'index'])
     ->name('verwalter');
-//   * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+//   * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+//     * * * * *   W O R K  B O A R D     * * * * *
+Route::get('/Ameise/workboard', function () {
+    return Inertia::render('Ameise/WorkBoard');
+})->name('ameise.workboard');
 //   A V I T O
 Route::get('/Ameise/Avito', function () {
     return Inertia::render('Ameise/Avito');

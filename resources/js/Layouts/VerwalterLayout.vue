@@ -84,6 +84,11 @@ import {route} from "ziggy-js";
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
+                <Link :href="route('ameise.workboard')">
+                    <span>WorkBoard</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
                 <Link :href="route('Ameise.botany')">
                     <span>Botany</span>
                 </Link>
