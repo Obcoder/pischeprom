@@ -10,7 +10,7 @@ class Sending extends Model
     use HasFactory;
 
     protected $with = [
-        'email.units',
+        'email',
     ];
 
     protected $fillable = [
