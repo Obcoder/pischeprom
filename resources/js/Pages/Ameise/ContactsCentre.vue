@@ -106,6 +106,9 @@ useHead({
                             </v-col>
                         </v-row>
                     </template>
+                    <template v-slot:item.subject="{item}">
+                        <span class="text-xs">{{item.subject}}</span>
+                    </template>
                 </v-data-table>
             </v-col>
             <v-col></v-col>
