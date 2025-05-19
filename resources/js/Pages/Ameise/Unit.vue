@@ -871,7 +871,6 @@ useHead({
                                                         :item-value="'id'"
                                                         :item-title="'rus'"
                                                         v-model="formAttachManufacturer.product_id"
-                                                        multiple
                                                         variant="solo"
                                                         density="compact"
                                                         color="black"></v-autocomplete>
