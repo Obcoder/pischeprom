@@ -14,11 +14,13 @@ class ManufacturerController extends Controller
      */
     public function index()
     {
-        $manufacturers = DB::table('manufacturers')
-            ->select('name', 'created_at')
-            ->get();
+//        $manufacturers = DB::table('manufacturers')
+//            ->select('name', 'created_at')
+//            ->get();
+//
+//        return $manufacturers;
 
-        return $manufacturers;
+        return Manufacturer::all();
     }
 
     /**
@@ -34,7 +36,7 @@ class ManufacturerController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        Manufacturer::create($request->all());
     }
 
     /**

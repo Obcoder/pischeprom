@@ -11,6 +11,7 @@ use App\Mail\TestEmail;
 use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
+use App\Http\Controllers\API\ManufacturerController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\UnitController;
@@ -181,6 +182,9 @@ Route::post('/api/genus/store', [GenusController::class, 'store'])
     ->name('web.genus.store');
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
     ->name('web.labelunit.store');
+//      M A N U F A C T U R E R
+Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
+    ->name('web.manufacturer.store');
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
     ->name('web.unit.store');
 Route::post('/api/unituri/store', [UnitUriController::class, 'store'])

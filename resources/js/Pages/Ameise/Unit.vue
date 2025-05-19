@@ -5,6 +5,7 @@ import axios from "axios";
 import {useForm, Link} from "@inertiajs/vue3";
 import { useHead } from '@vueuse/head'
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -31,6 +32,7 @@ const dialogFormAttachUri = ref(false)
 const dialogFormSendEmail = ref(false)
 const showFormBuilding = ref(false)
 const showFormConsumption = ref(false)
+const showFormAttachManufacturer = ref(false)
 
 const selectedProducts = ref([])
 
@@ -42,6 +44,10 @@ const formAddUri = useForm({
 })
 const formAttachEntity = useForm({
     entity_id: null,
+    unit_id: props.unit.id,
+})
+const formAttachManufacturer = useForm({
+    product_id: null,
     unit_id: props.unit.id,
 })
 const formAttachUri = useForm({
@@ -243,6 +249,18 @@ function attachEntity(){
         },
     })
 }
+function attachManufacturer(){
+    formAttachManufacturer.post(route('web.manufacturer.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAttachManufacturer.reset()
+            fetchUnit(props.unit.id)
+        },
+    })
+}
+
 let entityClassifications = ref();
 function apiIndexEntityClassifications(){
     axios.get(route('api.entitiesclassifications')).then(function (response){
@@ -827,6 +845,12 @@ useHead({
                     >
                         manufactures
                     </v-card-title>
+                    <v-card-subtitle>
+                        <v-btn text="att prod"
+                               @click="showFormAttachManufacturer = !showFormAttachManufacturer"
+                               variant="text"
+                        ></v-btn>
+                    </v-card-subtitle>
                     <v-card-text>
                         <v-list density="compact"
                         >
@@ -839,6 +863,30 @@ useHead({
                                 </Link>
                             </v-list-item>
                         </v-list>
+                        <v-sheet v-if="showFormAttachManufacturer">
+                            <v-form @submit.prevent>
+                                <v-row>
+                                    <v-col>
+                                        <v-autocomplete :items="products"
+                                                        :item-value="'id'"
+                                                        :item-title="'rus'"
+                                                        v-model="formAttachManufacturer.product_id"
+                                                        multiple
+                                                        variant="solo"
+                                                        density="compact"
+                                                        color="black"></v-autocomplete>
+                                    </v-col>
+                                </v-row>
+                                <v-row>
+                                    <v-col></v-col>
+                                    <v-col>
+                                        <v-btn text="store"
+                                               @click="attachManufacturer"
+                                               variant="plain"></v-btn>
+                                    </v-col>
+                                </v-row>
+                            </v-form>
+                        </v-sheet>
                     </v-card-text>
                 </v-card>
             </v-col>

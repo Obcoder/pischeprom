@@ -11,6 +11,11 @@ class Manufacturer extends Model
 {
     use HasFactory;
 
+    protected $with = [
+        'unit',
+        'product',
+    ];
+
     protected $fillable = [
         'unit_id',
         'product_id',
@@ -19,5 +24,9 @@ class Manufacturer extends Model
     public function unit(): BelongsTo
     {
         return $this->BelongsTo(Unit::class);
+    }
+    public function product(): BelongsTo
+    {
+        return $this->BelongsTo(Product::class);
     }
 }
