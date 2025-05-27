@@ -35,7 +35,7 @@ function storeGood(){
 }
 
 function fetchGood(id){
-    axios.get(route('Ameise.good.show', id)).then(function (response){
+    axios.get(route('good.fetch', id)).then(function (response){
         good.value = response.data
     }).catch(function (error){
         console.error(error)
