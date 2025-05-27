@@ -203,7 +203,8 @@ const generateSlug = (name) => {
                 <v-sheet>
                     <v-row>
                         <v-col>
-                            <span>{{good.name}}</span>
+                            <span v-if="good && good.name">{{ good.name }}</span>
+                            <span v-else>Загрузка...</span>
                         </v-col>
                     </v-row>
                 </v-sheet>
