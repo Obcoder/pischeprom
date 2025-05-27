@@ -4,6 +4,7 @@ import {onMounted, ref} from "vue";
 import {Link, useForm} from "@inertiajs/vue3";
 import axios from "axios";
 import {useHead} from "@vueuse/head";
+import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -239,7 +240,6 @@ useHead({
                 </v-dialog>
             </v-col>
         </v-row>
-
         <v-row>
             <v-col cols="4">
                 <v-list lines="two">
@@ -277,7 +277,13 @@ useHead({
                     </v-list-item>
                 </v-list>
             </v-col>
-            <v-col></v-col>
+            <v-col lg="4">
+                <v-sheet>
+                    <div v-for="unit in units"
+                         class="inline-block mr-2 p-1 text-xs"
+                    >{{unit.name}}</div>
+                </v-sheet>
+            </v-col>
             <v-col></v-col>
         </v-row>
     </v-container>
