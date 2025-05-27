@@ -181,6 +181,7 @@ const generateSlug = (name) => {
                                      color="teal"
                             >
                                 <v-img :src="item.ava_image || logo"
+                                       @click="fetchGood(item.id)"
                                        alt="Avatar"
                                        width="50"
                                        height="50"
