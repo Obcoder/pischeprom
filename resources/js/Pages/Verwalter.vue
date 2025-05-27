@@ -1,8 +1,9 @@
 <script setup>
 import {useHead} from "@vueuse/head";
 import {onMounted, ref} from "vue";
-import {Head, useForm, Link} from "@inertiajs/vue3";
+import {useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
+import {route} from "ziggy-js";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,

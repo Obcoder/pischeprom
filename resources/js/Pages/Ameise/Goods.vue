@@ -6,32 +6,16 @@ import axios from "axios";
 import {useForm, Link} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
 import {useHead} from "@vueuse/head";
-import {RouterLink} from "vue-router";
 import {route} from "ziggy-js";
-
 defineOptions({
     layout: VerwalterLayout,
 })
 const date = useDate()
 
-const headersGoods = [
-    {
-        title: 'Avatar',
-        key: 'ava_image',
-    },
-    {
-        title: 'name',
-        key: 'name',
-    },
-];
-let goods = ref();
-function indexGoods(){
-    axios.get(route('goods.index')).then(function (response){
-        goods.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
+let goods = ref()
+const good = ref(null)
+let products = ref()
+
 let searchGoods = ref();
 const formGood = useForm({
     name: null,
@@ -50,7 +34,24 @@ function storeGood(){
     })
 }
 
-let products = ref();
+function fetchGood(id){
+    axios.get(route('goods.index', id)).then(function (response){
+        good.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
+function indexGoods(){
+    axios.get(route('goods.index')).then(function (response){
+        goods.value = response.data;
+        // Проверяем, есть ли элементы в goods и берём первый
+        if (goods.value && goods.value.length > 0) {
+            fetchGood(goods.value[0].id);
+        }
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 function indexProducts(){
     axios.get(route('products.index')).then(function (response){
         products.value = response.data
@@ -58,6 +59,17 @@ function indexProducts(){
         console.log(error)
     })
 }
+
+const headersGoods = [
+    {
+        title: 'Avatar',
+        key: 'ava_image',
+    },
+    {
+        title: 'name',
+        key: 'name',
+    },
+];
 
 onMounted(()=>{
     indexGoods()
@@ -156,36 +168,46 @@ const generateSlug = (name) => {
                         </v-dialog>
                     </v-col>
                 </v-row>
-                <v-data-table :items="goods"
-                              :headers="headersGoods"
-                              :search="searchGoods"
-                              items-per-page="90"
-                              density="compact"
-                              hover="hover"
-                >
-                    <template v-slot:item.ava_image="{item}">
-                        <v-badge :content="item.id"
-                                 color="teal"
-                                 >
-                            <v-img :src="item.ava_image || logo"
-                                   alt="Avatar"
-                                   width="50"
-                                   height="50"
-                                   cover
-                                   class="rounded"
-                            ></v-img>
-                        </v-badge>
-                    </template>
-                    <template v-slot:item.name="{ item }">
-                        <Link :href="route('Ameise.good.show', { id: item.id, slug: item.slug || generateSlug(item.name) })"
-                            class="text-decoration-none"
-                        >
-                            {{ item.name }}
-                        </Link>
-                    </template>
-                </v-data-table>
+                <v-row>
+                    <v-data-table :items="goods"
+                                  :headers="headersGoods"
+                                  :search="searchGoods"
+                                  items-per-page="90"
+                                  density="compact"
+                                  hover="hover"
+                    >
+                        <template v-slot:item.ava_image="{item}">
+                            <v-badge :content="item.id"
+                                     color="teal"
+                            >
+                                <v-img :src="item.ava_image || logo"
+                                       alt="Avatar"
+                                       width="50"
+                                       height="50"
+                                       cover
+                                       class="rounded"
+                                ></v-img>
+                            </v-badge>
+                        </template>
+                        <template v-slot:item.name="{ item }">
+                            <Link :href="route('Ameise.good.show', { id: item.id, slug: item.slug || generateSlug(item.name) })"
+                                  class="text-decoration-none"
+                            >
+                                {{ item.name }}
+                            </Link>
+                        </template>
+                    </v-data-table>
+                </v-row>
             </v-col>
-            <v-col></v-col>
+            <v-col lg="3">
+                <v-sheet>
+                    <v-row>
+                        <v-col>
+                            <span>{{good.name}}</span>
+                        </v-col>
+                    </v-row>
+                </v-sheet>
+            </v-col>
         </v-row>
     </v-container>
 </template>
