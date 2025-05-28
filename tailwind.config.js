@@ -28,5 +28,9 @@ export default {
         },
     },
 
-    plugins: [forms, typography],
+    // plugins: [forms, typography],
+    plugins: [typography],
+
+    // Добавляем опцию для избежания конфликтов со стилями Vuetify
+    important: false,
 };

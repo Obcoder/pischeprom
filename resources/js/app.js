@@ -1,17 +1,17 @@
+import 'vuetify/styles';
 import './bootstrap';
 import '../css/app.css';
 
 import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import { ZiggyVue } from 'ziggy-js';
 //import {createMetaManager, defaultConfig} from 'vue-meta'; chatgpt: не нужно использовать одновременно createMetaManager
 // и @vueuse/head, потому что это две разные библиотеки для управления <head>, и они могут конфликтовать.
 // Ты подключаешь и vue-meta, и @vueuse/head — этого делать не стоит. Лучше выбрать только одну.
 // ✅ Если хочешь использовать @vueuse/head (а это правильно):
 
 // Vuetify
-import 'vuetify/styles'
 import { createVuetify } from 'vuetify';
 import VuetifyInertiaLink from "vuetify-inertia-link";
 import * as components from 'vuetify/components'
