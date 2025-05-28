@@ -233,59 +233,73 @@ onMounted(()=>{
                 </v-data-table>
                 <v-dialog v-model="showFormAttachGood"
                           transition="dialog-bottom-transition"
-                          width="900"
+                          width="1000"
                 >
                     <template v-slot:default="{isActive}">
-                        <v-card>
+                        <v-card theme="dark">
                             <v-card-title>Form Attach Good</v-card-title>
                             <v-card-text>
-                                <v-form @submit.prevent>
-                                    <v-row>
-                                        <v-col cols="1">
-                                            <span>{{sale.total}}</span>
-                                        </v-col>
-                                        <v-col>
-                                            <v-autocomplete :items="goods"
-                                                            :item-value="'id'"
-                                                            :item-title="'name'"
-                                                            v-model="formAttachGood.good_id"
-                                                            label="Good"
-                                                            variant="outlined"
-                                                            @change="showGood(formAttachGood.good_id)"
-                                            ></v-autocomplete>
-                                            <div>{{good}}</div>
-                                        </v-col>
-                                    </v-row>
-                                    <v-row>
-                                        <v-col cols="3">
-                                            <v-text-field v-model="formAttachGood.quantity"
-                                                          label="Количество"
-                                                          variant="outlined"
-                                                          density="compact"
-                                            ></v-text-field>
-                                        </v-col>
-                                        <v-col cols="3">
-                                            <v-select :items="measures"
-                                                      :item-value="'id'"
-                                                      :item-title="'name'"
-                                                      v-model="formAttachGood.measure_id"
-                                                      label="Measures"
-                                                      variant="outlined"
-                                                      density="compact"
-                                            ></v-select>
-                                        </v-col>
-                                        <v-col cols="6">
-                                            <v-text-field v-model="formAttachGood.price"
-                                                          label="Price"
-                                                          variant="outlined"
-                                                          density="comfortable"
-                                            ></v-text-field>
-                                        </v-col>
-                                    </v-row>
-                                    <v-row>
-                                        <v-col>{{formAttachGood.quantity * formAttachGood.price}}</v-col>
-                                    </v-row>
-                                </v-form>
+                                <v-row>
+                                    <v-col cols="7">
+                                        <v-form @submit.prevent>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-autocomplete :items="goods"
+                                                                    :item-value="'id'"
+                                                                    :item-title="'name'"
+                                                                    v-model="formAttachGood.good_id"
+                                                                    label="Good"
+                                                                    variant="outlined"
+                                                                    @change="showGood(formAttachGood.good_id)"
+                                                    ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col cols="3">
+                                                    <v-text-field v-model="formAttachGood.quantity"
+                                                                  label="Количество"
+                                                                  variant="outlined"
+                                                                  density="compact"
+                                                    ></v-text-field>
+                                                </v-col>
+                                                <v-col cols="3">
+                                                    <v-select :items="measures"
+                                                              :item-value="'id'"
+                                                              :item-title="'name'"
+                                                              v-model="formAttachGood.measure_id"
+                                                              label="Measures"
+                                                              variant="outlined"
+                                                              density="compact"
+                                                    ></v-select>
+                                                </v-col>
+                                                <v-col cols="6">
+                                                    <v-text-field v-model="formAttachGood.price"
+                                                                  label="Price"
+                                                                  variant="outlined"
+                                                                  density="comfortable"
+                                                    ></v-text-field>
+                                                </v-col>
+                                            </v-row>
+                                        </v-form>
+                                    </v-col>
+                                    <v-col cols="5">
+                                        <v-sheet>
+                                            <v-row>
+                                                <v-col>
+                                                    <div><label>Total</label>{{sale.total}}</div>
+                                                </v-col>
+                                                <v-col>
+                                                    <label>Position Sum</label><span>{{formAttachGood.quantity * formAttachGood.price}}</span>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col>
+                                                    <div class="text-[9px]">{{good}}</div>
+                                                </v-col>
+                                            </v-row>
+                                        </v-sheet>
+                                    </v-col>
+                                </v-row>
                             </v-card-text>
                             <v-card-actions>
                                 <v-spacer />
