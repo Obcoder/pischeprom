@@ -238,7 +238,7 @@ onMounted(()=>{
                     <template v-slot:default="{isActive}">
                         <v-card theme="dark">
                             <v-card-title>Form Attach Good</v-card-title>
-                            <v-card-text>
+                            <v-card-text class="text-red-700">
                                 <v-row>
                                     <v-col cols="7">
                                         <v-form @submit.prevent>
@@ -260,6 +260,7 @@ onMounted(()=>{
                                                                   label="Количество"
                                                                   variant="outlined"
                                                                   density="compact"
+                                                                  theme="dark"
                                                     ></v-text-field>
                                                 </v-col>
                                                 <v-col cols="3">
