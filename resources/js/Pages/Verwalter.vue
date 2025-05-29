@@ -669,6 +669,9 @@ useHead({
                                                                 {{item.rus}}
                                                             </Link>
                                                         </template>
+                                                        <template v-slot:item.category="{item}">
+                                                            <span>{{item.category.name}}</span>
+                                                        </template>
                                                     </v-data-table>
                                                 </v-card-text>
                                             </v-card>
