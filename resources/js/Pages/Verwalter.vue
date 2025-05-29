@@ -171,20 +171,17 @@ const filteredUnits = computed(()=>{
     const search = searchUnits.value.toLowerCase();
     return units.value.filter(item => item.name.toLowerCase().includes(search))
 })
-function apiIndexUris(){
-    axios.get(route('api.uris')).then(function (response) {
+function indexUris(){
+    axios.get(route('uris.index')).then(function (response) {
         // handle success
-        listUris.value = response.data;
-    })
-        .catch(function (error) {
+        uris.value = response.data
+    }).catch(function (error) {
             // handle error
             console.log(error);
-        })
-        .finally(function () {
+        }).finally(function () {
             // always executed
         });
 }
-
 
 function apiIndexTelephones(like){
     axios.get(route('api.telephones'), {
@@ -341,9 +338,9 @@ onMounted(()=>{
     indexLabels()
     indexProducts()
     indexUnits()
+    indexUris()
 
     apiIndexCatalogs();
-    apiIndexUris();
     apiIndexTelephones();
     getManufacturers();
     getCountries();
