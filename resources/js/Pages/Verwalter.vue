@@ -46,6 +46,20 @@ let listTelephones = ref();
 
 let showFormProduct = ref(false)
 
+const headersCatalogs = ref([
+    {
+        title: 'name',
+        key: 'name',
+    },
+    {
+        title: 'uri',
+        key: 'uri',
+    },
+    {
+        title: 'rank',
+        key: 'rank',
+    },
+])
 const headersProducts = [
     {
         title: 'rus',
@@ -55,7 +69,25 @@ const headersProducts = [
         title: 'eng',
         key: 'eng',
     },
+    {
+        title: 'Category',
+        key: 'category',
+    },
 ]
+const headersRegions = ref([
+    {
+        title: 'Регион',
+        key: 'name',
+    },
+    {
+        title: 'Страна',
+        key: 'country',
+    },
+    {
+        title: 'Площадь',
+        key: 'area',
+    },
+])
 const headersUnits = [
     {
         title: 'name',
@@ -168,35 +200,6 @@ function apiIndexTelephones(like){
             console.log(error);
         });
 }
-
-const headersRegions = ref([
-    {
-        title: 'Регион',
-        key: 'name',
-    },
-    {
-        title: 'Страна',
-        key: 'country',
-    },
-    {
-        title: 'Площадь',
-        key: 'area',
-    },
-])
-const headersCatalogs = ref([
-    {
-        title: 'name',
-        key: 'name',
-    },
-    {
-        title: 'uri',
-        key: 'uri',
-    },
-    {
-        title: 'rank',
-        key: 'rank',
-    },
-])
 
 const formGood = useForm({
     name: null,
@@ -571,104 +574,105 @@ useHead({
                                             <v-card flat
                                                     color="indigo"
                                             >
-                                                <v-data-table :headers="headersProducts"
-                                                              :items="filteredProducts"
-                                                              items-per-page="51"
-                                                              density="compact"
-                                                              hover="hover"
-                                                >
-                                                    <template v-slot:top>
-                                                        <v-row>
-                                                            <v-col cols="9">
-                                                                <v-text-field class="py-2"
-                                                                              v-model="searchProducts"
-                                                                              label="Filter products"
-                                                                              prepend-inner-icon="mdi-magnify"
-                                                                              variant="outlined"
-                                                                              clearable
-                                                                ></v-text-field>
-                                                            </v-col>
-                                                            <v-col cols="3">
-                                                                <v-dialog v-model="showFormProduct"
-                                                                          width="750"
-                                                                >
-                                                                    <template v-slot:activator="{ props }">
-                                                                        <v-btn class="mb-2"
-                                                                               color="primary"
-                                                                               dark
-                                                                               v-bind="props"
-                                                                        >
-                                                                            New Item
-                                                                        </v-btn>
-                                                                    </template>
-                                                                    <v-card>
-                                                                        <v-card-text>
-                                                                            <v-form @submit.prevent>
-                                                                                <v-row>
-                                                                                    <v-col cols="7">
-                                                                                        <v-text-field v-model="formProduct.rus"
-                                                                                                      label="Product"
-                                                                                        ></v-text-field>
-                                                                                    </v-col>
-                                                                                    <v-col cols="5">
-                                                                                        <v-autocomplete :items="categories"
-                                                                                                        :item-value="'id'"
-                                                                                                        :item-title="'name'"
-                                                                                                        v-model="formProduct.category_id"
-                                                                                                        label="Category"
-                                                                                                        variant="filled"
-                                                                                                        density="comfortable"
-                                                                                                        color="indigo"></v-autocomplete>
-                                                                                    </v-col>
-                                                                                </v-row>
-                                                                                <v-row>
-                                                                                    <v-text-field v-model="formProduct.eng"
-                                                                                                  label="Product eng"
-                                                                                    ></v-text-field>
-                                                                                </v-row>
-                                                                                <v-row>
-                                                                                    <v-text-field v-model="formProduct.zh"
-                                                                                                  label="Product zh"
-                                                                                    ></v-text-field>
-                                                                                </v-row>
-                                                                                <v-row>
-                                                                                    <v-text-field v-model="formProduct.es"
-                                                                                                  label="Product es"
-                                                                                    ></v-text-field>
-                                                                                </v-row>
-                                                                            </v-form>
-                                                                        </v-card-text>
-                                                                        <v-card-actions>
-                                                                            <v-spacer></v-spacer>
-                                                                            <v-divider vertical></v-divider>
-                                                                            <v-btn
-                                                                                color="blue-darken-1"
-                                                                                variant="text"
-                                                                                @click="close"
-                                                                            >
-                                                                                Cancel
-                                                                            </v-btn>
-                                                                            <v-divider vertical></v-divider>
-
-                                                                            <v-btn text="store"
-                                                                                   @click="storeProduct"
-                                                                                   color="blue-darken-1"
-                                                                                   variant="elevated"
+                                                <v-card-text>
+                                                    <v-data-table :items="filteredProducts"
+                                                                  :headers="headersProducts"
+                                                                  items-per-page="51"
+                                                                  density="compact"
+                                                                  hover="hover"
+                                                    >
+                                                        <template v-slot:top>
+                                                            <v-row>
+                                                                <v-col cols="9">
+                                                                    <v-text-field v-model="searchProducts"
+                                                                                  label="Filter products"
+                                                                                  prepend-inner-icon="mdi-magnify"
+                                                                                  variant="outlined"
+                                                                                  density="compact"
+                                                                                  clearable
+                                                                    ></v-text-field>
+                                                                </v-col>
+                                                                <v-col cols="3">
+                                                                    <v-dialog v-model="showFormProduct"
+                                                                              width="750"
+                                                                    >
+                                                                        <template v-slot:activator="{props}">
+                                                                            <v-btn text="+ product"
+                                                                                   v-bind="props"
+                                                                                   variant="tonal"
+                                                                                   color="indigo"
                                                                             ></v-btn>
-                                                                        </v-card-actions>
-                                                                    </v-card>
-                                                                </v-dialog>
-                                                            </v-col>
-                                                        </v-row>
-                                                    </template>
-                                                    <template v-slot:item.rus="{item}">
-                                                        <Link :href="route('product.show', item.id)"
-                                                              class="text-blue-950"
-                                                        >
-                                                            <span class="font-ComfortaaVariableFont text-xl">{{item.rus}}</span>
-                                                        </Link>
-                                                    </template>
-                                                </v-data-table>
+                                                                        </template>
+                                                                        <v-card>
+                                                                            <v-card-text>
+                                                                                <v-form @submit.prevent>
+                                                                                    <v-row>
+                                                                                        <v-col cols="7">
+                                                                                            <v-text-field v-model="formProduct.rus"
+                                                                                                          label="Product"
+                                                                                            ></v-text-field>
+                                                                                        </v-col>
+                                                                                        <v-col cols="5">
+                                                                                            <v-autocomplete :items="categories"
+                                                                                                            :item-value="'id'"
+                                                                                                            :item-title="'name'"
+                                                                                                            v-model="formProduct.category_id"
+                                                                                                            label="Category"
+                                                                                                            variant="filled"
+                                                                                                            density="comfortable"
+                                                                                                            color="indigo"></v-autocomplete>
+                                                                                        </v-col>
+                                                                                    </v-row>
+                                                                                    <v-row>
+                                                                                        <v-text-field v-model="formProduct.eng"
+                                                                                                      label="Product eng"
+                                                                                        ></v-text-field>
+                                                                                    </v-row>
+                                                                                    <v-row>
+                                                                                        <v-text-field v-model="formProduct.zh"
+                                                                                                      label="Product zh"
+                                                                                        ></v-text-field>
+                                                                                    </v-row>
+                                                                                    <v-row>
+                                                                                        <v-text-field v-model="formProduct.es"
+                                                                                                      label="Product es"
+                                                                                        ></v-text-field>
+                                                                                    </v-row>
+                                                                                </v-form>
+                                                                            </v-card-text>
+                                                                            <v-card-actions>
+                                                                                <v-spacer></v-spacer>
+                                                                                <v-divider vertical></v-divider>
+                                                                                <v-btn
+                                                                                    color="blue-darken-1"
+                                                                                    variant="text"
+                                                                                    @click="close"
+                                                                                >
+                                                                                    Cancel
+                                                                                </v-btn>
+                                                                                <v-divider vertical></v-divider>
+
+                                                                                <v-btn text="store"
+                                                                                       @click="storeProduct"
+                                                                                       color="blue-darken-1"
+                                                                                       variant="elevated"
+                                                                                ></v-btn>
+                                                                            </v-card-actions>
+                                                                        </v-card>
+                                                                    </v-dialog>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </template>
+                                                        <template v-slot:item.rus="{item}">
+                                                            <Link :href="route('product.show', item.id)"
+                                                                  color="amber-accent-2"
+                                                                  class="font-UnderdogRegular text-sm"
+                                                            >
+                                                                {{item.rus}}
+                                                            </Link>
+                                                        </template>
+                                                    </v-data-table>
+                                                </v-card-text>
                                             </v-card>
                                         </v-col>
                                     </v-row>
