@@ -571,9 +571,7 @@ useHead({
                                 <v-tabs-window-item value="products">
                                     <v-row>
                                         <v-col>
-                                            <v-card flat
-                                                    color="indigo"
-                                            >
+                                            <v-card flat>
                                                 <v-card-text>
                                                     <v-data-table :items="filteredProducts"
                                                                   :headers="headersProducts"
