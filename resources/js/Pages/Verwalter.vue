@@ -22,6 +22,7 @@ const catalogs = ref([])
 const categories = ref([])
 const labels = ref([])
 const products = ref([])
+const segmetns = ref([])
 const units = ref([])
 const uris = ref([])
 
@@ -161,6 +162,13 @@ const filteredProducts = computed(()=>{
     const search = searchProducts.value.toLowerCase()
     return products.value.filter(i => i.rus.toLowerCase().includes(search))
 })
+function indexSegments(){
+    axios.get(route('segments.index')).then(function (response){
+        segmetns.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
 function indexUnits(){
     axios.get(route('units.index')).then(function (response) {
         // handle success
@@ -341,6 +349,7 @@ onMounted(()=>{
     indexCategories()
     indexLabels()
     indexProducts()
+    indexSegments()
     indexUnits()
     indexUris()
 
@@ -372,13 +381,14 @@ useHead({
                 <v-col lg="8">
                     <v-card>
                         <v-tabs v-model="tab">
+                            <v-tab value="units">Units</v-tab>
+                            <v-tab value="products">Products</v-tab>
+                            <v-tab value="categories">Categories</v-tab>
                             <v-tab value="brands">Brands</v-tab>
                             <v-tab value="buildings">Buildings</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
-                            <v-tab value="categories">Categories</v-tab>
+                            <v-tab value="segments">Segments</v-tab>
                             <v-tab value="components">Components</v-tab>
-                            <v-tab value="products">Products</v-tab>
-                            <v-tab value="units">Units</v-tab>
                             <v-tab value="uris">Uris</v-tab>
 
                             <v-tab value="two">
@@ -680,6 +690,15 @@ useHead({
                                     </v-row>
                                 </v-tabs-window-item>
 
+                                <!--      S E G M E N T S      -->
+                                <v-tabs-window-item value="segments">
+                                    <v-row>
+                                        <v-col>
+                                            <v-data-table :items="segmetns"></v-data-table>
+                                        </v-col>
+                                    </v-row>
+                                </v-tabs-window-item>
+
                                 <!--   U N I T S   -->
                                 <v-tabs-window-item value="units">
                                     <v-row>
@@ -698,6 +717,7 @@ useHead({
                                                               items-per-page="100"
                                                               density="compact"
                                                               class="text-xs"
+                                                              hover
                                                 >
                                                     <template v-slot:item.uris="{item}">
                                                         <a v-for="uri in item.uris"
