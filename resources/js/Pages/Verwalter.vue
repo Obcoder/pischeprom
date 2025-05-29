@@ -711,7 +711,7 @@ useHead({
                                         <v-sheet>
                                             <a v-for="uri in uris"
                                                :href="uri.address" target="_blank"
-                                               class="text-xs text-stone-900 inline-block"
+                                               class="text-xs text-green-400 inline-block"
                                             >{{uri.address}}</a>
                                         </v-sheet>
                                     </v-row>
