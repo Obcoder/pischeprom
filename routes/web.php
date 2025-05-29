@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\PriceController;
 use App\Models\Good;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\ManufacturerController;
+
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\UnitController;
@@ -190,6 +192,10 @@ Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitControll
 //      M A N U F A C T U R E R
 Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
     ->name('web.manufacturer.store');
+//      P R I C E
+Route::post('/api/price/store', [PriceController::class, 'store'])
+    ->name('web.price.store');
+//      U N I T
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
     ->name('web.unit.store');
 Route::post('/api/unituri/store', [UnitUriController::class, 'store'])

@@ -6,6 +6,7 @@ import axios from "axios";
 import { useHead } from "@vueuse/head"; // Используем @vueuse/head
 import {route} from "ziggy-js"
 import {useDate} from "vuetify";
+import {useForm} from "@inertiajs/vue3";
 defineOptions({
     layout: VerwalterLayout,
 });
@@ -14,10 +15,21 @@ const props = defineProps({
 })
 const date = useDate()
 
+const currencies = ref([])
 const good = ref(null);
 const loading = ref(true);
 const error = ref(null);
 // const route = useRoute();
+
+const showFormAddPrice = ref(false)
+
+function indexCurrencies(){
+    axios.get(route('currencies.index')).then(function (response){
+        currencies.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
 
 // Загрузка данных товара
 const fetchGood = async () => {
@@ -30,6 +42,23 @@ const fetchGood = async () => {
         loading.value = false;
     }
 };
+
+const formAddPrice = useForm({
+    good_id: props.good.id,
+    price: null,
+    currency_id: null,
+})
+function storePrice(){
+    formAddPrice.post(route('web.price.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formAddPrice.reset()
+            fetchGood()
+        },
+    })
+}
 
 // Динамические метатеги для SEO
 useHead({
@@ -54,11 +83,22 @@ useHead({
 
 onMounted(() => {
     fetchGood();
+    indexCurrencies()
 });
 </script>
 
 <template>
     <v-container>
+        <v-row>
+            <v-col lg="3">
+                <v-btn text="add price"
+                       @click="showFormAddPrice = !showFormAddPrice"
+                       variant="plain"
+                       density="compact"
+                       color="green"
+                ></v-btn>
+            </v-col>
+        </v-row>
         <v-row v-if="loading">
             <v-col>
                 <v-progress-circular indeterminate color="primary"></v-progress-circular>
@@ -91,6 +131,39 @@ onMounted(() => {
                 </v-card>
             </v-col>
             <v-col lg="3" md="1">
+                <v-sheet v-if="showFormAddPrice">
+                    <v-form @submit.prevent>
+                        <v-row>
+                            <v-col cols="8">
+                                <v-text-field v-model="formAddPrice.price"
+                                              label="Цена"
+                                              variant="solo"
+                                              density="comfortable"
+                                              color="deep-purple"
+                                ></v-text-field>
+                            </v-col>
+                            <v-col cols="4">
+                                <v-select :items="currencies"
+                                          :item-value="'id'"
+                                          :item-title="'code'"
+                                          v-model="formAddPrice.currency_id"
+                                          label="Валюта"
+                                          variant="solo"
+                                          density="compact"
+                                          color="grey"
+                                ></v-select>
+                            </v-col>
+                        </v-row>
+                        <v-row>
+                            <v-col lg="2">
+                                <v-btn text="store"
+                                       @click="storePrice"
+                                       variant="flat"
+                                       density="comfortable"></v-btn>
+                            </v-col>
+                        </v-row>
+                    </v-form>
+                </v-sheet>
                 <v-list border
                         rounded
                 >
