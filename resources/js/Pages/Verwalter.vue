@@ -5,7 +5,6 @@ import {useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
 import {route} from "ziggy-js";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {consoleError} from "vuetify/lib/util/index.js";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -19,12 +18,13 @@ let tab = ref();
 
 const brands = ref([])
 const buildings = ref([])
+const catalogs = ref([])
 const categories = ref([])
 const labels = ref([])
-let catalogs = ref();
+const units = ref([])
+
 let manufacturers = ref();
 let listProducts = ref();
-let listUnits = ref();
 let listCountries = ref();
 let listRegions = ref();
 let listEntities = ref();
@@ -33,7 +33,7 @@ let listComponents = ref();
 
 const searchBrands = ref('')
 const searchBuildings = ref('')
-let searchUnits = ref('');
+const searchUnits = ref('')
 let searchGoods = ref('');
 let searchComponents = ref('');
 let headersCountries = ref();
@@ -43,6 +43,13 @@ let dialogUri = ref(false);
 let dialogFormProduct = ref(false);
 let listUris = ref();
 let listTelephones = ref();
+
+const headersUnits = [
+    {
+        title: 'name',
+        key: 'name',
+    },
+]
 
 function indexBrands(){
     axios.get(route('brands.index')).then(function (response){
@@ -90,7 +97,20 @@ function apiIndexLabels(){
             console.log(error);
         });
 }
-
+function indexUnits(){
+    axios.get(route('units.index')).then(function (response) {
+        // handle success
+        units.value = response.data
+    })
+        .catch(function (error) {
+            // handle error
+            console.error(error);
+        });
+}
+const filteredUnits = computed(()=>{
+    const search = searchUnits.value.toLowerCase();
+    return units.value.filter(item => item.name.toLowerCase().includes(search))
+})
 function apiIndexUris(){
     axios.get(route('api.uris')).then(function (response) {
         // handle success
@@ -158,16 +178,6 @@ const formComponent = useForm({
     name: null,
 })
 
-function apiIndexUnits(){
-    axios.get(route('api.units')).then(function (response) {
-        // handle success
-        listUnits.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        });
-}
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
         // handle success
@@ -300,9 +310,9 @@ async function sendMail() {
 onMounted(()=>{
     indexBrands()
     indexCategories()
+    indexUnits()
 
     apiIndexCatalogs();
-    apiIndexUnits();
     apiIndexUris();
     apiIndexTelephones();
     getManufacturers();
@@ -338,7 +348,9 @@ useHead({
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="categories">Categories</v-tab>
                             <v-tab value="components">Components</v-tab>
+                            <v-tab value="units">Units</v-tab>
                             <v-tab value="uris">Uris</v-tab>
+
                             <v-tab value="two">
                                 Manufacturers
                             </v-tab>
@@ -531,6 +543,24 @@ useHead({
                                             </v-col>
                                         </v-row>
                                     </v-container>
+                                </v-tabs-window-item>
+
+                                <!--   U N I T S   -->
+                                <v-tabs-window-item value="units">
+                                    <v-row>
+                                        <v-col lg="2">
+                                            <v-text-field v-model="searchUnits"
+                                                          label="Поиск по юнитам"
+                                                          variant="solo"
+                                                          density="compact"></v-text-field>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row>
+                                        <v-data-table :items="filteredUnits"
+                                                      :headers="headersUnits"
+                                                      density="compact"
+                                        ></v-data-table>
+                                    </v-row>
                                 </v-tabs-window-item>
 
                                 <v-tabs-window-item value="eleven">
