@@ -367,8 +367,8 @@ useHead({
     <v-theme-provider theme="dark">
         <v-container fluid>
             <v-row>
-                <v-col cols="3"></v-col>
-                <v-col lg="6">
+                <v-col cols="2"></v-col>
+                <v-col lg="8">
                     <v-card>
                         <v-tabs v-model="tab">
                             <v-tab value="brands">Brands</v-tab>
