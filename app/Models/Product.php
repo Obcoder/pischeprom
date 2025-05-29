@@ -16,6 +16,7 @@ class Product extends Model
         'eng',
         'zh',
         'es',
+        'category_id',
     ];
     protected $with = [
         'manufacturers',

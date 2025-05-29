@@ -1,27 +1,24 @@
 <?php
 
-use App\Http\Controllers\API\PriceController;
-use App\Models\Good;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Models\City;
+use App\Models\Good;
 use App\Models\Product;
 use App\Models\Region;
 use App\Models\Unit;
 use App\Mail\TestEmail;
 use Illuminate\Support\Facades\Mail;
+use App\Http\Controllers\TelegramController;
+use App\Http\Controllers\MainController;
+use App\Http\Controllers\Verwalter;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\ManufacturerController;
-
-use App\Http\Controllers\TelegramController;
-use App\Http\Controllers\API\RegionController;
+use App\Http\Controllers\API\PriceController;
+use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitUriController;
-use App\Http\Controllers\Verwalter;
-
-Route::get('/', [\App\Http\Controllers\MainController::class, 'index'])
-    ->name('home');
 
 Route::middleware([
     'auth:sanctum',
@@ -32,6 +29,9 @@ Route::middleware([
         return Inertia::render('Dashboard');
     })->name('dashboard');
 });
+
+Route::get('/', [MainController::class, 'index'])
+    ->name('home');
 
 //   * * * * * * * * *   A M E I S E   * * * * * * * * *
 Route::get('/Ameise/', [Verwalter::class, 'index'])
@@ -185,6 +185,7 @@ Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitControll
 //     $ $ $ $ $     E N T I T Y     % % % % %
 Route::post('/entity/store', [EntityController::class, 'store'])
     ->name('web.entity.store');
+//      G E N U S
 Route::post('/api/genus/store', [GenusController::class, 'store'])
     ->name('web.genus.store');
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
@@ -195,6 +196,9 @@ Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
 //      P R I C E
 Route::post('/api/price/store', [PriceController::class, 'store'])
     ->name('web.price.store');
+//      P R O D U C T
+Route::post('/api/product/store', [ProductController::class, 'store'])
+    ->name('web.product.store');
 //      U N I T
 Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
     ->name('web.unit.store');

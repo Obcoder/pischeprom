@@ -21,10 +21,11 @@ const buildings = ref([])
 const catalogs = ref([])
 const categories = ref([])
 const labels = ref([])
+const products = ref([])
 const units = ref([])
+const uris = ref([])
 
 let manufacturers = ref();
-let listProducts = ref();
 let listCountries = ref();
 let listRegions = ref();
 let listEntities = ref();
@@ -33,21 +34,36 @@ let listComponents = ref();
 
 const searchBrands = ref('')
 const searchBuildings = ref('')
+const searchProducts = ref('')
 const searchUnits = ref('')
 let searchGoods = ref('');
 let searchComponents = ref('');
 let headersCountries = ref();
 let headersComponents = ref();
-let searchProducts = ref('');
 let dialogUri = ref(false);
 let dialogFormProduct = ref(false);
-let listUris = ref();
 let listTelephones = ref();
 
+let showFormProduct = ref(false)
+
+const headersProducts = [
+    {
+        title: 'rus',
+        key: 'rus',
+    },
+    {
+        title: 'eng',
+        key: 'eng',
+    },
+]
 const headersUnits = [
     {
         title: 'name',
         key: 'name',
+    },
+    {
+        title: 'Uris',
+        key: 'uris',
     },
 ]
 
@@ -79,8 +95,7 @@ function indexCategories(){
     axios.get(route('categories.index')).then(function (response) {
         // handle success
         categories.value = response.data
-    })
-        .catch(function (error) {
+    }).catch(function (error) {
             // handle error
             console.error(error);
         })
@@ -88,15 +103,28 @@ function indexCategories(){
             // always executed
         });
 }
-
-function apiIndexLabels(){
-    axios.get(route('api.labels')).then(function (response) {
+function indexLabels(){
+    axios.get(route('labels.index')).then(function (response) {
         labels.value = response.data
-    })
-        .catch(function (error) {
+    }).catch(function (error) {
             console.log(error);
         });
 }
+function indexProducts(){
+    axios.get(route('products.index')).then(function (response) {
+        // handle success
+        products.value = response.data
+    }).catch(function (error) {
+            // handle error
+            console.error(error);
+        }).finally(function () {
+            // always executed
+        });
+}
+const filteredProducts = computed(()=>{
+    const search = searchProducts.value.toLowerCase()
+    return products.value.filter(i => i.rus.toLowerCase().includes(search))
+})
 function indexUnits(){
     axios.get(route('units.index')).then(function (response) {
         // handle success
@@ -191,19 +219,6 @@ function getManufacturers(){
             // always executed
         });
 }
-function getProducts(){
-    axios.get(route('api.products')).then(function (response) {
-        // handle success
-        listProducts.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        })
-        .finally(function () {
-            // always executed
-        });
-}
 function getCountries(){
     axios.get(route('api.countries')).then(function (response) {
         // handle success
@@ -251,17 +266,26 @@ function apiIndexRegions(){
         console.log(error);
     });
 }
+
+const formProduct = useForm({
+    rus: null,
+    eng: null,
+    zh: null,
+    es: null,
+    category_id: null,
+})
 function storeProduct(){
-    formProduct.post(route('api.product.store'), {
+    formProduct.post(route('web.product.store'), {
         replace: false,
         preserveState: true,
-        preserveScroll: false,
+        preserveScroll: true,
         onSuccess: ()=> {
             formProduct.reset();
-            getProducts();
+            indexProducts(searchProducts);
         },
-    });
+    })
 }
+
 function storeGood(){
     formGood.post(route('api.good.store'), {
         replace: true,
@@ -311,15 +335,15 @@ onMounted(()=>{
     indexBrands()
     indexBuildings()
     indexCategories()
+    indexLabels()
+    indexProducts()
     indexUnits()
 
     apiIndexCatalogs();
     apiIndexUris();
     apiIndexTelephones();
     getManufacturers();
-    getProducts();
     getCountries();
-    apiIndexLabels();
     apiIndexEntities();
     apiIndexComponents();
     apiIndexRegions();
@@ -349,6 +373,7 @@ useHead({
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="categories">Categories</v-tab>
                             <v-tab value="components">Components</v-tab>
+                            <v-tab value="products">Products</v-tab>
                             <v-tab value="units">Units</v-tab>
                             <v-tab value="uris">Uris</v-tab>
 
@@ -499,13 +524,6 @@ useHead({
                                     ></v-data-table>
                                 </v-tabs-window-item>
 
-                                <v-tabs-window-item value="five">
-                                    <v-data-table :items="listUris"
-                                                  density="compact"
-                                                  hover="hover"
-                                    ></v-data-table>
-                                </v-tabs-window-item>
-
                                 <!--
                                 _________________________________________________
                                 |
@@ -546,6 +564,116 @@ useHead({
                                     </v-container>
                                 </v-tabs-window-item>
 
+                                <!--   P R O D U C T S   -->
+                                <v-tabs-window-item value="products">
+                                    <v-row>
+                                        <v-col>
+                                            <v-card flat
+                                                    color="indigo"
+                                            >
+                                                <v-data-table :headers="headersProducts"
+                                                              :items="filteredProducts"
+                                                              items-per-page="51"
+                                                              density="compact"
+                                                              hover="hover"
+                                                >
+                                                    <template v-slot:top>
+                                                        <v-row>
+                                                            <v-col cols="9">
+                                                                <v-text-field class="py-2"
+                                                                              v-model="searchProducts"
+                                                                              label="Filter products"
+                                                                              prepend-inner-icon="mdi-magnify"
+                                                                              variant="outlined"
+                                                                              clearable
+                                                                ></v-text-field>
+                                                            </v-col>
+                                                            <v-col cols="3">
+                                                                <v-dialog v-model="showFormProduct"
+                                                                          width="750"
+                                                                >
+                                                                    <template v-slot:activator="{ props }">
+                                                                        <v-btn class="mb-2"
+                                                                               color="primary"
+                                                                               dark
+                                                                               v-bind="props"
+                                                                        >
+                                                                            New Item
+                                                                        </v-btn>
+                                                                    </template>
+                                                                    <v-card>
+                                                                        <v-card-text>
+                                                                            <v-form @submit.prevent>
+                                                                                <v-row>
+                                                                                    <v-col cols="7">
+                                                                                        <v-text-field v-model="formProduct.rus"
+                                                                                                      label="Product"
+                                                                                        ></v-text-field>
+                                                                                    </v-col>
+                                                                                    <v-col cols="5">
+                                                                                        <v-autocomplete :items="categories"
+                                                                                                        :item-value="'id'"
+                                                                                                        :item-title="'name'"
+                                                                                                        v-model="formProduct.category_id"
+                                                                                                        label="Category"
+                                                                                                        variant="filled"
+                                                                                                        density="comfortable"
+                                                                                                        color="indigo"></v-autocomplete>
+                                                                                    </v-col>
+                                                                                </v-row>
+                                                                                <v-row>
+                                                                                    <v-text-field v-model="formProduct.eng"
+                                                                                                  label="Product eng"
+                                                                                    ></v-text-field>
+                                                                                </v-row>
+                                                                                <v-row>
+                                                                                    <v-text-field v-model="formProduct.zh"
+                                                                                                  label="Product zh"
+                                                                                    ></v-text-field>
+                                                                                </v-row>
+                                                                                <v-row>
+                                                                                    <v-text-field v-model="formProduct.es"
+                                                                                                  label="Product es"
+                                                                                    ></v-text-field>
+                                                                                </v-row>
+                                                                            </v-form>
+                                                                        </v-card-text>
+                                                                        <v-card-actions>
+                                                                            <v-spacer></v-spacer>
+                                                                            <v-divider vertical></v-divider>
+                                                                            <v-btn
+                                                                                color="blue-darken-1"
+                                                                                variant="text"
+                                                                                @click="close"
+                                                                            >
+                                                                                Cancel
+                                                                            </v-btn>
+                                                                            <v-divider vertical></v-divider>
+
+                                                                            <v-btn text="store"
+                                                                                   @click="storeProduct"
+                                                                                   color="blue-darken-1"
+                                                                                   variant="elevated"
+                                                                            ></v-btn>
+                                                                        </v-card-actions>
+                                                                    </v-card>
+                                                                </v-dialog>
+                                                            </v-col>
+                                                        </v-row>
+                                                    </template>
+                                                    <template v-slot:item.rus="{item}">
+                                                        <Link :href="route('product.show', item.id)"
+                                                              class="text-blue-950"
+                                                        >
+                                                            <span class="font-ComfortaaVariableFont text-xl">{{item.rus}}</span>
+                                                        </Link>
+                                                    </template>
+                                                </v-data-table>
+                                            </v-card>
+                                        </v-col>
+                                    </v-row>
+                                </v-tabs-window-item>
+
                                 <!--   U N I T S   -->
                                 <v-tabs-window-item value="units">
                                     <v-row>
@@ -557,12 +685,33 @@ useHead({
                                         </v-col>
                                     </v-row>
                                     <v-row>
-                                        <v-data-table :items="filteredUnits"
-                                                      :headers="headersUnits"
-                                                      items-per-page="30"
-                                                      density="compact"
-                                                      class="text-xs"
-                                        ></v-data-table>
+                                        <v-card>
+                                            <v-card-text>
+                                                <v-data-table :items="filteredUnits"
+                                                              :headers="headersUnits"
+                                                              items-per-page="30"
+                                                              density="compact"
+                                                              class="text-xs"
+                                                >
+                                                    <template v-slot:item.uris="{item}">
+                                                        <span v-for="uri in item.uris"
+                                                              class="text-xs inline-block text-yellow-200">{{uri.address}}</span>
+                                                    </template>
+                                                </v-data-table>
+                                            </v-card-text>
+                                        </v-card>
+                                    </v-row>
+                                </v-tabs-window-item>
+
+                                <!--   U R I S  -->
+                                <v-tabs-window-item value="uris">
+                                    <v-row>
+                                        <v-sheet>
+                                            <a v-for="uri in uris"
+                                               :href="uri.address" target="_blank"
+                                               class="text-xs text-stone-900 inline-block"
+                                            >{{uri.address}}</a>
+                                        </v-sheet>
                                     </v-row>
                                 </v-tabs-window-item>
 
