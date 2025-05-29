@@ -309,6 +309,7 @@ async function sendMail() {
 
 onMounted(()=>{
     indexBrands()
+    indexBuildings()
     indexCategories()
     indexUnits()
 
@@ -340,7 +341,7 @@ useHead({
         <v-container fluid>
             <v-row>
                 <v-col cols="3"></v-col>
-                <v-col cols="5">
+                <v-col lg="6">
                     <v-card>
                         <v-tabs v-model="tab">
                             <v-tab value="brands">Brands</v-tab>
@@ -548,7 +549,7 @@ useHead({
                                 <!--   U N I T S   -->
                                 <v-tabs-window-item value="units">
                                     <v-row>
-                                        <v-col lg="2">
+                                        <v-col lg="4">
                                             <v-text-field v-model="searchUnits"
                                                           label="Поиск по юнитам"
                                                           variant="solo"
@@ -558,7 +559,9 @@ useHead({
                                     <v-row>
                                         <v-data-table :items="filteredUnits"
                                                       :headers="headersUnits"
+                                                      items-per-page="30"
                                                       density="compact"
+                                                      class="text-xs"
                                         ></v-data-table>
                                     </v-row>
                                 </v-tabs-window-item>
