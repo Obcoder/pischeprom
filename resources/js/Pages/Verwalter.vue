@@ -5,6 +5,7 @@ import {useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
 import {route} from "ziggy-js";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import {consoleError} from "vuetify/lib/util/index.js";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -14,10 +15,12 @@ const props = defineProps({
     actions: Object,
 })
 
+let tab = ref();
+
 const brands = ref([])
+const buildings = ref([])
 const categories = ref([])
 const labels = ref([])
-let tab = ref();
 let catalogs = ref();
 let manufacturers = ref();
 let listProducts = ref();
@@ -29,10 +32,10 @@ let listChecks = ref();
 let listComponents = ref();
 
 const searchBrands = ref('')
+const searchBuildings = ref('')
 let searchUnits = ref('');
 let searchGoods = ref('');
 let searchComponents = ref('');
-let headersGoods = ref([]);
 let headersCountries = ref();
 let headersComponents = ref();
 let searchProducts = ref('');
@@ -53,6 +56,17 @@ const filteredBrands = computed(() => {
     return brands.value.filter(item =>
         item.name.toLowerCase().includes(searchRequest)
     )
+})
+function indexBuildings(){
+    axios.get(route('buildings.index')).then(function (response){
+        buildings.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
+const filteredBuildings = computed(()=>{
+    const search = searchBuildings.value.toLowerCase();
+    return buildings.value.filter(i => i.address.toLowerCase().includes(search))
 })
 function indexCategories(){
     axios.get(route('categories.index')).then(function (response) {
@@ -315,35 +329,16 @@ useHead({
     <v-theme-provider theme="dark">
         <v-container fluid>
             <v-row>
-                <v-col cols="2">
+                <v-col cols="3"></v-col>
+                <v-col cols="5">
                     <v-card>
-                        <v-card-title>Categories</v-card-title>
-                        <v-card-text>
-                            <v-list variant="text"
-                                    density="compact"
-                            >
-                                <v-list-item v-for="category in categories">
-                                    <span>{{category.name}}</span>
-                                </v-list-item>
-                            </v-list>
-                        </v-card-text>
-                    </v-card>
-                </v-col>
-                <v-col>
-                    <v-card>
-                        <v-tabs v-model="tab"
-                                bg-color="pink-darken-1"
-                        >
+                        <v-tabs v-model="tab">
                             <v-tab value="brands">Brands</v-tab>
+                            <v-tab value="buildings">Buildings</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="categories">Categories</v-tab>
                             <v-tab value="components">Components</v-tab>
-                            <v-tab value="seven">
-                                Countries
-                            </v-tab>
-                            <v-tab value="five">
-                                Uris
-                            </v-tab>
+                            <v-tab value="uris">Uris</v-tab>
                             <v-tab value="two">
                                 Manufacturers
                             </v-tab>
@@ -370,9 +365,19 @@ useHead({
                                 </v-tabs-window-item>
                                 <!--_________________________________________-->
 
-                                <!--
-                                + + + + + + +    C A T A L O G S   + + + + + + + +
-                                  -->
+                                <!--   B U I L D I N G S   -->
+                                <v-tabs-window-item value="buildings">
+                                    <v-text-field v-model="searchBuildings"
+                                                  label="Искать по адресам"
+                                                  variant="solo"
+                                                  density="compact"
+                                    ></v-text-field>
+                                    <v-sheet>
+                                        <div v-for="building in filteredBuildings">{{building.address}}</div>
+                                    </v-sheet>
+                                </v-tabs-window-item>
+
+                                <!-- + + + + + + +    C A T A L O G S   + + + + + + + -->
                                 <v-tabs-window-item value="catalogs">
                                     <v-data-table :items="catalogs"
                                                   :headers="headersCatalogs"
@@ -386,9 +391,19 @@ useHead({
                                         </template>
                                     </v-data-table>
                                 </v-tabs-window-item>
-                                <!--
-                                -------------- E N D   C A T A L O G S ---------------------------
-                                  -->
+                                <!-- ------------- E N D   C A T A L O G S ---------------  -->
+
+                                <!--###################   C A T E G O R I E S   #####################-->
+                                <v-tabs-window-item value="categories">
+                                    <v-list variant="outlined"
+                                            density="compact"
+                                    >
+                                        <v-list-item v-for="category in categories">
+                                            <span>{{category.name}}</span>
+                                        </v-list-item>
+                                    </v-list>
+                                </v-tabs-window-item>
+                                <!-- ############################################################### -->
 
                                 <!--
                                 ___________________________________________________________________________________
