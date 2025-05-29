@@ -695,13 +695,14 @@ useHead({
                                             <v-card-text>
                                                 <v-data-table :items="filteredUnits"
                                                               :headers="headersUnits"
-                                                              items-per-page="30"
+                                                              items-per-page="100"
                                                               density="compact"
                                                               class="text-xs"
                                                 >
                                                     <template v-slot:item.uris="{item}">
-                                                        <span v-for="uri in item.uris"
-                                                              class="text-xs inline-block text-yellow-200">{{uri.address}}</span>
+                                                        <a v-for="uri in item.uris"
+                                                           :href="uri.address" target="_blank"
+                                                           class="text-xs inline-block mr-1 text-yellow-200">{{uri.address}}</a>
                                                     </template>
                                                     <template v-slot:item.stages="{item}">
                                                         <v-chip v-for="stage in item.stages"
