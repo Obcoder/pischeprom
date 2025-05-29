@@ -52,11 +52,6 @@ import {route} from "ziggy-js";
                     </Link>
                 </v-list-item>
                 <v-list-item>
-                    <Link :href="route('Ameise.brands')">
-                        Brands
-                    </Link>
-                </v-list-item>
-                <v-list-item>
                     <Link :href="route('Ameise.yandex')">
                         Yandex
                     </Link>

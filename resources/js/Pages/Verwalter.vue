@@ -97,6 +97,10 @@ const headersUnits = [
         title: 'Uris',
         key: 'uris',
     },
+    {
+        title: 'Stages',
+        key: 'stages',
+    },
 ]
 
 function indexBrands(){
@@ -699,6 +703,12 @@ useHead({
                                                         <span v-for="uri in item.uris"
                                                               class="text-xs inline-block text-yellow-200">{{uri.address}}</span>
                                                     </template>
+                                                    <template v-slot:item.stages="{item}">
+                                                        <v-chip v-for="stage in item.stages"
+                                                                size="x-small"
+                                                                color="teal-accent-4"
+                                                        >{{stage.name}}</v-chip>
+                                                    </template>
                                                 </v-data-table>
                                             </v-card-text>
                                         </v-card>
@@ -708,12 +718,14 @@ useHead({
                                 <!--   U R I S  -->
                                 <v-tabs-window-item value="uris">
                                     <v-row>
-                                        <v-sheet>
-                                            <a v-for="uri in uris"
-                                               :href="uri.address" target="_blank"
-                                               class="text-xs text-green-400 inline-block"
-                                            >{{uri.address}}</a>
-                                        </v-sheet>
+                                        <v-col>
+                                            <v-sheet>
+                                                <a v-for="uri in uris"
+                                                   :href="uri.address" target="_blank"
+                                                   class="text-xs text-green-400 inline-block"
+                                                >{{uri.address}}</a>
+                                            </v-sheet>
+                                        </v-col>
                                     </v-row>
                                 </v-tabs-window-item>
 

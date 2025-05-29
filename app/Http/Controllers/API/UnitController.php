@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Unit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
 
 class UnitController extends Controller
 {
@@ -18,16 +16,26 @@ class UnitController extends Controller
     {
         $like = $request->search;
         $limit = $request->limit;
-        $units = Unit::where('name', 'like', "%{$like}%")
-            ->with('labels')
-            ->with('consumptions')
-            ->with('products')
-            ->with('entities.sales')
-            ->orderByDesc('created_at')
+        $activeStages = $request->input('activeStages', true); // По умолчанию true — подгружаем только активные стадии
+
+        $query = Unit::query()
+            ->where('name', 'like', "%{$like}%")
+            ->with([
+                       'labels',
+                       'consumptions',
+                       'products',
+                       'entities.sales',
+                       'stages' => function ($query) use ($activeStages) {
+                           if ($activeStages) {
+                               $query->wherePivot('isActive', true); // Фильтруем только активные стадии
+                           }
+                           // Если activeStages=false, подгружаем все стадии
+                       }
+                   ]);
+
+        return $query->orderByDesc('created_at')
             ->limit($limit)
             ->get();
-
-        return $units;
     }
 
     /**

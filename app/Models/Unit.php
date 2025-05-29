@@ -17,6 +17,7 @@ class Unit extends Model
     protected $with = [
         'uris',
         'labels',
+        'stages',
         'telephones',
         'emails.sendings',
     ];
@@ -40,7 +41,7 @@ class Unit extends Model
     {
         return $this->belongsToMany(Stage::class)
             ->using(stage_unit::class)
-            ->withPivot('startDate', 'endDate');
+            ->withPivot('startDate', 'endDate', 'isActive');
     }
     public function consumptions(){
         return $this->hasMany(Consumption::class)
