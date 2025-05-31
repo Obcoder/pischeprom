@@ -742,21 +742,40 @@ useHead({
                                                                 <v-form @submit.prevent>
                                                                     <v-row>
                                                                         <v-col>
-                                                                            <v-text-field></v-text-field>
+                                                                            <v-text-field v-model="formBuilding.name"
+                                                                                          label="Название"
+                                                                                          variant="solo-filled"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
                                                                         </v-col>
                                                                     </v-row>
                                                                     <v-row>
                                                                         <v-col>
-                                                                            <v-autocomplete></v-autocomplete>
+                                                                            <v-autocomplete :items="cities"
+                                                                                            :item-value="'id'"
+                                                                                            :item-title="'name'"
+                                                                                            v-model="formBuilding.city_id"
+                                                                                            label="Населенный пункт"
+                                                                                            variant="solo"
+                                                                                            density="comfortable"
+                                                                            ></v-autocomplete>
                                                                         </v-col>
                                                                         <v-col>
-                                                                            <v-text-field></v-text-field>
+                                                                            <v-text-field v-model="formBuilding.postcode"
+                                                                                          label="Postcode"
+                                                                                          variant="solo-inverted"
+                                                                                          density="compact"
+                                                                                          color="lime"
+                                                                            ></v-text-field>
                                                                         </v-col>
                                                                     </v-row>
                                                                 </v-form>
                                                             </v-card-text>
                                                             <v-card-actions>
-                                                                <v-divider vertical></v-divider>
+                                                                <v-divider vertical
+                                                                           thickness="1"
+                                                                           opacity="1"
+                                                                ></v-divider>
                                                                 <v-btn text="store"
                                                                        @click="storeBuilding"
                                                                        variant="elevated"
