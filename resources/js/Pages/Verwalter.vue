@@ -707,11 +707,11 @@ useHead({
                                                     <v-sheet>
                                                         <div v-for="(city, index) in filteredCities"
                                                              :key="city.id"
-                                                             class="inline-block mr-2 p-1 rounded text-xs text-teal-200 hover:bg-teal-200 hover:text-black"
+                                                             class="inline-block mr-1 p-1 rounded text-xs text-teal-200 hover:bg-teal-200 hover:text-black"
                                                         >
                                                             <div>
                                                                 <a :href="city.yandexmapsgeo" target="_blank"
-                                                                   class="inline-flex items-center justify-center mr-2 bg-teal-500 text-white rounded-full text-[6px] font-bold w-3 h-3"
+                                                                   class="inline-flex items-center justify-center mr-1 bg-teal-500 text-white rounded-full text-[6px] font-bold w-3 h-3"
                                                                 >{{ index + 1 }}</a>
                                                                 <Link :href="route('city.show', city.id)">
                                                                     {{city.name}}
