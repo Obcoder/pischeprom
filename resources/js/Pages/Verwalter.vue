@@ -725,6 +725,9 @@ useHead({
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="buildings">
                                             <v-row>
+                                                <v-col cols="1">
+                                                    <div v-model="buildings.length"></div>
+                                                </v-col>
                                                 <v-col lg="3">
                                                     <v-text-field v-model="searchBuildings"
                                                                   label="Искать по адресам"
@@ -793,7 +796,7 @@ useHead({
                                                 <v-col>
                                                     <v-sheet>
                                                         <div v-for="building in filteredBuildings"
-                                                             class="hover:bg-red-900 hover:text-red-100"
+                                                             class="hover:bg-red-950 hover:text-red-100"
                                                         >
                                                             <v-row>
                                                                 <v-col lg="5">
