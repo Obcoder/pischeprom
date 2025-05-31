@@ -326,12 +326,12 @@ const formBuilding = useForm({
     postcode: null,
 })
 function storeBuilding(){
-    axios.post(route('web.building.store'), {
+    formBuilding.post(route('web.building.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: true,
         onSuccess: ()=> {
-            formBuilding.reset();
+            formBuilding.reset()
             indexBuildings(searchBuildings.value)
         },
     })
