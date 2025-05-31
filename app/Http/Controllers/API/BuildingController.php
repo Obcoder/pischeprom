@@ -25,7 +25,7 @@ class BuildingController extends Controller
      */
     public function store(Request $request)
     {
-        Building::create($request->all());
+        $building = Building::create($request->all());
     }
 
     /**
