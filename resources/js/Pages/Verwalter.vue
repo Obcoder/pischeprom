@@ -334,6 +334,9 @@ function storeBuilding(){
             formBuilding.reset()
             indexBuildings(searchBuildings.value)
         },
+        onError: (errors) => {
+            console.error('Form errors:', errors); // Log validation or server errors
+        },
     })
 }
 //    C I T Y  S T O R E
