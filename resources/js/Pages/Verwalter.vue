@@ -792,12 +792,14 @@ useHead({
                                             <v-row>
                                                 <v-col>
                                                     <v-sheet>
-                                                        <div v-for="building in filteredBuildings">
+                                                        <div v-for="building in filteredBuildings"
+                                                             class="hover:bg-red-900 hover:text-red-100"
+                                                        >
                                                             <v-row>
-                                                                <v-col>
+                                                                <v-col lg="5">
                                                                     {{building.city.name}}
                                                                 </v-col>
-                                                                <v-col>
+                                                                <v-col lg="7">
                                                                     {{building.address}}
                                                                 </v-col>
                                                             </v-row>
