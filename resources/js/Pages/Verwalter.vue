@@ -621,7 +621,7 @@ useHead({
                                                                                           label="Название"
                                                                                           variant="solo"
                                                                                           density="comfortable"
-                                                                                          color="indigo-darken-4"
+                                                                                          color="indigo-lighten-4"
                                                                                           class="font-UnderdogRegular"
                                                                             ></v-text-field>
                                                                         </v-col>
@@ -687,12 +687,20 @@ useHead({
                                             <v-row>
                                                 <v-col>
                                                     <v-sheet>
-                                                    <Link v-for="city in filteredCities"
-                                                          :href="route('city.show', city.id)"
-                                                          class="inline-block mr-2 text-xs text-slate-400"
-                                                    >
-                                                        {{city.name}}
-                                                    </Link>
+                                                        <div v-for="city in filteredCities"
+                                                             class="inline-block mr-2 text-xs text-teal-200"
+                                                        >
+                                                            <v-row>
+                                                                <v-col cols="8">
+                                                                    <Link :href="route('city.show', city.id)">
+                                                                        {{city.name}}
+                                                                    </Link>
+                                                                </v-col>
+                                                                <v-col cols="4"
+                                                                       class="text-[8px]"
+                                                                >{{city.region.name}}</v-col>
+                                                            </v-row>
+                                                        </div>
                                                     </v-sheet>
                                                 </v-col>
                                             </v-row>
