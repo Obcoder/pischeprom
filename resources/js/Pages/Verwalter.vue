@@ -688,18 +688,12 @@ useHead({
                                                 <v-col>
                                                     <v-sheet>
                                                         <div v-for="city in filteredCities"
-                                                             class="inline-block mr-2 text-xs text-teal-200"
-                                                        >
-                                                            <v-row>
-                                                                <v-col cols="8">
-                                                                    <Link :href="route('city.show', city.id)">
-                                                                        {{city.name}}
-                                                                    </Link>
-                                                                </v-col>
-                                                                <v-col cols="4"
-                                                                       class="text-[8px]"
-                                                                >{{city.region.name}}</v-col>
-                                                            </v-row>
+                                                             class="inline-block mr-2 text-xs text-teal-200">
+                                                            <div>
+                                                                <Link :href="route('city.show', city.id)">
+                                                                    {{city.name}}
+                                                                </Link></div>
+                                                            <div class="text-[7px] text-teal-300">{{city.region.name}}</div>
                                                         </div>
                                                     </v-sheet>
                                                 </v-col>
