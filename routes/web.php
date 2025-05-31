@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
+use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\ManufacturerController;
@@ -175,6 +176,8 @@ Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerControl
 //                           P        O         S         T
 Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])
     ->name('api.checkcommodity.store');
+//    C I T Y
+Route::post('/city/store', [CityController::class, 'store'])->name('web.city.store');
 Route::post('/api/email/store', [\App\Http\Controllers\API\EmailController::class, 'store'])
     ->name('web.email.store');
 Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitController::class, 'store'])

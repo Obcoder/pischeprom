@@ -43,7 +43,7 @@ const searchUnits = ref('')
 let searchGoods = ref('');
 let searchComponents = ref('');
 
-let headersComponents = ref();
+const dialogFormCity = ref(false)
 let dialogUri = ref(false);
 let dialogFormProduct = ref(false);
 let listTelephones = ref();
@@ -320,6 +320,29 @@ function apiIndexComponents(){
         });
 }
 
+//    C I T Y  S T O R E
+const formCity = useForm({
+    name: null,
+    population: null,
+    wiki: null,
+    region_id: null,
+    yandexmapsgeo: null,
+    twogis: null,
+    latitude: null,
+    longitude: null,
+})
+function storeCity(){
+    formCity.post(route('web.city.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formCity.reset();
+            indexCities(searchCities.value)
+        },
+    })
+}
+//    P R O D U C T  S T O R E
 const formProduct = useForm({
     rus: null,
     eng: null,
@@ -563,6 +586,103 @@ useHead({
                                                                   color="purple-lighten-4"
                                                     ></v-text-field>
                                                 </v-col>
+                                                <v-col cols="1">
+                                                    <v-btn text="+ 🏰"
+                                                           @click="dialogFormCity = !dialogFormCity"
+                                                           variant="tonal"
+                                                           density="compact"></v-btn>
+                                                    <v-dialog v-model="dialogFormCity"
+                                                              width="900"
+                                                              >
+                                                        <v-card>
+                                                            <v-card-title>Form City</v-card-title>
+                                                            <v-card-text>
+                                                                <v-form @submit.prevent>
+                                                                    <v-row>
+                                                                        <v-col lg="9">
+                                                                            <v-text-field v-model="formCity.wiki"
+                                                                                          label="Wiki"
+                                                                                          variant="outlined"
+                                                                                          density="comfortable"
+                                                                                          size="small"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                        <v-col lg="3">
+                                                                            <v-text-field v-model="formCity.population"
+                                                                                          label="Население"
+                                                                                          variant="outlined"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col lg="6">
+                                                                            <v-text-field v-model="formCity.name"
+                                                                                          label="Название"
+                                                                                          variant="solo"
+                                                                                          density="comfortable"
+                                                                                          color="indigo-darken-4"
+                                                                                          class="font-UnderdogRegular"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                        <v-col lg="6">
+                                                                            <v-autocomplete :items="regions"
+                                                                                            :item-title="'name'"
+                                                                                            :item-value="'id'"
+                                                                                            v-model="formCity.region_id"
+                                                                                            label="Регион"
+                                                                                            variant="filled"
+                                                                                            density="comfortable"
+                                                                                            color="purple"
+                                                                            ></v-autocomplete>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-text-field v-model="formCity.yandexmapsgeo"
+                                                                                          label="yandex.ru/maps/geo/"
+                                                                                          variant="solo"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-text-field v-model="formCity.latitude"
+                                                                                          label="Широта"
+                                                                                          variant="outlined"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                        <v-col>
+                                                                            <v-text-field v-model="formCity.longitude"
+                                                                                          label="Долгота"
+                                                                                          variant="outlined"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-text-field v-model="formCity.twogis"
+                                                                                          label="2GIS"
+                                                                                          variant="solo"
+                                                                                          density="compact"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                </v-form>
+                                                            </v-card-text>
+                                                            <v-card-actions>
+                                                                <v-btn @click="storeCity"
+                                                                       text="сохранить"
+                                                                       variant="elevated"
+                                                                       color="green">
+                                                                </v-btn>
+                                                            </v-card-actions>
+                                                        </v-card>
+                                                    </v-dialog>
+                                                </v-col>
                                             </v-row>
                                             <v-row>
                                                 <v-col>
@@ -596,7 +716,7 @@ useHead({
                                                 <v-col>
                                                     <v-data-table :items="regions"
                                                                   :headers="headerRegions"
-                                                                  items-per-page="75"
+                                                                  items-per-page="100"
                                                                   density="compact"
                                                                   hover="hover"
                                                     >
@@ -612,7 +732,7 @@ useHead({
                                                 <v-col>
                                                     <v-data-table :items="countries"
                                                                   :headers="headerCountries"
-                                                                  items-per-page="20"
+                                                                  items-per-page="47"
                                                                   density="compact"
                                                                   hover="hover"
                                                     >
