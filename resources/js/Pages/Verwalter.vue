@@ -46,9 +46,11 @@ let searchComponents = ref('');
 const dialogFormCity = ref(false)
 let dialogUri = ref(false);
 let dialogFormProduct = ref(false);
+let showFormProduct = ref(false)
+
 let listTelephones = ref();
 
-let showFormProduct = ref(false)
+const counterCities = ref(0)
 
 const headersCatalogs = ref([
     {
@@ -557,7 +559,6 @@ useHead({
                                         </v-row>
                                     </v-container>
                                     <v-data-table :items="listComponents"
-                                                  :headers="headersComponents"
                                                   :search="searchComponents"
                                                   items-per-page="27"
                                                   density="comfortable"
@@ -690,10 +691,12 @@ useHead({
                                                         <div v-for="city in filteredCities"
                                                              class="inline-block mr-2 p-1 rounded text-xs text-teal-200 hover:bg-teal-200 hover:text-black"
                                                         >
+                                                            <span class="rounded-circle text-[6px]">{{counterCities + 1}}</span>
                                                             <div>
                                                                 <Link :href="route('city.show', city.id)">
                                                                     {{city.name}}
-                                                                </Link></div>
+                                                                </Link>
+                                                            </div>
                                                             <div class="text-[7px] text-teal-500">{{city.region.name}}</div>
                                                         </div>
                                                     </v-sheet>
