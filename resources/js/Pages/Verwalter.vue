@@ -459,7 +459,6 @@ useHead({
                         <v-tabs v-model="tab">
                             <v-tab value="units">Units</v-tab>
                             <v-tab value="products">Products</v-tab>
-                            <v-tab value="categories">Categories</v-tab>
                             <v-tab value="brands">Brands</v-tab>
                             <v-tab value="geography">Geography</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
@@ -507,18 +506,6 @@ useHead({
                                     </v-data-table>
                                 </v-tabs-window-item>
                                 <!-- ------------- E N D   C A T A L O G S ---------------  -->
-
-                                <!--###################   C A T E G O R I E S   #####################-->
-                                <v-tabs-window-item value="categories">
-                                    <v-list variant="outlined"
-                                            density="compact"
-                                    >
-                                        <v-list-item v-for="category in categories">
-                                            <span>{{category.name}}</span>
-                                        </v-list-item>
-                                    </v-list>
-                                </v-tabs-window-item>
-                                <!-- ############################################################### -->
 
                                 <!--      C O N P O N E N T S       -->
                                 <v-tabs-window-item value="components">
@@ -859,6 +846,16 @@ useHead({
                                 <!--   P R O D U C T S   -->
                                 <v-tabs-window-item value="products">
                                     <v-row>
+                                        <v-col lg="3">
+                                            <v-list variant="outlined"
+                                                    density="compact"
+                                                    rounded
+                                            >
+                                                <v-list-item v-for="category in categories">
+                                                    <span>{{category.name}}</span>
+                                                </v-list-item>
+                                            </v-list>
+                                        </v-col>
                                         <v-col>
                                             <v-card flat>
                                                 <v-card-text>
