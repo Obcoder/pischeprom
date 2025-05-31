@@ -14,32 +14,35 @@ const props = defineProps({
     actions: Object,
 })
 
-let tab = ref();
+const tab = ref()
+const tabsGeography = ref()
 
 const brands = ref([])
 const buildings = ref([])
 const catalogs = ref([])
 const categories = ref([])
+const cities = ref([])
+const countries = ref([])
 const labels = ref([])
 const products = ref([])
-const segmetns = ref([])
+const regions = ref([])
+const segments = ref([])
 const units = ref([])
 const uris = ref([])
 
 let manufacturers = ref();
-let listCountries = ref();
-let listRegions = ref();
 let listEntities = ref();
 let listChecks = ref();
 let listComponents = ref();
 
 const searchBrands = ref('')
 const searchBuildings = ref('')
+const searchCities = ref('')
 const searchProducts = ref('')
 const searchUnits = ref('')
 let searchGoods = ref('');
 let searchComponents = ref('');
-let headersCountries = ref();
+
 let headersComponents = ref();
 let dialogUri = ref(false);
 let dialogFormProduct = ref(false);
@@ -61,6 +64,16 @@ const headersCatalogs = ref([
         key: 'rank',
     },
 ])
+const headerCountries = [
+    {
+        title: 'Флаг',
+        key: 'flag',
+    },
+    {
+        title: 'name',
+        key: 'name',
+    },
+]
 const headersProducts = [
     {
         title: 'rus',
@@ -75,7 +88,7 @@ const headersProducts = [
         key: 'category',
     },
 ]
-const headersRegions = ref([
+const headerRegions = ref([
     {
         title: 'Регион',
         key: 'name',
@@ -104,6 +117,7 @@ const headersUnits = [
     },
 ]
 
+//   B R A N D S
 function indexBrands(){
     axios.get(route('brands.index')).then(function (response){
         brands.value = response.data
@@ -117,6 +131,7 @@ const filteredBrands = computed(() => {
         item.name.toLowerCase().includes(searchRequest)
     )
 })
+//   B U I L D I N G S
 function indexBuildings(){
     axios.get(route('buildings.index')).then(function (response){
         buildings.value = response.data
@@ -128,6 +143,15 @@ const filteredBuildings = computed(()=>{
     const search = searchBuildings.value.toLowerCase();
     return buildings.value.filter(i => i.address.toLowerCase().includes(search))
 })
+//   C A T A L O G S
+function indexCatalogs(){
+    axios.get(route('catalogs.index')).then(function (response){
+        catalogs.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+//   C A T E G O R I E S
 function indexCategories(){
     axios.get(route('categories.index')).then(function (response) {
         // handle success
@@ -140,6 +164,31 @@ function indexCategories(){
             // always executed
         });
 }
+//   C I T I E S
+function indexCities(){
+    axios.get(route('cities.index')).then(function (response){
+        cities.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
+const filteredCities = computed(()=>{
+    const string = searchCities.value.toLowerCase()
+    return cities.value.filter(i => i.name.toLowerCase().includes(string))
+})
+//   C O U N T R I E S
+function indexCountries(){
+    axios.get(route('countries.index')).then(function (response) {
+        // handle success
+        countries.value = response.data
+    }).catch(function (error) {
+            // handle error
+            console.log(error);
+        }).finally(function () {
+            // always executed
+        })
+}
+//   L A B E L S
 function indexLabels(){
     axios.get(route('labels.index')).then(function (response) {
         labels.value = response.data
@@ -147,6 +196,7 @@ function indexLabels(){
             console.log(error);
         });
 }
+//   P R O D U C T S
 function indexProducts(){
     axios.get(route('products.index')).then(function (response) {
         // handle success
@@ -162,13 +212,23 @@ const filteredProducts = computed(()=>{
     const search = searchProducts.value.toLowerCase()
     return products.value.filter(i => i.rus.toLowerCase().includes(search))
 })
+//   R E G I O N S
+function indexRegions(){
+    axios.get(route('regions.index')).then(function (response) {
+        regions.value = response.data
+    }).catch(function (error) {
+        console.log(error);
+    })
+}
+//   S E G M E N T S
 function indexSegments(){
     axios.get(route('segments.index')).then(function (response){
-        segmetns.value = response.data
+        segments.value = response.data
     }).catch(function (error){
         console.error(error)
     })
 }
+//   U N I T S
 function indexUnits(){
     axios.get(route('units.index')).then(function (response) {
         // handle success
@@ -183,6 +243,7 @@ const filteredUnits = computed(()=>{
     const search = searchUnits.value.toLowerCase();
     return units.value.filter(item => item.name.toLowerCase().includes(search))
 })
+//   U R I S
 function indexUris(){
     axios.get(route('uris.index')).then(function (response) {
         // handle success
@@ -231,19 +292,6 @@ function getManufacturers(){
             // always executed
         });
 }
-function getCountries(){
-    axios.get(route('api.countries')).then(function (response) {
-        // handle success
-        listCountries.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        })
-        .finally(function () {
-            // always executed
-        });
-}
 function apiIndexEntities(like){
     axios.get(route('api.entities'), {
         params: {
@@ -270,13 +318,6 @@ function apiIndexComponents(){
     }).catch(function (error) {
             console.log(error);
         });
-}
-function apiIndexRegions(){
-    axios.get(route('api.regions')).then(function (response) {
-        listRegions.value = response.data;
-    }).catch(function (error) {
-        console.log(error);
-    });
 }
 
 const formProduct = useForm({
@@ -319,14 +360,6 @@ function storeComponent(){
         },
     });
 }
-// C A T A L O G S
-function apiIndexCatalogs(){
-    axios.get(route('api.catalogs')).then(function (response){
-        catalogs.value = response.data;
-    }).catch(function (error){
-        console.log(error);
-    })
-}
 
 let email = ref('');
 let message = ref('');
@@ -346,20 +379,21 @@ async function sendMail() {
 onMounted(()=>{
     indexBrands()
     indexBuildings()
+    indexCatalogs()
     indexCategories()
+    indexCities()
+    indexCountries()
     indexLabels()
     indexProducts()
+    indexRegions()
     indexSegments()
     indexUnits()
     indexUris()
 
-    apiIndexCatalogs();
     apiIndexTelephones();
     getManufacturers();
-    getCountries();
     apiIndexEntities();
     apiIndexComponents();
-    apiIndexRegions();
 })
 
 useHead({
@@ -385,7 +419,7 @@ useHead({
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="categories">Categories</v-tab>
                             <v-tab value="brands">Brands</v-tab>
-                            <v-tab value="buildings">Buildings</v-tab>
+                            <v-tab value="buildings">Geography</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="segments">Segments</v-tab>
                             <v-tab value="components">Components</v-tab>
@@ -416,18 +450,6 @@ useHead({
                                     </v-sheet>
                                 </v-tabs-window-item>
                                 <!--_________________________________________-->
-
-                                <!--   B U I L D I N G S   -->
-                                <v-tabs-window-item value="buildings">
-                                    <v-text-field v-model="searchBuildings"
-                                                  label="Искать по адресам"
-                                                  variant="solo"
-                                                  density="compact"
-                                    ></v-text-field>
-                                    <v-sheet>
-                                        <div v-for="building in filteredBuildings">{{building.address}}</div>
-                                    </v-sheet>
-                                </v-tabs-window-item>
 
                                 <!-- + + + + + + +    C A T A L O G S   + + + + + + + -->
                                 <v-tabs-window-item value="catalogs">
@@ -538,34 +560,52 @@ useHead({
                                     ></v-data-table>
                                 </v-tabs-window-item>
 
-                                <!--
-                                _________________________________________________
-                                |
-                                |       G E O G R A P H Y
-                                |________________________________________________
-                                -->
-                                <v-tabs-window-item value="seven">
-                                    <v-container>
+                                <!--      G E O G R A P H Y      -->
+                                <v-tabs v-model="tabsGeography">
+                                    <v-tab value="cities">Cities</v-tab>
+                                    <v-tab value="buildings">Buildings</v-tab>
+                                    <v-tab value="regions">Regions</v-tab>
+                                    <v-tab value="countries">Countries</v-tab>
+                                </v-tabs>
+                                <v-tabs-window v-model="tabsGeography">
+                                    <v-tabs-window-item value="cities">
+                                        <v-row>
+                                            <v-col lg="3">
+                                                <v-text-field></v-text-field>
+                                            </v-col>
+                                        </v-row>
                                         <v-row>
                                             <v-col>
-                                                <v-data-table :items="listCountries"
-                                                              :headers="headersCountries"
-                                                              items-per-page="20"
-                                                              density="compact"
-                                                              hover="hover"
-                                                >
-                                                    <template v-slot:item.flag="{item}">
-                                                        <v-img :src="item.flag"
-                                                               width="50"
-                                                               class="border border-1 border-gray-200"
-                                                        ></v-img>
-                                                    </template>
-                                                </v-data-table>
+                                                <v-sheet>
+                                                    <span v-for="city in filteredCities"
+                                                          class="inline-block mr-2 text-xs text-slate-400"
+                                                    >
+                                                        {{city.name}}
+                                                    </span>
+                                                </v-sheet>
                                             </v-col>
+                                        </v-row>
+                                    </v-tabs-window-item>
+                                    <v-tabs-window-item value="buildings">
+                                        <v-row>
                                             <v-col>
-                                                <v-data-table :items="listRegions"
-                                                              :headers="headersRegions"
-                                                              items-per-page="100"
+                                                <v-text-field v-model="searchBuildings"
+                                                              label="Искать по адресам"
+                                                              variant="solo"
+                                                              density="compact"
+                                                ></v-text-field>
+                                                <v-sheet>
+                                                    <div v-for="building in filteredBuildings">{{building.address}}</div>
+                                                </v-sheet>
+                                            </v-col>
+                                        </v-row>
+                                    </v-tabs-window-item>
+                                    <v-tabs-window-item value="regions">
+                                        <v-row>
+                                            <v-col>
+                                                <v-data-table :items="regions"
+                                                              :headers="headerRegions"
+                                                              items-per-page="75"
                                                               density="compact"
                                                               hover="hover"
                                                 >
@@ -575,8 +615,27 @@ useHead({
                                                 </v-data-table>
                                             </v-col>
                                         </v-row>
-                                    </v-container>
-                                </v-tabs-window-item>
+                                    </v-tabs-window-item>
+                                    <v-tabs-window-item value="countries">
+                                        <v-row>
+                                            <v-col>
+                                                <v-data-table :items="countries"
+                                                              :headers="headerCountries"
+                                                              items-per-page="20"
+                                                              density="compact"
+                                                              hover="hover"
+                                                >
+                                                    <template v-slot:item.flag="{item}">
+                                                        <v-img :src="item.flag"
+                                                               width="51"
+                                                               class="border border-1 border-gray-200"
+                                                        ></v-img>
+                                                    </template>
+                                                </v-data-table>
+                                            </v-col>
+                                        </v-row>
+                                    </v-tabs-window-item>
+                                </v-tabs-window>
 
                                 <!--   P R O D U C T S   -->
                                 <v-tabs-window-item value="products">
@@ -694,7 +753,7 @@ useHead({
                                 <v-tabs-window-item value="segments">
                                     <v-row>
                                         <v-col>
-                                            <v-data-table :items="segmetns"></v-data-table>
+                                            <v-data-table :items="segments"></v-data-table>
                                         </v-col>
                                     </v-row>
                                 </v-tabs-window-item>

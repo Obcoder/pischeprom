@@ -6,6 +6,7 @@ use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
+use App\Http\Controllers\API\CatalogController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\CityController;
@@ -37,6 +38,7 @@ Route::get('/user', function (Request $request) {
 
 Route::apiResource('brands', BrandController::class);
 Route::apiResource('buildings', BuildingController::class);
+Route::apiResource('catalogs', CatalogController::class);
 Route::apiResource('categories', CategoryController::class);
 Route::apiResource('checks', CheckController::class);
 Route::apiResource('cities', CityController::class);

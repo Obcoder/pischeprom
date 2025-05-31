@@ -153,8 +153,6 @@ Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'inde
 //
 Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
     ->name('store', 'api.building_unit.store');
-Route::apiResource('/api/catalogs', \App\Http\Controllers\API\CatalogController::class)
-    ->name('index', 'api.catalogs');
 Route::apiResource('/api/chats', \App\Http\Controllers\API\ChatController::class)
     ->name('index', 'api.chats');
 Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
