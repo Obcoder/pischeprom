@@ -725,11 +725,9 @@ useHead({
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="buildings">
                                             <v-row>
-                                                <v-row>
-                                                    <v-col cols="1">
-                                                        <div class="flex flex-row justify-center">{{ filteredBuildings.length }}</div>
-                                                    </v-col>
-                                                </v-row>
+                                                <v-col cols="1">
+                                                    <div class="flex flex-row justify-center">{{ filteredBuildings.length }}</div>
+                                                </v-col>
                                                 <v-col lg="3">
                                                     <v-text-field v-model="searchBuildings"
                                                                   label="Искать по адресам"
