@@ -792,7 +792,16 @@ useHead({
                                             <v-row>
                                                 <v-col>
                                                     <v-sheet>
-                                                        <div v-for="building in filteredBuildings">{{building.address}}</div>
+                                                        <div v-for="building in filteredBuildings">
+                                                            <v-row>
+                                                                <v-col>
+                                                                    {{building.city.name}}
+                                                                </v-col>
+                                                                <v-col>
+                                                                    {{building.address}}
+                                                                </v-col>
+                                                            </v-row>
+                                                        </div>
                                                     </v-sheet>
                                                 </v-col>
                                             </v-row>
