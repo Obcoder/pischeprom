@@ -696,7 +696,7 @@ useHead({
                                                              class="inline-block mr-2 p-1 rounded text-xs text-teal-200 hover:bg-teal-200 hover:text-black"
                                                         >
                                                             <div>
-                                                                <span class="inline-flex items-center justify-center mr-2 bg-teal-500 text-white rounded-full text-[8px] font-bold w-5 h-5"
+                                                                <span class="inline-flex items-center justify-center mr-2 bg-teal-500 text-white rounded-full text-[6px] font-bold w-2 h-2"
                                                                 >{{ index + 1 }}</span>
                                                                 <Link :href="route('city.show', city.id)">
                                                                     {{city.name}}
