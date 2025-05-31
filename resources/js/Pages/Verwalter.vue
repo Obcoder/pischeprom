@@ -556,17 +556,23 @@ useHead({
                                         <v-tabs-window-item value="cities">
                                             <v-row>
                                                 <v-col lg="3">
-                                                    <v-text-field></v-text-field>
+                                                    <v-text-field v-model="searchCities"
+                                                                  label="Поиск по городам"
+                                                                  variant="solo"
+                                                                  density="compact"
+                                                                  color="purple-lighten-4"
+                                                    ></v-text-field>
                                                 </v-col>
                                             </v-row>
                                             <v-row>
                                                 <v-col>
                                                     <v-sheet>
-                                                    <span v-for="city in filteredCities"
+                                                    <Link v-for="city in filteredCities"
+                                                          :href="route('city.show', city.id)"
                                                           class="inline-block mr-2 text-xs text-slate-400"
                                                     >
                                                         {{city.name}}
-                                                    </span>
+                                                    </Link>
                                                     </v-sheet>
                                                 </v-col>
                                             </v-row>
