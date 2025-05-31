@@ -419,7 +419,7 @@ useHead({
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="categories">Categories</v-tab>
                             <v-tab value="brands">Brands</v-tab>
-                            <v-tab value="buildings">Geography</v-tab>
+                            <v-tab value="geography">Geography</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="segments">Segments</v-tab>
                             <v-tab value="components">Components</v-tab>
@@ -449,7 +449,6 @@ useHead({
                                         >{{brand.name}}</div>
                                     </v-sheet>
                                 </v-tabs-window-item>
-                                <!--_________________________________________-->
 
                                 <!-- + + + + + + +    C A T A L O G S   + + + + + + + -->
                                 <v-tabs-window-item value="catalogs">
@@ -479,13 +478,7 @@ useHead({
                                 </v-tabs-window-item>
                                 <!-- ############################################################### -->
 
-                                <!--
-                                ___________________________________________________________________________________
-                                |
-                                |           * * *   C O M P O N E N T S   * * *
-                                |
-                                -----------------------------------------------------------------------------------
-                                -->
+                                <!--      C O N P O N E N T S       -->
                                 <v-tabs-window-item value="components">
                                     <v-container>
                                         <v-row>
@@ -501,12 +494,11 @@ useHead({
                                                           width="605"
                                                 >
                                                     <template v-slot:activator="{ props: activatorProps }">
-                                                        <v-btn
-                                                            v-bind="activatorProps"
-                                                            text="Добавить"
-                                                            block
-                                                            variant="elevated"
-                                                            color="purple"
+                                                        <v-btn v-bind="activatorProps"
+                                                               text="Добавить"
+                                                               block
+                                                               variant="elevated"
+                                                               color="purple"
                                                         ></v-btn>
                                                     </template>
                                                     <template v-slot:default="{ isActive }">
@@ -552,6 +544,84 @@ useHead({
                                 </v-tabs-window-item>
                                 <!--      E N D  C O M P O N E N T S      -->
 
+                                <!--      G E O G R A P H Y      -->
+                                <v-tabs-window-item value="geography">
+                                    <v-tabs v-model="tabsGeography">
+                                        <v-tab value="cities">Cities</v-tab>
+                                        <v-tab value="buildings">Buildings</v-tab>
+                                        <v-tab value="regions">Regions</v-tab>
+                                        <v-tab value="countries">Countries</v-tab>
+                                    </v-tabs>
+                                    <v-tabs-window v-model="tabsGeography">
+                                        <v-tabs-window-item value="cities">
+                                            <v-row>
+                                                <v-col lg="3">
+                                                    <v-text-field></v-text-field>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-sheet>
+                                                    <span v-for="city in filteredCities"
+                                                          class="inline-block mr-2 text-xs text-slate-400"
+                                                    >
+                                                        {{city.name}}
+                                                    </span>
+                                                    </v-sheet>
+                                                </v-col>
+                                            </v-row>
+                                        </v-tabs-window-item>
+                                        <v-tabs-window-item value="buildings">
+                                            <v-row>
+                                                <v-col>
+                                                    <v-text-field v-model="searchBuildings"
+                                                                  label="Искать по адресам"
+                                                                  variant="solo"
+                                                                  density="compact"
+                                                    ></v-text-field>
+                                                    <v-sheet>
+                                                        <div v-for="building in filteredBuildings">{{building.address}}</div>
+                                                    </v-sheet>
+                                                </v-col>
+                                            </v-row>
+                                        </v-tabs-window-item>
+                                        <v-tabs-window-item value="regions">
+                                            <v-row>
+                                                <v-col>
+                                                    <v-data-table :items="regions"
+                                                                  :headers="headerRegions"
+                                                                  items-per-page="75"
+                                                                  density="compact"
+                                                                  hover="hover"
+                                                    >
+                                                        <template v-slot:item.country="{item}">
+                                                            {{item.country.name}}
+                                                        </template>
+                                                    </v-data-table>
+                                                </v-col>
+                                            </v-row>
+                                        </v-tabs-window-item>
+                                        <v-tabs-window-item value="countries">
+                                            <v-row>
+                                                <v-col>
+                                                    <v-data-table :items="countries"
+                                                                  :headers="headerCountries"
+                                                                  items-per-page="20"
+                                                                  density="compact"
+                                                                  hover="hover"
+                                                    >
+                                                        <template v-slot:item.flag="{item}">
+                                                            <v-img :src="item.flag"
+                                                                   width="51"
+                                                                   class="border border-1 border-gray-200"
+                                                            ></v-img>
+                                                        </template>
+                                                    </v-data-table>
+                                                </v-col>
+                                            </v-row>
+                                        </v-tabs-window-item>
+                                    </v-tabs-window>
+                                </v-tabs-window-item>
 
                                 <v-tabs-window-item value="two">
                                     <v-data-table :items="manufacturers"
@@ -559,83 +629,6 @@ useHead({
                                                   hover="hover"
                                     ></v-data-table>
                                 </v-tabs-window-item>
-
-                                <!--      G E O G R A P H Y      -->
-                                <v-tabs v-model="tabsGeography">
-                                    <v-tab value="cities">Cities</v-tab>
-                                    <v-tab value="buildings">Buildings</v-tab>
-                                    <v-tab value="regions">Regions</v-tab>
-                                    <v-tab value="countries">Countries</v-tab>
-                                </v-tabs>
-                                <v-tabs-window v-model="tabsGeography">
-                                    <v-tabs-window-item value="cities">
-                                        <v-row>
-                                            <v-col lg="3">
-                                                <v-text-field></v-text-field>
-                                            </v-col>
-                                        </v-row>
-                                        <v-row>
-                                            <v-col>
-                                                <v-sheet>
-                                                    <span v-for="city in filteredCities"
-                                                          class="inline-block mr-2 text-xs text-slate-400"
-                                                    >
-                                                        {{city.name}}
-                                                    </span>
-                                                </v-sheet>
-                                            </v-col>
-                                        </v-row>
-                                    </v-tabs-window-item>
-                                    <v-tabs-window-item value="buildings">
-                                        <v-row>
-                                            <v-col>
-                                                <v-text-field v-model="searchBuildings"
-                                                              label="Искать по адресам"
-                                                              variant="solo"
-                                                              density="compact"
-                                                ></v-text-field>
-                                                <v-sheet>
-                                                    <div v-for="building in filteredBuildings">{{building.address}}</div>
-                                                </v-sheet>
-                                            </v-col>
-                                        </v-row>
-                                    </v-tabs-window-item>
-                                    <v-tabs-window-item value="regions">
-                                        <v-row>
-                                            <v-col>
-                                                <v-data-table :items="regions"
-                                                              :headers="headerRegions"
-                                                              items-per-page="75"
-                                                              density="compact"
-                                                              hover="hover"
-                                                >
-                                                    <template v-slot:item.country="{item}">
-                                                        {{item.country.name}}
-                                                    </template>
-                                                </v-data-table>
-                                            </v-col>
-                                        </v-row>
-                                    </v-tabs-window-item>
-                                    <v-tabs-window-item value="countries">
-                                        <v-row>
-                                            <v-col>
-                                                <v-data-table :items="countries"
-                                                              :headers="headerCountries"
-                                                              items-per-page="20"
-                                                              density="compact"
-                                                              hover="hover"
-                                                >
-                                                    <template v-slot:item.flag="{item}">
-                                                        <v-img :src="item.flag"
-                                                               width="51"
-                                                               class="border border-1 border-gray-200"
-                                                        ></v-img>
-                                                    </template>
-                                                </v-data-table>
-                                            </v-col>
-                                        </v-row>
-                                    </v-tabs-window-item>
-                                </v-tabs-window>
 
                                 <!--   P R O D U C T S   -->
                                 <v-tabs-window-item value="products">
