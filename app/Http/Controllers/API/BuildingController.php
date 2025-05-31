@@ -26,6 +26,10 @@ class BuildingController extends Controller
     public function store(Request $request)
     {
         $building = Building::create($request->all());
+        // Ассоциация города (если city_id передан в запросе)
+        if ($request->has('city_id')) {
+            $building->city()->associate($request->city_id);
+        }
     }
 
     /**
