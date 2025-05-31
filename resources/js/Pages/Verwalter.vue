@@ -726,7 +726,7 @@ useHead({
                                         <v-tabs-window-item value="buildings">
                                             <v-row>
                                                 <v-col cols="1">
-                                                    <div v-model="buildings.length"></div>
+                                                    <div v-bind="buildings.length"></div>
                                                 </v-col>
                                                 <v-col lg="3">
                                                     <v-text-field v-model="searchBuildings"
