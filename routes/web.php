@@ -153,8 +153,6 @@ Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'inde
 //                     A         P         I
 //                          G         E         T
 //
-Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
-    ->name('store', 'api.building_unit.store');
 Route::apiResource('/api/chats', \App\Http\Controllers\API\ChatController::class)
     ->name('index', 'api.chats');
 Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
@@ -176,7 +174,11 @@ Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerControl
 
 //                           P        O         S         T
 //    B U I L D I N G
-Route::post('/api/building/store', [BuildingController::class, 'store'])->name('web.building.store');
+Route::post('/api/building/store', [BuildingController::class, 'store'])
+    ->name('web.building.store');
+Route::post('/api/building_units', \App\Http\Controllers\API\BuildingUnitController::class)
+    ->name('store', 'api.building_unit.store');
+//    C H E C K
 Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])
     ->name('api.checkcommodity.store');
 //    C I T Y
