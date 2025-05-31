@@ -691,7 +691,7 @@ useHead({
                                                         <div v-for="city in filteredCities"
                                                              class="inline-block mr-2 p-1 rounded text-xs text-teal-200 hover:bg-teal-200 hover:text-black"
                                                         >
-                                                            <span class="rounded-circle text-[6px]">{{counterCities + 1}}</span>
+                                                            <span class="inline-block bg-teal-500 rounded-circle text-[6px]">{{counterCities++}}</span>
                                                             <div>
                                                                 <Link :href="route('city.show', city.id)">
                                                                     {{city.name}}
