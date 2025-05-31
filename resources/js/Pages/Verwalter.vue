@@ -691,11 +691,13 @@ useHead({
                                             <v-row>
                                                 <v-col>
                                                     <v-sheet>
-                                                        <div v-for="city in filteredCities"
+                                                        <div v-for="(city, index) in filteredCities"
+                                                             :key="city.id"
                                                              class="inline-block mr-2 p-1 rounded text-xs text-teal-200 hover:bg-teal-200 hover:text-black"
                                                         >
-                                                            <span class="inline-block bg-teal-500 rounded-circle text-[6px]">{{ numberInOrder }}</span>
                                                             <div>
+                                                                <span class="inline-flex items-center justify-center mr-2 bg-teal-500 text-white rounded-full text-[8px] font-bold w-5 h-5"
+                                                                >{{ index + 1 }}</span>
                                                                 <Link :href="route('city.show', city.id)">
                                                                     {{city.name}}
                                                                 </Link>
@@ -988,3 +990,9 @@ useHead({
         </v-container>
     </v-theme-provider>
 </template>
+
+<style scoped>
+.rounded-full {
+    border-radius: 50%;
+}
+</style>
