@@ -719,7 +719,7 @@ useHead({
                                                               class="text-xs"
                                                               hover
                                                 >
-                                                    <template v-slot:name="{item}">
+                                                    <template v-slot:item.name="{item}">
                                                         <Link :href="route('web.unit.show', item.id)">
                                                             {{item.name}}
                                                         </Link>
