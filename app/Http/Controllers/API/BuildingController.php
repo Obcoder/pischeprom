@@ -25,7 +25,17 @@ class BuildingController extends Controller
      */
     public function store(Request $request)
     {
-        Building::create($request->all());
+        // Валидация
+        $validated = $request->validate([
+                                            'city_id' => 'required|exists:cities,id',
+                                            'name' => 'required|string|max:255',
+                                            'postcode' => 'nullable|string|max:20',
+                                        ]);
+
+        // Создание здания и ассоциация с городом
+        $building = Building::create($validated);
+        $building->city()->associate($request->city_id);
+        $building->save();
     }
 
     /**
