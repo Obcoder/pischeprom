@@ -719,6 +719,11 @@ useHead({
                                                               class="text-xs"
                                                               hover
                                                 >
+                                                    <template v-slot:name="{item}">
+                                                        <Link :href="route('web.unit.show', item.id)">
+                                                            {{item.name}}
+                                                        </Link>
+                                                    </template>
                                                     <template v-slot:item.uris="{item}">
                                                         <a v-for="uri in item.uris"
                                                            :href="uri.address" target="_blank"
