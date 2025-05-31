@@ -322,7 +322,7 @@ function apiIndexComponents(){
 //    B U I L D I N G  S T O R E
 const formBuilding = useForm({
     city_id: null,
-    name: null,
+    address: null,
     postcode: null,
 })
 function storeBuilding(){
@@ -745,7 +745,7 @@ useHead({
                                                                 <v-form @submit.prevent>
                                                                     <v-row>
                                                                         <v-col>
-                                                                            <v-text-field v-model="formBuilding.name"
+                                                                            <v-text-field v-model="formBuilding.address"
                                                                                           label="Название"
                                                                                           variant="solo-filled"
                                                                                           density="comfortable"
