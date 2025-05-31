@@ -43,17 +43,11 @@ const searchUnits = ref('')
 let searchGoods = ref('');
 let searchComponents = ref('');
 
+const dialogFormBuilding = ref(false)
 const dialogFormCity = ref(false)
-let dialogUri = ref(false);
-let dialogFormProduct = ref(false);
-let showFormProduct = ref(false)
+let dialogUri = ref(false)
 
 let listTelephones = ref();
-
-const counterCities = ref(0)
-const numberInOrder = computed(()=>{
-    return counterCities.value++
-})
 
 const headersCatalogs = ref([
     {
@@ -325,6 +319,23 @@ function apiIndexComponents(){
         });
 }
 
+//    B U I L D I N G  S T O R E
+const formBuilding = useForm({
+    city_id: null,
+    name: null,
+    postcode: null,
+})
+function storeBuilding(){
+    axios.post(route('web.building.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formBuilding.reset();
+            indexBuildings(searchBuildings.value)
+        },
+    })
+}
 //    C I T Y  S T O R E
 const formCity = useForm({
     name: null,
@@ -710,12 +721,53 @@ useHead({
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="buildings">
                                             <v-row>
-                                                <v-col>
+                                                <v-col lg="3">
                                                     <v-text-field v-model="searchBuildings"
                                                                   label="Искать по адресам"
                                                                   variant="solo"
                                                                   density="compact"
                                                     ></v-text-field>
+                                                </v-col>
+                                                <v-col cols="1">
+                                                    <v-btn text="+ 🛣️"
+                                                           @click="dialogFormBuilding = !dialogFormBuilding"
+                                                           variant="tonal"
+                                                           density="compact"></v-btn>
+                                                    <v-dialog v-model="dialogFormBuilding"
+                                                              width="750"
+                                                              >
+                                                        <v-card>
+                                                            <v-card-title>Form Building</v-card-title>
+                                                            <v-card-text>
+                                                                <v-form @submit.prevent>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-text-field></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-autocomplete></v-autocomplete>
+                                                                        </v-col>
+                                                                        <v-col>
+                                                                            <v-text-field></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                </v-form>
+                                                            </v-card-text>
+                                                            <v-card-actions>
+                                                                <v-divider vertical></v-divider>
+                                                                <v-btn text="store"
+                                                                       @click="storeBuilding"
+                                                                       variant="elevated"
+                                                                       density="compact"></v-btn>
+                                                            </v-card-actions>
+                                                        </v-card>
+                                                    </v-dialog>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col>
                                                     <v-sheet>
                                                         <div v-for="building in filteredBuildings">{{building.address}}</div>
                                                     </v-sheet>
@@ -791,8 +843,7 @@ useHead({
                                                                     ></v-text-field>
                                                                 </v-col>
                                                                 <v-col cols="3">
-                                                                    <v-dialog v-model="showFormProduct"
-                                                                              width="750"
+                                                                    <v-dialog width="750"
                                                                     >
                                                                         <template v-slot:activator="{props}">
                                                                             <v-btn text="+ product"
