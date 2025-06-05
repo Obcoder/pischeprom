@@ -297,7 +297,6 @@ useHead({
                     </v-list-item>
                 </v-list>
             </v-col>
-            <v-col></v-col>
             <v-col cols="3">
                 <v-row>
                     <v-col cols="10">
@@ -366,6 +365,7 @@ useHead({
                     </v-col>
                 </v-row>
             </v-col>
+            <v-col></v-col>
         </v-row>
     </v-container>
 </template>
