@@ -24,6 +24,7 @@ jobs:
       run: |
         ssh ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
           cd ${{ secrets.TARGET_DIR }}
+          git config --global --add safe.directory /home/forge/xn----dtbhbbn3apgclecj7i.xn--p1ai
           git pull origin main
           composer install --no-dev --optimize-autoloader
           npm install
