@@ -19,6 +19,18 @@ const telephones = ref()
 let searchEntitiesLike = ref()
 let searchTelephones = ref()
 
+const headerTelephones = [
+    {
+        title: 'Number',
+        key: 'number',
+    },
+    {
+        title: 'Создан',
+        key: 'created_at',
+        align: 'start',
+    },
+]
+
 const indexBuildings = async ()=>{
     try {
         const response = await axios.get(route('buildings.index'))
@@ -108,16 +120,6 @@ function storeTelephone(){
         },
     })
 }
-const headersTelephones = [
-    {
-        title: 'Number',
-        key: 'number',
-    },
-    {
-        title: 'Создан',
-        key: 'created_at'
-    },
-]
 
 onMounted(()=>{
     indexBuildings()
@@ -353,13 +355,13 @@ useHead({
                 <v-row>
                     <v-col cols="12">
                         <v-data-table :items="telephones"
-                                      :headers="headersTelephones"
+                                      :headers="headerTelephones"
                                       items-per-page="100"
                                       density="compact"
                                       hover="true"
                         >
                             <template v-slot:item.created_at="{item}">
-                                <span>{{date.format(item.created_at, 'fullDate')}}</span>
+                                <span class="text-xs text-zinc-600">{{date.format(item.created_at, 'fullDate')}}</span>
                             </template>
                         </v-data-table>
                     </v-col>
