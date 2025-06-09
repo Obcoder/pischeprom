@@ -14,6 +14,7 @@ class SendingController extends Controller
     public function index()
     {
         return Sending::with('email.units')
+            ->orderBy('created_at', 'desc')
             ->get();
     }
 
