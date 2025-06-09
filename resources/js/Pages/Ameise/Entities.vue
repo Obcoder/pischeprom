@@ -354,7 +354,7 @@ useHead({
                     <v-col cols="12">
                         <v-data-table :items="telephones"
                                       :headers="headersTelephones"
-                                      items-per-page="100"
+                                      items-per-page="50"
                                       density="compact"
                                       hover="true"
                         >
