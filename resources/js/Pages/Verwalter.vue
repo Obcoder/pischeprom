@@ -34,6 +34,7 @@ let manufacturers = ref();
 let listEntities = ref();
 let listChecks = ref();
 let listComponents = ref();
+let listTelephones = ref();
 
 const searchBrands = ref('')
 const searchBuildings = ref('')
@@ -48,7 +49,7 @@ const dialogFormCity = ref(false)
 const dialogFormUnit = ref(false)
 const dialogFormUri = ref(false)
 
-let listTelephones = ref();
+const selectedLabelsIDs = ref([])
 
 const headersCatalogs = ref([
     {
@@ -481,6 +482,14 @@ useHead({
         }
     ]
 })
+
+const toggleLabel = (labelId) => {
+    if (selectedLabelsIDs.value.includes(labelId)) {
+        selectedLabelsIDs.value = selectedLabelsIDs.value.filter((id) => id !== labelId);
+    } else {
+        selectedLabelsIDs.value.push(labelId)
+    }
+}
 </script>
 
 <template>
@@ -1014,7 +1023,10 @@ useHead({
                                             <v-text-field v-model="searchUnits"
                                                           label="Поиск по юнитам"
                                                           variant="solo"
-                                                          density="compact"></v-text-field>
+                                                          density="compact"
+                                                          color="deep-orange-accent-3"
+                                                          hide-details
+                                            ></v-text-field>
                                         </v-col>
                                         <v-col lg="2">
                                             <v-btn text="+ Unit"
@@ -1119,6 +1131,17 @@ useHead({
                                                 </v-card>
                                             </v-dialog>
                                         </v-col>
+                                        <v-sheet class="flex flex-row justify-normal flex-wrap">
+                                            <v-btn v-for="label in labels"
+                                                   :key="label.id"
+                                                   v-model="selectedLabelsIDs"
+                                                   :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : ''"
+                                                   :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
+                                                   @click="toggleLabel(label.id)"
+                                                   size="x-small"
+                                                   class="ma-1"
+                                            >{{label.name}}</v-btn>
+                                        </v-sheet>
                                     </v-row>
                                     <v-row>
                                         <v-card>
