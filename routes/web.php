@@ -204,10 +204,11 @@ Route::post('/api/price/store', [PriceController::class, 'store'])
 Route::post('/api/product/store', [ProductController::class, 'store'])
     ->name('web.product.store');
 //      U N I T
-Route::post('/api/unit/store', [\App\Http\Controllers\API\UnitController::class, 'store'])
+Route::post('/api/unit/store', [UnitController::class, 'store'])
     ->name('web.unit.store');
 Route::post('/api/unituri/store', [UnitUriController::class, 'store'])
     ->name('web.unituri.store');
+//    U R I
 Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
     ->name('web.uri.store');
 

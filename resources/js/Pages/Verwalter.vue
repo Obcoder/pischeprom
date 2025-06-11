@@ -416,8 +416,8 @@ function storeUnit(){
         preserveState: true,
         preserveScroll: false,
         onSuccess: ()=> {
-            formUnit.reset();
-            indexUnits(searchUnits.value)
+            formUnit.reset()
+            indexUnits()
         },
     });
 }
