@@ -240,10 +240,31 @@ function indexUnits(){
             console.error(error);
         });
 }
-const filteredUnits = computed(()=>{
-    const search = searchUnits.value.toLowerCase();
-    return units.value.filter(item => item.name.toLowerCase().includes(search))
-})
+// Фильтрация units
+const filteredUnits = computed(() => {
+    let filtered = units.value;
+
+    // Фильтрация по поиску
+    if (searchUnits.value) {
+        const search = searchUnits.value.toLowerCase();
+        filtered = filtered.filter(item =>
+            item.name.toLowerCase().includes(search)
+        );
+    }
+
+    // Фильтрация по labels
+    if (selectedLabelsIDs.value.length > 0) {
+        filtered = filtered.filter(unit => {
+            // Предполагаем, что у unit есть массив labels с id
+            const unitLabelIds = unit.labels?.map(label => label.id) || [];
+            return selectedLabelsIDs.value.some(labelId =>
+                unitLabelIds.includes(labelId)
+            );
+        });
+    }
+
+    return filtered;
+});
 //   U R I S
 function indexUris(){
     axios.get(route('uris.index')).then(function (response) {
