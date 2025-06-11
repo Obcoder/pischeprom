@@ -57,7 +57,7 @@ class UnitController extends Controller
         $unit->buildings()->attach($request->input('buildings'));
 
         // Создаем "папку" в S3 (на самом деле это просто пустой файл, так как в S3 нет папок)
-//        Storage::disk('yandex')->put("units/{$unit->name}/placeholder.txt", $unit);
+        Storage::disk('yandex')->put("units/{$unit->name}/placeholder.txt", $unit);
     }
 
     /**
