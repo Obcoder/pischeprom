@@ -45,7 +45,8 @@ let searchComponents = ref('');
 
 const dialogFormBuilding = ref(false)
 const dialogFormCity = ref(false)
-let dialogUri = ref(false)
+const dialogFormUnit = ref(false)
+const dialogFormUri = ref(false)
 
 let listTelephones = ref();
 
@@ -399,6 +400,39 @@ function storeComponent(){
         onSuccess: ()=> {
             formComponent.reset();
             apiIndexComponents();
+        },
+    });
+}
+//    U N I T  S T O R E
+const formUnit = useForm({
+    name: null,
+    uris: null,
+    labels: null,
+    buildings: null,
+});
+function storeUnit(){
+    formUnit.post(route('web.unit.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formUnit.reset();
+            indexUnits(searchUnits.value)
+        },
+    });
+}
+//    U R I  S T O R E
+const formUri = useForm({
+    address: null,
+})
+function storeUri(){
+    formUri.post(route('web.uri.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formUri.reset();
+            indexUris()
         },
     });
 }
@@ -981,6 +1015,109 @@ useHead({
                                                           label="Поиск по юнитам"
                                                           variant="solo"
                                                           density="compact"></v-text-field>
+                                        </v-col>
+                                        <v-col lg="2">
+                                            <v-btn text="+ Unit"
+                                                   @click="dialogFormUnit = !dialogFormUnit"
+                                                   variant="tonal"
+                                                   density="compact"
+                                                   color="deep-purple-darken-1"
+                                            ></v-btn>
+                                            <v-dialog v-model="dialogFormUnit"
+                                                      width="900">
+                                                <v-card>
+                                                    <v-card-title>Form Unit</v-card-title>
+                                                    <v-card-text>
+                                                        <v-form @submit.prevent>
+                                                            <v-container>
+                                                                <v-row>
+                                                                    <v-text-field v-model="formUnit.name"
+                                                                                  label="Name"
+                                                                                  variant="outlined"
+                                                                                  density="comfortable"
+                                                                    ></v-text-field>
+                                                                </v-row>
+                                                                <v-row>
+                                                                    <v-col cols="9">
+                                                                        <v-autocomplete v-model="formUnit.uris"
+                                                                                        :items="uris"
+                                                                                        :item-value="'id'"
+                                                                                        :item-title="'address'"
+                                                                                        label="Uris selected"
+                                                                                        chips
+                                                                                        multiple
+                                                                        ></v-autocomplete>
+                                                                    </v-col>
+                                                                    <v-col cols="3">
+                                                                        <v-btn text="+ uri"
+                                                                               @click="dialogFormUri = !dialogFormUri"
+                                                                        ></v-btn>
+                                                                        <v-dialog v-model="dialogFormUri"
+                                                                                  width="800"
+                                                                        >
+                                                                            <v-card>
+                                                                                <v-toolbar title="FORM: Uri"></v-toolbar>
+                                                                                <v-card-text>
+                                                                                    <v-form @submit.prevent>
+                                                                                        <v-row>
+                                                                                            <v-text-field v-model="formUri.address"
+                                                                                                          label="Uri address"
+                                                                                                          variant="outlined"
+                                                                                            ></v-text-field>
+                                                                                        </v-row>
+                                                                                        <v-row>
+                                                                                            <v-col cols="4">
+                                                                                                <v-btn
+                                                                                                    text="store"
+                                                                                                    block
+                                                                                                    @click="storeUri"
+                                                                                                ></v-btn>
+                                                                                            </v-col>
+                                                                                        </v-row>
+                                                                                    </v-form>
+                                                                                </v-card-text>
+                                                                            </v-card>
+                                                                        </v-dialog>
+                                                                    </v-col>
+                                                                </v-row>
+                                                                <v-row>
+                                                                    <v-col cols="4">
+                                                                        <v-select v-model="formUnit.labels"
+                                                                                  :items="labels"
+                                                                                  :item-value="'id'"
+                                                                                  :item-title="'name'"
+                                                                                  label="Labels"
+                                                                                  multiple
+                                                                        ></v-select>
+                                                                    </v-col>
+                                                                </v-row>
+                                                                <v-row>
+                                                                    <v-col>
+                                                                        <v-autocomplete v-model="formUnit.buildings"
+                                                                                        :items="listBuildings"
+                                                                                        :item-title="formatBuildingTitle"
+                                                                                        :item-value="'id'"
+                                                                                        label="Buildings"
+                                                                                        color="blue"
+                                                                                        multiple
+                                                                                        chips
+                                                                        ></v-autocomplete>
+                                                                    </v-col>
+                                                                </v-row>
+                                                            </v-container>
+                                                        </v-form>
+                                                    </v-card-text>
+                                                    <v-card-actions class="justify-start">
+                                                        <v-btn
+                                                            text="Close"
+                                                            @click="isActive.value = false"
+                                                        ></v-btn>
+                                                        <v-btn text="Сохранить"
+                                                               @click="storeUnit"
+                                                        ></v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </v-dialog>
                                         </v-col>
                                     </v-row>
                                     <v-row>

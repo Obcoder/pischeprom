@@ -34,10 +34,8 @@ function indexUris(){
         console.log(error);
     });
 }
-let showFormUri = ref(false);
-const formUri = useForm({
-    address: null,
-})
+let showFormUri = ref(false)
+
 function apiIndexLabels(){
     axios.get(route('labels.index')).then(function (response) {
         labels.value = response.data;
@@ -78,6 +76,10 @@ function storeUnit(){
         },
     });
 }
+
+const formUri = useForm({
+    address: null,
+})
 function storeUri(){
     formUri.post(route('web.uri.store'), {
         replace: false,
