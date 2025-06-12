@@ -21,6 +21,7 @@ use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitUriController;
+use App\Http\Controllers\API\UriController;
 
 Route::middleware([
     'auth:sanctum',
@@ -209,7 +210,7 @@ Route::post('/api/unit/store', [UnitController::class, 'store'])
 Route::post('/api/unituri/store', [UnitUriController::class, 'store'])
     ->name('web.unituri.store');
 //    U R I
-Route::post('/api/uri/store', [\App\Http\Controllers\API\UriController::class, 'store'])
+Route::post('/api/uri/store', [UriController::class, 'store'])
     ->name('web.uri.store');
 
 /*

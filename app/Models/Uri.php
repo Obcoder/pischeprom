@@ -11,5 +11,8 @@ class Uri extends Model
 
     protected $fillable = [
         'address',
+        'is_valid',
+        'follow',
+        'has_brilliant_foremost_design',
     ];
 }

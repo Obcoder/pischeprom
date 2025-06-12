@@ -103,7 +103,7 @@ const headerRegions = ref([
         key: 'area',
     },
 ])
-const headersUnits = [
+const headerUnits = [
     {
         title: 'name',
         key: 'name',
@@ -115,6 +115,28 @@ const headersUnits = [
     {
         title: 'Stages',
         key: 'stages',
+    },
+]
+const headerUris = [
+    {
+        title: 'Uri',
+        key: 'uri',
+        align: 'start',
+    },
+    {
+        title: 'Valid',
+        key: 'is_valid',
+        align: 'center',
+    },
+    {
+        title: 'Follow',
+        key: 'follow',
+        align: 'center',
+    },
+    {
+        title: 'Design',
+        key: 'has_brilliant_foremost_design',
+        align: 'center',
     },
 ]
 
@@ -1156,7 +1178,7 @@ const toggleLabel = (labelId) => {
                                             <v-btn v-for="label in labels"
                                                    :key="label.id"
                                                    v-model="selectedLabelsIDs"
-                                                   :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : ''"
+                                                   :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
                                                    :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
                                                    @click="toggleLabel(label.id)"
                                                    size="x-small"
@@ -1168,7 +1190,7 @@ const toggleLabel = (labelId) => {
                                         <v-card>
                                             <v-card-text>
                                                 <v-data-table :items="filteredUnits"
-                                                              :headers="headersUnits"
+                                                              :headers="headerUnits"
                                                               items-per-page="100"
                                                               density="compact"
                                                               class="text-xs"
@@ -1200,16 +1222,25 @@ const toggleLabel = (labelId) => {
                                 <v-tabs-window-item value="uris">
                                     <v-row>
                                         <v-col>
-                                            <v-sheet>
-                                                <a v-for="uri in uris"
-                                                   :href="uri.address" target="_blank"
-                                                   class="text-xs text-green-400 inline-block"
-                                                >{{uri.address}}</a>
-                                            </v-sheet>
+                                            <v-data-table :items="uris"
+                                                          :headers="headerUris"
+                                                          items-per-page="1000"
+                                                          density="compact"
+                                                          class="text-xs"
+                                                          hover
+                                            >
+                                                <template v-slot:item.uri="{item}">
+                                                    <a v-for="uri in uris"
+                                                       :href="uri.address" target="_blank"
+                                                       class="text-xs text-green-400 inline-block"
+                                                    >{{uri.address}}</a>
+                                                </template>
+                                            </v-data-table>
                                         </v-col>
                                     </v-row>
                                 </v-tabs-window-item>
 
+<!--                                M A I L (не работает)!!!-->
                                 <v-tabs-window-item value="eleven">
                                     <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md border border-gray-200">
                                         <h1 class="text-2xl font-bold text-center text-gray-800 mb-4">📧 Отправить письмо</h1>
