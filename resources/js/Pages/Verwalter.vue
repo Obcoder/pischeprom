@@ -119,8 +119,8 @@ const headerUnits = [
 ]
 const headerUris = [
     {
-        title: 'Uri',
-        key: 'uri',
+        title: 'Address',
+        key: 'address',
         align: 'start',
     },
     {
@@ -1229,7 +1229,7 @@ const toggleLabel = (labelId) => {
                                                           class="text-xs"
                                                           hover
                                             >
-                                                <template v-slot:item.uri="{item}">
+                                                <template v-slot:item.address="{item}">
                                                     <a :href="uri.address" target="_blank"
                                                        class="text-xs text-green-400 inline-block"
                                                     >{{uri.address}}</a>
