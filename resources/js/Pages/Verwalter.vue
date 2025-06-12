@@ -1377,18 +1377,20 @@ const toggleLabel = (labelId) => {
                                                 <v-list-item v-for="check in checks"
                                                              class="hover:text-orange-600 hover:bg-zinc-700"
                                                 >
-                                                    <v-row>
-                                                        <v-col>
-                                                            {{check.date}}
-                                                        </v-col>
-                                                        <v-col>
-                                                            <div>{{check.entity.name}}</div>
-                                                            <div>{{check.entity.classification.name}}</div>
-                                                        </v-col>
-                                                        <v-col>
-                                                            {{check.amount}}
-                                                        </v-col>
-                                                    </v-row>
+                                                    <Link :href="route('checks.show', check.id)">
+                                                        <v-row>
+                                                            <v-col>
+                                                                {{check.date}}
+                                                            </v-col>
+                                                            <v-col lg="6">
+                                                                <div>{{check.entity.name}}</div>
+                                                                <div>{{check.entity.classification.name}}</div>
+                                                            </v-col>
+                                                            <v-col>
+                                                                {{check.amount}}
+                                                            </v-col>
+                                                        </v-row>
+                                                    </Link>
                                                 </v-list-item>
                                             </v-list>
                                         </v-col>
