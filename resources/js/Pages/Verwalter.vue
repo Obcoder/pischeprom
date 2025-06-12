@@ -687,6 +687,7 @@ const toggleLabel = (labelId) => {
                                                                   variant="solo"
                                                                   density="compact"
                                                                   color="purple-lighten-4"
+                                                                  hide-details
                                                     ></v-text-field>
                                                 </v-col>
                                                 <v-col cols="1">
