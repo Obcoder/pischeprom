@@ -138,6 +138,11 @@ const headerUris = [
         key: 'has_brilliant_foremost_design',
         align: 'center',
     },
+    {
+        title: 'Owners',
+        key: 'owners',
+        align: 'start',
+    },
 ]
 
 //   B R A N D S
@@ -1233,6 +1238,11 @@ const toggleLabel = (labelId) => {
                                                     <a :href="item.address" target="_blank"
                                                        class="text-xs text-green-400 inline-block"
                                                     >{{item.address}}</a>
+                                                </template>
+                                                <template v-slot:item.owners="{item}">
+                                                    <div v-for="unit in item.owners">
+                                                        <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
+                                                    </div>
                                                 </template>
                                             </v-data-table>
                                         </v-col>

@@ -15,4 +15,9 @@ class Uri extends Model
         'follow',
         'has_brilliant_foremost_design',
     ];
+
+    public function owners()
+    {
+        return $this->belongsToMany(Unit::class);
+    }
 }
