@@ -1332,7 +1332,8 @@ const toggleLabel = (labelId) => {
                                                         <v-form @submit.prevent>
                                                             <v-row>
                                                                 <v-col lg="4">
-                                                                    <v-date-picker v-model="formCheck.date"></v-date-picker>
+                                                                    <input type="date"
+                                                                           v-model="formCheck.date"></input>
                                                                 </v-col>
                                                                 <v-col lg="8">
                                                                     <v-autocomplete :items="entities"
