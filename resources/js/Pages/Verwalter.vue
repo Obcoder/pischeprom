@@ -47,6 +47,7 @@ let searchGoods = ref('');
 let searchComponents = ref('');
 
 const dialogFormBuilding = ref(false)
+const dialogFormCheck = ref(false)
 const dialogFormCity = ref(false)
 const dialogFormUnit = ref(false)
 const dialogFormUri = ref(false)
@@ -1312,6 +1313,61 @@ const toggleLabel = (labelId) => {
                                 </v-tabs-window-item>
 <!--                                З А К У П К А-->
                                 <v-tabs-window-item value="purchases">
+                                    <v-row>
+                                        <v-col></v-col>
+                                        <v-col></v-col>
+                                        <v-col lg="2">
+                                            <v-btn text="+ check"
+                                                   @click="dialogFormCheck = !dialogFormCheck"
+                                                   variant="tonal"
+                                                   density="compact"
+                                                   color="deep-orange"
+                                            ></v-btn>
+                                            <v-dialog v-model="dialogFormCheck"
+                                                      width="1001"
+                                                      >
+                                                <v-card>
+                                                    <v-card-title>Form Check</v-card-title>
+                                                    <v-card-text>
+                                                        <v-form @submit.prevent>
+                                                            <v-row>
+                                                                <v-col lg="4">
+                                                                    <v-date-picker v-model="formCheck.date"></v-date-picker>
+                                                                </v-col>
+                                                                <v-col lg="8">
+                                                                    <v-autocomplete :items="entities"
+                                                                                    :item-value="'id'"
+                                                                                    :item-title="'name'"
+                                                                                    v-model="formCheck.entity_id"
+                                                                                    variant="solo"
+                                                                                    density="comfortable"></v-autocomplete>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col lg="4">
+                                                                    <v-text-field v-model="formCheck.amount"
+                                                                                  label="Amount"
+                                                                                  variant="underlined"
+                                                                                  density="comfortable"
+                                                                                  color="deep-orange"></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </v-form>
+                                                    </v-card-text>
+                                                    <v-card-actions>
+                                                        <v-divider vertical
+                                                                   thickness="1"
+                                                                   opacity="0.8"></v-divider>
+                                                        <v-btn text="store"
+                                                               @click="storeCheck"
+                                                               variant="tonal"
+                                                               density="compact"
+                                                               color="blue-grey"></v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </v-dialog>
+                                        </v-col>
+                                    </v-row>
                                     <v-row>
                                         <v-col>
                                             <v-list variant="tonal"

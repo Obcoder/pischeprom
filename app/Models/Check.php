@@ -15,7 +15,10 @@ class Check extends Model
         'amount',
     ];
 
-    protected $with = ['entity', 'measure'];
+    protected $with = [
+        'entity',
+        'measure'
+    ];
 
     public function entity(){
         return $this->belongsTo(Entity::class);

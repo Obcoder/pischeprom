@@ -14,8 +14,7 @@ class CheckController extends Controller
      */
     public function index()
     {
-        return Check::with('commodities')
-            ->orderBy('date', 'desc')
+        return Check::orderBy('date', 'desc')
             ->get();
     }
 
