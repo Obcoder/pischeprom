@@ -1374,7 +1374,9 @@ const toggleLabel = (labelId) => {
                                             <v-list variant="tonal"
                                                     density="compact"
                                             >
-                                                <v-list-item v-for="check in checks">
+                                                <v-list-item v-for="check in checks"
+                                                             class="hover:text-orange-600 hover:bg-zinc-700"
+                                                >
                                                     <v-row>
                                                         <v-col>
                                                             {{check.date}}
