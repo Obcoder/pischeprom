@@ -5,6 +5,7 @@ import {useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
 import {route} from "ziggy-js";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import {useDate} from 'vuetify';
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -13,6 +14,7 @@ const props = defineProps({
     goods: Object,
     actions: Object,
 })
+const date = useDate()
 
 const tab = ref()
 const tabsGeography = ref()
@@ -141,6 +143,11 @@ const headerUris = [
     {
         title: 'Owners',
         key: 'owners',
+        align: 'start',
+    },
+    {
+        title: 'created_at',
+        key: 'created_at',
         align: 'start',
     },
 ]
@@ -1243,6 +1250,9 @@ const toggleLabel = (labelId) => {
                                                     <div v-for="unit in item.owners">
                                                         <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
                                                     </div>
+                                                </template>
+                                                <template v-slot:item.created_at="{item}">
+                                                    <span class="text-xs font-sans">{{date.format(item.created_at, 'fullDate')}}</span>
                                                 </template>
                                             </v-data-table>
                                         </v-col>
