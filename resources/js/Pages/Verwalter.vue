@@ -23,8 +23,10 @@ const brands = ref([])
 const buildings = ref([])
 const catalogs = ref([])
 const categories = ref([])
+const checks = ref([])
 const cities = ref([])
 const countries = ref([])
+const entities = ref([])
 const labels = ref([])
 const products = ref([])
 const regions = ref([])
@@ -33,8 +35,6 @@ const units = ref([])
 const uris = ref([])
 
 let manufacturers = ref();
-let listEntities = ref();
-let listChecks = ref();
 let listComponents = ref();
 let listTelephones = ref();
 
@@ -199,6 +199,14 @@ function indexCategories(){
             // always executed
         });
 }
+//   C H E C K S
+function indexChecks(){
+    axios.get(route('checks.index')).then(function (response){
+        checks.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 //   C I T I E S
 function indexCities(){
     axios.get(route('cities.index')).then(function (response){
@@ -222,6 +230,14 @@ function indexCountries(){
         }).finally(function () {
             // always executed
         })
+}
+//   E N T I T I E S
+function indexEntities(){
+    axios.get(route('entities.index')).then(function (response){
+        entities.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
 }
 //   L A B E L S
 function indexLabels(){
@@ -348,26 +364,6 @@ function getManufacturers(){
             // always executed
         });
 }
-function apiIndexEntities(like){
-    axios.get(route('api.entities'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response) {
-        listEntities.value = response.data;
-    })
-        .catch(function (error) {
-            console.log(error);
-        });
-}
-function apiIndexChecks(){
-    axios.get(route('api.checks')).then(function (response) {
-        listChecks.value = response.data;
-    })
-        .catch(function (error) {
-            console.log(error);
-        });
-}
 function apiIndexComponents(){
     axios.get(route('api.components')).then(function (response) {
         listComponents.value = response.data;
@@ -417,6 +413,23 @@ function storeCity(){
             indexCities(searchCities.value)
         },
     })
+}
+//    S T O R E  C H E C K
+const formCheck = useForm({
+    date: null,
+    entity_id: null,
+    amount: null,
+})
+function storeCheck(){
+    formCheck.post(route('web.check.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formCheck.reset()
+            indexChecks()
+        },
+    });
 }
 //    P R O D U C T  S T O R E
 const formProduct = useForm({
@@ -513,8 +526,10 @@ onMounted(()=>{
     indexBuildings()
     indexCatalogs()
     indexCategories()
+    indexChecks()
     indexCities()
     indexCountries()
+    indexEntities()
     indexLabels()
     indexProducts()
     indexRegions()
@@ -524,7 +539,6 @@ onMounted(()=>{
 
     apiIndexTelephones();
     getManufacturers();
-    apiIndexEntities();
     apiIndexComponents();
 })
 
@@ -557,18 +571,16 @@ const toggleLabel = (labelId) => {
                         <v-tabs v-model="tab">
                             <v-tab value="units">Units</v-tab>
                             <v-tab value="products">Products</v-tab>
-                            <v-tab value="brands">Brands</v-tab>
                             <v-tab value="geography">Geography</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="segments">Segments</v-tab>
+                            <v-tab value="purchases">Закупка</v-tab>
                             <v-tab value="components">Components</v-tab>
+                            <v-tab value="brands">Brands</v-tab>
                             <v-tab value="uris">Uris</v-tab>
 
                             <v-tab value="two">
                                 Manufacturers
-                            </v-tab>
-                            <v-tab value="eleven">
-                                Email work
                             </v-tab>
                         </v-tabs>
 
@@ -1298,7 +1310,32 @@ const toggleLabel = (labelId) => {
                                         <p v-if="successMessage" class="mt-4 text-green-600 text-center">{{ successMessage }}</p>
                                     </div>
                                 </v-tabs-window-item>
-
+<!--                                З А К У П К А-->
+                                <v-tabs-window-item value="purchases">
+                                    <v-row>
+                                        <v-col>
+                                            <v-list variant="tonal"
+                                                    density="compact"
+                                            >
+                                                <v-list-item v-for="check in checks">
+                                                    <v-row>
+                                                        <v-col>
+                                                            {{check.date}}
+                                                        </v-col>
+                                                        <v-col>
+                                                            <div>{{check.entity.name}}</div>
+                                                            <div>{{check.entity.classification.name}}</div>
+                                                        </v-col>
+                                                        <v-col>
+                                                            {{check.amount}}
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-list-item>
+                                            </v-list>
+                                        </v-col>
+                                        <v-col></v-col>
+                                    </v-row>
+                                </v-tabs-window-item>
                             </v-tabs-window>
                         </v-card-text>
                     </v-card>

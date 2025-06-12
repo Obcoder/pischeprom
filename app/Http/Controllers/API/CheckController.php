@@ -14,10 +14,9 @@ class CheckController extends Controller
      */
     public function index()
     {
-        $checks = Check::with('commodities')
+        return Check::with('commodities')
             ->orderBy('date', 'desc')
             ->get();
-        return $checks;
     }
 
     /**
@@ -25,8 +24,7 @@ class CheckController extends Controller
      */
     public function store(Request $request)
     {
-        $check = Check::create($request->all());
-        return redirect()->route('Ameise.checks');
+        Check::create($request->all());
     }
 
     /**

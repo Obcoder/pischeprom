@@ -14,6 +14,7 @@ use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\CityController;
+use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\ManufacturerController;
@@ -187,6 +188,9 @@ Route::post('/api/email/store', [\App\Http\Controllers\API\EmailController::clas
     ->name('web.email.store');
 Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitController::class, 'store'])
     ->name('emailgood.store');
+//    P O S T  C H E C K
+Route::post('/api/check/store', [CheckController::class, 'store'])
+    ->name('web.check.store');
 //     $ $ $ $ $     E N T I T Y     % % % % %
 Route::post('/entity/store', [EntityController::class, 'store'])
     ->name('web.entity.store');
