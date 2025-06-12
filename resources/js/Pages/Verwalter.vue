@@ -1230,8 +1230,7 @@ const toggleLabel = (labelId) => {
                                                           hover
                                             >
                                                 <template v-slot:item.uri="{item}">
-                                                    <a v-for="uri in uris"
-                                                       :href="uri.address" target="_blank"
+                                                    <a :href="uri.address" target="_blank"
                                                        class="text-xs text-green-400 inline-block"
                                                     >{{uri.address}}</a>
                                                 </template>
