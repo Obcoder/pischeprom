@@ -29,8 +29,8 @@ const checks = ref([])
 const cities = ref([])
 const countries = ref([])
 const entities = ref([])
-const goods = ref([])
 const good = ref(null)
+const goods = ref([])
 const labels = ref([])
 const products = ref([])
 const regions = ref([])
@@ -257,7 +257,7 @@ function indexEntities(){
 //   G O O D S
 function indexGoods(){
     axios.get(route('goods.index')).then(function (response){
-        goods.value = response.data;
+        goods.value = response.data
         // Проверяем, есть ли элементы в goods и берём первый
         if (goods.value && goods.value.length > 0) {
             fetchGood(goods.value[0].id);
@@ -567,6 +567,7 @@ onMounted(()=>{
     indexCities()
     indexCountries()
     indexEntities()
+    indexGoods()
     indexLabels()
     indexProducts()
     indexRegions()
