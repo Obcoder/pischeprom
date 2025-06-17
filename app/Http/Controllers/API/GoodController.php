@@ -53,8 +53,6 @@ class GoodController extends Controller
         $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
         // Сохраняем в БД
         $good->update(['ava_image' => $url]);
-
-        return redirect()->route('Ameise.goods');
     }
 
     /**

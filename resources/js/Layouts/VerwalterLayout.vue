@@ -19,22 +19,10 @@ import {route} from "ziggy-js";
                     <Link :href="route('Ameise.entities')">Entities</Link>
                 </v-list-item>
                 <v-list-item>
-                    <Link :href="route('Ameise.cities')">Города</Link>
-                </v-list-item>
-                <v-list-item>
-                    <Link :href="route('Ameise.products')">Products</Link>
-                </v-list-item>
-                <v-list-item>
-                    <Link :href="route('Ameise.goods')">Goods</Link>
-                </v-list-item>
-                <v-list-item>
                     <Link :href="route('Ameise.commodities')">Commodities</Link>
                 </v-list-item>
                 <v-list-item>
                     <Link :href="route('Ameise.checks')">Checks</Link>
-                </v-list-item>
-                <v-list-item>
-                    <Link :href="route('Ameise.geography')">Geography</Link>
                 </v-list-item>
                 <v-list-item>
                     <Link :href="route('Ameise.contactsCentre')">Contacts centre</Link>
