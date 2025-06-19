@@ -91,7 +91,7 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
-            <v-col lg="3">
+            <v-col cols="3">
                 <v-card>
                     <v-card-title class="text-center">Ягоды</v-card-title>
                     <v-card-text>
