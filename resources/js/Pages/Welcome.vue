@@ -91,17 +91,15 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
+            <v-col lg="3">
+                <v-card>
+                    <v-card-title class="text-center">Ягоды</v-card-title>
+                    <v-card-text>
+                        <div>Клубника замороженная</div>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-col cols="3">
-                <v-col cols="3">
-                    <v-card>
-                        <v-card-title class="text-center">Ягоды</v-card-title>
-                        <v-card-text>
-                            <v-sheet class="flex flex-row flex-wrap">
-
-                            </v-sheet>
-                        </v-card-text>
-                    </v-card>
-                </v-col>
                 <v-card>
                     <v-card-title class="text-center">Лецитины</v-card-title>
                 </v-card>
