@@ -93,7 +93,7 @@ useHead({
         <v-row>
             <v-col cols="3">
                 <v-card>
-                    <v-card-title>Лецитины</v-card-title>
+                    <v-card-title class="text-center">Лецитины</v-card-title>
                 </v-card>
             </v-col>
             <v-col cols="3">
