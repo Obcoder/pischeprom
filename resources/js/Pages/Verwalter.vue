@@ -625,6 +625,14 @@ const generateSlug = (name) => {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
 }
+
+// Стили для активного состояния
+const style = `
+  .active {
+    background-color: #0288d1; /* Цвет фона для активной категории */
+    color: white; /* Цвет текста для активной категории */
+  }
+`;
 </script>
 
 <template>
@@ -1036,8 +1044,6 @@ const generateSlug = (name) => {
                                                     >
                                                         <v-list-item v-for="category in categories"
                                                                      :key="category.id"
-                                                                     v-model="selectedCategoriesIDs"
-                                                                     :color="selectedCategoriesIDs.includes(category.id) ? 'white' : 'black'"
                                                                      :class="{ 'active': selectedCategoriesIDs.includes(category.id) }"
                                                                      @click="toggleCategories(category.id)"
                                                                      size="x-small"
@@ -1626,4 +1632,5 @@ const generateSlug = (name) => {
 .rounded-full {
     border-radius: 50%;
 }
+${style}
 </style>
