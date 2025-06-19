@@ -1037,7 +1037,7 @@ const generateSlug = (name) => {
                                                         <v-list-item v-for="category in categories"
                                                                      :key="category.id"
                                                                      v-model="selectedCategoriesIDs"
-                                                                     :color="selectedCategoriesIDs.includes(category.id) ? 'white' : ''"
+                                                                     :color="selectedCategoriesIDs.includes(category.id) ? 'white' : 'black'"
                                                                      :class="{ 'active': selectedCategoriesIDs.includes(category.id) }"
                                                                      @click="toggleCategories(category.id)"
                                                                      size="x-small"
