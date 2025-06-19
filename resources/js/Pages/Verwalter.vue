@@ -297,7 +297,7 @@ function indexProducts(){
 }
 const filteredProducts = computed(()=>{
     const search = searchProducts.value.toLowerCase()
-    return products.value.filter(i => i.rus.toLowerCase().includes(search) && i.is_published == 1 &&
+    return products.value.filter(i => i.rus.toLowerCase().includes(search) &&
         (selectedCategoriesIDs.value.length === 0 || selectedCategoriesIDs.value.includes(i.category_id)))
 })
 // Функция выбора категорий
@@ -1037,8 +1037,8 @@ const generateSlug = (name) => {
                                                         <v-list-item v-for="category in categories"
                                                                      :key="category.id"
                                                                      v-model="selectedCategoriesIDs"
-                                                                     :color="selectedCategoriesIDs.includes(category.id) ? 'cyan' : ''"
-                                                                     :class="{ 'active-btn': selectedCategoriesIDs.includes(category.id) }"
+                                                                     :color="selectedCategoriesIDs.includes(category.id) ? 'white' : ''"
+                                                                     :class="{ 'active': selectedCategoriesIDs.includes(category.id) }"
                                                                      @click="toggleCategories(category.id)"
                                                                      size="x-small"
                                                                      class="ma-1 hover:bg-sky-700 hover:text-indigo-400"
