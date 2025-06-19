@@ -33,6 +33,7 @@ const good = ref(null)
 const goods = ref([])
 const labels = ref([])
 const products = ref([])
+const purchases = ref([])
 const regions = ref([])
 const segments = ref([])
 const units = ref([])
@@ -297,6 +298,14 @@ const filteredProducts = computed(()=>{
     const search = searchProducts.value.toLowerCase()
     return products.value.filter(i => i.rus.toLowerCase().includes(search))
 })
+//   P U R C H A S E S
+function indexPurchases(){
+    axios.get(route('purchases.index')).then(function (response){
+        purchases.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
 //   R E G I O N S
 function indexRegions(){
     axios.get(route('regions.index')).then(function (response) {
@@ -570,6 +579,7 @@ onMounted(()=>{
     indexGoods()
     indexLabels()
     indexProducts()
+    indexPurchases()
     indexRegions()
     indexSegments()
     indexUnits()
@@ -1565,7 +1575,26 @@ const generateSlug = (name) => {
                                                 </v-list-item>
                                             </v-list>
                                         </v-col>
-                                        <v-col></v-col>
+                                        <v-col>
+                                            <v-list variant="plain"
+                                                    density="compact">
+                                                <v-list-item v-for="purchase in purchases"
+                                                             class="hover:text-orange-600 hover:bg-zinc-700"
+                                                >
+                                                    <v-row>
+                                                        <v-col>
+                                                            <span>{{date.format(purchase.date, 'fullDate')}}</span>
+                                                        </v-col>
+                                                        <v-col>
+                                                            <span>{{purchase.amount}}</span>
+                                                        </v-col>
+                                                        <v-col>
+                                                            <span>{{purchase.entity.name}}</span>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-list-item>
+                                            </v-list>
+                                        </v-col>
                                     </v-row>
                                 </v-tabs-window-item>
                             </v-tabs-window>
