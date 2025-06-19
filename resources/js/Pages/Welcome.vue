@@ -46,7 +46,7 @@ useHead({
 
 <template>
     <v-container fluid>
-        <v-row class="h-100">
+        <v-row class="h-80">
             <v-col cols="2">
                 <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
                        aspect-ratio="1/1"
@@ -92,6 +92,16 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="3">
+                <v-col cols="3">
+                    <v-card>
+                        <v-card-title class="text-center">Ягоды</v-card-title>
+                        <v-card-text>
+                            <v-sheet class="flex flex-row flex-wrap">
+
+                            </v-sheet>
+                        </v-card-text>
+                    </v-card>
+                </v-col>
                 <v-card>
                     <v-card-title class="text-center">Лецитины</v-card-title>
                 </v-card>
@@ -104,11 +114,6 @@ useHead({
             <v-col cols="3">
                 <v-card>
                     <v-card-title>Масло сливочное</v-card-title>
-                </v-card>
-            </v-col>
-            <v-col cols="3">
-                <v-card>
-                    <v-card-title>Агары</v-card-title>
                 </v-card>
             </v-col>
         </v-row>

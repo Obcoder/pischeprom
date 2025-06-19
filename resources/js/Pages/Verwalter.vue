@@ -58,6 +58,7 @@ const dialogFormUnit = ref(false)
 const dialogFormUri = ref(false)
 
 const selectedLabelsIDs = ref([])
+const selectedCategoriesIDs = ref([])
 
 const headersCatalogs = ref([
     {
@@ -296,8 +297,17 @@ function indexProducts(){
 }
 const filteredProducts = computed(()=>{
     const search = searchProducts.value.toLowerCase()
-    return products.value.filter(i => i.rus.toLowerCase().includes(search))
+    return products.value.filter(i => i.rus.toLowerCase().includes(search) && i.is_published == 1 &&
+        (selectedCategoriesIDs.value.length === 0 || selectedCategoriesIDs.value.includes(i.category_id)))
 })
+// Функция выбора категорий
+const toggleCategories = (categoryId) => {
+    if (selectedCategoriesIDs.value.includes(categoryId)) {
+        selectedCategoriesIDs.value = selectedCategoriesIDs.value.filter((id) => id !== categoryId);
+    } else {
+        selectedCategoriesIDs.value.push(categoryId);
+    }
+};
 //   P U R C H A S E S
 function indexPurchases(){
     axios.get(route('purchases.index')).then(function (response){
@@ -1025,7 +1035,13 @@ const generateSlug = (name) => {
                                                             rounded
                                                     >
                                                         <v-list-item v-for="category in categories"
-                                                                     class="hover:bg-blue-200"
+                                                                     :key="category.id"
+                                                                     v-model="selectedCategoriesIDs"
+                                                                     :color="selectedCategoriesIDs.includes(category.id) ? 'cyan' : ''"
+                                                                     :class="{ 'active-btn': selectedCategoriesIDs.includes(category.id) }"
+                                                                     @click="toggleCategories(category.id)"
+                                                                     size="x-small"
+                                                                     class="ma-1 hover:bg-sky-700 hover:text-indigo-400"
                                                         >
                                                             <span>{{category.name}}</span>
                                                         </v-list-item>
