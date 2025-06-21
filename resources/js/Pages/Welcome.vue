@@ -91,7 +91,7 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
-            <v-col>
+            <v-col lg="2">
                 <v-text-field variant="solo"
                               density="compact"
                               label="Поиск по сайту"
