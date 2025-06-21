@@ -47,6 +47,21 @@ useHead({
 <template>
     <v-container fluid>
         <v-row>
+            <v-col cols="1"
+                   v-for="category in categories"
+                   :key="category.id"
+            >
+                <Link>
+                    <v-img :src="category.image"
+                           aspect-ratio="1/1"
+                           cover
+                           rounded>
+                        <span>{{category.name}}</span>
+                    </v-img>
+                </Link>
+            </v-col>
+        </v-row>
+        <v-row>
             <v-col cols="2">
                 <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
                        aspect-ratio="1/1"

@@ -94,10 +94,11 @@ onMounted(()=>{
             </v-menu>
 
             <Link href="/Seaprom">Рыба</Link>
-
         </v-app-bar>
-        <v-sheet>Навигация</v-sheet>
+
         <v-main class="d-flex align-center justify-center" style="min-height: 300px;">
+            <v-sheet>Навигация</v-sheet>
+
             <slot />
         </v-main>
     </v-layout>
