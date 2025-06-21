@@ -1,5 +1,5 @@
 <script setup>
-import {Head, Link} from "@inertiajs/vue3";
+import {Link} from "@inertiajs/vue3";
 import { logo } from "@/Pages/Helpers/consts.js";
 import {onMounted, ref} from "vue";
 import axios from "axios";
@@ -33,11 +33,6 @@ onMounted(()=>{
 })
 </script>
 <template>
-    <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="ПИЩЕПРОМ-СЕРВЕР.рф Пищевые ингредиенты, пищевые добавки, пищевое сырье, поставки для предприятий пищевой отрасли, поддержка технологов, помощь закупщикам и технологам пищевых предприятий">
-    </Head>
-
     <v-layout class="rounded rounded-md">
         <v-navigation-drawer v-model="drawer"
                              :location="$vuetify.display.mobile ? 'bottom' : undefined"
@@ -101,7 +96,7 @@ onMounted(()=>{
             <Link href="/Seaprom">Рыба</Link>
 
         </v-app-bar>
-
+        <v-sheet>Навигация</v-sheet>
         <v-main class="d-flex align-center justify-center" style="min-height: 300px;">
             <slot />
         </v-main>
