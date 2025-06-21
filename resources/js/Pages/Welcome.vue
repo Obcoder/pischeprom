@@ -91,6 +91,14 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
+            <v-col>
+                <v-text-field variant="solo"
+                              density="compact"
+                              label="Поиск по сайту"
+                              placeholder="Поиск по товарам на нашем сервере"></v-text-field>
+            </v-col>
+        </v-row>
+        <v-row>
             <v-col cols="4">
                 <v-card>
                     <v-img height="200"
