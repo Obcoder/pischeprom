@@ -1,3 +1,37 @@
+<script setup>
+import {Head, Link} from "@inertiajs/vue3";
+import { logo } from "@/Pages/Helpers/consts.js";
+import {onMounted, ref} from "vue";
+import axios from "axios";
+import {route} from "ziggy-js";
+const props = defineProps({
+    categories: Object,
+})
+
+const links = [
+    'Home',
+    'About Us',
+    'Team',
+    'Services',
+    'Blog',
+    'Contact Us',
+]
+
+let drawer = ref(true);
+let products = ref()
+
+function indexProducts(){
+    axios.get(route('products.index')).then(function (response) {
+        products.value = response.data;
+    }).catch(function (error) {
+            console.log(error)
+    })
+}
+
+onMounted(()=>{
+    indexProducts()
+})
+</script>
 <template>
     <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,7 +54,7 @@
                 </v-list-item>
                 <v-list-item>
                     <v-list>
-                        <v-list-item v-for="product in listProducts">
+                        <v-list-item v-for="product in products">
                             {{product.rus}}
                         </v-list-item>
                     </v-list>
@@ -105,38 +139,3 @@
     </v-footer>
 
 </template>
-
-<script setup>
-import {Head, Link, router} from "@inertiajs/vue3";
-import { logo } from "@/Pages/Helpers/consts.js";
-import {onMounted, ref} from "vue";
-import axios from "axios";
-
-const props = defineProps({
-    categories: Object,
-})
-const links = [
-    'Home',
-    'About Us',
-    'Team',
-    'Services',
-    'Blog',
-    'Contact Us',
-];
-let drawer = ref(true);
-let listProducts = ref();
-
-onMounted(()=>{
-    indexProducts();
-})
-
-function indexProducts(){
-    axios.get(route('api.products')).then(function (response) {
-        listProducts.value = response.data;
-    })
-        .catch(function (error) {
-            console.log(error);
-        });
-}
-
-</script>

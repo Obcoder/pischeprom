@@ -2,8 +2,8 @@
 import {Link} from '@inertiajs/vue3';
 import {ref} from "vue";
 import CocoaButterClassification from "@/Components/CocoaButterClassification.vue";
-import LayoutDefault from '@/Layouts/LayoutDefault.vue';
 import {useHead} from "@vueuse/head";
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 defineOptions({
     layout: LayoutDefault,
 })
