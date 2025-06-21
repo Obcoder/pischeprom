@@ -1632,5 +1632,4 @@ const style = `
 .rounded-full {
     border-radius: 50%;
 }
-${style}
 </style>
