@@ -39,14 +39,13 @@ onMounted(()=>{
     </Head>
 
     <v-layout class="rounded rounded-md">
-
         <v-navigation-drawer v-model="drawer"
                              :location="$vuetify.display.mobile ? 'bottom' : undefined"
         >
             <v-list>
                 <v-list-item>
                     <Link href="/">
-                        <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded">
+                        <img :src="logo" class="h-12 w-auto sm:h-16 md:h-20 shrink-0 rounded" alt="ПИЩЕПРОМ-СЕРВЕР">
                     </Link>
                 </v-list-item>
                 <v-list-item>
