@@ -46,7 +46,7 @@ useHead({
 
 <template>
     <v-container fluid>
-        <v-row class="h-80">
+        <v-row>
             <v-col cols="2">
                 <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
                        aspect-ratio="1/1"
@@ -88,31 +88,6 @@ useHead({
                        cover
                        rounded
                 ></v-img>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col cols="3">
-                <v-card>
-                    <v-card-title class="text-center">Ягоды</v-card-title>
-                    <v-card-text>
-                        <div>Клубника замороженная</div>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col cols="3">
-                <v-card>
-                    <v-card-title class="text-center">Лецитины</v-card-title>
-                </v-card>
-            </v-col>
-            <v-col cols="3">
-                <v-card>
-                    <v-card-title>Молоко сухое</v-card-title>
-                </v-card>
-            </v-col>
-            <v-col cols="3">
-                <v-card>
-                    <v-card-title>Масло сливочное</v-card-title>
-                </v-card>
             </v-col>
         </v-row>
         <v-row>
