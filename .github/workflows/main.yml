@@ -25,13 +25,32 @@ jobs:
         ssh ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
           cd ${{ secrets.TARGET_DIR }}
           git config --global --add safe.directory /home/forge/xn----dtbhbbn3apgclecj7i.xn--p1ai
+          git fetch origin
+          git checkout main
           git pull origin main
+
+          # Очистка кэша перед обновлением
+          php artisan cache:clear
+          php artisan config:clear
+          php artisan route:clear
+          php artisan view:clear
+
+          # Установка зависимостей
           composer install --no-dev --optimize-autoloader
+          rm -rf node_modules public/build
           npm install
           npm run build
+
+          # Миграции и кэширование
           php artisan migrate --force
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          sudo systemctl restart nginx
+
+          # Исправление прав доступа
+          chown -R www-data:www-data storage public
+          chmod -R 755 storage public
+
+          # Перезапуск Nginx (если нужен и есть права)
+          sudo -n systemctl restart nginx || echo "Failed to restart Nginx"
         EOF
