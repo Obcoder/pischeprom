@@ -56,7 +56,7 @@ useHead({
                            aspect-ratio="1/1"
                            cover
                            rounded>
-                        <span>{{category.name}}</span>
+                        <span class="text-slate-200">{{category.name}}</span>
                     </v-img>
                 </Link>
             </v-col>
