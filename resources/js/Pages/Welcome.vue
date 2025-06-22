@@ -89,8 +89,11 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
-            <v-col lg="2">
-                <v-text-field variant="outlined"
+            <v-col lg="2"
+                   md="4"
+            >
+                <v-text-field v-model="searchGoods"
+                              variant="outlined"
                               density="comfortable"
                               label="Поиск по сайту"
                               placeholder="Поиск по товарам на нашем сервере"

@@ -23,6 +23,7 @@ class GoodController extends Controller
     {
         return Good::where('is_published', true)
             ->orderBy('name')
+            ->limit(16)
             ->get();
     }
 
