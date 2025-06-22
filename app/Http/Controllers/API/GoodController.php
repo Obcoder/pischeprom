@@ -19,6 +19,12 @@ class GoodController extends Controller
             ->get();
         return $goods;
     }
+    public function indexPublished()
+    {
+        return Good::where('is_published', true)
+            ->orderBy('name')
+            ->get();
+    }
 
     /**
      * Show the form for creating a new resource.

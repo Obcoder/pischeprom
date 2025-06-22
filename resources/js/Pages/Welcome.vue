@@ -1,9 +1,11 @@
 <script setup>
 import {Link} from '@inertiajs/vue3';
-import {ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import CocoaButterClassification from "@/Components/CocoaButterClassification.vue";
 import {useHead} from "@vueuse/head";
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
+import axios from "axios";
+import {route} from "ziggy-js";
 defineOptions({
     layout: LayoutDefault,
 })
@@ -28,9 +30,31 @@ const props = defineProps({
     goodOfTheDay: Object,
     productsCount: Number,
     goodsCount: Number,
-});
+})
 
-let show = ref(false)
+const goods = ref([])
+
+const searchGoods = ref('')
+
+const show = ref(false)
+
+//   G O O D S
+function indexGoods(){
+    axios.get(route('goods.published')).then(function (response){
+        goods.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
+const filteredGoods = computed(()=>{
+    const search = searchGoods.value.toLowerCase();
+    return goods.value.filter(i => i.name.toLowerCase().includes(search))
+})
+//
+
+onMounted(()=>{
+    indexGoods()
+})
 
 useHead({
     title: `ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий`,
@@ -73,10 +97,25 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
-            <v-col cols="4">
+            <v-col cols="3">
                 <v-card>
-                    <v-img height="200"
-                           src="https://storage.yandexcloud.net/cold-reserve/GIElems/shutterstock_1476761888-3.webp"
+                    <v-card-title>Результаты поиска</v-card-title>
+                    <v-card-subtitle>вводите запрос в поле выше</v-card-subtitle>
+                    <v-card-text>
+                        <v-list>
+                            <v-list-item v-for="good in filteredGoods"
+                            >
+                                <span>{{good.name}}</span>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+            <v-col cols="3"></v-col>
+            <v-col cols="3"></v-col>
+            <v-col cols="3">
+                <v-card>
+                    <v-img src="https://storage.yandexcloud.net/cold-reserve/GIElems/shutterstock_1476761888-3.webp"
                            cover
                     ></v-img>
                     <v-card-title>
