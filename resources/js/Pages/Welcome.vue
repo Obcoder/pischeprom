@@ -58,7 +58,7 @@ useHead({
                            rounded
                     >
                         <div class="bg-red-800 text-slate-100 text-center opacity-50">
-                            <span class="opacity-5">{{category.name}}</span>
+                            <span class="opacity-100">{{category.name}}</span>
                         </div>
                     </v-img>
                 </Link>
