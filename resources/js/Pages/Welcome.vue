@@ -50,7 +50,7 @@ const filteredGoods = computed(()=>{
     const search = searchGoods.value.toLowerCase();
     return goods.value
         .filter(i => i.name.toLowerCase().includes(search))
-        .slice(0, 16);
+        .slice(0, 12);
 })
 //
 
@@ -141,6 +141,13 @@ useHead({
                     </v-card-text>
                 </v-card>
             </v-col>
+        </v-row>
+        <v-row>
+            <v-col lg="1"></v-col>
+            <v-col>
+                <div class="bg-red-800 text-orange-100 text-center rounded"><span class="text-3xl text-black">Ягоды</span></div>
+            </v-col>
+            <v-col lg="1"></v-col>
         </v-row>
         <v-row>
             <v-col>
