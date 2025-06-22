@@ -110,7 +110,7 @@ useHead({
                     <v-card-title>Результаты поиска</v-card-title>
                     <v-card-subtitle>вводите запрос в поле выше</v-card-subtitle>
                     <v-card-text>
-                        <v-list>
+                        <v-list lines="one">
                             <v-list-item v-for="good in filteredGoods"
                             >
                                 <span>{{good.name}}</span>
@@ -146,6 +146,13 @@ useHead({
             <v-col lg="1"></v-col>
             <v-col>
                 <div class="bg-red-800 text-orange-100 text-center rounded"><span class="text-3xl text-black">Ягоды</span></div>
+            </v-col>
+            <v-col lg="1"></v-col>
+        </v-row>
+        <v-row>
+            <v-col lg="1"></v-col>
+            <v-col>
+                <div class="bg-red-600 text-slate-300 text-center rounded"><span class="text-3xl text-black">Эмульгаторы</span></div>
             </v-col>
             <v-col lg="1"></v-col>
         </v-row>
