@@ -48,7 +48,9 @@ function indexGoods(){
 }
 const filteredGoods = computed(()=>{
     const search = searchGoods.value.toLowerCase();
-    return goods.value.filter(i => i.name.toLowerCase().includes(search))
+    return goods.value
+        .filter(i => i.name.toLowerCase().includes(search))
+        .slice(0, 16);
 })
 //
 
@@ -98,6 +100,7 @@ useHead({
                               label="Поиск по сайту"
                               placeholder="Поиск по товарам на нашем сервере"
                               hide-details
+                              clearable
                 ></v-text-field>
             </v-col>
         </v-row>

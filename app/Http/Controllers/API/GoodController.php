@@ -22,8 +22,7 @@ class GoodController extends Controller
     public function indexPublished()
     {
         return Good::where('is_published', true)
-            ->orderBy('name')
-            ->limit(16)
+            ->inRandomOrder()
             ->get();
     }
 
