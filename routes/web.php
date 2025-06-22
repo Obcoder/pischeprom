@@ -62,7 +62,7 @@ Route::get('/Ameise/brands', function (){
     return Inertia::render('Ameise/Brands');
 })->name('Ameise.brands');
 //   C A T E G O R I E S
-Route::get('/категория/{id}', function ($id) {
+Route::get('/categories/{id}', function ($id) {
     return Inertia::render('Categories', ['category' => Category::findOrFail($id)]);
 })->name('Categories');
 //   C H E C K S

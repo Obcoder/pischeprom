@@ -19,6 +19,10 @@ function fetchCategory(id){
         console.log(error)
     })
 }
+
+onMounted(()=>{
+    category.value = props.category
+})
 </script>
 
 <template>
