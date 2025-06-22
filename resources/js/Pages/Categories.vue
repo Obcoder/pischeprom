@@ -6,20 +6,19 @@ import {route} from "ziggy-js";
 defineOptions({
     layout: LayoutDefault,
 })
+const props = defineProps({
+    category: Object,
+})
 
-const category = ref(Object)
+const category = ref()
 
-function fetchCategory(){
-    axios.get(route('categories.show')).then(function (response){
+function fetchCategory(id){
+    axios.get(route('categories.show', id)).then(function (response){
         category.value = response.data
     }).catch(function (error){
         console.log(error)
     })
 }
-
-onMounted(()=>{
-    fetchCategory()
-})
 </script>
 
 <template>

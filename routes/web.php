@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Models\Category;
 use App\Models\City;
 use App\Models\Good;
 use App\Models\Product;
@@ -61,8 +62,8 @@ Route::get('/Ameise/brands', function (){
     return Inertia::render('Ameise/Brands');
 })->name('Ameise.brands');
 //   C A T E G O R I E S
-Route::get('/Categories', function () {
-    return Inertia::render('Categories');
+Route::get('/категория/{id}', function ($id) {
+    return Inertia::render('Categories', ['category' => Category::findOrFail($id)]);
 })->name('Categories');
 //   C H E C K S
 Route::get('Ameise/checks', function (){
