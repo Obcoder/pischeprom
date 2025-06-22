@@ -77,7 +77,7 @@ useHead({
                    v-for="category in categories"
                    :key="category.id"
             >
-                <Link :href="route('Categories')">
+                <Link :href="route('Categories', category.id)">
                     <v-img :src="category.image"
                            aspect-ratio="1/1"
                            cover
