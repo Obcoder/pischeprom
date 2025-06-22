@@ -55,54 +55,13 @@ useHead({
                     <v-img :src="category.image"
                            aspect-ratio="1/1"
                            cover
-                           rounded>
-                        <span class="text-rose-600">{{category.name}}</span>
+                           rounded
+                    >
+                        <div class="bg-rose-800 text-slate-100 text-center">
+                            <span>{{category.name}}</span>
+                        </div>
                     </v-img>
                 </Link>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col cols="2">
-                <v-img src="https://storage.yandexcloud.net/pps/goods/38/avatar-66546.webp"
-                       aspect-ratio="1/1"
-                       cover
-                       rounded
-                ></v-img>
-            </v-col>
-            <v-col cols="2">
-                <v-img src="https://storage.yandexcloud.net/pps/goods/26/raspberries-03%231-1.jpg"
-                       aspect-ratio="1/1"
-                       cover
-                       rounded
-                ></v-img>
-            </v-col>
-            <v-col cols="2">
-                <v-img src="https://storage.yandexcloud.net/pps/goods/1/glycerol.ava%231-1.jpg"
-                       aspect-ratio="1/1"
-                       cover
-                       rounded
-                ></v-img>
-            </v-col>
-            <v-col cols="2">
-                <v-img src="https://storage.yandexcloud.net/pps/classes/%D0%90%D1%80%D0%B0%D1%85%D0%B8%D1%81/%D0%B0%D1%80%D0%B0%D1%85%D0%B8%D1%81%D0%B2%D1%81%D0%BA%D0%BE%D1%80%D0%BB%D1%83%D0%BF%D0%B5-ava-01%231-1.jpg"
-                       aspect-ratio="1/1"
-                       cover
-                       rounded
-                ></v-img>
-            </v-col>
-            <v-col cols="2">
-                <v-img src="https://storage.yandexcloud.net/pps/classes/%D0%9B%D0%BE%D1%81%D0%BE%D1%81%D1%8C/fishflesh-ava-01.jpg"
-                       aspect-ratio="1/1"
-                       cover
-                       rounded
-                ></v-img>
-            </v-col>
-            <v-col cols="2">
-                <v-img src="https://storage.yandexcloud.net/pps/classes/%D0%9C%D1%83%D0%BA%D0%B0%20%D0%BF%D1%88%D0%B5%D0%BD%D0%B8%D1%87%D0%BD%D0%B0%D1%8F/wheatflavour-ava-01%231-1.jpg"
-                       aspect-ratio="1/1"
-                       cover
-                       rounded
-                ></v-img>
             </v-col>
         </v-row>
         <v-row>
