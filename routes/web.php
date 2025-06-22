@@ -101,6 +101,8 @@ Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
     ];
     return Inertia::render('Ameise/Good', $data);
 })->name('Ameise.good.show');
+Route::get('/goods/published', [GoodController::class, 'indexPublished'])
+    ->name('goods.published');
 //   P R O D U C T S
 Route::get('/Ameise/products/', function (){
     return Inertia::render('Ameise/Products');

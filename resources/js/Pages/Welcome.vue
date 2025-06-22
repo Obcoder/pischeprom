@@ -90,10 +90,12 @@ useHead({
         </v-row>
         <v-row>
             <v-col lg="2">
-                <v-text-field variant="solo-filled"
+                <v-text-field variant="outlined"
                               density="comfortable"
                               label="Поиск по сайту"
-                              placeholder="Поиск по товарам на нашем сервере"></v-text-field>
+                              placeholder="Поиск по товарам на нашем сервере"
+                              hide-details
+                ></v-text-field>
             </v-col>
         </v-row>
         <v-row>
