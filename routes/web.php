@@ -13,6 +13,7 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
 use App\Http\Controllers\API\BuildingController;
+use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\EntityController;
@@ -59,6 +60,10 @@ Route::get('/Ameise/Botany/', function (){
 Route::get('/Ameise/brands', function (){
     return Inertia::render('Ameise/Brands');
 })->name('Ameise.brands');
+//   C A T E G O R I E S
+Route::get('/Categories', function () {
+    return Inertia::render('Categories');
+})->name('Categories');
 //   C H E C K S
 Route::get('Ameise/checks', function (){
     return Inertia::render('Ameise/Checks');

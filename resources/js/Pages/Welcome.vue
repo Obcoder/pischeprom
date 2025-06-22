@@ -3,9 +3,9 @@ import {Link} from '@inertiajs/vue3';
 import {computed, onMounted, ref} from "vue";
 import CocoaButterClassification from "@/Components/CocoaButterClassification.vue";
 import {useHead} from "@vueuse/head";
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import axios from "axios";
 import {route} from "ziggy-js";
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 defineOptions({
     layout: LayoutDefault,
 })
@@ -77,7 +77,7 @@ useHead({
                    v-for="category in categories"
                    :key="category.id"
             >
-                <Link>
+                <Link :href="route('Categories')">
                     <v-img :src="category.image"
                            aspect-ratio="1/1"
                            cover
