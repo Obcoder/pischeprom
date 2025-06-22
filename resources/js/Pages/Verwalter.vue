@@ -477,6 +477,11 @@ const formProduct = useForm({
     eng: null,
     zh: null,
     es: null,
+    ar: null,
+    po: null,
+    de: null,
+    fr: null,
+    hi: null,
     category_id: null,
 })
 function storeProduct(){
@@ -1089,7 +1094,9 @@ const style = `
                                                                                             <v-row>
                                                                                                 <v-col cols="7">
                                                                                                     <v-text-field v-model="formProduct.rus"
-                                                                                                                  label="Product"
+                                                                                                                  label="Продукт"
+                                                                                                                  variant="outlined"
+                                                                                                                  class="bg-rose-500"
                                                                                                     ></v-text-field>
                                                                                                 </v-col>
                                                                                                 <v-col cols="5">
@@ -1104,19 +1111,52 @@ const style = `
                                                                                                 </v-col>
                                                                                             </v-row>
                                                                                             <v-row>
-                                                                                                <v-text-field v-model="formProduct.eng"
-                                                                                                              label="Product eng"
-                                                                                                ></v-text-field>
+                                                                                                <v-col>
+                                                                                                    <v-text-field v-model="formProduct.eng"
+                                                                                                                  label="Product eng"
+                                                                                                    ></v-text-field>
+                                                                                                </v-col>
                                                                                             </v-row>
                                                                                             <v-row>
-                                                                                                <v-text-field v-model="formProduct.zh"
-                                                                                                              label="Product zh"
-                                                                                                ></v-text-field>
+                                                                                                <v-col>
+                                                                                                    <v-text-field v-model="formProduct.zh"
+                                                                                                                  label="Product zh"
+                                                                                                    ></v-text-field>
+                                                                                                </v-col>
                                                                                             </v-row>
                                                                                             <v-row>
-                                                                                                <v-text-field v-model="formProduct.es"
-                                                                                                              label="Product es"
-                                                                                                ></v-text-field>
+                                                                                                <v-col>
+                                                                                                    <v-text-field v-model="formProduct.es"
+                                                                                                                  label="Product es"
+                                                                                                    ></v-text-field>
+                                                                                                </v-col>
+                                                                                            </v-row>
+                                                                                            <v-row>
+                                                                                                <v-col>
+                                                                                                    <v-text-field v-model="formProduct.ar"
+                                                                                                                  label="Product ar"
+                                                                                                                  variant="solo-filled"
+                                                                                                                  density="comfortable"
+                                                                                                                  color="red"></v-text-field>
+                                                                                                </v-col>
+                                                                                            </v-row>
+                                                                                            <v-row>
+                                                                                                <v-col>
+                                                                                                    <v-text-field v-model="formProduct.po"
+                                                                                                                  label="Product po"
+                                                                                                                  variant="solo-filled"
+                                                                                                                  density="comfortable"
+                                                                                                                  color="red"></v-text-field>
+                                                                                                </v-col>
+                                                                                            </v-row>
+                                                                                            <v-row>
+                                                                                                <v-col>
+                                                                                                    <v-text-field v-model="formProduct.de"
+                                                                                                                  label="Product de"
+                                                                                                                  variant="solo"
+                                                                                                                  density="comfortable"
+                                                                                                                  color="cyan-lighten-3"></v-text-field>
+                                                                                                </v-col>
                                                                                             </v-row>
                                                                                         </v-form>
                                                                                     </v-card-text>
