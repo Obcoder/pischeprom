@@ -1096,7 +1096,8 @@ const style = `
                                                                                                     <v-text-field v-model="formProduct.rus"
                                                                                                                   label="Продукт"
                                                                                                                   variant="outlined"
-                                                                                                                  class="bg-rose-500"
+                                                                                                                  class="bg-pink-800"
+                                                                                                                  hide-details
                                                                                                     ></v-text-field>
                                                                                                 </v-col>
                                                                                                 <v-col cols="5">
@@ -1105,7 +1106,7 @@ const style = `
                                                                                                                     :item-title="'name'"
                                                                                                                     v-model="formProduct.category_id"
                                                                                                                     label="Category"
-                                                                                                                    variant="filled"
+                                                                                                                    variant="outlined"
                                                                                                                     density="comfortable"
                                                                                                                     color="indigo"></v-autocomplete>
                                                                                                 </v-col>
