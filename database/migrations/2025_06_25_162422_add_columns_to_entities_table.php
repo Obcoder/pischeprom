@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('entities', function (Blueprint $table) {
             $table->string('INN')->nullable();
             $table->string('OGRN')->nullable();
-            $table->foreignId('country_id')->constrained('countries')->onDelete('cascade')->onUpdate('cascade');
+            $table->foreignId('country_id')->constrained()->onDelete('cascade')->onUpdate('cascade');
         });
     }
 
