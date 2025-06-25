@@ -314,6 +314,7 @@ useHead({
                                text="New telephone"
                                variant="elevated"
                                color="purple"
+                               class="text-wrap"
                         ></v-btn>
                         <v-dialog v-model="showFormTelephone"
                                   width="600"
@@ -371,3 +372,11 @@ useHead({
         </v-row>
     </v-container>
 </template>
+
+<style scoped>
+.text-wrap {
+    white-space: normal !important;
+    line-height: 1.2;
+    font-size: 12px;
+}
+</style>
