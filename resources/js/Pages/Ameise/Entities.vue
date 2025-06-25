@@ -314,7 +314,6 @@ useHead({
                                @click="showFormTelephone = !showFormTelephone"
                                variant="elevated"
                                color="purple"
-                               class="text-xs text-wrap"
                         ></v-btn>
                         <v-dialog v-model="showFormTelephone"
                                   width="600"
