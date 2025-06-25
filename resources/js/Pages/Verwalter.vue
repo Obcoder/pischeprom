@@ -1639,24 +1639,23 @@ const style = `
                                             </v-list>
                                         </v-col>
                                         <v-col>
-                                            <v-list variant="plain"
-                                                    density="compact">
-                                                <v-list-item v-for="purchase in purchases"
-                                                             class="hover:text-orange-600 hover:bg-zinc-700"
-                                                >
-                                                    <v-row>
-                                                        <v-col>
-                                                            <span>{{date.format(purchase.date, 'fullDate')}}</span>
-                                                        </v-col>
-                                                        <v-col>
-                                                            <span>{{purchase.amount}}</span>
-                                                        </v-col>
-                                                        <v-col>
-                                                            <span>{{purchase.entity.name}}</span>
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-list-item>
-                                            </v-list>
+                                            <v-list-item v-for="purchase in purchases.slice().sort((a, b) => new Date(b.date) - new Date(a.date))"
+                                                         :key="purchase.id"
+                                                         class="text-[11px] hover:text-orange-600 hover:bg-zinc-700"
+                                            >
+                                                <v-row>
+                                                    <v-col>
+                                                        <span>{{ date.format(purchase.date, 'fullDate') }}</span>
+                                                    </v-col>
+                                                    <v-col>
+                                                        <span>{{ purchase.amount }}</span>
+                                                    </v-col>
+                                                    <v-col>
+                                                        <span>{{ purchase.entity.name }}</span>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-list-item>
+
                                         </v-col>
                                     </v-row>
                                 </v-tabs-window-item>
