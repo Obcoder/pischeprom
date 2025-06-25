@@ -310,11 +310,11 @@ useHead({
                         ></v-text-field>
                     </v-col>
                     <v-col cols="2">
-                        <v-btn @click="showFormTelephone = !showFormTelephone"
-                               text="New telephone"
+                        <v-btn text="New telephone"
+                               @click="showFormTelephone = !showFormTelephone"
                                variant="elevated"
                                color="purple"
-                               class="text-wrap"
+                               class="text-xs text-wrap"
                         ></v-btn>
                         <v-dialog v-model="showFormTelephone"
                                   width="600"
@@ -374,9 +374,5 @@ useHead({
 </template>
 
 <style scoped>
-.text-wrap {
-    white-space: normal !important;
-    line-height: 1.2;
-    font-size: 12px;
-}
+
 </style>
