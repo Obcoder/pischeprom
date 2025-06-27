@@ -10,41 +10,32 @@ defineOptions({
 })
 const date = useDate()
 
-let sales = ref();
-function indexSales(){
-    axios.get(route('sales.index')).then(function (response){
-        sales.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-let entities = ref()
-function indexEntities(){
-    axios.get(route('entities.index')).then(function (response){
-        entities.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-let formSale = useForm({
-    date: null,
-    entity_id: null,
-    total: null,
-})
-function storeSale(){
-    formSale.date = format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
-    formSale.post(route('sales.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formSale.reset()
-            indexSales()
-        },
-    })
-}
+const tab = ref()
 
-const headersSales = [
+const entities = ref()
+const sales = ref()
+const sale = ref()
+
+const headerEntities = [
+    {
+        title: 'name',
+        key: 'name',
+    },
+    {
+        title: 'classification',
+        key: 'classification.name'
+    },
+    {
+        title: 'telephones',
+        key: 'telephones',
+        align: 'center',
+    },
+    {
+        title: 'unit',
+        key: 'units',
+    },
+]
+const headerSales = [
     {
         title: '+good',
         key: 'good',
@@ -67,7 +58,23 @@ const headersSales = [
     },
 ]
 
-let sale = ref()
+//     E N T I T I E S
+function indexEntities(){
+    axios.get(route('entities.index')).then(function (response){
+        entities.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+
+//     S A L E S
+function indexSales(){
+    axios.get(route('sales.index')).then(function (response){
+        sales.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 function showSale(id){
     axios.get(route('sales.show', id)).then(function (response){
         sale.value = response.data
@@ -75,6 +82,24 @@ function showSale(id){
         console.log(error)
     });
 }
+let formSale = useForm({
+    date: null,
+    entity_id: null,
+    total: null,
+})
+function storeSale(){
+    formSale.date = format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
+    formSale.post(route('sales.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formSale.reset()
+            indexSales()
+        },
+    })
+}
+
 
 let showFormAttachGood = ref(false)
 const loadingAttach = ref(false)
@@ -147,207 +172,247 @@ onMounted(()=>{
 <template>
     <v-container fluid>
         <v-row>
-            <v-col cols="1">
-                <v-dialog width="1000">
-                    <template v-slot:activator="{ props: activatorProps }">
-                        <v-btn v-bind="activatorProps"
-                               text="Новая продажа"
-                        ></v-btn>
-                    </template>
-                    <template v-slot:default="{isActive}">
-                        <v-card>
-                            <v-card-title>Form Sale</v-card-title>
-                            <v-card-text>
-                                <v-form @submit.prevent>
-                                    <v-row>
-                                        <v-col>
-                                            <v-autocomplete :items="entities"
-                                                            :item-value="'id'"
-                                                            :item-title="'name'"
-                                                            v-model="formSale.entity_id"
-                                                            density="compact"
-                                                            variant="outlined"
-                                                            chips
-                                            ></v-autocomplete>
-                                        </v-col>
-                                    </v-row>
-                                    <v-row>
-                                        <v-col>
-                                            <v-date-picker v-model="formSale.date"></v-date-picker>
-                                        </v-col>
-                                        <v-col>
-                                            <v-text-field v-model="formSale.total"
-                                                          label="Total"
-                                                          placeholder="Сумма продажи"
-                                                          density="comfortable"
-                                                          variant="solo"
-                                            ></v-text-field>
-                                        </v-col>
-                                    </v-row>
-                                </v-form>
-                            </v-card-text>
-                            <v-card-actions>
-                                <v-btn text="store"
-                                       @click="storeSale"
-                                       variant="elevated"
-                                       density="comfortable"
-                                       color="purple"
-                                ></v-btn>
-                            </v-card-actions>
-                        </v-card>
-                    </template>
-                </v-dialog>
-            </v-col>
-            <v-col cols="6">
-                <v-data-table :items="sales"
-                              :headers="headersSales"
-                              items-per-page="250"
-                              density="compact"
-                              hover="true"
-                >
-                    <template v-slot:item.good="{item}">
-                        <v-btn text="+"
-                               @click="openAttachDialog(item)"
-                               variant="elevated"
-                               color="grey"
-                               density="compact"
-                               size="20"
-                        ></v-btn>
-                    </template>
-                    <template v-slot:item.created_at="{item}">
-                        <span class="text-sm">{{date.format(item.created_at, 'fullDateWithWeekday')}}</span>
-                    </template>
-                    <template v-slot:item.date="{item}">
-                        <span class="text-sm">{{date.format(item.date, 'fullDate')}}</span>
-                    </template>
-                    <template v-slot:item.entity_id="{item}">
-                        <span class="text-sm">{{item.entity.name}}</span>
-                    </template>
-                    <template v-slot:item.total="{item}">
-                        <span @click="showSale(item.id)"
-                              class="cursor-pointer"
-                        >
-                            {{item.total}}
-                        </span>
-                    </template>
-                </v-data-table>
-                <v-dialog v-model="showFormAttachGood"
-                          transition="dialog-bottom-transition"
-                          width="1000"
-                >
-                    <template v-slot:default="{isActive}">
-                        <v-card theme="dark">
-                            <v-card-title>Form Attach Good</v-card-title>
-                            <v-card-text class="text-red-700">
-                                <v-row>
-                                    <v-col cols="7">
-                                        <v-form @submit.prevent>
-                                            <v-row>
-                                                <v-col>
-                                                    <v-autocomplete :items="goods"
-                                                                    :item-value="'id'"
-                                                                    :item-title="'name'"
-                                                                    v-model="formAttachGood.good_id"
-                                                                    label="Good"
-                                                                    variant="outlined"
-                                                                    @change="showGood(formAttachGood.good_id)"
-                                                    ></v-autocomplete>
-                                                </v-col>
-                                            </v-row>
-                                            <v-row>
-                                                <v-col cols="3">
-                                                    <v-text-field v-model="formAttachGood.quantity"
-                                                                  label="Количество"
-                                                                  variant="outlined"
-                                                                  density="compact"
-                                                                  theme="dark"
-                                                    ></v-text-field>
-                                                </v-col>
-                                                <v-col cols="3">
-                                                    <v-select :items="measures"
-                                                              :item-value="'id'"
-                                                              :item-title="'name'"
-                                                              v-model="formAttachGood.measure_id"
-                                                              label="Measures"
-                                                              variant="outlined"
-                                                              density="compact"
-                                                    ></v-select>
-                                                </v-col>
-                                                <v-col cols="6">
-                                                    <v-text-field v-model="formAttachGood.price"
-                                                                  label="Price"
-                                                                  variant="outlined"
-                                                                  density="comfortable"
-                                                    ></v-text-field>
-                                                </v-col>
-                                            </v-row>
-                                        </v-form>
-                                    </v-col>
-                                    <v-col cols="5">
-                                        <v-sheet>
-                                            <v-row>
-                                                <v-col>
-                                                    <div><label>Total</label>{{sale.total}}</div>
-                                                </v-col>
-                                                <v-col>
-                                                    <label>Position Sum</label><span>{{formAttachGood.quantity * formAttachGood.price}}</span>
-                                                </v-col>
-                                            </v-row>
-                                            <v-row>
-                                                <v-col>
-                                                    <div class="text-[9px]">{{good}}</div>
-                                                </v-col>
-                                            </v-row>
-                                        </v-sheet>
-                                    </v-col>
-                                </v-row>
-                            </v-card-text>
-                            <v-card-actions>
-                                <v-spacer />
-                                <v-btn text="attach"
-                                       @click="attachGood"
-                                       variant="text"
-                                       density="compact"
-                                       color="teal-lighten-2"
-                                ></v-btn>
-                            </v-card-actions>
-                        </v-card>
-                    </template>
-                </v-dialog>
-                <!-- ✅ Уведомление об успехе -->
-                <v-snackbar v-model="snackbar.show" :timeout="2000" color="green">
-                    {{ snackbar.text }}
-                </v-snackbar>
-            </v-col>
             <v-col>
-                <v-list density="compact"
-                >
-                    <v-list-item v-for="good in sale.goods"
+                <v-card>
+                    <v-tabs v-model="tab"
+                            align-tabs="center"
+                            color="deep-purple-accent-4"
                     >
-                        <v-row>
-                            <v-col cols="8">
+                        <v-tab :value="sales">Продажи</v-tab>
+                        <v-tab :value="entities">Entities</v-tab>
+                    </v-tabs>
+                    <v-tabs-window v-model="tab">
+                        <v-tabs-window-item value="sales">
+                            <v-container fluid>
+                                <v-row>
+                                    <v-col cols="1">
+                                        <v-dialog width="1000">
+                                            <template v-slot:activator="{ props: activatorProps }">
+                                                <v-btn v-bind="activatorProps"
+                                                       text="Новая продажа"
+                                                ></v-btn>
+                                            </template>
+                                            <template v-slot:default="{isActive}">
+                                                <v-card>
+                                                    <v-card-title>Form Sale</v-card-title>
+                                                    <v-card-text>
+                                                        <v-form @submit.prevent>
+                                                            <v-row>
+                                                                <v-col>
+                                                                    <v-autocomplete :items="entities"
+                                                                                    :item-value="'id'"
+                                                                                    :item-title="'name'"
+                                                                                    v-model="formSale.entity_id"
+                                                                                    density="compact"
+                                                                                    variant="outlined"
+                                                                                    chips
+                                                                    ></v-autocomplete>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col>
+                                                                    <v-date-picker v-model="formSale.date"></v-date-picker>
+                                                                </v-col>
+                                                                <v-col>
+                                                                    <v-text-field v-model="formSale.total"
+                                                                                  label="Total"
+                                                                                  placeholder="Сумма продажи"
+                                                                                  density="comfortable"
+                                                                                  variant="solo"
+                                                                    ></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </v-form>
+                                                    </v-card-text>
+                                                    <v-card-actions>
+                                                        <v-btn text="store"
+                                                               @click="storeSale"
+                                                               variant="elevated"
+                                                               density="comfortable"
+                                                               color="purple"
+                                                        ></v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </template>
+                                        </v-dialog>
+                                    </v-col>
+                                    <v-col cols="4">
+                                        <v-data-table :items="sales"
+                                                      :headers="headerSales"
+                                                      fixed-header
+                                                      items-per-page="250"
+                                                      density="compact"
+                                                      hover
+                                        >
+                                            <template v-slot:item.good="{item}">
+                                                <v-btn text="+"
+                                                       @click="openAttachDialog(item)"
+                                                       variant="elevated"
+                                                       color="grey"
+                                                       density="compact"
+                                                       size="20"
+                                                ></v-btn>
+                                            </template>
+                                            <template v-slot:item.created_at="{item}">
+                                                <span class="text-[10px] font-sans">{{date.format(item.created_at, 'fullDateWithWeekday')}}</span>
+                                            </template>
+                                            <template v-slot:item.date="{item}">
+                                                <span class="text-sm">{{date.format(item.date, 'fullDate')}}</span>
+                                            </template>
+                                            <template v-slot:item.entity_id="{item}">
+                                                <span class="text-sm">{{item.entity.name}}</span>
+                                            </template>
+                                            <template v-slot:item.total="{item}">
+                                                <span @click="showSale(item.id)"
+                                                      class="cursor-pointer"
+                                                >{{item.total}}</span>
+                                            </template>
+                                        </v-data-table>
+                                        <v-dialog v-model="showFormAttachGood"
+                                                  transition="dialog-bottom-transition"
+                                                  width="1000"
+                                        >
+                                            <template v-slot:default="{isActive}">
+                                                <v-card theme="dark">
+                                                    <v-card-title>Form Attach Good</v-card-title>
+                                                    <v-card-text class="text-red-700">
+                                                        <v-row>
+                                                            <v-col cols="7">
+                                                                <v-form @submit.prevent>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <v-autocomplete :items="goods"
+                                                                                            :item-value="'id'"
+                                                                                            :item-title="'name'"
+                                                                                            v-model="formAttachGood.good_id"
+                                                                                            label="Good"
+                                                                                            variant="outlined"
+                                                                                            @change="showGood(formAttachGood.good_id)"
+                                                                            ></v-autocomplete>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col cols="3">
+                                                                            <v-text-field v-model="formAttachGood.quantity"
+                                                                                          label="Количество"
+                                                                                          variant="outlined"
+                                                                                          density="compact"
+                                                                                          theme="dark"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                        <v-col cols="3">
+                                                                            <v-select :items="measures"
+                                                                                      :item-value="'id'"
+                                                                                      :item-title="'name'"
+                                                                                      v-model="formAttachGood.measure_id"
+                                                                                      label="Measures"
+                                                                                      variant="outlined"
+                                                                                      density="compact"
+                                                                            ></v-select>
+                                                                        </v-col>
+                                                                        <v-col cols="6">
+                                                                            <v-text-field v-model="formAttachGood.price"
+                                                                                          label="Price"
+                                                                                          variant="outlined"
+                                                                                          density="comfortable"
+                                                                            ></v-text-field>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                </v-form>
+                                                            </v-col>
+                                                            <v-col cols="5">
+                                                                <v-sheet>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <div><label>Total</label>{{sale.total}}</div>
+                                                                        </v-col>
+                                                                        <v-col>
+                                                                            <label>Position Sum</label><span>{{formAttachGood.quantity * formAttachGood.price}}</span>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-col>
+                                                                            <div class="text-[9px]">{{good}}</div>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                </v-sheet>
+                                                            </v-col>
+                                                        </v-row>
+                                                    </v-card-text>
+                                                    <v-card-actions>
+                                                        <v-spacer />
+                                                        <v-btn text="attach"
+                                                               @click="attachGood"
+                                                               variant="text"
+                                                               density="compact"
+                                                               color="teal-lighten-2"
+                                                        ></v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </template>
+                                        </v-dialog>
+                                        <!-- ✅ Уведомление об успехе -->
+                                        <v-snackbar v-model="snackbar.show" :timeout="2000" color="green">
+                                            {{ snackbar.text }}
+                                        </v-snackbar>
+                                    </v-col>
+                                    <v-col>
+                                        <v-list density="compact"
+                                        >
+                                            <v-list-item v-for="good in sale.goods"
+                                            >
+                                                <v-row>
+                                                    <v-col cols="8">
                                 <span class="cursor-pointer text-sm font-sans">
                                     {{good.name}}
                                 </span>
-                            </v-col>
-                            <v-col cols="1">
+                                                    </v-col>
+                                                    <v-col cols="1">
                                 <span class="text-[11px]">
                                     {{good.pivot.price}}
                                 </span>
-                            </v-col>
-                            <v-col cols="1">
+                                                    </v-col>
+                                                    <v-col cols="1">
                                 <span class="text-[10px]">
                                     {{good.pivot.quantity}}
                                 </span>
-                            </v-col>
-                            <v-col>
+                                                    </v-col>
+                                                    <v-col>
                                 <span class="text-sm">
                                     {{good.pivot.total}}
                                 </span>
-                            </v-col>
-                        </v-row>
-                    </v-list-item>
-                </v-list>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-list-item>
+                                        </v-list>
+                                    </v-col>
+                                </v-row>
+                            </v-container>
+                        </v-tabs-window-item>
+                        <v-tabs-window-item value="entities">
+                            <v-container>
+                                <v-row>
+                                    <v-col>
+                                        <v-data-table :items="entities"
+                                                      items-per-page="125"
+                                                      :headers="headerEntities"
+                                                      fixed-header
+                                                      density="compact"
+                                                      hover
+                                        >
+                                            <template v-slot:item.telephones="{item}">
+                                                <div v-for="telephone in item.telephones">{{telephone.number}}</div>
+                                            </template>
+                                            <template v-slot:item.units="{item}">
+                                                <div v-for="unit in item.units">{{unit.name}}</div>
+                                            </template>
+                                        </v-data-table>
+                                    </v-col>
+                                </v-row>
+                            </v-container>
+                        </v-tabs-window-item>
+                    </v-tabs-window>
+                </v-card>
             </v-col>
         </v-row>
     </v-container>

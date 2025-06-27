@@ -13,6 +13,11 @@ import {route} from "ziggy-js";
                     </Link>
                 </v-list-item>
                 <v-list-item>
+                    <Link :href="route('Ameise.sales')">
+                        Продажи
+                    </Link>
+                </v-list-item>
+                <v-list-item>
                     <Link :href="route('Ameise.entities')">Entities</Link>
                 </v-list-item>
                 <v-list-item>
@@ -30,11 +35,6 @@ import {route} from "ziggy-js";
                 <v-list-item>
                     <Link :href="route('ameise.telegrambot')"
                           color="blue-darken-1">Telegram</Link>
-                </v-list-item>
-                <v-list-item>
-                    <Link :href="route('Ameise.sales')">
-                        Продажи
-                    </Link>
                 </v-list-item>
                 <v-list-item>
                     <Link :href="route('Ameise.yandex')">
