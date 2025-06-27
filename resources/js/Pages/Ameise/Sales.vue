@@ -240,6 +240,7 @@ onMounted(()=>{
                                         <v-data-table :items="sales"
                                                       :headers="headerSales"
                                                       fixed-header
+                                                      height="600px"
                                                       items-per-page="250"
                                                       density="compact"
                                                       hover
@@ -254,13 +255,13 @@ onMounted(()=>{
                                                 ></v-btn>
                                             </template>
                                             <template v-slot:item.created_at="{item}">
-                                                <span class="text-[10px] font-sans">{{date.format(item.created_at, 'fullDateWithWeekday')}}</span>
+                                                <span class="text-[8px] font-sans">{{date.format(item.created_at, 'fullDate')}}</span>
                                             </template>
                                             <template v-slot:item.date="{item}">
-                                                <span class="text-sm">{{date.format(item.date, 'fullDate')}}</span>
+                                                <span class="text-sm font-sans">{{date.format(item.date, 'fullDateWithWeekday')}}</span>
                                             </template>
                                             <template v-slot:item.entity_id="{item}">
-                                                <span class="text-sm">{{item.entity.name}}</span>
+                                                <span class="text-sm font-OrelegaOneRegular">{{item.entity.name}}</span>
                                             </template>
                                             <template v-slot:item.total="{item}">
                                                 <span @click="showSale(item.id)"
