@@ -24,6 +24,7 @@ export default {
                 OrelegaOneRegular: ['OrelegaOne-Regular', ...defaultTheme.fontFamily.sans],
                 UnderdogRegular: ['Underdog-Regular', ...defaultTheme.fontFamily.sans],
                 Screpka: ['Screpka', ...defaultTheme.fontFamily.sans],
+                RobotoRegular: ['Roboto-Regular', ...defaultTheme.fontFamily.sans],
             },
         },
     },

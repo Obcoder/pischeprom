@@ -30,6 +30,10 @@
     font-family: 'Screpka';
     src: url("/resources/fonts/Screpka.ttf") format('truetype');
 }
+@font-face {
+    font-family: 'Roboto-Regular';
+    src: url("/resources/fonts/Roboto-Regular.ttf") format('truetype');
+}
 
 @tailwind base;
 @tailwind components;

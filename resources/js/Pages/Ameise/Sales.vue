@@ -236,7 +236,9 @@ onMounted(()=>{
                                             </template>
                                         </v-dialog>
                                     </v-col>
-                                    <v-col cols="4">
+                                </v-row>
+                                <v-row>
+                                    <v-col cols="5">
                                         <v-data-table :items="sales"
                                                       :headers="headerSales"
                                                       fixed-header
@@ -261,7 +263,7 @@ onMounted(()=>{
                                                 <span class="text-xs font-sans">{{date.format(item.date, 'fullDateWithWeekday')}}</span>
                                             </template>
                                             <template v-slot:item.entity_id="{item}">
-                                                <span class="text-sm font-mono">{{item.entity.name}}</span>
+                                                <span class="text-sm font-RobotoRegular">{{item.entity.name}}</span>
                                             </template>
                                             <template v-slot:item.total="{item}">
                                                 <span @click="showSale(item.id)"
