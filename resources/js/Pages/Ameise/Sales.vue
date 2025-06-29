@@ -263,10 +263,10 @@ onMounted(()=>{
                                 <v-row>
                                     <v-col cols="5">
                                         <v-data-table :items="sales"
+                                                      items-per-page="250"
                                                       :headers="headerSales"
                                                       fixed-header
-                                                      height="600px"
-                                                      items-per-page="250"
+                                                      height="1000px"
                                                       density="compact"
                                                       hover
                                         >
@@ -452,7 +452,7 @@ onMounted(()=>{
                                             </template>
                                             <template v-slot:item.buildings="{item}">
                                                 <div v-for="building in item.buildings"
-                                                     class="font-Typingrad text-[11px]">
+                                                     class="font-Typingrad text-[10px]">
                                                     <div>{{building.city.name}}</div>
                                                     <div>{{building.address}}</div>
                                                 </div>
