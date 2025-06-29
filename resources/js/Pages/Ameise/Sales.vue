@@ -1,10 +1,12 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {onMounted, reactive, ref} from "vue";
+import {computed, onMounted, reactive, ref} from "vue";
 import axios from "axios";
 import {useDate} from "vuetify";
 import {useForm} from "@inertiajs/vue3";
 import {format} from "date-fns";
+import {route} from "ziggy-js";
+
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -16,6 +18,8 @@ const entities = ref()
 const sales = ref()
 const sale = ref()
 
+const searchEntities = ref('')
+
 const headerEntities = [
     {
         title: 'name',
@@ -24,6 +28,11 @@ const headerEntities = [
     {
         title: 'classification',
         key: 'classification.name'
+    },
+    {
+        title: 'cities',
+        key: 'cities',
+        align: 'left',
     },
     {
         title: 'telephones',
@@ -66,7 +75,16 @@ function indexEntities(){
         console.log(error)
     })
 }
+const filteredEntities = computed(()=>{
+    let filteredItems = entities.value
 
+    if(searchEntities.value){
+        const search = searchEntities.value.toLowerCase()
+        filteredItems = filteredItems.filter(item => item.name.toLowerCase().includes(search))
+    }
+
+    return filteredItems
+})
 //     S A L E S
 function indexSales(){
     axios.get(route('sales.index')).then(function (response){
@@ -395,19 +413,36 @@ onMounted(()=>{
                         <v-tabs-window-item value="entities">
                             <v-container>
                                 <v-row>
+                                    <v-col lg="3">
+                                        <v-text-field v-model="searchEntities"
+                                                      label="Search for entities"
+                                                      variant="solo"
+                                                      density="compact"
+                                                      hide-details></v-text-field>
+                                    </v-col>
+                                </v-row>
+                                <v-row>
                                     <v-col>
-                                        <v-data-table :items="entities"
+                                        <v-data-table :items="filteredEntities"
                                                       items-per-page="125"
                                                       :headers="headerEntities"
                                                       fixed-header
                                                       density="compact"
                                                       hover
+                                                      height="1000px"
                                         >
                                             <template v-slot:item.telephones="{item}">
                                                 <div v-for="telephone in item.telephones">{{telephone.number}}</div>
                                             </template>
                                             <template v-slot:item.units="{item}">
-                                                <div v-for="unit in item.units">{{unit.name}}</div>
+                                                <div v-for="unit in item.units"
+                                                     class="font-RobotoRegular text-sm"
+                                                >{{unit.name}}</div>
+                                            </template>
+                                            <template v-slot:item.cities="{item}">
+                                                <div v-for="city in item.cities"
+                                                     class="text-sm"
+                                                >{{city.name}}</div>
                                             </template>
                                         </v-data-table>
                                     </v-col>
