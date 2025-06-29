@@ -35,9 +35,14 @@ const headerEntities = [
         align: 'left',
     },
     {
+        title: 'buildings',
+        key: 'buildings',
+        align: 'left',
+    },
+    {
         title: 'telephones',
         key: 'telephones',
-        align: 'center',
+        align: 'left',
     },
     {
         title: 'unit',
@@ -422,6 +427,7 @@ onMounted(()=>{
                                     </v-col>
                                 </v-row>
                                 <v-row>
+                                    <v-col cols="1"></v-col>
                                     <v-col>
                                         <v-data-table :items="filteredEntities"
                                                       items-per-page="125"
@@ -444,8 +450,16 @@ onMounted(()=>{
                                                      class="text-sm"
                                                 >{{city.name}}</div>
                                             </template>
+                                            <template v-slot:item.buildings="{item}">
+                                                <div v-for="building in item.buildings"
+                                                     class="font-Typingrad text-[11px]">
+                                                    <div>{{building.city.name}}</div>
+                                                    <div>{{building.address}}</div>
+                                                </div>
+                                            </template>
                                         </v-data-table>
                                     </v-col>
+                                    <v-col cols="1"></v-col>
                                 </v-row>
                             </v-container>
                         </v-tabs-window-item>
