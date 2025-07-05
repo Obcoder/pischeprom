@@ -49,7 +49,7 @@ Route::apiResource('countries', CountryController::class);
 Route::apiResource('currencies', CurrencyController::class);
 Route::apiResource('emails', EmailController::class);
 Route::apiResource('entities', EntityController::class);
-Route::apiResource('entities-classification', EntityClassification::class);
+Route::apiResource('entities-classification', EntitiesClassification::class);
 Route::apiResource('genera', GenusController::class);
 Route::apiResource('goods', GoodController::class);
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
