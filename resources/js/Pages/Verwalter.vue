@@ -638,6 +638,12 @@ const style = `
     color: white; /* Цвет текста для активной категории */
   }
 `;
+
+// Функция для корректного отображения "Город - Адрес"
+const formatBuildingTitle = (building) => {
+    if (!building) return '';
+    return `${building.city?.name || ' - '} , ${building.address}`;
+};
 </script>
 
 <template>
@@ -1419,7 +1425,7 @@ const style = `
                                                                 <v-row>
                                                                     <v-col>
                                                                         <v-autocomplete v-model="formUnit.buildings"
-                                                                                        :items="listBuildings"
+                                                                                        :items="buildings"
                                                                                         :item-title="formatBuildingTitle"
                                                                                         :item-value="'id'"
                                                                                         label="Buildings"
