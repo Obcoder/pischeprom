@@ -13,9 +13,7 @@ class EntitiesClassification extends Controller
      */
     public function index()
     {
-        $entitiesClassification = EntityClassification::all();
-
-        return $entitiesClassification;
+        return EntityClassification::all();
     }
 
     /**

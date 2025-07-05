@@ -243,9 +243,10 @@ onMounted(()=>{
     indexCities()
     indexEntities()
     indexEntityClassifications()
-    indexSales()
     indexGoods()
     indexMeasures()
+    indexSales()
+    indexTelephones()
 })
 </script>
 
@@ -492,80 +493,78 @@ onMounted(()=>{
                                                   width="990"
                                                   transition="dialog-top-transition"
                                         >
-                                            <template v-slot:default="{ isActive }">
-                                                <v-card>
-                                                    <v-card-title>Form Entity</v-card-title>
-                                                    <v-card-text>
-                                                        <v-form @submit.prevent>
-                                                            <v-row>
-                                                                <v-text-field v-model="formEntity.name"
-                                                                              label="Name"
-                                                                              variant="outlined"
-                                                                ></v-text-field>
-                                                            </v-row>
-                                                            <v-row>
-                                                                <v-col>
-                                                                    <v-select :items="entityClassifications"
-                                                                              :item-value="'id'"
-                                                                              :item-title="'name'"
-                                                                              v-model="formEntity.entity_classification_id"
-                                                                              variant="outlined"
-                                                                              label="Вид"
-                                                                    ></v-select>
-                                                                </v-col>
-                                                                <v-col>
-                                                                    <v-autocomplete :items="telephones"
-                                                                                    :item-value="'id'"
-                                                                                    :item-title="'number'"
-                                                                                    v-model="formEntity.telephones"
-                                                                                    label="Telephones"
-                                                                                    placeholder="number without +7"
-                                                                                    variant="outlined"
-                                                                                    density="comfortable"
-                                                                                    color="purple-darken-4"
-                                                                                    multiple
-                                                                                    chips
-                                                                    ></v-autocomplete>
-                                                                </v-col>
-                                                            </v-row>
-                                                            <v-row>
-                                                                <v-col>
-                                                                    <v-autocomplete :items="cities"
-                                                                                    :item-value="'id'"
-                                                                                    :item-title="'name'"
-                                                                                    v-model="formEntity.cities"
-                                                                                    label="Cities"
-                                                                                    placeholder="Населенный пункт"
-                                                                                    variant="solo"
-                                                                                    density="comfortable"
-                                                                                    color="grey"
-                                                                                    multiple
-                                                                    ></v-autocomplete>
-                                                                </v-col>
-                                                                <v-col>
-                                                                    <v-autocomplete :items="buildings"
-                                                                                    :item-value="'id'"
-                                                                                    :item-title="'address'"
-                                                                                    v-model="formEntity.buildings"
-                                                                                    multiple
-                                                                                    label="Buildings"
-                                                                                    placeholder="Адрес здания"
-                                                                                    variant="outlined"
-                                                                                    density="comfortable"
-                                                                                    color="teal"
-                                                                    ></v-autocomplete>
-                                                                </v-col>
-                                                            </v-row>
-                                                        </v-form>
-                                                    </v-card-text>
-                                                    <v-card-actions>
-                                                        <v-btn @click="storeEntity"
-                                                               text="сохранить"
-                                                               variant="flat"
-                                                        ></v-btn>
-                                                    </v-card-actions>
-                                                </v-card>
-                                            </template>
+                                            <v-card>
+                                                <v-card-title>Form Entity</v-card-title>
+                                                <v-card-text>
+                                                    <v-form @submit.prevent>
+                                                        <v-row>
+                                                            <v-text-field v-model="formEntity.name"
+                                                                          label="Name"
+                                                                          variant="outlined"
+                                                            ></v-text-field>
+                                                        </v-row>
+                                                        <v-row>
+                                                            <v-col>
+                                                                <v-select :items="entityClassifications"
+                                                                          :item-value="'id'"
+                                                                          :item-title="'name'"
+                                                                          v-model="formEntity.entity_classification_id"
+                                                                          variant="outlined"
+                                                                          label="Вид"
+                                                                ></v-select>
+                                                            </v-col>
+                                                            <v-col>
+                                                                <v-autocomplete :items="telephones"
+                                                                                :item-value="'id'"
+                                                                                :item-title="'number'"
+                                                                                v-model="formEntity.telephones"
+                                                                                label="Telephones"
+                                                                                placeholder="number without +7"
+                                                                                variant="outlined"
+                                                                                density="comfortable"
+                                                                                color="purple-darken-4"
+                                                                                multiple
+                                                                                chips
+                                                                ></v-autocomplete>
+                                                            </v-col>
+                                                        </v-row>
+                                                        <v-row>
+                                                            <v-col>
+                                                                <v-autocomplete :items="cities"
+                                                                                :item-value="'id'"
+                                                                                :item-title="'name'"
+                                                                                v-model="formEntity.cities"
+                                                                                label="Cities"
+                                                                                placeholder="Населенный пункт"
+                                                                                variant="solo"
+                                                                                density="comfortable"
+                                                                                color="grey"
+                                                                                multiple
+                                                                ></v-autocomplete>
+                                                            </v-col>
+                                                            <v-col>
+                                                                <v-autocomplete :items="buildings"
+                                                                                :item-value="'id'"
+                                                                                :item-title="'address'"
+                                                                                v-model="formEntity.buildings"
+                                                                                multiple
+                                                                                label="Buildings"
+                                                                                placeholder="Адрес здания"
+                                                                                variant="outlined"
+                                                                                density="comfortable"
+                                                                                color="teal"
+                                                                ></v-autocomplete>
+                                                            </v-col>
+                                                        </v-row>
+                                                    </v-form>
+                                                </v-card-text>
+                                                <v-card-actions>
+                                                    <v-btn @click="storeEntity"
+                                                           text="сохранить"
+                                                           variant="flat"
+                                                    ></v-btn>
+                                                </v-card-actions>
+                                            </v-card>
                                         </v-dialog>
                                     </v-col>
                                 </v-row>

@@ -157,9 +157,6 @@ Route::get('/Ameise/yandex', function (){
     return Inertia::render('Ameise/Yandex');
 })->name('Ameise.yandex');
 
-Route::get('/товары/', [\App\Http\Controllers\GoodController::class, 'index'])
-    ->name('goods');
-
 
 //                     A         P         I
 //                          G         E         T
