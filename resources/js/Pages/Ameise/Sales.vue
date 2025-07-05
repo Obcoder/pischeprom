@@ -6,7 +6,6 @@ import {useDate} from "vuetify";
 import {useForm} from "@inertiajs/vue3";
 import {format} from "date-fns";
 import {route} from "ziggy-js";
-
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -259,8 +258,8 @@ onMounted(()=>{
                             align-tabs="center"
                             color="deep-purple-accent-4"
                     >
-                        <v-tab :value="sales">Продажи</v-tab>
-                        <v-tab :value="entities">Entities</v-tab>
+                        <v-tab value="sales">Продажи</v-tab>
+                        <v-tab value="entities">Entities</v-tab>
                     </v-tabs>
                     <v-tabs-window v-model="tab">
                         <v-tabs-window-item value="sales">
@@ -443,18 +442,13 @@ onMounted(()=>{
                                     <v-col>
                                         <v-list density="compact"
                                         >
-                                            <v-list-item v-for="good in sale.goods"
-                                            >
+                                            <v-list-item v-for="good in sale?.goods ?? []">
                                                 <v-row>
                                                     <v-col cols="8">
-                                <span class="cursor-pointer text-sm font-sans">
-                                    {{good.name}}
-                                </span>
+                                                        <span class="cursor-pointer text-sm font-sans">{{good.name}}</span>
                                                     </v-col>
                                                     <v-col cols="1">
-                                <span class="text-[11px]">
-                                    {{good.pivot.price}}
-                                </span>
+                                                        <span class="text-[11px]">{{good.pivot.price}}</span>
                                                     </v-col>
                                                     <v-col cols="1">
                                 <span class="text-[10px]">
@@ -485,7 +479,7 @@ onMounted(()=>{
                                     </v-col>
                                     <v-col lg="2">
                                         <v-btn text="+"
-                                               @click="showFormEntity = true"
+                                               @click="showFormEntity = !showFormEntity"
                                                variant="elevated"
                                                color="purple-darken-4"
                                         ></v-btn>
