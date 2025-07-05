@@ -73,16 +73,6 @@ function indexTelephones(like){
         });
 }
 
-let showFormEntity = ref(false);
-
-const formEntity = useForm({
-    name: null,
-    entity_classification_id: null,
-    buildings: null,
-    telephones: null,
-    cities: null,
-})
-
 
 let listEntityClassifications = ref();
 function apiIndexEntityClassifications(){
@@ -98,6 +88,14 @@ const formTelephone = useForm({
     number: null,
 })
 
+let showFormEntity = ref(false);
+const formEntity = useForm({
+    name: null,
+    entity_classification_id: null,
+    buildings: null,
+    telephones: null,
+    cities: null,
+})
 function storeEntity(){
     formEntity.post(route('web.entity.store'), {
         replace: false,
