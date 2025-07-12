@@ -91,6 +91,13 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
+            <v-col>
+                <div class="flex flex-row justify-start">
+                    <div><Link :href="route('web.sesame')">Кунжут</Link></div>
+                </div>
+            </v-col>
+        </v-row>
+        <v-row>
             <v-col lg="2"
                    md="4"
             >

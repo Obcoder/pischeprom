@@ -18,6 +18,7 @@ const props = defineProps({
 const date = useDate()
 
 const tab = ref()
+const tabsContacts = ref()
 const tabsGeography = ref()
 const tabsProducts = ref()
 
@@ -36,12 +37,12 @@ const products = ref([])
 const purchases = ref([])
 const regions = ref([])
 const segments = ref([])
+const telephones = ref([])
 const units = ref([])
 const uris = ref([])
 
 let manufacturers = ref();
 let listComponents = ref();
-let listTelephones = ref();
 
 const searchBrands = ref('')
 const searchBuildings = ref('')
@@ -120,6 +121,23 @@ const headerRegions = ref([
     {
         title: 'Площадь',
         key: 'area',
+    },
+])
+const headerTelephones = ref([
+    {
+        title: 'Number',
+        key: 'number',
+        align: 'start',
+    },
+    {
+        title: 'Created',
+        key: 'created_at',
+        align: 'start',
+    },
+    {
+        title: 'Owners',
+        key: 'entities',
+        align: 'start',
     },
 ])
 const headerUnits = [
@@ -332,6 +350,14 @@ function indexSegments(){
         console.error(error)
     })
 }
+//   T E L E P H O N E S
+function indexTelephones(){
+    axios.get(route('telephones.index')).then(function (response){
+        telephones.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
+}
 //   U N I T S
 function indexUnits(){
     axios.get(route('units.index')).then(function (response) {
@@ -378,21 +404,6 @@ function indexUris(){
             console.log(error);
         }).finally(function () {
             // always executed
-        });
-}
-
-function apiIndexTelephones(like){
-    axios.get(route('api.telephones'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response) {
-        // handle success
-        listTelephones.value = response.data;
-    })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
         });
 }
 
@@ -597,10 +608,10 @@ onMounted(()=>{
     indexPurchases()
     indexRegions()
     indexSegments()
+    indexTelephones()
     indexUnits()
     indexUris()
 
-    apiIndexTelephones();
     getManufacturers();
     apiIndexComponents();
 })
@@ -662,7 +673,7 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="purchases">Закупка</v-tab>
                             <v-tab value="components">Components</v-tab>
                             <v-tab value="brands">Brands</v-tab>
-                            <v-tab value="uris">Uris</v-tab>
+                            <v-tab value="contacts">Контакты</v-tab>
 
                             <v-tab value="two">
                                 Manufacturers
@@ -1494,31 +1505,59 @@ const formatBuildingTitle = (building) => {
                                     </v-row>
                                 </v-tabs-window-item>
 
-                                <!--   U R I S  -->
-                                <v-tabs-window-item value="uris">
+                                <!--   К О Н Т А К Т Ы  -->
+                                <v-tabs-window-item value="contacts">
                                     <v-row>
                                         <v-col>
-                                            <v-data-table :items="uris"
-                                                          :headers="headerUris"
-                                                          items-per-page="1000"
-                                                          density="compact"
-                                                          class="text-xs"
-                                                          hover
-                                            >
-                                                <template v-slot:item.address="{item}">
-                                                    <a :href="item.address" target="_blank"
-                                                       class="text-xs text-green-400 inline-block"
-                                                    >{{item.address}}</a>
-                                                </template>
-                                                <template v-slot:item.owners="{item}">
-                                                    <div v-for="unit in item.owners">
-                                                        <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
-                                                    </div>
-                                                </template>
-                                                <template v-slot:item.created_at="{item}">
-                                                    <span class="text-xs font-sans">{{date.format(item.created_at, 'fullDate')}}</span>
-                                                </template>
-                                            </v-data-table>
+                                            <v-tabs v-model="tabsContacts">
+                                                <v-tab value="telephones"></v-tab>
+                                                <v-tab value="uris"></v-tab>
+                                            </v-tabs>
+                                            <v-tabs-window v-model="tabsContacts">
+                                                <v-tabs-window-item value="telephones">
+                                                    <v-data-table :items="telephones"
+                                                                  items-per-page="100"
+                                                                  :headers="headerTelephones"
+                                                                  fixed-header
+                                                                  height="500px"
+                                                                  density="compact"
+                                                                  hover
+                                                    >
+                                                        <template v-slot:item.entities="{item}">
+                                                            <div v-for="entity in item.entities"
+                                                                 class="text-xs"
+                                                            >{{entity.name}}</div>
+                                                        </template>
+                                                    </v-data-table>
+                                                </v-tabs-window-item>
+                                                <v-tabs-window-item value="uris">
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-data-table :items="uris"
+                                                                          :headers="headerUris"
+                                                                          items-per-page="1000"
+                                                                          density="compact"
+                                                                          class="text-xs"
+                                                                          hover
+                                                            >
+                                                                <template v-slot:item.address="{item}">
+                                                                    <a :href="item.address" target="_blank"
+                                                                       class="text-xs text-green-400 inline-block"
+                                                                    >{{item.address}}</a>
+                                                                </template>
+                                                                <template v-slot:item.owners="{item}">
+                                                                    <div v-for="unit in item.owners">
+                                                                        <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
+                                                                    </div>
+                                                                </template>
+                                                                <template v-slot:item.created_at="{item}">
+                                                                    <span class="text-xs font-sans">{{date.format(item.created_at, 'fullDate')}}</span>
+                                                                </template>
+                                                            </v-data-table>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-tabs-window-item>
+                                            </v-tabs-window>
                                         </v-col>
                                     </v-row>
                                 </v-tabs-window-item>

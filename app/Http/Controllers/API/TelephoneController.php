@@ -15,6 +15,7 @@ class TelephoneController extends Controller
     {
         $like = $request->search;
         $telephones = Telephone::where('number', 'like', "%{$like}%")
+            ->with('entities')
             ->orderBy('number', 'desc')
             ->get();
         return $telephones;

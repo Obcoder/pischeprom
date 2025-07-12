@@ -24,7 +24,7 @@ import {route} from "ziggy-js";
                     <Link :href="route('Ameise.commodities')">Commodities</Link>
                 </v-list-item>
                 <v-list-item>
-                    <Link :href="route('Ameise.checks')">Checks</Link>
+                    <Link :href="route('Ameise.checks')">Закупка</Link>
                 </v-list-item>
                 <v-list-item>
                     <Link :href="route('Ameise.contactsCentre')">Contacts centre</Link>

@@ -136,6 +136,10 @@ Route::get('/Ameise/Sales/', function (){
 Route::get('Seaprom', function (){
     return Inertia::render('Seaprom');
 });
+//     S E S A M E
+Route::get('/кунжут/', function (){
+    return Inertia::render('Sesame');
+})->name('web.sesame');
 //     U N I T S
 Route::get('/Ameise/units/', function (){
     return Inertia::render('Ameise/Units');
