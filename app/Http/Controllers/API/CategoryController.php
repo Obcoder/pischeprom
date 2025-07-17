@@ -13,7 +13,8 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        return Category::orderBy('name')
+        return Category::with('products')
+            ->orderBy('name')
             ->get();
     }
 

@@ -35,7 +35,16 @@ onMounted(()=>{
                        rounded></v-img>
             </v-col>
         </v-row>
-        <v-row></v-row>
+        <v-row>
+            <v-col lg="1"></v-col>
+            <v-col lg="3">
+                <v-list>
+                    <v-list-item v-for="product in category.products">
+                        <div>{{product.name}}</div>
+                    </v-list-item>
+                </v-list>
+            </v-col>
+        </v-row>
     </v-container>
 </template>
 
