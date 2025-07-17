@@ -37,6 +37,11 @@ const headerConsumers = [
         title: 'ед изм',
         key: 'measure',
     },
+    {
+        title: 'Nodes',
+        key: 'unit.buildings',
+        align: 'start',
+    },
 ]
 </script>
 
@@ -117,8 +122,14 @@ const headerConsumers = [
                             <template v-slot:item.unit.emails="{item}">
                                 <div v-for="email in item.unit.emails">{{email.address}}</div>
                             </template>
-                            <template v-slot:item.entities="{item}">
+                            <template v-slot:item.unit.entities="{item}">
                                 <div v-for="entity in item.unit.entities">{{entity.name}}</div>
+                            </template>
+                            <template v-slot:item.unit.buildings="{item}">
+                                <div v-for="building in item.unit.buildings">
+                                    <div>{{building.city.name}}</div>
+                                    <div>{{building.address}}</div>
+                                </div>
                             </template>
                         </v-data-table>
                     </v-card-text>
