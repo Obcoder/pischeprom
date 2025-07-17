@@ -15,6 +15,21 @@ const headerConsumers = [
         key: 'unit',
     },
     {
+        title: 'Uris',
+        key: 'unit.uris',
+        align: 'start',
+    },
+    {
+        title: 'Emails',
+        key: 'unit.emails',
+        align: 'start',
+    },
+    {
+        title: 'Entities',
+        key: 'unit.entities',
+        align: 'start',
+    },
+    {
         title: 'Кол-во',
         key: 'quantity',
     },
@@ -91,10 +106,19 @@ const headerConsumers = [
                                       density="compact"
                         >
                             <template v-slot:item.unit="{item}">
-                                {{item.unit.name}}
+                                <span>{{item.unit.name}}</span>
+                            </template>
+                            <template v-slot:item.unit.uris="{item}">
+                                <div v-for="uri in item.unit.uris">{{uri.address}}</div>
                             </template>
                             <template v-slot:item.measure="{item}">
-                                {{item.measure.name}}
+                                <span>{{item.measure.name}}</span>
+                            </template>
+                            <template v-slot:item.unit.emails="{item}">
+                                <div v-for="email in item.unit.emails">{{email.address}}</div>
+                            </template>
+                            <template v-slot:item.entities="{item}">
+                                <div v-for="entity in item.unit.entities">{{entity.name}}</div>
                             </template>
                         </v-data-table>
                     </v-card-text>

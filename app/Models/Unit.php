@@ -22,30 +22,33 @@ class Unit extends Model
         'emails.sendings',
     ];
 
+    public function buildings()
+    {
+        return $this->belongsToMany(Building::class)
+            ->using(building_unit::class);
+    }
+    public function consumptions()
+    {
+        return $this->hasMany(Consumption::class)
+            ->orderByDesc('created_at');
+    }
     public function emails(): BelongsToMany
     {
         return $this->belongsToMany(Email::class);
     }
-    public function uris(): BelongsToMany
+    public function entities()
     {
-        return $this->belongsToMany(Uri::class)
-            ->using(unit_uri::class);
+        return $this->belongsToMany(Entity::class)
+            ->using(entity_unit::class);
     }
-
     public function labels()
     {
         return $this->belongsToMany(Label::class)
             ->using(label_unit::class);
     }
-    public function stages()
+    public function manufactures(): BelongsToMany
     {
-        return $this->belongsToMany(Stage::class)
-            ->using(stage_unit::class)
-            ->withPivot('startDate', 'endDate', 'isActive');
-    }
-    public function consumptions(){
-        return $this->hasMany(Consumption::class)
-            ->orderByDesc('created_at');
+        return $this->belongsToMany(Product::class, 'manufacturers', 'unit_id', 'product_id');
     }
     public function products()
     {
@@ -54,24 +57,20 @@ class Unit extends Model
             ->withPivot('action_id')
             ->withTimestamps();
     }
-    public function entities()
+    public function stages()
     {
-        return $this->belongsToMany(Entity::class)
-            ->using(entity_unit::class);
-    }
-
-    public function buildings()
-    {
-        return $this->belongsToMany(Building::class)
-            ->using(building_unit::class);
+        return $this->belongsToMany(Stage::class)
+            ->using(stage_unit::class)
+            ->withPivot('startDate', 'endDate', 'isActive');
     }
     public function telephones()
     {
         return $this->belongsToMany(Telephone::class)
             ->using(telephone_unit::class);
     }
-    public function manufactures(): BelongsToMany
+    public function uris(): BelongsToMany
     {
-        return $this->belongsToMany(Product::class, 'manufacturers', 'unit_id', 'product_id');
+        return $this->belongsToMany(Uri::class)
+            ->using(unit_uri::class);
     }
 }
