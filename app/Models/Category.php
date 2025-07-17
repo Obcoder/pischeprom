@@ -11,6 +11,7 @@ class Category extends Model
 
     public function products()
     {
-        return $this->hasMany(Product::class);
+        return $this->hasMany(Product::class)
+            ->where('is_published', 1);
     }
 }
