@@ -40,7 +40,7 @@ onMounted(()=>{
             <v-col lg="3">
                 <v-list>
                     <v-list-item v-for="product in category.products">
-                        <div>{{product.name}}</div>
+                        <div>{{product.rus}}</div>
                     </v-list-item>
                 </v-list>
             </v-col>
