@@ -1,3 +1,15 @@
+<script setup>
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
+import {useHead} from "@vueuse/head";
+defineOptions({
+    layout: LayoutDefault,
+})
+
+useHead({
+    title: ''
+})
+</script>
+
 <template>
     <div>
         <h1>
@@ -5,11 +17,3 @@
         </h1>
     </div>
 </template>
-
-<script setup>
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
-
-defineOptions({
-    layout: LayoutDefault,
-})
-</script>
