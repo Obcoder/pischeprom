@@ -416,7 +416,7 @@ onMounted(()=>{
                                                                     </v-row>
                                                                     <v-row>
                                                                         <v-col>
-                                                                            <div class="text-[9px]">{{good.name}}</div>
+                                                                            <div class="text-[9px]">{{good}}</div>
                                                                         </v-col>
                                                                     </v-row>
                                                                 </v-sheet>

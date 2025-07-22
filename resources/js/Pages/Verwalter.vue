@@ -1545,15 +1545,6 @@ const formatBuildingTitle = (building) => {
                                                                               variant="solo"
                                                                               density="comfortable"></v-text-field>
                                                             </v-col>
-                                                            <v-col lg="1">
-                                                                <!-- Кнопка сортировки -->
-                                                                <v-btn @click="toggleSort" color="primary">
-                                                                    Сортировать по номеру
-                                                                    <v-icon>
-                                                                        {{ sortOrder === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
-                                                                    </v-icon>
-                                                                </v-btn>
-                                                            </v-col>
                                                         </v-row>
                                                         <v-row>
                                                             <v-col>
