@@ -358,6 +358,28 @@ function indexTelephones(){
         console.error(error)
     })
 }
+const searchTelephones = ref('')
+// const sortKey = ref('number'); // Ключ сортировки (например, 'number', 'name')
+const sortOrder = ref('asc'); // Направление сортировки: 'asc' или 'desc'
+const filteredTelephones = computed(()=>{
+    const search = searchTelephones.value.toLowerCase()
+    // Фильтрация
+    let filtered = telephones.value.filter((t) =>
+        t.number.toLowerCase().includes(search)
+    )
+    // Сортировка по number
+    return filtered.sort((a, b) => {
+        const valueA = a.number;
+        const valueB = b.number;
+        return sortOrder.value === 'asc'
+            ? valueA.localeCompare(valueB)
+            : valueB.localeCompare(valueA);
+    })
+})
+// Метод для переключения сортировки
+const toggleSort = () => {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+};
 //   U N I T S
 function indexUnits(){
     axios.get(route('units.index')).then(function (response) {
@@ -1515,20 +1537,43 @@ const formatBuildingTitle = (building) => {
                                             </v-tabs>
                                             <v-tabs-window v-model="tabsContacts">
                                                 <v-tabs-window-item value="telephones">
-                                                    <v-data-table :items="telephones"
-                                                                  items-per-page="100"
-                                                                  :headers="headerTelephones"
-                                                                  fixed-header
-                                                                  height="500px"
-                                                                  density="compact"
-                                                                  hover
-                                                    >
-                                                        <template v-slot:item.entities="{item}">
-                                                            <div v-for="entity in item.entities"
-                                                                 class="text-xs"
-                                                            >{{entity.name}}</div>
-                                                        </template>
-                                                    </v-data-table>
+                                                    <v-container>
+                                                        <v-row>
+                                                            <v-col lg="3">
+                                                                <v-text-field v-model="searchTelephones"
+                                                                              label="Поиск по телефонам"
+                                                                              variant="solo"
+                                                                              density="comfortable"></v-text-field>
+                                                            </v-col>
+                                                            <v-col lg="1">
+                                                                <!-- Кнопка сортировки -->
+                                                                <v-btn @click="toggleSort" color="primary">
+                                                                    Сортировать по номеру
+                                                                    <v-icon>
+                                                                        {{ sortOrder === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
+                                                                    </v-icon>
+                                                                </v-btn>
+                                                            </v-col>
+                                                        </v-row>
+                                                        <v-row>
+                                                            <v-col>
+                                                                <v-data-table :items="filteredTelephones"
+                                                                              items-per-page="100"
+                                                                              :headers="headerTelephones"
+                                                                              fixed-header
+                                                                              height="500px"
+                                                                              density="compact"
+                                                                              hover
+                                                                >
+                                                                    <template v-slot:item.entities="{item}">
+                                                                        <div v-for="entity in item.entities"
+                                                                             class="text-xs"
+                                                                        >{{entity.name}}</div>
+                                                                    </template>
+                                                                </v-data-table>
+                                                            </v-col>
+                                                        </v-row>
+                                                    </v-container>
                                                 </v-tabs-window-item>
                                                 <v-tabs-window-item value="uris">
                                                     <v-row>
