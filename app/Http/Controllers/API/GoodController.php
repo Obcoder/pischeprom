@@ -15,6 +15,7 @@ class GoodController extends Controller
     public function index(Request $request)
     {
         $goods = Good::where('name', 'like', '%' . $request->search . '%')
+            ->with('sales')
             ->orderBy('created_at', 'desc')
             ->get();
         return $goods;
