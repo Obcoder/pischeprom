@@ -417,12 +417,6 @@ onMounted(()=>{
                                                                     <v-row>
                                                                         <v-col>
                                                                             <div class="text-[9px]">{{good.name}}</div>
-                                                                            <v-row v-for="sale in good.sales"
-                                                                                 class="text-xs"
-                                                                            >
-                                                                                <v-col cols="1">{{sale.date}}</v-col>
-                                                                                <v-col cols="3">{{sales.entity.name}}</v-col>
-                                                                            </v-row>
                                                                         </v-col>
                                                                     </v-row>
                                                                 </v-sheet>
