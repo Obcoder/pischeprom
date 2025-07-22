@@ -136,6 +136,23 @@ function indexEntityClassifications(){
         console.log(error)
     })
 }
+//     G O O D S
+const goods = ref([])
+function indexGoods(){
+    axios.get(route('goods.index')).then(function (response){
+        goods.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+const good = reactive({})
+function showGood(id){
+    axios.get(route('goods.show', id)).then(function (response){
+        good.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 //     S A L E S
 function indexSales(){
     axios.get(route('sales.index')).then(function (response){
@@ -216,22 +233,6 @@ const measures = ref([])
 function indexMeasures(){
     axios.get(route('measures.index')).then(function (response){
         measures.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-const goods = ref([])
-function indexGoods(){
-    axios.get(route('goods.index')).then(function (response){
-        goods.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-const good = reactive({})
-function showGood(id){
-    axios.get(route('goods.show', id)).then(function (response){
-        good.value = response.data
     }).catch(function (error){
         console.log(error)
     })
@@ -415,7 +416,13 @@ onMounted(()=>{
                                                                     </v-row>
                                                                     <v-row>
                                                                         <v-col>
-                                                                            <div class="text-[9px]">{{good}}</div>
+                                                                            <div class="text-[9px]">{{good.name}}</div>
+                                                                            <v-row v-for="sale in good.sales"
+                                                                                 class="text-xs"
+                                                                            >
+                                                                                <v-col cols="1">{{sale.date}}</v-col>
+                                                                                <v-col cols="3">{{sales.entity.name}}</v-col>
+                                                                            </v-row>
                                                                         </v-col>
                                                                     </v-row>
                                                                 </v-sheet>
