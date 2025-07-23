@@ -26,8 +26,7 @@ class TelephoneController extends Controller
      */
     public function store(Request $request)
     {
-        $telephone = Telephone::create($request->all());
-        return redirect()->route('Ameise.entities');
+        Telephone::create($request->all());
     }
 
     /**
