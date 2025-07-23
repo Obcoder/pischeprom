@@ -407,6 +407,21 @@ const filteredTelephones = computed(()=>{
 const toggleSort = () => {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
 };
+let dialogFormTelephone = ref(false)
+const formTelephone = useForm({
+    number: null,
+})
+function storeTelephone(){
+    formTelephone.post(route('web.telephone.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formTelephone.reset()
+            indexTelephones(searchTelephones.value)
+        },
+    })
+}
 //   U N I T S
 function indexUnits(){
     axios.get(route('units.index')).then(function (response) {
@@ -1580,7 +1595,52 @@ const formatBuildingTitle = (building) => {
                                                                 <v-text-field v-model="searchTelephones"
                                                                               label="Поиск по телефонам"
                                                                               variant="solo"
-                                                                              density="comfortable"></v-text-field>
+                                                                              density="comfortable"
+                                                                              hide-details
+                                                                ></v-text-field>
+                                                            </v-col>
+                                                            <v-col lg="1">
+                                                                <v-btn text="New tel"
+                                                                       @click="dialogFormTelephone = !dialogFormTelephone"
+                                                                       variant="elevated"
+                                                                       density="comfortable"
+                                                                       color="indigo-lighten-1"
+                                                                ></v-btn>
+                                                                <v-dialog v-model="dialogFormTelephone"
+                                                                          width="500"
+                                                                >
+                                                                    <template v-slot:default="{ isActive }">
+                                                                        <v-card>
+                                                                            <v-card-title>Form Telephone</v-card-title>
+                                                                            <v-card-text>
+                                                                                <v-form @submit.prevent>
+                                                                                    <v-row>
+                                                                                        <v-col>
+                                                                                            <v-text-field v-model="formTelephone.number"
+                                                                                                          label="Number"
+                                                                                                          placeholder="+...."
+                                                                                                          variant="outlined"
+                                                                                                          color="indigo"
+                                                                                            ></v-text-field>
+                                                                                        </v-col>
+                                                                                    </v-row>
+                                                                                </v-form>
+                                                                            </v-card-text>
+                                                                            <v-card-actions>
+                                                                                <v-divider vertical
+                                                                                           thickness="1"
+                                                                                           opacity="90"
+                                                                                ></v-divider>
+
+                                                                                <v-btn @click="storeTelephone"
+                                                                                       text="save"
+                                                                                       variant="elevated"
+                                                                                       color="success"
+                                                                                ></v-btn>
+                                                                            </v-card-actions>
+                                                                        </v-card>
+                                                                    </template>
+                                                                </v-dialog>
                                                             </v-col>
                                                         </v-row>
                                                         <v-row>
