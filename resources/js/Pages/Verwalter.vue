@@ -61,6 +61,18 @@ const dialogFormUri = ref(false)
 const selectedLabelsIDs = ref([])
 const selectedCategoriesIDs = ref([])
 
+const headerBuildings = [
+    {
+        title: 'Город',
+        key: 'city.name',
+        align: 'start',
+    },
+    {
+        title: 'Адрес',
+        key: 'address',
+        align: 'start',
+    },
+]
 const headersCatalogs = ref([
     {
         title: 'name',
@@ -942,13 +954,14 @@ const formatBuildingTitle = (building) => {
                                         <v-tabs-window-item value="buildings">
                                             <v-row>
                                                 <v-col cols="1">
-                                                    <div class="flex flex-row justify-center">{{ filteredBuildings.length }}</div>
+                                                    <div class="flex flex-row justify-center font-sans text-sm">{{ filteredBuildings.length }}</div>
                                                 </v-col>
                                                 <v-col lg="3">
                                                     <v-text-field v-model="searchBuildings"
                                                                   label="Искать по адресам"
                                                                   variant="solo"
                                                                   density="compact"
+                                                                  hide-details
                                                     ></v-text-field>
                                                 </v-col>
                                                 <v-col cols="1">
@@ -966,8 +979,8 @@ const formatBuildingTitle = (building) => {
                                                                     <v-row>
                                                                         <v-col>
                                                                             <v-text-field v-model="formBuilding.address"
-                                                                                          label="Название"
-                                                                                          variant="solo-filled"
+                                                                                          label="Адрес здания"
+                                                                                          variant="outlined"
                                                                                           density="comfortable"
                                                                             ></v-text-field>
                                                                         </v-col>
@@ -986,9 +999,9 @@ const formatBuildingTitle = (building) => {
                                                                         <v-col>
                                                                             <v-text-field v-model="formBuilding.postcode"
                                                                                           label="Postcode"
-                                                                                          variant="solo-inverted"
-                                                                                          density="compact"
-                                                                                          color="lime"
+                                                                                          variant="solo"
+                                                                                          density="comfortable"
+                                                                                          color="grey"
                                                                             ></v-text-field>
                                                                         </v-col>
                                                                     </v-row>
@@ -1010,20 +1023,13 @@ const formatBuildingTitle = (building) => {
                                             </v-row>
                                             <v-row>
                                                 <v-col>
-                                                    <v-sheet>
-                                                        <div v-for="building in filteredBuildings"
-                                                             class="hover:bg-red-950 hover:text-red-100"
-                                                        >
-                                                            <v-row>
-                                                                <v-col lg="5">
-                                                                    {{building.city.name}}
-                                                                </v-col>
-                                                                <v-col lg="7">
-                                                                    {{building.address}}
-                                                                </v-col>
-                                                            </v-row>
-                                                        </div>
-                                                    </v-sheet>
+                                                    <v-data-table :items="filteredBuildings"
+                                                                  items-per-page="100"
+                                                                  :headers="headerBuildings"
+                                                                  fixed-header
+                                                                  height="900px"
+                                                                  density="compact"
+                                                                  hover></v-data-table>
                                                 </v-col>
                                             </v-row>
                                         </v-tabs-window-item>
