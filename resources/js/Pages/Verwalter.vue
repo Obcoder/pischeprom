@@ -63,6 +63,11 @@ const selectedCategoriesIDs = ref([])
 
 const headerBuildings = [
     {
+        title: 'Карта',
+        key: 'city.yandexmapsgeo',
+        align: 'center',
+    },
+    {
         title: 'Город',
         key: 'city.name',
         align: 'start',
@@ -73,9 +78,9 @@ const headerBuildings = [
         align: 'start',
     },
     {
-        title: 'Карта',
-        key: 'city.yandexmapsgeo',
-        align: 'center',
+        title: 'Индекс',
+        key: 'postcode',
+        align: 'start',
     },
 ]
 const headersCatalogs = ref([
@@ -1039,6 +1044,9 @@ const formatBuildingTitle = (building) => {
                                                             <a :href="item.city.yandexmapsgeo" target="_blank"
                                                                class="inline-flex items-center justify-center mr-1 bg-teal-500 text-white rounded-full text-[6px] font-bold w-3 h-3"
                                                             >Y</a>
+                                                        </template>
+                                                        <template v-slot:item.postcode="{item}">
+                                                            <span class="font-Screpka text-sm">{{item.postcode}}</span>
                                                         </template>
                                                     </v-data-table>
                                                 </v-col>
