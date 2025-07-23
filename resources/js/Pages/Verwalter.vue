@@ -82,6 +82,11 @@ const headerBuildings = [
         key: 'postcode',
         align: 'start',
     },
+    {
+        title: 'Units',
+        key: 'units_count',
+        align: 'start',
+    },
 ]
 const headersCatalogs = ref([
     {
@@ -1046,7 +1051,7 @@ const formatBuildingTitle = (building) => {
                                                             >Y</a>
                                                         </template>
                                                         <template v-slot:item.postcode="{item}">
-                                                            <span class="font-Screpka text-sm">{{item.postcode}}</span>
+                                                            <span class="font-Screpka text-xl">{{item.postcode}}</span>
                                                         </template>
                                                     </v-data-table>
                                                 </v-col>

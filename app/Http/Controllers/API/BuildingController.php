@@ -15,6 +15,7 @@ class BuildingController extends Controller
     {
         $like = $request->search;
         $buildings = Building::where('address', 'like', '%' . $like . '%')
+            ->withCount('units')
             ->orderBy('created_at', 'desc')
             ->get();
         return $buildings;

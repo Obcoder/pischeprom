@@ -4,14 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Building extends Model
 {
     use HasFactory;
-
-    protected $with = [
-        'city',
-    ];
 
     protected $fillable = [
         'address',
@@ -19,9 +17,17 @@ class Building extends Model
         'postcode',
     ];
 
-    public function city()
+    protected $with = [
+        'city',
+    ];
+
+    public function city(): BelongsTo
     {
         return $this->belongsTo(City::class)
             ->withDefault();
+    }
+    public function units(): BelongsToMany
+    {
+        return $this->belongsToMany(Unit::class);
     }
 }
