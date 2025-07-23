@@ -72,6 +72,11 @@ const headerBuildings = [
         key: 'address',
         align: 'start',
     },
+    {
+        title: 'Карта',
+        key: 'city.yandexmapsgeo',
+        align: 'center',
+    },
 ]
 const headersCatalogs = ref([
     {
@@ -1029,7 +1034,13 @@ const formatBuildingTitle = (building) => {
                                                                   fixed-header
                                                                   height="900px"
                                                                   density="compact"
-                                                                  hover></v-data-table>
+                                                                  hover>
+                                                        <template v-slot:item.city.yandexmapsgeo="{item}">
+                                                            <a :href="item.city.yandexmapsgeo" target="_blank"
+                                                               class="inline-flex items-center justify-center mr-1 bg-teal-500 text-white rounded-full text-[6px] font-bold w-3 h-3"
+                                                            >Y</a>
+                                                        </template>
+                                                    </v-data-table>
                                                 </v-col>
                                             </v-row>
                                         </v-tabs-window-item>
