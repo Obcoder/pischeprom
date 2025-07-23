@@ -84,7 +84,7 @@ const headerBuildings = [
     },
     {
         title: 'Units',
-        key: 'units_count',
+        key: 'units',
         align: 'start',
     },
 ]
@@ -1052,6 +1052,13 @@ const formatBuildingTitle = (building) => {
                                                         </template>
                                                         <template v-slot:item.postcode="{item}">
                                                             <span class="font-Screpka text-xl">{{item.postcode}}</span>
+                                                        </template>
+                                                        <template v-slot:item.units="{item}">
+                                                            <div v-for="unit in item.units"
+                                                                 class="text-xs"
+                                                            >
+                                                                {{unit.name}}
+                                                            </div>
                                                         </template>
                                                     </v-data-table>
                                                 </v-col>
