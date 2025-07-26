@@ -308,6 +308,7 @@ const headerEntities = [
         title: 'name',
         key: 'name',
         align: 'start',
+        width: '24%',
     },
     {
         title: 'Вид entity',
@@ -1196,6 +1197,13 @@ const formatBuildingTitle = (building) => {
                                                             <template v-slot:item.cities="{item}">
                                                                 <div v-for="city in item.cities">
                                                                     {{city.name}}
+                                                                </div>
+                                                            </template>
+                                                            <template v-slot:item.chats="{item}">
+                                                                <div v-for="chat in item.chats"
+                                                                     class="text-[8px]"
+                                                                >
+                                                                    {{chat.numbers}}
                                                                 </div>
                                                             </template>
                                                         </v-data-table>
