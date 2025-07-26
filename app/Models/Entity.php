@@ -15,26 +15,20 @@ class Entity extends Model
     protected $fillable = [
         'name',
         'entity_classification_id',
+        'INN',
+        'OGRN',
+        'country_id',
     ];
 
     protected $with = [
-        'classification',
-        'cities',
         'buildings',
+        'classification',
+        'country',
     ];
 
     public function buildings(): BelongsToMany
     {
         return $this->belongsToMany(Building::class, 'building_entities');
-    }
-    public function classification()
-    {
-        return $this->belongsTo(EntityClassification::class , 'entity_classification_id')
-            ->withDefault();
-    }
-    public function telephones()
-    {
-        return $this->belongsToMany(Telephone::class);
     }
     public function chats(): BelongsToMany
     {
@@ -43,6 +37,19 @@ class Entity extends Model
     public function cities(): BelongsToMany
     {
         return $this->belongsToMany(City::class);
+    }
+    public function classification()
+    {
+        return $this->belongsTo(EntityClassification::class , 'entity_classification_id')
+            ->withDefault();
+    }
+    public function country(): BelongsTo
+    {
+        return $this->belongsTo(Country::class);
+    }
+    public function telephones(): BelongsToMany
+    {
+        return $this->belongsToMany(Telephone::class);
     }
     public function units(): BelongsToMany
     {

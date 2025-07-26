@@ -14,15 +14,13 @@ class EntityController extends Controller
     public function index(Request $request)
     {
         $like = $request->search;
-        $entities = Entity::with(['telephones', 'chats', 'units']) // связи
+        return Entity::with(['cities','telephones', 'chats', 'units']) // связи
         ->withCount('sales') // добавляем количество продаж
         ->where(function ($query) use ($like) {
             $query->where('name', 'like', '%' . $like . '%');
         })
             ->orderBy('sales_count', 'desc') // сортируем по количеству продаж
             ->get();
-
-        return $entities;
     }
 
     /**
@@ -31,9 +29,10 @@ class EntityController extends Controller
     public function store(Request $request)
     {
         $entity = Entity::create($request->all());
-        $entity->telephones()->attach($request->telephones);
-        $entity->cities()->attach($request->cities);
         $entity->buildings()->attach($request->buildings);
+        $entity->cities()->attach($request->cities);
+        $entity->telephones()->attach($request->telephones);
+        $entity->units()->attach($request->units);
     }
 
     /**
