@@ -1044,7 +1044,7 @@ const formatBuildingTitle = (building) => {
                                                                 <v-card-text>
                                                                     <v-form @submit.prevent>
                                                                         <v-row>
-                                                                            <v-col cols="8">
+                                                                            <v-col cols="9">
                                                                                 <v-text-field v-model="formEntity.name"
                                                                                               label="Name"
                                                                                               variant="outlined"
@@ -1053,13 +1053,15 @@ const formatBuildingTitle = (building) => {
                                                                                               hide-details
                                                                                 ></v-text-field>
                                                                             </v-col>
-                                                                            <v-col cols="4">
+                                                                            <v-col cols="3">
                                                                                 <v-select :items="entityClassifications"
                                                                                           :item-value="'id'"
                                                                                           :item-title="'name'"
                                                                                           v-model="formEntity.entity_classification_id"
-                                                                                          variant="outlined"
                                                                                           label="Вид entity"
+                                                                                          variant="solo"
+                                                                                          density="comfortable"
+                                                                                          class="text-sm"
                                                                                           hide-details
                                                                                 ></v-select>
                                                                             </v-col>
@@ -1074,7 +1076,8 @@ const formatBuildingTitle = (building) => {
                                                                                                 placeholder="number without +7"
                                                                                                 variant="outlined"
                                                                                                 density="comfortable"
-                                                                                                color="purple-darken-4"
+                                                                                                color="yellow-accent-1"
+                                                                                                hide-details
                                                                                                 multiple
                                                                                                 chips
                                                                                 ></v-autocomplete>
@@ -1090,6 +1093,7 @@ const formatBuildingTitle = (building) => {
                                                                                                 variant="outlined"
                                                                                                 density="comfortable"
                                                                                                 color="teal"
+                                                                                                hide-details
                                                                                 ></v-autocomplete>
                                                                             </v-col>
                                                                         </v-row>
@@ -1099,7 +1103,7 @@ const formatBuildingTitle = (building) => {
                                                                                               label="ИНН"
                                                                                               placeholder="Введите цифры ИНН"
                                                                                               variant="solo"
-                                                                                              density="compact"
+                                                                                              density="comfortable"
                                                                                               color="indigo-accent-2"
                                                                                               hide-details></v-text-field>
                                                                             </v-col>
@@ -1108,9 +1112,10 @@ const formatBuildingTitle = (building) => {
                                                                                               label="ОГРН"
                                                                                               placeholder="Введите цифры ОГРН"
                                                                                               variant="solo"
-                                                                                              density="compact"
+                                                                                              density="comfortable"
                                                                                               color="indigo-accent-2"
-                                                                                              hide-details></v-text-field>
+                                                                                              hide-details
+                                                                                ></v-text-field>
                                                                             </v-col>
                                                                         </v-row>
                                                                         <v-row>
@@ -1122,8 +1127,9 @@ const formatBuildingTitle = (building) => {
                                                                                                 label="Cities"
                                                                                                 placeholder="Населенный пункт"
                                                                                                 variant="solo"
-                                                                                                density="compact"
+                                                                                                density="comfortable"
                                                                                                 color="grey"
+                                                                                                hide-details
                                                                                                 multiple
                                                                                 ></v-autocomplete>
                                                                             </v-col>
@@ -1135,8 +1141,9 @@ const formatBuildingTitle = (building) => {
                                                                                                 label="Country"
                                                                                                 placeholder="Страна"
                                                                                                 variant="filled"
-                                                                                                density="compact"
+                                                                                                density="comfortable"
                                                                                                 color="purple-lighten-5"
+                                                                                                hide-details
                                                                                 ></v-autocomplete>
                                                                             </v-col>
                                                                         </v-row>
@@ -1151,7 +1158,8 @@ const formatBuildingTitle = (building) => {
                                                                                                 variant="outlined"
                                                                                                 density="compact"
                                                                                                 color="light-green-accent-3"
-                                                                                                hide-details></v-autocomplete>
+                                                                                                hide-details
+                                                                                ></v-autocomplete>
                                                                             </v-col>
                                                                         </v-row>
                                                                     </v-form>
