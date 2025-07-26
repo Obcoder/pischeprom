@@ -1175,7 +1175,30 @@ const formatBuildingTitle = (building) => {
                                                                       fixed-footer
                                                                       density="compact"
                                                                       hover
-                                                        ></v-data-table>
+                                                        >
+                                                            <template v-slot:item.telephones="{item}">
+                                                                <div v-for="telephone in item.telephones">
+                                                                    {{telephone.number}}
+                                                                </div>
+                                                            </template>
+                                                            <template v-slot:item.buildings="{item}">
+                                                                <div v-for="building in item.buildings">
+                                                                    {{building.address}}
+                                                                </div>
+                                                            </template>
+                                                            <template v-slot:item.units="{item}">
+                                                                <div v-for="unit in item.units"
+                                                                     class="text-xs"
+                                                                >
+                                                                    {{unit.name}}
+                                                                </div>
+                                                            </template>
+                                                            <template v-slot:item.cities="{item}">
+                                                                <div v-for="city in item.cities">
+                                                                    {{city.name}}
+                                                                </div>
+                                                            </template>
+                                                        </v-data-table>
                                                     </v-col>
                                                 </v-row>
                                             </v-container>
