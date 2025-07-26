@@ -57,6 +57,11 @@ const headerGenera = [
         key: 'nameLat',
         align: 'start',
     },
+    {
+        title: 'Wiki',
+        key: 'wiki',
+        align: 'center',
+    },
 ]
 const dialogFormGenus = ref(false)
 const formGenus = useForm({
@@ -196,7 +201,7 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="3">
-                <v-data-table :items="genera"
+                <v-data-table :items="filteredGenera"
                               items-per-page="203"
                               :headers="headerGenera"
                               fixed-header
@@ -211,6 +216,11 @@ useHead({
                     </template>
                     <template v-slot:item.nameLat="{item}">
                         <span class="text-xs">{{item.nameLat}}</span>
+                    </template>
+                    <template v-slot:item.wiki="{item}">
+                        <a :href="item.wiki" target="_blank"
+                           class="text-xs p-4 border"
+                        >wiki</a>
                     </template>
                 </v-data-table>
 
