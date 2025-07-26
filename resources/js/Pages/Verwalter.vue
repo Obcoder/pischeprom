@@ -21,6 +21,7 @@ const tab = ref()
 const tabsContacts = ref()
 const tabsGeography = ref()
 const tabsProducts = ref()
+const tabsUnits = ref()
 
 const brands = ref([])
 const buildings = ref([])
@@ -746,103 +747,190 @@ const formatBuildingTitle = (building) => {
 
                         <v-card-text>
                             <v-tabs-window v-model="tab">
-                                <!--               B R A N D S               -->
-                                <v-tabs-window-item value="brands">
-                                    <v-sheet>
-                                        <v-text-field v-model="searchBrands"
-                                                      label="Поиск по брендам"
-                                                      variant="solo"
-                                                      density="compact"
-                                                      color="deep-purple"
-                                        ></v-text-field>
-                                        <div v-for="brand in filteredBrands"
-                                             class="text-xs"
-                                        >{{brand.name}}</div>
-                                    </v-sheet>
+                                <!--   U N I T S   -->
+                                <v-tabs-window-item value="units">
+                                    <v-tabs v-model="tabsUnits">
+                                        <v-tab value="units_sub"></v-tab>
+                                        <v-tab value="entities"></v-tab>
+                                    </v-tabs>
+                                    <v-tabs-window v-model="tabsUnits">
+                                        <v-tabs-window-item value="units_sub">
+                                            <v-container fluid>
+                                                <v-row>
+                                                    <v-col>
+                                                        <v-row>
+                                                            <v-col lg="4">
+                                                                <v-text-field v-model="searchUnits"
+                                                                              label="Поиск по юнитам"
+                                                                              variant="solo"
+                                                                              density="compact"
+                                                                              color="deep-orange-accent-3"
+                                                                              hide-details
+                                                                ></v-text-field>
+                                                            </v-col>
+                                                            <v-col lg="2">
+                                                                <v-btn text="+ Unit"
+                                                                       @click="dialogFormUnit = !dialogFormUnit"
+                                                                       variant="tonal"
+                                                                       density="compact"
+                                                                       color="deep-purple-darken-1"
+                                                                ></v-btn>
+                                                                <v-dialog v-model="dialogFormUnit"
+                                                                          width="900">
+                                                                    <v-card>
+                                                                        <v-card-title>Form Unit</v-card-title>
+                                                                        <v-card-text>
+                                                                            <v-form @submit.prevent>
+                                                                                <v-container>
+                                                                                    <v-row>
+                                                                                        <v-text-field v-model="formUnit.name"
+                                                                                                      label="Name"
+                                                                                                      variant="outlined"
+                                                                                                      density="comfortable"
+                                                                                        ></v-text-field>
+                                                                                    </v-row>
+                                                                                    <v-row>
+                                                                                        <v-col cols="9">
+                                                                                            <v-autocomplete v-model="formUnit.uris"
+                                                                                                            :items="uris"
+                                                                                                            :item-value="'id'"
+                                                                                                            :item-title="'address'"
+                                                                                                            label="Uris selected"
+                                                                                                            chips
+                                                                                                            multiple
+                                                                                            ></v-autocomplete>
+                                                                                        </v-col>
+                                                                                        <v-col cols="3">
+                                                                                            <v-btn text="+ uri"
+                                                                                                   @click="dialogFormUri = !dialogFormUri"
+                                                                                            ></v-btn>
+                                                                                            <v-dialog v-model="dialogFormUri"
+                                                                                                      width="800"
+                                                                                            >
+                                                                                                <v-card>
+                                                                                                    <v-toolbar title="FORM: Uri"></v-toolbar>
+                                                                                                    <v-card-text>
+                                                                                                        <v-form @submit.prevent>
+                                                                                                            <v-row>
+                                                                                                                <v-text-field v-model="formUri.address"
+                                                                                                                              label="Uri address"
+                                                                                                                              variant="outlined"
+                                                                                                                ></v-text-field>
+                                                                                                            </v-row>
+                                                                                                            <v-row>
+                                                                                                                <v-col cols="4">
+                                                                                                                    <v-btn
+                                                                                                                        text="store"
+                                                                                                                        block
+                                                                                                                        @click="storeUri"
+                                                                                                                    ></v-btn>
+                                                                                                                </v-col>
+                                                                                                            </v-row>
+                                                                                                        </v-form>
+                                                                                                    </v-card-text>
+                                                                                                </v-card>
+                                                                                            </v-dialog>
+                                                                                        </v-col>
+                                                                                    </v-row>
+                                                                                    <v-row>
+                                                                                        <v-col cols="4">
+                                                                                            <v-select v-model="formUnit.labels"
+                                                                                                      :items="labels"
+                                                                                                      :item-value="'id'"
+                                                                                                      :item-title="'name'"
+                                                                                                      label="Labels"
+                                                                                                      multiple
+                                                                                            ></v-select>
+                                                                                        </v-col>
+                                                                                    </v-row>
+                                                                                    <v-row>
+                                                                                        <v-col>
+                                                                                            <v-autocomplete v-model="formUnit.buildings"
+                                                                                                            :items="buildings"
+                                                                                                            :item-title="formatBuildingTitle"
+                                                                                                            :item-value="'id'"
+                                                                                                            label="Buildings"
+                                                                                                            color="blue"
+                                                                                                            multiple
+                                                                                                            chips
+                                                                                            ></v-autocomplete>
+                                                                                        </v-col>
+                                                                                    </v-row>
+                                                                                </v-container>
+                                                                            </v-form>
+                                                                        </v-card-text>
+                                                                        <v-card-actions class="justify-start">
+                                                                            <v-btn
+                                                                                text="Close"
+                                                                                @click="isActive.value = false"
+                                                                            ></v-btn>
+                                                                            <v-btn text="Сохранить"
+                                                                                   @click="storeUnit"
+                                                                            ></v-btn>
+                                                                        </v-card-actions>
+                                                                    </v-card>
+                                                                </v-dialog>
+                                                            </v-col>
+                                                            <v-sheet class="flex flex-row justify-normal flex-wrap">
+                                                                <v-btn v-for="label in labels"
+                                                                       :key="label.id"
+                                                                       v-model="selectedLabelsIDs"
+                                                                       :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
+                                                                       :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
+                                                                       @click="toggleLabel(label.id)"
+                                                                       size="x-small"
+                                                                       class="ma-1"
+                                                                >{{label.name}}</v-btn>
+                                                            </v-sheet>
+                                                        </v-row>
+                                                        <v-row>
+                                                            <v-card>
+                                                                <v-card-text>
+                                                                    <v-data-table :items="filteredUnits"
+                                                                                  :headers="headerUnits"
+                                                                                  items-per-page="100"
+                                                                                  density="compact"
+                                                                                  class="text-xs"
+                                                                                  hover
+                                                                    >
+                                                                        <template v-slot:item.name="{item}">
+                                                                            <Link :href="route('web.unit.show', item.id)">
+                                                                                {{item.name}}
+                                                                            </Link>
+                                                                        </template>
+                                                                        <template v-slot:item.uris="{item}">
+                                                                            <a v-for="uri in item.uris"
+                                                                               :href="uri.address" target="_blank"
+                                                                               class="text-xs inline-block mr-1 text-yellow-200">{{uri.address}}</a>
+                                                                        </template>
+                                                                        <template v-slot:item.stages="{item}">
+                                                                            <v-chip v-for="stage in item.stages"
+                                                                                    size="x-small"
+                                                                                    color="teal-accent-4"
+                                                                            >{{stage.name}}</v-chip>
+                                                                        </template>
+                                                                    </v-data-table>
+                                                                </v-card-text>
+                                                            </v-card>
+                                                        </v-row>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
+                                        </v-tabs-window-item>
+                                        <v-tabs-window-item value="entities">
+                                            <v-container fluid>
+                                                <v-row>
+                                                    <v-col>
+                                                        <v-data-table :items="entities"
+                                                        ></v-data-table>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
+                                        </v-tabs-window-item>
+                                    </v-tabs-window>
                                 </v-tabs-window-item>
-
-                                <!-- + + + + + + +    C A T A L O G S   + + + + + + + -->
-                                <v-tabs-window-item value="catalogs">
-                                    <v-data-table :items="catalogs"
-                                                  :headers="headersCatalogs"
-                                                  density="comfortable"
-                                                  hover="true"
-                                    >
-                                        <template v-slot:item.uri="{item}">
-                                            <a :href="item.uri" target="_blank">
-                                                {{item.uri}}
-                                            </a>
-                                        </template>
-                                    </v-data-table>
-                                </v-tabs-window-item>
-                                <!-- ------------- E N D   C A T A L O G S ---------------  -->
-
-                                <!--      C O N P O N E N T S       -->
-                                <v-tabs-window-item value="components">
-                                    <v-container>
-                                        <v-row>
-                                            <v-col cols="8">
-                                                <v-text-field v-model="searchComponents"
-                                                              label="search components"
-                                                              variant="solo"
-                                                              clearable
-                                                ></v-text-field>
-                                            </v-col>
-                                            <v-col cols="4">
-                                                <v-dialog transition="dialog-top-transition"
-                                                          width="605"
-                                                >
-                                                    <template v-slot:activator="{ props: activatorProps }">
-                                                        <v-btn v-bind="activatorProps"
-                                                               text="Добавить"
-                                                               block
-                                                               variant="elevated"
-                                                               color="purple"
-                                                        ></v-btn>
-                                                    </template>
-                                                    <template v-slot:default="{ isActive }">
-                                                        <v-card>
-                                                            <v-card-title>Form Component</v-card-title>
-                                                            <v-card-text>
-                                                                <v-form @submit.prevent>
-                                                                    <v-row>
-                                                                        <v-text-field v-model="formComponent.name"
-                                                                                      label="Name"
-                                                                                      variant="outlined"
-                                                                        ></v-text-field>
-                                                                    </v-row>
-                                                                    <v-row>
-                                                                        <v-row>
-                                                                            <v-col></v-col>
-                                                                            <v-col>
-                                                                                <v-btn text="save"
-                                                                                       variant="elevated"
-                                                                                       @click="storeComponent"
-                                                                                       color="purple-darken-4"
-                                                                                ></v-btn>
-                                                                            </v-col>
-                                                                            <v-col></v-col>
-                                                                        </v-row>
-                                                                    </v-row>
-                                                                </v-form>
-                                                            </v-card-text>
-                                                        </v-card>
-                                                    </template>
-                                                </v-dialog>
-                                            </v-col>
-                                        </v-row>
-                                    </v-container>
-                                    <v-data-table :items="listComponents"
-                                                  :search="searchComponents"
-                                                  items-per-page="27"
-                                                  density="comfortable"
-                                                  hover="hover"
-                                    >
-                                    </v-data-table>
-                                </v-tabs-window-item>
-                                <!--      E N D  C O M P O N E N T S      -->
-
-                                <!--      G E O G R A P H Y      -->
+                                <!--           E N D  U N I T S           -->
+                                <!--           G E O G R A P H Y           -->
                                 <v-tabs-window-item value="geography">
                                     <v-tabs v-model="tabsGeography">
                                         <v-tab value="cities">Cities</v-tab>
@@ -1116,7 +1204,7 @@ const formatBuildingTitle = (building) => {
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>
-
+                                <!--      E N D  G E O G R A P H Y      -->
                                 <v-tabs-window-item value="two">
                                     <v-data-table :items="manufacturers"
                                                   density="compact"
@@ -1415,171 +1503,13 @@ const formatBuildingTitle = (building) => {
                                 <v-tabs-window-item value="segments">
                                     <v-row>
                                         <v-col>
-                                            <v-data-table :items="segments"></v-data-table>
+                                            <v-data-table :items="segments"
+                                            ></v-data-table>
                                         </v-col>
                                     </v-row>
                                 </v-tabs-window-item>
-
-                                <!--   U N I T S   -->
-                                <v-tabs-window-item value="units">
-                                    <v-row>
-                                        <v-col lg="4">
-                                            <v-text-field v-model="searchUnits"
-                                                          label="Поиск по юнитам"
-                                                          variant="solo"
-                                                          density="compact"
-                                                          color="deep-orange-accent-3"
-                                                          hide-details
-                                            ></v-text-field>
-                                        </v-col>
-                                        <v-col lg="2">
-                                            <v-btn text="+ Unit"
-                                                   @click="dialogFormUnit = !dialogFormUnit"
-                                                   variant="tonal"
-                                                   density="compact"
-                                                   color="deep-purple-darken-1"
-                                            ></v-btn>
-                                            <v-dialog v-model="dialogFormUnit"
-                                                      width="900">
-                                                <v-card>
-                                                    <v-card-title>Form Unit</v-card-title>
-                                                    <v-card-text>
-                                                        <v-form @submit.prevent>
-                                                            <v-container>
-                                                                <v-row>
-                                                                    <v-text-field v-model="formUnit.name"
-                                                                                  label="Name"
-                                                                                  variant="outlined"
-                                                                                  density="comfortable"
-                                                                    ></v-text-field>
-                                                                </v-row>
-                                                                <v-row>
-                                                                    <v-col cols="9">
-                                                                        <v-autocomplete v-model="formUnit.uris"
-                                                                                        :items="uris"
-                                                                                        :item-value="'id'"
-                                                                                        :item-title="'address'"
-                                                                                        label="Uris selected"
-                                                                                        chips
-                                                                                        multiple
-                                                                        ></v-autocomplete>
-                                                                    </v-col>
-                                                                    <v-col cols="3">
-                                                                        <v-btn text="+ uri"
-                                                                               @click="dialogFormUri = !dialogFormUri"
-                                                                        ></v-btn>
-                                                                        <v-dialog v-model="dialogFormUri"
-                                                                                  width="800"
-                                                                        >
-                                                                            <v-card>
-                                                                                <v-toolbar title="FORM: Uri"></v-toolbar>
-                                                                                <v-card-text>
-                                                                                    <v-form @submit.prevent>
-                                                                                        <v-row>
-                                                                                            <v-text-field v-model="formUri.address"
-                                                                                                          label="Uri address"
-                                                                                                          variant="outlined"
-                                                                                            ></v-text-field>
-                                                                                        </v-row>
-                                                                                        <v-row>
-                                                                                            <v-col cols="4">
-                                                                                                <v-btn
-                                                                                                    text="store"
-                                                                                                    block
-                                                                                                    @click="storeUri"
-                                                                                                ></v-btn>
-                                                                                            </v-col>
-                                                                                        </v-row>
-                                                                                    </v-form>
-                                                                                </v-card-text>
-                                                                            </v-card>
-                                                                        </v-dialog>
-                                                                    </v-col>
-                                                                </v-row>
-                                                                <v-row>
-                                                                    <v-col cols="4">
-                                                                        <v-select v-model="formUnit.labels"
-                                                                                  :items="labels"
-                                                                                  :item-value="'id'"
-                                                                                  :item-title="'name'"
-                                                                                  label="Labels"
-                                                                                  multiple
-                                                                        ></v-select>
-                                                                    </v-col>
-                                                                </v-row>
-                                                                <v-row>
-                                                                    <v-col>
-                                                                        <v-autocomplete v-model="formUnit.buildings"
-                                                                                        :items="buildings"
-                                                                                        :item-title="formatBuildingTitle"
-                                                                                        :item-value="'id'"
-                                                                                        label="Buildings"
-                                                                                        color="blue"
-                                                                                        multiple
-                                                                                        chips
-                                                                        ></v-autocomplete>
-                                                                    </v-col>
-                                                                </v-row>
-                                                            </v-container>
-                                                        </v-form>
-                                                    </v-card-text>
-                                                    <v-card-actions class="justify-start">
-                                                        <v-btn
-                                                            text="Close"
-                                                            @click="isActive.value = false"
-                                                        ></v-btn>
-                                                        <v-btn text="Сохранить"
-                                                               @click="storeUnit"
-                                                        ></v-btn>
-                                                    </v-card-actions>
-                                                </v-card>
-                                            </v-dialog>
-                                        </v-col>
-                                        <v-sheet class="flex flex-row justify-normal flex-wrap">
-                                            <v-btn v-for="label in labels"
-                                                   :key="label.id"
-                                                   v-model="selectedLabelsIDs"
-                                                   :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
-                                                   :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
-                                                   @click="toggleLabel(label.id)"
-                                                   size="x-small"
-                                                   class="ma-1"
-                                            >{{label.name}}</v-btn>
-                                        </v-sheet>
-                                    </v-row>
-                                    <v-row>
-                                        <v-card>
-                                            <v-card-text>
-                                                <v-data-table :items="filteredUnits"
-                                                              :headers="headerUnits"
-                                                              items-per-page="100"
-                                                              density="compact"
-                                                              class="text-xs"
-                                                              hover
-                                                >
-                                                    <template v-slot:item.name="{item}">
-                                                        <Link :href="route('web.unit.show', item.id)">
-                                                            {{item.name}}
-                                                        </Link>
-                                                    </template>
-                                                    <template v-slot:item.uris="{item}">
-                                                        <a v-for="uri in item.uris"
-                                                           :href="uri.address" target="_blank"
-                                                           class="text-xs inline-block mr-1 text-yellow-200">{{uri.address}}</a>
-                                                    </template>
-                                                    <template v-slot:item.stages="{item}">
-                                                        <v-chip v-for="stage in item.stages"
-                                                                size="x-small"
-                                                                color="teal-accent-4"
-                                                        >{{stage.name}}</v-chip>
-                                                    </template>
-                                                </v-data-table>
-                                            </v-card-text>
-                                        </v-card>
-                                    </v-row>
-                                </v-tabs-window-item>
-
-                                <!--   К О Н Т А К Т Ы  -->
+                                <!--           E N D  S E G M E N T S           -->
+                                <!--           К О Н Т А К Т Ы           -->
                                 <v-tabs-window-item value="contacts">
                                     <v-row>
                                         <v-col>
@@ -1833,10 +1763,105 @@ const formatBuildingTitle = (building) => {
                                                     </v-col>
                                                 </v-row>
                                             </v-list-item>
-
                                         </v-col>
                                     </v-row>
                                 </v-tabs-window-item>
+                                <!--           E N D  З А К У П К А          -->
+                                <!--           B R A N D S               -->
+                                <v-tabs-window-item value="brands">
+                                    <v-sheet>
+                                        <v-text-field v-model="searchBrands"
+                                                      label="Поиск по брендам"
+                                                      variant="solo"
+                                                      density="compact"
+                                                      color="deep-purple"
+                                        ></v-text-field>
+                                        <div v-for="brand in filteredBrands"
+                                             class="text-xs"
+                                        >{{brand.name}}</div>
+                                    </v-sheet>
+                                </v-tabs-window-item>
+
+                                <!-- + + + + + + +    C A T A L O G S   + + + + + + + -->
+                                <v-tabs-window-item value="catalogs">
+                                    <v-data-table :items="catalogs"
+                                                  :headers="headersCatalogs"
+                                                  density="comfortable"
+                                                  hover="true"
+                                    >
+                                        <template v-slot:item.uri="{item}">
+                                            <a :href="item.uri" target="_blank">
+                                                {{item.uri}}
+                                            </a>
+                                        </template>
+                                    </v-data-table>
+                                </v-tabs-window-item>
+                                <!-- ------------- E N D   C A T A L O G S ---------------  -->
+
+                                <!--      C O N P O N E N T S       -->
+                                <v-tabs-window-item value="components">
+                                    <v-container>
+                                        <v-row>
+                                            <v-col cols="8">
+                                                <v-text-field v-model="searchComponents"
+                                                              label="search components"
+                                                              variant="solo"
+                                                              clearable
+                                                ></v-text-field>
+                                            </v-col>
+                                            <v-col cols="4">
+                                                <v-dialog transition="dialog-top-transition"
+                                                          width="605"
+                                                >
+                                                    <template v-slot:activator="{ props: activatorProps }">
+                                                        <v-btn v-bind="activatorProps"
+                                                               text="Добавить"
+                                                               block
+                                                               variant="elevated"
+                                                               color="purple"
+                                                        ></v-btn>
+                                                    </template>
+                                                    <template v-slot:default="{ isActive }">
+                                                        <v-card>
+                                                            <v-card-title>Form Component</v-card-title>
+                                                            <v-card-text>
+                                                                <v-form @submit.prevent>
+                                                                    <v-row>
+                                                                        <v-text-field v-model="formComponent.name"
+                                                                                      label="Name"
+                                                                                      variant="outlined"
+                                                                        ></v-text-field>
+                                                                    </v-row>
+                                                                    <v-row>
+                                                                        <v-row>
+                                                                            <v-col></v-col>
+                                                                            <v-col>
+                                                                                <v-btn text="save"
+                                                                                       variant="elevated"
+                                                                                       @click="storeComponent"
+                                                                                       color="purple-darken-4"
+                                                                                ></v-btn>
+                                                                            </v-col>
+                                                                            <v-col></v-col>
+                                                                        </v-row>
+                                                                    </v-row>
+                                                                </v-form>
+                                                            </v-card-text>
+                                                        </v-card>
+                                                    </template>
+                                                </v-dialog>
+                                            </v-col>
+                                        </v-row>
+                                    </v-container>
+                                    <v-data-table :items="listComponents"
+                                                  :search="searchComponents"
+                                                  items-per-page="27"
+                                                  density="comfortable"
+                                                  hover="hover"
+                                    >
+                                    </v-data-table>
+                                </v-tabs-window-item>
+                                <!--      E N D  C O M P O N E N T S      -->
                             </v-tabs-window>
                         </v-card-text>
                     </v-card>
