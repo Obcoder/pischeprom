@@ -730,7 +730,7 @@ const formatBuildingTitle = (building) => {
                 <v-col lg="9">
                     <v-card>
                         <v-tabs v-model="tab">
-                            <v-tab value="units">Units</v-tab>
+                            <v-tab value="units">Объекты</v-tab>
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="geography">Geography</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
@@ -750,8 +750,8 @@ const formatBuildingTitle = (building) => {
                                 <!--   U N I T S   -->
                                 <v-tabs-window-item value="units">
                                     <v-tabs v-model="tabsUnits">
-                                        <v-tab value="units_sub"></v-tab>
-                                        <v-tab value="entities"></v-tab>
+                                        <v-tab value="units_sub">Units</v-tab>
+                                        <v-tab value="entities">Entities</v-tab>
                                     </v-tabs>
                                     <v-tabs-window v-model="tabsUnits">
                                         <v-tabs-window-item value="units_sub">
