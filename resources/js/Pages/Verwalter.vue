@@ -334,6 +334,7 @@ const headerEntities = [
         title: 'Buildings',
         key: 'buildings',
         align: 'start',
+        width: '12%',
     },
     {
         title: 'Units',
@@ -1191,7 +1192,9 @@ const formatBuildingTitle = (building) => {
                                                                 </div>
                                                             </template>
                                                             <template v-slot:item.buildings="{item}">
-                                                                <div v-for="building in item.buildings">
+                                                                <div v-for="building in item.buildings"
+                                                                     class="text-xs"
+                                                                >
                                                                     {{building.address}}
                                                                 </div>
                                                             </template>
