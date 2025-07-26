@@ -195,7 +195,7 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
-            <v-col cols="2">
+            <v-col cols="3">
                 <v-data-table :items="genera"
                               items-per-page="203"
                               :headers="headerGenera"
@@ -203,7 +203,16 @@ useHead({
                               height="891px"
                               fixed-footer
                               density="compact"
-                              hover></v-data-table>
+                              hover
+                >
+                    <template v-slot:item.agriculturable="{item}">
+                        <span v-if="item.agriculturable"
+                              class="mr-1">🌱</span>
+                    </template>
+                    <template v-slot:item.nameLat="{item}">
+                        <span class="text-xs">{{item.nameLat}}</span>
+                    </template>
+                </v-data-table>
 
                 <v-list>
                     <v-list-item v-for="genus in filteredGenera"
