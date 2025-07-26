@@ -4,6 +4,7 @@ import {computed, onMounted, ref} from "vue";
 import axios from "axios";
 import {useHead} from "@vueuse/head";
 import {useForm} from "@inertiajs/vue3";
+import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -11,18 +12,9 @@ defineOptions({
 const genera = ref([])
 const plants = ref([])
 
-const dialogFormGenus = ref(false)
-
-const searchText = ref('')
-
 const showOnlyAgriculturable = ref(false)
 
-const formGenus = useForm({
-    name: null,
-    nameLat: null,
-    wiki: null,
-})
-
+//      G E N E R A
 function indexGenera(like){
     axios.get(route('genera.index'), {
         params: {
@@ -34,18 +26,44 @@ function indexGenera(like){
         console.log(error);
     })
 }
-function indexPlants(like){
-    axios.get(route('plants.index'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response){
-        plants.value = response.data
-    }).catch(function (error){
-        console.log(error);
-    })
-}
+const searchGenera = ref('')
+const filteredGenera = computed(() => {
+    let list = genera.value
 
+    if (showOnlyAgriculturable.value) {
+        list = list.filter(g => g.agriculturable)
+    }
+
+    if (searchGenera.value.trim()) {
+        const term = searchGenera.value.toLowerCase()
+        list = list.filter(g => g.name.toLowerCase().includes(term))
+    }
+
+    return list
+})
+const headerGenera = [
+    {
+        title: 'agriculturable',
+        key: 'agriculturable',
+        align: 'center',
+    },
+    {
+        title: 'name',
+        key: 'name',
+        align: 'start',
+    },
+    {
+        title: 'nameLat',
+        key: 'nameLat',
+        align: 'start',
+    },
+]
+const dialogFormGenus = ref(false)
+const formGenus = useForm({
+    name: null,
+    nameLat: null,
+    wiki: null,
+})
 function storeGenus(){
     formGenus.post(route('web.genus.store'), {
         replace: false,
@@ -55,6 +73,18 @@ function storeGenus(){
             formGenus.reset()
             indexGenera()
         },
+    })
+}
+//      P L A N T S
+function indexPlants(like){
+    axios.get(route('plants.index'), {
+        params: {
+            search: like,
+        }
+    }).then(function (response){
+        plants.value = response.data
+    }).catch(function (error){
+        console.log(error);
     })
 }
 
@@ -73,21 +103,6 @@ function toggleAgriculturable(genus) {
         })
 }
 
-const filteredGenera = computed(() => {
-    let list = genera.value
-
-    if (showOnlyAgriculturable.value) {
-        list = list.filter(g => g.agriculturable)
-    }
-
-    if (searchText.value.trim()) {
-        const term = searchText.value.toLowerCase()
-        list = list.filter(g => g.name.toLowerCase().includes(term))
-    }
-
-    return list
-})
-
 onMounted(()=>{
     indexGenera()
     indexPlants()
@@ -98,7 +113,7 @@ useHead({
     meta: [
         {
             name: 'description',
-            content: `Материалы для изучения Ботаники и растений`,
+            content: `Материалы для изучения Ботаники и растений, физиология растений,`,
         }
     ]
 })
@@ -108,11 +123,12 @@ useHead({
     <v-container fluid>
         <v-row>
             <v-col cols="4">
-                <v-text-field v-model="searchText"
+                <v-text-field v-model="searchGenera"
                               label="Поиск"
                               variant="underlined"
-                              density="compact"
+                              density="comfortable"
                               class="rounded"
+                              hide-details
                 ></v-text-field>
             </v-col>
             <v-col cols="2">
@@ -180,6 +196,15 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="2">
+                <v-data-table :items="genera"
+                              items-per-page="203"
+                              :headers="headerGenera"
+                              fixed-header
+                              height="891px"
+                              fixed-footer
+                              density="compact"
+                              hover></v-data-table>
+
                 <v-list>
                     <v-list-item v-for="genus in filteredGenera"
                                  :key="genus.id"
