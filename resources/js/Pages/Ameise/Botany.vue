@@ -219,7 +219,7 @@ useHead({
                     </template>
                     <template v-slot:item.wiki="{item}">
                         <a :href="item.wiki" target="_blank"
-                           class="text-xs p-4 border"
+                           class="text-xs px-2 py-1 border"
                         >wiki</a>
                     </template>
                 </v-data-table>
