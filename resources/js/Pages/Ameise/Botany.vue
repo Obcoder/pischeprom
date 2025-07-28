@@ -127,7 +127,7 @@ useHead({
 <template>
     <v-container fluid>
         <v-row>
-            <v-col cols="4">
+            <v-col lg="3">
                 <v-text-field v-model="searchGenera"
                               label="Поиск"
                               variant="underlined"
@@ -136,6 +136,7 @@ useHead({
                               hide-details
                 ></v-text-field>
             </v-col>
+            <v-col lg="1"></v-col>
             <v-col cols="2">
                 <v-switch v-model="showOnlyAgriculturable"
                           label="Показать только пригодные для сельского хозяйства"
@@ -205,7 +206,7 @@ useHead({
                               items-per-page="203"
                               :headers="headerGenera"
                               fixed-header
-                              height="891px"
+                              height="906px"
                               fixed-footer
                               density="compact"
                               hover
