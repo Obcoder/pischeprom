@@ -26,31 +26,30 @@ function indexCommodities(){
     });
 }
 let dialogAddCommodity = ref(false)
-const headersCommodities = ref([
-        {
-            title: 'name',
-            key: 'name',
-            width: '60%',
-        },
-        {
-            title: 'quantity',
-            key: 'pivot.quantity',
-        },
-        {
-            title: 'measure',
-            key: 'pivot.measure_id',
-        },
-        {
-            title: 'price',
-            key: 'pivot.price',
-        },
-        {
-            title: 'total_price',
-            key: 'pivot.total_price',
-            class: 'bg-green-300',
-        },
-    ]
-)
+const headersCommodities = [
+    {
+        title: 'name',
+        key: 'name',
+        width: '60%',
+    },
+    {
+        title: 'quantity',
+        key: 'pivot.quantity',
+    },
+    {
+        title: 'measure',
+        key: 'pivot.measure_id',
+    },
+    {
+        title: 'price',
+        key: 'pivot.price',
+    },
+    {
+        title: 'total_price',
+        key: 'pivot.total_price',
+        class: 'bg-green-300',
+    },
+]
 const formCommodityCheck = useForm({
     check_id: null,
     commodity_id: null,
