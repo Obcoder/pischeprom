@@ -178,7 +178,7 @@ onMounted(()=>{
                         </v-form>
                     </template>
                     <template v-slot:item.measure_id="{item}">
-                        {{item.measure.name}}
+                        {{item.pivot.measure.name}}
                     </template>
                 </v-data-table>
             </v-col>
