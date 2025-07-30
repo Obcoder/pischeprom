@@ -26,7 +26,7 @@ class Check extends Model
 
     public function commodities()
     {
-        return $this->belongsToMany(Commodity::class, 'check_commodity', 'check_id', 'commodity_id')
+        return $this->belongsToMany(Commodity::class, 'check_commodity')
             ->using(check_commodity::class)
             ->withPivot('quantity', 'measure_id', 'price', 'total_price');
     }
