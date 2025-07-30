@@ -118,62 +118,64 @@ onMounted(()=>{
                               hover
                 >
                     <template v-slot:top>
-                        <v-sheet v-if="dialogAddCommodity">
-                            <v-form @submit.prevent
-                                    class="bg-emerald-600 p-1 border border-1 border-lime-950"
-                            >
-                                <v-row>
-                                    <v-col>
-                                        <v-autocomplete :items="commodities"
-                                                        :item-value="'id'"
-                                                        :item-title="'name'"
-                                                        v-model="formCommodityCheck.commodity_id"
-                                                        label="Commodities"
-                                                        variant="solo"
-                                                        density="comfortable"
-                                                        hide-details
-                                        ></v-autocomplete>
-                                    </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-col>
-                                        <v-text-field v-model="formCommodityCheck.quantity"
-                                                      label="Кол-во"
-                                                      variant="outlined"
-                                                      density="compact"
-                                        ></v-text-field>
-                                    </v-col>
-                                    <v-col>
-                                        <v-select :items="measures"
-                                                  :item-value="'id'"
-                                                  :item-title="'name'"
-                                                  v-model="formCommodityCheck.measure_id"
-                                                  variant="solo"
+                        <v-form v-if="dialogAddCommodity"
+                                @submit.prevent
+                                class="bg-slate-600 p-2 border border-1 border-lime-950 rounded"
+                        >
+                            <v-row>
+                                <v-col>
+                                    <v-autocomplete :items="commodities"
+                                                    :item-value="'id'"
+                                                    :item-title="'name'"
+                                                    v-model="formCommodityCheck.commodity_id"
+                                                    label="Commodities"
+                                                    variant="solo"
+                                                    density="comfortable"
+                                                    hide-details
+                                    ></v-autocomplete>
+                                </v-col>
+                            </v-row>
+                            <v-row>
+                                <v-col>
+                                    <v-text-field v-model="formCommodityCheck.quantity"
+                                                  label="Кол-во"
+                                                  variant="solo-filled"
                                                   density="comfortable"
-                                        ></v-select>
-                                    </v-col>
-                                    <v-col>
-                                        <v-text-field v-model="formCommodityCheck.price"
-                                                      label="Цена"
-                                                      variant="filled"
-                                                      density="comfortable"
-                                                      class="bg-purple-900"
-                                        ></v-text-field>
-                                    </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-col></v-col>
-                                    <v-col></v-col>
-                                    <v-col>
-                                        <v-btn @click="storeCommodityToCheck"
-                                               text="store"
-                                               variant="outlined"
-                                               density="compact"
-                                        ></v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-form>
-                        </v-sheet>
+                                                  hide-details
+                                    ></v-text-field>
+                                </v-col>
+                                <v-col>
+                                    <v-select :items="measures"
+                                              :item-value="'id'"
+                                              :item-title="'name'"
+                                              v-model="formCommodityCheck.measure_id"
+                                              variant="solo"
+                                              density="comfortable"
+                                              hide-details
+                                    ></v-select>
+                                </v-col>
+                                <v-col>
+                                    <v-text-field v-model="formCommodityCheck.price"
+                                                  label="Цена"
+                                                  variant="solo-filled"
+                                                  density="comfortable"
+                                                  class="bg-cyan-700"
+                                                  hide-details
+                                    ></v-text-field>
+                                </v-col>
+                            </v-row>
+                            <v-row>
+                                <v-col></v-col>
+                                <v-col></v-col>
+                                <v-col>
+                                    <v-btn @click="storeCommodityToCheck"
+                                           text="store"
+                                           variant="outlined"
+                                           density="compact"
+                                    ></v-btn>
+                                </v-col>
+                            </v-row>
+                        </v-form>
                     </template>
                     <template v-slot:item.measure_id="{item}">
                         {{item.measure.name}}
