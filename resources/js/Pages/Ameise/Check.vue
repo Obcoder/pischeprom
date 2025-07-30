@@ -94,7 +94,7 @@ onMounted(()=>{
                 {{date.format(check.date, 'fullDate')}}
             </v-col>
             <v-col>
-                <Link :href="route('entity.show', check.entity.id)"
+                <Link :href="route('entities.show', check.entity.id)"
                       class="text-xl font-RubikMedium"
                 >
                     {{check.entity.name}}
