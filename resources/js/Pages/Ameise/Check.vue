@@ -89,24 +89,24 @@ onMounted(()=>{
 
 <template>
     <v-container class="border border-1 rounded">
-        <v-row>
-            <v-col></v-col>
-            <v-col></v-col>
-            <v-col cols="1">
-                <v-btn text="+ commodity"
-                       @click="dialogAddCommodity =! dialogAddCommodity"
-                ></v-btn>
-            </v-col>
-        </v-row>
         <v-row class="rounded border border-black-1">
             <v-col>
                 {{date.format(check.date, 'fullDate')}}
             </v-col>
             <v-col>
-                {{check.entity.name}}
+                <Link :href="route('entity.show', check.entity.id)"
+                      class="text-xl font-RubikMedium"
+                >
+                    {{check.entity.name}}
+                </Link>
             </v-col>
             <v-col>
                 {{check.amount}}
+            </v-col>
+            <v-col lg="1">
+                <v-btn text="+ commodity"
+                       @click="dialogAddCommodity =! dialogAddCommodity"
+                ></v-btn>
             </v-col>
         </v-row>
         <v-row>
