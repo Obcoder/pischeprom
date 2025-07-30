@@ -110,8 +110,8 @@ onMounted(()=>{
             </v-col>
         </v-row>
         <v-row>
-            <v-col cols="3"></v-col>
-            <v-col cols="6">
+            <v-col></v-col>
+            <v-col lg="4">
                 <v-data-table :items="commoditiesInCheck"
                               :headers="headersCommodities"
                               density="comfortable"
@@ -179,7 +179,7 @@ onMounted(()=>{
                     </template>
                 </v-data-table>
             </v-col>
-            <v-col cols="3"></v-col>
+            <v-col></v-col>
         </v-row>
     </v-container>
 </template>
