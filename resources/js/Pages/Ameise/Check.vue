@@ -38,7 +38,7 @@ const headersCommodities = ref([
         },
         {
             title: 'measure',
-            key: 'pivot.measure',
+            key: 'measure',
         },
         {
             title: 'price',
