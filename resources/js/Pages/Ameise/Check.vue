@@ -30,7 +30,7 @@ const headersCommodities = ref([
         {
             title: 'name',
             key: 'name',
-            class: 'bg-red-100',
+            width: '50%',
         },
         {
             title: 'quantity',
@@ -111,7 +111,7 @@ onMounted(()=>{
         </v-row>
         <v-row>
             <v-col></v-col>
-            <v-col lg="4">
+            <v-col lg="5">
                 <v-data-table :items="commoditiesInCheck"
                               :headers="headersCommodities"
                               density="comfortable"
