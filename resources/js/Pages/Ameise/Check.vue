@@ -88,7 +88,7 @@ onMounted(()=>{
 
 <template>
     <v-container class="border border-1 rounded">
-        <v-row class="rounded border border-black-1 mx-5">
+        <v-row class="rounded border border-black-1 mx-10">
             <v-col>
                 {{date.format(check.date, 'fullDate')}}
             </v-col>
@@ -110,7 +110,7 @@ onMounted(()=>{
         </v-row>
         <v-row>
             <v-col></v-col>
-            <v-col cols="6">
+            <v-col lg="6">
                 <v-data-table :items="commoditiesInCheck"
                               :headers="headersCommodities"
                               density="comfortable"
@@ -177,7 +177,7 @@ onMounted(()=>{
                         </v-form>
                     </template>
                     <template v-slot:item.name="{item}">
-                        <span class="text-sm font-sans">{{item.name}}</span>
+                        <span class="text-sm font-sans text-zinc-800">{{item.name}}</span>
                     </template>
                 </v-data-table>
             </v-col>
