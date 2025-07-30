@@ -31,7 +31,9 @@ class CheckController extends Controller
      */
     public function show(string $id)
     {
-        $check = Check::with('commodities')
+        $check = Check::with(['commodities'=>function ($query) {
+            $query->withPivot('measure_id')->with('measure');
+        }])
             ->findOrFail($id);
         return Inertia::render('Ameise/Check', ['check'=>$check]);
     }
