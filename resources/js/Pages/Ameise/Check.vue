@@ -60,7 +60,7 @@ const formCommodityCheck = useForm({
 })
 function storeCommodityToCheck(){
     formCommodityCheck.check_id = props.check.id;
-    formCommodityCheck.post(route('api.checkcommodity.store'), {
+    formCommodityCheck.post(route('web.checkcommodity.store'), {
         replace: true,
         preserveState: true,
         preserveScroll: false,

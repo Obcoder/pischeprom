@@ -17,6 +17,8 @@ use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CheckController;
+use App\Http\Controllers\API\CheckCommodityController;
+use App\Http\Controllers\API\CommodityController;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
@@ -172,9 +174,6 @@ Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnit
     ->name('store', 'api.building_unit.store');
 Route::apiResource('/api/chats', \App\Http\Controllers\API\ChatController::class)
     ->name('index', 'api.chats');
-Route::apiResource('/api/commodities', \App\Http\Controllers\API\CommodityController::class)
-    ->name('index', 'api.commodities')
-    ->name('store', 'api.commodity.store');
 Route::apiResource('/api/components', \App\Http\Controllers\API\ComponentController::class)
     ->name('index', 'api.components')
     ->name('store', 'api.components.store');
@@ -193,8 +192,6 @@ Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerControl
 //    B U I L D I N G
 Route::post('/api/building/store', [BuildingController::class, 'store'])
     ->name('web.building.store');
-Route::post('/api/checkcommodity/store', [\App\Http\Controllers\API\CheckCommodityController::class, 'store'])
-    ->name('api.checkcommodity.store');
 //    C I T Y
 Route::post('/city/store', [CityController::class, 'store'])->name('web.city.store');
 Route::post('/api/email/store', [\App\Http\Controllers\API\EmailController::class, 'store'])
@@ -204,6 +201,12 @@ Route::post('/api/emailgood/store', [\App\Http\Controllers\API\EmailUnitControll
 //    C H E C K
 Route::post('/api/check/store', [CheckController::class, 'store'])
     ->name('web.check.store');
+//     C H E C K <-> C O M M O D I T Y
+Route::post('/web/checkcommodity/store/', [CheckCommodityController::class, 'store'])
+    ->name('web.checkcommodity.store');
+//     C O M M O D I T Y
+Route::post('/web/commodity/store', [CommodityController::class, 'store'])
+    ->name('web.commodity.store');
 //    E N T I T Y
 Route::post('/entity/store', [EntityController::class, 'store'])
     ->name('web.entity.store');
