@@ -38,7 +38,7 @@ const headersCommodities = ref([
         },
         {
             title: 'measure',
-            key: 'pivot.measure_id',
+            key: 'measure',
         },
         {
             title: 'price',
@@ -176,9 +176,6 @@ onMounted(()=>{
                                 </v-col>
                             </v-row>
                         </v-form>
-                    </template>
-                    <template v-slot:item.pivot.measure_id="{item}">
-                        {{item.pivot.measure.name}}
                     </template>
                 </v-data-table>
             </v-col>
