@@ -30,7 +30,7 @@ const headersCommodities = ref([
         {
             title: 'name',
             key: 'name',
-            width: '50%',
+            width: '60%',
         },
         {
             title: 'quantity',
@@ -89,7 +89,7 @@ onMounted(()=>{
 
 <template>
     <v-container class="border border-1 rounded">
-        <v-row class="rounded border border-black-1">
+        <v-row class="rounded border border-black-1 mx-5">
             <v-col>
                 {{date.format(check.date, 'fullDate')}}
             </v-col>
@@ -111,7 +111,7 @@ onMounted(()=>{
         </v-row>
         <v-row>
             <v-col></v-col>
-            <v-col lg="5">
+            <v-col lg="6">
                 <v-data-table :items="commoditiesInCheck"
                               :headers="headersCommodities"
                               density="comfortable"
@@ -176,6 +176,9 @@ onMounted(()=>{
                                 </v-col>
                             </v-row>
                         </v-form>
+                    </template>
+                    <template v-slot:item.name="{item}">
+                        <span class="text-sm font-sans">{{item.name}}</span>
                     </template>
                 </v-data-table>
             </v-col>
