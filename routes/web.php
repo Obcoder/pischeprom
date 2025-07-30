@@ -92,9 +92,11 @@ Route::get('/Ameise/Commodities/', function (){
 Route::get('/Ameise/ContactsCentre', function (){
     return Inertia::render('Ameise/ContactsCentre');
 })->name('Ameise.contactsCentre');
+//      E N T I T I E S
 Route::get('/Ameise/entities/', function (){
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');
+//     F L U X  M O N I T O R
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('Ameise.fluxmonitor');
