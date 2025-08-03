@@ -1527,7 +1527,7 @@ const formatBuildingTitle = (building) => {
                                                             <v-row>
                                                                 <v-col>
                                                                     <span class="cursor-pointer text-sm font-ComfortaaVariableFont">
-                                                                        <Link :href="route('Ameise.good.show')">
+                                                                        <Link :href="route('Ameise.good.show', good.id)">
                                                                             {{good.name}}
                                                                         </Link>
                                                                     </span>
