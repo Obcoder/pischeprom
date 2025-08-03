@@ -19,6 +19,6 @@ class Verwalter extends Controller
             'goods' => $goods,
         ];
 
-        return Inertia::render('/Ameise/Verwalter', $data);
+        return Inertia::render('Ameise/Verwalter', $data);
     }
 }
