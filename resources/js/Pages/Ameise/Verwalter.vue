@@ -502,14 +502,14 @@ const headerSales = ref([
         align: 'start',
         class: 'text-primary',
         headerClass: 'bg-grey-lighten-3',
-        width: '50%',
+        width: '47%',
     },
     {
         key: 'date',
         title: 'Дата',
         sortable: true,
         align: 'start',
-        class: 'text-primary',
+        class: 'text-rose-700',
         headerClass: 'bg-grey-lighten-3',
     },
     {
@@ -1417,7 +1417,7 @@ const formatBuildingTitle = (building) => {
                                                         ></v-btn>
                                                     </template>
                                                     <template v-slot:item.date="{item}">
-                                                        <span class="text-xs font-sans">{{date.format(item.date, 'fullDateWithWeekday')}}</span>
+                                                        <span class="text-xs font-BadScript">{{date.format(item.date, 'fullDateWithWeekday')}}</span>
                                                     </template>
                                                     <template v-slot:item.entity.name="{item}">
                                                         <span class="text-sm font-RobotoRegular">{{item.entity.name}}</span>

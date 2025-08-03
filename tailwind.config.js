@@ -25,6 +25,7 @@ export default {
                 UnderdogRegular: ['Underdog-Regular', ...defaultTheme.fontFamily.sans],
                 Screpka: ['Screpka', ...defaultTheme.fontFamily.sans],
                 RobotoRegular: ['Roboto-Regular', ...defaultTheme.fontFamily.sans],
+                BadScript: ['Bad Script', ...defaultTheme.fontFamily.sans],
             },
         },
     },

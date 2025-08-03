@@ -34,6 +34,10 @@
     font-family: 'Roboto-Regular';
     src: url("/resources/fonts/Roboto-Regular.ttf") format('truetype');
 }
+@font-face {
+    font-family: 'Bad Script';
+    src: url("/resources/fonts/Bad Script.ttf") format('truetype');
+}
 
 @tailwind base;
 @tailwind components;
