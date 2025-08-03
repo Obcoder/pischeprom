@@ -29,8 +29,7 @@ class GoodSaleController extends Controller
      */
     public function store(Request $request)
     {
-        $good_sale = good_sale::create($request->all());
-        return redirect()->route('Ameise.sales');
+        good_sale::create($request->all());
     }
 
     /**
