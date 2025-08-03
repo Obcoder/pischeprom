@@ -14,7 +14,6 @@ defineOptions({
 const props = defineProps({
     title: String,
     goods: Object,
-    actions: Object,
 })
 const date = useDate()
 

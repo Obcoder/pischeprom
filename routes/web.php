@@ -41,6 +41,7 @@ Route::middleware([
     })->name('dashboard');
 });
 
+// M A I N
 Route::get('/', [MainController::class, 'index'])
     ->name('home');
 
