@@ -35,6 +35,7 @@ const entityClassifications = ref([])
 const good = ref(null)
 const goods = ref([])
 const labels = ref([])
+const measures = ref([])
 const products = ref([])
 const purchases = ref([])
 const regions = ref([])
@@ -392,6 +393,8 @@ function storeEntity(){
         },
     })
 }
+//  E N D  E N T I T I E S
+
 //     E N T I T Y  C L A S S I F I C A T I O N S
 function indexEntityClassifications(){
     axios.get(route('entities-classification.index')).then(function (response){
@@ -426,6 +429,14 @@ function indexLabels(){
     }).catch(function (error) {
             console.log(error);
         });
+}
+//     M E A S U R E S
+function indexMeasures(){
+    axios.get(route('measures.index')).then(function (response){
+        measures.value = response.data
+    }).catch(function (error){
+        console.error(error)
+    })
 }
 //   P R O D U C T S
 function indexProducts(){
@@ -870,6 +881,7 @@ onMounted(()=>{
     indexEntityClassifications()
     indexGoods()
     indexLabels()
+    indexMeasures()
     indexProducts()
     indexPurchases()
     indexRegions()
@@ -1435,7 +1447,7 @@ const formatBuildingTitle = (building) => {
                                                                                                     v-model="formAttachGood.good_id"
                                                                                                     label="Good"
                                                                                                     variant="outlined"
-                                                                                                    @change="showGood(formAttachGood.good_id)"
+                                                                                                    @change="fetchGood(formAttachGood.good_id)"
                                                                                     ></v-autocomplete>
                                                                                 </v-col>
                                                                             </v-row>
@@ -1480,7 +1492,7 @@ const formatBuildingTitle = (building) => {
                                                                             </v-row>
                                                                             <v-row>
                                                                                 <v-col>
-                                                                                    <div class="text-[9px]">{{good}}</div>
+                                                                                    <div class="text-[9px]">{{good.name}}</div>
                                                                                 </v-col>
                                                                             </v-row>
                                                                         </v-sheet>
