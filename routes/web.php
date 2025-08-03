@@ -25,6 +25,7 @@ use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\ManufacturerController;
 use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
+use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitUriController;
@@ -229,6 +230,9 @@ Route::post('/api/price/store', [PriceController::class, 'store'])
 //      P R O D U C T
 Route::post('/api/product/store', [ProductController::class, 'store'])
     ->name('web.product.store');
+//      S A L E
+Route::post('/web/sale/store', [SaleController::class, 'store'])
+    ->name('web.sale.store');
 //    T E L E P H O N E
 Route::post('/web/telephone/store', [TelephoneController::class, 'store'])
     ->name('web.telephone.store');

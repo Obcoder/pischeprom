@@ -24,8 +24,7 @@ class SaleController extends Controller
      */
     public function store(Request $request)
     {
-        $sale = Sale::create($request->all());
-        return redirect()->route('Ameise.sales');
+        Sale::create($request->all());
     }
 
     /**
