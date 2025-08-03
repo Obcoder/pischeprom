@@ -22,6 +22,7 @@ use App\Http\Controllers\API\CommodityController;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
+use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\ManufacturerController;
 use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
@@ -219,9 +220,12 @@ Route::post('/api/genus/store', [GenusController::class, 'store'])
     ->name('web.genus.store');
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
     ->name('web.labelunit.store');
-//    G O O D  P O S T
+//    G O O D
 Route::post('/api/good/store', [GoodController::class, 'store'])
     ->name('web.good.store');
+//    G O O D - S A L E
+Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
+    ->name('web.goodsale.store');
 //      M A N U F A C T U R E R
 Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
     ->name('web.manufacturer.store');

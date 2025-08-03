@@ -565,7 +565,7 @@ function openAttachDialog(sale) {
 }
 function attachGood(){
     loadingAttach.value = true;
-    formAttachGood.post(route('goodsales.store'), {
+    formAttachGood.post(route('web.goodsale.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,
@@ -1397,7 +1397,7 @@ const formatBuildingTitle = (building) => {
                                             </v-col>
                                         </v-row>
                                         <v-row>
-                                            <v-col>
+                                            <v-col cols="10">
                                                 <v-data-table :items="sales"
                                                               items-per-page="365"
                                                               :headers="headerSales"
@@ -1515,6 +1515,29 @@ const formatBuildingTitle = (building) => {
                                                 <v-snackbar v-model="snackbar.show" :timeout="2000" color="green">
                                                     {{ snackbar.text }}
                                                 </v-snackbar>
+                                            </v-col>
+                                            <v-col cols="2">
+                                                <v-list v-if="good"
+                                                        density="compact"
+                                                        class="rounded bg-slate-700"
+                                                >
+                                                    <v-list-item v-for="good in sale?.goods ?? []">
+                                                        <v-row>
+                                                            <v-col cols="8">
+                                                                <span class="cursor-pointer text-sm font-sans">{{good.name}}</span>
+                                                            </v-col>
+                                                            <v-col cols="1">
+                                                                <span class="text-[11px]">{{good.pivot.price}}</span>
+                                                            </v-col>
+                                                            <v-col cols="1">
+                                                                <span class="text-[10px]">{{good.pivot.quantity}}</span>
+                                                            </v-col>
+                                                            <v-col>
+                                                                <span class="text-sm">{{good.pivot.total}}</span>
+                                                            </v-col>
+                                                        </v-row>
+                                                    </v-list-item>
+                                                </v-list>
                                             </v-col>
                                         </v-row>
                                     </v-container>
