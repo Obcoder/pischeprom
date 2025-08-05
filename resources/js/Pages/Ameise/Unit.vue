@@ -368,11 +368,11 @@ const headerSelectedProducts = ref([
         width: '60%',
     },
     {
-        key: 'product.price',
+        key: 'price',
         title: 'Цена',
         sortable: true,
         align: 'start',
-        class: 'text-primary',
+        class: 'text-primary text-[9px]',
         headerClass: 'bg-grey-lighten-3',
     },
 ])
@@ -635,7 +635,7 @@ useHead({
                                                        color="cyan-darken-3"
                                                 ></v-btn>
                                                 <v-dialog v-model="dialogFormSendEmail"
-                                                          width="1000"
+                                                          width="1360"
                                                 >
                                                     <template v-slot:default="{isActive}">
                                                         <v-card>
@@ -666,6 +666,7 @@ useHead({
                                                                         </v-col>
                                                                         <v-col cols="3">
                                                                             <v-data-table :items="selectedProducts"
+                                                                                          items-per-page="101"
                                                                                           :headers="headerSelectedProducts"
                                                                                           density="compact"
                                                                             ></v-data-table>
