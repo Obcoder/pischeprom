@@ -34,8 +34,6 @@ const showFormBuilding = ref(false)
 const showFormConsumption = ref(false)
 const showFormAttachManufacturer = ref(false)
 
-const selectedProducts = ref([])
-
 const formAddEmail = useForm({
     address: null,
 })
@@ -360,14 +358,32 @@ const sendEmail = async (email) => {
         console.error('Ошибка при отправке:', error);
     }
 }
-
+const selectedProducts = ref([])
+const headerSelectedProducts = ref([
+    {
+        key: 'rus',
+        title: 'Наименование',
+        sortable: true,
+        align: 'start',
+        width: '60%',
+    },
+    {
+        key: 'product.price',
+        title: 'Цена',
+        sortable: true,
+        align: 'start',
+        class: 'text-primary',
+        headerClass: 'bg-grey-lighten-3',
+    },
+])
 const onSelectedProductsUpdate = (newSelected) => {
     // Добавим поле price, если его нет
     selectedProducts.value = newSelected.map(product => ({
         ...product,
         price: product.price ?? ''
     }));
-};
+}
+// E N D  S E N D  E M A I L
 
 onMounted(()=> {
     indexEmails()
@@ -625,26 +641,38 @@ useHead({
                                                         <v-card>
                                                             <v-card-title>Form Send Email</v-card-title>
                                                             <v-card-text>
-                                                                <v-data-table :items="products"
-                                                                              v-model="selectedProducts"
-                                                                              :headers="headerSelectProductsForSending"
-                                                                              items-per-page="100"
-                                                                              @update:model-value="onSelectedProductsUpdate"
-                                                                              show-select
-                                                                              return-object
-                                                                              density="compact"
-                                                                              hover
-                                                                >
-                                                                    <template v-slot:item.price="{item}">
-                                                                        <v-text-field v-model="item.price"
-                                                                                      label="Цена"
-                                                                                      variant="outlined"
-                                                                                      density="comfortable"
-                                                                                      hide-details
-                                                                        ></v-text-field>
-                                                                    </template>
-                                                                </v-data-table>
-                                                                <pre>{{selectedProducts}}</pre>
+                                                                <v-container fluid>
+                                                                    <v-row>
+                                                                        <v-col cols="9">
+                                                                            <v-data-table :items="products"
+                                                                                          v-model="selectedProducts"
+                                                                                          :headers="headerSelectProductsForSending"
+                                                                                          items-per-page="100"
+                                                                                          @update:model-value="onSelectedProductsUpdate"
+                                                                                          show-select
+                                                                                          return-object
+                                                                                          density="compact"
+                                                                                          hover
+                                                                            >
+                                                                                <template v-slot:item.price="{item}">
+                                                                                    <v-text-field v-model="item.price"
+                                                                                                  label="Цена"
+                                                                                                  variant="outlined"
+                                                                                                  density="comfortable"
+                                                                                                  hide-details
+                                                                                    ></v-text-field>
+                                                                                </template>
+                                                                            </v-data-table>
+                                                                        </v-col>
+                                                                        <v-col cols="3">
+                                                                            <v-data-table :items="selectedProducts"
+                                                                                          :headers="headerSelectedProducts"
+                                                                                          density="compact"
+                                                                            ></v-data-table>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                </v-container>
+<!--                                                                <pre>{{selectedProducts}}</pre>-->
                                                             </v-card-text>
                                                             <v-card-actions>
                                                                 <v-divider vertical
