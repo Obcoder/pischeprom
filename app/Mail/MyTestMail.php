@@ -31,6 +31,16 @@ class MyTestMail extends Mailable
 
     public function build()
     {
+        // Преобразуем вложенные массивы в строки, если нужно
+        foreach ($this->details['products'] as &$product) {
+            if (is_array($product['price'])) {
+                $product['price'] = implode(', ', $product['price']);
+            }
+            if (is_array($product['rus'])) {
+                $product['rus'] = implode(', ', $product['rus']);
+            }
+        }
+
         return $this->from(config('mail.from.address'), config('mail.from.name'))
 //            ->subject($this->subjectLine)
             ->subject('ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки')
