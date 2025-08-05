@@ -354,7 +354,7 @@ const sendEmail = async (email) => {
             products: selectedProducts.value,
         })
         console.log(response);
-        fetchUnit(props.unit.value.id)
+        fetchUnit(props.unit.id)
         indexEmails()
     } catch (error) {
         console.error('Ошибка при отправке:', error);
