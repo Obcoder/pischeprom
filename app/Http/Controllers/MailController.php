@@ -57,6 +57,6 @@ class MailController extends Controller
             ]
         );
 
-        return response()->json(['message' => 'Mail sent successfully']);
+//        return response()->json(['message' => 'Mail sent successfully']);
     }
 }
