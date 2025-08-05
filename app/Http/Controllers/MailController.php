@@ -38,7 +38,7 @@ class MailController extends Controller
 
 //        return View::make('emails.funEmail', $details);
 
-        logger('Products:', [$products]);
+//        logger('Products:', [$products]);
 
         $details = array(
             'title' => 'Ингредиенты, Сырьё, Добавки',
