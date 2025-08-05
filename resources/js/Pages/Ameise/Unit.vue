@@ -643,7 +643,7 @@ useHead({
                                                             <v-card-text>
                                                                 <v-container fluid>
                                                                     <v-row>
-                                                                        <v-col cols="9">
+                                                                        <v-col cols="8">
                                                                             <v-data-table :items="products"
                                                                                           v-model="selectedProducts"
                                                                                           :headers="headerSelectProductsForSending"
@@ -664,7 +664,7 @@ useHead({
                                                                                 </template>
                                                                             </v-data-table>
                                                                         </v-col>
-                                                                        <v-col cols="3">
+                                                                        <v-col cols="4">
                                                                             <v-data-table :items="selectedProducts"
                                                                                           items-per-page="101"
                                                                                           :headers="headerSelectedProducts"
