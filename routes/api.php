@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AvitoController;
+use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
@@ -72,7 +73,13 @@ Route::apiResource('units', UnitController::class);
 Route::apiResource('uris', UriController::class);
 Route::apiResource('yandex-requests', YandexRequestController::class);
 
-Route::post('/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
+
+/*
+ * -----------------------------
+ *       M A I L  S E N D
+ * -----------------------------
+ */
+Route::post('/mail', [MailController::class, 'sendMail'])
     ->name('api.mail');
 
 /*

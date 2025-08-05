@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Unit extends Model
 {
@@ -27,7 +28,7 @@ class Unit extends Model
         return $this->belongsToMany(Building::class)
             ->using(building_unit::class);
     }
-    public function consumptions()
+    public function consumptions(): HasMany
     {
         return $this->hasMany(Consumption::class)
             ->orderByDesc('created_at');

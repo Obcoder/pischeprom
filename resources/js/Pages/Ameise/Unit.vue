@@ -9,11 +9,11 @@ import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,
 })
-const date = useDate()
 const props = defineProps({
     unit: Object,
     products: Object,
 })
+const date = useDate()
 
 const buildings = ref([])
 const emails = ref([])
@@ -66,7 +66,7 @@ const formConsumption = useForm({
     measure_id: null,
 })
 
-const headersConsumptions = ref([
+const headerConsumptions = ref([
     {
         title: 'created',
         key: 'created_at',
@@ -98,7 +98,7 @@ const headersEntities = ref([
         key: 'telephones',
     },
 ])
-const headersSelectProductsForSending = ref(
+const headerSelectProductsForSending = ref(
     [
         {
             title: 'Name',
@@ -346,8 +346,8 @@ function storeUri(){
     })
 }
 
+//       S E N D  E M A I L
 const sendEmail = async (email) => {
-    console.log(selectedProducts.value)
     try {
         const response = await axios.post(route('api.mail'), {
             email: email,
@@ -368,7 +368,6 @@ const onSelectedProductsUpdate = (newSelected) => {
         price: product.price ?? ''
     }));
 };
-
 
 onMounted(()=> {
     indexEmails()
@@ -628,7 +627,7 @@ useHead({
                                                             <v-card-text>
                                                                 <v-data-table :items="products"
                                                                               v-model="selectedProducts"
-                                                                              :headers="headersSelectProductsForSending"
+                                                                              :headers="headerSelectProductsForSending"
                                                                               items-per-page="100"
                                                                               @update:model-value="onSelectedProductsUpdate"
                                                                               show-select
@@ -637,9 +636,11 @@ useHead({
                                                                               hover
                                                                 >
                                                                     <template v-slot:item.price="{item}">
-                                                                        <v-text-field label="Цена"
+                                                                        <v-text-field v-model="item.price"
+                                                                                      label="Цена"
                                                                                       variant="outlined"
-                                                                                      v-model="item.price"
+                                                                                      density="comfortable"
+                                                                                      hide-details
                                                                         ></v-text-field>
                                                                     </template>
                                                                 </v-data-table>
@@ -822,7 +823,7 @@ useHead({
                                       :headers="headersEntities"
                                       items-per-page="3"
                                       density="compact"
-                                      hover="true"
+                                      hover
                         >
                             <template v-slot:item.telephones="{item}">
                                 <v-sheet>
@@ -967,7 +968,7 @@ useHead({
                     </v-card-subtitle>
                     <v-card-text>
                         <v-data-table :items="unit.consumptions"
-                                      :headers="headersConsumptions"
+                                      :headers="headerConsumptions"
                                       density="comfortable"
                                       hover="hover"
                                       class="text-sm"
