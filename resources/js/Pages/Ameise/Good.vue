@@ -27,7 +27,7 @@ const headerSales = ref([
         title: 'Дата',
         sortable: true,
         align: 'start',
-        width: '20%',
+        width: '25%',
     },
     {
         key: 'entity.name',
@@ -214,7 +214,7 @@ onMounted(() => {
                     </v-list-item>
                 </v-list>
             </v-col>
-            <v-col lg="3">
+            <v-col cols="4">
                 <v-data-table :items="good.sales"
                               items-per-page="89"
                               :headers="headerSales"
@@ -222,8 +222,14 @@ onMounted(() => {
                               height="510px"
                               density="comfortable"
                               hover
-                              class="text-sm"
-                ></v-data-table>
+                >
+                    <template v-slot:item.date="{item}">
+                        <span class="text-xs">{{item.date}}</span>
+                    </template>
+                    <template v-slot:item.pivot.price="{item}">
+                        <span class="font-bold font-ComfortaaVariableFont">{{item.pivot.price}}</span>
+                    </template>
+                </v-data-table>
             </v-col>
         </v-row>
     </v-container>
