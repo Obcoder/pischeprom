@@ -40,6 +40,7 @@ class Good extends Model
     public function sales(): BelongsToMany
     {
         return $this->belongsToMany(Sale::class)
-            ->withPivot('price', 'quantity', 'measure_id');
+            ->withPivot('price', 'quantity', 'measure_id')
+            ->orderBy('date', 'desc');
     }
 }
