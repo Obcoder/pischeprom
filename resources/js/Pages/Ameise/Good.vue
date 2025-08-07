@@ -21,6 +21,36 @@ const loading = ref(true);
 const error = ref(null);
 // const route = useRoute();
 
+const headerSales = ref([
+    {
+        key: 'date',
+        title: 'Дата',
+        sortable: true,
+        align: 'start',
+        width: '20%',
+    },
+    {
+        key: 'entity.name',
+        title: 'Entity',
+        sortable: true,
+        align: 'start',
+        width: '38%',
+    },
+    {
+        key: 'pivot.quantity',
+        title: 'Кол-во',
+        sortable: true,
+        align: 'center',
+        width: '10%',
+    },
+    {
+        key: 'pivot.price',
+        title: 'Цена',
+        sortable: true,
+        align: 'start',
+    },
+])
+
 const showFormAddPrice = ref(false)
 
 function indexCurrencies(){
@@ -185,23 +215,15 @@ onMounted(() => {
                 </v-list>
             </v-col>
             <v-col lg="3">
-                <v-list border
-                        rounded
-                >
-                    <v-list-item v-for="sale in good.sales">
-                        <v-row>
-                            <v-col>
-                                <span>{{sale.date}}</span>
-                            </v-col>
-                            <v-col>
-                                <span>{{sale.pivot.quantity}}</span>
-                            </v-col>
-                            <v-col>
-                                <span>{{sale.pivot.price}}</span>
-                            </v-col>
-                        </v-row>
-                    </v-list-item>
-                </v-list>
+                <v-data-table :items="good.sales"
+                              items-per-page="89"
+                              :headers="headerSales"
+                              fixed-header
+                              height="510px"
+                              density="comfortable"
+                              hover
+                              class="text-sm"
+                ></v-data-table>
             </v-col>
         </v-row>
     </v-container>
