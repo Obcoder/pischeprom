@@ -65,6 +65,11 @@ import {route} from "ziggy-js";
                     <span>Botany</span>
                 </Link>
             </v-app-bar-title>
+            <v-app-bar-title>
+                <Link :href="route('Ameise.perfume')">
+                    <span>Perfume</span>
+                </Link>
+            </v-app-bar-title>
 
             <template v-slot:append>
                 <v-btn icon="mdi-heart"></v-btn>
