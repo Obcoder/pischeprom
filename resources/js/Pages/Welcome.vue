@@ -127,10 +127,22 @@ useHead({
                 </v-card>
             </v-col>
             <v-col>
-                <v-img src="https://storage.yandexcloud.net/pps/banners/%D0%91%D0%B0%D0%BD%D0%BD%D0%B5%D1%80%20%D0%BB%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD_%D0%9B%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD%20%D0%BA%D0%BE%D0%BF%D0%B8%D1%8F.png"
-                       cover
-                       rounded
-                ></v-img>
+                <v-row>
+                    <v-col>
+                        <v-img src="https://storage.yandexcloud.net/pps/banners/%D0%91%D0%B0%D0%BD%D0%BD%D0%B5%D1%80%20%D0%BB%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD_%D0%9B%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD%20%D0%BA%D0%BE%D0%BF%D0%B8%D1%8F.png"
+                               cover
+                               rounded
+                        ></v-img>
+                    </v-col>
+                </v-row>
+                <v-row class="max-h-160">
+                    <v-col cols="4">
+                        <v-img src="https://storage.yandexcloud.net/pps/banners/%D0%9D%D1%83%D1%82-01%20(2025-08-10-g).png"
+                               cover
+                               rounded
+                        ></v-img>
+                    </v-col>
+                </v-row>
             </v-col>
             <v-col cols="3">
                 <v-card>
