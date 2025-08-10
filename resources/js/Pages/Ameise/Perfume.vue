@@ -23,7 +23,6 @@ const headerNotes = ref([
         title: 'Name',
         align: 'start',
         sortable: true,
-        class: 'text-[8px]',
     },
 ])
 
@@ -42,7 +41,8 @@ onMounted(()=>{
                               fixed-header
                               height="600px"
                               density="compact"
-                              class="border rounded"
+                              class="border rounded text-xs"
+                              hover
                 ></v-data-table>
             </v-col>
         </v-row>
