@@ -18,6 +18,7 @@ class Good extends Model
         'denominator',
         'description',
         'slug',
+        'is_published',
     ];
 
     protected static function boot()

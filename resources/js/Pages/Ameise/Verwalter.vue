@@ -245,6 +245,29 @@ const filteredBuildings = computed(()=>{
     const search = searchBuildings.value.toLowerCase();
     return buildings.value.filter(i => i.address.toLowerCase().includes(search))
 })
+const formBuilding = useForm({
+    city_id: null,
+    address: null,
+    postcode: null,
+})
+function storeBuilding(){
+    formBuilding.post(route('web.building.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formBuilding.reset()
+            indexBuildings(searchBuildings.value)
+        },
+        onError: (errors) => {
+            console.error('Form errors:', errors); // Log validation or server errors
+        },
+    })
+}
+// E N D  B U I L D I N G S
+
+
+
 //   C A T A L O G S
 function indexCatalogs(){
     axios.get(route('catalogs.index')).then(function (response){
@@ -404,6 +427,10 @@ function indexEntityClassifications(){
         console.log(error)
     })
 }
+
+
+
+
 //   G O O D S
 function indexGoods(){
     axios.get(route('goods.index')).then(function (response){
@@ -423,6 +450,29 @@ function fetchGood(id){
         console.error(error)
     })
 }
+const formGood = useForm({
+    products: null,
+    name: null,
+    ava_image: null,
+    denominator: null,
+    description: null,
+    is_published: true,
+})
+function storeGood(){
+    formGood.post(route('web.good.store'), {
+        replace: true,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formGood.reset()
+            indexGoods()
+        },
+    });
+}
+// E N D  G O O D S
+
+
+
 //   L A B E L S
 function indexLabels(){
     axios.get(route('labels.index')).then(function (response) {
@@ -689,6 +739,8 @@ function storeUnit(){
         },
     });
 }
+// E N D  U N I T S
+
 //   U R I S
 function indexUris(){
     axios.get(route('uris.index')).then(function (response) {
@@ -717,26 +769,8 @@ function storeUri(){
 }
 //     E N D  U R I S
 
-//    B U I L D I N G  S T O R E
-const formBuilding = useForm({
-    city_id: null,
-    address: null,
-    postcode: null,
-})
-function storeBuilding(){
-    formBuilding.post(route('web.building.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formBuilding.reset()
-            indexBuildings(searchBuildings.value)
-        },
-        onError: (errors) => {
-            console.error('Form errors:', errors); // Log validation or server errors
-        },
-    })
-}
+
+
 //    C I T Y  S T O R E
 const formCity = useForm({
     name: null,
@@ -776,22 +810,9 @@ function storeCheck(){
         },
     });
 }
-//     G O O D   S T O R E
-const formGood = useForm({
-    name: null,
-    ava_image: null,
-})
-function storeGood(){
-    formGood.post(route('web.good.store'), {
-        replace: true,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formGood.reset()
-            indexGoods()
-        },
-    });
-}
+
+
+
 //    P R O D U C T  S T O R E
 const formProduct = useForm({
     rus: null,
@@ -1553,6 +1574,12 @@ const formatBuildingTitle = (building) => {
                                 </v-tabs-window-item>
                                 <!--      E N D  S A L E S      -->
 
+
+
+
+
+
+
                                 <!--           G E O G R A P H Y           -->
                                 <v-tabs-window-item value="geography">
                                     <v-tabs v-model="tabsGeography">
@@ -1829,11 +1856,19 @@ const formatBuildingTitle = (building) => {
                                 </v-tabs-window-item>
                                 <!--      E N D  G E O G R A P H Y      -->
 
+
+
+
+
+
+
                                 <!--   P R O D U C T S   -->
                                 <v-tabs-window-item value="products">
                                     <v-tabs v-model="tabsProducts">
                                         <v-tab value="categories_products">Products</v-tab>
                                         <v-tab value="goods">Goods</v-tab>
+                                        <v-tab value="components">Components</v-tab>
+                                        <v-tab value="commodities">Commodities</v-tab>
                                     </v-tabs>
                                     <v-tabs-window v-model="tabsProducts">
                                         <v-tabs-window-item value="categories_products">
@@ -2041,16 +2076,37 @@ const formatBuildingTitle = (building) => {
                                                                                     </v-col>
                                                                                 </v-row>
                                                                                 <v-row>
-                                                                                    <v-text-field v-model="formGood.name"
-                                                                                                  label="Good name"
-                                                                                                  variant="outlined"
-                                                                                    ></v-text-field>
+                                                                                    <v-col cols="8">
+                                                                                        <v-text-field v-model="formGood.name"
+                                                                                                      label="Good name"
+                                                                                                      variant="outlined"
+                                                                                        ></v-text-field>
+                                                                                    </v-col>
+                                                                                    <v-col cols="2">
+                                                                                        <v-text-field v-model="formGood.denominator"
+                                                                                                      label="Denominator"
+                                                                                                      variant="solo"
+                                                                                                      density="comfortable"
+                                                                                                      hide-details></v-text-field>
+                                                                                    </v-col>
+                                                                                    <v-col cols="2">
+                                                                                        <v-checkbox v-model="formGood.is_published"></v-checkbox>
+                                                                                    </v-col>
                                                                                 </v-row>
                                                                                 <v-row>
                                                                                     <v-file-input v-model="formGood.ava_image"
                                                                                                   label="Good's avatar"
                                                                                                   chips
                                                                                     ></v-file-input>
+                                                                                </v-row>
+                                                                                <v-row>
+                                                                                    <v-col>
+                                                                                        <v-textarea v-model="formGood.description"
+                                                                                                    label="Description"
+                                                                                                    variant="outlined"
+                                                                                                    density="default"
+                                                                                                    hide-details></v-textarea>
+                                                                                    </v-col>
                                                                                 </v-row>
                                                                             </v-form>
                                                                         </v-card-text>
