@@ -15,6 +15,7 @@ class SaleController extends Controller
     public function index()
     {
         $sales = Sale::orderBy('date', 'desc')
+            ->with('entity.distinct')
             ->get();
         return $sales;
     }

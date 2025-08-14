@@ -9,6 +9,7 @@ defineOptions({
 })
 const props = defineProps({
     title: String,
+    entities: Object,
 })
 
 const goods = ref([])
@@ -38,15 +39,22 @@ useHead({
 </script>
 
 <template>
-    <v-container>
+    <v-container fluid>
         <v-row>
             <v-col cols="1">
-                <v-sheet>
-                    <v-row>
-                        <v-col cols="9">Товаров</v-col>
-                        <v-col cols="3">{{goods.length}}</v-col>
-                    </v-row>
-                </v-sheet>
+                <v-row>
+                    <v-col cols="9">Товаров</v-col>
+                    <v-col cols="3">{{goods.length}}</v-col>
+                </v-row>
+            </v-col>
+        </v-row>
+        <v-row>
+            <v-col cols="3">
+                <div class="flex flex-row justify-start">
+                    <div v-for="entity in entities"
+                         class="text-xs"
+                    >{{entity.name}}</div>
+                </div>
             </v-col>
         </v-row>
     </v-container>
