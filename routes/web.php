@@ -48,7 +48,7 @@ Route::get('/', [MainController::class, 'index'])
 
 //   * * * * * * * * *   A M E I S E   * * * * * * * * *
 Route::get('/Ameise/', [Verwalter::class, 'index'])
-    ->name('verwalter');
+    ->name('Ameise');
 //   * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 //     * * * * *   W O R K  B O A R D     * * * * *
@@ -119,6 +119,10 @@ Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
 })->name('Ameise.good.show');
 Route::get('/goods/published', [GoodController::class, 'indexPublished'])
     ->name('goods.published');
+//     G R O S S B U C H
+Route::get('/Ameise/großbuch/', function (){
+    return Inertia::render('Ameise/Großbuch');
+})->name('Ameise.großbuch');
 //   P E R F U M E
 Route::get('/Ameise/perfume/', function (){
     return Inertia::render('Ameise/Perfume');
