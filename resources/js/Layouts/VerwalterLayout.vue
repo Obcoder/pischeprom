@@ -38,6 +38,7 @@ import {route} from "ziggy-js";
 
         <v-app-bar :elevation="2"
                    rounded
+                   density="compact"
                    scroll-behavior="fade-image elevate"
                    image="https://picsum.photos/1920/1080?random"
         >
