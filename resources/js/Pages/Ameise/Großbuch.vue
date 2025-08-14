@@ -959,8 +959,7 @@ const formatBuildingTitle = (building) => {
     <v-theme-provider theme="dark">
         <v-container fluid>
             <v-row>
-                <v-col lg="1"></v-col>
-                <v-col lg="9">
+                <v-col>
                     <v-card>
                         <v-tabs v-model="tab">
                             <v-tab value="units">Объекты</v-tab>

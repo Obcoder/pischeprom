@@ -55,7 +55,7 @@ import {route} from "ziggy-js";
                     <v-icon icon="mdi-access-point"
                             size="x-small"
                     ></v-icon>
-                    <span class="ml-1">Großbuch</span>
+                    <span class="ml-1 text-xs">Großbuch</span>
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
