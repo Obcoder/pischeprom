@@ -12,11 +12,8 @@ class Verwalter extends Controller
 {
     public function index()
     {
-        $goods = Good::all();
-
         $data = [
             'title' => 'Verwalter',
-            'goods' => $goods,
         ];
 
         return Inertia::render('Ameise/Verwalter', $data);
