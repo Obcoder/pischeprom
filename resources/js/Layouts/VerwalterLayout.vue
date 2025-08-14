@@ -46,7 +46,7 @@ import {route} from "ziggy-js";
                 <v-app-bar-nav-icon>
                     <Link :href="route('Ameise')">
                         <v-icon icon="mdi-halloween"
-                                size="small"
+                                size="large"
                         ></v-icon>
                     </Link>
                 </v-app-bar-nav-icon>
