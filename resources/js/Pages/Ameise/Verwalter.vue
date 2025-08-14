@@ -85,7 +85,7 @@ useHead({
             <v-col cols="1">
                 <v-row>
                     <v-col cols="9">Продаж</v-col>
-                    <v-col cols="9">{{sales.length}}</v-col>
+                    <v-col cols="3">{{sales.length}}</v-col>
                 </v-row>
             </v-col>
         </v-row>
