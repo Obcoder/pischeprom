@@ -78,14 +78,14 @@ useHead({
         <v-row>
             <v-col cols="1">
                 <v-row>
-                    <v-col cols="9">Товаров</v-col>
+                    <v-col cols="9"><span class="text-xs">Товаров</span></v-col>
                     <v-col cols="3">{{goods.length}}</v-col>
                 </v-row>
             </v-col>
             <v-col cols="1">
                 <v-row>
-                    <v-col cols="9">Продаж</v-col>
-                    <v-col cols="3">{{sales.length}}</v-col>
+                    <v-col cols="9"><span class="text-xs">Продаж</span></v-col>
+                    <v-col cols="3"><v-chip size="x-small">{{sales.length}}</v-chip></v-col>
                 </v-row>
             </v-col>
         </v-row>
