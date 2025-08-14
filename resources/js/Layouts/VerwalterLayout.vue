@@ -75,6 +75,9 @@ import {route} from "ziggy-js";
             </v-app-bar-title>
             <v-app-bar-title>
                 <Link :href="route('Ameise.perfume')">
+                    <v-icon icon="mdi-scent"
+                            size="small"
+                            class="mx-2"></v-icon>
                     <span>Perfume</span>
                 </Link>
             </v-app-bar-title>
@@ -86,6 +89,8 @@ import {route} from "ziggy-js";
 
                 <v-btn icon="mdi-dots-vertical"></v-btn>
 
+                <v-icon icon="mdi-barn"
+                        size="x-small"></v-icon>
             </template>
         </v-app-bar>
 
