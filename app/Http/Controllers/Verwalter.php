@@ -19,6 +19,7 @@ class Verwalter extends Controller
                     ->from('sales');
             })
             ->distinct()
+            ->orderBy('name') // сортировка по имени
             ->get();
 
         $data = [
