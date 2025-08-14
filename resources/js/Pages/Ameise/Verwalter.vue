@@ -22,6 +22,15 @@ function indexGoods(){
         console.error(error)
     })
 }
+const headerGoods = ref([
+    {
+        key: 'name',
+        title: 'Name',
+        align: 'start',
+        sortable: true,
+    },
+])
+// E N D  G O O D S
 
 onMounted(()=>{
     indexGoods()
@@ -50,6 +59,14 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="3">
+                <v-data-table :items="entities"
+                              items-per-page="50"
+                              :headers="headerGoods"
+                              fixed-header
+                              height="367px"
+                              density="compact"
+                              class="border rounded"
+                ></v-data-table>
                 <div class="flex flex-row justify-start flex-wrap">
                     <div v-for="entity in entities"
                          class="text-[10px]"
