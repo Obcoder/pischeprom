@@ -24,7 +24,7 @@ useHead({
     <v-container>
         <v-row>
             <v-col cols="1">
-                <v-sheet>{{props.goods.count}}</v-sheet>
+                <v-sheet>{{}}</v-sheet>
             </v-col>
         </v-row>
     </v-container>

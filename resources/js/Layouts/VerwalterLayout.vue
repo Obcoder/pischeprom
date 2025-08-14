@@ -46,11 +46,16 @@ import {route} from "ziggy-js";
             </template>
 
             <v-app-bar-title>
+                <Link :href="route('Ameise')">
+                    <v-icon icon="mdi-halloween"
+                            size="small"
+                    ></v-icon>
+                </Link>
                 <Link :href="route('Ameise.großbuch')">
                     <v-icon icon="mdi-access-point"
                             size="x-small"
                     ></v-icon>
-                    <span>Großbuch</span>
+                    <span class="ml-1">Großbuch</span>
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
