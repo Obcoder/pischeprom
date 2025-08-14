@@ -50,9 +50,9 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="3">
-                <div class="flex flex-row justify-start">
+                <div class="flex flex-row justify-start flex-wrap">
                     <div v-for="entity in entities"
-                         class="text-xs"
+                         class="text-[10px]"
                     >{{entity.name}}</div>
                 </div>
             </v-col>
