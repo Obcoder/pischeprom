@@ -14,6 +14,16 @@ const props = defineProps({
 })
 
 const goods = ref([])
+const sales = ref([])
+
+//      E N T I T I E S
+const filteredEntities = computed(()=>{
+    const searchLike = searchEntity.value.toLowerCase()
+    return props.entities.filter((entity) => entity.name.toLowerCase().includes(searchLike))
+})
+// E N D  E N T I T I E S
+
+
 
 //      G O O D S
 function indexGoods(){
@@ -23,10 +33,6 @@ function indexGoods(){
         console.error(error)
     })
 }
-const filteredEntities = computed(()=>{
-    const searchLike = searchEntity.value.toLowerCase()
-    return props.entities.filter((entity) => entity.name.toLowerCase().includes(searchLike))
-})
 const headerGoods = ref([
     {
         key: 'name',
@@ -38,8 +44,22 @@ const headerGoods = ref([
 const searchEntity = ref('')
 // E N D  G O O D S
 
+
+
+//      S A L E S
+function indexSales(){
+    axios.get(route('sales.index')).then(function (response){
+        sales.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+// E N D  S A L E S
+
+
 onMounted(()=>{
     indexGoods()
+    indexSales()
 })
 
 useHead({
@@ -60,6 +80,12 @@ useHead({
                 <v-row>
                     <v-col cols="9">Товаров</v-col>
                     <v-col cols="3">{{goods.length}}</v-col>
+                </v-row>
+            </v-col>
+            <v-col cols="1">
+                <v-row>
+                    <v-col cols="9">Продаж</v-col>
+                    <v-col cols="9">{{sales.length}}</v-col>
                 </v-row>
             </v-col>
         </v-row>
