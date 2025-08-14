@@ -16,7 +16,6 @@ class GoodController extends Controller
     {
         $goods = Good::where('name', 'like', '%' . $request->search . '%')
             ->with('sales')
-            ->with('count')
             ->orderBy('created_at', 'desc')
             ->get();
         return $goods;
