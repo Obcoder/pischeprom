@@ -42,15 +42,15 @@ import {route} from "ziggy-js";
                    image="https://picsum.photos/1920/1080?random"
         >
             <template v-slot:prepend>
-                <v-app-bar-nav-icon></v-app-bar-nav-icon>
+                <v-app-bar-nav-icon>
+                    <Link :href="route('Ameise')">
+                        <v-icon icon="mdi-halloween"
+                                size="small"
+                        ></v-icon>
+                    </Link>
+                </v-app-bar-nav-icon>
             </template>
-
             <v-app-bar-title>
-                <Link :href="route('Ameise')">
-                    <v-icon icon="mdi-halloween"
-                            size="small"
-                    ></v-icon>
-                </Link>
                 <Link :href="route('Ameise.großbuch')">
                     <v-icon icon="mdi-access-point"
                             size="x-small"

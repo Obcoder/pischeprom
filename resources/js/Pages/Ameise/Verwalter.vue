@@ -44,7 +44,7 @@ useHead({
                 <v-sheet>
                     <v-row>
                         <v-col cols="9">Товаров</v-col>
-                        <v-col cols="3">{{goods.value.length}}</v-col>
+                        <v-col cols="3">{{goods.value}}</v-col>
                     </v-row>
                 </v-sheet>
             </v-col>
