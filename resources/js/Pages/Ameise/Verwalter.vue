@@ -1,9 +1,10 @@
 <script setup>
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {useHead} from "@vueuse/head";
-import {onMounted, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import axios from "axios";
 import {route} from "ziggy-js";
+
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -22,6 +23,10 @@ function indexGoods(){
         console.error(error)
     })
 }
+const filteredEntities = computed(()=>{
+    const searchLike = searchEntity.value.toLowerCase()
+    return props.entities.filter((entity) => entity.name.toLowerCase().includes(searchLike))
+})
 const headerGoods = ref([
     {
         key: 'name',
@@ -30,6 +35,7 @@ const headerGoods = ref([
         sortable: true,
     },
 ])
+const searchEntity = ref('')
 // E N D  G O O D S
 
 onMounted(()=>{
@@ -59,19 +65,28 @@ useHead({
         </v-row>
         <v-row>
             <v-col cols="3">
-                <v-data-table :items="entities"
-                              items-per-page="50"
-                              :headers="headerGoods"
-                              fixed-header
-                              height="367px"
-                              density="compact"
-                              class="border rounded"
-                ></v-data-table>
-                <div class="flex flex-row justify-start flex-wrap">
-                    <div v-for="entity in entities"
-                         class="text-[10px]"
-                    >{{entity.name}}</div>
-                </div>
+                <v-row>
+                    <v-col>
+                        <v-text-field v-model="searchEntity"
+                                      label="search"
+                                      variant="solo"
+                                      density="compact"
+                                      hide-details></v-text-field>
+                    </v-col>
+                </v-row>
+                <v-row>
+                    <v-col>
+                        <v-data-table :items="filteredEntities"
+                                      items-per-page="100"
+                                      :headers="headerGoods"
+                                      fixed-header
+                                      height="367px"
+                                      density="compact"
+                                      class="border rounded"
+                                      hover
+                        ></v-data-table>
+                    </v-col>
+                </v-row>
             </v-col>
         </v-row>
     </v-container>
