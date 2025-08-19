@@ -64,13 +64,19 @@ const fetchSales = async () => {
 const headerSales = ref([
     {
         key: 'date',
-        name: 'Дата',
+        title: 'Дата',
         align: 'start',
         sortable: true,
     },
     {
         key: 'entity.name',
-        name: 'Entity',
+        title: 'Entity',
+        align: 'start',
+        sortable: true,
+    },
+    {
+        key: 'total',
+        title: 'Сумма',
         align: 'start',
         sortable: true,
     },
@@ -148,7 +154,12 @@ onMounted(()=>{
                               height="405px"
                               density="compact"
                               hover
-                ></v-data-table>
+                >
+                    <template v-slot:item.entity.name="{item}">
+                        <a :href="route('entities.show', item.entity.id)"
+                           class="text-sm">{{item.entity.name}}</a>
+                    </template>
+                </v-data-table>
             </v-col>
             <v-col cols="6">
                 <v-card>
