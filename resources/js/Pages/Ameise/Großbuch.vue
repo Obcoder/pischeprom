@@ -1062,14 +1062,19 @@ const formatBuildingTitle = (building) => {
                                                                                         </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
-                                                                                        <v-col cols="4">
-                                                                                            <v-select v-model="formUnit.labels"
-                                                                                                      :items="labels"
-                                                                                                      :item-value="'id'"
-                                                                                                      :item-title="'name'"
-                                                                                                      label="Labels"
-                                                                                                      multiple
-                                                                                            ></v-select>
+                                                                                        <v-col lg="6">
+                                                                                            <v-autocomplete v-model="formUnit.labels"
+                                                                                                            :items="labels"
+                                                                                                            :item-value="'id'"
+                                                                                                            :item-title="'name'"
+                                                                                                            label="Labels"
+                                                                                                            variant="solo"
+                                                                                                            density="comfortable"
+                                                                                                            bg-color="blue-grey-darken-4"
+                                                                                                            item-color="deep-orange-darken-2"
+                                                                                                            multiple
+                                                                                                            chips
+                                                                                            ></v-autocomplete>
                                                                                         </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
