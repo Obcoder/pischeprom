@@ -73,6 +73,7 @@ const headerSales = ref([
         title: 'Entity',
         align: 'start',
         sortable: true,
+        width: '50%',
     },
     {
         key: 'total',
@@ -155,6 +156,9 @@ onMounted(()=>{
                               density="compact"
                               hover
                 >
+                    <template v-slot:item.date="{item}">
+                        <span class="text-xs">{{item.date}}</span>
+                    </template>
                     <template v-slot:item.entity.name="{item}">
                         <a :href="route('entities.show', item.entity.id)"
                            class="text-sm">{{item.entity.name}}</a>
