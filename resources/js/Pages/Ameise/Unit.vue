@@ -156,6 +156,9 @@ function indexMeasures(){
         console.log(error);
     })
 }
+
+
+//     P R O D U C T S - M A N U F A C T U R E S
 function indexProducts(){
     axios.get(route('products.index')).then(function (response){
         products.value = response.data.sort((a, b) => {
@@ -165,6 +168,15 @@ function indexProducts(){
         console.log(error);
     })
 }
+const headerManufactures = ref([
+    {
+        key: 'rus',
+        title: 'Title',
+        align: 'start',
+        sortable: true,
+    },
+])
+// E N D  P R O D U C T S
 function indexTelephones(){
     axios.get(route('telephones.index')).then(function (response){
         telephones.value = response.data;
@@ -871,51 +883,53 @@ useHead({
                 <v-card elevation="3"
                         border
                 >
-                    <v-card-title class="bg-green-800 text-lime-200"
-                    >
-                        manufactures
-                    </v-card-title>
+                    <v-card-title class="bg-green-800 text-lime-200">manufactures</v-card-title>
                     <v-card-subtitle>
-                        <v-btn text="att prod"
-                               @click="showFormAttachManufacturer = !showFormAttachManufacturer"
-                               variant="text"
-                        ></v-btn>
+                        <v-btn @click="showFormAttachManufacturer = !showFormAttachManufacturer"
+                               variant="flat"
+                               density="compact"
+                        >
+                            <v-icon icon="mdi-new-box" size="x-small"></v-icon>
+                        </v-btn>
                     </v-card-subtitle>
                     <v-card-text>
-                        <v-list density="compact"
+                        <v-data-table :items="unit.manufactures"
+                                      items-per-page="33"
+                                      :headers="headerManufactures"
+                                      fixed-header
+                                      height="225px"
+                                      hover
+                                      class="border rounded"
                         >
-                            <v-list-item v-for="product in unit.manufactures"
-                            >
+                            <template v-slot:item.rus="{item}">
                                 <Link :href="route('product.show', product.id)">
                                     <span class="text-xs">
                                         {{product.rus}}
                                     </span>
                                 </Link>
-                            </v-list-item>
-                        </v-list>
-                        <v-sheet v-if="showFormAttachManufacturer">
-                            <v-form @submit.prevent>
-                                <v-row>
-                                    <v-col>
-                                        <v-autocomplete :items="products"
-                                                        :item-value="'id'"
-                                                        :item-title="'rus'"
-                                                        v-model="formAttachManufacturer.product_id"
-                                                        variant="solo"
-                                                        density="compact"
-                                                        color="black"></v-autocomplete>
-                                    </v-col>
-                                </v-row>
-                                <v-row>
-                                    <v-col></v-col>
-                                    <v-col>
-                                        <v-btn text="store"
-                                               @click="attachManufacturer"
-                                               variant="plain"></v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-form>
-                        </v-sheet>
+                            </template>
+                        </v-data-table>
+                        <v-form v-if="showFormAttachManufacturer" @submit.prevent>
+                            <v-row>
+                                <v-col>
+                                    <v-autocomplete :items="products"
+                                                    :item-value="'id'"
+                                                    :item-title="'rus'"
+                                                    v-model="formAttachManufacturer.product_id"
+                                                    variant="solo"
+                                                    density="compact"
+                                                    color="black"></v-autocomplete>
+                                </v-col>
+                            </v-row>
+                            <v-row>
+                                <v-col></v-col>
+                                <v-col>
+                                    <v-btn text="store"
+                                           @click="attachManufacturer"
+                                           variant="plain"></v-btn>
+                                </v-col>
+                            </v-row>
+                        </v-form>
                     </v-card-text>
                 </v-card>
             </v-col>
