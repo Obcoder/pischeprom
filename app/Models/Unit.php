@@ -16,6 +16,7 @@ class Unit extends Model
     ];
 
     protected $with = [
+        'buildings',
         'uris',
         'labels',
         'stages',

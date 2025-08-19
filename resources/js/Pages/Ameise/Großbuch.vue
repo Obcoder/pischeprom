@@ -169,20 +169,6 @@ const headerTelephones = ref([
         align: 'start',
     },
 ])
-const headerUnits = [
-    {
-        title: 'name',
-        key: 'name',
-    },
-    {
-        title: 'Uris',
-        key: 'uris',
-    },
-    {
-        title: 'Stages',
-        key: 'stages',
-    },
-]
 const headerUris = [
     {
         title: 'Address',
@@ -683,6 +669,10 @@ function storeTelephone(){
         },
     })
 }
+// E N D  T E L E P H O N E S
+
+
+
 //   U N I T S
 function indexUnits(){
     axios.get(route('units.index')).then(function (response) {
@@ -719,6 +709,25 @@ const filteredUnits = computed(() => {
 
     return filtered;
 })
+const headerUnits = ref([
+    {
+        key: 'cities',
+        title: 'Города',
+        align: 'start',
+    },
+    {
+        key: 'name',
+        title: 'name',
+    },
+    {
+        key: 'uris',
+        title: 'Uris',
+    },
+    {
+        key: 'stages',
+        title: 'Stages',
+    },
+])
 const formUnit = useForm({
     name: null,
     uris: null,
@@ -1112,11 +1121,14 @@ const formatBuildingTitle = (building) => {
                                                                               items-per-page="100"
                                                                               :headers="headerUnits"
                                                                               fixed-header
-                                                                              height="929px"
+                                                                              height="939px"
                                                                               density="compact"
                                                                               class="border border-orange-900 rounded"
                                                                               hover
                                                                 >
+                                                                    <template v-slot:item.cities="{item}">
+                                                                        <div v-for="building in item.buildings">{{building.city.name}}</div>
+                                                                    </template>
                                                                     <template v-slot:item.name="{item}">
                                                                         <Link :href="route('web.unit.show', item.id)"
                                                                               class="text-sm"
