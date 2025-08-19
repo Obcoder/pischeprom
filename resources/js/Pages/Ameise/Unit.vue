@@ -883,13 +883,13 @@ useHead({
                 <v-card elevation="3"
                         border
                 >
-                    <v-card-title class="bg-green-800 text-lime-200">manufactures</v-card-title>
+                    <v-card-title class="bg-green-800 text-lime-200">Manufactures</v-card-title>
                     <v-card-subtitle>
                         <v-btn @click="showFormAttachManufacturer = !showFormAttachManufacturer"
-                               variant="flat"
+                               variant="outlined"
                                density="compact"
                         >
-                            <v-icon icon="mdi-new-box" size="x-small"></v-icon>
+                            <v-icon icon="mdi-new-box" size="small"></v-icon>
                         </v-btn>
                     </v-card-subtitle>
                     <v-card-text>
@@ -897,15 +897,16 @@ useHead({
                                       items-per-page="33"
                                       :headers="headerManufactures"
                                       fixed-header
-                                      height="225px"
+                                      height="215px"
+                                      density="compact"
                                       hover
                                       class="border rounded"
                         >
                             <template v-slot:item.rus="{item}">
-                                <Link :href="route('product.show', product.id)">
-                                    <span class="text-xs">
-                                        {{product.rus}}
-                                    </span>
+                                <Link :href="route('product.show', item.id)"
+                                      class="text-xs font-sans font-semibold"
+                                >
+                                    {{item.rus}}
                                 </Link>
                             </template>
                         </v-data-table>
