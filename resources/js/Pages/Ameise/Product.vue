@@ -150,6 +150,11 @@ onMounted(()=>{
             <v-col cols="3">
                 <v-data-table :items="sales"
                               items-per-page="100"
+                              :headers="headerSales"
+                              fixed-header
+                              height="405px"
+                              density="compact"
+                              hover
                 ></v-data-table>
             </v-col>
             <v-col cols="6">
