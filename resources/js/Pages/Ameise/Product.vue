@@ -2,6 +2,7 @@
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {Link} from "@inertiajs/vue3";
 import {route} from "ziggy-js";
+import {ref} from "vue";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -43,6 +44,14 @@ const headerConsumers = [
         align: 'start',
     },
 ]
+const headerGoods = ref([
+    {
+        key: 'name',
+        title: 'Name',
+        align: 'start',
+        sortable: true,
+    },
+])
 </script>
 
 <template>
@@ -91,30 +100,39 @@ const headerConsumers = [
                 <v-card>
                     <v-card-title>Goods</v-card-title>
                     <v-card-text>
-                        <v-list>
-                            <v-list-item v-for="good in product.goods">
-                                {{good.name}}
-                            </v-list-item>
-                        </v-list>
+                        <v-data-table :items="product.goods"
+                                      items-per-page="30"
+                                      :headers="headerGoods"
+                                      fixed-header
+                                      height="160px"
+                                      density="compact"
+                                      hover
+                        ></v-data-table>
                     </v-card-text>
                 </v-card>
             </v-col>
         </v-row>
         <v-row>
             <v-col cols="3"></v-col>
-            <v-col cols="7">
+            <v-col cols="6">
                 <v-card>
                     <v-card-title>Consumptions</v-card-title>
                     <v-card-text>
                         <v-data-table :items="product.consumers"
+                                      items-per-page="100"
                                       :headers="headerConsumers"
+                                      fixed-header
+                                      height="556px"
                                       density="compact"
+                                      hover
                         >
                             <template v-slot:item.unit="{item}">
-                                <span>{{item.unit.name}}</span>
+                                <span class="text-xs">{{item.unit.name}}</span>
                             </template>
                             <template v-slot:item.unit.uris="{item}">
-                                <div v-for="uri in item.unit.uris">{{uri.address}}</div>
+                                <div v-for="uri in item.unit.uris"
+                                     class="text-[9px] font-sans"
+                                >{{uri.address}}</div>
                             </template>
                             <template v-slot:item.measure="{item}">
                                 <span>{{item.measure.name}}</span>
@@ -135,7 +153,7 @@ const headerConsumers = [
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col cols="3"></v-col>
+            <v-col></v-col>
         </v-row>
     </v-container>
 </template>
