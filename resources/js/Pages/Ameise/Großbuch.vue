@@ -1001,7 +1001,7 @@ const formatBuildingTitle = (building) => {
                                                                 <v-btn text="+ Unit"
                                                                        @click="dialogFormUnit = !dialogFormUnit"
                                                                        variant="tonal"
-                                                                       density="compact"
+                                                                       density="comfortable"
                                                                        color="deep-purple-darken-1"
                                                                 ></v-btn>
                                                                 <v-dialog v-model="dialogFormUnit"
@@ -1107,37 +1107,33 @@ const formatBuildingTitle = (building) => {
                                                             </v-col>
                                                         </v-row>
                                                         <v-row>
-                                                            <v-col lg="6">
-                                                                <v-card>
-                                                                    <v-card-text>
-                                                                        <v-data-table :items="filteredUnits"
-                                                                                      items-per-page="100"
-                                                                                      :headers="headerUnits"
-                                                                                      fixed-header
-                                                                                      height="967px"
-                                                                                      density="compact"
-                                                                                      class="border border-orange-900 rounded"
-                                                                                      hover
-                                                                        >
-                                                                            <template v-slot:item.name="{item}">
-                                                                                <Link :href="route('web.unit.show', item.id)">
-                                                                                    {{item.name}}
-                                                                                </Link>
-                                                                            </template>
-                                                                            <template v-slot:item.uris="{item}">
-                                                                                <a v-for="uri in item.uris"
-                                                                                   :href="uri.address" target="_blank"
-                                                                                   class="text-xs inline-block mr-1 text-yellow-200">{{uri.address}}</a>
-                                                                            </template>
-                                                                            <template v-slot:item.stages="{item}">
-                                                                                <v-chip v-for="stage in item.stages"
-                                                                                        size="x-small"
-                                                                                        color="teal-accent-4"
-                                                                                >{{stage.name}}</v-chip>
-                                                                            </template>
-                                                                        </v-data-table>
-                                                                    </v-card-text>
-                                                                </v-card>
+                                                            <v-col lg="7">
+                                                                <v-data-table :items="filteredUnits"
+                                                                              items-per-page="100"
+                                                                              :headers="headerUnits"
+                                                                              fixed-header
+                                                                              height="967px"
+                                                                              density="compact"
+                                                                              class="border border-orange-900 rounded"
+                                                                              hover
+                                                                >
+                                                                    <template v-slot:item.name="{item}">
+                                                                        <Link :href="route('web.unit.show', item.id)">
+                                                                            {{item.name}}
+                                                                        </Link>
+                                                                    </template>
+                                                                    <template v-slot:item.uris="{item}">
+                                                                        <a v-for="uri in item.uris"
+                                                                           :href="uri.address" target="_blank"
+                                                                           class="text-xs inline-block mr-1 text-yellow-200">{{uri.address}}</a>
+                                                                    </template>
+                                                                    <template v-slot:item.stages="{item}">
+                                                                        <v-chip v-for="stage in item.stages"
+                                                                                size="x-small"
+                                                                                color="teal-accent-4"
+                                                                        >{{stage.name}}</v-chip>
+                                                                    </template>
+                                                                </v-data-table>
                                                             </v-col>
                                                             <v-col>
                                                                 <v-sheet class="flex flex-row justify-normal flex-wrap">
