@@ -1112,13 +1112,15 @@ const formatBuildingTitle = (building) => {
                                                                               items-per-page="100"
                                                                               :headers="headerUnits"
                                                                               fixed-header
-                                                                              height="967px"
+                                                                              height="929px"
                                                                               density="compact"
                                                                               class="border border-orange-900 rounded"
                                                                               hover
                                                                 >
                                                                     <template v-slot:item.name="{item}">
-                                                                        <Link :href="route('web.unit.show', item.id)">
+                                                                        <Link :href="route('web.unit.show', item.id)"
+                                                                              class="text-sm"
+                                                                        >
                                                                             {{item.name}}
                                                                         </Link>
                                                                     </template>
