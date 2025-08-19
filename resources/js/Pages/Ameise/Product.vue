@@ -10,6 +10,19 @@ const props = defineProps({
     product: Object,
 })
 
+//     C O M P O N E N T S
+const headerComponents = ref([
+    {
+        key: 'name',
+        title: 'name',
+        align: 'start',
+        sortable: true,
+    },
+])
+// E N D C O M P O N E N T S
+
+
+
 const headerConsumers = [
     {
         title: 'Unit',
@@ -155,6 +168,7 @@ onMounted(()=>{
                               height="405px"
                               density="compact"
                               hover
+                              class="border rounded"
                 >
                     <template v-slot:item.date="{item}">
                         <span class="text-xs">{{item.date}}</span>
@@ -204,7 +218,17 @@ onMounted(()=>{
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col></v-col>
+            <v-col>
+                <v-data-table :items="product.components"
+                              items-per-page="24"
+                              :headers="headerComponents"
+                              fixed-header
+                              height="306px"
+                              hover
+                              density="compact"
+                              class="border rounded"
+                ></v-data-table>
+            </v-col>
         </v-row>
     </v-container>
 </template>

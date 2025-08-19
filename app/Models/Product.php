@@ -33,6 +33,10 @@ class Product extends Model
     {
         return $this->belongsTo(Category::class);
     }
+    public function components(): BelongsToMany
+    {
+        return $this->belongsToMany(Component::class);
+    }
     public function consumers()
     {
         return $this->hasMany(
