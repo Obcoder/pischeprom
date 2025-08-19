@@ -714,6 +714,7 @@ const headerUnits = ref([
         key: 'cities',
         title: 'Города',
         align: 'start',
+        width: '12%',
     },
     {
         key: 'name',
@@ -1123,11 +1124,13 @@ const formatBuildingTitle = (building) => {
                                                                               fixed-header
                                                                               height="939px"
                                                                               density="compact"
-                                                                              class="border border-orange-900 rounded"
+                                                                              class="border border-orange-800 rounded"
                                                                               hover
                                                                 >
                                                                     <template v-slot:item.cities="{item}">
-                                                                        <div v-for="building in item.buildings">{{building.city.name}}</div>
+                                                                        <div v-for="building in item.buildings"
+                                                                             class="text-[11px]"
+                                                                        >{{building.city.name}}</div>
                                                                     </template>
                                                                     <template v-slot:item.name="{item}">
                                                                         <Link :href="route('web.unit.show', item.id)"
