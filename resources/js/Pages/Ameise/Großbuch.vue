@@ -1154,15 +1154,24 @@ const formatBuildingTitle = (building) => {
                                                             </v-col>
                                                             <v-col>
                                                                 <v-sheet class="flex flex-row justify-normal flex-wrap">
-                                                                    <v-btn v-for="label in labels"
-                                                                           :key="label.id"
-                                                                           v-model="selectedLabelsIDs"
-                                                                           :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
-                                                                           :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
-                                                                           @click="toggleLabel(label.id)"
-                                                                           size="x-small"
-                                                                           class="ma-1"
-                                                                    >{{label.name}}</v-btn>
+                                                                    <v-btn
+                                                                        v-for="label in labels"
+                                                                        :key="label.id"
+                                                                        v-model="selectedLabelsIDs"
+                                                                        :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
+                                                                        :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
+                                                                        @click="toggleLabel(label.id)"
+                                                                        size="x-small"
+                                                                        class="ma-1"
+                                                                    >
+                                                                        <!-- текст -->
+                                                                        {{ label.name }}
+
+                                                                        <!-- бейдж сразу после текста -->
+                                                                        <v-badge :content="label.rank" color="error" inline class="ml-1">
+                                                                            <v-icon icon="mdi-cog" />
+                                                                        </v-badge>
+                                                                    </v-btn>
                                                                 </v-sheet>
                                                             </v-col>
                                                         </v-row>
