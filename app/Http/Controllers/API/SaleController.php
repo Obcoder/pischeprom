@@ -22,7 +22,6 @@ class SaleController extends Controller
         }
 
         return $query->with('goods.products')
-            ->withPivot('quantity')
             ->get();
     }
 

@@ -76,7 +76,8 @@ const headerSales = ref([
         width: '50%',
     },
     {
-        key: 'pivot.quantity',
+        key: 'quantity',
+        value: 'pivot.quantity',
         name: 'Кол-во',
         align: 'center',
         sortable: true,
