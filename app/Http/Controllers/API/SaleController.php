@@ -21,7 +21,9 @@ class SaleController extends Controller
             $query->byProduct($productId); // <-- используем scope
         }
 
-        return $query->with('goods.products')->get();
+        return $query->with('goods.products')
+            ->withPivot('quantity')
+            ->get();
     }
 
 
