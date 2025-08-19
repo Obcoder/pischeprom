@@ -53,6 +53,7 @@ const headerGoods = ref([
     },
 ])
 
+//     S A L E S
 const sales = ref([])
 const fetchSales = async () => {
     const response = await axios.get(route('sales.index'), {
@@ -60,6 +61,27 @@ const fetchSales = async () => {
     });
     sales.value = response.data
 }
+const headerSales = ref([
+    {
+        key: 'date',
+        name: 'Дата',
+        align: 'start',
+        sortable: true,
+    },
+    {
+        key: 'entity.name',
+        name: 'Entity',
+        align: 'start',
+        sortable: true,
+        width: '50%',
+    },
+    {
+        key: 'pivot.quantity',
+        name: 'Кол-во',
+        align: 'center',
+        sortable: true,
+    },
+])
 
 onMounted(()=>{
     fetchSales()
