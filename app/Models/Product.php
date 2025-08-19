@@ -33,14 +33,6 @@ class Product extends Model
     {
         return $this->belongsTo(Category::class);
     }
-
-    public function units()
-    {
-        return $this->belongsToMany(Unit::class)
-            ->using(product_unit::class)
-            ->withPivot(['action_id'])
-            ->withTimestamps();
-    }
     public function consumers()
     {
         return $this->hasMany(
@@ -59,5 +51,16 @@ class Product extends Model
     public function manufacturers(): BelongsToMany
     {
         return $this->BelongsToMany(Unit::class, 'manufacturers', 'product_id', 'unit_id');
+    }
+    public function sales()
+    {
+        return $this->hasMany(Sale::class);
+    }
+    public function units()
+    {
+        return $this->belongsToMany(Unit::class)
+            ->using(product_unit::class)
+            ->withPivot(['action_id'])
+            ->withTimestamps();
     }
 }

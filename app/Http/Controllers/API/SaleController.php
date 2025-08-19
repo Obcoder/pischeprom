@@ -5,19 +5,25 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 
 class SaleController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $sales = Sale::orderBy('date', 'desc')
-            ->get();
-        return $sales;
+        $productId = $request->query('product_id');
+
+        $query = Sale::orderBy('date', 'desc');
+
+        if ($productId) {
+            $query->byProduct($productId); // <-- используем scope
+        }
+
+        return $query->with('goods.products')->get();
     }
+
 
     /**
      * Store a newly created resource in storage.

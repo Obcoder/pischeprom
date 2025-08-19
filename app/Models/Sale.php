@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,5 +28,15 @@ class Sale extends Model
     {
         return $this->belongsToMany(Good::class)
             ->withPivot('quantity', 'price', 'measure_id', 'total');
+    }
+
+    /**
+     * Scope для фильтрации по продукту
+     */
+    public function scopeByProduct(Builder $query, int $productId): Builder
+    {
+        return $query->whereHas('goods.products', function ($q) use ($productId) {
+            $q->where('products.id', $productId);
+        });
     }
 }

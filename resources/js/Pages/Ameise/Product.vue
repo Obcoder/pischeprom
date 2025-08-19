@@ -2,7 +2,7 @@
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {Link} from "@inertiajs/vue3";
 import {route} from "ziggy-js";
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -52,6 +52,18 @@ const headerGoods = ref([
         sortable: true,
     },
 ])
+
+const sales = ref([])
+const fetchSales = async () => {
+    const response = await axios.get(route('sales.index'), {
+        params: { product_id: props.product.id }
+    });
+    sales.value = response.data
+}
+
+onMounted(()=>{
+    fetchSales()
+})
 </script>
 
 <template>
@@ -113,7 +125,11 @@ const headerGoods = ref([
             </v-col>
         </v-row>
         <v-row>
-            <v-col cols="3"></v-col>
+            <v-col cols="3">
+                <v-data-table :items="sales"
+                              items-per-page="100"
+                ></v-data-table>
+            </v-col>
             <v-col cols="6">
                 <v-card>
                     <v-card-title>Consumptions</v-card-title>
