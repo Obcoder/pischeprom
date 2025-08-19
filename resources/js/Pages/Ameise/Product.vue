@@ -2,7 +2,7 @@
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {Link} from "@inertiajs/vue3";
 import {route} from "ziggy-js";
-import {onMounted, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -72,14 +72,6 @@ const headerSales = ref([
         key: 'entity.name',
         name: 'Entity',
         align: 'start',
-        sortable: true,
-        width: '50%',
-    },
-    {
-        key: 'quantity',
-        value: 'pivot.quantity',
-        name: 'Кол-во',
-        align: 'center',
         sortable: true,
     },
 ])
