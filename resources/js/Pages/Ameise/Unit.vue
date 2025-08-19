@@ -910,7 +910,10 @@ useHead({
                                 </Link>
                             </template>
                         </v-data-table>
-                        <v-form v-if="showFormAttachManufacturer" @submit.prevent>
+                        <v-form v-if="showFormAttachManufacturer"
+                                @submit.prevent
+                                class="bg-amber-400 border rounded border-amber-700"
+                        >
                             <v-row>
                                 <v-col>
                                     <v-autocomplete :items="products"
@@ -919,15 +922,19 @@ useHead({
                                                     v-model="formAttachManufacturer.product_id"
                                                     variant="solo"
                                                     density="compact"
-                                                    color="black"></v-autocomplete>
+                                                    color="black"
+                                                    hide-details
+                                    ></v-autocomplete>
                                 </v-col>
                             </v-row>
                             <v-row>
-                                <v-col></v-col>
+                                <v-col cols="10"></v-col>
                                 <v-col>
                                     <v-btn text="store"
                                            @click="attachManufacturer"
-                                           variant="plain"></v-btn>
+                                           variant="elevated"
+                                           density="compact"
+                                    ></v-btn>
                                 </v-col>
                             </v-row>
                         </v-form>
