@@ -1062,7 +1062,7 @@ const formatBuildingTitle = (building) => {
                                                                                         </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
-                                                                                        <v-col lg="6">
+                                                                                        <v-col lg="7">
                                                                                             <v-autocomplete v-model="formUnit.labels"
                                                                                                             :items="labels"
                                                                                                             :item-value="'id'"
@@ -1121,10 +1121,12 @@ const formatBuildingTitle = (building) => {
                                                             <v-card>
                                                                 <v-card-text>
                                                                     <v-data-table :items="filteredUnits"
-                                                                                  :headers="headerUnits"
                                                                                   items-per-page="100"
+                                                                                  :headers="headerUnits"
+                                                                                  fixed-header
+                                                                                  height="1002px"
                                                                                   density="compact"
-                                                                                  class="text-xs"
+                                                                                  class="border border-orange-900 rounded"
                                                                                   hover
                                                                     >
                                                                         <template v-slot:item.name="{item}">
