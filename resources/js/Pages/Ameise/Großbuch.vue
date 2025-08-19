@@ -1105,20 +1105,9 @@ const formatBuildingTitle = (building) => {
                                                                     </v-card>
                                                                 </v-dialog>
                                                             </v-col>
-                                                            <v-sheet class="flex flex-row justify-normal flex-wrap">
-                                                                <v-btn v-for="label in labels"
-                                                                       :key="label.id"
-                                                                       v-model="selectedLabelsIDs"
-                                                                       :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
-                                                                       :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
-                                                                       @click="toggleLabel(label.id)"
-                                                                       size="x-small"
-                                                                       class="ma-1"
-                                                                >{{label.name}}</v-btn>
-                                                            </v-sheet>
                                                         </v-row>
                                                         <v-row>
-                                                            <v-col>
+                                                            <v-col lg="6">
                                                                 <v-card>
                                                                     <v-card-text>
                                                                         <v-data-table :items="filteredUnits"
@@ -1149,6 +1138,19 @@ const formatBuildingTitle = (building) => {
                                                                         </v-data-table>
                                                                     </v-card-text>
                                                                 </v-card>
+                                                            </v-col>
+                                                            <v-col>
+                                                                <v-sheet class="flex flex-row justify-normal flex-wrap">
+                                                                    <v-btn v-for="label in labels"
+                                                                           :key="label.id"
+                                                                           v-model="selectedLabelsIDs"
+                                                                           :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
+                                                                           :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
+                                                                           @click="toggleLabel(label.id)"
+                                                                           size="x-small"
+                                                                           class="ma-1"
+                                                                    >{{label.name}}</v-btn>
+                                                                </v-sheet>
                                                             </v-col>
                                                         </v-row>
                                                     </v-col>
