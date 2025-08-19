@@ -25,8 +25,10 @@ const headerComponents = ref([
 
 const headerConsumers = [
     {
+        key: 'unit.name',
         title: 'Unit',
-        key: 'unit',
+        align: 'start',
+        sortable: true,
     },
     {
         title: 'Uris',
@@ -191,7 +193,7 @@ onMounted(()=>{
                                       density="compact"
                                       hover
                         >
-                            <template v-slot:item.unit="{item}">
+                            <template v-slot:item.unit.name="{item}">
                                 <span class="text-xs">{{item.unit.name}}</span>
                             </template>
                             <template v-slot:item.unit.uris="{item}">
