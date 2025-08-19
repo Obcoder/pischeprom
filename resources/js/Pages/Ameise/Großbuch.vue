@@ -1129,7 +1129,7 @@ const formatBuildingTitle = (building) => {
                                                                 >
                                                                     <template v-slot:item.cities="{item}">
                                                                         <div v-for="building in item.buildings"
-                                                                             class="text-sm font-sans"
+                                                                             class="text-sm font-sans text-lime-600 hover:text-lime-300"
                                                                         >{{building.city.name}}</div>
                                                                     </template>
                                                                     <template v-slot:item.name="{item}">
