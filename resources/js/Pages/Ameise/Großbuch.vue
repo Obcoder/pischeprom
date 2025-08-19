@@ -1168,7 +1168,7 @@ const formatBuildingTitle = (building) => {
                                                                         {{ label.name }}
 
                                                                         <!-- бейдж сразу после текста -->
-                                                                        <v-badge :content="label.rank" color="error" inline class="ml-1">
+                                                                        <v-badge :content="label.rank" size="x-small" color="teal-darken-3" inline class="ml-1 text-[8px]">
                                                                             <v-icon icon="mdi-cog" />
                                                                         </v-badge>
                                                                     </v-btn>
