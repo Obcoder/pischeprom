@@ -889,7 +889,7 @@ useHead({
                                variant="outlined"
                                density="compact"
                         >
-                            <v-icon icon="mdi-new-box" size="small"></v-icon>
+                            <v-icon icon="mdi-new-box" size="medium"></v-icon>
                         </v-btn>
                     </v-card-subtitle>
                     <v-card-text>
@@ -929,7 +929,7 @@ useHead({
                             </v-row>
                             <v-row>
                                 <v-col cols="10"></v-col>
-                                <v-col>
+                                <v-col cols="2">
                                     <v-btn text="store"
                                            @click="attachManufacturer"
                                            variant="elevated"
