@@ -135,7 +135,7 @@ Route::get('/Ameise/product/{id}', function ($id) {
     $product = Product::with('consumers.product')
         ->with('consumers.unit')
         ->with('consumers.measure')
-        ->with('goods')
+        ->with(['components','goods'])
         ->findOrFail($id);
     return Inertia::render('Ameise/Product', ['product'=>$product]);
 })->name('product.show');
