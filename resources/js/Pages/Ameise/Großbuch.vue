@@ -714,7 +714,7 @@ const headerUnits = ref([
         key: 'cities',
         title: 'Города',
         align: 'start',
-        width: '12%',
+        width: '14%',
     },
     {
         key: 'name',
@@ -1117,7 +1117,7 @@ const formatBuildingTitle = (building) => {
                                                             </v-col>
                                                         </v-row>
                                                         <v-row>
-                                                            <v-col lg="7">
+                                                            <v-col lg="8">
                                                                 <v-data-table :items="filteredUnits"
                                                                               items-per-page="100"
                                                                               :headers="headerUnits"
@@ -1129,7 +1129,7 @@ const formatBuildingTitle = (building) => {
                                                                 >
                                                                     <template v-slot:item.cities="{item}">
                                                                         <div v-for="building in item.buildings"
-                                                                             class="text-[11px]"
+                                                                             class="text-sm font-sans"
                                                                         >{{building.city.name}}</div>
                                                                     </template>
                                                                     <template v-slot:item.name="{item}">
