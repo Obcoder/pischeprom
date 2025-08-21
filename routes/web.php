@@ -187,9 +187,6 @@ Route::apiResource('/api/building_units', \App\Http\Controllers\API\BuildingUnit
     ->name('store', 'api.building_unit.store');
 Route::apiResource('/api/chats', \App\Http\Controllers\API\ChatController::class)
     ->name('index', 'api.chats');
-Route::apiResource('/api/components', \App\Http\Controllers\API\ComponentController::class)
-    ->name('index', 'api.components')
-    ->name('store', 'api.components.store');
 Route::apiResource('/api/consumptions', \App\Http\Controllers\API\ConsumptionController::class)
     ->name('index', 'api.consumptions')
     ->name('store', 'api.consumption.store');
