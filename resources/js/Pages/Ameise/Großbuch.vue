@@ -819,6 +819,7 @@ const headerUnits = ref([
         title: 'Fields',
         align: 'start',
         sortable: true,
+        width: '16%',
     },
     {
         key: 'stages',
@@ -1243,7 +1244,7 @@ const formatBuildingTitle = (building) => {
                                                                     </template>
                                                                     <template v-slot:item.fields="{item}">
                                                                         <div v-for="field in item.fields"
-                                                                             class="text-xs font-sans"
+                                                                             class="text-[10px] font-sans"
                                                                         >{{field.title}}</div>
                                                                     </template>
                                                                     <template v-slot:item.stages="{item}">
