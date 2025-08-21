@@ -18,6 +18,7 @@ const tab = ref()
 const tabsContacts = ref()
 const tabsGeography = ref()
 const tabsProducts = ref()
+const tabsSegments = ref()
 const tabsUnits = ref()
 
 const brands = ref([])
@@ -31,6 +32,7 @@ const countries = ref([])
 const emails = ref([])
 const entities = ref([])
 const entityClassifications = ref([])
+const fields = ref([])
 const good = ref(null)
 const goods = ref([])
 const labels = ref([])
@@ -48,7 +50,6 @@ const uris = ref([])
 let manufacturers = ref();
 
 const searchBrands = ref('')
-const searchBuildings = ref('')
 const searchCities = ref('')
 const searchGoods = ref('')
 const searchProducts = ref('')
@@ -64,33 +65,6 @@ const dialogFormUri = ref(false)
 const selectedLabelsIDs = ref([])
 const selectedCategoriesIDs = ref([])
 
-const headerBuildings = [
-    {
-        title: 'Карта',
-        key: 'city.yandexmapsgeo',
-        align: 'center',
-    },
-    {
-        title: 'Город',
-        key: 'city.name',
-        align: 'start',
-    },
-    {
-        title: 'Адрес',
-        key: 'address',
-        align: 'start',
-    },
-    {
-        title: 'Индекс',
-        key: 'postcode',
-        align: 'start',
-    },
-    {
-        title: 'Units',
-        key: 'units',
-        align: 'start',
-    },
-]
 const headersCatalogs = ref([
     {
         title: 'name',
@@ -217,6 +191,10 @@ const filteredBrands = computed(() => {
         item.name.toLowerCase().includes(searchRequest)
     )
 })
+// E N D  B U I L D I N G S
+
+
+
 //   B U I L D I N G S
 function indexBuildings(){
     axios.get(route('buildings.index')).then(function (response){
@@ -225,10 +203,38 @@ function indexBuildings(){
         console.error(error)
     })
 }
+const searchBuildings = ref('')
 const filteredBuildings = computed(()=>{
     const search = searchBuildings.value.toLowerCase();
     return buildings.value.filter(i => i.address.toLowerCase().includes(search))
 })
+const headerBuildings = ref([
+    {
+        title: 'Карта',
+        key: 'city.yandexmapsgeo',
+        align: 'center',
+    },
+    {
+        title: 'Город',
+        key: 'city.name',
+        align: 'start',
+    },
+    {
+        title: 'Адрес',
+        key: 'address',
+        align: 'start',
+    },
+    {
+        title: 'Индекс',
+        key: 'postcode',
+        align: 'start',
+    },
+    {
+        title: 'Units',
+        key: 'units',
+        align: 'start',
+    },
+])
 const formBuilding = useForm({
     city_id: null,
     address: null,
@@ -474,7 +480,27 @@ function indexEntityClassifications(){
         console.log(error)
     })
 }
+// E N D  E N T I T Y  C L A S S I F I C A T I O N S
 
+
+
+//      F I E L D S
+function indexFields(){
+    axios.get(route('fields.index')).then(function (response){
+        fields.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+const headerFields = ref([
+    {
+        key: 'title',
+        title: 'title',
+        align: 'start',
+        sortable: true,
+    },
+])
+// E N D  F I E L D S
 
 
 
@@ -954,6 +980,7 @@ onMounted(()=>{
     indexEmails()
     indexEntities()
     indexEntityClassifications()
+    indexFields()
     indexGoods()
     indexLabels()
     indexMeasures()
@@ -1019,18 +1046,18 @@ const formatBuildingTitle = (building) => {
                         <v-tabs v-model="tab">
                             <v-tab value="units">Объекты</v-tab>
                             <v-tab value="sales">Продажи</v-tab>
+                            <v-tab value="purchases">Закупка</v-tab>
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="geography">Geography</v-tab>
+                            <v-tab value="segments">Сегменты</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
-                            <v-tab value="segments">Segments</v-tab>
-                            <v-tab value="purchases">Закупка</v-tab>
                             <v-tab value="brands">Brands</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
                         </v-tabs>
 
                         <v-card-text>
                             <v-tabs-window v-model="tab">
-                                <!--   U N I T S   -->
+                                <!--   О Б Ъ Е К Т Ы   -->
                                 <v-tabs-window-item value="units">
                                     <v-tabs v-model="tabsUnits">
                                         <v-tab value="units_sub">Units</v-tab>
@@ -2302,14 +2329,155 @@ const formatBuildingTitle = (building) => {
 
 
 
-                                <!--      S E G M E N T S      -->
-                                <v-tabs-window-item value="segments">
+
+
+                                <!--                        З А К У П К А                  -->
+                                <v-tabs-window-item value="purchases">
                                     <v-row>
-                                        <v-col>
-                                            <v-data-table :items="segments"
-                                            ></v-data-table>
+                                        <v-col></v-col>
+                                        <v-col></v-col>
+                                        <v-col lg="2">
+                                            <v-btn text="+ check"
+                                                   @click="dialogFormCheck = !dialogFormCheck"
+                                                   variant="tonal"
+                                                   density="compact"
+                                                   color="deep-orange"
+                                            ></v-btn>
+                                            <v-dialog v-model="dialogFormCheck"
+                                                      width="1001"
+                                            >
+                                                <v-card>
+                                                    <v-card-title>Form Check</v-card-title>
+                                                    <v-card-text>
+                                                        <v-form @submit.prevent>
+                                                            <v-row>
+                                                                <v-col lg="4">
+                                                                    <input type="date"
+                                                                           v-model="formCheck.date"></input>
+                                                                </v-col>
+                                                                <v-col lg="8">
+                                                                    <v-autocomplete :items="entities"
+                                                                                    :item-value="'id'"
+                                                                                    :item-title="'name'"
+                                                                                    v-model="formCheck.entity_id"
+                                                                                    variant="solo"
+                                                                                    density="comfortable"></v-autocomplete>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col lg="4">
+                                                                    <v-text-field v-model="formCheck.amount"
+                                                                                  label="Amount"
+                                                                                  variant="underlined"
+                                                                                  density="comfortable"
+                                                                                  color="deep-orange"></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </v-form>
+                                                    </v-card-text>
+                                                    <v-card-actions>
+                                                        <v-divider vertical
+                                                                   thickness="1"
+                                                                   opacity="0.8"></v-divider>
+                                                        <v-btn text="store"
+                                                               @click="storeCheck"
+                                                               variant="tonal"
+                                                               density="compact"
+                                                               color="blue-grey"></v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </v-dialog>
                                         </v-col>
                                     </v-row>
+                                    <v-row>
+                                        <v-col>
+                                            <v-list variant="tonal"
+                                                    density="compact"
+                                            >
+                                                <v-list-item v-for="check in checks"
+                                                             class="hover:text-orange-600 hover:bg-zinc-700"
+                                                >
+                                                    <Link :href="route('checks.show', check.id)">
+                                                        <v-row>
+                                                            <v-col>
+                                                                {{check.date}}
+                                                            </v-col>
+                                                            <v-col lg="6">
+                                                                <div>{{check.entity.name}}</div>
+                                                                <div>{{check.entity.classification.name}}</div>
+                                                            </v-col>
+                                                            <v-col>
+                                                                {{check.amount}}
+                                                            </v-col>
+                                                        </v-row>
+                                                    </Link>
+                                                </v-list-item>
+                                            </v-list>
+                                        </v-col>
+                                        <v-col>
+                                            <v-list-item v-for="purchase in purchases.slice().sort((a, b) => new Date(b.date) - new Date(a.date))"
+                                                         :key="purchase.id"
+                                                         class="text-[11px] hover:text-orange-600 hover:bg-zinc-700"
+                                            >
+                                                <v-row>
+                                                    <v-col>
+                                                        <span>{{ date.format(purchase.date, 'fullDate') }}</span>
+                                                    </v-col>
+                                                    <v-col>
+                                                        <span>{{ purchase.amount }}</span>
+                                                    </v-col>
+                                                    <v-col>
+                                                        <span>{{ purchase.entity.name }}</span>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-list-item>
+                                        </v-col>
+                                    </v-row>
+                                </v-tabs-window-item>
+                                <!--           К О Н Е Ц  З А К У П К А          -->
+
+
+
+
+
+
+                                <!--      S E G M E N T S      -->
+                                <v-tabs-window-item value="segments">
+                                    <v-container fluid>
+                                        <v-tabs v-model="tabsSegments">
+                                            <v-tab value="fields"></v-tab>
+                                            <v-tab value="segments"></v-tab>
+                                        </v-tabs>
+                                        <v-tabs-window v-model="tabsSegments">
+                                            <v-tabs-window-item value="fields">
+                                                <v-container fluid>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-data-table :items="fields"
+                                                                          items-per-page="100"
+                                                                          :headers="headerFields"
+                                                                          fixed-header
+                                                                          height="500px"
+                                                                          density="compact"
+                                                                          hover
+                                                                          class="border rounded"
+                                                            ></v-data-table>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
+                                            <v-tabs-window-item value="segments">
+                                                <v-container fluid>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-data-table :items="segments"
+                                                            ></v-data-table>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
+                                        </v-tabs-window>
+                                    </v-container>
                                 </v-tabs-window-item>
                                 <!--           E N D  S E G M E N T S           -->
 
@@ -2434,6 +2602,7 @@ const formatBuildingTitle = (building) => {
                                         </v-col>
                                     </v-row>
                                 </v-tabs-window-item>
+                                <!--        К О Н Е Ц  К О Н Т А К Т Ы         -->
 
                                 <!--                                M A I L (не работает)!!!-->
                                 <v-tabs-window-item value="eleven">
@@ -2473,118 +2642,7 @@ const formatBuildingTitle = (building) => {
                                         <p v-if="successMessage" class="mt-4 text-green-600 text-center">{{ successMessage }}</p>
                                     </div>
                                 </v-tabs-window-item>
-
-
-
-
-
-
-
-
-                                <!--                        З А К У П К А                  -->
-                                <v-tabs-window-item value="purchases">
-                                    <v-row>
-                                        <v-col></v-col>
-                                        <v-col></v-col>
-                                        <v-col lg="2">
-                                            <v-btn text="+ check"
-                                                   @click="dialogFormCheck = !dialogFormCheck"
-                                                   variant="tonal"
-                                                   density="compact"
-                                                   color="deep-orange"
-                                            ></v-btn>
-                                            <v-dialog v-model="dialogFormCheck"
-                                                      width="1001"
-                                            >
-                                                <v-card>
-                                                    <v-card-title>Form Check</v-card-title>
-                                                    <v-card-text>
-                                                        <v-form @submit.prevent>
-                                                            <v-row>
-                                                                <v-col lg="4">
-                                                                    <input type="date"
-                                                                           v-model="formCheck.date"></input>
-                                                                </v-col>
-                                                                <v-col lg="8">
-                                                                    <v-autocomplete :items="entities"
-                                                                                    :item-value="'id'"
-                                                                                    :item-title="'name'"
-                                                                                    v-model="formCheck.entity_id"
-                                                                                    variant="solo"
-                                                                                    density="comfortable"></v-autocomplete>
-                                                                </v-col>
-                                                            </v-row>
-                                                            <v-row>
-                                                                <v-col lg="4">
-                                                                    <v-text-field v-model="formCheck.amount"
-                                                                                  label="Amount"
-                                                                                  variant="underlined"
-                                                                                  density="comfortable"
-                                                                                  color="deep-orange"></v-text-field>
-                                                                </v-col>
-                                                            </v-row>
-                                                        </v-form>
-                                                    </v-card-text>
-                                                    <v-card-actions>
-                                                        <v-divider vertical
-                                                                   thickness="1"
-                                                                   opacity="0.8"></v-divider>
-                                                        <v-btn text="store"
-                                                               @click="storeCheck"
-                                                               variant="tonal"
-                                                               density="compact"
-                                                               color="blue-grey"></v-btn>
-                                                    </v-card-actions>
-                                                </v-card>
-                                            </v-dialog>
-                                        </v-col>
-                                    </v-row>
-                                    <v-row>
-                                        <v-col>
-                                            <v-list variant="tonal"
-                                                    density="compact"
-                                            >
-                                                <v-list-item v-for="check in checks"
-                                                             class="hover:text-orange-600 hover:bg-zinc-700"
-                                                >
-                                                    <Link :href="route('checks.show', check.id)">
-                                                        <v-row>
-                                                            <v-col>
-                                                                {{check.date}}
-                                                            </v-col>
-                                                            <v-col lg="6">
-                                                                <div>{{check.entity.name}}</div>
-                                                                <div>{{check.entity.classification.name}}</div>
-                                                            </v-col>
-                                                            <v-col>
-                                                                {{check.amount}}
-                                                            </v-col>
-                                                        </v-row>
-                                                    </Link>
-                                                </v-list-item>
-                                            </v-list>
-                                        </v-col>
-                                        <v-col>
-                                            <v-list-item v-for="purchase in purchases.slice().sort((a, b) => new Date(b.date) - new Date(a.date))"
-                                                         :key="purchase.id"
-                                                         class="text-[11px] hover:text-orange-600 hover:bg-zinc-700"
-                                            >
-                                                <v-row>
-                                                    <v-col>
-                                                        <span>{{ date.format(purchase.date, 'fullDate') }}</span>
-                                                    </v-col>
-                                                    <v-col>
-                                                        <span>{{ purchase.amount }}</span>
-                                                    </v-col>
-                                                    <v-col>
-                                                        <span>{{ purchase.entity.name }}</span>
-                                                    </v-col>
-                                                </v-row>
-                                            </v-list-item>
-                                        </v-col>
-                                    </v-row>
-                                </v-tabs-window-item>
-                                <!--           E N D  З А К У П К А          -->
+                                <!--  E N D  M A I L    -->
 
 
 

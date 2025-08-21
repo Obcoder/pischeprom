@@ -18,6 +18,7 @@ use App\Http\Controllers\API\CurrencyController;
 use App\Http\Controllers\API\EmailController;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\EntitiesClassification;
+use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
@@ -55,6 +56,7 @@ Route::apiResource('currencies', CurrencyController::class);
 Route::apiResource('emails', EmailController::class);
 Route::apiResource('entities', EntityController::class);
 Route::apiResource('entities-classification', EntitiesClassification::class);
+Route::apiResource('fields', FieldController::class);
 Route::apiResource('genera', GenusController::class);
 Route::apiResource('goods', GoodController::class);
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
