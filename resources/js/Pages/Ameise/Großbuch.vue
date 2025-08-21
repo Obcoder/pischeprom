@@ -1003,7 +1003,6 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="segments">Segments</v-tab>
                             <v-tab value="purchases">Закупка</v-tab>
-                            <v-tab value="components">Components</v-tab>
                             <v-tab value="brands">Brands</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
                         </v-tabs>
@@ -2228,6 +2227,18 @@ const formatBuildingTitle = (building) => {
                                             <v-container fluid>
                                                 <v-row>
                                                     <v-col>
+                                                        <v-text-field v-model="searchComponents"
+                                                                      label="search components"
+                                                                      variant="solo"
+                                                                      density="comfortable"
+                                                                      clearable
+                                                                      hide-details
+                                                                      class="border rounded"
+                                                        ></v-text-field>
+                                                    </v-col>
+                                                </v-row>
+                                                <v-row>
+                                                    <v-col>
                                                         <v-data-table :items="components"
                                                                       items-per-page="150"
                                                                       :headers="headerComponents"
@@ -2243,6 +2254,11 @@ const formatBuildingTitle = (building) => {
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>
+                                <!--  E N D  P R O D U C T S  -->
+
+
+
+
 
                                 <!--      S E G M E N T S      -->
                                 <v-tabs-window-item value="segments">
@@ -2254,6 +2270,13 @@ const formatBuildingTitle = (building) => {
                                     </v-row>
                                 </v-tabs-window-item>
                                 <!--           E N D  S E G M E N T S           -->
+
+
+
+
+
+
+
                                 <!--           К О Н Т А К Т Ы           -->
                                 <v-tabs-window-item value="contacts">
                                     <v-row>
@@ -2408,7 +2431,15 @@ const formatBuildingTitle = (building) => {
                                         <p v-if="successMessage" class="mt-4 text-green-600 text-center">{{ successMessage }}</p>
                                     </div>
                                 </v-tabs-window-item>
-                                <!--                                З А К У П К А-->
+
+
+
+
+
+
+
+
+                                <!--                        З А К У П К А                  -->
                                 <v-tabs-window-item value="purchases">
                                     <v-row>
                                         <v-col></v-col>
@@ -2512,6 +2543,13 @@ const formatBuildingTitle = (building) => {
                                     </v-row>
                                 </v-tabs-window-item>
                                 <!--           E N D  З А К У П К А          -->
+
+
+
+
+
+
+
                                 <!--           B R A N D S               -->
                                 <v-tabs-window-item value="brands">
                                     <v-sheet>
@@ -2526,6 +2564,12 @@ const formatBuildingTitle = (building) => {
                                         >{{brand.name}}</div>
                                     </v-sheet>
                                 </v-tabs-window-item>
+                                <!--              E N D  B R A N D S               -->
+
+
+
+
+
 
                                 <!-- + + + + + + +    C A T A L O G S   + + + + + + + -->
                                 <v-tabs-window-item value="catalogs">
@@ -2548,11 +2592,7 @@ const formatBuildingTitle = (building) => {
                                     <v-container>
                                         <v-row>
                                             <v-col cols="8">
-                                                <v-text-field v-model="searchComponents"
-                                                              label="search components"
-                                                              variant="solo"
-                                                              clearable
-                                                ></v-text-field>
+
                                             </v-col>
                                             <v-col cols="4">
                                                 <v-dialog transition="dialog-top-transition"
@@ -2598,13 +2638,6 @@ const formatBuildingTitle = (building) => {
                                             </v-col>
                                         </v-row>
                                     </v-container>
-                                    <v-data-table :items="listComponents"
-                                                  :search="searchComponents"
-                                                  items-per-page="27"
-                                                  density="comfortable"
-                                                  hover="hover"
-                                    >
-                                    </v-data-table>
                                 </v-tabs-window-item>
                                 <!--      E N D  C O M P O N E N T S      -->
                             </v-tabs-window>
