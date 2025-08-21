@@ -17,6 +17,7 @@ class Unit extends Model
 
     protected $with = [
         'buildings',
+        'fields',
         'uris',
         'labels',
         'stages',
@@ -42,6 +43,10 @@ class Unit extends Model
     {
         return $this->belongsToMany(Entity::class)
             ->using(entity_unit::class);
+    }
+    public function fields(): BelongsToMany
+    {
+        return $this->belongsToMany(Field::class);
     }
     public function labels()
     {

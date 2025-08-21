@@ -815,6 +815,12 @@ const headerUnits = ref([
         title: 'Uris',
     },
     {
+        key: 'fields',
+        title: 'Fields',
+        align: 'start',
+        sortable: true,
+    },
+    {
         key: 'stages',
         title: 'Stages',
     },
@@ -1215,6 +1221,11 @@ const formatBuildingTitle = (building) => {
                                                                         <a v-for="uri in item.uris"
                                                                            :href="uri.address" target="_blank"
                                                                            class="text-xs inline-block mr-1 text-yellow-200">{{uri.address}}</a>
+                                                                    </template>
+                                                                    <template v-slot:item.fields="{item}">
+                                                                        <div v-for="field in item.fields"
+                                                                             class="text-xs font-sans"
+                                                                        >{{field.title}}</div>
                                                                     </template>
                                                                     <template v-slot:item.stages="{item}">
                                                                         <v-chip v-for="stage in item.stages"
