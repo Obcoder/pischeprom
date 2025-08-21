@@ -1020,6 +1020,7 @@ onMounted(()=>{
     indexCategories()
     indexChecks()
     indexCities()
+    indexCommodities()
     indexComponents()
     indexCountries()
     indexEmails()
