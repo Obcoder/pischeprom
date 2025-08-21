@@ -395,6 +395,12 @@ const headerEntities = [
         align: 'start',
     },
     {
+        key: 'emails',
+        title: 'Emails',
+        align: 'start',
+        sortable: true,
+    },
+    {
         title: 'Buildings',
         key: 'buildings',
         align: 'start',
@@ -1401,6 +1407,7 @@ const formatBuildingTitle = (building) => {
                                                                       fixed-footer
                                                                       density="compact"
                                                                       hover
+                                                                      class="border rounded"
                                                         >
                                                             <template v-slot:item.telephones="{item}">
                                                                 <div v-for="telephone in item.telephones">

@@ -24,6 +24,7 @@ class Entity extends Model
         'buildings',
         'classification',
         'country',
+        'emails',
     ];
 
     public function buildings(): BelongsToMany
