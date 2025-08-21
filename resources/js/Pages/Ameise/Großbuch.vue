@@ -827,6 +827,7 @@ const headerUnits = ref([
 ])
 const formUnit = useForm({
     name: null,
+    fields: null,
     uris: null,
     labels: null,
     buildings: null,
@@ -1093,18 +1094,36 @@ const formatBuildingTitle = (building) => {
                                                                        color="deep-purple-darken-1"
                                                                 ></v-btn>
                                                                 <v-dialog v-model="dialogFormUnit"
-                                                                          width="900">
+                                                                          width="909">
                                                                     <v-card>
                                                                         <v-card-title>Form Unit</v-card-title>
                                                                         <v-card-text>
                                                                             <v-form @submit.prevent>
                                                                                 <v-container>
                                                                                     <v-row>
-                                                                                        <v-text-field v-model="formUnit.name"
-                                                                                                      label="Name"
-                                                                                                      variant="outlined"
-                                                                                                      density="comfortable"
-                                                                                        ></v-text-field>
+                                                                                        <v-col>
+                                                                                            <v-text-field v-model="formUnit.name"
+                                                                                                          label="Name"
+                                                                                                          variant="solo-filled"
+                                                                                                          density="comfortable"
+                                                                                                          hide-details
+                                                                                            ></v-text-field>
+                                                                                        </v-col>
+                                                                                        <v-col lg="7">
+                                                                                            <v-autocomplete v-model="formUnit.labels"
+                                                                                                            :items="labels"
+                                                                                                            :item-value="'id'"
+                                                                                                            :item-title="'name'"
+                                                                                                            label="Labels"
+                                                                                                            variant="solo"
+                                                                                                            density="comfortable"
+                                                                                                            bg-color="blue-grey-darken-4"
+                                                                                                            item-color="deep-orange-darken-2"
+                                                                                                            multiple
+                                                                                                            chips
+                                                                                                            hide-details
+                                                                                            ></v-autocomplete>
+                                                                                        </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
                                                                                         <v-col cols="9">
@@ -1150,19 +1169,19 @@ const formatBuildingTitle = (building) => {
                                                                                         </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
-                                                                                        <v-col lg="7">
-                                                                                            <v-autocomplete v-model="formUnit.labels"
-                                                                                                            :items="labels"
+                                                                                        <v-col>
+                                                                                            <v-autocomplete v-model="formUnit.fields"
+                                                                                                            :items="fields"
                                                                                                             :item-value="'id'"
-                                                                                                            :item-title="'name'"
-                                                                                                            label="Labels"
+                                                                                                            :item-title="'title'"
+                                                                                                            label="Fields"
+                                                                                                            placeholder="Выбери поле"
                                                                                                             variant="solo"
                                                                                                             density="comfortable"
-                                                                                                            bg-color="blue-grey-darken-4"
-                                                                                                            item-color="deep-orange-darken-2"
+                                                                                                            hide-details
                                                                                                             multiple
                                                                                                             chips
-                                                                                            ></v-autocomplete>
+                                                                                                            bg-color="indigo-accent-4"></v-autocomplete>
                                                                                         </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
