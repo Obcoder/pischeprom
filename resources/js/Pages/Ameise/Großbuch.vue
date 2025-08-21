@@ -26,6 +26,7 @@ const catalogs = ref([])
 const categories = ref([])
 const checks = ref([])
 const cities = ref([])
+const components = ref([])
 const countries = ref([])
 const entities = ref([])
 const entityClassifications = ref([])
@@ -44,7 +45,6 @@ const units = ref([])
 const uris = ref([])
 
 let manufacturers = ref();
-let listComponents = ref();
 
 const searchBrands = ref('')
 const searchBuildings = ref('')
@@ -292,6 +292,44 @@ const filteredCities = computed(()=>{
     const string = searchCities.value.toLowerCase()
     return cities.value.filter(i => i.name.toLowerCase().includes(string))
 })
+// E N D  C I T I E S
+
+
+
+//     C O M P O N E N T S
+function indexComponents(){
+    axios.get(route('components.index')).then(function (response){
+        components.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+const headerComponents = ref([
+    {
+        key: 'name',
+        title: 'name',
+        align: 'start',
+        sortable: true,
+    },
+])
+const formComponent = useForm({
+    name: null,
+})
+function storeComponent(){
+    formComponent.post(route('api.components.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formComponent.reset();
+            indexComponents()
+        },
+    });
+}
+// E N D  C O M P O N E N T S
+
+
+
 //   C O U N T R I E S
 function indexCountries(){
     axios.get(route('countries.index')).then(function (response) {
@@ -304,6 +342,10 @@ function indexCountries(){
         // always executed
     })
 }
+// E N D  C O U N T R I E S
+
+
+
 //   E N T I T I E S
 function indexEntities(){
     axios.get(route('entities.index')).then(function (response){
@@ -401,6 +443,8 @@ function storeEntity(){
     })
 }
 //  E N D  E N T I T I E S
+
+
 
 //     E N T I T Y  C L A S S I F I C A T I O N S
 function indexEntityClassifications(){
@@ -748,6 +792,8 @@ function storeUnit(){
 }
 // E N D  U N I T S
 
+
+
 //   U R I S
 function indexUris(){
     axios.get(route('uris.index')).then(function (response) {
@@ -845,22 +891,7 @@ function storeProduct(){
     })
 }
 
-function storeComponent(){
-    formComponent.post(route('api.components.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formComponent.reset();
-            apiIndexComponents();
-        },
-    });
-}
 
-
-const formComponent = useForm({
-    name: null,
-})
 
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
@@ -874,13 +905,6 @@ function getManufacturers(){
         .finally(function () {
             // always executed
         });
-}
-function apiIndexComponents(){
-    axios.get(route('api.components')).then(function (response) {
-        listComponents.value = response.data;
-    }).catch(function (error) {
-        console.log(error);
-    });
 }
 
 let email = ref('');
@@ -905,6 +929,7 @@ onMounted(()=>{
     indexCategories()
     indexChecks()
     indexCities()
+    indexComponents()
     indexCountries()
     indexEntities()
     indexEntityClassifications()
@@ -921,7 +946,6 @@ onMounted(()=>{
     indexUris()
 
     getManufacturers();
-    apiIndexComponents();
 })
 
 useHead({
@@ -998,7 +1022,7 @@ const formatBuildingTitle = (building) => {
                                                 <v-row>
                                                     <v-col>
                                                         <v-row>
-                                                            <v-col lg="4">
+                                                            <v-col lg="2">
                                                                 <v-text-field v-model="searchUnits"
                                                                               label="Поиск по юнитам"
                                                                               variant="solo"
@@ -1007,7 +1031,7 @@ const formatBuildingTitle = (building) => {
                                                                               hide-details
                                                                 ></v-text-field>
                                                             </v-col>
-                                                            <v-col lg="2">
+                                                            <v-col cols="1">
                                                                 <v-btn text="+ Unit"
                                                                        @click="dialogFormUnit = !dialogFormUnit"
                                                                        variant="tonal"
@@ -1607,6 +1631,8 @@ const formatBuildingTitle = (building) => {
 
 
 
+
+
                                 <!--           G E O G R A P H Y           -->
                                 <v-tabs-window-item value="geography">
                                     <v-tabs v-model="tabsGeography">
@@ -2066,7 +2092,7 @@ const formatBuildingTitle = (building) => {
                                                         <v-col cols="4">
                                                             <v-text-field v-model="searchGoods"
                                                                           label="Поиск: Товары"
-                                                                          variant="outlined"
+                                                                          variant="solo"
                                                                           density="comfortable"
                                                                           hide-details
                                                             ></v-text-field>
@@ -2132,7 +2158,8 @@ const formatBuildingTitle = (building) => {
                                                                                                     label="Description"
                                                                                                     variant="outlined"
                                                                                                     density="default"
-                                                                                                    hide-details></v-textarea>
+                                                                                                    hide-details
+                                                                                        ></v-textarea>
                                                                                     </v-col>
                                                                                 </v-row>
                                                                             </v-form>
@@ -2195,6 +2222,23 @@ const formatBuildingTitle = (building) => {
                                                     </v-sheet>
                                                 </v-col>
                                             </v-row>
+                                        </v-tabs-window-item>
+                                        <v-tabs-window-item value="components">
+                                            <v-container fluid>
+                                                <v-row>
+                                                    <v-col>
+                                                        <v-data-table :items="components"
+                                                                      items-per-page="150"
+                                                                      :headers="headerComponents"
+                                                                      fixed-header
+                                                                      height="810px"
+                                                                      density="compact"
+                                                                      hover
+                                                                      class="border rounded border-lime-300"
+                                                        ></v-data-table>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>
