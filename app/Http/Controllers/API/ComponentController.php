@@ -13,8 +13,8 @@ class ComponentController extends Controller
      */
     public function index()
     {
-        $components = Component::all();
-        return $components;
+        return Component::orderBy('created_at', 'desc')
+            ->get();
     }
 
     /**

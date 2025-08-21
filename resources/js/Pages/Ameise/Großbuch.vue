@@ -1029,6 +1029,7 @@ const formatBuildingTitle = (building) => {
                                                                               density="compact"
                                                                               color="deep-orange-accent-3"
                                                                               hide-details
+                                                                              class="border border-2 rounded border-rose-950"
                                                                 ></v-text-field>
                                                             </v-col>
                                                             <v-col cols="1">
