@@ -1053,14 +1053,14 @@ const formatBuildingTitle = (building) => {
                     <v-card>
                         <v-tabs v-model="tab">
                             <v-tab value="units">Объекты</v-tab>
+                            <v-tab value="contacts">Контакты</v-tab>
                             <v-tab value="sales">Продажи</v-tab>
                             <v-tab value="purchases">Закупка</v-tab>
                             <v-tab value="products">Products</v-tab>
-                            <v-tab value="geography">Geography</v-tab>
-                            <v-tab value="segments">Сегменты</v-tab>
+                            <v-tab value="geography">География</v-tab>
+                            <v-tab value="segments">Классификаторы</v-tab>
                             <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="brands">Brands</v-tab>
-                            <v-tab value="contacts">Контакты</v-tab>
                         </v-tabs>
 
                         <v-card-text>
@@ -2472,14 +2472,36 @@ const formatBuildingTitle = (building) => {
 
 
 
-                                <!--      S E G M E N T S      -->
+                                <!--        К Л А С С И Ф И К А Т О Р Ы        -->
                                 <v-tabs-window-item value="segments">
                                     <v-container fluid>
                                         <v-tabs v-model="tabsSegments">
+                                            <v-tab value="catalogs">Catalogs</v-tab>
                                             <v-tab value="fields">Fields</v-tab>
                                             <v-tab value="segments_tab">Segments</v-tab>
                                         </v-tabs>
                                         <v-tabs-window v-model="tabsSegments">
+                                            <v-tabs-window-item value="catalogs">
+                                                <v-container fluid>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-data-table :items="catalogs"
+                                                                          items-per-page="25"
+                                                                          :headers="headersCatalogs"
+                                                                          density="compact"
+                                                                          hover
+                                                                          class="border rounded"
+                                                            >
+                                                                <template v-slot:item.uri="{item}">
+                                                                    <a :href="item.uri" target="_blank">
+                                                                        {{item.uri}}
+                                                                    </a>
+                                                                </template>
+                                                            </v-data-table>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
                                             <v-tabs-window-item value="fields">
                                                 <v-container fluid>
                                                     <v-row>
@@ -2519,7 +2541,7 @@ const formatBuildingTitle = (building) => {
                                         </v-tabs-window>
                                     </v-container>
                                 </v-tabs-window-item>
-                                <!--           E N D  S E G M E N T S           -->
+                                <!--           К О Н Е Ц  К Л А С С И Ф И К А Т О Р Ы           -->
 
 
 
@@ -2644,6 +2666,18 @@ const formatBuildingTitle = (building) => {
                                 </v-tabs-window-item>
                                 <!--        К О Н Е Ц  К О Н Т А К Т Ы         -->
 
+
+
+
+
+
+
+
+
+
+
+
+
                                 <!--                                M A I L (не работает)!!!-->
                                 <v-tabs-window-item value="eleven">
                                     <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md border border-gray-200">
@@ -2690,6 +2724,11 @@ const formatBuildingTitle = (building) => {
 
 
 
+
+
+
+
+
                                 <!--           B R A N D S               -->
                                 <v-tabs-window-item value="brands">
                                     <v-sheet>
@@ -2708,24 +2747,6 @@ const formatBuildingTitle = (building) => {
 
 
 
-
-
-
-                                <!-- + + + + + + +    C A T A L O G S   + + + + + + + -->
-                                <v-tabs-window-item value="catalogs">
-                                    <v-data-table :items="catalogs"
-                                                  :headers="headersCatalogs"
-                                                  density="comfortable"
-                                                  hover="true"
-                                    >
-                                        <template v-slot:item.uri="{item}">
-                                            <a :href="item.uri" target="_blank">
-                                                {{item.uri}}
-                                            </a>
-                                        </template>
-                                    </v-data-table>
-                                </v-tabs-window-item>
-                                <!-- ------------- E N D   C A T A L O G S ---------------  -->
 
                                 <!--      C O N P O N E N T S       -->
                                 <v-tabs-window-item value="components">
