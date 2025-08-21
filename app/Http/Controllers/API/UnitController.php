@@ -52,6 +52,7 @@ class UnitController extends Controller
     public function store(Request $request)
     {
         $unit = Unit::create($request->all());
+        $unit->fields()->attach($request->input('fields'));
         $unit->uris()->attach($request->input('uris'));
         $unit->labels()->attach($request->input('labels'));
         $unit->buildings()->attach($request->input('buildings'));
