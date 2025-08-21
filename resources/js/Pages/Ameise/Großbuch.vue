@@ -27,6 +27,7 @@ const catalogs = ref([])
 const categories = ref([])
 const checks = ref([])
 const cities = ref([])
+const commodities = ref([])
 const components = ref([])
 const countries = ref([])
 const emails = ref([])
@@ -83,16 +84,6 @@ const headerCountries = [
     {
         title: 'Флаг',
         key: 'flag',
-    },
-    {
-        title: 'name',
-        key: 'name',
-    },
-]
-const headerGoods = [
-    {
-        title: 'Avatar',
-        key: 'ava_image',
     },
     {
         title: 'name',
@@ -300,6 +291,42 @@ const filteredCities = computed(()=>{
     return cities.value.filter(i => i.name.toLowerCase().includes(string))
 })
 // E N D  C I T I E S
+
+
+
+//      C O M M O D I T I E S
+function indexCommodities(){
+    axios.get(route('commodities.index')).then(function (response){
+        commodities.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+const headerCommodities = ref([
+    {
+        key: 'name',
+        title: 'Наименование',
+        align: 'start',
+        sortable: true,
+    },
+])
+const searchCommodities = ref('')
+const showFormCommodity = ref(false)
+const formCommodity = useForm({
+    name: null,
+})
+function storeCommodity(){
+    formCommodity.post(route('api.commodity.store'), {
+        replace: false,
+        preserveState: false,
+        preserveScroll: true,
+        onSuccess: ()=> {
+            formCommodity.reset()
+            indexCommodities();
+        },
+    })
+}
+// E N D  C O M M O D I T I E S
 
 
 
@@ -516,6 +543,16 @@ function indexGoods(){
         console.log(error)
     })
 }
+const headerGoods = [
+    {
+        title: 'Avatar',
+        key: 'ava_image',
+    },
+    {
+        title: 'name',
+        key: 'name',
+    },
+]
 function fetchGood(id){
     axios.get(route('good.fetch', id)).then(function (response){
         good.value = response.data
@@ -1059,7 +1096,6 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="geography">География</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
-                            <v-tab value="catalogs">Catalogs</v-tab>
                             <v-tab value="brands">Brands</v-tab>
                         </v-tabs>
 
@@ -2347,6 +2383,70 @@ const formatBuildingTitle = (building) => {
                                                                       density="compact"
                                                                       hover
                                                                       class="border rounded border-lime-300"
+                                                        ></v-data-table>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
+                                        </v-tabs-window-item>
+                                        <v-tabs-window-item value="commodities">
+                                            <v-container fluid>
+                                                <v-row>
+                                                    <v-col cols="9">
+                                                        <v-text-field v-model="searchCommodities"
+                                                                      @input="indexCommodities(searchCommodities)"
+                                                                      label="Commodities"
+                                                                      placeholder="search"
+                                                                      variant="outlined"
+                                                                      density="compact"
+                                                                      hide-details
+                                                        ></v-text-field>
+                                                    </v-col>
+                                                    <v-col cols="3">
+                                                        <v-btn text="+ commodity"
+                                                               @click="showFormCommodity = !showFormCommodity"
+                                                               variant="elevated"
+                                                               color="grey"
+                                                        ></v-btn>
+                                                        <v-dialog v-model="showFormCommodity"
+                                                                  width="800"
+                                                        >
+                                                            <template v-slot:default="{isActive}">
+                                                                <v-card>
+                                                                    <v-card-title>Form Commodity</v-card-title>
+                                                                    <v-card-text>
+                                                                        <v-form @submit.prevent>
+                                                                            <v-row>
+                                                                                <v-col>
+                                                                                    <v-text-field v-model="formCommodity.name"
+                                                                                                  label="Name"
+                                                                                                  variant="outlined"
+                                                                                    ></v-text-field>
+                                                                                </v-col>
+                                                                            </v-row>
+                                                                        </v-form>
+                                                                    </v-card-text>
+                                                                    <v-card-actions>
+                                                                        <v-btn text="store"
+                                                                               @click="storeCommodity"
+                                                                               variant="tonal"
+                                                                               color="orange"
+                                                                        ></v-btn>
+                                                                    </v-card-actions>
+                                                                </v-card>
+                                                            </template>
+                                                        </v-dialog>
+                                                    </v-col>
+                                                </v-row>
+                                                <v-row>
+                                                    <v-col>
+                                                        <v-data-table :items="commodities"
+                                                                      items-per-page="100"
+                                                                      :headers="headerCommodities"
+                                                                      fixed-header
+                                                                      height="779px"
+                                                                      density="compact"
+                                                                      hover
+                                                                      class="border rounded"
                                                         ></v-data-table>
                                                     </v-col>
                                                 </v-row>
