@@ -945,6 +945,7 @@ onMounted(()=>{
     indexCities()
     indexComponents()
     indexCountries()
+    indexEmails()
     indexEntities()
     indexEntityClassifications()
     indexGoods()
