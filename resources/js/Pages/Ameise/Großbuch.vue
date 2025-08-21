@@ -2445,14 +2445,14 @@ const formatBuildingTitle = (building) => {
                                 <v-tabs-window-item value="segments">
                                     <v-container fluid>
                                         <v-tabs v-model="tabsSegments">
-                                            <v-tab value="fields"></v-tab>
-                                            <v-tab value="segments"></v-tab>
+                                            <v-tab value="fields">Fields</v-tab>
+                                            <v-tab value="segments_tab">Segments</v-tab>
                                         </v-tabs>
                                         <v-tabs-window v-model="tabsSegments">
                                             <v-tabs-window-item value="fields">
                                                 <v-container fluid>
                                                     <v-row>
-                                                        <v-col>
+                                                        <v-col cols="2">
                                                             <v-text-field label="Search"
                                                                           variant="solo-inverted"
                                                                           density="compact"
@@ -2475,7 +2475,7 @@ const formatBuildingTitle = (building) => {
                                                     </v-row>
                                                 </v-container>
                                             </v-tabs-window-item>
-                                            <v-tabs-window-item value="segments">
+                                            <v-tabs-window-item value="segments_tab">
                                                 <v-container fluid>
                                                     <v-row>
                                                         <v-col>
