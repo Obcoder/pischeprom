@@ -47,6 +47,10 @@ class Entity extends Model
     {
         return $this->belongsTo(Country::class);
     }
+    public function emails(): BelongsToMany
+    {
+        return $this->belongsToMany(Email::class);
+    }
     public function telephones(): BelongsToMany
     {
         return $this->belongsToMany(Telephone::class);

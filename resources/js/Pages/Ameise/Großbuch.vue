@@ -28,6 +28,7 @@ const checks = ref([])
 const cities = ref([])
 const components = ref([])
 const countries = ref([])
+const emails = ref([])
 const entities = ref([])
 const entityClassifications = ref([])
 const good = ref(null)
@@ -346,6 +347,18 @@ function indexCountries(){
 
 
 
+//      E M A I L S
+function indexEmails(){
+    axios.get(route('emails.index')).then(function (response){
+        emails.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+// E N D  E M A I L S
+
+
+
 //   E N T I T I E S
 function indexEntities(){
     axios.get(route('entities.index')).then(function (response){
@@ -428,6 +441,7 @@ const formEntity = useForm({
     country_id: null,
     buildings: null,
     cities: null,
+    emails: null,
     telephones: null,
     units: null,
 })
@@ -1024,7 +1038,7 @@ const formatBuildingTitle = (building) => {
                                                             <v-col lg="2">
                                                                 <v-text-field v-model="searchUnits"
                                                                               label="Поиск по юнитам"
-                                                                              variant="solo"
+                                                                              variant="solo-inverted"
                                                                               density="compact"
                                                                               color="deep-orange-accent-3"
                                                                               hide-details
@@ -1270,6 +1284,21 @@ const formatBuildingTitle = (building) => {
                                                                                 ></v-autocomplete>
                                                                             </v-col>
                                                                             <v-col>
+                                                                                <v-autocomplete :items="emails"
+                                                                                                :item-value="'id'"
+                                                                                                :item-title="'address'"
+                                                                                                v-model="formEntity.emails"
+                                                                                                label="Emails"
+                                                                                                placeholder="email address"
+                                                                                                variant="solo"
+                                                                                                density="comfortable"
+                                                                                                color="yellow-accent-1"
+                                                                                                hide-details
+                                                                                                multiple
+                                                                                                chips
+                                                                                ></v-autocomplete>
+                                                                            </v-col>
+                                                                            <v-col>
                                                                                 <v-autocomplete :items="buildings"
                                                                                                 :item-value="'id'"
                                                                                                 :item-title="'address'"
@@ -1411,6 +1440,11 @@ const formatBuildingTitle = (building) => {
                                     </v-tabs-window>
                                 </v-tabs-window-item>
                                 <!--           E N D  U N I T S           -->
+
+
+
+
+
 
                                 <!--           S A L E S           -->
                                 <v-tabs-window-item value="sales">
