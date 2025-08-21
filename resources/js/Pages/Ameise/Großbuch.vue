@@ -2063,11 +2063,12 @@ const formatBuildingTitle = (building) => {
                                             <v-row>
                                                 <v-col>
                                                     <v-row>
-                                                        <v-col cols="9">
-                                                            <v-text-field label="Поиск: Товары"
-                                                                          v-model="searchGoods"
+                                                        <v-col cols="4">
+                                                            <v-text-field v-model="searchGoods"
+                                                                          label="Поиск: Товары"
                                                                           variant="outlined"
-                                                                          class="mt-1 py-1"
+                                                                          density="comfortable"
+                                                                          hide-details
                                                             ></v-text-field>
                                                         </v-col>
                                                         <v-col cols="3">
@@ -2087,8 +2088,7 @@ const formatBuildingTitle = (building) => {
                                                                         <v-card-text>
                                                                             <v-form @submit.prevent>
                                                                                 <v-row>
-                                                                                    <v-col cols="12"
-                                                                                    >
+                                                                                    <v-col cols="12">
                                                                                         <v-autocomplete :items="products"
                                                                                                         :item-title="'rus'"
                                                                                                         :item-value="'id'"
