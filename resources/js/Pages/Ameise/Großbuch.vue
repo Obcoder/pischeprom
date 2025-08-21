@@ -2453,6 +2453,15 @@ const formatBuildingTitle = (building) => {
                                                 <v-container fluid>
                                                     <v-row>
                                                         <v-col>
+                                                            <v-text-field label="Search"
+                                                                          variant="solo-inverted"
+                                                                          density="compact"
+                                                                          hide-details
+                                                            ></v-text-field>
+                                                        </v-col>
+                                                    </v-row>
+                                                    <v-row>
+                                                        <v-col>
                                                             <v-data-table :items="fields"
                                                                           items-per-page="100"
                                                                           :headers="headerFields"
