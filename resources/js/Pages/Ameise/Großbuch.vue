@@ -743,6 +743,7 @@ function attachGood(){
 }
 
 let totalInKg = ref()
+let quantity = ref()
 // E N D  S A L E S
 
 
@@ -755,6 +756,10 @@ function indexSegments(){
         console.error(error)
     })
 }
+// E N D  S E G M E N T S
+
+
+
 //   T E L E P H O N E S
 function indexTelephones(){
     axios.get(route('telephones.index')).then(function (response){
@@ -1710,11 +1715,11 @@ const formatBuildingTitle = (building) => {
                                                                             </v-col>
                                                                             <v-col>
                                                                                 <label class="text-sm font-sans">Кол-во шт</label>
-                                                                                <span>{{totalInKg / good.denominator}}</span>
+                                                                                <span>{{quantity = totalInKg / good.denominator}}</span>
                                                                             </v-col>
                                                                             <v-col>
                                                                                 <label>Цена шт</label>
-                                                                                <span>{{good.total / (totalInKg / good.denominator)}}</span>
+                                                                                <span>{{good.total / quantity}}</span>
                                                                             </v-col>
                                                                         </v-row>
                                                                     </v-col>
