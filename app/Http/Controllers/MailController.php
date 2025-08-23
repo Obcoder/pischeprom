@@ -44,18 +44,18 @@ class MailController extends Controller
             'title' => 'Ингредиенты, Сырьё, Добавки',
             'products' => $products,);
 
-//        Mail::to($email)
-//            ->bcc('tradelognets@gmail.com')
+        Mail::to($email)
+            ->bcc('tradelognets@gmail.com')
+            ->send(new MyTestMail($details));
 //            ->send(new MyTestMail($details));
-////            ->send(new MyTestMail($details));
-//
-//        Sending::create(
-//            [
-//                'email_id' => Email::where('address', $email)->firstOrFail()->id,
-////                'subject' => json_encode($products),
-//                'subject' => $details['title'],
-//            ]
-//        );
+
+        Sending::create(
+            [
+                'email_id' => Email::where('address', $email)->firstOrFail()->id,
+//                'subject' => json_encode($products),
+                'subject' => $details['title'],
+            ]
+        );
 
 //        return response()->json(['message' => 'Mail sent successfully']);
     }
