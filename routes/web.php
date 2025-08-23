@@ -120,7 +120,7 @@ Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
 Route::get('/goods/published', [GoodController::class, 'indexPublished'])
     ->name('goods.published');
 //     G R O S S B U C H
-Route::get('/Ameise/großbuch/', function (){
+Route::get('/Ameise/grossbuch/', function (){
     return Inertia::render('Ameise/Großbuch');
 })->name('Ameise.großbuch');
 //   P E R F U M E
