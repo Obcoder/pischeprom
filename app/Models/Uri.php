@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Uri extends Model
 {
@@ -19,7 +20,7 @@ class Uri extends Model
         'owners',
     ];
 
-    public function owners()
+    public function owners(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);
     }
