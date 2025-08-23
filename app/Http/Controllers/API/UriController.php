@@ -14,7 +14,8 @@ class UriController extends Controller
      */
     public function index()
     {
-        return Uri::orderBy('created_at', 'desc')
+        return Uri::with('units')
+            ->orderBy('created_at', 'desc')
             ->get();
     }
 
