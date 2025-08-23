@@ -919,7 +919,7 @@ const filteredUris = computed(()=>{
             unit.name?.toLowerCase().includes(term)
         )
 
-        return addressMatch || unitMatch
+        return addressMatch || unitMatch;
     })
 })
 const formUri = useForm({
