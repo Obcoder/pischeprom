@@ -135,38 +135,6 @@ const headerTelephones = ref([
         align: 'start',
     },
 ])
-const headerUris = [
-    {
-        title: 'Address',
-        key: 'address',
-        align: 'start',
-    },
-    {
-        title: 'Valid',
-        key: 'is_valid',
-        align: 'center',
-    },
-    {
-        title: 'Follow',
-        key: 'follow',
-        align: 'center',
-    },
-    {
-        title: 'Design',
-        key: 'has_brilliant_foremost_design',
-        align: 'center',
-    },
-    {
-        title: 'Owners',
-        key: 'owners',
-        align: 'start',
-    },
-    {
-        title: 'created_at',
-        key: 'created_at',
-        align: 'start',
-    },
-]
 
 //   B R A N D S
 function indexBrands(){
@@ -906,6 +874,54 @@ function indexUris(){
         // always executed
     });
 }
+const headerUris = ref([
+    {
+        title: 'Address',
+        key: 'address',
+        align: 'start',
+    },
+    {
+        title: 'Valid',
+        key: 'is_valid',
+        align: 'center',
+    },
+    {
+        title: 'Follow',
+        key: 'follow',
+        align: 'center',
+    },
+    {
+        title: 'Design',
+        key: 'has_brilliant_foremost_design',
+        align: 'center',
+    },
+    {
+        title: 'Owners',
+        key: 'units',
+        align: 'start',
+    },
+    {
+        title: 'created_at',
+        key: 'created_at',
+        align: 'start',
+    },
+])
+const searchUris = ref('')
+const filteredUris = computed(()=>{
+    if (!searchUris.value) return uris.value
+
+    const term = searchUris.value.toLowerCase()
+
+    return uris.value.filter(uri => {
+        const addressMatch = uri.address?.toLowerCase().includes(term)
+
+        const unitMatch = uri.units?.some(unit =>
+            unit.name?.toLowerCase().includes(term)
+        )
+
+        return addressMatch || unitMatch;
+    })
+})
 const formUri = useForm({
     address: null,
 })
@@ -2781,7 +2797,7 @@ const formatBuildingTitle = (building) => {
                                                     </v-row>
                                                     <v-row>
                                                         <v-col>
-                                                            <v-data-table :items="uris"
+                                                            <v-data-table :items="filteredUris"
                                                                           items-per-page="1000"
                                                                           :headers="headerUris"
                                                                           fixed-header
@@ -2795,8 +2811,8 @@ const formatBuildingTitle = (building) => {
                                                                        class="text-xs text-green-400 inline-block"
                                                                     >{{item.address}}</a>
                                                                 </template>
-                                                                <template v-slot:item.owners="{item}">
-                                                                    <div v-for="unit in item.owners">
+                                                                <template v-slot:item.units="{item}">
+                                                                    <div v-for="unit in item.units">
                                                                         <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
                                                                     </div>
                                                                 </template>

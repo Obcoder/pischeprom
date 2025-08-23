@@ -16,8 +16,11 @@ class Uri extends Model
         'follow',
         'has_brilliant_foremost_design',
     ];
+    protected $with = [
+        'units',
+    ];
 
-    public function owners()
+    public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);
     }
