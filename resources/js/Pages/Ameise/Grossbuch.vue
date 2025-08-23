@@ -906,22 +906,6 @@ function indexUris(){
         // always executed
     });
 }
-const searchUris = ref('')
-const filteredUris = computed(()=>{
-    if (!searchUris.value) return uris.value
-
-    const term = searchUris.value.toLowerCase()
-
-    return uris.value.filter(uri => {
-        const addressMatch = uri.address?.toLowerCase().includes(term)
-
-        const unitMatch = uri.units?.some(unit =>
-            unit.name?.toLowerCase().includes(term)
-        )
-
-        return addressMatch || unitMatch;
-    })
-})
 const formUri = useForm({
     address: null,
 })
