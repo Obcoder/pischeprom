@@ -741,7 +741,11 @@ function attachGood(){
         },
     })
 }
+
+let totalInKg = ref()
 // E N D  S A L E S
+
+
 
 //   S E G M E N T S
 function indexSegments(){
@@ -1668,6 +1672,7 @@ const formatBuildingTitle = (building) => {
                                                                                                   variant="outlined"
                                                                                                   density="compact"
                                                                                                   theme="dark"
+                                                                                                  hide-details
                                                                                     ></v-text-field>
                                                                                 </v-col>
                                                                                 <v-col cols="3">
@@ -1678,17 +1683,40 @@ const formatBuildingTitle = (building) => {
                                                                                               label="Measures"
                                                                                               variant="outlined"
                                                                                               density="compact"
+                                                                                              hide-details
                                                                                     ></v-select>
                                                                                 </v-col>
                                                                                 <v-col cols="6">
                                                                                     <v-text-field v-model="formAttachGood.price"
                                                                                                   label="Price"
                                                                                                   variant="outlined"
-                                                                                                  density="comfortable"
+                                                                                                  density="compact"
+                                                                                                  hide-details
                                                                                     ></v-text-field>
                                                                                 </v-col>
                                                                             </v-row>
                                                                         </v-form>
+                                                                        <v-row>
+                                                                            <v-col>
+                                                                                <label>Denominator</label><span>{{good.denominator}}</span>
+                                                                            </v-col>
+                                                                            <v-col>
+                                                                                <v-text-field v-model="totalInKg"
+                                                                                              label="total in kg"
+                                                                                              variant="solo"
+                                                                                              density="compact"
+                                                                                              hide-details
+                                                                                ></v-text-field>
+                                                                            </v-col>
+                                                                            <v-col>
+                                                                                <label class="text-sm font-sans">Кол-во шт</label>
+                                                                                <span>{{totalInKg / good.denominator}}</span>
+                                                                            </v-col>
+                                                                            <v-col>
+                                                                                <label>Цена шт</label>
+                                                                                <span>{{good.total / (totalInKg / good.denominator)}}</span>
+                                                                            </v-col>
+                                                                        </v-row>
                                                                     </v-col>
                                                                     <v-col cols="5">
                                                                         <v-sheet>
