@@ -906,6 +906,22 @@ function indexUris(){
         // always executed
     });
 }
+const searchUris = ref('')
+const filteredUris = computed(()=>{
+    if (!searchUris.value) return uris.value
+
+    const term = searchUris.value.toLowerCase()
+
+    return uris.value.filter(uri => {
+        const addressMatch = uri.address?.toLowerCase().includes(term)
+
+        const unitMatch = uri.units?.some(unit =>
+            unit.name?.toLowerCase().includes(term)
+        )
+
+        return addressMatch || unitMatch
+    })
+})
 const formUri = useForm({
     address: null,
 })
@@ -2769,12 +2785,25 @@ const formatBuildingTitle = (building) => {
                                                 </v-tabs-window-item>
                                                 <v-tabs-window-item value="uris">
                                                     <v-row>
+                                                        <v-col lg="2">
+                                                            <v-text-field v-model="searchUris"
+                                                                          label="Поиск uris"
+                                                                          variant="solo-filled"
+                                                                          color="rose"
+                                                                          density="comfortable"
+                                                                          hide-details
+                                                            ></v-text-field>
+                                                        </v-col>
+                                                    </v-row>
+                                                    <v-row>
                                                         <v-col>
-                                                            <v-data-table :items="uris"
-                                                                          :headers="headerUris"
+                                                            <v-data-table :items="filteredUris"
                                                                           items-per-page="1000"
+                                                                          :headers="headerUris"
+                                                                          fixed-header
+                                                                          height="888px"
                                                                           density="compact"
-                                                                          class="text-xs"
+                                                                          class="text-xs border rounded"
                                                                           hover
                                                             >
                                                                 <template v-slot:item.address="{item}">
