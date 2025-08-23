@@ -2803,7 +2803,7 @@ const formatBuildingTitle = (building) => {
                                                                           fixed-header
                                                                           height="888px"
                                                                           density="compact"
-                                                                          class="text-xs border rounded"
+                                                                          class="text-xs border rounded border-red-50"
                                                                           hover
                                                             >
                                                                 <template v-slot:item.address="{item}">
