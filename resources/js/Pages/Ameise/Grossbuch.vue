@@ -2797,7 +2797,7 @@ const formatBuildingTitle = (building) => {
                                                     </v-row>
                                                     <v-row>
                                                         <v-col>
-                                                            <v-data-table :items="filteredUris"
+                                                            <v-data-table :items="uris"
                                                                           items-per-page="1000"
                                                                           :headers="headerUris"
                                                                           fixed-header
