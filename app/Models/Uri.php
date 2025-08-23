@@ -17,10 +17,10 @@ class Uri extends Model
         'has_brilliant_foremost_design',
     ];
     protected $with = [
-        'owners',
+        'units',
     ];
 
-    public function owners(): BelongsToMany
+    public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);
     }
