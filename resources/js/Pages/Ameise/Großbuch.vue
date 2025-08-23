@@ -1719,7 +1719,7 @@ const formatBuildingTitle = (building) => {
                                                                             </v-col>
                                                                             <v-col>
                                                                                 <label>Цена шт</label>
-                                                                                <span>{{good.total / quantity}}</span>
+                                                                                <span>{{sale.total / quantity}}</span>
                                                                             </v-col>
                                                                         </v-row>
                                                                     </v-col>
