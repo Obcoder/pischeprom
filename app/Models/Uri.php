@@ -15,6 +15,9 @@ class Uri extends Model
         'follow',
         'has_brilliant_foremost_design',
     ];
+    protected $with = [
+        'owner',
+    ];
 
     public function owners()
     {

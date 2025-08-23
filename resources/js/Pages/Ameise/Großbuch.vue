@@ -915,7 +915,7 @@ const filteredUris = computed(()=>{
     return uris.value.filter(uri => {
         const addressMatch = uri.address?.toLowerCase().includes(term)
 
-        const unitMatch = uri.units?.some(unit =>
+        const unitMatch = uri.owners?.some(unit =>
             unit.name?.toLowerCase().includes(term)
         )
 
