@@ -121,7 +121,7 @@ Route::get('/goods/published', [GoodController::class, 'indexPublished'])
     ->name('goods.published');
 //     G R O S S B U C H
 Route::get('/Ameise/grossbuch/', function (){
-    return Inertia::render('Ameise/Großbuch');
+    return Inertia::render('Ameise/Grossbuch');
 })->name('Ameise.großbuch');
 //   P E R F U M E
 Route::get('/Ameise/perfume/', function (){
