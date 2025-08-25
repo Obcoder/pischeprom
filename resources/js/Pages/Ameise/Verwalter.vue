@@ -4,6 +4,7 @@ import {useHead} from "@vueuse/head";
 import {computed, onMounted, ref} from "vue";
 import axios from "axios";
 import {route} from "ziggy-js";
+import {useForm, Link} from "@inertiajs/vue3";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -131,13 +132,14 @@ useHead({
             <v-col cols="9">
                 <div class="flex flex-row">
                     <div v-for="field in fields"
-                         class="border border-slate-800 rounded text-center"
+                         class="p-6 border border-slate-800 rounded text-center"
                     >
-                        <span>{{field.title}}</span>
+                        <div class="border-b"><span>{{field.title}}</span></div>
                         <div v-for="unit in field.units"
                              class="text-xs"
                         >
-                            {{unit.name}}</div>
+                            <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
+                        </div>
                     </div>
                 </div>
             </v-col>
