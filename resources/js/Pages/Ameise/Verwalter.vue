@@ -129,7 +129,7 @@ useHead({
                 </v-row>
             </v-col>
             <v-col cols="9">
-                <v-sheet>
+                <div class="flex flex-row">
                     <div v-for="field in fields"
                          class="border border-slate-800 rounded text-center"
                     >
@@ -139,7 +139,7 @@ useHead({
                         >
                             {{unit.name}}</div>
                     </div>
-                </v-sheet>
+                </div>
             </v-col>
         </v-row>
     </v-container>
