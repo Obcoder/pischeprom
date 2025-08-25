@@ -13,7 +13,8 @@ class FieldController extends Controller
      */
     public function index()
     {
-        return Field::orderBy('created_at', 'desc')
+        return Field::with('units')
+            ->orderBy('created_at', 'desc')
             ->get();
     }
 

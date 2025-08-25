@@ -13,6 +13,7 @@ const props = defineProps({
     entities: Object,
 })
 
+const fields = ref([])
 const goods = ref([])
 const sales = ref([])
 
@@ -22,6 +23,18 @@ const filteredEntities = computed(()=>{
     return props.entities.filter((entity) => entity.name.toLowerCase().includes(searchLike))
 })
 // E N D  E N T I T I E S
+
+
+
+//     F I E L D S
+function indexFields(){
+    axios.get(route('fields.index')).then(function (response){
+        fields.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+// E N D  F I E L D S
 
 
 
@@ -58,6 +71,7 @@ function indexSales(){
 
 
 onMounted(()=>{
+    indexFields()
     indexGoods()
     indexSales()
 })
@@ -113,6 +127,17 @@ useHead({
                         ></v-data-table>
                     </v-col>
                 </v-row>
+            </v-col>
+            <v-col>
+                <div v-for="field in fields"
+                     class="w-4 h-4 border border-slate-800 rounded text-center flex flex-column justify-center"
+                >
+                    <span>{{field.title}}</span>
+                    <div v-for="unit in field.units"
+                         class="text-xs"
+                    >
+                        {{unit.name}}</div>
+                </div>
             </v-col>
         </v-row>
     </v-container>
