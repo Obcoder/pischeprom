@@ -128,7 +128,7 @@ useHead({
                     </v-col>
                 </v-row>
             </v-col>
-            <v-col>
+            <v-col cols="9">
                 <v-sheet class="flex flex-row flex-wrap justify-start">
                     <div v-for="field in fields"
                          class="w-4 h-4 border border-slate-800 rounded text-center flex flex-column justify-center"
