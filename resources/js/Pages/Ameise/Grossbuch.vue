@@ -50,11 +50,9 @@ const uris = ref([])
 
 let manufacturers = ref();
 
-const searchBrands = ref('')
 const searchCities = ref('')
 const searchGoods = ref('')
 const searchProducts = ref('')
-const searchUnits = ref('')
 let searchComponents = ref('');
 
 const dialogFormBuilding = ref(false)
@@ -144,6 +142,7 @@ function indexBrands(){
         console.error(error)
     })
 }
+const searchBrands = ref('')
 const filteredBrands = computed(() => {
     const searchRequest = searchBrands.value.toLowerCase()
     return brands.value.filter(item =>
@@ -788,6 +787,7 @@ function indexUnits(){
             console.error(error);
         });
 }
+const searchUnits = ref('')
 // Фильтрация units
 const filteredUnits = computed(() => {
     let filtered = units.value;
@@ -842,11 +842,12 @@ const headerUnits = ref([
 ])
 const formUnit = useForm({
     name: null,
+    buildings: null,
+    emails: null,
     fields: null,
     uris: null,
     labels: null,
-    buildings: null,
-});
+})
 function storeUnit(){
     formUnit.post(route('web.unit.store'), {
         replace: false,
@@ -1172,21 +1173,6 @@ const formatBuildingTitle = (building) => {
                                                                                                           hide-details
                                                                                             ></v-text-field>
                                                                                         </v-col>
-                                                                                        <v-col lg="7">
-                                                                                            <v-autocomplete v-model="formUnit.labels"
-                                                                                                            :items="labels"
-                                                                                                            :item-value="'id'"
-                                                                                                            :item-title="'name'"
-                                                                                                            label="Labels"
-                                                                                                            variant="solo"
-                                                                                                            density="comfortable"
-                                                                                                            bg-color="blue-grey-darken-4"
-                                                                                                            item-color="deep-orange-darken-2"
-                                                                                                            multiple
-                                                                                                            chips
-                                                                                                            hide-details
-                                                                                            ></v-autocomplete>
-                                                                                        </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
                                                                                         <v-col cols="9">
@@ -1246,6 +1232,21 @@ const formatBuildingTitle = (building) => {
                                                                                                             chips
                                                                                                             bg-color="indigo-accent-4"></v-autocomplete>
                                                                                         </v-col>
+                                                                                        <v-col>
+                                                                                            <v-autocomplete v-model="formUnit.labels"
+                                                                                                            :items="labels"
+                                                                                                            :item-value="'id'"
+                                                                                                            :item-title="'name'"
+                                                                                                            label="Labels"
+                                                                                                            variant="solo"
+                                                                                                            density="comfortable"
+                                                                                                            bg-color="blue-grey-darken-4"
+                                                                                                            item-color="deep-orange-darken-2"
+                                                                                                            multiple
+                                                                                                            chips
+                                                                                                            hide-details
+                                                                                            ></v-autocomplete>
+                                                                                        </v-col>
                                                                                     </v-row>
                                                                                     <v-row>
                                                                                         <v-col>
@@ -1254,10 +1255,25 @@ const formatBuildingTitle = (building) => {
                                                                                                             :item-title="formatBuildingTitle"
                                                                                                             :item-value="'id'"
                                                                                                             label="Buildings"
-                                                                                                            color="blue"
                                                                                                             multiple
                                                                                                             chips
+                                                                                                            variant="solo"
+                                                                                                            density="comfortable"
+                                                                                                            bg-color="blue-grey-darken-4"
                                                                                             ></v-autocomplete>
+                                                                                        </v-col>
+                                                                                        <v-col>
+                                                                                            <v-autocomplete v-model="formUnit.emails"
+                                                                                                            :items="emails"
+                                                                                                            :item-value="'id'"
+                                                                                                            :item-title="'address'"
+                                                                                                            multiple
+                                                                                                            chips
+                                                                                                            label="Emails"
+                                                                                                            variant="solo-filled"
+                                                                                                            density="comfortable"
+                                                                                                            bg-color="deep-orange-accent-4"
+                                                                                                            hide-details></v-autocomplete>
                                                                                         </v-col>
                                                                                     </v-row>
                                                                                 </v-container>

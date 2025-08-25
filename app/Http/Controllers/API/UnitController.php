@@ -52,10 +52,11 @@ class UnitController extends Controller
     public function store(Request $request)
     {
         $unit = Unit::create($request->all());
+        $unit->buildings()->attach($request->input('buildings'));
+        $unit->emails()->attach($request->input('emails'));
         $unit->fields()->attach($request->input('fields'));
         $unit->uris()->attach($request->input('uris'));
         $unit->labels()->attach($request->input('labels'));
-        $unit->buildings()->attach($request->input('buildings'));
 
         // Создаем "папку" в S3 (на самом деле это просто пустой файл, так как в S3 нет папок)
         Storage::disk('yandex')->put("units/{$unit->name}/placeholder.txt", $unit);
