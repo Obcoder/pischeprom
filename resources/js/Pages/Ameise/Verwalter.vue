@@ -129,15 +129,17 @@ useHead({
                 </v-row>
             </v-col>
             <v-col>
-                <div v-for="field in fields"
-                     class="inline-block w-4 h-4 border border-slate-800 rounded text-center flex flex-column justify-center"
-                >
-                    <span>{{field.title}}</span>
-                    <div v-for="unit in field.units"
-                         class="text-xs"
+                <v-sheet class="flex flex-row flex-wrap justify-start">
+                    <div v-for="field in fields"
+                         class="w-4 h-4 border border-slate-800 rounded text-center flex flex-column justify-center"
                     >
-                        {{unit.name}}</div>
-                </div>
+                        <span>{{field.title}}</span>
+                        <div v-for="unit in field.units"
+                             class="text-xs"
+                        >
+                            {{unit.name}}</div>
+                    </div>
+                </v-sheet>
             </v-col>
         </v-row>
     </v-container>
