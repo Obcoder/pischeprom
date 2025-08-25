@@ -130,7 +130,7 @@ useHead({
             </v-col>
             <v-col>
                 <div v-for="field in fields"
-                     class="w-4 h-4 border border-slate-800 rounded text-center flex flex-column justify-center"
+                     class="inline-block w-4 h-4 border border-slate-800 rounded text-center flex flex-column justify-center"
                 >
                     <span>{{field.title}}</span>
                     <div v-for="unit in field.units"
