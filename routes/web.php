@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\QuotationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Models\Category;
@@ -240,6 +241,9 @@ Route::post('/api/price/store', [PriceController::class, 'store'])
 //      P R O D U C T
 Route::post('/api/product/store', [ProductController::class, 'store'])
     ->name('web.product.store');
+//      Q U O T A T I O N
+Route::post('/web/quotation/store', [QuotationController::class, 'store'])
+    ->name('web.quotation.store');
 //      S A L E
 Route::post('/web/sale/store', [SaleController::class, 'store'])
     ->name('web.sale.store');

@@ -166,7 +166,7 @@ const formQuotation = useForm({
     measure_id: null,
 })
 function storeQuotation(){
-    formQuotation.post(route('quotations.store'), {
+    formQuotation.post(route('web.quotation.store'), {
         replace: false,
         preserveState: true,
         preserveScroll: false,
