@@ -338,7 +338,10 @@ useHead({
                 <v-data-table :items="good.quotations"
                               items-per-page="100"
                               :headers="headerQuotations"
+                              fixed-header
+                              height="405px"
                               density="compact"
+                              class="border rounded"
                               hover
                 ></v-data-table>
             </v-col>
