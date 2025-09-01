@@ -171,7 +171,6 @@ Route::get('/Ameise/unit/{id}', function ($id){
             ->with('consumptions.product')
             ->with('consumptions.measure')
             ->with('manufactures')
-            ->with('products.goods')
             ->with('products.goods.quotations')
             ->findOrFail($id),
     ];
