@@ -16,7 +16,7 @@ class Quotation extends Model
     protected $with = [
 //        'good',
         'unit',
-//        'measure',
+        'measure',
     ];
 
 //    public function good(): BelongsTo
