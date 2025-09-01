@@ -158,7 +158,7 @@ const headerQuotations = ref([
 ])
 const dialogFormQuotation = ref(false)
 const formQuotation = useForm({
-    good_id: null,
+    good_id: good.id,
     unit_id: null,
     price: null,
     measure_id: null,
@@ -244,17 +244,6 @@ useHead({
                         <v-card-text>
                             <v-form @submit.prevent>
                                 <v-container fluid>
-                                    <v-row>
-                                        <v-autocomplete :items="goods"
-                                                        :item-value="'id'"
-                                                        :item-title="'name'"
-                                                        v-model="formQuotation.good_id"
-                                                        label="Товар"
-                                                        variant="solo"
-                                                        density="comfortable"
-                                                        base-color="yellow"
-                                        ></v-autocomplete>
-                                    </v-row>
                                     <v-row>
                                         <v-autocomplete :items="units"
                                                         :item-value="'id'"
