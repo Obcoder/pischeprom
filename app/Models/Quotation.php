@@ -13,6 +13,11 @@ class Quotation extends Model
         'price',
         'measure_id',
     ];
+    protected $with = [
+        'good',
+        'unit',
+        'measure',
+    ];
 
     public function good(): BelongsTo
     {
