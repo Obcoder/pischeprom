@@ -239,7 +239,9 @@ useHead({
                        variant="elevated"
                        density="compact"
                        color="indigo"></v-btn>
-                <v-dialog>
+                <v-dialog v-model="dialogFormQuotation"
+                          width="771"
+                >
                     <v-card>
                         <v-card-title>Form Quotation</v-card-title>
                         <v-card-text>
