@@ -23,11 +23,11 @@ class Quotation extends Model
 //    {
 //        return $this->belongsTo(Good::class);
 //    }
-    public function unit()
+    public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
     }
-    public function measures(): BelongsTo
+    public function measure(): BelongsTo
     {
         return $this->belongsTo(Measure::class);
     }
