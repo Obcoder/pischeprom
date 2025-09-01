@@ -689,7 +689,7 @@ useHead({
                                                                                     >
                                                                                         <div>{{good.name}}</div>
                                                                                         <div><span v-for="quotation in good.quotations"
-                                                                                                   class="text-[7px] font-sans"
+                                                                                                   class="text-[8px] font-sans"
                                                                                         >{{quotation.price}}</span></div>
                                                                                     </div>
                                                                                 </template>

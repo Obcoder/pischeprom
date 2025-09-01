@@ -38,7 +38,7 @@ class Good extends Model
         return $this->hasMany(Price::class)
             ->orderBy('created_at', 'desc');
     }
-    public function quotations()
+    public function quotations(): HasMany
     {
         return $this->HasMany(Quotation::class)
             ->orderBy('created_at', 'desc');
