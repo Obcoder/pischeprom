@@ -14,15 +14,15 @@ class Quotation extends Model
         'measure_id',
     ];
     protected $with = [
-//        'good',
+        'good',
         'unit',
         'measure',
     ];
 
-//    public function good(): BelongsTo
-//    {
-//        return $this->belongsTo(Good::class);
-//    }
+    public function good(): BelongsTo
+    {
+        return $this->belongsTo(Good::class);
+    }
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);

@@ -138,7 +138,7 @@ const headerQuotations = ref([
         sortable: true,
     },
     {
-        key: 'measure',
+        key: 'measure.name',
         title: 'measure',
         align: 'start',
         sortable: true,
