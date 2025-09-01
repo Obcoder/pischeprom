@@ -96,26 +96,6 @@ const headersEntities = ref([
         key: 'telephones',
     },
 ])
-const headerSelectProductsForSending = ref(
-    [
-        {
-            title: 'Name',
-            align: 'start',
-            key: 'rus',
-        },
-        {
-            key: 'goods',
-            title: 'Товары',
-            align: 'start',
-            sortable: true,
-        },
-        {
-            title: 'Цена',
-            align: 'start',
-            key: 'price',
-        },
-    ]
-)
 
 const formatBuildingTitle = (building) => {
     if (!building) return '';
@@ -363,6 +343,26 @@ function storeUri(){
 }
 
 //       S E N D  E M A I L
+const headerSelectProductsForSending = ref([
+    {
+        title: 'Name',
+        align: 'start',
+        key: 'rus',
+    },
+    {
+        key: 'goods',
+        title: 'Товары',
+        align: 'start',
+        sortable: true,
+    },
+    {
+        key: 'price',
+        title: 'Цена',
+        align: 'start',
+        sortable: false,
+        width: '16%',
+    },
+])
 const sendEmail = async (email) => {
     try {
         const response = await axios.post(route('api.mail'), {
@@ -663,11 +663,11 @@ useHead({
                                                                     <v-row>
                                                                         <v-col cols="8">
                                                                             <v-data-table :items="products"
-                                                                                          items-per-page="125"
+                                                                                          items-per-page="130"
                                                                                           v-model="selectedProducts"
                                                                                           :headers="headerSelectProductsForSending"
                                                                                           fixed-header
-                                                                                          height="808px"
+                                                                                          height="868px"
                                                                                           @update:model-value="onSelectedProductsUpdate"
                                                                                           show-select
                                                                                           return-object
@@ -684,7 +684,14 @@ useHead({
                                                                                     ></v-text-field>
                                                                                 </template>
                                                                                 <template v-slot:item.goods="{item}">
-                                                                                    <div v-for="good in item.goods">{{good.name}}</div>
+                                                                                    <div v-for="good in item.goods"
+                                                                                         class="text-[9px] font-sans"
+                                                                                    >
+                                                                                        <div>{{good.name}}</div>
+                                                                                        <div><span v-for="quotation in good.quotations"
+                                                                                                   class="text-[7px] font-sans"
+                                                                                        >{{quotation.price}}</span></div>
+                                                                                    </div>
                                                                                 </template>
                                                                             </v-data-table>
                                                                         </v-col>

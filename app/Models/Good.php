@@ -40,7 +40,8 @@ class Good extends Model
     }
     public function quotations()
     {
-        return $this->HasMany(Quotation::class);
+        return $this->HasMany(Quotation::class)
+            ->orderBy('created_at', 'desc');
     }
     public function sales(): BelongsToMany
     {
