@@ -126,7 +126,7 @@ function storePrice(){
 //     Q U O T A T I O N S
 const headerQuotations = ref([
     {
-        key: 'unit.name',
+        key: 'unit',
         title: 'Unit',
         align: 'start',
         sortable: true,
@@ -138,7 +138,7 @@ const headerQuotations = ref([
         sortable: true,
     },
     {
-        key: 'measure.name',
+        key: 'measure',
         title: 'measure',
         align: 'start',
         sortable: true,
@@ -158,7 +158,7 @@ function storeQuotation(){
         preserveScroll: false,
         onSuccess: () => {
             formQuotation.reset()
-            indexQuotations()
+            fetchGood()
         },
     })
 }
@@ -304,16 +304,26 @@ useHead({
             </v-col>
         </v-row>
         <v-row v-else>
-            <v-col lg="3" md="1">
+            <v-col lg="2" md="1">
+                <v-sheet>
+                    <v-row>
+                        <v-col>
+                            <span>{{good.name}}</span>
+                        </v-col>
+                    </v-row>
+                    <v-row>
+                        <v-col cols="6">
+                            <v-img :src="good.ava_image || '/default-image.jpg'"
+                                   :alt="good.name"
+                                   lazy-src="/placeholder.jpg"
+                                   aspect-ratio="1"
+                                   cover
+                                   class="mb-4"
+                            ></v-img>
+                        </v-col>
+                    </v-row>
+                </v-sheet>
                 <v-card class="w-full">
-                    <v-img
-                        :src="good.ava_image || '/default-image.jpg'"
-                        :alt="good.name"
-                        lazy-src="/placeholder.jpg"
-                        aspect-ratio="1"
-                        cover
-                        class="mb-4"
-                    ></v-img>
                     <v-card-title>
                         <div class="whitespace-normal">
                             {{ good.name }}
