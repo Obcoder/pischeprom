@@ -21,7 +21,6 @@ const good = ref(null)
 const goods = ref([])
 const loading = ref(true)
 const measures = ref([])
-const quotations = ref([])
 const units = ref([])
 
 
@@ -125,20 +124,7 @@ function storePrice(){
 
 
 //     Q U O T A T I O N S
-function indexQuotations(){
-    axios.get(route('quotations.index')).then(function (response){
-        quotations.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
 const headerQuotations = ref([
-    {
-        key: 'good.name',
-        title: 'Товар',
-        align: 'start',
-        sortable: true,
-    },
     {
         key: 'unit.name',
         title: 'Unit',
@@ -196,7 +182,6 @@ onMounted(() => {
     indexGoods()
     indexCurrencies()
     indexMeasures()
-    indexQuotations()
     indexUnits()
 })
 
@@ -340,7 +325,7 @@ useHead({
                 </v-card>
             </v-col>
             <v-col lg="4">
-                <v-data-table :items="quotations"
+                <v-data-table :items="good.quotations"
                               items-per-page="100"
                               :headers="headerQuotations"
                               fixed-header
