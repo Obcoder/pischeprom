@@ -158,7 +158,7 @@ const headerQuotations = ref([
 ])
 const dialogFormQuotation = ref(false)
 const formQuotation = useForm({
-    good_id: good.id,
+    good_id: props.good.id,
     unit_id: null,
     price: null,
     measure_id: null,
