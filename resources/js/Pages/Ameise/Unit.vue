@@ -104,6 +104,12 @@ const headerSelectProductsForSending = ref(
             key: 'rus',
         },
         {
+            key: 'goods',
+            title: 'Товары',
+            align: 'start',
+            sortable: true,
+        },
+        {
             title: 'Цена',
             align: 'start',
             key: 'price',
@@ -647,7 +653,7 @@ useHead({
                                                        color="cyan-darken-3"
                                                 ></v-btn>
                                                 <v-dialog v-model="dialogFormSendEmail"
-                                                          width="1360"
+                                                          width="1500"
                                                 >
                                                     <template v-slot:default="{isActive}">
                                                         <v-card>
@@ -657,14 +663,17 @@ useHead({
                                                                     <v-row>
                                                                         <v-col cols="8">
                                                                             <v-data-table :items="products"
+                                                                                          items-per-page="125"
                                                                                           v-model="selectedProducts"
                                                                                           :headers="headerSelectProductsForSending"
-                                                                                          items-per-page="100"
+                                                                                          fixed-header
+                                                                                          height="808px"
                                                                                           @update:model-value="onSelectedProductsUpdate"
                                                                                           show-select
                                                                                           return-object
                                                                                           density="compact"
                                                                                           hover
+                                                                                          class="border rounded"
                                                                             >
                                                                                 <template v-slot:item.price="{item}">
                                                                                     <v-text-field v-model="item.price"
@@ -673,6 +682,9 @@ useHead({
                                                                                                   density="comfortable"
                                                                                                   hide-details
                                                                                     ></v-text-field>
+                                                                                </template>
+                                                                                <template v-slot:item.goods="{item}">
+                                                                                    <div v-for="good in item.goods">{{good.name}}</div>
                                                                                 </template>
                                                                             </v-data-table>
                                                                         </v-col>
