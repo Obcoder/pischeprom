@@ -17,7 +17,7 @@ class ProductController extends Controller
 //        $products = DB::table('products')
 //            ->select('products.id', 'products.rus')
 //            ->get();
-        return Product::with(['goods'])
+        return Product::with(['goods.quotations'])
             ->orderBy('created_at', 'desc')
             ->get();
     }

@@ -82,20 +82,6 @@ const headerConsumptions = ref([
         key: 'measure_id',
     },
 ])
-const headersEntities = ref([
-    {
-        title: 'Вид',
-        key: 'classification.name',
-    },
-    {
-        title: 'name',
-        key: 'name',
-    },
-    {
-        title: 'Телефоны',
-        key: 'telephones',
-    },
-])
 
 const formatBuildingTitle = (building) => {
     if (!building) return '';
@@ -117,6 +103,10 @@ function indexEmails(){
         console.log(error)
     })
 }
+
+
+
+//     E N T I T I E S
 function indexEntities(like){
     axios.get(route('entities.index'), {
         params: {
@@ -128,6 +118,24 @@ function indexEntities(like){
         console.log(error);
     })
 }
+const headersEntities = ref([
+    {
+        title: 'Вид',
+        key: 'classification.name',
+    },
+    {
+        title: 'name',
+        key: 'name',
+    },
+    {
+        title: 'Телефоны',
+        key: 'telephones',
+    },
+])
+// E N D  E N T I T I E S
+
+
+
 function indexLabels(){
     axios.get(route('labels.index')).then(function (response){
         labels.value = response.data
