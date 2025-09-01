@@ -16,10 +16,14 @@ const props = defineProps({
 const date = useDate()
 
 const currencies = ref([])
-const good = ref(null);
-const loading = ref(true);
 const error = ref(null);
-// const route = useRoute();
+const good = ref(null)
+const goods = ref([])
+const loading = ref(true)
+const measures = ref([])
+const quotations = ref([])
+const units = ref([])
+
 
 const headerSales = ref([
     {
@@ -53,6 +57,8 @@ const headerSales = ref([
 
 const showFormAddPrice = ref(false)
 
+
+//     C U R R E N C I E S
 function indexCurrencies(){
     axios.get(route('currencies.index')).then(function (response){
         currencies.value = response.data
@@ -60,7 +66,18 @@ function indexCurrencies(){
         console.error(error)
     })
 }
+// E N D  C U R R E N C I E S
 
+
+
+//      G O O D S
+function indexGoods(){
+    axios.get(route('goods.index')).then(function (response){
+        goods.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 // Загрузка данных товара
 const fetchGood = async () => {
     try {
@@ -71,8 +88,22 @@ const fetchGood = async () => {
         error.value = err.message;
         loading.value = false;
     }
-};
+}
+// E N D  G O O D
 
+
+
+//     M E A S U R E S
+function indexMeasures(){
+    axios.get(route('measures.index')).then(function (response){
+        measures.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+// E N D  M E A S U R E S
+
+//     P R I C E
 const formAddPrice = useForm({
     good_id: props.good.id,
     price: null,
@@ -89,6 +120,85 @@ function storePrice(){
         },
     })
 }
+// E N D  P R I C E
+
+
+
+//     Q U O T A T I O N S
+function indexQuotations(){
+    axios.get(route('quotations.index')).then(function (response){
+        quotations.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+const headerQuotations = ref([
+    {
+        key: 'good.name',
+        title: 'Товар',
+        align: 'start',
+        sortable: true,
+    },
+    {
+        key: 'unit.name',
+        title: 'Unit',
+        align: 'start',
+        sortable: true,
+    },
+    {
+        key: 'price',
+        title: 'Цена',
+        align: 'start',
+        sortable: true,
+    },
+    {
+        key: 'measure.name',
+        title: 'measure',
+        align: 'start',
+        sortable: true,
+    },
+])
+const dialogFormQuotation = ref(false)
+const formQuotation = useForm({
+    good_id: null,
+    unit_id: null,
+    price: null,
+    measure_id: null,
+})
+function storeQuotation(){
+    formQuotation.post(route('quotations.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: () => {
+            formQuotation.reset()
+            indexQuotations()
+        },
+    })
+}
+// E N D  Q U O T A T I O N S
+
+
+
+//     U N I T S
+function indexUnits(){
+    axios.get(route('units.index')).then(function (response){
+        units.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+// E N D  U N I T S
+
+
+onMounted(() => {
+    fetchGood()
+    indexGoods()
+    indexCurrencies()
+    indexMeasures()
+    indexQuotations()
+    indexUnits()
+})
 
 // Динамические метатеги для SEO
 useHead({
@@ -110,15 +220,10 @@ useHead({
         { property: "og:url", content: computed(() => window.location.href) },
     ],
 });
-
-onMounted(() => {
-    fetchGood();
-    indexCurrencies()
-});
 </script>
 
 <template>
-    <v-container>
+    <v-container fluid>
         <v-row>
             <v-col lg="3">
                 <v-btn text="add price"
@@ -127,6 +232,78 @@ onMounted(() => {
                        density="compact"
                        color="green"
                 ></v-btn>
+            </v-col>
+            <v-col cols="2">
+                <v-btn text="+Q"
+                       @click="dialogFormQuotation = !dialogFormQuotation"
+                       variant="elevated"
+                       density="compact"
+                       color="indigo"></v-btn>
+                <v-dialog>
+                    <v-card>
+                        <v-card-title>Form Quotation</v-card-title>
+                        <v-card-text>
+                            <v-form @submit.prevent>
+                                <v-container fluid>
+                                    <v-row>
+                                        <v-autocomplete :items="goods"
+                                                        :item-value="'id'"
+                                                        :item-title="'name'"
+                                                        v-model="formQuotation.good_id"
+                                                        label="Товар"
+                                                        variant="solo"
+                                                        density="comfortable"
+                                                        base-color="yellow"
+                                        ></v-autocomplete>
+                                    </v-row>
+                                    <v-row>
+                                        <v-autocomplete :items="units"
+                                                        :item-value="'id'"
+                                                        :item-title="'name'"
+                                                        v-model="formQuotation.unit_id"
+                                                        label="Unit"
+                                                        variant="solo"
+                                                        density="comfortable"
+                                                        base-color="yellow"
+                                        ></v-autocomplete>
+                                    </v-row>
+                                    <v-row>
+                                        <v-col></v-col>
+                                        <v-col>
+                                            <v-text-field v-model="formQuotation.price"
+                                                          label="Цена"
+                                                          variant="solo"
+                                                          density="default"
+                                                          bg-color="grey"
+                                            ></v-text-field>
+                                        </v-col>
+                                        <v-col>
+                                            <v-autocomplete :items="measures"
+                                                            :item-value="'id'"
+                                                            :item-title="'name'"
+                                                            v-model="formQuotation.measure_id"
+                                                            label="Measure"
+                                                            variant="solo"
+                                                            density="compact"
+                                                            base-color="grey"
+                                            ></v-autocomplete>
+                                        </v-col>
+                                    </v-row>
+                                </v-container>
+                            </v-form>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-divider vertical
+                                       color="grey"
+                                       opacity="0.9"></v-divider>
+                            <v-btn text="store"
+                                   @click="storeQuotation"
+                                   variant="elevated"
+                                   density="comfortable"
+                                   color="grey"></v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
             </v-col>
         </v-row>
         <v-row v-if="loading">
@@ -159,6 +336,16 @@ onMounted(() => {
                         <p>{{ good.description }}</p>
                     </v-card-text>
                 </v-card>
+            </v-col>
+            <v-col lg="4">
+                <v-data-table :items="quotations"
+                              items-per-page="100"
+                              :headers="headerQuotations"
+                              fixed-header
+                              height="360px"
+                              density="compact"
+                              hover
+                ></v-data-table>
             </v-col>
             <v-col lg="3" md="1">
                 <v-sheet v-if="showFormAddPrice">
@@ -214,7 +401,9 @@ onMounted(() => {
                     </v-list-item>
                 </v-list>
             </v-col>
-            <v-col cols="4">
+        </v-row>
+        <v-row>
+            <v-col lg="4">
                 <v-data-table :items="good.sales"
                               items-per-page="89"
                               :headers="headerSales"
