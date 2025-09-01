@@ -222,12 +222,12 @@ useHead({
 <template>
     <v-container fluid>
         <v-row>
-            <v-col lg="3">
-                <v-btn text="add price"
+            <v-col cols="2">
+                <v-btn text="+ 💵"
                        @click="showFormAddPrice = !showFormAddPrice"
-                       variant="plain"
+                       variant="elevated"
                        density="compact"
-                       color="green"
+                       color="pink-darken-4"
                 ></v-btn>
             </v-col>
             <v-col cols="2">
@@ -358,6 +358,9 @@ useHead({
                 >
                     <template v-slot:item.denominator="{item}">
                         <span>{{good.denominator}}</span>
+                    </template>
+                    <template v-slot:item.created_at="{item}">
+                        <span>{{date.format(item.created_at, 'fullDate')}}</span>
                     </template>
                 </v-data-table>
             </v-col>
