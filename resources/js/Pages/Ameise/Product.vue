@@ -203,7 +203,9 @@ onMounted(()=>{
                                       hover
                         >
                             <template v-slot:item.unit.name="{item}">
-                                <span class="text-xs">{{item.unit.name}}</span>
+                                <Link :href="route('web.unit.show', item.unit.id)"
+                                      class="text-xs"
+                                >{{item.unit.name}}</Link>
                             </template>
                             <template v-slot:item.unit.uris="{item}">
                                 <div v-for="uri in item.unit.uris"
