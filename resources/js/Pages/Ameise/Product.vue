@@ -59,6 +59,10 @@ const headerConsumers = [
         align: 'start',
     },
 ]
+
+
+
+//     G O O D S
 const headerGoods = ref([
     {
         key: 'name',
@@ -67,6 +71,7 @@ const headerGoods = ref([
         sortable: true,
     },
 ])
+// E N D  G O O D S
 
 //     S A L E S
 const sales = ref([])
@@ -156,7 +161,11 @@ onMounted(()=>{
                                       height="160px"
                                       density="compact"
                                       hover
-                        ></v-data-table>
+                        >
+                            <template v-slot:item.name="{item}">
+                                <Link :href="route('goods.show', item.id)">{{item.name}}</Link>
+                            </template>
+                        </v-data-table>
                     </v-card-text>
                 </v-card>
             </v-col>
