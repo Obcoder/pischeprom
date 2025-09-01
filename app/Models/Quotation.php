@@ -19,16 +19,16 @@ class Quotation extends Model
         'measure',
     ];
 
-    public function good(): BelongsTo
+    public function good()
     {
-        return $this->belongsTo(Good::class);
+        return $this->HasOne(Good::class);
     }
-    public function unit(): BelongsTo
+    public function unit()
     {
-        return $this->belongsTo(Unit::class);
+        return $this->HasOne(Unit::class);
     }
-    public function measures(): BelongsTo
+    public function measures()
     {
-        return $this->belongsTo(Measure::class);
+        return $this->HasOne(Measure::class);
     }
 }
