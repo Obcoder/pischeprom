@@ -40,7 +40,7 @@ class Good extends Model
     }
     public function quotations()
     {
-        return $this->hasMany(Quotation::class);
+        return $this->belongsTo(Quotation::class);
     }
     public function sales(): BelongsToMany
     {
