@@ -126,7 +126,7 @@ function storePrice(){
 //     Q U O T A T I O N S
 const headerQuotations = ref([
     {
-        key: 'unit',
+        key: 'unit.name',
         title: 'Unit',
         align: 'start',
         sortable: true,

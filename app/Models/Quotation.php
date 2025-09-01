@@ -27,8 +27,8 @@ class Quotation extends Model
     {
         return $this->belongsTo(Unit::class);
     }
-//    public function measures(): BelongsTo
-//    {
-//        return $this->belongsTo(Measure::class);
-//    }
+    public function measures(): BelongsTo
+    {
+        return $this->belongsTo(Measure::class);
+    }
 }
