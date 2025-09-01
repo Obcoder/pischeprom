@@ -13,22 +13,17 @@ class Quotation extends Model
         'price',
         'measure_id',
     ];
-    protected $with = [
-        'good',
-        'unit',
-        'measure',
-    ];
 
-    public function good()
+    public function good(): BelongsTo
     {
-        return $this->HasOne(Good::class);
+        return $this->belongsTo(Good::class);
     }
-    public function unit()
+    public function unit(): BelongsTo
     {
-        return $this->HasOne(Unit::class);
+        return $this->belongsTo(Unit::class);
     }
-    public function measures()
+    public function measures(): BelongsTo
     {
-        return $this->HasOne(Measure::class);
+        return $this->belongsTo(Measure::class);
     }
 }
