@@ -132,6 +132,12 @@ const headerQuotations = ref([
         sortable: true,
     },
     {
+        key: 'created_at',
+        title: 'Дата',
+        align: 'start',
+        sortable: true,
+    },
+    {
         key: 'price',
         title: 'Цена',
         align: 'start',
@@ -140,6 +146,12 @@ const headerQuotations = ref([
     {
         key: 'measure.name',
         title: 'measure',
+        align: 'start',
+        sortable: true,
+    },
+    {
+        key: 'denominator',
+        title: 'Делитель',
         align: 'start',
         sortable: true,
     },
@@ -343,7 +355,11 @@ useHead({
                               density="compact"
                               class="border rounded"
                               hover
-                ></v-data-table>
+                >
+                    <template v-slot:item.denominator="{item}">
+                        <span>{{good.denominator}}</span>
+                    </template>
+                </v-data-table>
             </v-col>
             <v-col lg="3" md="1">
                 <v-sheet v-if="showFormAddPrice">
