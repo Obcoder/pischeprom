@@ -163,7 +163,7 @@ onMounted(()=>{
                                       hover
                         >
                             <template v-slot:item.name="{item}">
-                                <Link :href="route('goods.show', item.id)">{{item.name}}</Link>
+                                <Link :href="route('Ameise.good.show', item.id)">{{item.name}}</Link>
                             </template>
                         </v-data-table>
                     </v-card-text>
