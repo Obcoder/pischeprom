@@ -44,7 +44,9 @@ class ProductController extends Controller
      */
     public function show(string $id)
     {
-        return Product::with(['components', 'goods'])->findOrFail($id);
+        return Product::with([
+            'components', 'goods.quotations'])
+            ->findOrFail($id);
     }
 
     /**

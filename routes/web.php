@@ -171,7 +171,6 @@ Route::get('/Ameise/unit/{id}', function ($id){
             ->with('consumptions.product')
             ->with('consumptions.measure')
             ->with('manufactures')
-            ->with('products.goods.quotations')
             ->findOrFail($id),
     ];
     return Inertia::render('Ameise/Unit', $data);
