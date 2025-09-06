@@ -80,6 +80,24 @@ const headerNotes = ref([
         sortable: true,
     },
 ])
+const menuFormNote = ref(false)
+const formNote = useForm({
+    name: null,
+})
+function storeNote(){
+    formNote.post(route('web.note.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            menuFormNote.value = false   // Закрываем меню только после успеха
+            formNote.reset() // Сброс формы
+            indexNotes()
+        }
+    })
+}
+// E N D  N O T E S
+
 
 onMounted(()=>{
     indexBrands()
@@ -96,6 +114,48 @@ onMounted(()=>{
                        color="pink"
             >
                 <v-toolbar-items>
+                    <v-menu v-model="menuFormNote"
+                            :close-on-content-click="false"
+                            transition="transition"
+                            offset-y
+                    >
+                        <template #activator="{ props }">
+                            <v-btn
+                                v-bind="props"
+                                text
+                                variant="text"
+                            >
+                                +No
+                            </v-btn>
+                        </template>
+                        <v-card class="pa-4" min-width="500">
+                            <v-form @submit.prevent="storeNote">
+                                <v-container fluid>
+                                    <v-row>
+                                        <v-col>
+                                            <v-text-field v-model="formNote.name"
+                                                          label="Название"
+                                                          variant="solo"
+                                                          density="comfortable"
+                                                          hide-details
+                                                          color="pink"></v-text-field>
+                                        </v-col>
+                                    </v-row>
+                                </v-container>
+                            </v-form>
+                            <v-card-actions>
+                                <v-divider vertical
+                                           opacity="0.91"
+                                           color="pink"></v-divider>
+                                <v-btn text="сохранить"
+                                       type="submit"
+                                       variant="elevated"
+                                       density="comfortable"
+                                       color="light-blue"></v-btn>
+                            </v-card-actions>
+                        </v-card>
+                    </v-menu>
+
                     <!-- Триггер меню -->
                     <v-menu v-model="menu"
                             :close-on-content-click="false"

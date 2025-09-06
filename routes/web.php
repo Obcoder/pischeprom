@@ -26,6 +26,7 @@ use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\ManufacturerController;
+use App\Http\Controllers\API\NoteController;
 use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\SaleController;
@@ -239,6 +240,9 @@ Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
 //      M A N U F A C T U R E R
 Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
     ->name('web.manufacturer.store');
+//      N O T E
+Route::post('/web/note/store', [NoteController::class, 'store'])
+    ->name('web.note.store');
 //      P R I C E
 Route::post('/api/price/store', [PriceController::class, 'store'])
     ->name('web.price.store');
