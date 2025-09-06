@@ -222,7 +222,8 @@ Route::post('/web/commodity/store', [CommodityController::class, 'store'])
 //    E N T I T Y
 Route::post('/entity/store', [EntityController::class, 'store'])
     ->name('web.entity.store');
-Route::post('/web/fragrance.store', [FragranceController::class, 'store'])
+//      F R A G R A N C E
+Route::post('/web/fragrance/store', [FragranceController::class, 'store'])
     ->name('web.fragrance.store');
 //    G E N U S
 Route::post('/api/genus/store', [GenusController::class, 'store'])

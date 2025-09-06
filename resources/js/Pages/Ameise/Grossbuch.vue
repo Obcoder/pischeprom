@@ -269,6 +269,10 @@ function indexCommodities(){
         console.log(error)
     })
 }
+const filteredCommodities = computed(()=>{
+    const like = searchCommodities.value.toLowerCase()
+    return commodities.value.filter(i => i.name.toLowerCase().includes(like))
+})
 const headerCommodities = ref([
     {
         key: 'name',
@@ -283,13 +287,13 @@ const formCommodity = useForm({
     name: null,
 })
 function storeCommodity(){
-    formCommodity.post(route('api.commodity.store'), {
+    formCommodity.post(route('web.commodity.store'), {
         replace: false,
         preserveState: false,
         preserveScroll: true,
         onSuccess: ()=> {
             formCommodity.reset()
-            indexCommodities();
+            indexCommodities()
         },
     })
 }
@@ -2459,7 +2463,6 @@ const formatBuildingTitle = (building) => {
                                                 <v-row>
                                                     <v-col cols="9">
                                                         <v-text-field v-model="searchCommodities"
-                                                                      @input="indexCommodities(searchCommodities)"
                                                                       label="Commodities"
                                                                       placeholder="search"
                                                                       variant="outlined"
@@ -2468,7 +2471,7 @@ const formatBuildingTitle = (building) => {
                                                         ></v-text-field>
                                                     </v-col>
                                                     <v-col cols="3">
-                                                        <v-btn text="+ commodity"
+                                                        <v-btn text="+com"
                                                                @click="showFormCommodity = !showFormCommodity"
                                                                variant="elevated"
                                                                color="grey"
@@ -2505,7 +2508,7 @@ const formatBuildingTitle = (building) => {
                                                 </v-row>
                                                 <v-row>
                                                     <v-col>
-                                                        <v-data-table :items="commodities"
+                                                        <v-data-table :items="filteredCommodities"
                                                                       items-per-page="100"
                                                                       :headers="headerCommodities"
                                                                       fixed-header
