@@ -289,7 +289,7 @@ const formCommodity = useForm({
 function storeCommodity(){
     formCommodity.post(route('web.commodity.store'), {
         replace: false,
-        preserveState: false,
+        preserveState: true,
         preserveScroll: true,
         onSuccess: ()=> {
             formCommodity.reset()
