@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Fragrance;
 use Illuminate\Http\Request;
 
 class FragranceController extends Controller
@@ -12,7 +13,8 @@ class FragranceController extends Controller
      */
     public function index()
     {
-        //
+        return Fragrance::orderBy('created_at', 'desc')
+            ->get();
     }
 
     /**
@@ -28,7 +30,7 @@ class FragranceController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        Fragrance::create($request->all());
     }
 
     /**
@@ -36,7 +38,7 @@ class FragranceController extends Controller
      */
     public function show(string $id)
     {
-        //
+        Fragrance::findOrFail($id);
     }
 
     /**

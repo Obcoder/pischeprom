@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\QuotationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -221,6 +222,8 @@ Route::post('/web/commodity/store', [CommodityController::class, 'store'])
 //    E N T I T Y
 Route::post('/entity/store', [EntityController::class, 'store'])
     ->name('web.entity.store');
+Route::post('/web/fragrance.store', [FragranceController::class, 'store'])
+    ->name('web.fragrance.store');
 //    G E N U S
 Route::post('/api/genus/store', [GenusController::class, 'store'])
     ->name('web.genus.store');
