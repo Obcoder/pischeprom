@@ -91,7 +91,10 @@ onMounted(()=>{
 <template>
     <v-container fluid>
         <v-row>
-            <v-toolbar density="compact">
+            <v-toolbar density="compact"
+                       rounded
+                       color="pink"
+            >
                 <v-toolbar-items>
                     <!-- Триггер меню -->
                     <v-menu v-model="menu"
@@ -105,7 +108,7 @@ onMounted(()=>{
                                 text
                                 variant="text"
                             >
-                                +F
+                                +Fr
                             </v-btn>
                         </template>
 
@@ -114,31 +117,36 @@ onMounted(()=>{
                             <v-form @submit.prevent="submitForm">
                                 <v-container fluid>
                                     <v-row>
-                                        <v-autocomplete :items="brands"
-                                                        :item-value="'id'"
-                                                        :item-title="'name'"
-                                                        v-model="formFragrance.brand_id"
-                                                        label="Выбрать brand"
-                                                        placeholder="Брэнды"
-                                                        variant="solo"
-                                                        density="comfortable"
-                                                        hide-details
-                                                        chips
-                                        ></v-autocomplete>
+                                        <v-col>
+                                            <v-autocomplete :items="brands"
+                                                            :item-value="'id'"
+                                                            :item-title="'name'"
+                                                            v-model="formFragrance.brand_id"
+                                                            label="Выбрать brand"
+                                                            placeholder="Брэнды"
+                                                            variant="solo"
+                                                            density="comfortable"
+                                                            hide-details
+                                                            chips
+                                            ></v-autocomplete>
+                                        </v-col>
                                     </v-row>
                                     <v-row>
-                                        <v-text-field v-model="formFragrance.name"
-                                                      label="Название"
-                                                      variant="solo"
-                                                      dense
-                                                      required
-                                                      :error-messages="formFragrance.errors.name"
-                                                      hide-details
-                                        />
+                                        <v-col>
+                                            <v-text-field v-model="formFragrance.name"
+                                                          label="Название"
+                                                          variant="solo"
+                                                          dense
+                                                          required
+                                                          :error-messages="formFragrance.errors.name"
+                                                          hide-details
+                                            />
+                                        </v-col>
                                     </v-row>
                                 </v-container>
                                 <v-card-actions class="d-flex justify-end">
-                                    <v-btn text @click="menu = false">Отмена</v-btn>
+                                    <v-btn text @click="menu = false"
+                                    >Отмена</v-btn>
                                     <v-btn text="сохранить"
                                            variant="elevated"
                                            density="comfortable"
@@ -154,7 +162,7 @@ onMounted(()=>{
             </v-toolbar>
         </v-row>
         <v-row>
-            <v-col lg="2">
+            <v-col cols="3">
                 <v-data-table :items="notes"
                               items-per-page="100"
                               :headers="headerNotes"
