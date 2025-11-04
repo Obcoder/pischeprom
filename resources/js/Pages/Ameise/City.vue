@@ -12,6 +12,10 @@ const props = defineProps({
 <template>
     <v-container>
         <v-row>
+            <v-col cols="1">
+                <a :href="city.yandexmapsgeo" target="_blank"
+                   class="inline-flex items-center justify-center mr-1 bg-teal-500 text-white rounded-full text-[6px] font-bold w-3 h-3">Карта</a>
+            </v-col>
             <v-col>
                 <span class="text-xl"
                 >
