@@ -18,7 +18,7 @@ const props = defineProps({
                     {{city.name}}</span>
             </v-col>
             <v-col>
-                <a :href="city.wiki" target="_blank">{{wiki}}</a>
+                <a :href="city.wiki" target="_blank">wiki</a>
             </v-col>
             <v-col></v-col>
         </v-row>
