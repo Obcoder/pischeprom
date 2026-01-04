@@ -51,7 +51,7 @@ Route::middleware([
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:crm'])
+Route::middleware(['auth:web'])
     ->prefix('Ameise')
     ->group(function () {
 
