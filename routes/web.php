@@ -47,10 +47,11 @@ use App\Http\Controllers\API\UriController;
 
 Route::middleware(['auth:web'])
     ->prefix('Ameise')
+    ->name('ameise.')
     ->group(function () {
         Route::get('/', function () {
             return 'AMEISE OK';
-        })->name('ameise.index');
+        })->name('index');
     });
 
 
