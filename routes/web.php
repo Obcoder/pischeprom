@@ -41,7 +41,7 @@ Route::middleware([
     'verified',
 ])->group(function () {
     Route::get('/dashboard', function () {
-        return Inertia::render('Verwalter');
+        return Inertia::render('Dashboard');
     })->name('dashboard');
 });
 
@@ -53,156 +53,145 @@ Route::middleware([
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:web'])
-    ->prefix('Ameise')
-    ->group(function () {
-
-        Route::get('/', [Verwalter::class, 'index'])
-            ->name('Ameise');
-
-        Route::get('/workboard', function () {
-            return Inertia::render('Ameise/WorkBoard');
-        })->name('ameise.workboard');
-
-        Route::get('/Goods/', function (){
-            return Inertia::render('Ameise/Goods');
-        })->name('Ameise.goods');
-
-        // ⬇️⬇️⬇️
-        // ВСЕ остальные /Ameise/* маршруты
-        // просто ПЕРЕНОСЯТСЯ СЮДА БЕЗ ИЗМЕНЕНИЙ
-
-        //   * * * * * * * * *   A M E I S E   * * * * * * * * *
-        Route::get('/Ameise/', [Verwalter::class, 'index'])
-            ->name('Ameise');
-        //   * * * * * * * * * * * * * * * * * * * * * * * * * *
-
-        //   B O T A N Y
-        Route::get('/Ameise/Botany/', function (){
-            return Inertia::render('Ameise/Botany');
-        })->name('Ameise.botany');
-//   B R A N D S
-        Route::get('/Ameise/brands', function (){
-            return Inertia::render('Ameise/Brands');
-        })->name('Ameise.brands');
-//   C A T E G O R I E S
-        Route::get('/категория/{id}', function ($id) {
-            return Inertia::render('Categories', [
-                'category' => Category::with('products')->findOrFail($id)
-            ]);
-        })->name('Categories');
-//   C H E C K S
-        Route::get('Ameise/checks', function (){
-            return Inertia::render('Ameise/Checks');
-        })->name('Ameise.checks');
-//   C I T I E S
-        Route::get('/Ameise/Cities', function (){
-            return Inertia::render('Ameise/Cities');
-        })->name('Ameise.cities');
-        Route::get('/Ameise/city/{id}', function ($id) {
-            $data = [
-                'city' => City::with('buildings')->with('entities')->findOrFail($id)
-            ];
-            return Inertia::render('Ameise/City', $data);
-        })->name('city.show');
-//   C O M M O D I T I E S
-        Route::get('/Ameise/Commodities/', function (){
-            return Inertia::render('Ameise/Commodities');
-        })->name('Ameise.commodities');
-//   C O N T A C T S  C E N T R E
-        Route::get('/Ameise/ContactsCentre', function (){
-            return Inertia::render('Ameise/ContactsCentre');
-        })->name('Ameise.contactsCentre');
-//      E N T I T I E S
-        Route::get('/Ameise/entities/', function (){
-            return Inertia::render('Ameise/Entities');
-        })->name('Ameise.entities');
-//     F L U X  M O N I T O R
-        Route::get('/Ameise/FluxMonitor/', function (){
-            return Inertia::render('Ameise/FluxMonitor');
-        })->name('Ameise.fluxmonitor');
-//   G E O G R A P H Y
-        Route::get('/Ameise/Geography/', function (){
-            return Inertia::render('Ameise/Geography');
-        })->name('Ameise.geography');
-//   G O O D S
-        Route::get('/Ameise/Goods/', function (){
-            return Inertia::render('Ameise/Goods');
-        })->name('Ameise.goods');
-        Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
-            $data = [
-                'good' => Good::with('prices')->findOrFail($id),
-            ];
-            return Inertia::render('Ameise/Good', $data);
-        })->name('Ameise.good.show');
-        Route::get('/goods/published', [GoodController::class, 'indexPublished'])
-            ->name('goods.published');
-//     G R O S S B U C H
-        Route::get('/Ameise/grossbuch/', function (){
-            return Inertia::render('Ameise/Grossbuch');
-        })->name('Ameise.großbuch');
-//   P E R F U M E
-        Route::get('/Ameise/perfume/', function (){
-            return Inertia::render('Ameise/Perfume');
-        })->name('Ameise.perfume');
-//   P R O D U C T S
-        Route::get('/Ameise/products/', function (){
-            return Inertia::render('Ameise/Products');
-        })->name('Ameise.products');
-        Route::get('/Ameise/product/{id}', function ($id) {
-            $product = Product::with('consumers.product')
-                ->with('consumers.unit')
-                ->with('consumers.measure')
-                ->with(['components','goods'])
-                ->findOrFail($id);
-            return Inertia::render('Ameise/Product', ['product'=>$product]);
-        })->name('product.show');
-//   R E G I O N
-        Route::get('/Ameise/region/{id}', function ($id){
-            $data = [
-                'region' => Region::with('cities')->findOrFail($id)
-            ];
-            return Inertia::render('Ameise/Region', $data);
-        })->name('Ameise.region');
-//     S A L E S
-        Route::get('/Ameise/Sales/', function (){
-            return Inertia::render('Ameise/Sales');
-        })->name('Ameise.sales');
-
-        //     U N I T S
-        Route::get('/Ameise/units/', function (){
-            return Inertia::render('Ameise/Units');
-        })->name('Ameise.units');
-        Route::get('/Ameise/unit/{id}', function ($id){
-            $data = [
-                'unit' => Unit::with('entities.telephones')
-                    ->with('entities.sales')
-                    ->with('buildings')
-                    ->with('consumptions.product')
-                    ->with('consumptions.measure')
-                    ->with('manufactures')
-                    ->findOrFail($id),
-            ];
-            return Inertia::render('Ameise/Unit', $data);
-        })->name('web.unit.show');
-//   Y A N D E X
-        Route::get('/Ameise/yandex', function (){
-            return Inertia::render('Ameise/Yandex');
-        })->name('Ameise.yandex');
-
-        // ⬆️⬆️⬆️
-
-    });
-
-
-// M A I N
+//    H O M E
 Route::get('/', [MainController::class, 'index'])
     ->name('home');
+//   * * * * * * * * *   A M E I S E   * * * * * * * * *
+Route::get('/Ameise/', [Verwalter::class, 'index'])
+    ->name('Ameise');
+//   * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 //     * * * * *   W O R K  B O A R D     * * * * *
 Route::get('/Ameise/workboard', function () {
     return Inertia::render('Ameise/WorkBoard');
 })->name('ameise.workboard');
+Route::get('/workboard', function () {
+    return Inertia::render('Ameise/WorkBoard');
+})->name('ameise.workboard');
+
+
+
+// ⬇️⬇️⬇️
+// ВСЕ остальные /Ameise/* маршруты
+// просто ПЕРЕНОСЯТСЯ СЮДА БЕЗ ИЗМЕНЕНИЙ
+
+Route::get('/Goods/', function (){
+    return Inertia::render('Ameise/Goods');
+})->name('Ameise.goods');
+
+//   B O T A N Y
+Route::get('/Ameise/Botany/', function (){
+    return Inertia::render('Ameise/Botany');
+})->name('Ameise.botany');
+//   B R A N D S
+Route::get('/Ameise/brands', function (){
+    return Inertia::render('Ameise/Brands');
+})->name('Ameise.brands');
+//   C A T E G O R I E S
+Route::get('/категория/{id}', function ($id) {
+    return Inertia::render('Categories', [
+        'category' => Category::with('products')->findOrFail($id)
+    ]);
+})->name('Categories');
+//   C H E C K S
+Route::get('Ameise/checks', function (){
+    return Inertia::render('Ameise/Checks');
+})->name('Ameise.checks');
+//   C I T I E S
+Route::get('/Ameise/Cities', function (){
+    return Inertia::render('Ameise/Cities');
+})->name('Ameise.cities');
+Route::get('/Ameise/city/{id}', function ($id) {
+    $data = [
+        'city' => City::with('buildings')->with('entities')->findOrFail($id)
+    ];
+    return Inertia::render('Ameise/City', $data);
+})->name('city.show');
+//   C O M M O D I T I E S
+Route::get('/Ameise/Commodities/', function (){
+    return Inertia::render('Ameise/Commodities');
+})->name('Ameise.commodities');
+//   C O N T A C T S  C E N T R E
+Route::get('/Ameise/ContactsCentre', function (){
+    return Inertia::render('Ameise/ContactsCentre');
+})->name('Ameise.contactsCentre');
+//      E N T I T I E S
+Route::get('/Ameise/entities/', function (){
+    return Inertia::render('Ameise/Entities');
+})->name('Ameise.entities');
+//     F L U X  M O N I T O R
+Route::get('/Ameise/FluxMonitor/', function (){
+    return Inertia::render('Ameise/FluxMonitor');
+})->name('Ameise.fluxmonitor');
+//   G E O G R A P H Y
+Route::get('/Ameise/Geography/', function (){
+    return Inertia::render('Ameise/Geography');
+})->name('Ameise.geography');
+//   G O O D S
+Route::get('/Ameise/Goods/', function (){
+    return Inertia::render('Ameise/Goods');
+})->name('Ameise.goods');
+Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
+    $data = [
+        'good' => Good::with('prices')->findOrFail($id),
+    ];
+    return Inertia::render('Ameise/Good', $data);
+})->name('Ameise.good.show');
+Route::get('/goods/published', [GoodController::class, 'indexPublished'])
+    ->name('goods.published');
+//     G R O S S B U C H
+Route::get('/Ameise/grossbuch/', function (){
+    return Inertia::render('Ameise/Grossbuch');
+})->name('Ameise.großbuch');
+//   P E R F U M E
+Route::get('/Ameise/perfume/', function (){
+    return Inertia::render('Ameise/Perfume');
+})->name('Ameise.perfume');
+//   P R O D U C T S
+Route::get('/Ameise/products/', function (){
+    return Inertia::render('Ameise/Products');
+})->name('Ameise.products');
+Route::get('/Ameise/product/{id}', function ($id) {
+    $product = Product::with('consumers.product')
+        ->with('consumers.unit')
+        ->with('consumers.measure')
+        ->with(['components','goods'])
+        ->findOrFail($id);
+    return Inertia::render('Ameise/Product', ['product'=>$product]);
+})->name('product.show');
+//   R E G I O N
+Route::get('/Ameise/region/{id}', function ($id){
+    $data = [
+        'region' => Region::with('cities')->findOrFail($id)
+    ];
+    return Inertia::render('Ameise/Region', $data);
+})->name('Ameise.region');
+//     S A L E S
+Route::get('/Ameise/Sales/', function (){
+    return Inertia::render('Ameise/Sales');
+})->name('Ameise.sales');
+
+//     U N I T S
+Route::get('/Ameise/units/', function (){
+    return Inertia::render('Ameise/Units');
+})->name('Ameise.units');
+Route::get('/Ameise/unit/{id}', function ($id){
+    $data = [
+        'unit' => Unit::with('entities.telephones')
+            ->with('entities.sales')
+            ->with('buildings')
+            ->with('consumptions.product')
+            ->with('consumptions.measure')
+            ->with('manufactures')
+            ->findOrFail($id),
+    ];
+    return Inertia::render('Ameise/Unit', $data);
+})->name('web.unit.show');
+//   Y A N D E X
+Route::get('/Ameise/yandex', function (){
+    return Inertia::render('Ameise/Yandex');
+})->name('Ameise.yandex');
+
 //   A V I T O
 Route::get('/Ameise/Avito', function () {
     return Inertia::render('Ameise/Avito');
