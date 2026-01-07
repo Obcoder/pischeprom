@@ -45,13 +45,13 @@ Route::middleware([
     })->name('dashboard');
 });
 
-//Route::middleware(['auth:web'])
-//    ->prefix('Ameise')
-//    ->group(function () {
-//        Route::get('/', function () {
-//            return 'AMEISE OK';
-//        })->name('ameise.index');
-//    });
+Route::middleware(['auth:web'])
+    ->prefix('Ameise')
+    ->group(function () {
+        Route::get('/', function () {
+            return 'AMEISE OK';
+        })->name('ameise.index');
+    });
 
 
 
