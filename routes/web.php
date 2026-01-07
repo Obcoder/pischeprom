@@ -41,17 +41,17 @@ Route::middleware([
     'verified',
 ])->group(function () {
     Route::get('/dashboard', function () {
-        return Inertia::render('Grossbuch');
+        return Inertia::render('Verwalter');
     })->name('dashboard');
 });
 
-Route::middleware(['auth:web'])
-    ->prefix('Ameise')
-    ->group(function () {
-        Route::get('/', function () {
-            return 'AMEISE OK';
-        })->name('ameise.index');
-    });
+//Route::middleware(['auth:web'])
+//    ->prefix('Ameise')
+//    ->group(function () {
+//        Route::get('/', function () {
+//            return 'AMEISE OK';
+//        })->name('ameise.index');
+//    });
 
 
 
