@@ -1,6 +1,4 @@
 <?php
-die('PHP OK');
-
 
 use Illuminate\Http\Request;
 
