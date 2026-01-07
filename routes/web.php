@@ -35,14 +35,23 @@ use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
-Route::middleware(['auth:web'])
-    ->prefix('Ameise')
-    ->name('ameise.')
-    ->group(function () {
-        Route::get('/', function () {
-            return 'AMEISE OK';
-        })->name('index');
-    });
+Route::middleware([
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+    'verified',
+])->group(function () {
+    Route::get('/dashboard', function () {
+        return Inertia::render('Verwalter');
+    })->name('dashboard');
+});
+
+//Route::middleware(['auth:web'])
+//    ->prefix('Ameise')
+//    ->group(function () {
+//        Route::get('/', function () {
+//            return 'AMEISE OK';
+//        })->name('ameise.index');
+//    });
 
 
 
@@ -52,6 +61,9 @@ Route::middleware(['auth:web'])
 //|--------------------------------------------------------------------------
 //*/
 //
+//Route::middleware(['auth:web'])
+//    ->prefix('Ameise')
+//    ->group(function () {
 //
 //        Route::get('/', [Verwalter::class, 'index'])
 //            ->name('Ameise');
@@ -188,6 +200,7 @@ Route::middleware(['auth:web'])
 //
 //        // ⬆️⬆️⬆️
 //
+//    });
 //
 //
 //// M A I N
