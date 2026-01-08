@@ -60,7 +60,7 @@ class UnitController extends Controller
                        'quotations.measure',
                    ])
             ->latest()
-            ->limit($request->integer('limit'))
+            ->limitIfPresent($request->integer('limit'))
             ->get();
     }
 

@@ -102,4 +102,8 @@ class Unit extends Model
         $q->where('name', 'like', "%{$search}%")
         );
     }
+    public function scopeLimitIfPresent(Builder $query, ?int $limit): Builder
+    {
+        return $query->when($limit, fn ($q) => $q->limit($limit));
+    }
 }

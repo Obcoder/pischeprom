@@ -781,16 +781,33 @@ function storeTelephone(){
 
 
 //   U N I T S
-function indexUnits(){
-    axios.get(route('units.index')).then(function (response) {
-        // handle success
-        units.value = response.data
-    })
-        .catch(function (error) {
-            // handle error
-            console.error(error);
-        });
+const indexUnits = async () => {
+    try {
+        const { data } = await axios.get(route('units.index'), {
+            params: {
+                limit: undefined, // не отправится
+            }
+        })
+
+        units.value = data
+    } catch (e) {
+        console.error(e)
+    }
 }
+// function indexUnits(){
+//     axios.get(route('units.index'), {
+//         params: {
+//             limit: undefined, // не отправится
+//         }
+//     }).then(function (response) {
+//         // handle success
+//         units.value = response.data
+//     })
+//         .catch(function (error) {
+//             // handle error
+//             console.error(error);
+//         });
+// }
 const searchUnits = ref('')
 // Фильтрация units
 const filteredUnits = computed(() => {
