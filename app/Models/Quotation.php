@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Quotation extends Model
 {
+    protected $casts = [
+        'price' => 'decimal:2',
+    ];
     protected $fillable = [
         'good_id',
         'unit_id',

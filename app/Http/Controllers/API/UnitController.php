@@ -14,27 +14,53 @@ class UnitController extends Controller
      */
     public function index(Request $request)
     {
-        $like = $request->search;
-        $limit = $request->limit;
+//        $like = $request->search;
+//        $limit = $request->limit;
         $activeStages = $request->input('activeStages', true); // По умолчанию true — подгружаем только активные стадии
 
-        $query = Unit::query()
-            ->where('name', 'like', "%{$like}%")
+//        $query = Unit::query()
+//            ->where('name', 'like', "%{$like}%")
+//            ->with([
+//                       'labels',
+//                       'consumptions',
+//                       'products',
+//                       'quotations',
+//                       'entities.sales',
+//                       'stages' => function ($query) use ($activeStages) {
+//                           if ($activeStages) {
+//                               $query->wherePivot('isActive', true); // Фильтруем только активные стадии
+//                           }
+//                           // Если activeStages=false, подгружаем все стадии
+//                       }
+//                   ]);
+//
+//        return $query->orderByDesc('created_at')
+//            ->limit($limit)
+//            ->get();
+
+        return Unit::query()
+            ->search($request->search)
+            ->when(
+                $request->filled('good_id'),
+                fn ($q) => $q->forGood((int) $request->good_id)
+            )
             ->with([
                        'labels',
                        'consumptions',
                        'products',
+                       'quotations',
                        'entities.sales',
                        'stages' => function ($query) use ($activeStages) {
                            if ($activeStages) {
                                $query->wherePivot('isActive', true); // Фильтруем только активные стадии
                            }
                            // Если activeStages=false, подгружаем все стадии
-                       }
-                   ]);
-
-        return $query->orderByDesc('created_at')
-            ->limit($limit)
+                       },
+                       'quotations.good',
+                       'quotations.measure',
+                   ])
+            ->latest()
+            ->limit($request->integer('limit', 20))
             ->get();
     }
 
@@ -52,11 +78,12 @@ class UnitController extends Controller
     public function store(Request $request)
     {
         $unit = Unit::create($request->all());
-        $unit->buildings()->attach($request->input('buildings'));
-        $unit->emails()->attach($request->input('emails'));
-        $unit->fields()->attach($request->input('fields'));
-        $unit->uris()->attach($request->input('uris'));
-        $unit->labels()->attach($request->input('labels'));
+
+        $unit->buildings()->sync($request->input('buildings', []));
+        $unit->emails()->sync($request->input('emails', []));
+        $unit->fields()->sync($request->input('fields', []));
+        $unit->uris()->sync($request->input('uris', []));
+        $unit->labels()->sync($request->input('labels', []));
 
         // Создаем "папку" в S3 (на самом деле это просто пустой файл, так как в S3 нет папок)
         Storage::disk('yandex')->put("units/{$unit->name}/placeholder.txt", $unit);

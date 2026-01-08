@@ -973,8 +973,18 @@ useHead({
             <v-col lg="3">
                 <v-card border
                         elevation="2"
-                        >
+                        height="300px"
+                >
                     <v-card-title>Quotations</v-card-title>
+                    <v-card-text>
+                        <v-data-table :items="unit.quotations"
+                                      items-per-page="12"
+                                      fixed-header
+                                      height="274px"
+                                      density="compact"
+                                      hover
+                                      class="border rounded"></v-data-table>
+                    </v-card-text>
                 </v-card>
             </v-col>
         </v-row>

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 
 class Unit extends Model
 {
@@ -64,6 +65,20 @@ class Unit extends Model
             ->withPivot('action_id')
             ->withTimestamps();
     }
+
+    //  Q U O T A T I O N S
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class);
+    }
+    public function scopeForGood(Builder $query, int $goodId): Builder
+    {
+        return $query->whereHas('quotations', fn ($q) =>
+        $q->where('good_id', $goodId)
+        );
+    }
+
+
     public function stages()
     {
         return $this->belongsToMany(Stage::class)
@@ -79,5 +94,12 @@ class Unit extends Model
     {
         return $this->belongsToMany(Uri::class)
             ->using(unit_uri::class);
+    }
+
+    public function scopeSearch(Builder $query, ?string $search): Builder
+    {
+        return $query->when($search, fn ($q) =>
+        $q->where('name', 'like', "%{$search}%")
+        );
     }
 }
