@@ -72,10 +72,7 @@ Route::get('/Goods/', function (){
 Route::get('/Ameise/Botany/', function (){
     return Inertia::render('Ameise/Botany');
 })->name('Ameise.botany');
-//   B R A N D S
-Route::get('/Ameise/brands', function (){
-    return Inertia::render('Ameise/Brands');
-})->name('Ameise.brands');
+
 //   C A T E G O R I E S
 Route::get('/категория/{id}', function ($id) {
     return Inertia::render('Categories', [
