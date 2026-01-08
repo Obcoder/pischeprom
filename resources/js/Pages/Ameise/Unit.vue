@@ -171,6 +171,7 @@ const headerManufactures = ref([
     },
 ])
 // E N D  P R O D U C T S
+
 function indexTelephones(){
     axios.get(route('telephones.index')).then(function (response){
         telephones.value = response.data;
@@ -966,6 +967,14 @@ useHead({
                             </v-row>
                         </v-form>
                     </v-card-text>
+                </v-card>
+            </v-col>
+
+            <v-col lg="3">
+                <v-card border
+                        elevation="2"
+                        >
+                    <v-card-title>Quotations</v-card-title>
                 </v-card>
             </v-col>
         </v-row>
