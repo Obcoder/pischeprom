@@ -8,6 +8,7 @@ import {useDate} from 'vuetify';
 import {logo} from "@/Pages/Helpers/consts.js";
 import {format} from "date-fns";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import Categories from '@/Components/Dictionaries/Categories.vue';
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -2141,12 +2142,16 @@ const formatBuildingTitle = (building) => {
                                 <!--   P R O D U C T S   -->
                                 <v-tabs-window-item value="products">
                                     <v-tabs v-model="tabsProducts">
+                                        <v-tab value="categories">Categories</v-tab>
                                         <v-tab value="categories_products">Products</v-tab>
                                         <v-tab value="goods">Goods</v-tab>
                                         <v-tab value="components">Components</v-tab>
                                         <v-tab value="commodities">Commodities</v-tab>
                                     </v-tabs>
                                     <v-tabs-window v-model="tabsProducts">
+                                        <v-tabs-window-item value="categories">
+                                            <Categories />
+                                        </v-tabs-window-item>
                                         <v-tabs-window-item value="categories_products">
                                             <v-row>
                                                 <v-col lg="3">

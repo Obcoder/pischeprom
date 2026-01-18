@@ -18,22 +18,33 @@ class CategoryController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-                               'search' => 'string|nullable',
-                               'per_page' => 'integer|min:1|max:100',
+                               'page' => 'integer|min:1',
+                               'itemsPerPage' => 'integer|min:1|max:100',
+                               'search' => 'nullable|string',
+                               'sortBy' => 'nullable|string',
+                               'sortDesc' => 'nullable|boolean',
                            ]);
 
-        $perPage = $request->per_page ?? 50;
-        $cacheKey = 'categories_index_' . md5($request->search . '_' . $perPage); // Уникальный ключ для кэша
+        $query = Category::query();
 
-        $categories = Cache::remember($cacheKey, 600, function () use ($request, $perPage) { // Кэш на 10 мин
-            return Category::with('products')
-                ->search($request->search)
-                ->ordered()
-                ->paginate($perPage);
-        });
+        if ($request->search) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        if ($request->sortBy) {
+            $query->orderBy(
+                $request->sortBy,
+                $request->sortDesc ? 'desc' : 'asc'
+            );
+        }
+
+        $categories = $query->paginate(
+            $request->itemsPerPage ?? 25
+        );
 
         return CategoryResource::collection($categories);
     }
+
 
     /**
      * Store a newly created resource in storage.
