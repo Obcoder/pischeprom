@@ -18,6 +18,7 @@ const search = ref('')
 const headers = [
     { title: 'ID', key: 'id' },
     { title: 'Name', key: 'name' },
+    {title: 'Local Code', key: 'local_code'},
 ]
 
 async function fetchCategories() {
@@ -89,10 +90,10 @@ onMounted(() => {
             :items-length="total"
             v-model:options="options"
             fixed-header
-            height="660px"
+            height="710px"
             class="border rounded"
             hover
-            items-per-page="40"
+            items-per-page="30"
             density="compact"
         />
     </v-card>

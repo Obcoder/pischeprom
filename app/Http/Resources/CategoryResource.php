@@ -15,6 +15,7 @@ class CategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'local_code' => $this->local_code,
 
             // безопасно: работает только если withCount('products')
             'products_count' => $this->products_count ?? 0,
