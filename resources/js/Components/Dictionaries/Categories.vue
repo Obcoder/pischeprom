@@ -34,7 +34,7 @@ async function fetchCategories() {
                     per_page: itemsPerPage,
                     search: search.value,
                     ...(sort.key && { sortBy: sort.key }), // Условно добавляем, только если sort.key существует
-                    ...(sort.key && { sortDesc: sort.order === 'asc' }), // Только с sortBy
+                    ...(sort.key && { sortDesc: sort.order === 'desc' }), // Только с sortBy
                 }
             }
         )
@@ -75,6 +75,7 @@ onMounted(() => {
                             variant="outlined"
                             prepend-inner-icon="mdi-magnify"
                             clearable
+                            hide-details
                         />
 
                         <v-spacer />
