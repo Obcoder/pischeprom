@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
+import {route} from "ziggy-js";
 
 const categories = ref([])
 const total = ref(0)
