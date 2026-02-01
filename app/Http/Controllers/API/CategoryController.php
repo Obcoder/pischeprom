@@ -25,25 +25,22 @@ class CategoryController extends Controller
                                'sortDesc' => 'nullable|boolean',
                            ]);
 
-        $query = Category::query();
-
-        if ($request->search) {
-            $query->where('name', 'like', "%{$request->search}%");
-        }
-
-        if ($request->sortBy) {
-            $query->orderBy(
+        $categories = Category::query()
+            ->withCount('products')
+            ->when($request->search, fn ($q) =>
+            $q->where('name', 'like', "%{$request->search}%")
+            )
+            ->when($request->sortBy, fn ($q) =>
+            $q->orderBy(
                 $request->sortBy,
                 $request->sortDesc ? 'desc' : 'asc'
-            );
-        }
-
-        $categories = $query->paginate(
-            $request->itemsPerPage ?? 25
-        );
+            )
+            )
+            ->paginate($request->itemsPerPage ?? 25);
 
         return CategoryResource::collection($categories);
     }
+
 
 
     /**

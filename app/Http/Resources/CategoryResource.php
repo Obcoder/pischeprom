@@ -9,17 +9,18 @@ class CategoryResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'products' => ProductResource::collection($this->whenLoaded('products')), // Вложенный, если загружен
-            'products_count' => $this->products->count(), // Вычисляемое поле
-            // Добавьте другие поля по необходимости
+
+            // безопасно: работает только если withCount('products')
+            'products_count' => $this->products_count ?? 0,
+
+            'created_at' => $this->created_at?->toDateTimeString(),
+            'updated_at' => $this->updated_at?->toDateTimeString(),
         ];
     }
 }
