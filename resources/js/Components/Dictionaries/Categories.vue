@@ -38,7 +38,6 @@ async function fetchCategories () {
     )
 
     categories.value = response.data.data
-    total.value = response.data.meta.total
 
     loading.value = false
 }
@@ -74,10 +73,9 @@ onMounted(()=>{
             </v-btn>
         </v-card-title>
 
-        <v-data-table-server
+        <v-data-table
             :headers="headers"
             :items="categories"
-            :items-length="total"
             :loading="loading"
             v-model:options="options"
         />
