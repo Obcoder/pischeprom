@@ -90,7 +90,7 @@ onMounted(() => {
             :items-length="total"
             v-model:options="options"
             fixed-header
-            height="710px"
+            height="725px"
             class="border rounded"
             hover
             items-per-page="30"

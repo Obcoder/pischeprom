@@ -12,14 +12,38 @@ class UnitController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
-    {
-//        $like = $request->search;
-//        $limit = $request->limit;
-        $activeStages = $request->input('activeStages', true); // По умолчанию true — подгружаем только активные стадии
-
-//        $query = Unit::query()
-//            ->where('name', 'like', "%{$like}%")
+//    public function index(Request $request)
+//    {
+////        $like = $request->search;
+////        $limit = $request->limit;
+//        $activeStages = $request->input('activeStages', true); // По умолчанию true — подгружаем только активные стадии
+//
+////        $query = Unit::query()
+////            ->where('name', 'like', "%{$like}%")
+////            ->with([
+////                       'labels',
+////                       'consumptions',
+////                       'products',
+////                       'quotations',
+////                       'entities.sales',
+////                       'stages' => function ($query) use ($activeStages) {
+////                           if ($activeStages) {
+////                               $query->wherePivot('isActive', true); // Фильтруем только активные стадии
+////                           }
+////                           // Если activeStages=false, подгружаем все стадии
+////                       }
+////                   ]);
+////
+////        return $query->orderByDesc('created_at')
+////            ->limit($limit)
+////            ->get();
+//
+//        return Unit::query()
+//            ->search($request->search)
+//            ->when(
+//                $request->filled('good_id'),
+//                fn ($q) => $q->forGood((int) $request->good_id)
+//            )
 //            ->with([
 //                       'labels',
 //                       'consumptions',
@@ -31,37 +55,50 @@ class UnitController extends Controller
 //                               $query->wherePivot('isActive', true); // Фильтруем только активные стадии
 //                           }
 //                           // Если activeStages=false, подгружаем все стадии
-//                       }
-//                   ]);
-//
-//        return $query->orderByDesc('created_at')
-//            ->limit($limit)
+//                       },
+//                       'quotations.good',
+//                       'quotations.measure',
+//                   ])
+//            ->latest()
+//            ->limitIfPresent($request->integer('limit'))
 //            ->get();
+//    }
+
+    public function index(Request $request)
+    {
+        $request->validate([
+                               'search' => 'nullable|string|max:255',
+                               'good_id' => 'nullable|integer|exists:goods,id',
+                               'activeStages' => 'nullable|boolean',
+                               'limit' => 'nullable|integer|min:1|max:100', // Ограничьте лимит для предотвращения перегрузки
+                           ]);
+
+        $activeStages = $request->boolean('activeStages', true); // Используйте boolean для преобразования (true/false/1/0)
+        $perPage = $request->integer('limit', 25); // По умолчанию 25, если лимит не указан
 
         return Unit::query()
-            ->search($request->search)
+            ->search($request->search) // Предполагаем, что scope search() оптимизирован (e.g., whereLike на нужных полях)
             ->when(
                 $request->filled('good_id'),
                 fn ($q) => $q->forGood((int) $request->good_id)
             )
             ->with([
-                       'labels',
-                       'consumptions',
-                       'products',
-                       'quotations',
-                       'entities.sales',
+                       'labels:id,name', // Оптимизация: select только нужные поля в отношениях, если возможно (замените на реальные)
+                       'consumptions:id,unit_id,amount', // Аналогично, минимизируйте данные
+                       'products:id,name',
+                       'quotations:id,good_id,measure_id,price', // + sub-relations
+                       'entities.sales:id,entity_id,sale_date',
                        'stages' => function ($query) use ($activeStages) {
+                           $query->select('stages.id', 'stages.name'); // Select минимальные поля
                            if ($activeStages) {
-                               $query->wherePivot('isActive', true); // Фильтруем только активные стадии
+                               $query->wherePivot('isActive', true);
                            }
-                           // Если activeStages=false, подгружаем все стадии
                        },
-                       'quotations.good',
-                       'quotations.measure',
+                       'quotations.good:id,name',
+                       'quotations.measure:id,name',
                    ])
-            ->latest()
-            ->limitIfPresent($request->integer('limit'))
-            ->get();
+            ->latest('created_at') // Укажите колонку явно для ясности
+            ->paginate($perPage); // Перейдите на пагинацию вместо get() + limit для серверной обработки (возвращает meta: total, per_page и т.д.)
     }
 
     /**
