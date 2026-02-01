@@ -52,7 +52,9 @@ watch(search, () => {
     fetchCategories()
 })
 
-onMounted(fetchCategories)
+onMounted(()=>{
+    fetchCategories()
+})
 </script>
 
 <template>
