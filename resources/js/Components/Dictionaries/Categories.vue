@@ -9,8 +9,8 @@ const loading = ref(false)
 
 const options = ref({
     page: 1,
-    itemsPerPage: 25,
-    sortBy: [],
+    itemsPerPage: 40,
+    sortBy: [{ key: 'name', order: 'asc' }],
 })
 
 const search = ref('')
@@ -87,6 +87,12 @@ onMounted(() => {
             :loading="loading"
             :items-length="total"
             v-model:options="options"
+            fixed-header
+            height="660px"
+            class="border rounded"
+            hover
+            items-per-page="40"
+            density="compact"
         />
     </v-card>
 </template>

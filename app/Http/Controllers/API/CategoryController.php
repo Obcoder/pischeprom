@@ -19,27 +19,20 @@ class CategoryController extends Controller
     {
         $request->validate([
                                'search' => 'nullable|string',
-                               'sortBy' => 'nullable|string',
+                               'sortBy' => 'nullable|string|in:id,name', // Опционально: ограничьте допустимые поля сортировки, чтобы избежать SQL-ошибок
                                'sortDesc' => 'nullable|boolean',
-                               'page' => 'nullable|integer|min:1', // Добавьте валидацию для пагинации
-                               'per_page' => 'nullable|integer|min:1|max:100', // Ограничьте, чтобы избежать перегрузки
+                               'page' => 'nullable|integer|min:1',
+                               'per_page' => 'nullable|integer|min:1|max:100',
                            ]);
 
-        $perPage = $request->per_page ?? 25; // Значение по умолчанию
+        $perPage = $request->per_page ?? 25;
 
         $query = Category::query()
             ->withCount('products')
-            ->when($request->search, fn ($q) =>
-            $q->where('name', 'like', "%{$request->search}%")
-            )
-            ->when($request->sortBy, fn ($q) =>
-            $q->orderBy(
-                $request->sortBy,
-                $request->sortDesc ? 'desc' : 'asc'
-            )
-            );
+            ->when($request->search, fn ($q) => $q->where('name', 'like', "%{$request->search}%"))
+            ->when($request->sortBy, fn ($q) => $q->orderBy($request->sortBy, $request->sortDesc ? 'desc' : 'asc'));
 
-        $categories = $query->paginate($perPage); // Замените get() на paginate()
+        $categories = $query->paginate($perPage);
 
         return CategoryResource::collection($categories);
     }
