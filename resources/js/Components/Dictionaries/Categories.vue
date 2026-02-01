@@ -22,26 +22,31 @@ const headers = [
 
 async function fetchCategories() {
     loading.value = true
+    try {
+        const { page, itemsPerPage, sortBy } = options.value
+        const sort = sortBy[0] ?? {}
 
-    const { page, itemsPerPage, sortBy } = options.value
-    const sort = sortBy[0] ?? {}
-
-    const response = await axios.get(
-        route('categories.index'),
-        {
-            params: {
-                page,
-                per_page: itemsPerPage, // Бэкенд ожидает 'per_page'
-                search: search.value,
-                sortBy: sort.key,
-                sortDesc: sort.order === 'desc',
+        const response = await axios.get(
+            route('categories.index'),
+            {
+                params: {
+                    page,
+                    per_page: itemsPerPage,
+                    search: search.value,
+                    ...(sort.key && { sortBy: sort.key }), // Условно добавляем, только если sort.key существует
+                    ...(sort.key && { sortDesc: sort.order === 'desc' }), // Только с sortBy
+                }
             }
+        )
+
+        categories.value = response.data.data
+        total.value = response.data.meta.total
+    } catch (error) {
+        console.error('Error fetching categories:', error)
+        if (error.response) {
+            console.log('Validation errors:', error.response.data.errors) // Здесь увидите точные ошибки (e.g., {"per_page": ["..."]})
         }
-    )
-
-    categories.value = response.data.data
-    total.value = response.data.meta.total
-
+    }
     loading.value = false
 }
 
