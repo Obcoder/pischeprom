@@ -30,8 +30,6 @@ async function fetchCategories () {
         route('categories.index'),
         {
             params: {
-                page,
-                itemsPerPage,
                 search: search.value,
                 sortBy: sort.key,
                 sortDesc: sort.order === 'desc',

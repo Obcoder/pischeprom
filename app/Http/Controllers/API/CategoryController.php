@@ -17,13 +17,12 @@ class CategoryController extends Controller
      */
     public function index(Request $request)
     {
-        $request->validate([
-                               'page' => 'integer|min:1',
-                               'itemsPerPage' => 'integer|min:1|max:100',
-                               'search' => 'nullable|string',
-                               'sortBy' => 'nullable|string',
-                               'sortDesc' => 'nullable|boolean',
-                           ]);
+        $request->validate(
+            [
+                'search' => 'nullable|string',
+                'sortBy' => 'nullable|string',
+                'sortDesc' => 'nullable|boolean',
+            ]);
 
         $categories = Category::query()
             ->withCount('products')
@@ -36,7 +35,7 @@ class CategoryController extends Controller
                 $request->sortDesc ? 'desc' : 'asc'
             )
             )
-            ->paginate($request->itemsPerPage ?? 25);
+            ->get();
 
         return CategoryResource::collection($categories);
     }
