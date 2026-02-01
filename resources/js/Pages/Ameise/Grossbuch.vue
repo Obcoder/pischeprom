@@ -2150,7 +2150,13 @@ const formatBuildingTitle = (building) => {
                                     </v-tabs>
                                     <v-tabs-window v-model="tabsProducts">
                                         <v-tabs-window-item value="categories">
-                                            <Categories />
+                                            <v-container>
+                                                <v-row>
+                                                    <v-col lg="4">
+                                                        <Categories />
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="categories_products">
                                             <v-row>
