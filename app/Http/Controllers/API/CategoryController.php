@@ -17,14 +17,17 @@ class CategoryController extends Controller
      */
     public function index(Request $request)
     {
-        $request->validate(
-            [
-                'search' => 'nullable|string',
-                'sortBy' => 'nullable|string',
-                'sortDesc' => 'nullable|boolean',
-            ]);
+        $request->validate([
+                               'search' => 'nullable|string',
+                               'sortBy' => 'nullable|string',
+                               'sortDesc' => 'nullable|boolean',
+                               'page' => 'nullable|integer|min:1', // Добавьте валидацию для пагинации
+                               'per_page' => 'nullable|integer|min:1|max:100', // Ограничьте, чтобы избежать перегрузки
+                           ]);
 
-        $categories = Category::query()
+        $perPage = $request->per_page ?? 25; // Значение по умолчанию
+
+        $query = Category::query()
             ->withCount('products')
             ->when($request->search, fn ($q) =>
             $q->where('name', 'like', "%{$request->search}%")
@@ -34,8 +37,9 @@ class CategoryController extends Controller
                 $request->sortBy,
                 $request->sortDesc ? 'desc' : 'asc'
             )
-            )
-            ->get();
+            );
+
+        $categories = $query->paginate($perPage); // Замените get() на paginate()
 
         return CategoryResource::collection($categories);
     }

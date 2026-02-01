@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
-import {route} from "ziggy-js";
+import { route } from "ziggy-js";
 
 const categories = ref([])
 const total = ref(0)
@@ -20,16 +20,18 @@ const headers = [
     { title: 'Name', key: 'name' },
 ]
 
-async function fetchCategories () {
+async function fetchCategories() {
     loading.value = true
 
     const { page, itemsPerPage, sortBy } = options.value
-    const sort = sortBy[0] || {}
+    const sort = sortBy[0] ?? {}
 
     const response = await axios.get(
         route('categories.index'),
         {
             params: {
+                page,
+                per_page: itemsPerPage, // Бэкенд ожидает 'per_page'
                 search: search.value,
                 sortBy: sort.key,
                 sortDesc: sort.order === 'desc',
@@ -38,6 +40,7 @@ async function fetchCategories () {
     )
 
     categories.value = response.data.data
+    total.value = response.data.meta.total
 
     loading.value = false
 }
@@ -49,7 +52,7 @@ watch(search, () => {
     fetchCategories()
 })
 
-onMounted(()=>{
+onMounted(() => {
     fetchCategories()
 })
 </script>
@@ -73,10 +76,11 @@ onMounted(()=>{
             </v-btn>
         </v-card-title>
 
-        <v-data-table
+        <v-data-table-server
             :headers="headers"
             :items="categories"
             :loading="loading"
+            :items-length="total"
             v-model:options="options"
         />
     </v-card>
