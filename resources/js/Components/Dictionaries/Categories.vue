@@ -34,7 +34,7 @@ async function fetchCategories() {
                     per_page: itemsPerPage,
                     search: search.value,
                     ...(sort.key && { sortBy: sort.key }), // Условно добавляем, только если sort.key существует
-                    ...(sort.key && { sortDesc: sort.order === 'desc' }), // Только с sortBy
+                    ...(sort.key && { sortDesc: sort.order === 'asc' }), // Только с sortBy
                 }
             }
         )
@@ -63,36 +63,42 @@ onMounted(() => {
 </script>
 
 <template>
-    <v-card flat>
-        <v-card-title class="d-flex gap-2">
-            <v-text-field
-                v-model="search"
-                label="Search category"
-                density="compact"
-                variant="outlined"
-                prepend-inner-icon="mdi-magnify"
-                clearable
-            />
+    <v-container>
+        <v-row>
+            <v-col cols="4">
+                <v-card flat>
+                    <v-card-title class="d-flex gap-2">
+                        <v-text-field
+                            v-model="search"
+                            label="Search category"
+                            density="compact"
+                            variant="outlined"
+                            prepend-inner-icon="mdi-magnify"
+                            clearable
+                        />
 
-            <v-spacer />
+                        <v-spacer />
 
-            <v-btn color="primary" variant="tonal">
-                + Category
-            </v-btn>
-        </v-card-title>
+                        <v-btn color="primary" variant="tonal">
+                            + Category
+                        </v-btn>
+                    </v-card-title>
 
-        <v-data-table-server
-            :headers="headers"
-            :items="categories"
-            :loading="loading"
-            :items-length="total"
-            v-model:options="options"
-            fixed-header
-            height="660px"
-            class="border rounded"
-            hover
-            items-per-page="40"
-            density="compact"
-        />
-    </v-card>
+                    <v-data-table-server
+                        :headers="headers"
+                        :items="categories"
+                        :loading="loading"
+                        :items-length="total"
+                        v-model:options="options"
+                        fixed-header
+                        height="660px"
+                        class="border rounded"
+                        hover
+                        items-per-page="40"
+                        density="compact"
+                    />
+                </v-card>
+            </v-col>
+        </v-row>
+    </v-container>
 </template>
