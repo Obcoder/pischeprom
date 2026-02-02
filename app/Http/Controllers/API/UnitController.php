@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UnitResource;
 use App\Models\Unit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -70,26 +71,26 @@ class UnitController extends Controller
                                'search' => 'nullable|string|max:255',
                                'good_id' => 'nullable|integer|exists:goods,id',
                                'activeStages' => 'nullable|boolean',
-                               'limit' => 'nullable|integer|min:1|max:100', // Ограничьте лимит для предотвращения перегрузки
+                               'limit' => 'nullable|integer|min:1|max:100',
                            ]);
 
-        $activeStages = $request->boolean('activeStages', true); // Используйте boolean для преобразования (true/false/1/0)
-        $perPage = $request->integer('limit', 25); // По умолчанию 25, если лимит не указан
+        $activeStages = $request->boolean('activeStages', true);
+        $perPage = $request->integer('limit', 25);
 
-        return Unit::query()
-            ->search($request->search) // Предполагаем, что scope search() оптимизирован (e.g., whereLike на нужных полях)
+        $query = Unit::query()
+            ->search($request->search)
             ->when(
                 $request->filled('good_id'),
                 fn ($q) => $q->forGood((int) $request->good_id)
             )
             ->with([
-                       'labels:id,name', // Оптимизация: select только нужные поля в отношениях, если возможно (замените на реальные)
-                       'consumptions:id,unit_id,amount', // Аналогично, минимизируйте данные
+                       'labels:id,name',
+                       'consumptions:id,unit_id,amount',
                        'products:id,name',
-                       'quotations:id,good_id,measure_id,price', // + sub-relations
+                       'quotations:id,good_id,measure_id,price',
                        'entities.sales:id,entity_id,sale_date',
                        'stages' => function ($query) use ($activeStages) {
-                           $query->select('stages.id', 'stages.name'); // Select минимальные поля
+                           $query->select('stages.id', 'stages.name');
                            if ($activeStages) {
                                $query->wherePivot('isActive', true);
                            }
@@ -97,8 +98,11 @@ class UnitController extends Controller
                        'quotations.good:id,name',
                        'quotations.measure:id,name',
                    ])
-            ->latest('created_at') // Укажите колонку явно для ясности
-            ->paginate($perPage); // Перейдите на пагинацию вместо get() + limit для серверной обработки (возвращает meta: total, per_page и т.д.)
+            ->latest('created_at');
+
+        $units = $query->paginate($perPage);
+
+        return UnitResource::collection($units);
     }
 
     /**

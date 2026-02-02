@@ -26,6 +26,23 @@ class Unit extends Model
         'emails.sendings',
     ];
 
+    //      S C O P E S
+    public function scopeSearch(Builder $query, ?string $search): Builder
+    {
+        return $query->when($search, fn ($q) =>
+        $q->where('name', 'like', "%{$search}%")
+        );
+    }
+
+    public function scopeForGood(Builder $query, int $goodId): Builder
+    {
+        return $query->whereHas('quotations', fn ($q) =>
+        $q->where('good_id', $goodId)
+        );
+    }
+
+    // E N D  S C O P E S
+
     public function buildings()
     {
         return $this->belongsToMany(Building::class)
@@ -71,13 +88,6 @@ class Unit extends Model
     {
         return $this->hasMany(Quotation::class);
     }
-    public function scopeForGood(Builder $query, int $goodId): Builder
-    {
-        return $query->whereHas('quotations', fn ($q) =>
-        $q->where('good_id', $goodId)
-        );
-    }
-
 
     public function stages()
     {
@@ -94,13 +104,6 @@ class Unit extends Model
     {
         return $this->belongsToMany(Uri::class)
             ->using(unit_uri::class);
-    }
-
-    public function scopeSearch(Builder $query, ?string $search): Builder
-    {
-        return $query->when($search, fn ($q) =>
-        $q->where('name', 'like', "%{$search}%")
-        );
     }
     public function scopeLimitIfPresent(Builder $query, ?int $limit): Builder
     {
