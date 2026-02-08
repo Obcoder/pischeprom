@@ -8,6 +8,8 @@ const units = ref([])
 const searchUnits = ref('')
 const selectedLabelsIDs = ref([])
 
+const showFormUnit = ref(false)
+
 // Функция загрузки Units
 const indexUnits = async () => {
     try {
@@ -117,17 +119,17 @@ function storeUnit(){
                                       density="compact"
                                       color="deep-orange-accent-3"
                                       hide-details
-                                      class="border border-2 rounded border-rose-950"
+                                      class="border-2 rounded border-rose-950"
                         ></v-text-field>
                     </v-col>
                     <v-col cols="1">
                         <v-btn text="+ Unit"
-                               @click="dialogFormUnit = !dialogFormUnit"
+                               @click="showFormUnit = !showFormUnit"
                                variant="tonal"
                                density="comfortable"
                                color="deep-purple-darken-1"
                         ></v-btn>
-                        <v-dialog v-model="dialogFormUnit"
+                        <v-dialog v-model="showFormUnit"
                                   width="909">
                             <v-card>
                                 <v-card-title>Form Unit</v-card-title>
@@ -268,7 +270,7 @@ function storeUnit(){
                                       items-per-page="100"
                                       :headers="headerUnits"
                                       fixed-header
-                                      height="939px"
+                                      height="888px"
                                       density="compact"
                                       class="border border-orange-800 rounded"
                                       hover

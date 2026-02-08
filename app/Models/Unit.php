@@ -18,12 +18,12 @@ class Unit extends Model
 
     protected $with = [
         'buildings',
+        'emails.sendings',
         'fields',
-        'uris',
         'labels',
         'stages',
         'telephones',
-        'emails.sendings',
+        'uris',
     ];
 
     //      S C O P E S
