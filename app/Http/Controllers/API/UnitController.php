@@ -70,12 +70,12 @@ class UnitController extends Controller
         try {
             $request->validate([
                                    'search' => 'nullable|string|max:255',
-                                   'good_id' => 'nullable|integer|exists:goods,id',
-                                   'activeStages' => 'nullable|boolean',
-                                   'limit' => 'nullable|integer|min:1|max:10000',
+//                                   'good_id' => 'nullable|integer|exists:goods,id',
+//                                   'activeStages' => 'nullable|boolean',
+//                                   'limit' => 'nullable|integer|min:1|max:10000',
                                ]);
 
-            $activeStages = $request->boolean('activeStages', true);
+//            $activeStages = $request->boolean('activeStages', true);
             $limit = $request->integer('limit'); // Null — все
 
             $query = Unit::query()
@@ -87,12 +87,14 @@ class UnitController extends Controller
                            //'products:id,name',
                            //'quotations:id,good_id,measure_id,price',
                            //'entities.sales:id,entity_id,sale_date',
-                           'stages' => function ($query) use ($activeStages) {
-                               $query->select('stages.id', 'stages.name');
-                               if ($activeStages) {
-                                   $query->wherePivot('isActive', true);
-                               }
-                           },
+
+//                           'stages' => function ($query) use ($activeStages) {
+//                               $query->select('stages.id', 'stages.name');
+//                               if ($activeStages) {
+//                                   $query->wherePivot('isActive', true);
+//                               }
+//                           },
+
                            //'quotations.good:id,name',
                            //'quotations.measure:id,name',
                        ])
@@ -103,8 +105,8 @@ class UnitController extends Controller
 
             $units = $limit ? $query->limit($limit)->get() : $query->get();
 
-            return UnitResource::collection($units); // Если краш здесь, закомментируйте и верните $units->toJson()
-            // return $units; // Временно для теста raw data
+//            return UnitResource::collection($units); // Если краш здесь, закомментируйте и верните $units->toJson()
+             return $units; // Временно для теста raw data
         } catch (\Exception $e) {
             \Log::error('Unit index error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
