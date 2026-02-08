@@ -100,9 +100,11 @@ class UnitController extends Controller
                    ])
             ->latest('created_at');
 
-        $units = $query->paginate($perPage);
+//        $units = $query->paginate($perPage);
+        $units = $query->get();
 
-        return UnitResource::collection($units);
+//        return UnitResource::collection($units);
+        return $units;
     }
 
     /**
