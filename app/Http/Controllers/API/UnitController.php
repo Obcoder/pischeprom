@@ -67,44 +67,49 @@ class UnitController extends Controller
 
     public function index(Request $request)
     {
-        $request->validate([
-                               'search' => 'nullable|string|max:255',
-                               'good_id' => 'nullable|integer|exists:goods,id',
-                               'activeStages' => 'nullable|boolean',
-                               'limit' => 'nullable|integer|min:1|max:100',
-                           ]);
+        try {
+            $request->validate([
+                                   'search' => 'nullable|string|max:255',
+                                   'good_id' => 'nullable|integer|exists:goods,id',
+                                   'activeStages' => 'nullable|boolean',
+                                   'limit' => 'nullable|integer|min:1|max:10000',
+                               ]);
 
-        $activeStages = $request->boolean('activeStages', true);
-        $perPage = $request->integer('limit', 25);
+            $activeStages = $request->boolean('activeStages', true);
+            $limit = $request->integer('limit'); // Null — все записи
 
-        $query = Unit::query()
-            ->search($request->search)
-            ->when(
-                $request->filled('good_id'),
-                fn ($q) => $q->forGood((int) $request->good_id)
-            )
-            ->with([
-                       'labels:id,name',
-                       'consumptions:id,unit_id,amount',
-                       'products:id,name',
-                       'quotations:id,good_id,measure_id,price',
-                       'entities.sales:id,entity_id,sale_date',
-                       'stages' => function ($query) use ($activeStages) {
-                           $query->select('stages.id', 'stages.name');
-                           if ($activeStages) {
-                               $query->wherePivot('isActive', true);
-                           }
-                       },
-                       'quotations.good:id,name',
-                       'quotations.measure:id,name',
-                   ])
-            ->latest('created_at');
+            $query = Unit::query()
+                ->search($request->search)
+                ->when($request->filled('good_id'), fn ($q) => $q->forGood((int) $request->good_id))
+                ->with([
+                           'labels:id,name', // Убедитесь, что 'name' в labels table
+                           'consumptions:id,unit_id,amount',
+                           'products:id,name',
+                           'quotations:id,good_id,measure_id,price',
+                           'entities.sales:id,entity_id,sale_date', // Убедитесь, что sales relation в Entity
+                           'stages' => function ($query) use ($activeStages) {
+                               $query->select('stages.id', 'stages.name'); // Убедитесь, что 'name' в stages table
+                               if ($activeStages) {
+                                   $query->wherePivot('isActive', true);
+                               }
+                           },
+                           'quotations.good:id,name',
+                           'quotations.measure:id,name',
+                       ])
+                ->latest('created_at');
 
-//        $units = $query->paginate($perPage);
-        $units = $query->get();
+            if ($limit) {
+                $units = $query->limit($limit)->get(); // Или paginate($limit) для {data, meta}
+            } else {
+                $units = $query->get();
+            }
 
-//        return UnitResource::collection($units);
-        return $units;
+//            return UnitResource::collection($units);
+            return $units;
+        } catch (\Exception $e) {
+            Log::error('Unit index error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Server Error'], 500);
+        }
     }
 
     /**
