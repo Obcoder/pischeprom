@@ -96,8 +96,9 @@ class UnitController extends Controller
 
                        //'quotations.good:id,name',
                        //'quotations.measure:id,name',
-                   ])->get();
-//            ->latest('created_at');
+                   ])
+            ->latest()
+            ->get();
     }
 
     /**
