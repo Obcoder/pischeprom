@@ -67,26 +67,25 @@ class UnitController extends Controller
 
     public function index(Request $request)
     {
-        try {
-            $request->validate([
-                                   'search' => 'nullable|string|max:255',
-//                                   'good_id' => 'nullable|integer|exists:goods,id',
+        $request->validate([
+                               'search' => 'nullable|string|max:255',
+                               'good_id' => 'nullable|integer|exists:goods,id',
 //                                   'activeStages' => 'nullable|boolean',
 //                                   'limit' => 'nullable|integer|min:1|max:10000',
-                               ]);
+                           ]);
 
 //            $activeStages = $request->boolean('activeStages', true);
-            $limit = $request->integer('limit'); // Null — все
+//        $limit = $request->integer('limit'); // Null — все
 
-            $query = Unit::query()
-                ->search($request->search)
-                ->when($request->filled('good_id'), fn ($q) => $q->forGood((int) $request->good_id))
-                ->with([
-                           'labels:id,name', // Начните с этого; добавьте другие по одному
-                           //'consumptions:id,unit_id,amount',
-                           //'products:id,name',
-                           //'quotations:id,good_id,measure_id,price',
-                           //'entities.sales:id,entity_id,sale_date',
+        return Unit::query()
+            ->search($request->search)
+            ->when($request->filled('good_id'), fn ($q) => $q->forGood((int) $request->good_id))
+            ->with([
+                       'labels:id,name', // Начните с этого; добавьте другие по одному
+                       //'consumptions:id,unit_id,amount',
+                       //'products:id,name',
+                       //'quotations:id,good_id,measure_id,price',
+                       //'entities.sales:id,entity_id,sale_date',
 
 //                           'stages' => function ($query) use ($activeStages) {
 //                               $query->select('stages.id', 'stages.name');
@@ -95,25 +94,10 @@ class UnitController extends Controller
 //                               }
 //                           },
 
-                           //'quotations.good:id,name',
-                           //'quotations.measure:id,name',
-                       ])
-                ->latest('created_at');
-
-            // Для дебага: Логируем SQL query
-            \Log::debug('Unit query SQL: ' . $query->toSql(), $query->getBindings());
-
-            $units = $limit ? $query->limit($limit)->get() : $query->get();
-
-//            return UnitResource::collection($units); // Если краш здесь, закомментируйте и верните $units->toJson()
-             return $units; // Временно для теста raw data
-        } catch (\Exception $e) {
-            \Log::error('Unit index error: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-                'request' => $request->all(),
-            ]);
-            return response()->json(['message' => 'Server Error', 'details' => $e->getMessage()], 500); // Для дебага, если APP_DEBUG=true
-        }
+                       //'quotations.good:id,name',
+                       //'quotations.measure:id,name',
+                   ])->get();
+//            ->latest('created_at');
     }
 
     /**
