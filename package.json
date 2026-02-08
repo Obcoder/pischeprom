@@ -25,6 +25,8 @@
     "dependencies": {
         "@vueuse/head": "^2.0.0",
         "date-fns": "^4.1.0",
+        "lodash": "^4.17.23",
+        "lodash.debounce": "^4.0.8",
         "vue-draggable-next": "^2.2.1",
         "vue-meta": "^3.0.0-alpha.2",
         "vue-router": "^4.5.1",

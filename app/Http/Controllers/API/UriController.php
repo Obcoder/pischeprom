@@ -12,12 +12,38 @@ class UriController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return Uri::with('units')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $search = $request->input('search');
+        $itemsPerPage = (int) $request->input('itemsPerPage', 10);
+        $page = (int) $request->input('page', 1);
+        $sortBy = $request->input('sortBy', []);
+        $sortDesc = $request->input('sortDesc', []);
+
+        $query = Uri::with('units')
+            ->search($search);
+
+        // Сортировка
+        if (!empty($sortBy)) {
+            $direction = ($sortDesc[0] ?? false) ? 'desc' : 'asc';
+            $query->orderBy($sortBy[0], $direction);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $paginator = $query->paginate(
+            $itemsPerPage,
+            ['*'],
+            'page',
+            $page
+        );
+
+        return response()->json([
+                                    'items' => $paginator->items(),
+                                    'total' => $paginator->total(),
+                                ]);
     }
+
 
     /**
      * Show the form for creating a new resource.
