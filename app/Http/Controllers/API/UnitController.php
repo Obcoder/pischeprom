@@ -76,39 +76,41 @@ class UnitController extends Controller
                                ]);
 
             $activeStages = $request->boolean('activeStages', true);
-            $limit = $request->integer('limit'); // Null — все записи
+            $limit = $request->integer('limit'); // Null — все
 
             $query = Unit::query()
                 ->search($request->search)
                 ->when($request->filled('good_id'), fn ($q) => $q->forGood((int) $request->good_id))
                 ->with([
-                           'labels:id,name', // Убедитесь, что 'name' в labels table
-                           'consumptions:id,unit_id,amount',
-                           'products:id,name',
-                           'quotations:id,good_id,measure_id,price',
-                           'entities.sales:id,entity_id,sale_date', // Убедитесь, что sales relation в Entity
+                           'labels:id,name', // Начните с этого; добавьте другие по одному
+                           //'consumptions:id,unit_id,amount',
+                           //'products:id,name',
+                           //'quotations:id,good_id,measure_id,price',
+                           //'entities.sales:id,entity_id,sale_date',
                            'stages' => function ($query) use ($activeStages) {
-                               $query->select('stages.id', 'stages.name'); // Убедитесь, что 'name' в stages table
+                               $query->select('stages.id', 'stages.name');
                                if ($activeStages) {
                                    $query->wherePivot('isActive', true);
                                }
                            },
-                           'quotations.good:id,name',
-                           'quotations.measure:id,name',
+                           //'quotations.good:id,name',
+                           //'quotations.measure:id,name',
                        ])
                 ->latest('created_at');
 
-            if ($limit) {
-                $units = $query->limit($limit)->get(); // Или paginate($limit) для {data, meta}
-            } else {
-                $units = $query->get();
-            }
+            // Для дебага: Логируем SQL query
+            \Log::debug('Unit query SQL: ' . $query->toSql(), $query->getBindings());
 
-//            return UnitResource::collection($units);
-            return $units;
+            $units = $limit ? $query->limit($limit)->get() : $query->get();
+
+            return UnitResource::collection($units); // Если краш здесь, закомментируйте и верните $units->toJson()
+            // return $units; // Временно для теста raw data
         } catch (\Exception $e) {
-            Log::error('Unit index error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Server Error'], 500);
+            \Log::error('Unit index error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+            ]);
+            return response()->json(['message' => 'Server Error', 'details' => $e->getMessage()], 500); // Для дебага, если APP_DEBUG=true
         }
     }
 
