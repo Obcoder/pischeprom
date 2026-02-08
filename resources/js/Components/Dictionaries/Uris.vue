@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import axios from 'axios'
 import debounce from 'lodash/debounce';
 import {useDate} from 'vuetify';
+import {useForm, Link} from "@inertiajs/vue3";
 
 const date = useDate()
 
@@ -144,14 +145,11 @@ watch([page, itemsPerPage], fetchUris, { immediate: true })
 
             <!-- created_at -->
             <template #item.created_at="{ item }">
-        <span class="text-xs font-sans">
-          {{ date.format(item.created_at, 'fullDate') }}
-        </span>
+                <span class="text-xs font-sans">{{ date.format(item.created_at, 'fullDate') }}</span>
             </template>
         </v-data-table-server>
     </v-card>
 </template>
-
 
 <style scoped>
 

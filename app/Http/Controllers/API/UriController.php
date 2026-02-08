@@ -15,7 +15,7 @@ class UriController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $itemsPerPage = (int) $request->input('itemsPerPage', 10);
+        $itemsPerPage = (int) $request->input('itemsPerPage', 20);
         $page = (int) $request->input('page', 1);
         $sortBy = $request->input('sortBy', []);
         $sortDesc = $request->input('sortDesc', []);
