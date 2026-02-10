@@ -4,6 +4,7 @@ import axios from 'axios'
 import debounce from 'lodash/debounce';
 import {useDate} from 'vuetify';
 import {useForm, Link} from "@inertiajs/vue3";
+import {route} from "ziggy-js";
 
 const date = useDate()
 
@@ -23,7 +24,7 @@ const headerUris = [
 const fetchUris = async () => {
     loading.value = true
 
-    const { data } = await axios.get('uris.index', {
+    const { data } = await axios.get(route('uris.index'), {
         params: {
             search: search.value,
         }
