@@ -13,7 +13,6 @@ const search = ref('')
 const loading = ref(false)
 
 const headerUris = [
-    { title: 'ID', key: 'id' },
     { title: 'Address', key: 'address' },
     { title: 'Units', key: 'units' },
     { title: 'Valid', key: 'is_valid' },
