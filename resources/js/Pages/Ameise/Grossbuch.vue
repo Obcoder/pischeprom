@@ -2361,13 +2361,9 @@ const formatBuildingTitle = (building) => {
                                     <v-row>
                                         <v-col>
                                             <v-tabs v-model="tabsContacts">
-                                                <v-tab value="uris">Uris</v-tab>
                                                 <v-tab value="telephones">Телефоны</v-tab>
                                             </v-tabs>
                                             <v-tabs-window v-model="tabsContacts">
-                                                <v-tabs-window-item value="uris">
-                                                    <Uris />
-                                                </v-tabs-window-item>
                                                 <v-tabs-window-item value="telephones">
                                                     <v-container>
                                                         <v-row>
