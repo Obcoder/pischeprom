@@ -975,7 +975,6 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="geography">География</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
-                            <v-tab value="brands">Brands</v-tab>
                         </v-tabs>
 
                         <v-card-text>
