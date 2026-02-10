@@ -1,31 +1,46 @@
-- name: Deploy to VPS
-  run: |
-    ssh ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
-      set -e
+name: Deploy to VPS
 
-      cd ${{ secrets.TARGET_DIR }}
+on:
+  push:
+    branches:
+      - main
 
-      git config --global --add safe.directory ${{ secrets.TARGET_DIR }}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-      git fetch origin
-      git checkout main
-      git pull origin main
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      php artisan down || true
+      - name: Deploy to VPS
+        run: |
+          ssh ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
+            set -e
 
-      composer install --no-dev --optimize-autoloader
+            cd ${{ secrets.TARGET_DIR }}
 
-      npm ci
-      npm run build
+            git config --global --add safe.directory ${{ secrets.TARGET_DIR }}
 
-      php artisan migrate --force
+            git fetch origin
+            git checkout main
+            git pull origin main
 
-      php artisan optimize:clear
-      php artisan config:cache
-      php artisan route:cache
+            php artisan down || true
 
-      chown -R forge:www-data storage bootstrap/cache
-      chmod -R 775 storage bootstrap/cache
+            composer install --no-dev --optimize-autoloader
 
-      php artisan up
-    EOF
+            npm ci
+            npm run build
+
+            php artisan migrate --force
+
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+
+            chown -R forge:www-data storage bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
+
+            php artisan up
+          EOF
