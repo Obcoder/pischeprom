@@ -7,12 +7,20 @@ import {useForm, Link} from "@inertiajs/vue3";
 
 const date = useDate()
 
+function debounce(fn, delay = 400) {
+    let timeout
+    return (...args) => {
+        clearTimeout(timeout)
+        timeout = setTimeout(() => fn(...args), delay)
+    }
+}
+
 const items = ref([])
 const total = ref(0)
 const loading = ref(false)
 
 const page = ref(1)
-const itemsPerPage = ref(50) // вместо 1000 — сервер!
+const itemsPerPage = ref(50)
 const sortBy = ref([])
 const search = ref('')
 
@@ -25,9 +33,18 @@ const headerUris = [
     { title: 'Created', key: 'created_at' },
 ]
 
-// 🔹 ЕДИНСТВЕННАЯ функция загрузки
+/**
+ * 🔥 ОСНОВНАЯ загрузка
+ */
 const fetchUris = async () => {
     loading.value = true
+
+    console.log('FETCH PARAMS', {
+        page: page.value,
+        itemsPerPage: itemsPerPage.value,
+        sortBy: sortBy.value,
+        search: search.value,
+    })
 
     const { data } = await axios.get('/api/uri', {
         params: {
@@ -44,15 +61,32 @@ const fetchUris = async () => {
     loading.value = false
 }
 
-// 🔹 debounce для поиска
-const debouncedFetch = debounce(() => {
+/**
+ * 🔥 Vuetify options handler
+ */
+const onOptionsUpdate = (options) => {
+    page.value = options.page
+    itemsPerPage.value = options.itemsPerPage
+    sortBy.value = options.sortBy
+
+    fetchUris()
+}
+
+/**
+ * 🔍 debounce поиск
+ */
+const debouncedSearch = debounce(() => {
     page.value = 1
     fetchUris()
 }, 400)
 
-// 🔹 watchers
-watch(search, debouncedFetch)
-watch([page, itemsPerPage], fetchUris, { immediate: true })
+watch(search, debouncedSearch)
+
+/**
+ * 🔥 ПЕРВИЧНАЯ ЗАГРУЗКА
+ */
+fetchUris()
+
 </script>
 
 
@@ -112,18 +146,20 @@ watch([page, itemsPerPage], fetchUris, { immediate: true })
             :items="items"
             :items-length="total"
             :loading="loading"
+
             fixed-header
             height="888px"
             density="compact"
             hover
-            class="text-xs border rounded border-red-50"
 
             v-model:page="page"
             v-model:items-per-page="itemsPerPage"
             v-model:sort-by="sortBy"
-            @update:options="fetchUris"
+
+            @update:options="onOptionsUpdate"
         >
-            <!-- address -->
+
+        <!-- address -->
             <template #item.address="{ item }">
                 <a
                     :href="item.address"

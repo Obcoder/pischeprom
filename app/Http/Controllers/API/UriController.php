@@ -12,10 +12,12 @@ class UriController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request): \Illuminate\Http\JsonResponse
     {
+        logger()->info('URI INDEX PARAMS', $request->all());
+
         $search = $request->input('search');
-        $itemsPerPage = (int) $request->input('itemsPerPage', 20);
+        $itemsPerPage = (int) $request->input('itemsPerPage', 50);
         $page = (int) $request->input('page', 1);
         $sortBy = $request->input('sortBy', []);
         $sortDesc = $request->input('sortDesc', []);
