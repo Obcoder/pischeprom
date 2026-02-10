@@ -16,8 +16,8 @@ class UriController extends Controller
     {
         $search = $request->input('search');
 
-        return Uri::with('units')
-            ->search($search)
+        return Uri::search($search)
+            ->with('units')
             ->orderBy('created_at', 'desc')
             ->limit(500) // защита
             ->get();
