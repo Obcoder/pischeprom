@@ -137,7 +137,6 @@ function storeUri(){
     <v-row>
         <v-col>
             <v-data-table
-                :headers="headerUris"
                 :items="uris"
                 items-per-page="1000"
                 fixed-header
