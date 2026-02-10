@@ -14,36 +14,15 @@ class UriController extends Controller
      */
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        logger()->info('URI INDEX PARAMS', $request->all());
-
         $search = $request->input('search');
-        $itemsPerPage = (int) $request->input('itemsPerPage', 50);
-        $page = (int) $request->input('page', 1);
-        $sortBy = $request->input('sortBy', []);
-        $sortDesc = $request->input('sortDesc', []);
 
-        $query = Uri::with('units')
-            ->search($search);
+        $uris = Uri::with('units')
+            ->search($search)
+            ->orderBy('created_at', 'desc')
+            ->limit(500) // защита
+            ->get();
 
-        // Сортировка
-        if (!empty($sortBy)) {
-            $direction = ($sortDesc[0] ?? false) ? 'desc' : 'asc';
-            $query->orderBy($sortBy[0], $direction);
-        } else {
-            $query->orderBy('created_at', 'desc');
-        }
-
-        $paginator = $query->paginate(
-            $itemsPerPage,
-            ['*'],
-            'page',
-            $page
-        );
-
-        return response()->json([
-                                    'items' => $paginator->items(),
-                                    'total' => $paginator->total(),
-                                ]);
+        return response()->json($uris);
     }
 
 
