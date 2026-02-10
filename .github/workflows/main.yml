@@ -1,56 +1,31 @@
-name: Deploy to VPS
+- name: Deploy to VPS
+  run: |
+    ssh ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
+      set -e
 
-on:
-  push:
-    branches:
-      - main
+      cd ${{ secrets.TARGET_DIR }}
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+      git config --global --add safe.directory ${{ secrets.TARGET_DIR }}
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      git fetch origin
+      git checkout main
+      git pull origin main
 
-    - name: Set up SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
+      php artisan down || true
 
-    - name: Deploy to VPS
-      run: |
-        ssh ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
-          cd ${{ secrets.TARGET_DIR }}
-          git config --global --add safe.directory /home/forge/xn----dtbhbbn3apgclecj7i.xn--p1ai
-          git fetch origin
-          git checkout main
-          git pull origin main
+      composer install --no-dev --optimize-autoloader
 
-          # Очистка кэша перед обновлением
-          php artisan cache:clear
-          php artisan config:clear
-          php artisan route:clear
-          php artisan view:clear
+      npm ci
+      npm run build
 
-          # Установка зависимостей
-          composer install --no-dev --optimize-autoloader
-          rm -rf node_modules public/build
-          npm install
-          npm run build
+      php artisan migrate --force
 
-          # Миграции и кэширование
-          php artisan migrate --force
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
+      php artisan optimize:clear
+      php artisan config:cache
+      php artisan route:cache
 
-          # Исправление прав доступа
-          chown -R www-data:www-data storage public
-          chmod -R 755 storage public
+      chown -R forge:www-data storage bootstrap/cache
+      chmod -R 775 storage bootstrap/cache
 
-          # Перезапуск Nginx (если нужен и есть права)
-          sudo -n systemctl restart nginx || echo "Failed to restart Nginx"
-        EOF
+      php artisan up
+    EOF
