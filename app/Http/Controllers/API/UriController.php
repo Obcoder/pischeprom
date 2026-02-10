@@ -16,13 +16,11 @@ class UriController extends Controller
     {
         $search = $request->input('search');
 
-        $uris = Uri::with('units')
+        return Uri::with('units')
             ->search($search)
             ->orderBy('created_at', 'desc')
             ->limit(500) // защита
             ->get();
-
-        return response()->json($uris);
     }
 
 

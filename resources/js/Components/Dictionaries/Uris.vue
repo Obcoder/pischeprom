@@ -8,7 +8,7 @@ import {route} from "ziggy-js";
 
 const date = useDate()
 
-const items = ref([])
+const uris = ref([])
 const search = ref('')
 const loading = ref(false)
 
@@ -30,7 +30,7 @@ const fetchUris = async () => {
         }
     })
 
-    items.value = data
+    uris.value = data
     loading.value = false
 }
 
@@ -40,11 +40,11 @@ onMounted(()=>{
 })
 
 // 🔹 простой debounce
-let timeout = null
-watch(search, () => {
-    clearTimeout(timeout)
-    timeout = setTimeout(fetchUris, 400)
-})
+// let timeout = null
+// watch(search, () => {
+//     clearTimeout(timeout)
+//     timeout = setTimeout(fetchUris, 400)
+// })
 
 </script>
 
@@ -109,7 +109,7 @@ watch(search, () => {
         <v-col>
             <v-data-table
                 :headers="headerUris"
-                :items="items"
+                :items="uris"
                 items-per-page="1000"
                 fixed-header
                 height="888px"
