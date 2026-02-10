@@ -23,7 +23,7 @@ const headerUris = [
 const fetchUris = async () => {
     loading.value = true
 
-    const { data } = await axios.get('/api/uri', {
+    const { data } = await axios.get('uris.index', {
         params: {
             search: search.value,
         }
