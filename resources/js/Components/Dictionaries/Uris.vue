@@ -14,10 +14,10 @@ const loading = ref(false)
 
 const headerUris = [
     { title: 'Address', key: 'address' },
-    { title: 'Units', key: 'units' },
-    { title: 'Valid', key: 'is_valid' },
-    { title: 'Follow', key: 'follow' },
-    { title: 'Created', key: 'created_at' },
+    // { title: 'Units', key: 'units' },
+    // { title: 'Valid', key: 'is_valid' },
+    // { title: 'Follow', key: 'follow' },
+    // { title: 'Created', key: 'created_at' },
 ]
 
 const fetchUris = async () => {
