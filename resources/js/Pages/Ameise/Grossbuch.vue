@@ -50,7 +50,7 @@ const sales = ref([])
 const segments = ref([])
 const telephones = ref([])
 const units = ref([])
-const uris = ref([])
+// const uris = ref([])
 
 let manufacturers = ref();
 
@@ -787,79 +787,8 @@ function storeTelephone(){
 
 
 //   U R I S
-function indexUris(){
-    axios.get(route('uris.index')).then(function (response) {
-        // handle success
-        uris.value = response.data
-    }).catch(function (error) {
-        // handle error
-        console.log(error);
-    }).finally(function () {
-        // always executed
-    });
-}
-const headerUris = ref([
-    {
-        title: 'Address',
-        key: 'address',
-        align: 'start',
-    },
-    {
-        title: 'Valid',
-        key: 'is_valid',
-        align: 'center',
-    },
-    {
-        title: 'Follow',
-        key: 'follow',
-        align: 'center',
-    },
-    {
-        title: 'Design',
-        key: 'has_brilliant_foremost_design',
-        align: 'center',
-    },
-    {
-        title: 'Owners',
-        key: 'units',
-        align: 'start',
-    },
-    {
-        title: 'created_at',
-        key: 'created_at',
-        align: 'start',
-    },
-])
-const searchUris = ref('')
-const filteredUris = computed(()=>{
-    if (!searchUris.value) return uris.value
 
-    const term = searchUris.value.toLowerCase()
 
-    return uris.value.filter(uri => {
-        const addressMatch = uri.address?.toLowerCase().includes(term)
-
-        const unitMatch = uri.units?.some(unit =>
-            unit.name?.toLowerCase().includes(term)
-        )
-
-        return addressMatch || unitMatch;
-    })
-})
-const formUri = useForm({
-    address: null,
-})
-function storeUri(){
-    formUri.post(route('web.uri.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formUri.reset();
-            indexUris()
-        },
-    });
-}
 //     E N D  U R I S
 
 
@@ -985,7 +914,7 @@ onMounted(()=>{
     indexSales()
     indexSegments()
     indexTelephones()
-    indexUnits()
+    // indexUnits()
     indexUris()
 
     getManufacturers();

@@ -1,5 +1,5 @@
 <script setup>
-import {onMounted, ref, watch} from 'vue'
+import {computed, onMounted, ref, watch} from 'vue'
 import axios from 'axios'
 import debounce from 'lodash/debounce';
 import {useDate} from 'vuetify';
@@ -45,6 +45,36 @@ onMounted(()=>{
 //     clearTimeout(timeout)
 //     timeout = setTimeout(fetchUris, 400)
 // })
+
+const filteredUris = computed(()=>{
+    if (!search.value) return uris.value
+
+    const term = search.value.toLowerCase()
+
+    return uris.value.filter(uri => {
+        const addressMatch = uri.address?.toLowerCase().includes(term)
+
+        const unitMatch = uri.units?.some(unit =>
+            unit.name?.toLowerCase().includes(term)
+        )
+
+        return addressMatch || unitMatch;
+    })
+})
+const formUri = useForm({
+    address: null,
+})
+function storeUri(){
+    formUri.post(route('web.uri.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: false,
+        onSuccess: ()=> {
+            formUri.reset();
+            fetchUris()
+        },
+    });
+}
 
 </script>
 
