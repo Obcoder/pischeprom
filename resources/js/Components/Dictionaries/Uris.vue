@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import {onMounted, ref, watch} from 'vue'
 import axios from 'axios'
 import debounce from 'lodash/debounce';
 import {useDate} from 'vuetify';
@@ -35,7 +35,9 @@ const fetchUris = async () => {
 }
 
 // 🔹 загрузка при старте
-fetchUris()
+onMounted(()=>{
+    fetchUris()
+})
 
 // 🔹 простой debounce
 let timeout = null
