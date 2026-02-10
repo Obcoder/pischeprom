@@ -114,29 +114,29 @@ watch(search, () => {
                 class="text-xs border rounded border-red-50"
                 hover
             >
-                <template #item.address="{ item }">
-                    <a
-                        :href="item.address"
-                        target="_blank"
-                        class="text-xs text-green-400 inline-block"
-                    >
-                        {{ item.address }}
-                    </a>
-                </template>
+<!--                <template #item.address="{ item }">-->
+<!--                    <a-->
+<!--                        :href="item.address"-->
+<!--                        target="_blank"-->
+<!--                        class="text-xs text-green-400 inline-block"-->
+<!--                    >-->
+<!--                        {{ item.address }}-->
+<!--                    </a>-->
+<!--                </template>-->
 
-                <template #item.units="{ item }">
-                    <div v-for="unit in item.units" :key="unit.id">
-                        <Link :href="route('web.unit.show', unit.id)">
-                            {{ unit.name }}
-                        </Link>
-                    </div>
-                </template>
+<!--                <template #item.units="{ item }">-->
+<!--                    <div v-for="unit in item.units" :key="unit.id">-->
+<!--                        <Link :href="route('web.unit.show', unit.id)">-->
+<!--                            {{ unit.name }}-->
+<!--                        </Link>-->
+<!--                    </div>-->
+<!--                </template>-->
 
-                <template #item.created_at="{ item }">
-        <span class="text-xs font-sans">
-          {{ date.format(item.created_at, 'fullDate') }}
-        </span>
-                </template>
+<!--                <template #item.created_at="{ item }">-->
+<!--                        <span class="text-xs font-sans">-->
+<!--                          {{ date.format(item.created_at, 'fullDate') }}-->
+<!--                        </span>-->
+<!--                    </template>-->
             </v-data-table>
         </v-col>
     </v-row>
