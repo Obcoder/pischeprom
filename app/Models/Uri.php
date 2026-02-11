@@ -26,45 +26,41 @@ class Uri extends Model
     /**
      * Текстовый поиск
      */
-    public function scopeSearch(Builder $query, ?string $search): Builder
+    public function scopeSearch($query, $search)
     {
-        if (!$search) {
+        $search = trim($search);
+
+        if (empty($search)) {
             return $query;
         }
 
-        // Нормализация строки поиска
-        $search = trim(mb_strtolower($search));
+        // Разбиваем строку поиска на слова
+        $terms = preg_split('/\s+/', $search);
 
-        // Разбиваем по пробелам
-        $tokens = preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY);
+        return $query->where(function ($q) use ($terms, $search) {
 
-        return $query->where(function (Builder $q) use ($tokens) {
+            foreach ($terms as $term) {
 
-            foreach ($tokens as $token) {
+                $q->where(function ($sub) use ($term) {
 
-                // Экранируем для LIKE
-                $like = '%' . addcslashes($token, '%_') . '%';
+                    // Поиск по address
+                    $sub->where('address', 'like', "%{$term}%");
 
-                $q->where(function (Builder $sub) use ($like, $token) {
-
-                    // обычный LIKE
-                    $sub->where('address', 'like', $like)
-
-                        // без http/https/www
-                        ->orWhereRaw(
-                            "REGEXP_REPLACE(address, '^(https?://)?(www\\.)?', '') LIKE ?",
-                            [$like]
-                        );
-
-                    // булевы поля (yes / no / 1 / 0 / true / false)
-                    if (in_array($token, ['1','0','yes','no','true','false'], true)) {
-                        $bool = in_array($token, ['1','yes','true'], true);
-
-                        $sub->orWhere('is_valid', $bool)
-                            ->orWhere('follow', $bool);
+                    // Если это число — ищем по id
+                    if (is_numeric($term)) {
+                        $sub->orWhere('id', $term);
                     }
+
+                    // Поиск по связанным units
+                    $sub->orWhereHas('units', function ($u) use ($term) {
+                        $u->where('name', 'like', "%{$term}%");
+                    });
+
                 });
+
             }
+
         });
     }
+
 }
