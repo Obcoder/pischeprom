@@ -25,21 +25,30 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
             set -e
+
             cd ${{ secrets.TARGET_DIR }}
+
             git config --global --add safe.directory ${{ secrets.TARGET_DIR }}
+
             git fetch origin
             git checkout main
             git pull origin main
+
             php artisan down || true
+
             composer install --no-dev --optimize-autoloader
+
             npm ci
             npm run build
+
             php artisan migrate --force
+
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
+
             chown -R forge:www-data storage bootstrap/cache
             chmod -R 775 storage bootstrap/cache
+
             php artisan up
           EOF
-
