@@ -36,12 +36,10 @@ const fetchUris = async () => {
 // 🔹 загрузка при старте
 fetchUris()
 
-// 🔹 простой debounce
-// let timeout = null
-// watch(search, () => {
-//     clearTimeout(timeout)
-//     timeout = setTimeout(fetchUris, 400)
-// })
+// 🔹 следим за изменением search
+watch(search, (newVal) => {
+    fetchUris(newVal);
+});
 
 
 const filteredUris = computed(()=>{
