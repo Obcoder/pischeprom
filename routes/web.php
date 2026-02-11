@@ -61,10 +61,6 @@ Route::get('/Ameise/workboard', function () {
 // ВСЕ остальные /Ameise/* маршруты
 // просто ПЕРЕНОСЯТСЯ СЮДА БЕЗ ИЗМЕНЕНИЙ
 
-Route::get('/Goods/', function (){
-    return Inertia::render('Ameise/Goods');
-})->name('Ameise.goods');
-
 //   B O T A N Y
 Route::get('/Ameise/Botany/', function (){
     return Inertia::render('Ameise/Botany');
