@@ -101,19 +101,19 @@ function storeUri(){
                     class="text-xs border rounded border-red-50"
                     hover
                 >
-                    <!--        <template v-slot:item.address="{item}">-->
-                    <!--            <a :href="item.address" target="_blank"-->
-                    <!--               class="text-xs text-green-400 inline-block"-->
-                    <!--            >{{item.address}}</a>-->
-                    <!--        </template>-->
-                    <!--        <template v-slot:item.units="{item}">-->
-                    <!--            <div v-for="unit in item.units">-->
-                    <!--                <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>-->
-                    <!--            </div>-->
-                    <!--        </template>-->
-                    <!--        <template v-slot:item.created_at="{item}">-->
-                    <!--            <span class="text-xs font-sans">{{date.format(item.created_at, 'fullDate')}}</span>-->
-                    <!--        </template>-->
+                    <template v-slot:item.address="{item}">
+                        <a :href="item.address" target="_blank"
+                           class="text-xs text-green-400 inline-block"
+                        >{{item.address}}</a>
+                    </template>
+                    <template v-slot:item.units="{item}">
+                        <div v-for="unit in item.units">
+                            <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
+                        </div>
+                    </template>
+                    <template v-slot:item.created_at="{item}">
+                        <span class="text-xs font-sans">{{date.format(item.created_at, 'fullDate')}}</span>
+                    </template>
                 </v-data-table>
             </v-col>
         </v-row>
