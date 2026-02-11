@@ -54,9 +54,6 @@ Route::get('/Ameise/', [Verwalter::class, 'index'])
 Route::get('/Ameise/workboard', function () {
     return Inertia::render('Ameise/WorkBoard');
 })->name('ameise.workboard');
-Route::get('/workboard', function () {
-    return Inertia::render('Ameise/WorkBoard');
-})->name('ameise.workboard');
 
 
 
