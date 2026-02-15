@@ -244,7 +244,7 @@ onMounted(loadAll)
                         <div class="text-body-2">
                             <template v-for="(m, index) in item.manufacturers" :key="m.id">
                                 <Link
-                                    :href="route('unit.show', m.id)"
+                                    :href="route('web.unit.show', m.id)"
                                     class="text-decoration-none"
                                 >
                                     {{ m.rus ?? m.name ?? m.id }}
