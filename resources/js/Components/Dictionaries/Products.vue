@@ -109,8 +109,15 @@ async function loadAll() {
             axios.get('/api/products'),
             axios.get('/api/categories'),
         ])
-        products.value = pRes.data ?? []
-        categories.value = cRes.data ?? []
+
+        products.value = Array.isArray(pRes.data)
+            ? pRes.data
+            : (pRes.data?.data ?? [])
+
+        categories.value = Array.isArray(cRes.data)
+            ? cRes.data
+            : (cRes.data?.data ?? [])
+
     } catch (e) {
         console.error(e)
         snackbar.text = 'Ошибка загрузки данных'
@@ -119,6 +126,7 @@ async function loadAll() {
         loading.value = false
     }
 }
+
 
 async function createProduct() {
     error.value = ''
@@ -183,6 +191,7 @@ onMounted(loadAll)
                     v-model="search"
                     label="Поиск"
                     prepend-inner-icon="mdi-magnify"
+                    variant="solo"
                     density="compact"
                     hide-details
                     clearable
@@ -213,9 +222,13 @@ onMounted(loadAll)
                 <v-data-table
                     :headers="headers"
                     :items="filteredProducts"
-                    :loading="loading"
                     item-key="id"
-                    density="comfortable"
+                    items-per-page="50"
+                    fixed-header
+                    height="600px"
+                    :loading="loading"
+                    density="compact"
+                    class="border rounded"
                 >
                     <template #item.category="{ item }">
                         <div class="text-body-2">
