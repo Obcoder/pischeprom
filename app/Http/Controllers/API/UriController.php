@@ -20,7 +20,7 @@ class UriController extends Controller
             ->search($search)
             ->with('units')
             ->latest()
-            ->limit(500) // защита от слишком больших выборок
+            ->limit(1000) // защита от слишком больших выборок
             ->get();
 
         return response()->json($uris);

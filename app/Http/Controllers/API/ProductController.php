@@ -12,15 +12,23 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): \Illuminate\Database\Eloquent\Collection
+    public function index(Request $request)
     {
-//        $products = DB::table('products')
-//            ->select('products.id', 'products.rus')
-//            ->get();
-        return Product::with(['goods.quotations'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $query = Product::query()
+            ->with(['goods.quotations'])
+            ->orderByDesc('created_at');
+
+        if ($request->filled('search')) {
+            $query->search($request->search);
+        }
+
+        if ($request->filled('category_id')) {
+            $query->category($request->category_id);
+        }
+
+        return $query->get();
     }
+
 
     /**
      * Show the form for creating a new resource.

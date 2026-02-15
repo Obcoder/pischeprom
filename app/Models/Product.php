@@ -67,4 +67,37 @@ class Product extends Model
             ->withPivot(['action_id'])
             ->withTimestamps();
     }
+
+
+    public function scopeSearch(Builder $query, ?string $search): Builder
+    {
+        $search = trim((string) $search);
+
+        if ($search === '') {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($search) {
+            $like = "%{$search}%";
+
+            $q->where('rus', 'like', $like)
+                ->orWhere('eng', 'like', $like)
+                ->orWhere('de', 'like', $like)
+                ->orWhere('fr', 'like', $like)
+                ->orWhere('es', 'like', $like)
+                ->orWhere('ar', 'like', $like)
+                ->orWhere('po', 'like', $like)
+                ->orWhere('hi', 'like', $like)
+                ->orWhere('zh', 'like', $like);
+        });
+    }
+
+    public function scopeCategory(Builder $query, $categoryId): Builder
+    {
+        if (!$categoryId) {
+            return $query;
+        }
+
+        return $query->where('category_id', $categoryId);
+    }
 }
