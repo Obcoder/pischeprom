@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
+import { Link } from "@inertiajs/vue3";
+import {route} from "ziggy-js";
 
 const loading = ref(false)
 const saving = ref(false)
@@ -225,11 +227,12 @@ onMounted(loadAll)
                     item-key="id"
                     items-per-page="50"
                     fixed-header
-                    height="600px"
+                    height="700px"
                     :loading="loading"
                     density="compact"
                     class="border rounded"
                 >
+
                     <template #item.category="{ item }">
                         <div class="text-body-2">
                             {{ item?.category?.rus ?? item?.category?.name ?? '—' }}
@@ -238,10 +241,15 @@ onMounted(loadAll)
 
                     <template #item.manufacturers="{ item }">
                         <div class="text-body-2">
-                            <template v-if="item?.manufacturers?.length">
-                                {{ item.manufacturers.map(m => m.rus ?? m.name ?? m.id).join(', ') }}
+                            <template v-for="(m, index) in item.manufacturers" :key="m.id">
+                                <Link
+                                    :href="route('units.show', m.id)"
+                                    class="text-decoration-none"
+                                >
+                                    {{ m.rus ?? m.name ?? m.id }}
+                                </Link>
+                                <span v-if="index < item.manufacturers.length - 1">, </span>
                             </template>
-                            <template v-else>—</template>
                         </div>
                     </template>
 
