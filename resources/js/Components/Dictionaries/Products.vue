@@ -206,6 +206,7 @@ onMounted(loadAll)
                     :items="categoryItems"
                     item-title="title"
                     item-value="value"
+                    variant="solo"
                     label="Категория"
                     density="compact"
                     hide-details
@@ -227,7 +228,7 @@ onMounted(loadAll)
                     item-key="id"
                     items-per-page="50"
                     fixed-header
-                    height="700px"
+                    height="750px"
                     :loading="loading"
                     density="compact"
                     class="border rounded"
@@ -243,7 +244,7 @@ onMounted(loadAll)
                         <div class="text-body-2">
                             <template v-for="(m, index) in item.manufacturers" :key="m.id">
                                 <Link
-                                    :href="route('units.show', m.id)"
+                                    :href="route('unit.show', m.id)"
                                     class="text-decoration-none"
                                 >
                                     {{ m.rus ?? m.name ?? m.id }}
