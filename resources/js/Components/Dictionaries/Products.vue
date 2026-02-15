@@ -305,6 +305,17 @@ onMounted(loadAll)
                             <v-col cols="12" md="4">
                                 <v-text-field v-model.trim="form.fr" label="fr" />
                             </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-text-field v-model.trim="form.zh" label="zh" />
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <v-text-field v-model.trim="form.es" label="es" />
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <v-text-field v-model.trim="form.ar" label="ar" />
+                            </v-col>
+
                         </v-row>
 
                         <v-alert
