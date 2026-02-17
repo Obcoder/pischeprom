@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import {ref, watch, computed, onMounted} from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import {useForm, Link} from "@inertiajs/vue3";
@@ -105,6 +105,24 @@ function storeUnit(){
         },
     });
 }
+
+// Fields
+const fields = ref([])
+const indexFields = async () => {
+    try {
+        const { data } = await axios.get(route('fields.index'), {
+            params: {}
+        })
+        fields.value = Array.isArray(data) ? data : (data.data || [])
+    } catch (e) {
+        console.error(e)
+        fields.value = []
+    }
+}
+
+onMounted(
+    indexFields()
+)
 </script>
 
 <template>
