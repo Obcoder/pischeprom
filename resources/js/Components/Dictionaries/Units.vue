@@ -66,10 +66,8 @@ const headerUnits = [
         align: 'start',
         width: '14%',
     },
-    {
-        key: 'name',
-        title: 'name',
-    },
+    { key: 'name', title: 'name'},
+    { key: 'labels', title: 'labels', align: 'start', sortable: true},
     {
         key: 'uris',
         title: 'Uris',
@@ -304,6 +302,11 @@ onMounted(
                                 >
                                     {{item.name}}
                                 </Link>
+                            </template>
+                            <template v-slot:item.labels="{item}">
+                                <div v-for="label in item.labels">
+                                    {{label.name}}
+                                </div>
                             </template>
                             <template v-slot:item.uris="{item}">
                                 <a v-for="uri in item.uris"

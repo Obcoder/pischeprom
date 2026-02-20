@@ -81,7 +81,7 @@ class UnitController extends Controller
             ->search($request->search)
             ->when($request->filled('good_id'), fn ($q) => $q->forGood((int) $request->good_id))
             ->with([
-                       'labels:id,name', // Начните с этого; добавьте другие по одному
+//                       'labels:id,name', // Начните с этого; добавьте другие по одному
                        //'consumptions:id,unit_id,amount',
                        //'products:id,name',
                        //'quotations:id,good_id,measure_id,price',
