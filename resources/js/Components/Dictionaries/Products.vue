@@ -232,6 +232,7 @@ onMounted(loadAll)
                     :loading="loading"
                     density="compact"
                     class="border rounded"
+                    hover
                 >
 
                     <template #item.category="{ item }">
