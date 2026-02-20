@@ -25,7 +25,7 @@ class CategoryController extends Controller
                                'per_page' => 'nullable|integer|min:1|max:100',
                            ]);
 
-        $perPage = $request->per_page ?? 25;
+        $perPage = $request->per_page ?? 100;
 
         $query = Category::query()
             ->withCount('products')
