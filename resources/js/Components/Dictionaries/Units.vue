@@ -4,9 +4,11 @@ import axios from 'axios'
 import { route } from 'ziggy-js'
 import {useForm, Link} from "@inertiajs/vue3";
 
+const fields = ref([])
 const units = ref([])
 const searchUnits = ref('')
-
+const labels = ref([])
+const selectedLabelsIDs = ref([])
 const showFormUnit = ref(false)
 
 // Функция загрузки Units
@@ -45,18 +47,6 @@ const filteredUnits = computed(() => {
 
     return filtered
 })
-
-// Используйте watch для загрузки при изменениях searchUnits (и immediate для начальной загрузки)
-watch(searchUnits, () => {
-    indexUnits()
-}, { immediate: true }) // immediate: true — запустит сразу при монтировании
-
-// Если есть другие зависимости (e.g., selectedLabelsIDs), добавьте watch на них:
-watch(selectedLabelsIDs, () => {
-    indexUnits()
-}, { immediate: true, deep: true }) // deep: true, если array/object
-
-
 
 const headerUnits = [
     {
@@ -104,7 +94,6 @@ function storeUnit(){
 }
 
 // Fields
-const fields = ref([])
 const indexFields = async () => {
     try {
         const { data } = await axios.get(route('fields.index'), {
@@ -118,8 +107,6 @@ const indexFields = async () => {
 }
 
 //  Labels
-const labels = ref([])
-const selectedLabelsIDs = ref([])
 const indexLabels = async () => {
     try {
         const { data } = await axios.get(route('labels.index'), {
@@ -132,10 +119,20 @@ const indexLabels = async () => {
     }
 }
 
-onMounted(
-    indexFields(),
+onMounted(() => {
+    indexFields()
     indexLabels()
-)
+})
+
+// Используйте watch для загрузки при изменениях searchUnits (и immediate для начальной загрузки)
+watch(searchUnits, () => {
+    indexUnits()
+}, { immediate: true }) // immediate: true — запустит сразу при монтировании
+
+// Если есть другие зависимости (e.g., selectedLabelsIDs), добавьте watch на них:
+watch(selectedLabelsIDs, () => {
+    indexUnits()
+}, { immediate: true, deep: true }) // deep: true, если array/object
 
 const toggleLabel = (labelId) => {
     if (selectedLabelsIDs.value.includes(labelId)) {
