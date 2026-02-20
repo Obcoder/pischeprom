@@ -6,7 +6,6 @@ import {useForm, Link} from "@inertiajs/vue3";
 
 const units = ref([])
 const searchUnits = ref('')
-const selectedLabelsIDs = ref([])
 
 const showFormUnit = ref(false)
 
