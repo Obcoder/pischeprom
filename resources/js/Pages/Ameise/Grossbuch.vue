@@ -66,7 +66,6 @@ const dialogFormCity = ref(false)
 const dialogFormUnit = ref(false)
 const dialogFormUri = ref(false)
 
-const selectedLabelsIDs = ref([])
 const selectedCategoriesIDs = ref([])
 
 const headersCatalogs = ref([
@@ -930,14 +929,6 @@ useHead({
         }
     ]
 })
-
-const toggleLabel = (labelId) => {
-    if (selectedLabelsIDs.value.includes(labelId)) {
-        selectedLabelsIDs.value = selectedLabelsIDs.value.filter((id) => id !== labelId);
-    } else {
-        selectedLabelsIDs.value.push(labelId)
-    }
-}
 
 // Функция для генерации slug, если он отсутствует
 const generateSlug = (name) => {

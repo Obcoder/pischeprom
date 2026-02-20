@@ -118,9 +118,33 @@ const indexFields = async () => {
     }
 }
 
+//  Labels
+const labels = ref([])
+const selectedLabelsIDs = ref([])
+const indexLabels = async () => {
+    try {
+        const { data } = await axios.get(route('labels.index'), {
+            params: {}
+        })
+        labels.value = Array.isArray(data) ? data : (data.data || [])
+    } catch (e) {
+        console.error(e)
+        labels.value = []
+    }
+}
+
 onMounted(
-    indexFields()
+    indexFields(),
+    indexLabels()
 )
+
+const toggleLabel = (labelId) => {
+    if (selectedLabelsIDs.value.includes(labelId)) {
+        selectedLabelsIDs.value = selectedLabelsIDs.value.filter((id) => id !== labelId);
+    } else {
+        selectedLabelsIDs.value.push(labelId)
+    }
+}
 </script>
 
 <template>
