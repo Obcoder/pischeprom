@@ -243,21 +243,21 @@ onMounted(() => {
                             </template>
 
                             <template #item.code="{ item }">
-                <span class="text-teal-200 font-weight-bold">
-                  {{ item.code }}
-                </span>
-                            </template>
+                                <span class="text-teal-200 font-weight-bold">
+                                  {{ item.code }}
+                                </span>
+                                            </template>
 
-                            <template #item.title="{ item }">
-                <span class="text-sm">
-                  {{ item.title }}
-                </span>
-                            </template>
+                                            <template #item.title="{ item }">
+                                <span class="text-sm">
+                                  {{ item.title }}
+                                </span>
+                                            </template>
 
-                            <template #item.created_at="{ item }">
-                <span class="text-caption">
-                  {{ item.created_at ? item.created_at.slice(0, 10) : '—' }}
-                </span>
+                                            <template #item.created_at="{ item }">
+                                <span class="text-caption">
+                                  {{ item.created_at ? item.created_at.slice(0, 10) : '—' }}
+                                </span>
                             </template>
 
                             <template #no-data>

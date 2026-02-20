@@ -2215,7 +2215,7 @@ const formatBuildingTitle = (building) => {
                                             <v-tab value="segments_tab">Segments</v-tab>
                                         </v-tabs>
                                         <v-tabs-window v-model="tabsSegments">
-                                            <v-tabs-window-item value="cindustries">
+                                            <v-tabs-window-item value="industries">
                                                 <v-container>
                                                     <v-row>
                                                         <v-col cols="6">
