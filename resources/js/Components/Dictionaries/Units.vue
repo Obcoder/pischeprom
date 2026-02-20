@@ -304,7 +304,9 @@ onMounted(
                                 </Link>
                             </template>
                             <template v-slot:item.labels="{item}">
-                                <div v-for="label in item.labels">
+                                <div v-for="label in item.labels"
+                                     class="text-xs font-sans text-blue-500"
+                                >
                                     {{label.name}}
                                 </div>
                             </template>
