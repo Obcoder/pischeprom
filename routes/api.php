@@ -20,7 +20,7 @@ use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\EntitiesClassification;
 use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
-use App\Http\Controllers\Api\IndustryController;
+use App\Http\Controllers\API\IndustryController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
