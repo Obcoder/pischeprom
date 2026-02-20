@@ -224,9 +224,9 @@ onMounted(() => {
                                             density="compact"
                                             @click="toggleGroup(item)"
                                         >
-                      <span class="mr-2">
-                        {{ isGroupOpen(item) ? '▾' : '▸' }}
-                      </span>
+                                              <span class="mr-2">
+                                                {{ isGroupOpen(item) ? '▾' : '▸' }}
+                                              </span>
                                             <strong>
                                                 {{
                                                     groupMode === 'section'

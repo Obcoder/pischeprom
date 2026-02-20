@@ -2218,7 +2218,7 @@ const formatBuildingTitle = (building) => {
                                             <v-tabs-window-item value="industries">
                                                 <v-container>
                                                     <v-row>
-                                                        <v-col cols="6">
+                                                        <v-col cols="9">
                                                             <Industries />
                                                         </v-col>
                                                     </v-row>
