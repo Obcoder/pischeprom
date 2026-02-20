@@ -66,6 +66,19 @@ class Unit extends Model
     {
         return $this->belongsToMany(Field::class);
     }
+    public function industries(): BelongsToMany
+    {
+        return $this->belongsToMany(Industry::class)
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
+    public function primaryIndustry()
+    {
+        return $this->belongsToMany(Industry::class)
+            ->wherePivot('is_primary', true)
+            ->withPivot('is_primary')
+            ->first();
+    }
     public function labels()
     {
         return $this->belongsToMany(Label::class)

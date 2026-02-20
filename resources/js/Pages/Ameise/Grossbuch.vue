@@ -12,6 +12,7 @@ import Categories from '@/Components/Dictionaries/Categories.vue';
 import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
 import Products from '@/Components/Dictionaries/Products.vue';
+import Industries from "@/Components/Dictionaries/Industries.vue";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -2208,11 +2209,21 @@ const formatBuildingTitle = (building) => {
                                 <v-tabs-window-item value="segments">
                                     <v-container fluid>
                                         <v-tabs v-model="tabsSegments">
+                                            <v-tab value="industries">Industries</v-tab>
                                             <v-tab value="catalogs">Catalogs</v-tab>
                                             <v-tab value="fields">Fields</v-tab>
                                             <v-tab value="segments_tab">Segments</v-tab>
                                         </v-tabs>
                                         <v-tabs-window v-model="tabsSegments">
+                                            <v-tabs-window-item value="cindustries">
+                                                <v-container>
+                                                    <v-row>
+                                                        <v-col cols="6">
+                                                            <Industries />
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
                                             <v-tabs-window-item value="catalogs">
                                                 <v-container fluid>
                                                     <v-row>

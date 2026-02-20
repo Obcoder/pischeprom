@@ -20,6 +20,7 @@ use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\EntitiesClassification;
 use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
+use App\Http\Controllers\Api\IndustryController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
@@ -60,6 +61,9 @@ Route::apiResource('entities', EntityController::class);
 Route::apiResource('entities-classification', EntitiesClassification::class);
 Route::apiResource('fields', FieldController::class);
 Route::apiResource('fragrances', FragranceController::class);
+Route::apiResource('industries', IndustryController::class);
+// если нужно быстро получить units по industry:
+Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
 Route::apiResource('genera', GenusController::class);
 Route::apiResource('goods', GoodController::class);
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
