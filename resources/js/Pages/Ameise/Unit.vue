@@ -162,7 +162,13 @@ const headersEntities = ref([
 ])
 
 const headerFields = [
-    {key: 'name', title: 'Field',}
+    {key: 'title', title: 'Field',}
+]
+
+const headerQuotations = [
+    {key: 'good_id', title: 'Good', align: 'start', sortable: true,},
+    {key: 'price', title: 'Price', align: 'start', sortable: true,},
+    {key: 'measure_id', title: 'Measure', align: 'start', sortable: true,},
 ]
 
 
@@ -177,12 +183,7 @@ function indexProducts(){
     })
 }
 const headerManufactures = ref([
-    {
-        key: 'rus',
-        title: 'Title',
-        align: 'start',
-        sortable: true,
-    },
+    {key: 'rus', title: 'Title', align: 'start', sortable: true,}
 ])
 // E N D  P R O D U C T S
 
@@ -956,17 +957,18 @@ useHead({
             <v-col lg="4">
                 <v-card border
                         elevation="2"
-                        height="300px"
                 >
                     <v-card-title>Quotations</v-card-title>
                     <v-card-text>
                         <v-data-table :items="unit.quotations"
+                                      :headers="headerQuotations"
                                       items-per-page="12"
                                       fixed-header
-                                      height="274px"
+                                      height="300px"
                                       density="compact"
                                       hover
-                                      class="border rounded"></v-data-table>
+                                      class="border rounded">
+                        </v-data-table>
                     </v-card-text>
                 </v-card>
             </v-col>
