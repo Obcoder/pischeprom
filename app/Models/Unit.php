@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
@@ -97,9 +98,9 @@ class Unit extends Model
     }
 
     //  Q U O T A T I O N S
-    public function quotations(): BelongsToMany
+    public function quotations(): BelongsTo
     {
-        return $this->belongsToMany(Quotation::class);
+        return $this->belongsTo(Quotation::class);
     }
     public function stages()
     {
