@@ -731,10 +731,6 @@ useHead({
                                     </v-tabs-window-item>
                                     <v-tabs-window-item value="buildings">
                                         <v-card>
-                                            <v-card-title class="bg-cyan-900"
-                                            >
-                                                Узлы
-                                            </v-card-title>
                                             <v-card-subtitle>
                                                 <v-btn @click="showFormBuilding = !showFormBuilding"
                                                        text="+ Building"
