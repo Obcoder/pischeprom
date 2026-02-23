@@ -98,9 +98,12 @@ class Unit extends Model
     }
 
     //  Q U O T A T I O N S
-    public function quotations(): BelongsTo
+    use Illuminate\Database\Eloquent\Relations\HasMany;
+
+    public function quotations(): HasMany
     {
-        return $this->belongsTo(Quotation::class);
+        return $this->hasMany(Quotation::class)
+            ->orderByDesc('created_at');
     }
     public function stages()
     {
