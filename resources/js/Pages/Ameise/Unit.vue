@@ -280,7 +280,7 @@ function attachEmail(){
         replace: false,
         preserveState: true,
         preserveScroll: false,
-        onSuccess: ()=> {
+        onSuccess: async ()=> {
             formAttachEmail.reset()
             await fetchUnit()
         },
