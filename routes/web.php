@@ -31,7 +31,7 @@ use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\TelephoneController;
-use App\Http\Controllers\API\UnitController;
+use App\Http\Controllers\Web\UnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
