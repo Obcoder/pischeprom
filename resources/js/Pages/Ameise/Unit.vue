@@ -166,9 +166,9 @@ const headerFields = [
 ]
 
 const headerQuotations = [
-    {key: 'good_id', title: 'Good', align: 'start', sortable: true,},
-    {key: 'price', title: 'Price', align: 'start', sortable: true,},
-    {key: 'measure_id', title: 'Measure', align: 'start', sortable: true,},
+    { key: 'good.name', title: 'Good', sortable: true },
+    { key: 'price', title: 'Price', sortable: true },
+    { key: 'measure.name', title: 'Measure', sortable: true },
 ]
 
 
