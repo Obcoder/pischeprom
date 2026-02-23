@@ -97,9 +97,9 @@ class Unit extends Model
     }
 
     //  Q U O T A T I O N S
-    public function quotations(): HasMany
+    public function quotations(): BelongsToMany
     {
-        return $this->hasMany(Quotation::class);
+        return $this->belongsToMany(Quotation::class);
     }
     public function stages()
     {

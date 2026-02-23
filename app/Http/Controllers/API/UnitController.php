@@ -130,7 +130,7 @@ class UnitController extends Controller
      */
     public function show(string $id)
     {
-        return Unit::with(['buildings', 'consumptions', 'quotations:id,good_id,measure_id,price', 'stages',])
+        return Unit::with(['buildings', 'consumptions', 'quotations', 'stages',])
             ->findOrFail($id);
     }
 
