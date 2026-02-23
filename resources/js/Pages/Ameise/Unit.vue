@@ -594,122 +594,199 @@ useHead({
                     <v-card-text>
                         <v-row>
                             <v-col>
-                                <v-list>
-                                    <v-list-item v-for="file in files">
-                                        <a :href="file.url" target="_blank">{{ file.name }}</a>
-                                    </v-list-item>
-                                </v-list>
-                            </v-col>
-                            <v-col>
-                                <v-list density="compact">
-                                    <v-list-item v-for="uri in unit.uris">
-                                        <a :href="uri.address"
-                                           target="_blank"
-                                        >
-                                            {{uri.address}}
-                                        </a>
-                                    </v-list-item>
-                                </v-list>
-                                <v-list>
-                                    <v-list-item v-for="telephone in unit.telephones"
-                                                 class="text-slate-800"
-                                    >
-                                        {{telephone.number}}
-                                    </v-list-item>
-                                </v-list>
-                                <v-list>
-                                    <v-list-item v-for="email in unit.emails"
-                                                 base-color="teal-darken-4"
-                                                 border
-                                                 color="teal-lighten-5"
-                                                 density="comfortable"
-                                                 elevation="1"
-                                                 slim
-                                                 rounded
-                                    >
-                                        <v-row>
-                                            <v-col cols="9">
-                                                {{email.address}}
-                                            </v-col>
-                                            <v-col cols="3" class="d-flex justify-center align-center">
-                                                <v-btn text=">>>"
-                                                       @click="dialogFormSendEmail = !dialogFormSendEmail"
-                                                       size="small"
-                                                       flat
-                                                       density="comfortable"
-                                                       color="cyan-darken-3"
+                                <v-tabs>
+                                    <v-tab value="info">Info</v-tab>
+                                    <v-tab value="buildings">Buildings</v-tab>
+                                </v-tabs>
+                                <v-tabs-window>
+                                    <v-tabs-window-item value="info">
+                                        <v-container fluid>
+                                            <v-row>
+                                                <v-col>
+                                                    <v-list>
+                                                        <v-list-item v-for="file in files">
+                                                            <a :href="file.url" target="_blank">{{ file.name }}</a>
+                                                        </v-list-item>
+                                                    </v-list>
+                                                </v-col>
+                                                <v-col>
+                                                    <v-list density="compact">
+                                                        <v-list-item v-for="uri in unit.uris">
+                                                            <a :href="uri.address"
+                                                               target="_blank"
+                                                            >
+                                                                {{uri.address}}
+                                                            </a>
+                                                        </v-list-item>
+                                                    </v-list>
+                                                    <v-list>
+                                                        <v-list-item v-for="telephone in unit.telephones"
+                                                                     class="text-slate-800"
+                                                        >
+                                                            {{telephone.number}}
+                                                        </v-list-item>
+                                                    </v-list>
+                                                    <v-list>
+                                                        <v-list-item v-for="email in unit.emails"
+                                                                     base-color="teal-darken-4"
+                                                                     border
+                                                                     color="teal-lighten-5"
+                                                                     density="comfortable"
+                                                                     elevation="1"
+                                                                     slim
+                                                                     rounded
+                                                        >
+                                                            <v-row>
+                                                                <v-col cols="9">
+                                                                    {{email.address}}
+                                                                </v-col>
+                                                                <v-col cols="3" class="d-flex justify-center align-center">
+                                                                    <v-btn text=">>>"
+                                                                           @click="dialogFormSendEmail = !dialogFormSendEmail"
+                                                                           size="small"
+                                                                           flat
+                                                                           density="comfortable"
+                                                                           color="cyan-darken-3"
+                                                                    ></v-btn>
+                                                                    <v-dialog v-model="dialogFormSendEmail"
+                                                                              width="1500"
+                                                                    >
+                                                                        <template v-slot:default="{isActive}">
+                                                                            <v-card>
+                                                                                <v-card-title>Form Send Email</v-card-title>
+                                                                                <v-card-text>
+                                                                                    <v-container fluid>
+                                                                                        <v-row>
+                                                                                            <v-col cols="8">
+                                                                                                <v-data-table :items="products"
+                                                                                                              items-per-page="130"
+                                                                                                              v-model="selectedProducts"
+                                                                                                              :headers="headerSelectProductsForSending"
+                                                                                                              fixed-header
+                                                                                                              height="868px"
+                                                                                                              @update:model-value="onSelectedProductsUpdate"
+                                                                                                              show-select
+                                                                                                              return-object
+                                                                                                              density="compact"
+                                                                                                              hover
+                                                                                                              class="border rounded"
+                                                                                                >
+                                                                                                    <template v-slot:item.price="{item}">
+                                                                                                        <v-text-field v-model="item.price"
+                                                                                                                      label="Цена"
+                                                                                                                      variant="outlined"
+                                                                                                                      density="comfortable"
+                                                                                                                      hide-details
+                                                                                                        ></v-text-field>
+                                                                                                    </template>
+                                                                                                    <template v-slot:item.goods="{item}">
+                                                                                                        <div v-for="good in item.goods"
+                                                                                                             class="text-[9px] font-sans"
+                                                                                                        >
+                                                                                                            <div>{{good.name}}</div>
+                                                                                                            <div><span v-for="quotation in good.quotations"
+                                                                                                                       class="text-[8px] font-sans mx-2"
+                                                                                                            >{{quotation.price}}</span></div>
+                                                                                                        </div>
+                                                                                                    </template>
+                                                                                                </v-data-table>
+                                                                                            </v-col>
+                                                                                            <v-col cols="4">
+                                                                                                <v-data-table :items="selectedProducts"
+                                                                                                              items-per-page="101"
+                                                                                                              :headers="headerSelectedProducts"
+                                                                                                              density="compact"
+                                                                                                ></v-data-table>
+                                                                                            </v-col>
+                                                                                        </v-row>
+                                                                                    </v-container>
+                                                                                    <!--                                                                <pre>{{selectedProducts}}</pre>-->
+                                                                                </v-card-text>
+                                                                                <v-card-actions>
+                                                                                    <v-divider vertical
+                                                                                               color="orange"
+                                                                                               opacity="0.9"></v-divider>
+                                                                                    <v-btn text="send"
+                                                                                           @click="sendEmail(email.address)"
+                                                                                           flat
+                                                                                           density="comfortable"
+                                                                                           color="orange"></v-btn>
+                                                                                </v-card-actions>
+                                                                            </v-card>
+                                                                        </template>
+                                                                    </v-dialog>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </v-list-item>
+                                                    </v-list>
+                                                </v-col>
+                                            </v-row>
+                                        </v-container>
+                                    </v-tabs-window-item>
+                                    <v-tabs-window-item value="buildings">
+                                        <v-card>
+                                            <v-card-title class="bg-cyan-900"
+                                            >
+                                                Узлы
+                                            </v-card-title>
+                                            <v-card-subtitle>
+                                                <v-btn @click="showFormBuilding = !showFormBuilding"
+                                                       text="+ Building"
+                                                       variant="elevated"
+                                                       density="compact"
+                                                       color="deep-orange"
                                                 ></v-btn>
-                                                <v-dialog v-model="dialogFormSendEmail"
-                                                          width="1500"
+                                                <v-dialog v-model="showFormBuilding"
+                                                          width="815"
                                                 >
                                                     <template v-slot:default="{isActive}">
-                                                        <v-card>
-                                                            <v-card-title>Form Send Email</v-card-title>
+                                                        <v-card color="yellow-lighten-3">
+                                                            <v-card-title>Form Building</v-card-title>
                                                             <v-card-text>
-                                                                <v-container fluid>
+                                                                <v-form @submit.prevent>
                                                                     <v-row>
-                                                                        <v-col cols="8">
-                                                                            <v-data-table :items="products"
-                                                                                          items-per-page="130"
-                                                                                          v-model="selectedProducts"
-                                                                                          :headers="headerSelectProductsForSending"
-                                                                                          fixed-header
-                                                                                          height="868px"
-                                                                                          @update:model-value="onSelectedProductsUpdate"
-                                                                                          show-select
-                                                                                          return-object
-                                                                                          density="compact"
-                                                                                          hover
-                                                                                          class="border rounded"
-                                                                            >
-                                                                                <template v-slot:item.price="{item}">
-                                                                                    <v-text-field v-model="item.price"
-                                                                                                  label="Цена"
-                                                                                                  variant="outlined"
-                                                                                                  density="comfortable"
-                                                                                                  hide-details
-                                                                                    ></v-text-field>
-                                                                                </template>
-                                                                                <template v-slot:item.goods="{item}">
-                                                                                    <div v-for="good in item.goods"
-                                                                                         class="text-[9px] font-sans"
-                                                                                    >
-                                                                                        <div>{{good.name}}</div>
-                                                                                        <div><span v-for="quotation in good.quotations"
-                                                                                                   class="text-[8px] font-sans mx-2"
-                                                                                        >{{quotation.price}}</span></div>
-                                                                                    </div>
-                                                                                </template>
-                                                                            </v-data-table>
-                                                                        </v-col>
-                                                                        <v-col cols="4">
-                                                                            <v-data-table :items="selectedProducts"
-                                                                                          items-per-page="101"
-                                                                                          :headers="headerSelectedProducts"
-                                                                                          density="compact"
-                                                                            ></v-data-table>
+                                                                        <v-col>
+                                                                            <v-autocomplete :items="dict.buildings"
+                                                                                            :item-title="formatBuildingTitle"
+                                                                                            :item-value="'id'"
+                                                                                            v-model="formBuildingUnit.building_id"
+                                                                                            variant="outlined"
+                                                                                            density="comfortable"
+                                                                                            color="blue-grey"
+                                                                            ></v-autocomplete>
                                                                         </v-col>
                                                                     </v-row>
-                                                                </v-container>
-<!--                                                                <pre>{{selectedProducts}}</pre>-->
+                                                                    <v-row>
+                                                                        <v-col></v-col>
+                                                                        <v-col></v-col>
+                                                                        <v-col></v-col>
+                                                                        <v-col>
+                                                                            <v-btn @click="storeBuildingUnit"
+                                                                                   text="store"
+                                                                                   density="comfortable"
+                                                                                   variant="outlined"
+                                                                                   color="black"
+                                                                            ></v-btn>
+                                                                        </v-col>
+                                                                    </v-row>
+                                                                </v-form>
                                                             </v-card-text>
-                                                            <v-card-actions>
-                                                                <v-divider vertical
-                                                                           color="orange"
-                                                                           opacity="0.9"></v-divider>
-                                                                <v-btn text="send"
-                                                                       @click="sendEmail(email.address)"
-                                                                       flat
-                                                                       density="comfortable"
-                                                                       color="orange"></v-btn>
-                                                            </v-card-actions>
                                                         </v-card>
                                                     </template>
                                                 </v-dialog>
-                                            </v-col>
-                                        </v-row>
-                                    </v-list-item>
-                                </v-list>
+                                            </v-card-subtitle>
+                                            <v-card-text>
+                                                <v-list>
+                                                    <v-list-item v-for="building in unit.buildings"
+                                                    >
+                                                        <span class="block mr-2">{{building.address}}</span>
+                                                        <span class="block mr-2">{{building.city.name}}</span>
+                                                    </v-list-item>
+                                                </v-list>
+                                            </v-card-text>
+                                        </v-card>
+                                    </v-tabs-window-item>
+                                </v-tabs-window>
                             </v-col>
                         </v-row>
                     </v-card-text>
@@ -779,14 +856,15 @@ useHead({
                     </v-card-actions>
                 </v-card>
             </v-col>
-            <v-col cols="3">
+            <v-col cols="4">
                 <v-card>
                     <v-card-title class="bg-orange-200 text-slate-800">Entities</v-card-title>
                     <v-card-subtitle>
                         <v-btn text="Прикрепить"
                                @click="showFormAttachEntity = !showFormAttachEntity"
-                               density="comfortable"
+                               density="compact"
                                variant="text"
+                               class="text-xs"
                         ></v-btn>
                         <v-dialog v-model="showFormAttachEntity"
                                   width="880"
@@ -819,8 +897,9 @@ useHead({
                         </v-dialog>
                         <v-btn text="Создать"
                                @click="showFormCreateEntity = !showFormCreateEntity"
-                               density="comfortable"
+                               density="compact"
                                variant="text"
+                               class="text-xs"
                         ></v-btn>
                         <v-dialog v-model="showFormCreateEntity"
                                   width="990"
@@ -878,6 +957,7 @@ useHead({
                                       items-per-page="3"
                                       density="compact"
                                       hover
+                                      class="border rounded"
                         >
                             <template v-slot:item.telephones="{item}">
                                 <v-sheet>
@@ -974,7 +1054,7 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
-            <v-col cols="5">
+            <v-col cols="8">
                 <v-card elevation="2"
                 >
                     <v-card-title>
@@ -1049,69 +1129,6 @@ useHead({
                                 {{item.measure.name}}
                             </template>
                         </v-data-table>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col>
-                <v-card>
-                    <v-card-title class="bg-cyan-900"
-                    >
-                        Узлы
-                    </v-card-title>
-                    <v-card-subtitle>
-                        <v-btn @click="showFormBuilding = !showFormBuilding"
-                               text="+ Building"
-                               variant="elevated"
-                               density="compact"
-                               color="deep-orange"
-                        ></v-btn>
-                        <v-dialog v-model="showFormBuilding"
-                                  width="815"
-                        >
-                            <template v-slot:default="{isActive}">
-                                <v-card color="yellow-lighten-3">
-                                    <v-card-title>Form Building</v-card-title>
-                                    <v-card-text>
-                                        <v-form @submit.prevent>
-                                            <v-row>
-                                                <v-col>
-                                                    <v-autocomplete :items="dict.buildings"
-                                                                    :item-title="formatBuildingTitle"
-                                                                    :item-value="'id'"
-                                                                    v-model="formBuildingUnit.building_id"
-                                                                    variant="outlined"
-                                                                    density="comfortable"
-                                                                    color="blue-grey"
-                                                    ></v-autocomplete>
-                                                </v-col>
-                                            </v-row>
-                                            <v-row>
-                                                <v-col></v-col>
-                                                <v-col></v-col>
-                                                <v-col></v-col>
-                                                <v-col>
-                                                    <v-btn @click="storeBuildingUnit"
-                                                           text="store"
-                                                           density="comfortable"
-                                                           variant="outlined"
-                                                           color="black"
-                                                    ></v-btn>
-                                                </v-col>
-                                            </v-row>
-                                        </v-form>
-                                    </v-card-text>
-                                </v-card>
-                            </template>
-                        </v-dialog>
-                    </v-card-subtitle>
-                    <v-card-text>
-                        <v-list>
-                            <v-list-item v-for="building in unit.buildings"
-                            >
-                                <span class="block mr-2">{{building.address}}</span>
-                                <span class="block mr-2">{{building.city.name}}</span>
-                            </v-list-item>
-                        </v-list>
                     </v-card-text>
                 </v-card>
             </v-col>
