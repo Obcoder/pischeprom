@@ -282,7 +282,7 @@ function attachEmail(){
         preserveScroll: false,
         onSuccess: ()=> {
             formAttachEmail.reset()
-            fetchUnit(props.unit.value.id)
+            await fetchUnit()
         },
     })
 }
