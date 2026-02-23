@@ -32,6 +32,7 @@ use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\Web\UnitController;
+use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
@@ -258,7 +259,7 @@ Route::post('/web/sale/store', [SaleController::class, 'store'])
 Route::post('/web/telephone/store', [TelephoneController::class, 'store'])
     ->name('web.telephone.store');
 //      U N I T
-Route::post('/api/unit/store', [UnitController::class, 'store'])
+Route::post('/api/unit/store', [ApiUnitController::class, 'store'])
     ->name('web.unit.store');
 Route::post('/api/unituri/store', [UnitUriController::class, 'store'])
     ->name('web.unituri.store');

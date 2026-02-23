@@ -606,7 +606,9 @@ useHead({
                                             <v-row>
                                                 <v-col>
                                                     <v-list>
-                                                        <v-list-item v-for="file in files" :key="file.name">
+                                                        <v-list-item v-for="file in files" :key="file.name"
+                                                                     density="compact"
+                                                        >
                                                             <a :href="file.url" target="_blank">{{ file.name }}</a>
                                                         </v-list-item>
                                                     </v-list>
