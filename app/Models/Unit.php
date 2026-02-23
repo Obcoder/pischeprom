@@ -102,8 +102,7 @@ class Unit extends Model
 
     public function quotations(): HasMany
     {
-        return $this->hasMany(Quotation::class)
-            ->orderByDesc('created_at');
+        return $this->hasMany(Quotation::class);
     }
     public function stages()
     {
