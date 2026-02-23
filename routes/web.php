@@ -151,21 +151,15 @@ Route::get('/Ameise/Sales/', function (){
 })->name('Ameise.sales');
 
 //     U N I T S
+
 Route::get('/Ameise/units/', function (){
     return Inertia::render('Ameise/Units');
 })->name('Ameise.units');
-Route::get('/Ameise/unit/{id}', function ($id){
-    $data = [
-        'unit' => Unit::with('entities.telephones')
-            ->with('entities.sales')
-            ->with('buildings')
-            ->with('consumptions.product')
-            ->with('consumptions.measure')
-            ->with('manufactures')
-            ->findOrFail($id),
-    ];
-    return Inertia::render('Ameise/Unit', $data);
-})->name('web.unit.show');
+
+Route::get('/Ameise/unit/{unit}', [UnitController::class, 'show'])
+    ->name('web.unit.show');
+
+
 //   Y A N D E X
 Route::get('/Ameise/yandex', function (){
     return Inertia::render('Ameise/Yandex');

@@ -39,6 +39,7 @@ use App\Http\Controllers\API\SendingController;
 use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
+use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
 
@@ -84,6 +85,8 @@ Route::apiResource('sendings', SendingController::class);
 Route::apiResource('stages', StageController::class);
 Route::apiResource('telephones', TelephoneController::class);
 Route::apiResource('units', UnitController::class);
+Route::get('/units/{unit}', [ApiUnitController::class, 'show'])
+    ->name('api.units.show');
 Route::apiResource('uris', UriController::class);
 Route::apiResource('yandex-requests', YandexRequestController::class);
 

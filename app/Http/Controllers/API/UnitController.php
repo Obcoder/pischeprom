@@ -7,6 +7,7 @@ use App\Http\Resources\UnitResource;
 use App\Models\Unit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class UnitController extends Controller
 {
@@ -128,17 +129,25 @@ class UnitController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Unit $unit)
     {
-        return Unit::with([
-                              'buildings',
-                              'consumptions',
-                              'emails',
-                              'emails.sendings',
-                              'quotations.good',
-                              'quotations.measure',
-                              'stages',
-                          ])->findOrFail($id);
+        $unit->load([
+                        'entities.telephones',
+                        'entities.sales',
+                        'buildings.city',
+                        'consumptions.product',
+                        'consumptions.measure',
+                        'manufactures',
+                        'emails.sendings',
+                        'telephones',
+                        'uris',
+                        'labels',
+                        'stages',
+                        'quotations.good',
+                        'quotations.measure',
+                    ]);
+
+        return response()->json($unit);
     }
 
     /**

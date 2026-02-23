@@ -19,7 +19,7 @@ const unit = ref(props.unit)
 
 async function fetchUnit(id) {
     try {
-        const { data } = await axios.get(route('units.show', id))
+        const { data } = await axios.get(route('api.units.show', id))
         unit.value = data
     } catch (e) {
         console.error(e)
