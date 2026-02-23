@@ -397,6 +397,8 @@ function timeDiff(time){
     return Math.round(diffMilliseconds/denominator);
 }
 
+const tabUnitCard = ref('info') // ✅ по умолчанию Info
+
 onMounted(()=> {
     loadDictionaries()
     indexProducts()
@@ -594,24 +596,24 @@ useHead({
                     <v-card-text>
                         <v-row>
                             <v-col>
-                                <v-tabs>
+                                <v-tabs v-model="tabUnitCard">
                                     <v-tab value="info">Info</v-tab>
                                     <v-tab value="buildings">Buildings</v-tab>
                                 </v-tabs>
-                                <v-tabs-window>
+                                <v-tabs-window v-model="tabUnitCard">
                                     <v-tabs-window-item value="info">
                                         <v-container fluid>
                                             <v-row>
                                                 <v-col>
                                                     <v-list>
-                                                        <v-list-item v-for="file in files">
+                                                        <v-list-item v-for="file in files" :key="file.name">
                                                             <a :href="file.url" target="_blank">{{ file.name }}</a>
                                                         </v-list-item>
                                                     </v-list>
                                                 </v-col>
                                                 <v-col>
                                                     <v-list density="compact">
-                                                        <v-list-item v-for="uri in unit.uris">
+                                                        <v-list-item v-for="uri in (unit.uris || [])" :key="uri.id">
                                                             <a :href="uri.address"
                                                                target="_blank"
                                                             >
@@ -620,18 +622,20 @@ useHead({
                                                         </v-list-item>
                                                     </v-list>
                                                     <v-list>
-                                                        <v-list-item v-for="telephone in unit.telephones"
+                                                        <v-list-item v-for="telephone in (unit.telephones || [])"
+                                                                     :key="telephone.id"
                                                                      class="text-slate-800"
                                                         >
                                                             {{telephone.number}}
                                                         </v-list-item>
                                                     </v-list>
                                                     <v-list>
-                                                        <v-list-item v-for="email in unit.emails"
+                                                        <v-list-item v-for="email in (unit.emails || [])"
+                                                                     :key="email.id"
                                                                      base-color="teal-darken-4"
                                                                      border
                                                                      color="teal-lighten-5"
-                                                                     density="comfortable"
+                                                                     density="compact"
                                                                      elevation="1"
                                                                      slim
                                                                      rounded
@@ -777,7 +781,7 @@ useHead({
                                             </v-card-subtitle>
                                             <v-card-text>
                                                 <v-list>
-                                                    <v-list-item v-for="building in unit.buildings"
+                                                    <v-list-item v-for="building in (unit.buildings || [])" :key="building.id"
                                                     >
                                                         <span class="block mr-2">{{building.address}}</span>
                                                         <span class="block mr-2">{{building.city.name}}</span>
