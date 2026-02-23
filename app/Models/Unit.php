@@ -4,10 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\Quotation;
 
 class Unit extends Model
 {
@@ -18,7 +18,6 @@ class Unit extends Model
     ];
 
     protected $with = [
-        'emails.sendings',
         'fields',
         'labels',
         'telephones',
@@ -98,8 +97,6 @@ class Unit extends Model
     }
 
     //  Q U O T A T I O N S
-    use Illuminate\Database\Eloquent\Relations\HasMany;
-
     public function quotations(): HasMany
     {
         return $this->hasMany(Quotation::class);
