@@ -15,14 +15,76 @@ const props = defineProps({
 })
 const date = useDate()
 
-const buildings = ref([])
-const emails = ref([])
-const entities = ref()
-const labels = ref([])
-const measures = ref()
-const products = ref([])
-const telephones = ref()
-const uris = ref([])
+const unit = ref(props.unit)
+
+async function fetchUnit(id) {
+    try {
+        const { data } = await axios.get(route('units.show', id))
+        unit.value = data
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+const dict = ref({
+    buildings: [],
+    emails: [],
+    entities: [],
+    entityClassifications: [],
+    labels: [],
+    measures: [],
+    products: [],
+    telephones: [],
+    uris: [],
+})
+
+const loading = ref({
+    dict: false,
+    unit: false,
+    files: false,
+})
+
+async function loadDictionaries() {
+    loading.value.dict = true
+    try {
+        const [
+            buildingsRes,
+            emailsRes,
+            entitiesRes,
+            classificationsRes,
+            labelsRes,
+            measuresRes,
+            productsRes,
+            telephonesRes,
+            urisRes,
+        ] = await Promise.all([
+            axios.get(route('buildings.index')),
+            axios.get(route('emails.index')),
+            axios.get(route('entities.index')),
+            axios.get(route('entities-classification.index')),
+            axios.get(route('labels.index')),
+            axios.get(route('measures.index')),
+            axios.get(route('products.index')),
+            axios.get(route('telephones.index')),
+            axios.get(route('uris.index')),
+        ])
+
+        dict.value.buildings = buildingsRes.data
+        dict.value.emails = emailsRes.data
+        dict.value.entities = entitiesRes.data
+        dict.value.entityClassifications = classificationsRes.data
+        dict.value.labels = labelsRes.data
+        dict.value.measures = measuresRes.data
+        dict.value.products = (productsRes.data || []).sort((a,b)=>a.rus.localeCompare(b.rus))
+        dict.value.telephones = telephonesRes.data
+        dict.value.uris = urisRes.data
+        dict.value.entityClassifications = classificationsRes.data
+    } catch (e) {
+        console.error(e)
+    } finally {
+        loading.value.dict = false
+    }
+}
 
 const dialogFormAddEmail = ref(false)
 const dialogFormAddUri = ref(false)
@@ -33,6 +95,7 @@ const dialogFormSendEmail = ref(false)
 const showFormBuilding = ref(false)
 const showFormConsumption = ref(false)
 const showFormAttachManufacturer = ref(false)
+let showFormAttachEntity = ref(false)
 
 const formAddEmail = useForm({
     address: null,
@@ -83,41 +146,6 @@ const headerConsumptions = ref([
     },
 ])
 
-const formatBuildingTitle = (building) => {
-    if (!building) return '';
-    return `${building.city?.name || ' - '}: ${building.address}`;
-};
-
-function fetchUnit(id){
-    axios.get(route('units.show'), id).then(function (response){
-        props.unit.value = response.data
-    }).catch(function (error){
-        console.log()
-    })
-}
-
-function indexEmails(){
-    axios.get(route('emails.index')).then(function (response){
-        emails.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-
-
-
-//     E N T I T I E S
-function indexEntities(like){
-    axios.get(route('entities.index'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response){
-        entities.value = response.data;
-    }).catch(function (error){
-        console.log(error);
-    })
-}
 const headersEntities = ref([
     {
         title: 'Вид',
@@ -132,30 +160,16 @@ const headersEntities = ref([
         key: 'telephones',
     },
 ])
-// E N D  E N T I T I E S
 
-
-
-function indexLabels(){
-    axios.get(route('labels.index')).then(function (response){
-        labels.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-function indexMeasures(){
-    axios.get(route('measures.index')).then(function (response){
-        measures.value = response.data;
-    }).catch(function (error){
-        console.log(error);
-    })
-}
+const headerFields = [
+    {key: 'name', title: 'Field',}
+]
 
 
 //     P R O D U C T S - M A N U F A C T U R E S
 function indexProducts(){
     axios.get(route('products.index')).then(function (response){
-        products.value = response.data.sort((a, b) => {
+        dict.value.products = response.data.sort((a, b) => {
             return a.rus.localeCompare(b.rus) // сортировка по полю 'rus'
         })
     }).catch(function (error){
@@ -171,21 +185,6 @@ const headerManufactures = ref([
     },
 ])
 // E N D  P R O D U C T S
-
-function indexTelephones(){
-    axios.get(route('telephones.index')).then(function (response){
-        telephones.value = response.data;
-    }).catch(function (error){
-        console.log(error);
-    })
-}
-function indexUris(){
-    axios.get(route('uris.index')).then(function (response){
-        uris.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
 
 function storeBuildingUnit(){
     formBuildingUnit.post(route('api.building_unit.store'), {
@@ -213,36 +212,24 @@ function storeEmail(){
         replace: false,
         preserveState: true,
         preserveScroll: false,
-        onSuccess: ()=> {
-            formAddEmail.reset();
-            indexEmails()
+        onSuccess: async ()=> {
+            formAddEmail.reset()
+            await fetchUnit()
         },
-    })
-}
-function storeEntity(){
-    formEntity.post(route('api.entity.store'), {
-        replace: false,
-        preserveState: false,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formEntity.reset()
-            indexEntities()
-        },
-    })
-}
-function apiIndexBuildings(like){
-    axios.get(route('buildings.index'), {
-        params: {
-            search: like,
-        }
-    }).then(function (response){
-        buildings.value = response.data;
-    }).catch(function (error){
-        console.log(error);
     })
 }
 
-let showFormAttachEntity = ref(false);
+function storeEntity(){
+    formEntity.post(route('api.entity.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: async () => {
+            formEntity.reset()
+            await fetchUnit()                // ✅ обновит unit.entities
+        },
+    })
+}
 
 function attachEntity(){
     formAttachEntity.post(route('api.entity_unit.store'), {
@@ -266,14 +253,6 @@ function attachManufacturer(){
     })
 }
 
-let entityClassifications = ref();
-function apiIndexEntityClassifications(){
-    axios.get(route('api.entitiesclassifications')).then(function (response){
-        entityClassifications.value = response.data;
-    }).catch(function (error){
-        console.log(error);
-    })
-}
 let showFormCreateEntity = ref(false)
 let formEntity = useForm({
     name: null,
@@ -290,13 +269,7 @@ function fetchFiles(name){
     })
 }
 
-let da = new Date();
-function timeDiff(time){
-    let d = new Date();
-    let diffMilliseconds = d - Date.parse(time);
-    let denominator = 1000 * 3600 * 24;
-    return Math.round(diffMilliseconds/denominator);
-}
+
 const formAttachEmail = useForm({
     email_id: null,
     unit_id: props.unit.id,
@@ -345,7 +318,7 @@ function storeUri(){
         preserveScroll: false,
         onSuccess: ()=> {
             formAddUri.reset()
-            indexUris()
+
             dialogFormAddUri.value = false
         },
     })
@@ -379,8 +352,7 @@ const sendEmail = async (email) => {
             products: selectedProducts.value,
         })
         console.log(response);
-        fetchUnit(props.unit.value.id)
-        indexEmails()
+        await fetchUnit()
     } catch (error) {
         console.error('Ошибка при отправке:', error);
     }
@@ -412,16 +384,21 @@ const onSelectedProductsUpdate = (newSelected) => {
 }
 // E N D  S E N D  E M A I L
 
+const formatBuildingTitle = (building) => {
+    if (!building) return '';
+    return `${building.city?.name || ' - '}: ${building.address}`;
+}
+
+function timeDiff(time){
+    let d = new Date();
+    let diffMilliseconds = d - Date.parse(time);
+    let denominator = 1000 * 3600 * 24;
+    return Math.round(diffMilliseconds/denominator);
+}
+
 onMounted(()=> {
-    indexEmails()
-    indexEntities()
-    indexLabels()
-    indexMeasures()
+    loadDictionaries()
     indexProducts()
-    indexTelephones()
-    indexUris()
-    apiIndexBuildings();
-    apiIndexEntityClassifications();
     fetchFiles(props.unit.name)
 })
 
@@ -461,7 +438,7 @@ useHead({
                                         <v-form @submit.prevent>
                                             <v-row>
                                                 <v-col>
-                                                    <v-autocomplete :items="emails"
+                                                    <v-autocomplete :items="dict.emails"
                                                                     :item-value="'id'"
                                                                     :item-title="'address'"
                                                                     v-model="formAttachEmail.email_id"
@@ -546,7 +523,7 @@ useHead({
                                         <v-form @submit.prevent>
                                             <v-row>
                                                 <v-col>
-                                                    <v-autocomplete :items="uris"
+                                                    <v-autocomplete :items="dict.uris"
                                                                     :item-value="'id'"
                                                                     :item-title="'address'"
                                                                     v-model="formAttachUri.uri_id"
@@ -738,6 +715,13 @@ useHead({
                 </v-card>
             </v-col>
             <v-col cols="2">
+                <v-data-table :items="unit.fields"
+                              :headers="headerFields"
+                              items-per-page="5"
+                              hover
+                              ></v-data-table>
+            </v-col>
+            <v-col cols="2">
                 <v-card>
                     <v-card-title>Labels</v-card-title>
                     <v-card-text>
@@ -766,7 +750,7 @@ useHead({
                                         <v-form @submit.prevent>
                                             <v-row>
                                                 <v-col>
-                                                    <v-autocomplete :items="labels"
+                                                    <v-autocomplete :items="dict.labels"
                                                                     :item-value="'id'"
                                                                     :item-title="'name'"
                                                                     v-model="formAttachLabel.label_id"
@@ -794,7 +778,7 @@ useHead({
                     </v-card-actions>
                 </v-card>
             </v-col>
-            <v-col>
+            <v-col cols="3">
                 <v-card>
                     <v-card-title class="bg-orange-200 text-slate-800">Entities</v-card-title>
                     <v-card-subtitle>
@@ -812,7 +796,7 @@ useHead({
                                     <v-card-text>
                                         <v-form @submit.prevent>
                                             <v-row>
-                                                <v-autocomplete :items="entities"
+                                                <v-autocomplete :items="dict.entities"
                                                                 :item-title="'name'"
                                                                 :item-value="'id'"
                                                                 v-model="formAttachEntity.entity_id"
@@ -847,7 +831,7 @@ useHead({
                                     <v-card-text>
                                         <v-form @submit.prevent>
                                             <v-row>
-                                                <v-select :items="entityClassifications"
+                                                <v-select :items="dict.entityClassifications"
                                                           :item-value="'id'"
                                                           :item-title="'name'"
                                                           v-model="formEntity.entity_classification_id"
@@ -862,7 +846,7 @@ useHead({
                                                 ></v-text-field>
                                             </v-row>
                                             <v-row>
-                                                <v-autocomplete :items="telephones"
+                                                <v-autocomplete :items="dict.telephones"
                                                                 :item-value="'id'"
                                                                 :item-title="'number'"
                                                                 v-model="formEntity.telephones"
@@ -969,8 +953,7 @@ useHead({
                     </v-card-text>
                 </v-card>
             </v-col>
-
-            <v-col lg="3">
+            <v-col lg="4">
                 <v-card border
                         elevation="2"
                         height="300px"
@@ -989,6 +972,84 @@ useHead({
             </v-col>
         </v-row>
         <v-row>
+            <v-col cols="5">
+                <v-card elevation="2"
+                >
+                    <v-card-title>
+                        Consumptions
+                    </v-card-title>
+                    <v-card-subtitle>
+                        <v-btn @click="showFormConsumption = !showFormConsumption"
+                               text="добавить"
+                               variant="text"
+                        ></v-btn>
+                    </v-card-subtitle>
+                    <v-card-text>
+                        <v-data-table :items="unit.consumptions"
+                                      :headers="headerConsumptions"
+                                      density="comfortable"
+                                      hover="hover"
+                                      class="text-sm border rounded"
+                        >
+                            <template v-slot:top>
+                                <v-form @submit.prevent
+                                        v-if="showFormConsumption"
+                                        style="border: 2px solid red; padding: 20px;">
+                                    <v-row>
+                                        <v-col cols="7">
+                                            <v-autocomplete :items="products"
+                                                            :item-title="'rus'"
+                                                            :item-value="'id'"
+                                                            v-model="formConsumption.product_id"
+                                                            variant="outlined"
+                                                            density="compact"
+                                            ></v-autocomplete>
+                                        </v-col>
+                                        <v-col cols="3">
+                                            <v-text-field v-model="formConsumption.quantity"
+                                                          label="quantity"
+                                                          variant="solo"
+                                                          density="compact"
+                                            ></v-text-field>
+                                        </v-col>
+                                        <v-col cols="2">
+                                            <v-select :items="dict.measures"
+                                                      :item-value="'id'"
+                                                      :item-title="'name'"
+                                                      v-model="formConsumption.measure_id"
+                                                      variant="outlined"
+                                                      density="compact"
+                                                      color="blue-grey-darken-1"
+                                            ></v-select>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row>
+                                        <v-col></v-col>
+                                        <v-col></v-col>
+                                        <v-col>
+                                            <v-btn @click="storeConsumption"
+                                                   text="store"
+                                                   variant="outlined"
+                                            ></v-btn>
+                                        </v-col>
+                                    </v-row>
+                                </v-form>
+                            </template>
+                            <template v-slot:item.product_id="{item}">
+                                <Link :href="route('product.show', item.product_id)">
+                                    {{item.product.rus}}
+                                </Link>
+                            </template>
+                            <template v-slot:item.created_at="{item}">
+                                {{date.format(item.created_at, 'fullDate')}}
+                            </template>
+                            <template v-slot:item.measure_id="{item}">
+                                {{item.measure.name}}
+                            </template>
+                        </v-data-table>
+                    </v-card-text>
+                </v-card>
+            </v-col>
             <v-col>
                 <v-card>
                     <v-card-title class="bg-cyan-900"
@@ -1012,7 +1073,7 @@ useHead({
                                         <v-form @submit.prevent>
                                             <v-row>
                                                 <v-col>
-                                                    <v-autocomplete :items="buildings"
+                                                    <v-autocomplete :items="dict.buildings"
                                                                     :item-title="formatBuildingTitle"
                                                                     :item-value="'id'"
                                                                     v-model="formBuildingUnit.building_id"
@@ -1049,83 +1110,6 @@ useHead({
                                 <span class="block mr-2">{{building.city.name}}</span>
                             </v-list-item>
                         </v-list>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col cols="5">
-                <v-card>
-                    <v-card-title>
-                        Consumptions
-                    </v-card-title>
-                    <v-card-subtitle>
-                        <v-btn @click="showFormConsumption = !showFormConsumption"
-                               text="добавить"
-                               variant="text"
-                        ></v-btn>
-                    </v-card-subtitle>
-                    <v-card-text>
-                        <v-data-table :items="unit.consumptions"
-                                      :headers="headerConsumptions"
-                                      density="comfortable"
-                                      hover="hover"
-                                      class="text-sm"
-                        >
-                            <template v-slot:top>
-                                <v-form @submit.prevent
-                                        v-if="showFormConsumption"
-                                        style="border: 2px solid red; padding: 20px;">
-                                    <v-row>
-                                        <v-col cols="7">
-                                            <v-autocomplete :items="products"
-                                                            :item-title="'rus'"
-                                                            :item-value="'id'"
-                                                            v-model="formConsumption.product_id"
-                                                            variant="outlined"
-                                                            density="compact"
-                                            ></v-autocomplete>
-                                        </v-col>
-                                        <v-col cols="3">
-                                            <v-text-field v-model="formConsumption.quantity"
-                                                          label="quantity"
-                                                          variant="solo"
-                                                          density="compact"
-                                            ></v-text-field>
-                                        </v-col>
-                                        <v-col cols="2">
-                                            <v-select :items="measures"
-                                                      :item-value="'id'"
-                                                      :item-title="'name'"
-                                                      v-model="formConsumption.measure_id"
-                                                      variant="outlined"
-                                                      density="compact"
-                                                      color="blue-grey-darken-1"
-                                            ></v-select>
-                                        </v-col>
-                                    </v-row>
-                                    <v-row>
-                                        <v-col></v-col>
-                                        <v-col></v-col>
-                                        <v-col>
-                                            <v-btn @click="storeConsumption"
-                                                   text="store"
-                                                   variant="outlined"
-                                            ></v-btn>
-                                        </v-col>
-                                    </v-row>
-                                </v-form>
-                            </template>
-                            <template v-slot:item.product_id="{item}">
-                                <Link :href="route('product.show', item.product_id)">
-                                    {{item.product.rus}}
-                                </Link>
-                            </template>
-                            <template v-slot:item.created_at="{item}">
-                                {{date.format(item.created_at, 'fullDate')}}
-                            </template>
-                            <template v-slot:item.measure_id="{item}">
-                                {{item.measure.name}}
-                            </template>
-                        </v-data-table>
                     </v-card-text>
                 </v-card>
             </v-col>

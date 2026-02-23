@@ -17,11 +17,9 @@ class Unit extends Model
     ];
 
     protected $with = [
-        'buildings',
         'emails.sendings',
         'fields',
         'labels',
-        'stages',
         'telephones',
         'uris',
     ];
@@ -33,14 +31,16 @@ class Unit extends Model
         $q->where('name', 'like', "%{$search}%")
         );
     }
-
     public function scopeForGood(Builder $query, int $goodId): Builder
     {
         return $query->whereHas('quotations', fn ($q) =>
         $q->where('good_id', $goodId)
         );
     }
-
+    public function scopeLimitIfPresent(Builder $query, ?int $limit): Builder
+    {
+        return $query->when($limit, fn ($q) => $q->limit($limit));
+    }
     // E N D  S C O P E S
 
     public function buildings()
@@ -101,9 +101,6 @@ class Unit extends Model
     {
         return $this->hasMany(Quotation::class);
     }
-
-
-
     public function stages()
     {
         return $this->belongsToMany(Stage::class)
@@ -119,9 +116,5 @@ class Unit extends Model
     {
         return $this->belongsToMany(Uri::class)
             ->using(unit_uri::class);
-    }
-    public function scopeLimitIfPresent(Builder $query, ?int $limit): Builder
-    {
-        return $query->when($limit, fn ($q) => $q->limit($limit));
     }
 }

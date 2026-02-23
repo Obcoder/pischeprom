@@ -80,11 +80,10 @@ class UnitController extends Controller
         return Unit::query()
             ->search($request->search)
             ->when($request->filled('good_id'), fn ($q) => $q->forGood((int) $request->good_id))
-            ->with([
+            ->with(['buildings',
 //                       'labels:id,name', // Начните с этого; добавьте другие по одному
                        //'consumptions:id,unit_id,amount',
                        //'products:id,name',
-                       //'quotations:id,good_id,measure_id,price',
                        //'entities.sales:id,entity_id,sale_date',
 
 //                           'stages' => function ($query) use ($activeStages) {
@@ -131,7 +130,8 @@ class UnitController extends Controller
      */
     public function show(string $id)
     {
-        return Unit::findOrFail($id);
+        return Unit::with(['buildings', 'consumptions', 'quotations:id,good_id,measure_id,price', 'stages',])
+            ->findOrFail($id);
     }
 
     /**
