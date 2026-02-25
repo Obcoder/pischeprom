@@ -11,7 +11,6 @@ defineOptions({
 })
 const props = defineProps({
     unit: Object,
-    products: Object,
 })
 const date = useDate()
 
@@ -725,7 +724,7 @@ useHead({
                                                                                     <v-container fluid>
                                                                                         <v-row>
                                                                                             <v-col cols="8">
-                                                                                                <v-data-table :items="products"
+                                                                                                <v-data-table :items="dict.products"
                                                                                                               items-per-page="130"
                                                                                                               v-model="selectedProducts"
                                                                                                               :headers="headerSelectProductsForSending"
@@ -1072,7 +1071,7 @@ useHead({
                         >
                             <v-row>
                                 <v-col>
-                                    <v-autocomplete :items="products"
+                                    <v-autocomplete :items="dict.products"
                                                     :item-value="'id'"
                                                     :item-title="'rus'"
                                                     v-model="formAttachManufacturer.product_id"
