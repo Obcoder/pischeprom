@@ -462,15 +462,15 @@ const tabUnitCard = ref('info') // ✅ по умолчанию Info
 onMounted(()=> {
     loadDictionaries()
     indexProducts()
-    fetchFiles(props.unit.name)
+    fetchFiles(unit.value.name)
 })
 
 useHead({
-    title: `Unit: ${props.unit.name}`,
+    title: `Unit: ${unit.value.name}`,
     meta: [
         {
             name: 'description',
-            content: `Информация о блоке ${props.unit.name}`
+            content: `Информация о блоке ${unit.value.name}`
         }
     ]
 })
@@ -665,13 +665,11 @@ useHead({
                                         <v-container fluid>
                                             <v-row>
                                                 <v-col>
-                                                    <v-list>
-                                                        <v-list-item v-for="file in files" :key="file.name"
-                                                                     density="compact"
-                                                        >
-                                                            <a :href="file.url" target="_blank">{{ file.name }}</a>
-                                                        </v-list-item>
-                                                    </v-list>
+                                                    <div v-for="file in files" :key="file.name"
+                                                         class="p-1 text-sm font-sans"
+                                                    >
+                                                        <a :href="file.url" target="_blank">{{ file.name }}</a>
+                                                    </div>
                                                 </v-col>
                                                 <v-col>
                                                     <v-list density="compact">
