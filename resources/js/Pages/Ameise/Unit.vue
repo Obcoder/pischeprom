@@ -31,6 +31,7 @@ const dict = ref({
     emails: [],
     entities: [],
     entityClassifications: [],
+    goods: [],
     labels: [],
     measures: [],
     products: [],
@@ -52,6 +53,7 @@ async function loadDictionaries() {
             emailsRes,
             entitiesRes,
             classificationsRes,
+            goodsRes,
             labelsRes,
             measuresRes,
             productsRes,
@@ -62,6 +64,7 @@ async function loadDictionaries() {
             axios.get(route('emails.index')),
             axios.get(route('entities.index')),
             axios.get(route('entities-classification.index')),
+            axios.get(route('goods.index')),
             axios.get(route('labels.index')),
             axios.get(route('measures.index')),
             axios.get(route('products.index')),
@@ -73,6 +76,7 @@ async function loadDictionaries() {
         dict.value.emails = emailsRes.data
         dict.value.entities = entitiesRes.data
         dict.value.entityClassifications = classificationsRes.data
+        dict.value.goods = goodsRes.data
         dict.value.labels = labelsRes.data
         dict.value.measures = measuresRes.data
         dict.value.products = (productsRes.data || []).sort((a,b)=>a.rus.localeCompare(b.rus))
@@ -86,12 +90,32 @@ async function loadDictionaries() {
     }
 }
 
+async function indexGoods(search = '') {
+    const { data } = await axios.get(route('goods.index'), {
+        params: { search }
+    })
+    dict.value.goods.value = Array.isArray(data) ? data : (data.data || [])
+}
+
+async function indexMeasures() {
+    const { data } = await axios.get(route('measures.index'))
+    dict.value.measures.value = Array.isArray(data) ? data : (data.data || [])
+}
+
 const dialogFormAddEmail = ref(false)
 const dialogFormAddUri = ref(false)
 const dialogFormAttachEmail = ref(false)
 const dialogFormAttachLabel = ref(false)
 const dialogFormAttachUri = ref(false)
 const dialogFormSendEmail = ref(false)
+const dialogAddQuotation = ref(false)
+async function openQuotationDialog() {
+    dialogAddQuotation.value = true
+
+    // подгружаем справочники только при открытии (быстрее)
+    if (dict.value.goods.value.length === 0) await indexGoods()
+    if (dict.value.measures.value.length === 0) await indexMeasures()
+}
 const showFormBuilding = ref(false)
 const showFormConsumption = ref(false)
 const showFormAttachManufacturer = ref(false)
@@ -301,6 +325,32 @@ function attachLabel(){
         },
     })
 }
+
+//     Q U O T A T I O N S
+
+const formQuotation = useForm({
+    unit_id: unit.value.id,   // важно: unit - это ref, как у тебя сейчас
+    good_id: null,
+    price: null,
+    measure_id: null,
+})
+function storeQuotation() {
+    // на всякий случай обновим unit_id (если unit менялся)
+    formQuotation.unit_id = unit.value.id
+
+    formQuotation.post(route('web.quotation.store'), {
+        replace: false,
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: async () => {
+            formQuotation.reset()
+            dialogAddQuotation.value = false
+            await fetchUnit(unit.value.id) // ✅ чтобы quotations обновились
+        },
+    })
+}
+
+// E N D  Q U O T A T I O N S
 function attachUri(){
     formAttachUri.post(route('web.unituri.store'), {
         replace: false,
@@ -1042,15 +1092,106 @@ useHead({
                 >
                     <v-card-title>Quotations</v-card-title>
                     <v-card-text>
-                        <v-data-table :items="unit.quotations"
-                                      :headers="headerQuotations"
-                                      items-per-page="12"
-                                      fixed-header
-                                      height="300px"
-                                      density="compact"
-                                      hover
-                                      class="border rounded">
-                        </v-data-table>
+                        <v-row>
+                            <v-col cols="6">
+                                <v-btn
+                                    text="+ Quotation"
+                                    color="deep-purple-darken-1"
+                                    variant="tonal"
+                                    density="compact"
+                                    @click="openQuotationDialog"
+                                />
+
+                                <v-dialog v-model="dialogAddQuotation" width="900">
+                                    <v-card>
+                                        <v-toolbar title="Новая цена (Quotation)" />
+
+                                        <v-card-text>
+                                            <v-form @submit.prevent>
+                                                <v-row>
+                                                    <v-col cols="12" md="6">
+                                                        <v-autocomplete
+                                                            v-model="formQuotation.good_id"
+                                                            :items="goods"
+                                                            item-value="id"
+                                                            item-title="name"
+                                                            label="Good"
+                                                            variant="outlined"
+                                                            density="comfortable"
+                                                            clearable
+                                                            @update:search="indexGoods"
+                                                        />
+                                                        <div v-if="formQuotation.errors.good_id" class="text-red text-caption">
+                                                            {{ formQuotation.errors.good_id }}
+                                                        </div>
+                                                    </v-col>
+
+                                                    <v-col cols="12" md="3">
+                                                        <v-text-field
+                                                            v-model="formQuotation.price"
+                                                            label="Price"
+                                                            type="number"
+                                                            step="0.01"
+                                                            variant="outlined"
+                                                            density="comfortable"
+                                                            clearable
+                                                        />
+                                                        <div v-if="formQuotation.errors.price" class="text-red text-caption">
+                                                            {{ formQuotation.errors.price }}
+                                                        </div>
+                                                    </v-col>
+
+                                                    <v-col cols="12" md="3">
+                                                        <v-select
+                                                            v-model="formQuotation.measure_id"
+                                                            :items="measures"
+                                                            item-value="id"
+                                                            item-title="name"
+                                                            label="Measure"
+                                                            variant="outlined"
+                                                            density="comfortable"
+                                                            clearable
+                                                        />
+                                                        <div v-if="formQuotation.errors.measure_id" class="text-red text-caption">
+                                                            {{ formQuotation.errors.measure_id }}
+                                                        </div>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-form>
+                                        </v-card-text>
+
+                                        <v-card-actions class="justify-start">
+                                            <v-btn
+                                                text="Close"
+                                                variant="text"
+                                                @click="dialogAddQuotation = false"
+                                                :disabled="formQuotation.processing"
+                                            />
+                                            <v-btn
+                                                text="Save"
+                                                color="deep-purple-darken-1"
+                                                variant="tonal"
+                                                :loading="formQuotation.processing"
+                                                @click="storeQuotation"
+                                            />
+                                        </v-card-actions>
+                                    </v-card>
+                                </v-dialog>
+                            </v-col>
+                        </v-row>
+                        <v-row>
+                            <v-col>
+                                <v-data-table :items="unit.quotations"
+                                              :headers="headerQuotations"
+                                              items-per-page="12"
+                                              fixed-header
+                                              height="300px"
+                                              density="compact"
+                                              hover
+                                              class="border rounded">
+                                </v-data-table>
+                            </v-col>
+                        </v-row>
                     </v-card-text>
                 </v-card>
             </v-col>
