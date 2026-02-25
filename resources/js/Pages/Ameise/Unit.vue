@@ -90,6 +90,15 @@ async function loadDictionaries() {
     }
 }
 
+async function loadDict(key, routeName) {
+    try {
+        const { data } = await axios.get(route(routeName))
+        dict.value[key] = data
+    } catch (e) {
+        console.error(e)
+    }
+}
+
 async function indexGoods(search = '') {
     const { data } = await axios.get(route('goods.index'), {
         params: { search }
@@ -369,8 +378,8 @@ function storeUri(){
         preserveScroll: false,
         onSuccess: ()=> {
             formAddUri.reset()
-
             dialogFormAddUri.value = false
+            await loadDict('uris', 'uris.index')
         },
     })
 }
