@@ -356,9 +356,9 @@ function attachUri(){
         replace: false,
         preserveState: true,
         preserveScroll: false,
-        onSuccess: ()=> {
+        onSuccess: async ()=> {
             formAttachUri.reset()
-            fetchUnit(props.unit.id)
+            await fetchUnit(unit.value.id)
         },
     })
 }
