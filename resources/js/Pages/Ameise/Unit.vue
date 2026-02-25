@@ -1189,6 +1189,20 @@ useHead({
                                               density="compact"
                                               hover
                                               class="border rounded">
+                                    <!-- ✅ Кликабельный товар -->
+                                    <template #item.good.name="{ item }">
+                                        <Link
+                                            :href="route('Ameise.good.show', item.good.id)"
+                                            class="text-primary font-medium hover:underline"
+                                        >
+                                            {{ item.good.name }}
+                                        </Link>
+                                    </template>
+
+                                    <!-- Можно красиво оформить цену -->
+                                    <template #item.price="{ item }">
+                                        {{ Number(item.price).toFixed(2) }}
+                                    </template>
                                 </v-data-table>
                             </v-col>
                         </v-row>
