@@ -5,10 +5,13 @@ import { route } from 'ziggy-js'
 import {useForm, Link} from "@inertiajs/vue3";
 
 const fields = ref([])
+const selectedFieldIDs = ref([]) // массив выбранных field.id
 const units = ref([])
 const searchUnits = ref('')
 const labels = ref([])
 const selectedLabelsIDs = ref([])
+
+
 const showFormUnit = ref(false)
 
 // Функция загрузки Units
@@ -26,7 +29,6 @@ const indexUnits = async () => {
         units.value = []
     }
 }
-
 // Filtered Units (осталось без изменений)
 const filteredUnits = computed(() => {
     let filtered = units.value
@@ -42,6 +44,14 @@ const filteredUnits = computed(() => {
         filtered = filtered.filter(unit => {
             const unitLabelIds = unit.labels?.map(label => label.id) || []
             return selectedLabelsIDs.value.some(labelId => unitLabelIds.includes(labelId))
+        })
+    }
+
+    // ✅ Fields (аналогично labels)
+    if (selectedFieldIDs.value.length > 0) {
+        filtered = filtered.filter(unit => {
+            const unitFieldIds = unit.fields?.map(f => f.id) || []
+            return selectedFieldIDs.value.some(id => unitFieldIds.includes(id))
         })
     }
 
@@ -133,6 +143,10 @@ watch(searchUnits, () => {
 watch(selectedLabelsIDs, () => {
     indexUnits()
 }, { immediate: true, deep: true }) // deep: true, если array/object
+
+watch(selectedFieldIDs, () => {
+    indexUnits()
+}, { deep: true })
 
 const toggleLabel = (labelId) => {
     if (selectedLabelsIDs.value.includes(labelId)) {
@@ -349,24 +363,48 @@ const toggleLabel = (labelId) => {
                         </v-data-table>
                     </v-col>
                     <v-col>
-                        <v-sheet class="flex flex-row justify-normal flex-wrap">
-                            <v-btn
-                                v-for="label in labels"
-                                :key="label.id"
-                                v-model="selectedLabelsIDs"
-                                :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
-                                :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
-                                @click="toggleLabel(label.id)"
-                                size="x-small"
-                                class="ma-1"
-                            >
-                                <!-- текст -->
-                                {{ label.name }}
+                        <v-row>
+                            <v-col cols="4">
+                                <v-col lg="3">
+                                    <v-autocomplete
+                                        v-model="selectedFieldIDs"
+                                        :items="fields"
+                                        item-title="title"
+                                        item-value="id"
+                                        label="Фильтр по полям"
+                                        multiple
+                                        chips
+                                        clearable
+                                        closable-chips
+                                        variant="solo-inverted"
+                                        density="compact"
+                                        hide-details
+                                    />
+                                </v-col>
+                            </v-col>
+                        </v-row>
+                        <v-row>
+                            <v-col>
+                                <v-sheet class="flex flex-row justify-normal flex-wrap">
+                                    <v-btn
+                                        v-for="label in labels"
+                                        :key="label.id"
+                                        v-model="selectedLabelsIDs"
+                                        :color="selectedLabelsIDs.includes(label.id) ? 'cyan' : 'blue-grey-darken-2'"
+                                        :class="{ 'active-btn': selectedLabelsIDs.includes(label.id) }"
+                                        @click="toggleLabel(label.id)"
+                                        size="x-small"
+                                        class="ma-1"
+                                    >
+                                        <!-- текст -->
+                                        {{ label.name }}
 
-                                <!-- бейдж сразу после текста -->
-                                <span class="ml-1 text-[8px] bg-teal-700 rounded">{{label.rank}}</span>
-                            </v-btn>
-                        </v-sheet>
+                                        <!-- бейдж сразу после текста -->
+                                        <span class="ml-1 text-[8px] bg-teal-700 rounded">{{label.rank}}</span>
+                                    </v-btn>
+                                </v-sheet>
+                            </v-col>
+                        </v-row>
                     </v-col>
                 </v-row>
             </v-col>

@@ -62,10 +62,14 @@ class Unit extends Model
         return $this->belongsToMany(Entity::class)
             ->using(entity_unit::class);
     }
+
+    // F I E L D S
     public function fields(): BelongsToMany
     {
         return $this->belongsToMany(Field::class);
     }
+
+
     public function industries(): BelongsToMany
     {
         return $this->belongsToMany(Industry::class)
