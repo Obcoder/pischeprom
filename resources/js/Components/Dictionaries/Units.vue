@@ -365,22 +365,20 @@ const toggleLabel = (labelId) => {
                     <v-col>
                         <v-row>
                             <v-col cols="4">
-                                <v-col lg="3">
-                                    <v-autocomplete
-                                        v-model="selectedFieldIDs"
-                                        :items="fields"
-                                        item-title="title"
-                                        item-value="id"
-                                        label="Фильтр по полям"
-                                        multiple
-                                        chips
-                                        clearable
-                                        closable-chips
-                                        variant="solo-inverted"
-                                        density="compact"
-                                        hide-details
-                                    />
-                                </v-col>
+                                <v-autocomplete
+                                    v-model="selectedFieldIDs"
+                                    :items="fields"
+                                    item-title="title"
+                                    item-value="id"
+                                    label="Фильтр по полям"
+                                    multiple
+                                    chips
+                                    clearable
+                                    closable-chips
+                                    variant="solo-inverted"
+                                    density="compact"
+                                    hide-details
+                                />
                             </v-col>
                         </v-row>
                         <v-row>
