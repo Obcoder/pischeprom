@@ -225,8 +225,9 @@ function storeBuildingUnit(){
         replace: false,
         preserveState: true,
         preserveScroll: false,
-        onSuccess: ()=> {
-            formBuildingUnit.reset();
+        onSuccess: async ()=> {
+            formBuildingUnit.reset()
+            await fetchUnit(unit.value.id)
         },
     })
 }
@@ -235,9 +236,10 @@ function storeConsumption(){
         replace: false,
         preserveState: true,
         preserveScroll: false,
-        onSuccess: ()=> {
+        onSuccess: async ()=> {
             formConsumption.reset();
             showFormConsumption.value = false;
+            await fetchUnit(unit.value.id)
         },
     });
 }
@@ -248,7 +250,7 @@ function storeEmail(){
         preserveScroll: false,
         onSuccess: async ()=> {
             formAddEmail.reset()
-            await fetchUnit()
+            await fetchUnit(unit.value.id)
         },
     })
 }
@@ -260,7 +262,7 @@ function storeEntity(){
         preserveScroll: true,
         onSuccess: async () => {
             formEntity.reset()
-            await fetchUnit()                // ✅ обновит unit.entities
+            await fetchUnit(unit.value.id)                // ✅ обновит unit.entities
         },
     })
 }
@@ -280,9 +282,9 @@ function attachManufacturer(){
         replace: false,
         preserveState: true,
         preserveScroll: false,
-        onSuccess: ()=> {
+        onSuccess: async ()=> {
             formAttachManufacturer.reset()
-            fetchUnit(props.unit.id)
+            await fetchUnit(unit.value.id)
         },
     })
 }
@@ -315,7 +317,7 @@ function attachEmail(){
         preserveScroll: false,
         onSuccess: async ()=> {
             formAttachEmail.reset()
-            await fetchUnit()
+            await fetchUnit(unit.value.id)
         },
     })
 }
