@@ -376,7 +376,7 @@ function storeUri(){
         replace: false,
         preserveState: true,
         preserveScroll: false,
-        onSuccess: ()=> {
+        onSuccess: async ()=> {
             formAddUri.reset()
             dialogFormAddUri.value = false
             await loadDict('uris', 'uris.index')
