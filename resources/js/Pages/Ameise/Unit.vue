@@ -1112,7 +1112,7 @@ useHead({
                                                     <v-col cols="12" md="6">
                                                         <v-autocomplete
                                                             v-model="formQuotation.good_id"
-                                                            :items="goods"
+                                                            :items="dict.goods"
                                                             item-value="id"
                                                             item-title="name"
                                                             label="Good"
@@ -1144,7 +1144,7 @@ useHead({
                                                     <v-col cols="12" md="3">
                                                         <v-select
                                                             v-model="formQuotation.measure_id"
-                                                            :items="measures"
+                                                            :items="dict.measures"
                                                             item-value="id"
                                                             item-title="name"
                                                             label="Measure"
