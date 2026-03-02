@@ -71,7 +71,7 @@ const publishedParam = computed(() => {
 async function indexGoods() {
     loading.value = true
     try {
-        const { data } = await axios.get(route('api.goods.index'), {
+        const { data } = await axios.get(route('goods.index'), {
             params: {
                 search: search.value || null,
                 published: publishedParam.value,
