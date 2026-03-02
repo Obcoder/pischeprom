@@ -12,7 +12,7 @@ const products = ref([]) // справочник products для выбора в
 
 const search = ref('')
 const publishedFilter = ref('all') // all | published | hidden
-const groupMode = ref('category')  // category | none
+const groupMode = ref('none')  // category | none
 
 const drawer = ref(false)
 const selectedGood = ref(null)
@@ -32,7 +32,7 @@ const form = useForm({
 })
 
 const headers = [
-    { key: 'group_category', title: 'Category', sortable: true, width: '200px' },
+    { key: 'group_category', title: 'Category', sortable: true, width: '175px' },
     { key: 'ava_image', title: '', sortable: false, width: '96px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
@@ -273,9 +273,9 @@ onMounted(async () => {
                 <v-select
                     v-model="groupMode"
                     :items="[
-            { title: 'Группировать по категориям', value: 'category' },
-            { title: 'Без группировки', value: 'none' },
-          ]"
+                                { title: 'Группировать по категориям', value: 'category' },
+                                { title: 'Без группировки', value: 'none' },
+                              ]"
                     label="Группировка"
                     variant="solo-inverted"
                     density="compact"
