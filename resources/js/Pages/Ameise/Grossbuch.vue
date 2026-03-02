@@ -13,6 +13,7 @@ import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
 import Products from '@/Components/Dictionaries/Products.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
+import Goods from "@/Components/Dictionaries/Goods.vue";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -1856,7 +1857,7 @@ const formatBuildingTitle = (building) => {
                                             <Products />
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="goods">
-
+                                            <Goods />
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="components">
                                             <v-container fluid>
