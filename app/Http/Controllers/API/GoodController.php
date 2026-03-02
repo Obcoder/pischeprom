@@ -15,8 +15,8 @@ class GoodController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $published = $request->has('published')
-            ? filter_var($request->input('published'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+        $published = $request->has('is_published')
+            ? filter_var($request->input('is_published'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
             : null;
 
         $perPage = (int) $request->input('per_page', 100);

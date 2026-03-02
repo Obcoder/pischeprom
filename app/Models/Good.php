@@ -50,9 +50,13 @@ class Good extends Model
         });
     }
 
-    public function scopePublished($q, ?bool $state = true)
+    public function scopePublished($query, $published)
     {
-        return $q->where('is_published', $state);
+        if ($published === null) {
+            return $query; // ✅ "Все" — без фильтра
+        }
+
+        return $query->where('is_published', (bool) $published);
     }
 
     /*
