@@ -150,7 +150,7 @@ async function saveGood() {
 
             if (isUpdate) {
                 fd.append('_method', 'PUT')
-                await axios.post(route('api.goods.update', form.id), fd, {
+                await axios.post(route('goods.update', form.id), fd, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 })
             } else {
