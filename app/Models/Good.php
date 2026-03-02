@@ -30,9 +30,22 @@ class Good extends Model
     protected static function booted()
     {
         static::saving(function (Good $good) {
-            if ($good->isDirty('name')) {
-                $good->slug = Str::slug($good->name);
+            if (!$good->isDirty('name')) return;
+
+            $base = Str::slug($good->name);
+            $slug = $base;
+            $i = 2;
+
+            while (
+            Good::where('slug', $slug)
+                ->when($good->exists, fn($q) => $q->where('id', '!=', $good->id))
+                ->exists()
+            ) {
+                $slug = "{$base}-{$i}";
+                $i++;
             }
+
+            $good->slug = $slug;
         });
     }
 
