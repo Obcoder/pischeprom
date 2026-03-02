@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreGoodRequest;
+use App\Http\Requests\UpdateGoodRequest;
 use App\Models\Good;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -154,9 +156,44 @@ class GoodController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Good $good)
     {
-        //
+        $validated = $request->validate([
+                                            'name' => ['sometimes','required','string','max:255'],
+                                            'denominator' => ['nullable','numeric'],
+                                            'description' => ['nullable','string'],
+                                            'is_published' => ['nullable','boolean'],
+                                            'ava_image' => ['nullable','image','mimes:jpg,jpeg,png,webp','max:4096'],
+                                            'products' => ['nullable','array'],
+                                            'products.*' => ['integer','exists:products,id'],
+                                            'remove_ava' => ['nullable','boolean'],
+                                        ]);
+
+        $good->update($validated);
+
+        if (array_key_exists('products', $validated)) {
+            $good->products()->sync($validated['products'] ?? []);
+        }
+
+        if (!empty($validated['remove_ava'])) {
+            $good->update(['ava_image' => null]);
+        }
+
+        if ($request->hasFile('ava_image')) {
+            $file = $request->file('ava_image');
+            $bucket = config('filesystems.disks.yandex.bucket');
+
+            $filename = 'avatar-' . time() . '.' . $file->getClientOriginalExtension();
+            $path = "goods/{$good->id}/{$filename}";
+
+            Storage::disk('yandex')->put($path, file_get_contents($file->getRealPath()));
+
+            $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
+
+            $good->update(['ava_image' => $url]);
+        }
+
+        return response()->json($good->fresh()->load('products'));
     }
 
     /**
