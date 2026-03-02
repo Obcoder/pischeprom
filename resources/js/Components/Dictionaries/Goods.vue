@@ -33,7 +33,7 @@ const form = useForm({
 
 const headers = [
     { key: 'group_category', title: 'Category', sortable: true, width: '175px' },
-    { key: 'ava_image', title: '', sortable: false, width: '96px' },
+    { key: 'ava_image', title: '', sortable: false, width: '200px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
     { key: 'products_count', title: 'Products', sortable: true, width: '100px' },
