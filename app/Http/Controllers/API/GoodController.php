@@ -26,7 +26,7 @@ class GoodController extends Controller
             ->with(['products.category']) // важно для группировки
             ->search($search)
             ->published($published)
-            ->orderBy('name')
+            ->orderBy('created_at', 'desc')
             ->paginate($perPage)
             ->withQueryString();
 

@@ -33,7 +33,7 @@ const form = useForm({
 
 const headers = [
     { key: 'group_category', title: 'Category', sortable: true, width: '200px' },
-    { key: 'ava_image', title: '', sortable: false, width: '72px' },
+    { key: 'ava_image', title: '', sortable: false, width: '96px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
     { key: 'products_count', title: 'Products', sortable: true, width: '100px' },
@@ -45,7 +45,7 @@ function categoryTitleFromGood(g) {
     // Берём 1-ю категорию из связанных products (если есть)
     // Если у Product другая структура — скажи, подстрою
     const first = g.products?.[0]
-    return first?.category?.title || 'Без категории'
+    return first?.category?.rus || 'Без категории'
 }
 
 const itemsForTable = computed(() => {
