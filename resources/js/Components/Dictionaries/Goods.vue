@@ -154,7 +154,7 @@ async function saveGood() {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 })
             } else {
-                await axios.post(route('api.goods.store'), fd, {
+                await axios.post(route('goods.store'), fd, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 })
             }
@@ -170,9 +170,9 @@ async function saveGood() {
             }
 
             if (isUpdate) {
-                await axios.put(route('api.goods.update', form.id), payload)
+                await axios.put(route('goods.update', form.id), payload)
             } else {
-                await axios.post(route('api.goods.store'), payload)
+                await axios.post(route('goods.store'), payload)
             }
         }
 
