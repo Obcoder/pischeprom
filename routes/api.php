@@ -69,6 +69,8 @@ Route::apiResource('genera', GenusController::class);
 Route::apiResource('goods', GoodController::class);
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
     ->where('id', '[0-9]+')->name('good.fetch');
+Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
+    ->name('api.goods.publish');
 Route::apiResource('goodsales', GoodSaleController::class);
 Route::apiResource('labels', LabelController::class);
 Route::apiResource('measures', MeasureController::class);

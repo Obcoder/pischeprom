@@ -14,15 +14,29 @@ class GoodController extends Controller
      */
     public function index(Request $request)
     {
-        $goods = Good::where('name', 'like', '%' . $request->search . '%')
-            ->with('sales')
-            ->orderBy('created_at', 'desc')
-            ->get();
-        return $goods;
+        $search = $request->input('search');
+        $published = $request->has('published')
+            ? filter_var($request->input('published'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+            : null;
+
+        $perPage = (int) $request->input('per_page', 100);
+        $perPage = max(1, min($perPage, 500));
+
+        $goods = Good::query()
+            ->with(['products.category']) // важно для группировки
+            ->search($search)
+            ->published($published)
+            ->orderBy('name')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        return response()->json($goods);
     }
+
     public function indexPublished()
     {
-        return Good::where('is_published', true)
+        return Good::query()
+            ->published(true)
             ->inRandomOrder()
             ->get();
     }
@@ -38,28 +52,79 @@ class GoodController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+//    public function store(Request $request)
+//    {
+//        $request->validate(
+//            [
+//                'file' => 'image|mimes:jpg,jpeg,png|max:2048',
+//            ]
+//        );
+//
+//        $good = Good::create($request->all());
+//        $good->products()->attach($request->input('products'));
+//        Storage::disk('yandex')->put("goods/{$good->id}/ . $good->name .json", json_encode($good));
+//
+//        $file = $request->file('ava_image');
+//        $bucket = config('filesystems.disks.yandex.bucket');
+//        $filename = 'avatar-'. $file->getSize(). '.' . $file->getClientOriginalExtension(); // avatar.jpg/png
+//        $path = "goods/{$good->id}/{$filename}";
+//        // Сохраняем файл в S3
+//        Storage::disk('yandex')->put($path, file_get_contents($file));
+//        /// Принудительно формируем корректный URL
+//        $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
+//        // Сохраняем в БД
+//        $good->update(['ava_image' => $url]);
+//    }
+
     public function store(Request $request)
     {
-        $request->validate(
-            [
-                'file' => 'image|mimes:jpg,jpeg,png|max:2048',
-            ]
+        $validated = $request->validate([
+                                            'name' => ['required','string','max:255'],
+                                            'denominator' => ['nullable','numeric'],
+                                            'description' => ['nullable','string'],
+                                            'is_published' => ['nullable','boolean'],
+                                            'ava_image' => ['nullable','image','mimes:jpg,jpeg,png,webp','max:4096'],
+                                            'products' => ['nullable','array'],
+                                            'products.*' => ['integer','exists:products,id'],
+                                        ]);
+
+        $good = Good::create([
+                                 'name' => $validated['name'],
+                                 'denominator' => $validated['denominator'] ?? null,
+                                 'description' => $validated['description'] ?? null,
+                                 'is_published' => $validated['is_published'] ?? true,
+                             ]);
+
+        if (!empty($validated['products'])) {
+            $good->products()->sync($validated['products']);
+        }
+
+        // JSON паспорт
+        Storage::disk('yandex')->put(
+            "goods/{$good->id}/good.json",
+            $good->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
 
-        $good = Good::create($request->all());
-        $good->products()->attach($request->input('products'));
-        Storage::disk('yandex')->put("goods/{$good->id}/ . $good->name .json", json_encode($good));
+        // Если есть аватар
+        if ($request->hasFile('ava_image')) {
 
-        $file = $request->file('ava_image');
-        $bucket = config('filesystems.disks.yandex.bucket');
-        $filename = 'avatar-'. $file->getSize(). '.' . $file->getClientOriginalExtension(); // avatar.jpg/png
-        $path = "goods/{$good->id}/{$filename}";
-        // Сохраняем файл в S3
-        Storage::disk('yandex')->put($path, file_get_contents($file));
-        /// Принудительно формируем корректный URL
-        $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
-        // Сохраняем в БД
-        $good->update(['ava_image' => $url]);
+            $file = $request->file('ava_image');
+            $bucket = config('filesystems.disks.yandex.bucket');
+
+            $filename = 'avatar-' . time() . '.' . $file->getClientOriginalExtension();
+            $path = "goods/{$good->id}/{$filename}";
+
+            Storage::disk('yandex')->put($path, file_get_contents($file->getRealPath()));
+
+            $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
+
+            $good->update(['ava_image' => $url]);
+        }
+
+        return response()->json(
+            $good->fresh()->load('products'),
+            201
+        );
     }
 
     /**
@@ -97,8 +162,29 @@ class GoodController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Good $good)
     {
-        //
+        // Можно добавить удаление папки из S3:
+        Storage::disk('yandex')->deleteDirectory("goods/{$good->id}");
+
+        $good->delete();
+
+        return response()->json(null, 204);
+    }
+
+    public function togglePublish(Request $request, Good $good)
+    {
+        $validated = $request->validate([
+                                            'is_published' => ['required','boolean'],
+                                        ]);
+
+        $good->update([
+                          'is_published' => $validated['is_published'],
+                      ]);
+
+        return response()->json([
+                                    'id' => $good->id,
+                                    'is_published' => $good->is_published,
+                                ]);
     }
 }
