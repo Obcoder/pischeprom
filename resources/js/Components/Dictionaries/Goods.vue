@@ -45,7 +45,7 @@ function categoryTitleFromGood(g) {
     // Берём 1-ю категорию из связанных products (если есть)
     // Если у Product другая структура — скажи, подстрою
     const first = g.products?.[0]
-    return first?.category?.rus || 'Без категории'
+    return first?.category?.name || 'Без категории'
 }
 
 const itemsForTable = computed(() => {
