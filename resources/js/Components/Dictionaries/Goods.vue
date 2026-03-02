@@ -317,7 +317,7 @@ onMounted(async () => {
                     </template>
 
                     <template #item.ava_image="{ item }">
-                        <v-avatar size="42" class="cursor-pointer" @click="showGood(item.id)">
+                        <v-avatar size="60" class="cursor-pointer" @click="showGood(item.id)">
                             <v-img :src="item.ava_image || logo" cover />
                         </v-avatar>
                     </template>
