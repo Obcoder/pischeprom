@@ -19,8 +19,7 @@ return new class extends Migration
             $table->string('provider_message_id')->nullable()->after('provider');
 
             // Трекинг
-            $table->uuid('tracking_token')->unique()->after('provider_message_id');
-
+            $table->uuid('tracking_token')->unique()->after('provider_message_id')->nullable();
             $table->string('status')->default('draft')->after('tracking_token');
             // draft | queued | sent | failed
 
