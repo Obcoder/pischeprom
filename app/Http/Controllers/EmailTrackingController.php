@@ -37,20 +37,28 @@ class EmailTrackingController extends Controller
 
     public function click(Request $request, string $token)
     {
+        // Получаем url из query-параметра
         $url = (string) $request->query('url', '');
 
-        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+        // Декодируем (на всякий случай)
+        $url = urldecode($url);
+
+        // Проверяем, что это нормальный http/https URL
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
             abort(400, 'Invalid URL');
         }
 
-        DB::table('sendings')
+        // Логируем клик
+        \DB::table('sendings')
             ->where('tracking_token', $token)
             ->update([
-                         'clicked_at' => DB::raw('COALESCE(clicked_at, NOW())'),
-                         'click_count' => DB::raw('COALESCE(click_count, 0) + 1'),
-                         'updated_at' => Carbon::now(),
+                         'clicked_at' => \DB::raw('COALESCE(clicked_at, NOW())'),
+                         'click_count' => \DB::raw('COALESCE(click_count, 0) + 1'),
+                         'updated_at' => now(),
                      ]);
 
-        return redirect()->away($url);
+        // Принудительный 302 редирект
+        return response('', 302)
+            ->header('Location', $url);
     }
 }
