@@ -36,6 +36,8 @@ use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
+use App\Http\Controllers\EmailTrackingController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -288,6 +290,15 @@ Route::get('/send-email', function () {
 
     return 'Email sent successfully!';
 });
+
+Route::get('/email/open/{token}', [EmailTrackingController::class, 'open'])
+    ->name('email.open');
+
+Route::get('/email/click/{token}', [EmailTrackingController::class, 'click'])
+    ->name('email.click');
+
+/*|
+|-------------------------------------------------------------------------- */
 
 ////////////      T E L E G R A M  B O T      /////////////////////
 /// __________________________________________________________ ////

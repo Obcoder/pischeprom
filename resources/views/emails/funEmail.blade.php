@@ -187,9 +187,12 @@
                                                                     </svg>
                                                                 </span>
                                                     <!-- Fallback text (for clients that strip SVG) -->
-                                                    <span style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:16px; color:#93c5fd; text-decoration:none; display:none;">
-                                                                    VK
-                                                                </span>
+                                                    <span style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:16px; color:#93c5fd; text-decoration:none; display:none;">VK</span>
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <a href="{{ route('email.click', ['token' => $details['tracking_token'], 'url' => 'https://vk.com/market-231868854?screen=group']) }}">
+                                                    Каталог
                                                 </a>
                                             </td>
                                         </tr>
@@ -223,7 +226,7 @@
                                             <!-- Tag 2 -->
                                             <td style="padding:0 8px 8px 0;">
                                                 <a href="#" style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:14px; color:#ffffff; text-decoration:none; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:7px 10px; display:inline-block;">
-                                                    Напитки
+                                                    Морепродукты
                                                 </a>
                                             </td>
                                             <!-- Tag 3 -->
@@ -267,5 +270,13 @@
             </table>
         </div>
     </div>
+
+    @if(!empty($details['tracking_token']))
+        <img
+            src="{{ route('email.open', ['token' => $details['tracking_token']]) }}"
+            width="1" height="1" alt=""
+            style="display:block;border:0;outline:none;text-decoration:none;"
+        />
+    @endif
 </body>
 </html>
