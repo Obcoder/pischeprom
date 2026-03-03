@@ -24,7 +24,7 @@
         }
 
         .container {
-            max-width: 600px;
+            max-width: 900px;
             margin: 0 auto;
             background-color: #ffffff;
             border-radius: 8px;
@@ -35,12 +35,12 @@
         .header {
             background-color: #B71C1C;
             color: #FFE082;
-            padding: 10px;
+            padding: 6px;
         }
 
         .header img {
-            max-width: 100px;
-            margin-bottom: 10px;
+            max-width: 80px;
+            margin-bottom: 4px;
             border-radius: 80%;
         }
 
@@ -50,13 +50,13 @@
         }
 
         .content {
-            padding: 20px;
+            padding: 12px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            margin-top: 6px;
         }
 
         tr.data:hover{
@@ -71,7 +71,7 @@
         }
 
         td {
-            padding: 10px;
+            padding: 5px;
             border-bottom: 1px solid #ddd;
         }
 
@@ -80,7 +80,7 @@
             text-align: center;
             font-size: 14px;
             color: #555;
-            padding: 10px 20px;
+            padding: 5px 11px;
         }
 
         .phone {
@@ -133,7 +133,7 @@
 
         <div class="footer">
             <!-- FULL-WIDTH FOOTER (email-safe) -->
-            <table role="presentation" style="width:100%; margin:0; padding:0; background: #eceff1;">
+            <table role="presentation" style="width:100%; margin:0; padding:0; background: wheat;">
                 <tr>
                     <td align="center" style="padding:12px 6px;">
                         <!-- Inner wrapper also 100% (full-width email) -->
