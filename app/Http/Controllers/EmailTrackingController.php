@@ -37,28 +37,31 @@ class EmailTrackingController extends Controller
 
     public function click(Request $request, string $token)
     {
-        // Получаем url из query-параметра
-        $url = (string) $request->query('url', '');
+        try {
+            $url = (string) $request->query('url', '');
+            $url = urldecode($url);
 
-        // Декодируем (на всякий случай)
-        $url = urldecode($url);
+            if ($url === '' || !preg_match('#^https?://#i', $url)) {
+                abort(400, 'Invalid URL');
+            }
 
-        // Проверяем, что это нормальный http/https URL
-        if ($url === '' || !preg_match('#^https?://#i', $url)) {
-            abort(400, 'Invalid URL');
+            DB::table('sendings')
+                ->where('tracking_token', $token)
+                ->update([
+                             'clicked_at' => DB::raw('COALESCE(clicked_at, NOW())'),
+                             'click_count' => DB::raw('COALESCE(click_count, 0) + 1'),
+                             'updated_at' => now(),
+                         ]);
+
+            return redirect()->away($url); // можно вернуть обратно, это ок
+        } catch (\Throwable $e) {
+            \Log::error('CLICK TRACK ERROR', [
+                'token' => $token,
+                'url' => $request->query('url'),
+                'msg' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         }
-
-        // Логируем клик
-        \DB::table('sendings')
-            ->where('tracking_token', $token)
-            ->update([
-                         'clicked_at' => \DB::raw('COALESCE(clicked_at, NOW())'),
-                         'click_count' => \DB::raw('COALESCE(click_count, 0) + 1'),
-                         'updated_at' => now(),
-                     ]);
-
-        // Принудительный 302 редирект
-        return response('', 302)
-            ->header('Location', $url);
     }
 }
