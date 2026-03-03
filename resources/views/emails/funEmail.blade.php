@@ -24,7 +24,7 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 825px;
             margin: 0 auto;
             background-color: #ffffff;
             border-radius: 8px;
@@ -133,7 +133,7 @@
 
         <div class="footer">
             <!-- FULL-WIDTH FOOTER (email-safe) -->
-            <table role="presentation" style="width:100%; margin:0; padding:0; background: wheat;">
+            <table role="presentation" style="width:100%; margin:0; padding:0; background: #B71C10; border-radius: 6px">
                 <tr>
                     <td align="center" style="padding:12px 6px;">
                         <!-- Inner wrapper also 100% (full-width email) -->
@@ -218,7 +218,7 @@
                                         <tr>
                                             <!-- Tag 1 -->
                                             <td style="padding:0 8px 8px 0;">
-                                                <a href="#" style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:14px; color:#ffffff; text-decoration:none; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:7px 10px; display:inline-block;">
+                                                <a href="#" style="font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:12px; color:#FFE082; text-decoration:none; background:transparent; border:1px solid rgba(255,255,255,0.14); border-radius:2px; padding:2px 3px; display:inline-block;">
                                                     Рыба
                                                 </a>
                                             </td>
