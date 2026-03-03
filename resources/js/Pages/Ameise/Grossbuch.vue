@@ -53,7 +53,6 @@ const sales = ref([])
 const segments = ref([])
 const telephones = ref([])
 const units = ref([])
-// const uris = ref([])
 
 let manufacturers = ref();
 
@@ -155,7 +154,6 @@ const filteredBrands = computed(() => {
         item.name.toLowerCase().includes(searchRequest)
     )
 })
-// E N D  B U I L D I N G S
 
 
 

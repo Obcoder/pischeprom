@@ -132,7 +132,7 @@
     </div>
     <div class="footer">
         Пищепром-Сервер<br />
-        <span class="phone">+7-905-753-26-48</span>
+        <span class="phone">+7-965-016-0001</span>
         <div>
             Запросы в ТГ:<br />
             <span>pischepromserver_bot</span>
