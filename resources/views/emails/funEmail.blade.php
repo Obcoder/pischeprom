@@ -133,31 +133,30 @@
 
         <div class="footer">
             <!-- FULL-WIDTH FOOTER (email-safe) -->
-            <table role="presentation" style="width:100%; margin:0; padding:0; background:#0f172a;">
+            <table role="presentation" style="width:100%; margin:0; padding:0; background: #eceff1;">
                 <tr>
-                    <td align="center" style="padding:24px 12px;">
+                    <td align="center" style="padding:12px 6px;">
                         <!-- Inner wrapper also 100% (full-width email) -->
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
                                style="width:100%; max-width:100%; border-collapse:collapse;">
                             <tr>
                                 <td style="padding:0 0 14px 0; border-bottom:1px solid rgba(255,255,255,0.12);">
-                                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:16px; line-height:22px; color:#ffffff; font-weight:700;">
+                                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:15px; color:#ffffff; font-weight:600; font-variant-caps: titling-caps">
                                         Пищепром-Сервер
                                     </div>
-                                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:18px; color:rgba(255,255,255,0.75); margin-top:4px;">
+                                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:11px; color:rgba(255,255,255,0.75); margin-top:3px;">
                                         Поддержка и заявки
                                     </div>
                                 </td>
                             </tr>
 
                             <tr>
-                                <td style="padding:4px 0 0 0;">
+                                <td style="padding:2px 0 0 0;">
                                     <!-- CONTACT ROW -->
-                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-                                           style="width:100%; border-collapse:collapse;">
+                                    <table role="presentation" style="width:100%; border-collapse:collapse;">
                                         <tr>
                                             <!-- Left: contacts -->
-                                            <td valign="top" style="padding:0 0 12px 0;">
+                                            <td valign="top" style="padding:0 0 8px 0;">
                                                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
                                                     <tr>
                                                         <td style="font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:20px; color:#ffffff; padding:0 0 6px 0;">
