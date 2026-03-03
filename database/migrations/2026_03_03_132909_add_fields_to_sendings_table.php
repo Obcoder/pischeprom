@@ -32,8 +32,6 @@ return new class extends Migration
             $table->timestamp('last_clicked_at')->nullable()->after('clicks_count');
 
             $table->text('error')->nullable()->after('last_clicked_at');
-
-            $table->index(['email_id', 'status']);
         });
     }
 
