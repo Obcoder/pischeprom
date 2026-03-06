@@ -236,6 +236,13 @@
                                             </td>
                                         </tr>
                                         <tr>
+                                            <td style="padding:0 8px 8px 0;">
+                                                <a href="#" style="font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:12px; color:#FFE082; text-decoration:none; background:transparent; border:1px solid rgba(255,255,255,0.14); border-radius:2px; padding:2px 3px; display:inline-block;">
+                                                    Овощи
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
                                             <!-- Tag 4 -->
                                             <td style="padding:0 8px 0 0;">
                                                 <a href="#" style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:14px; color:#ffffff; text-decoration:none; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:7px 10px; display:inline-block;">
