@@ -323,6 +323,11 @@ useHead({
                             ></v-img>
                         </v-col>
                     </v-row>
+                    <v-row>
+                        <v-col>
+                            <v-img :src="good.ava_thumb || good.ava_image || '/default-image.jpg'" />
+                        </v-col>
+                    </v-row>
                 </v-sheet>
                 <v-card class="w-full">
                     <v-card-title>

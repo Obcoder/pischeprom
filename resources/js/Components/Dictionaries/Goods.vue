@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { Link, useForm } from '@inertiajs/vue3'
@@ -74,7 +74,7 @@ async function indexGoods() {
         const { data } = await axios.get(route('goods.index'), {
             params: {
                 search: search.value || null,
-                published: publishedParam.value,
+                is_published: publishedParam.value,
                 per_page: 500,
             },
         })
@@ -237,6 +237,25 @@ watch([search, publishedFilter], () => {
 // ---------- init ----------
 onMounted(async () => {
     await Promise.all([indexGoods(), indexProducts()])
+})
+
+const previewUrl = ref(null)
+
+watch(() => form.ava_image, (file) => {
+    if (previewUrl.value) {
+        URL.revokeObjectURL(previewUrl.value)
+        previewUrl.value = null
+    }
+
+    if (file instanceof File) {
+        previewUrl.value = URL.createObjectURL(file)
+    }
+})
+
+onBeforeUnmount(() => {
+    if (previewUrl.value) {
+        URL.revokeObjectURL(previewUrl.value)
+    }
 })
 </script>
 
@@ -459,6 +478,17 @@ onMounted(async () => {
                                 :error-messages="form.errors.ava_image"
                                 clearable
                             />
+                            <v-row>
+                                <v-col cols="12" md="4">
+                                    <div class="text-caption mb-2">Preview</div>
+                                    <v-avatar size="120" rounded="lg">
+                                        <v-img
+                                            :src="previewUrl || (form.id && goods.find(g => g.id === form.id)?.ava_thumb) || (form.id && goods.find(g => g.id === form.id)?.ava_image) || logo"
+                                            cover
+                                        />
+                                    </v-avatar>
+                                </v-col>
+                            </v-row>
                             <v-checkbox
                                 v-if="form.id"
                                 v-model="form.remove_ava"

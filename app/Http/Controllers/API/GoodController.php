@@ -3,20 +3,20 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreGoodRequest;
-use App\Http\Requests\UpdateGoodRequest;
 use App\Models\Good;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\Encoders\JpegEncoder;
+use Intervention\Image\ImageManager;
 
 class GoodController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $search = $request->input('search');
+
         $published = $request->has('is_published')
             ? filter_var($request->input('is_published'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
             : null;
@@ -25,7 +25,7 @@ class GoodController extends Controller
         $perPage = max(1, min($perPage, 500));
 
         $goods = Good::query()
-            ->with(['products.category']) // важно для группировки
+            ->with(['products.category'])
             ->search($search)
             ->published($published)
             ->orderBy('created_at', 'desc')
@@ -42,41 +42,6 @@ class GoodController extends Controller
             ->inRandomOrder()
             ->get();
     }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-//    public function store(Request $request)
-//    {
-//        $request->validate(
-//            [
-//                'file' => 'image|mimes:jpg,jpeg,png|max:2048',
-//            ]
-//        );
-//
-//        $good = Good::create($request->all());
-//        $good->products()->attach($request->input('products'));
-//        Storage::disk('yandex')->put("goods/{$good->id}/ . $good->name .json", json_encode($good));
-//
-//        $file = $request->file('ava_image');
-//        $bucket = config('filesystems.disks.yandex.bucket');
-//        $filename = 'avatar-'. $file->getSize(). '.' . $file->getClientOriginalExtension(); // avatar.jpg/png
-//        $path = "goods/{$good->id}/{$filename}";
-//        // Сохраняем файл в S3
-//        Storage::disk('yandex')->put($path, file_get_contents($file));
-//        /// Принудительно формируем корректный URL
-//        $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
-//        // Сохраняем в БД
-//        $good->update(['ava_image' => $url]);
-//    }
 
     public function store(Request $request)
     {
@@ -101,27 +66,14 @@ class GoodController extends Controller
             $good->products()->sync($validated['products']);
         }
 
-        // JSON паспорт
+        if ($request->hasFile('ava_image')) {
+            $this->storeAvatarFiles($good, $request->file('ava_image'));
+        }
+
         Storage::disk('yandex')->put(
             "goods/{$good->id}/good.json",
-            $good->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            $good->fresh()->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
-
-        // Если есть аватар
-        if ($request->hasFile('ava_image')) {
-
-            $file = $request->file('ava_image');
-            $bucket = config('filesystems.disks.yandex.bucket');
-
-            $filename = 'avatar-' . time() . '.' . $file->getClientOriginalExtension();
-            $path = "goods/{$good->id}/{$filename}";
-
-            Storage::disk('yandex')->put($path, file_get_contents($file->getRealPath()));
-
-            $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
-
-            $good->update(['ava_image' => $url]);
-        }
 
         return response()->json(
             $good->fresh()->load('products'),
@@ -129,15 +81,17 @@ class GoodController extends Controller
         );
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id, $slug = null)
     {
-        $good = Good::with(['prices', 'quotations', 'sales'])
-            ->findOrFail($id);
-        // Проверка slug для SEO (опционально)
+        $good = Good::with([
+                               'prices.currency',
+                               'quotations.unit',
+                               'quotations.measure',
+                               'sales'
+                           ])->findOrFail($id);
+
         $expectedSlug = \Str::slug($good->name);
+
         if ($slug && $slug !== $expectedSlug) {
             return redirect()->route('goods.show', ['id' => $id, 'slug' => $expectedSlug], 301);
         }
@@ -145,17 +99,6 @@ class GoodController extends Controller
         return $good;
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Good $good)
     {
         $validated = $request->validate([
@@ -169,41 +112,40 @@ class GoodController extends Controller
                                             'remove_ava' => ['nullable','boolean'],
                                         ]);
 
-        $good->update($validated);
+        $dataToUpdate = collect($validated)
+            ->except(['ava_image', 'products', 'remove_ava'])
+            ->toArray();
+
+        $good->update($dataToUpdate);
 
         if (array_key_exists('products', $validated)) {
             $good->products()->sync($validated['products'] ?? []);
         }
 
         if (!empty($validated['remove_ava'])) {
-            $good->update(['ava_image' => null]);
+            $this->deleteAvatarFiles($good);
+            $good->update([
+                              'ava_image' => null,
+                              'ava_thumb' => null,
+                          ]);
         }
 
         if ($request->hasFile('ava_image')) {
-            $file = $request->file('ava_image');
-            $bucket = config('filesystems.disks.yandex.bucket');
-
-            $filename = 'avatar-' . time() . '.' . $file->getClientOriginalExtension();
-            $path = "goods/{$good->id}/{$filename}";
-
-            Storage::disk('yandex')->put($path, file_get_contents($file->getRealPath()));
-
-            $url = "https://storage.yandexcloud.net/{$bucket}/{$path}";
-
-            $good->update(['ava_image' => $url]);
+            $this->deleteAvatarFiles($good);
+            $this->storeAvatarFiles($good, $request->file('ava_image'));
         }
+
+        Storage::disk('yandex')->put(
+            "goods/{$good->id}/good.json",
+            $good->fresh()->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        );
 
         return response()->json($good->fresh()->load('products'));
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Good $good)
     {
-        // Можно добавить удаление папки из S3:
         Storage::disk('yandex')->deleteDirectory("goods/{$good->id}");
-
         $good->delete();
 
         return response()->json(null, 204);
@@ -223,5 +165,56 @@ class GoodController extends Controller
                                     'id' => $good->id,
                                     'is_published' => $good->is_published,
                                 ]);
+    }
+
+    private function storeAvatarFiles(Good $good, $file): void
+    {
+        $disk = Storage::disk('yandex');
+        $bucket = config('filesystems.disks.yandex.bucket');
+
+        $ext = strtolower($file->getClientOriginalExtension());
+        $baseName = 'avatar-' . time() . '-' . Str::random(6);
+
+        $originalPath = "goods/{$good->id}/{$baseName}.{$ext}";
+        $thumbPath = "goods/{$good->id}/{$baseName}_thumb.jpg";
+
+        // оригинал
+        $disk->put($originalPath, file_get_contents($file->getRealPath()));
+
+        // thumb
+        $manager = new ImageManager(new Driver());
+        $image = $manager->read($file->getRealPath());
+
+        $thumb = clone $image;
+        $thumb->cover(160, 160);
+        $encoded = $thumb->encode(new JpegEncoder(78));
+
+        $disk->put($thumbPath, (string) $encoded, [
+            'ContentType' => 'image/jpeg',
+        ]);
+
+        $good->update([
+                          'ava_image' => "https://storage.yandexcloud.net/{$bucket}/{$originalPath}",
+                          'ava_thumb' => "https://storage.yandexcloud.net/{$bucket}/{$thumbPath}",
+                      ]);
+    }
+
+    private function deleteAvatarFiles(Good $good): void
+    {
+        $disk = Storage::disk('yandex');
+        $bucket = config('filesystems.disks.yandex.bucket');
+
+        foreach (['ava_image', 'ava_thumb'] as $field) {
+            if (!$good->{$field}) {
+                continue;
+            }
+
+            $prefix = "https://storage.yandexcloud.net/{$bucket}/";
+            $path = str_replace($prefix, '', $good->{$field});
+
+            if ($path) {
+                $disk->delete($path);
+            }
+        }
     }
 }

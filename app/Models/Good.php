@@ -17,6 +17,7 @@ class Good extends Model
         'name',
         'denominator',
         'ava_image',
+        'ava_thumb',
         'description',
         'slug',
         'is_published',
