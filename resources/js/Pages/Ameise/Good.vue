@@ -313,7 +313,14 @@ useHead({
                         </v-col>
                     </v-row>
                     <v-row>
-                        <v-col cols="6">
+                        <v-col cols="4">
+                            <v-img :src="good.ava_thumb || '/default-image.jpg'"
+                                   cover
+                            />
+                        </v-col>
+                    </v-row>
+                    <v-row>
+                        <v-col>
                             <v-img :src="good.ava_image || '/default-image.jpg'"
                                    :alt="good.name"
                                    lazy-src="/placeholder.jpg"
@@ -321,11 +328,6 @@ useHead({
                                    cover
                                    class="mb-4"
                             ></v-img>
-                        </v-col>
-                    </v-row>
-                    <v-row>
-                        <v-col>
-                            <v-img :src="good.ava_thumb || good.ava_image || '/default-image.jpg'" />
                         </v-col>
                     </v-row>
                 </v-sheet>
