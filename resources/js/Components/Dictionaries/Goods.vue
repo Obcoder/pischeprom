@@ -50,7 +50,6 @@ const headers = [
     { key: 'ava_image', title: '', sortable: false, width: '200px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
-    { key: 'products_count', title: 'Products', sortable: false, width: '100px' },
     { key: 'created_at', title: 'Создан', sortable: true, width: '200px' },
     { key: 'actions', title: '', sortable: false, width: '120px' },
 ]
@@ -406,7 +405,7 @@ onBeforeUnmount(() => {
                     @update:options="updateTableOptions"
                 >
                     <template #item.ava_image="{ item }">
-                        <v-avatar size="79" class="cursor-pointer" @click="showGood(item.id)">
+                        <v-avatar size="100" class="cursor-pointer" @click="showGood(item.id)">
                             <v-img :src="item.ava_image || logo" cover />
                         </v-avatar>
                     </template>
@@ -457,7 +456,7 @@ onBeforeUnmount(() => {
                     <template #bottom>
                         <div class="goods-table-footer">
                             <div class="goods-table-footer__left">
-                                <span class="text-caption">Rows</span>
+                                <span class="text-caption">Строк</span>
 
                                 <v-select
                                     :model-value="tableOptions.itemsPerPage"
