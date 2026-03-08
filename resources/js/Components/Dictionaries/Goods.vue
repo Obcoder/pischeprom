@@ -20,12 +20,18 @@ const selectedGood = ref(null)
 const dialogForm = ref(false)
 const dialogDelete = ref(false)
 
-const totalItems = ref(0)
 
+// Таблица Goods
+const totalItems = ref(0)
 const tableOptions = ref({
     page: 1,
     itemsPerPage: 25,
     sortBy: [{ key: 'name', order: 'asc' }],
+})
+const pageCount = computed(() => {
+    const total = Number(totalItems.value || 0)
+    const perPage = Number(tableOptions.value.itemsPerPage || 1)
+    return Math.max(1, Math.ceil(total / perPage))
 })
 
 const form = useForm({
@@ -78,7 +84,6 @@ const publishedParam = computed(() => {
 // ---------- API ----------
 async function indexGoods() {
     loading.value = true
-
     try {
         const firstSort = tableOptions.value.sortBy?.[0] || null
 
@@ -93,7 +98,7 @@ async function indexGoods() {
             },
         })
 
-        goods.value = data.data || []
+        goods.value = Array.isArray(data) ? data : (data.data || [])
         totalItems.value = data.total || 0
     } catch (e) {
         console.error(e)
@@ -111,6 +116,22 @@ function updateTableOptions(options) {
         sortBy: options.sortBy,
     }
 
+    indexGoods()
+}
+
+function setPage(page) {
+    if (page === tableOptions.value.page) return
+    tableOptions.value.page = page
+    indexGoods()
+}
+
+function setItemsPerPage(value) {
+    const perPage = Number(value)
+
+    if (!perPage || perPage === tableOptions.value.itemsPerPage) return
+
+    tableOptions.value.itemsPerPage = perPage
+    tableOptions.value.page = 1
     indexGoods()
 }
 
@@ -256,10 +277,8 @@ async function deleteGood() {
 
 // ---------- watchers ----------
 let t = null
-
 watch([search, publishedFilter], () => {
     clearTimeout(t)
-
     t = setTimeout(() => {
         tableOptions.value.page = 1
         indexGoods()
@@ -350,13 +369,15 @@ onBeforeUnmount(() => {
                     :items-length="totalItems"
                     :page="tableOptions.page"
                     :items-per-page="tableOptions.itemsPerPage"
-                    :items-per-page-options="[10, 25, 50, 100]"
+                    :sort-by="tableOptions.sortBy"
                     item-value="id"
+                    hide-default-footer
                     fixed-header
+                    fixed-footer
                     height="760px"
                     density="compact"
                     hover
-                    class="border rounded"
+                    class="border rounded goods-table"
                     @update:options="updateTableOptions"
                 >
                     <template #item.ava_image="{ item }">
@@ -391,6 +412,34 @@ onBeforeUnmount(() => {
                         <v-btn size="small" variant="text" icon="mdi-eye" @click="showGood(item.id)" />
                         <v-btn size="small" variant="text" icon="mdi-pencil" @click="openEdit(item)" />
                         <v-btn size="small" variant="text" icon="mdi-delete" @click="askDelete(item)" />
+                    </template>
+
+                    <template #bottom>
+                        <div class="goods-table-footer">
+                            <div class="goods-table-footer__left">
+                                <span class="text-caption">Rows</span>
+
+                                <v-select
+                                    :model-value="tableOptions.itemsPerPage"
+                                    :items="[25, 50, 100, 200]"
+                                    variant="plain"
+                                    density="compact"
+                                    hide-details
+                                    class="goods-table-footer__select"
+                                    @update:model-value="setItemsPerPage"
+                                />
+                            </div>
+
+                            <v-pagination
+                                :model-value="tableOptions.page"
+                                :length="pageCount"
+                                :total-visible="5"
+                                density="compact"
+                                rounded="0"
+                                class="goods-table-footer__pagination"
+                                @update:model-value="setPage"
+                            />
+                        </div>
                     </template>
                 </v-data-table-server>
             </v-col>
@@ -544,3 +593,50 @@ onBeforeUnmount(() => {
         </v-dialog>
     </v-container>
 </template>
+
+<style scoped>
+.goods-table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 40px;
+    padding: 4px 12px;
+    border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.goods-table-footer__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+}
+
+.goods-table-footer__select {
+    max-width: 84px;
+}
+
+:deep(.goods-table-footer__select .v-field) {
+    padding-inline: 0;
+    min-height: 28px;
+}
+
+:deep(.goods-table-footer__select .v-field__input) {
+    min-height: 28px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+:deep(.goods-table-footer__pagination .v-btn) {
+    min-width: 28px;
+    width: 28px;
+    height: 28px;
+}
+
+:deep(.goods-table-footer__pagination .v-pagination__item),
+:deep(.goods-table-footer__pagination .v-pagination__first),
+:deep(.goods-table-footer__pagination .v-pagination__prev),
+:deep(.goods-table-footer__pagination .v-pagination__next),
+:deep(.goods-table-footer__pagination .v-pagination__last) {
+    margin: 0 1px;
+}
+</style>
