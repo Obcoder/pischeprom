@@ -21,8 +21,11 @@ class GoodController extends Controller
         $isPublished = $request->input('is_published');
         $sortBy = (string) $request->input('sort_by', 'name');
         $sortDesc = filter_var($request->input('sort_desc', false), FILTER_VALIDATE_BOOLEAN);
-
-        $allowedSorts = ['name', 'is_published', 'created_at'];
+        $allowedSorts = [
+            'name',
+            'is_published',
+            'created_at'
+        ];
         if (!in_array($sortBy, $allowedSorts, true)) {
             $sortBy = 'name';
         }

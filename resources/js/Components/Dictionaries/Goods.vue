@@ -25,8 +25,8 @@ const dialogDelete = ref(false)
 const totalItems = ref(0)
 const tableOptions = ref({
     page: 1,
-    itemsPerPage: 25,
-    sortBy: [{ key: 'name', order: 'asc' }],
+    itemsPerPage: 50,
+    sortBy: [{ key: 'created_at', order: 'desc' }],
 })
 const pageCount = computed(() => {
     const total = Number(totalItems.value || 0)
@@ -81,6 +81,30 @@ const publishedParam = computed(() => {
     if (publishedFilter.value === 'hidden') return false
     return null
 })
+
+function formatCreatedDate(value) {
+    if (!value) return ''
+
+    const date = new Date(value)
+    const now = new Date()
+
+    const oneDay = 24 * 60 * 60 * 1000
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+    const diffDays = Math.floor((startOfToday - startOfDate) / oneDay)
+
+    if (diffDays === 0) return 'сегодня'
+    if (diffDays === 1) return 'вчера'
+    if (diffDays < 7) return `${diffDays} дня назад`
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(date)
+}
 
 // ---------- API ----------
 async function indexGoods() {
@@ -407,6 +431,21 @@ onBeforeUnmount(() => {
                             hide-details
                             color="green"
                         />
+                    </template>
+
+                    <template #item.created_at="{ item }">
+                        <v-tooltip location="top">
+                            <template #activator="{ props }">
+                                <span
+                                    v-bind="props"
+                                    class="text-caption text-medium-emphasis"
+                                >
+                                    {{ formatCreatedDate(item.created_at) }}
+                                </span>
+                            </template>
+
+                            {{ new Date(item.created_at).toLocaleString('ru-RU') }}
+                        </v-tooltip>
                     </template>
 
                     <template #item.actions="{ item }">
