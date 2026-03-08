@@ -51,6 +51,7 @@ const headers = [
     { key: 'name', title: 'Good', sortable: true },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
     { key: 'products_count', title: 'Products', sortable: false, width: '100px' },
+    { key: 'created_at', title: 'Создан', sortable: true, width: '200px' },
     { key: 'actions', title: '', sortable: false, width: '120px' },
 ]
 
