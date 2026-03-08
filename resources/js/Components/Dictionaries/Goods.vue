@@ -20,6 +20,14 @@ const selectedGood = ref(null)
 const dialogForm = ref(false)
 const dialogDelete = ref(false)
 
+const totalItems = ref(0)
+
+const tableOptions = ref({
+    page: 1,
+    itemsPerPage: 25,
+    sortBy: [{ key: 'name', order: 'asc' }],
+})
+
 const form = useForm({
     id: null,
     name: '',
@@ -32,11 +40,11 @@ const form = useForm({
 })
 
 const headers = [
-    { key: 'group_category', title: 'Category', sortable: true, width: '175px' },
+    { key: 'group_category', title: 'Category', sortable: false, width: '175px' },
     { key: 'ava_image', title: '', sortable: false, width: '200px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
-    { key: 'products_count', title: 'Products', sortable: true, width: '100px' },
+    { key: 'products_count', title: 'Products', sortable: false, width: '100px' },
     { key: 'actions', title: '', sortable: false, width: '120px' },
 ]
 
@@ -70,21 +78,40 @@ const publishedParam = computed(() => {
 // ---------- API ----------
 async function indexGoods() {
     loading.value = true
+
     try {
+        const firstSort = tableOptions.value.sortBy?.[0] || null
+
         const { data } = await axios.get(route('goods.index'), {
             params: {
                 search: search.value || null,
                 is_published: publishedParam.value,
-                per_page: 500,
+                page: tableOptions.value.page,
+                per_page: tableOptions.value.itemsPerPage,
+                sort_by: firstSort?.key || 'name',
+                sort_desc: firstSort?.order === 'desc',
             },
         })
-        goods.value = Array.isArray(data) ? data : (data.data || [])
+
+        goods.value = data.data || []
+        totalItems.value = data.total || 0
     } catch (e) {
         console.error(e)
         goods.value = []
+        totalItems.value = 0
     } finally {
         loading.value = false
     }
+}
+
+function updateTableOptions(options) {
+    tableOptions.value = {
+        page: options.page,
+        itemsPerPage: options.itemsPerPage,
+        sortBy: options.sortBy,
+    }
+
+    indexGoods()
 }
 
 async function indexProducts() {
@@ -229,9 +256,14 @@ async function deleteGood() {
 
 // ---------- watchers ----------
 let t = null
+
 watch([search, publishedFilter], () => {
     clearTimeout(t)
-    t = setTimeout(() => indexGoods(), 250)
+
+    t = setTimeout(() => {
+        tableOptions.value.page = 1
+        indexGoods()
+    }, 250)
 })
 
 // ---------- init ----------
@@ -311,30 +343,22 @@ onBeforeUnmount(() => {
 
         <v-row>
             <v-col>
-                <v-data-table
+                <v-data-table-server
                     :items="itemsForTable"
                     :headers="headers"
                     :loading="loading"
-                    :group-by="groupBy"
-                    items-per-page="100"
+                    :items-length="totalItems"
+                    :page="tableOptions.page"
+                    :items-per-page="tableOptions.itemsPerPage"
+                    :items-per-page-options="[10, 25, 50, 100]"
+                    item-value="id"
                     fixed-header
                     height="760px"
                     density="compact"
                     hover
                     class="border rounded"
+                    @update:options="updateTableOptions"
                 >
-                    <template #group-header="{ item, columns, toggleGroup, isGroupOpen }">
-                        <tr>
-                            <td :colspan="columns.length">
-                                <v-btn variant="text" density="compact" @click="toggleGroup(item)">
-                                    <span class="mr-2">{{ isGroupOpen(item) ? '▾' : '▸' }}</span>
-                                    <strong>{{ item.value }}</strong>
-                                    <span class="ml-2 text-caption">({{ item.items.length }})</span>
-                                </v-btn>
-                            </td>
-                        </tr>
-                    </template>
-
                     <template #item.ava_image="{ item }">
                         <v-avatar size="79" class="cursor-pointer" @click="showGood(item.id)">
                             <v-img :src="item.ava_image || logo" cover />
@@ -342,7 +366,6 @@ onBeforeUnmount(() => {
                     </template>
 
                     <template #item.name="{ item }">
-                        <!-- если у тебя уже есть Ameise.good.show — оставь его -->
                         <Link
                             :href="route('Ameise.good.show', { id: item.id, slug: item.slug })"
                             class="text-decoration-none text-primary hover:underline"
@@ -369,7 +392,7 @@ onBeforeUnmount(() => {
                         <v-btn size="small" variant="text" icon="mdi-pencil" @click="openEdit(item)" />
                         <v-btn size="small" variant="text" icon="mdi-delete" @click="askDelete(item)" />
                     </template>
-                </v-data-table>
+                </v-data-table-server>
             </v-col>
         </v-row>
 
@@ -520,4 +543,4 @@ onBeforeUnmount(() => {
             </v-card>
         </v-dialog>
     </v-container>
-</template>goods
+</template>

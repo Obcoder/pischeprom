@@ -15,24 +15,51 @@ class GoodController extends Controller
 {
     public function index(Request $request)
     {
-        $search = $request->input('search');
+        $page = (int) $request->input('page', 1);
+        $perPage = (int) $request->input('per_page', 25);
+        $search = trim((string) $request->input('search', ''));
+        $isPublished = $request->input('is_published');
+        $sortBy = (string) $request->input('sort_by', 'name');
+        $sortDesc = filter_var($request->input('sort_desc', false), FILTER_VALIDATE_BOOLEAN);
 
-        $published = $request->has('is_published')
-            ? filter_var($request->input('is_published'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
-            : null;
+        $allowedSorts = ['name', 'is_published', 'created_at'];
+        if (!in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'name';
+        }
 
-        $perPage = (int) $request->input('per_page', 100);
-        $perPage = max(1, min($perPage, 500));
+        $query = Good::query()
+            ->with([
+                       'products.category',
+                   ]);
 
-        $goods = Good::query()
-            ->with(['products.category'])
-            ->search($search)
-            ->published($published)
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage)
-            ->withQueryString();
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('denominator', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
 
-        return response()->json($goods);
+        if (!is_null($isPublished) && $isPublished !== '') {
+            $query->where('is_published', filter_var($isPublished, FILTER_VALIDATE_BOOLEAN));
+        }
+
+        $query->orderBy($sortBy, $sortDesc ? 'desc' : 'asc');
+
+        $paginator = $query->paginate(
+            perPage: $perPage,
+            columns: ['*'],
+            pageName: 'page',
+            page: $page
+        );
+
+        return response()->json([
+                                    'data' => $paginator->items(),
+                                    'total' => $paginator->total(),
+                                    'page' => $paginator->currentPage(),
+                                    'per_page' => $paginator->perPage(),
+                                    'last_page' => $paginator->lastPage(),
+                                ]);
     }
 
     public function indexPublished()
