@@ -4,12 +4,37 @@ import axios from 'axios'
 import { route } from 'ziggy-js'
 import { Link, useForm } from '@inertiajs/vue3'
 import { logo } from '@/Pages/Helpers/consts.js'
+import { useGoods } from '@/Composables/useGoods'
 
-const loading = ref(false)
-const saving = ref(false)
-const goods = ref([])
-const products = ref([]) // справочник products для выбора в форме
-const vatRates = ref([]) // справочник ставок НДС
+const {
+    loading,
+    saving,
+    goods,
+    products,
+    vatRates,
+    totalItems,
+    publishLoading,
+    indexGoods: fetchGoods,
+    indexProducts: fetchProducts,
+    indexVatRates: fetchVatRates,
+    showGood: fetchGood,
+    saveGood: persistGood,
+    deleteGood: destroyGood,
+    toggleGoodPublish,
+} = useGoods()
+
+async function reloadGoods() {
+    const firstSort = tableOptions.value.sortBy?.[0] || null
+
+    await fetchGoods({
+        search: search.value || null,
+        is_published: publishedParam.value,
+        page: tableOptions.value.page,
+        per_page: tableOptions.value.itemsPerPage,
+        sort_by: firstSort?.key || 'name',
+        sort_desc: firstSort?.order === 'desc',
+    })
+}
 
 const search = ref('')
 const publishedFilter = ref('all') // all | published | hidden
@@ -23,7 +48,6 @@ const dialogDelete = ref(false)
 
 
 // Таблица Goods
-const totalItems = ref(0)
 const tableOptions = ref({
     page: 1,
     itemsPerPage: 50,
@@ -108,34 +132,6 @@ function formatCreatedDate(value) {
     }).format(date)
 }
 
-// ---------- API ----------
-async function indexGoods() {
-    loading.value = true
-    try {
-        const firstSort = tableOptions.value.sortBy?.[0] || null
-
-        const { data } = await axios.get(route('goods.index'), {
-            params: {
-                search: search.value || null,
-                is_published: publishedParam.value,
-                page: tableOptions.value.page,
-                per_page: tableOptions.value.itemsPerPage,
-                sort_by: firstSort?.key || 'name',
-                sort_desc: firstSort?.order === 'desc',
-            },
-        })
-
-        goods.value = Array.isArray(data) ? data : (data.data || [])
-        totalItems.value = data.total || 0
-    } catch (e) {
-        console.error(e)
-        goods.value = []
-        totalItems.value = 0
-    } finally {
-        loading.value = false
-    }
-}
-
 function updateTableOptions(options) {
     tableOptions.value = {
         page: options.page,
@@ -143,13 +139,13 @@ function updateTableOptions(options) {
         sortBy: options.sortBy,
     }
 
-    indexGoods()
+    reloadGoods()
 }
 
 function setPage(page) {
     if (page === tableOptions.value.page) return
     tableOptions.value.page = page
-    indexGoods()
+    reloadGoods()
 }
 
 function setItemsPerPage(value) {
@@ -159,37 +155,7 @@ function setItemsPerPage(value) {
 
     tableOptions.value.itemsPerPage = perPage
     tableOptions.value.page = 1
-    indexGoods()
-}
-
-async function indexProducts() {
-    try {
-        const { data } = await axios.get(route('products.index'))
-        products.value = (Array.isArray(data) ? data : (data.data || [])).sort((a,b) => a.rus.localeCompare(b.rus))
-    } catch (e) {
-        console.error(e)
-        products.value = []
-    }
-}
-
-async function indexVatRates() {
-    try {
-        const { data } = await axios.get(route('api.vat-rates'))
-        vatRates.value = Array.isArray(data) ? data : (data.data || [])
-    } catch (e) {
-        console.error(e)
-        vatRates.value = []
-    }
-}
-
-async function showGood(id) {
-    try {
-        const { data } = await axios.get(route('api.goods.show', id))
-        selectedGood.value = data
-        drawer.value = true
-    } catch (e) {
-        console.error(e)
-    }
+    reloadGoods()
 }
 
 function openCreate() {
@@ -222,86 +188,41 @@ function openEdit(g) {
     dialogForm.value = true
 }
 
+async function showGood(id) {
+    try {
+        selectedGood.value = await fetchGood(id)
+        drawer.value = true
+    } catch (e) {
+        console.error(e)
+    }
+}
+
 async function saveGood() {
-    saving.value = true
     form.clearErrors()
 
     try {
-        const hasFile = form.ava_image instanceof File
-        const isUpdate = !!form.id
-
-        if (hasFile) {
-            // multipart
-            const fd = new FormData()
-            fd.append('name', form.name ?? '')
-            fd.append('denominator', form.denominator ?? '')
-            fd.append('description', form.description ?? '')
-            fd.append('vat_rate_id', form.vat_rate_id ?? '')
-            fd.append('is_published', form.is_published ? '1' : '0')
-            fd.append('remove_ava', form.remove_ava ? '1' : '0')
-            ;(form.products || []).forEach((id) => fd.append('products[]', String(id)))
-            fd.append('ava_image', form.ava_image)
-
-            if (isUpdate) {
-                fd.append('_method', 'PUT')
-                await axios.post(route('goods.update', form.id), fd, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                })
-            } else {
-                await axios.post(route('goods.store'), fd, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                })
-            }
-        } else {
-            // json (без файла) — ✅ создание без аватарки
-            const payload = {
-                name: form.name,
-                denominator: form.denominator,
-                description: form.description,
-                vat_rate_id: form.vat_rate_id,
-                is_published: form.is_published,
-                products: form.products,
-                remove_ava: form.remove_ava,
-            }
-
-            if (isUpdate) {
-                await axios.put(route('goods.update', form.id), payload)
-            } else {
-                await axios.post(route('goods.store'), payload)
-            }
-        }
-
+        await persistGood(form)
         dialogForm.value = false
-        await indexGoods()
+        await reloadGoods()
     } catch (e) {
         if (e?.response?.status === 422) {
             form.setError(e.response.data.errors || {})
         } else {
             console.error(e)
         }
-    } finally {
-        saving.value = false
     }
 }
 
-const publishLoading = ref({}) // { [id]: true/false }
-async function toggleGoodPublish(item) {
-    if (publishLoading.value[item.id]) return
-
-    publishLoading.value[item.id] = true
-    const prev = item.is_published
-    item.is_published = !prev
+async function deleteGood() {
+    if (!selectedGood.value?.id) return
 
     try {
-        const { data } = await axios.patch(route('api.goods.publish', item.id), {
-            is_published: item.is_published,
-        })
-        item.is_published = data.is_published
+        await destroyGood(selectedGood.value.id)
+        dialogDelete.value = false
+        drawer.value = false
+        await reloadGoods()
     } catch (e) {
         console.error(e)
-        item.is_published = prev
-    } finally {
-        publishLoading.value[item.id] = false
     }
 }
 
@@ -310,31 +231,23 @@ function askDelete(g) {
     dialogDelete.value = true
 }
 
-async function deleteGood() {
-    if (!selectedGood.value?.id) return
-    try {
-        await axios.delete(route('api.goods.destroy', selectedGood.value.id))
-        dialogDelete.value = false
-        drawer.value = false
-        await indexGoods()
-    } catch (e) {
-        console.error(e)
-    }
-}
-
 // ---------- watchers ----------
 let t = null
 watch([search, publishedFilter], () => {
     clearTimeout(t)
     t = setTimeout(() => {
         tableOptions.value.page = 1
-        indexGoods()
+        reloadGoods()
     }, 250)
 })
 
 // ---------- init ----------
 onMounted(async () => {
-    await Promise.all([indexGoods(), indexProducts(), indexVatRates()])
+    await Promise.all([
+        reloadGoods(),
+        fetchProducts(),
+        fetchVatRates(),
+    ])
 })
 
 const previewUrl = ref(null)
