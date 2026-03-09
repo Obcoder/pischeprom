@@ -442,11 +442,11 @@ onBeforeUnmount(() => {
                         </Link>
                     </template>
 
-                    <template #item.vat_rate="{ item }">
-                        <span v-if="item.vat_rate">
-                            {{ item.vat_rate.title }} ({{ item.vat_rate.rate }}%)
+                    <template #item.vatRate="{ item }">
+                        <span v-if="item.vatRate">
+                            {{ item.vatRate.title }} ({{ item.vatRate.rate }}%)
                         </span>
-                                            <span v-else class="text-medium-emphasis">
+                        <span v-else class="text-medium-emphasis">
                             —
                         </span>
                     </template>
