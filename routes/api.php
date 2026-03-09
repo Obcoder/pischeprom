@@ -90,6 +90,7 @@ Route::apiResource('units', UnitController::class);
 Route::get('/units/{unit}', [ApiUnitController::class, 'show'])
     ->name('api.units.show');
 Route::apiResource('uris', UriController::class);
+Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rates');
 Route::apiResource('yandex-requests', YandexRequestController::class);
 
 

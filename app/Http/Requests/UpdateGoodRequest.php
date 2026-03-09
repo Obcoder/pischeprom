@@ -15,6 +15,7 @@ class UpdateGoodRequest extends FormRequest
             'denominator' => ['sometimes','nullable','string','max:50'],
             'description' => ['sometimes','nullable','string'],
             'is_published' => ['sometimes','nullable','boolean'],
+            'vat_rate_id' => ['nullable', 'exists:vat_rates,id'],
             'ava_image' => ['sometimes','nullable','image','max:4096'],
             'products' => ['sometimes','nullable','array'],
             'products.*' => ['integer','exists:products,id'],

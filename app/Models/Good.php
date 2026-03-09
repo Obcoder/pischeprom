@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Good extends Model
 {
@@ -21,6 +22,7 @@ class Good extends Model
         'description',
         'slug',
         'is_published',
+        'vat_rate_id',
     ];
 
     protected $casts = [
@@ -99,5 +101,10 @@ class Good extends Model
         return $this->belongsToMany(Sale::class)
             ->withPivot('price', 'quantity', 'measure_id')
             ->orderByDesc('date');
+    }
+
+    public function vatRate(): BelongsTo
+    {
+        return $this->belongsTo(VatRate::class);
     }
 }

@@ -15,6 +15,7 @@ class StoreGoodRequest extends FormRequest
             'denominator' => ['nullable','string','max:50'],
             'description' => ['nullable','string'],
             'is_published' => ['nullable','boolean'],
+            'vat_rate_id' => ['nullable', 'exists:vat_rates,id'],
 
             // ✅ можно без аватарки
             'ava_image' => ['nullable','image','max:4096'],

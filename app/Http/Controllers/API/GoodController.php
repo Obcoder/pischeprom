@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Good;
+use App\Models\VatRate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -21,11 +22,13 @@ class GoodController extends Controller
         $isPublished = $request->input('is_published');
         $sortBy = (string) $request->input('sort_by', 'name');
         $sortDesc = filter_var($request->input('sort_desc', false), FILTER_VALIDATE_BOOLEAN);
+
         $allowedSorts = [
             'name',
             'is_published',
             'created_at'
         ];
+
         if (!in_array($sortBy, $allowedSorts, true)) {
             $sortBy = 'name';
         }
@@ -33,6 +36,7 @@ class GoodController extends Controller
         $query = Good::query()
             ->with([
                        'products.category',
+                       'vatRate',
                    ]);
 
         if ($search !== '') {
@@ -68,6 +72,7 @@ class GoodController extends Controller
     public function indexPublished()
     {
         return Good::query()
+            ->with('vatRate')
             ->published(true)
             ->inRandomOrder()
             ->get();
@@ -76,19 +81,21 @@ class GoodController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-                                            'name' => ['required','string','max:255'],
-                                            'denominator' => ['nullable','numeric'],
-                                            'description' => ['nullable','string'],
-                                            'is_published' => ['nullable','boolean'],
-                                            'ava_image' => ['nullable','image','mimes:jpg,jpeg,png,webp','max:4096'],
-                                            'products' => ['nullable','array'],
-                                            'products.*' => ['integer','exists:products,id'],
+                                            'name' => ['required', 'string', 'max:255'],
+                                            'denominator' => ['nullable', 'numeric'],
+                                            'description' => ['nullable', 'string'],
+                                            'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
+                                            'is_published' => ['nullable', 'boolean'],
+                                            'ava_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+                                            'products' => ['nullable', 'array'],
+                                            'products.*' => ['integer', 'exists:products,id'],
                                         ]);
 
         $good = Good::create([
                                  'name' => $validated['name'],
                                  'denominator' => $validated['denominator'] ?? null,
                                  'description' => $validated['description'] ?? null,
+                                 'vat_rate_id' => $validated['vat_rate_id'] ?? null,
                                  'is_published' => $validated['is_published'] ?? true,
                              ]);
 
@@ -102,11 +109,11 @@ class GoodController extends Controller
 
         Storage::disk('yandex')->put(
             "goods/{$good->id}/good.json",
-            $good->fresh()->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            $good->fresh()->load('vatRate')->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
 
         return response()->json(
-            $good->fresh()->load('products'),
+            $good->fresh()->load('products', 'vatRate'),
             201
         );
     }
@@ -117,7 +124,8 @@ class GoodController extends Controller
                                'prices.currency',
                                'quotations.unit',
                                'quotations.measure',
-                               'sales'
+                               'sales',
+                               'vatRate',
                            ])->findOrFail($id);
 
         $expectedSlug = \Str::slug($good->name);
@@ -132,14 +140,15 @@ class GoodController extends Controller
     public function update(Request $request, Good $good)
     {
         $validated = $request->validate([
-                                            'name' => ['sometimes','required','string','max:255'],
-                                            'denominator' => ['nullable','numeric'],
-                                            'description' => ['nullable','string'],
-                                            'is_published' => ['nullable','boolean'],
-                                            'ava_image' => ['nullable','image','mimes:jpg,jpeg,png,webp','max:4096'],
-                                            'products' => ['nullable','array'],
-                                            'products.*' => ['integer','exists:products,id'],
-                                            'remove_ava' => ['nullable','boolean'],
+                                            'name' => ['sometimes', 'required', 'string', 'max:255'],
+                                            'denominator' => ['nullable', 'numeric'],
+                                            'description' => ['nullable', 'string'],
+                                            'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
+                                            'is_published' => ['nullable', 'boolean'],
+                                            'ava_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+                                            'products' => ['nullable', 'array'],
+                                            'products.*' => ['integer', 'exists:products,id'],
+                                            'remove_ava' => ['nullable', 'boolean'],
                                         ]);
 
         $dataToUpdate = collect($validated)
@@ -167,10 +176,12 @@ class GoodController extends Controller
 
         Storage::disk('yandex')->put(
             "goods/{$good->id}/good.json",
-            $good->fresh()->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            $good->fresh()->load('vatRate')->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
 
-        return response()->json($good->fresh()->load('products'));
+        return response()->json(
+            $good->fresh()->load('products', 'vatRate')
+        );
     }
 
     public function destroy(Good $good)
@@ -184,7 +195,7 @@ class GoodController extends Controller
     public function togglePublish(Request $request, Good $good)
     {
         $validated = $request->validate([
-                                            'is_published' => ['required','boolean'],
+                                            'is_published' => ['required', 'boolean'],
                                         ]);
 
         $good->update([
@@ -195,6 +206,16 @@ class GoodController extends Controller
                                     'id' => $good->id,
                                     'is_published' => $good->is_published,
                                 ]);
+    }
+
+    public function vatRates()
+    {
+        return response()->json(
+            VatRate::query()
+                ->orderBy('rate')
+                ->orderBy('title')
+                ->get(['id', 'title', 'rate'])
+        );
     }
 
     private function storeAvatarFiles(Good $good, $file): void
@@ -208,10 +229,8 @@ class GoodController extends Controller
         $originalPath = "goods/{$good->id}/{$baseName}.{$ext}";
         $thumbPath = "goods/{$good->id}/{$baseName}_thumb.jpg";
 
-        // оригинал
         $disk->put($originalPath, file_get_contents($file->getRealPath()));
 
-        // thumb
         $manager = new ImageManager(new Driver());
         $image = $manager->read($file->getRealPath());
 

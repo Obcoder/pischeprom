@@ -9,6 +9,7 @@ const loading = ref(false)
 const saving = ref(false)
 const goods = ref([])
 const products = ref([]) // справочник products для выбора в форме
+const vatRates = ref([]) // справочник ставок НДС
 
 const search = ref('')
 const publishedFilter = ref('all') // all | published | hidden
@@ -39,6 +40,7 @@ const form = useForm({
     name: '',
     denominator: '',
     description: '',
+    vat_rate_id: null,
     is_published: true,
     products: [],
     ava_image: null,     // File | null
@@ -49,6 +51,7 @@ const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '175px' },
     { key: 'ava_image', title: '', sortable: false, width: '200px' },
     { key: 'name', title: 'Good', sortable: true },
+    { key: 'vat_rate', title: 'VAT', sortable: false, width: '140px' },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
     { key: 'created_at', title: 'Создан', sortable: true, width: '200px' },
     { key: 'actions', title: '', sortable: false, width: '120px' },
@@ -169,6 +172,16 @@ async function indexProducts() {
     }
 }
 
+async function indexVatRates() {
+    try {
+        const { data } = await axios.get(route('api.vat-rates'))
+        vatRates.value = Array.isArray(data) ? data : (data.data || [])
+    } catch (e) {
+        console.error(e)
+        vatRates.value = []
+    }
+}
+
 async function showGood(id) {
     try {
         const { data } = await axios.get(route('api.goods.show', id))
@@ -183,7 +196,14 @@ function openCreate() {
     form.reset()
     form.clearErrors()
     form.id = null
+    form.name = ''
+    form.denominator = ''
+    form.description = ''
+    form.vat_rate_id = null
     form.is_published = true
+    form.products = []
+    form.ava_image = null
+    form.remove_ava = false
     dialogForm.value = true
 }
 
@@ -194,6 +214,7 @@ function openEdit(g) {
     form.name = g.name ?? ''
     form.denominator = g.denominator ?? ''
     form.description = g.description ?? ''
+    form.vat_rate_id = g.vat_rate_id ?? null
     form.is_published = !!g.is_published
     form.products = (g.products || []).map(p => p.id)
     form.ava_image = null
@@ -215,6 +236,7 @@ async function saveGood() {
             fd.append('name', form.name ?? '')
             fd.append('denominator', form.denominator ?? '')
             fd.append('description', form.description ?? '')
+            fd.append('vat_rate_id', form.vat_rate_id ?? '')
             fd.append('is_published', form.is_published ? '1' : '0')
             fd.append('remove_ava', form.remove_ava ? '1' : '0')
             ;(form.products || []).forEach((id) => fd.append('products[]', String(id)))
@@ -236,6 +258,7 @@ async function saveGood() {
                 name: form.name,
                 denominator: form.denominator,
                 description: form.description,
+                vat_rate_id: form.vat_rate_id,
                 is_published: form.is_published,
                 products: form.products,
                 remove_ava: form.remove_ava,
@@ -311,7 +334,7 @@ watch([search, publishedFilter], () => {
 
 // ---------- init ----------
 onMounted(async () => {
-    await Promise.all([indexGoods(), indexProducts()])
+    await Promise.all([indexGoods(), indexProducts(), indexVatRates()])
 })
 
 const previewUrl = ref(null)
@@ -419,6 +442,13 @@ onBeforeUnmount(() => {
                         </Link>
                     </template>
 
+                    <template #item.vat_rate="{ item }">
+                        <span v-if="item.vatRate">
+                            {{ item.vatRate.title }} ({{ item.vatRate.rate }}%)
+                        </span>
+                        <span v-else class="text-medium-emphasis">—</span>
+                    </template>
+
                     <template #item.is_published="{ item }">
                         <v-switch
                             :model-value="!!item.is_published"
@@ -500,6 +530,16 @@ onBeforeUnmount(() => {
                     </v-col>
 
                     <v-col cols="12">
+                        <div class="text-caption mb-1">VAT</div>
+                        <div v-if="selectedGood.vatRate">
+                            {{ selectedGood.vatRate.title }} ({{ selectedGood.vatRate.rate }}%)
+                        </div>
+                        <div v-else class="text-medium-emphasis">
+                            Не указана
+                        </div>
+                    </v-col>
+
+                    <v-col cols="12">
                         <v-chip size="small" :color="selectedGood.is_published ? 'green' : 'grey'">
                             {{ selectedGood.is_published ? 'published' : 'hidden' }}
                         </v-chip>
@@ -572,6 +612,28 @@ onBeforeUnmount(() => {
                                 density="comfortable"
                                 :error-messages="form.errors.description"
                             />
+                        </v-col>
+
+                        <v-col cols="12" md="6">
+                            <v-select
+                                v-model="form.vat_rate_id"
+                                :items="vatRates"
+                                item-title="title"
+                                item-value="id"
+                                label="VAT rate"
+                                variant="outlined"
+                                density="comfortable"
+                                :error-messages="form.errors.vat_rate_id"
+                                clearable
+                            >
+                                <template #item="{ props, item }">
+                                    <v-list-item
+                                        v-bind="props"
+                                        :title="item.raw.title"
+                                        :subtitle="`${item.raw.rate}%`"
+                                    />
+                                </template>
+                            </v-select>
                         </v-col>
 
                         <v-col cols="12" md="4">
