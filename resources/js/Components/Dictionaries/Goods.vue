@@ -51,7 +51,7 @@ const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '175px' },
     { key: 'ava_image', title: '', sortable: false, width: '200px' },
     { key: 'name', title: 'Good', sortable: true },
-    { key: 'vatRate', title: 'НДС', sortable: false, width: '140px' },
+    { key: 'vat_rate', title: 'НДС', sortable: false, width: '140px' },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
     { key: 'created_at', title: 'Создан', sortable: true, width: '200px' },
     { key: 'actions', title: '', sortable: false, width: '120px' },
@@ -442,9 +442,9 @@ onBeforeUnmount(() => {
                         </Link>
                     </template>
 
-                    <template #item.vatRate="{ item }">
-                        <span v-if="item.vatRate">
-                            {{ item.vatRate.title }} ({{ item.vatRate.rate }}%)
+                    <template #item.vat_rate="{ item }">
+                        <span v-if="item.vat_rate">
+                            {{ item.vat_rate.title }} ({{ item.vat_rate.rate }}%)
                         </span>
                         <span v-else class="text-medium-emphasis">
                             —
