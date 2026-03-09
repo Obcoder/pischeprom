@@ -444,7 +444,7 @@ onBeforeUnmount(() => {
 
                     <template #item.vat_rate="{ item }">
                         <span v-if="item.vat_rate">
-                            {{ item.vat_rate.title }} ({{ item.vat_rate.rate }}%)
+                            {{ item.vat_rate.title }}
                         </span>
                         <span v-else class="text-medium-emphasis">
                             —
