@@ -1,10 +1,7 @@
 import { computed, unref } from "vue";
 
 export function useQuotationCalculator(options) {
-    const {
-        quotations,
-        form,
-    } = options;
+    const { quotations, form } = options;
 
     function toNumber(value, fallback = 0) {
         const number = Number(value);
@@ -19,6 +16,13 @@ export function useQuotationCalculator(options) {
         return String(value || "").trim().toLowerCase();
     }
 
+    /**
+     * Приведение quotation к цене за 1 кг.
+     *
+     * Ожидается:
+     * - quotation.price = цена за denominator единиц measure
+     * - quotation.measure.name = кг / т / г
+     */
     function quotationPricePerKg(quotation) {
         if (!quotation) return 0;
 
@@ -35,11 +39,11 @@ export function useQuotationCalculator(options) {
         } else if (["г", "гр", "gram", "g"].includes(measureName)) {
             kgFactor = 0.001;
         } else {
+            // fallback: считаем, что measure уже в кг
             kgFactor = 1;
         }
 
         const totalKg = denominator * kgFactor;
-
         if (totalKg <= 0) return 0;
 
         return rawPrice / totalKg;
@@ -100,6 +104,46 @@ export function useQuotationCalculator(options) {
         return round2(base * (1 + value / 100));
     }
 
+    /**
+     * Расчет цены продажи без НДС по целевой марже.
+     *
+     * Формула:
+     * margin = (sale - purchase) / sale
+     * sale = purchase / (1 - margin)
+     */
+    function calcSaleNetByTargetMargin(purchaseNet, targetMarginPercent) {
+        const purchase = toNumber(purchaseNet, 0);
+        const margin = toNumber(targetMarginPercent, 0);
+
+        if (purchase <= 0) return 0;
+        if (margin <= 0) return round2(purchase);
+        if (margin >= 100) return 0;
+
+        return round2(purchase / (1 - margin / 100));
+    }
+
+    function calcProfit(purchaseNet, saleNet) {
+        return round2(toNumber(saleNet, 0) - toNumber(purchaseNet, 0));
+    }
+
+    function calcMarginPercent(purchaseNet, saleNet) {
+        const sale = toNumber(saleNet, 0);
+        const profit = calcProfit(purchaseNet, saleNet);
+
+        if (sale <= 0) return 0;
+
+        return round2((profit / sale) * 100);
+    }
+
+    function calcMarkupPercent(purchaseNet, saleNet) {
+        const purchase = toNumber(purchaseNet, 0);
+        const profit = calcProfit(purchaseNet, saleNet);
+
+        if (purchase <= 0) return 0;
+
+        return round2((profit / purchase) * 100);
+    }
+
     const selectedQuotation = computed(() => {
         const list = unref(quotations) || [];
         const formValue = unref(form);
@@ -130,19 +174,43 @@ export function useQuotationCalculator(options) {
             purchasePerKg = addVatToNet(sourcePricePerKg, vatRate);
         }
 
-        const saleNetPerKg = applyMarkup(
-            purchasePerKg.net,
-            formValue.markupType,
-            formValue.markupValue
-        );
+        let saleNetPerKg = purchasePerKg.net;
+
+        if (formValue.pricingMode === "targetMargin") {
+            saleNetPerKg = calcSaleNetByTargetMargin(
+                purchasePerKg.net,
+                formValue.targetMarginPercent
+            );
+        } else {
+            saleNetPerKg = applyMarkup(
+                purchasePerKg.net,
+                formValue.markupType,
+                formValue.markupValue
+            );
+        }
 
         const salePerKg = addVatToNet(saleNetPerKg, vatRate);
 
-        const buildScaledPrice = (multiplier) => ({
-            net: round2(salePerKg.net * multiplier),
-            vat: round2(salePerKg.vat * multiplier),
-            gross: round2(salePerKg.gross * multiplier),
-        });
+        function buildScaledPrice(multiplier) {
+            const purchaseNet = round2(purchasePerKg.net * multiplier);
+            const saleNet = round2(salePerKg.net * multiplier);
+            const saleVat = round2(salePerKg.vat * multiplier);
+            const saleGross = round2(salePerKg.gross * multiplier);
+
+            const profit = calcProfit(purchaseNet, saleNet);
+            const marginPercent = calcMarginPercent(purchaseNet, saleNet);
+            const markupPercent = calcMarkupPercent(purchaseNet, saleNet);
+
+            return {
+                purchaseNet,
+                net: saleNet,
+                vat: saleVat,
+                gross: saleGross,
+                profit,
+                marginPercent,
+                markupPercent,
+            };
+        }
 
         return {
             quotation,
@@ -158,6 +226,11 @@ export function useQuotationCalculator(options) {
                 sourcePricePerKg: round2(sourcePricePerKg),
                 vatRate,
                 boxWeightKg,
+                pricingMode: formValue.pricingMode,
+                markupType: formValue.markupType,
+                markupValue: toNumber(formValue.markupValue, 0),
+                targetMarginPercent: toNumber(formValue.targetMarginPercent, 0),
+                priceIncludesVat: Boolean(formValue.priceIncludesVat),
             },
         };
     });
@@ -169,6 +242,10 @@ export function useQuotationCalculator(options) {
         extractVatFromGross,
         addVatToNet,
         applyMarkup,
+        calcSaleNetByTargetMargin,
+        calcProfit,
+        calcMarginPercent,
+        calcMarkupPercent,
         toNumber,
         round2,
     };

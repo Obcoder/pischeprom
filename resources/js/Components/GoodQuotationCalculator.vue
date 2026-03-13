@@ -1,6 +1,6 @@
 <script setup>
-import { ref, watch } from "vue"
-import { useQuotationCalculator } from "@/Composables/useQuotationCalculator"
+import { ref, watch } from "vue";
+import { useQuotationCalculator } from "@/Composables/useQuotationCalculator";
 
 const props = defineProps({
     quotations: {
@@ -19,47 +19,53 @@ const props = defineProps({
         type: String,
         default: "RUB",
     },
-})
+});
 
 function toNumber(value, fallback = 0) {
-    const number = Number(value)
-    return Number.isFinite(number) ? number : fallback
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
 }
 
 function formatMoney(value) {
     return new Intl.NumberFormat("ru-RU", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    }).format(toNumber(value))
+    }).format(toNumber(value));
 }
 
 const form = ref({
     quotation_id: null,
     vatRate: props.defaultVatRate,
     priceIncludesVat: true,
-    markupType: "percent",
+
+    pricingMode: "markup", // markup | targetMargin
+
+    markupType: "percent", // percent | absolute
     markupValue: 0,
+
+    targetMarginPercent: 20,
+
     boxWeightKg: props.defaultBoxWeightKg ?? 1,
-})
+});
 
 watch(
     () => props.defaultBoxWeightKg,
     (value) => {
-        const weight = Number(value)
+        const weight = Number(value);
 
         if (Number.isFinite(weight) && weight > 0) {
-            form.value.boxWeightKg = weight
+            form.value.boxWeightKg = weight;
         }
     },
     {
-        immediate: true
+        immediate: true,
     }
-)
+);
 
 const { result } = useQuotationCalculator({
     quotations: props.quotations,
     form,
-})
+});
 </script>
 
 <template>
@@ -99,6 +105,8 @@ const { result } = useQuotationCalculator({
                         v-model="form.vatRate"
                         label="НДС %"
                         type="number"
+                        min="0"
+                        step="0.01"
                         variant="solo"
                     />
                 </v-col>
@@ -108,6 +116,7 @@ const { result } = useQuotationCalculator({
                         v-model="form.boxWeightKg"
                         label="Вес коробки, кг"
                         type="number"
+                        min="0.001"
                         step="0.001"
                         variant="solo"
                         hint="По умолчанию берется из good.denominator"
@@ -128,26 +137,61 @@ const { result } = useQuotationCalculator({
 
                 <v-col cols="12" md="4">
                     <v-select
-                        v-model="form.markupType"
+                        v-model="form.pricingMode"
                         :items="[
-                            { title: 'Наценка %', value: 'percent' },
-                            { title: 'Наценка суммой', value: 'absolute' }
+                            { title: 'Расчет по наценке', value: 'markup' },
+                            { title: 'Расчет по целевой марже', value: 'targetMargin' }
                         ]"
                         item-title="title"
                         item-value="value"
-                        label="Тип наценки"
+                        label="Режим расчета"
                         variant="solo"
                     />
                 </v-col>
+            </v-row>
 
-                <v-col cols="12" md="4">
-                    <v-text-field
-                        v-model="form.markupValue"
-                        :label="form.markupType === 'percent' ? 'Наценка %' : 'Абсолютная наценка на 1 кг'"
-                        type="number"
-                        variant="solo"
-                    />
-                </v-col>
+            <v-row>
+                <template v-if="form.pricingMode === 'markup'">
+                    <v-col cols="12" md="4">
+                        <v-select
+                            v-model="form.markupType"
+                            :items="[
+                                { title: 'Наценка %', value: 'percent' },
+                                { title: 'Наценка суммой', value: 'absolute' }
+                            ]"
+                            item-title="title"
+                            item-value="value"
+                            label="Тип наценки"
+                            variant="solo"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" md="4">
+                        <v-text-field
+                            v-model="form.markupValue"
+                            :label="form.markupType === 'percent' ? 'Наценка %' : 'Абсолютная наценка на 1 кг'"
+                            type="number"
+                            step="0.01"
+                            variant="solo"
+                        />
+                    </v-col>
+                </template>
+
+                <template v-else>
+                    <v-col cols="12" md="4">
+                        <v-text-field
+                            v-model="form.targetMarginPercent"
+                            label="Целевая маржа %"
+                            type="number"
+                            min="0"
+                            max="99.99"
+                            step="0.01"
+                            variant="solo"
+                            hint="Маржа считается по цене без НДС"
+                            persistent-hint
+                        />
+                    </v-col>
+                </template>
             </v-row>
 
             <v-divider class="my-4" />
@@ -156,8 +200,19 @@ const { result } = useQuotationCalculator({
                 <v-row class="mb-2">
                     <v-col cols="12">
                         <v-alert type="info" variant="tonal">
-                            Базовая цена quotation, приведенная к 1 кг:
-                            <strong>{{ formatMoney(result.meta.sourcePricePerKg) }} {{ currencyCode }}</strong>
+                            <div>
+                                Базовая цена quotation, приведенная к 1 кг:
+                                <strong>{{ formatMoney(result.meta.sourcePricePerKg) }} {{ currencyCode }}</strong>
+                            </div>
+
+                            <div class="mt-1" v-if="form.pricingMode === 'targetMargin'">
+                                Расчет выполнен по целевой марже:
+                                <strong>{{ result.meta.targetMarginPercent }}%</strong>
+                            </div>
+
+                            <div class="mt-1" v-else>
+                                Расчет выполнен по наценке.
+                            </div>
                         </v-alert>
                     </v-col>
                 </v-row>
@@ -167,9 +222,18 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Закупка / 1 кг</v-card-title>
                             <v-card-text>
-                                <div>Без НДС: <strong>{{ formatMoney(result.purchase.perKg.net) }} {{ currencyCode }}</strong></div>
-                                <div>НДС: <strong>{{ formatMoney(result.purchase.perKg.vat) }} {{ currencyCode }}</strong></div>
-                                <div>С НДС: <strong>{{ formatMoney(result.purchase.perKg.gross) }} {{ currencyCode }}</strong></div>
+                                <div>
+                                    Без НДС:
+                                    <strong>{{ formatMoney(result.purchase.perKg.net) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    НДС:
+                                    <strong>{{ formatMoney(result.purchase.perKg.vat) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    С НДС:
+                                    <strong>{{ formatMoney(result.purchase.perKg.gross) }} {{ currencyCode }}</strong>
+                                </div>
                             </v-card-text>
                         </v-card>
                     </v-col>
@@ -178,9 +242,33 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Продажа / 1 кг</v-card-title>
                             <v-card-text>
-                                <div>Без НДС: <strong>{{ formatMoney(result.sale.perKg.net) }} {{ currencyCode }}</strong></div>
-                                <div>НДС: <strong>{{ formatMoney(result.sale.perKg.vat) }} {{ currencyCode }}</strong></div>
-                                <div>С НДС: <strong>{{ formatMoney(result.sale.perKg.gross) }} {{ currencyCode }}</strong></div>
+                                <div>
+                                    Без НДС:
+                                    <strong>{{ formatMoney(result.sale.perKg.net) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    НДС:
+                                    <strong>{{ formatMoney(result.sale.perKg.vat) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    С НДС:
+                                    <strong>{{ formatMoney(result.sale.perKg.gross) }} {{ currencyCode }}</strong>
+                                </div>
+
+                                <v-divider class="my-2" />
+
+                                <div>
+                                    Прибыль без НДС:
+                                    <strong>{{ formatMoney(result.sale.perKg.profit) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    Маржа:
+                                    <strong>{{ result.sale.perKg.marginPercent }}%</strong>
+                                </div>
+                                <div>
+                                    Наценка к закупке:
+                                    <strong>{{ result.sale.perKg.markupPercent }}%</strong>
+                                </div>
                             </v-card-text>
                         </v-card>
                     </v-col>
@@ -189,9 +277,33 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Продажа / коробка</v-card-title>
                             <v-card-text>
-                                <div>Без НДС: <strong>{{ formatMoney(result.sale.perBox.net) }} {{ currencyCode }}</strong></div>
-                                <div>НДС: <strong>{{ formatMoney(result.sale.perBox.vat) }} {{ currencyCode }}</strong></div>
-                                <div>С НДС: <strong>{{ formatMoney(result.sale.perBox.gross) }} {{ currencyCode }}</strong></div>
+                                <div>
+                                    Без НДС:
+                                    <strong>{{ formatMoney(result.sale.perBox.net) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    НДС:
+                                    <strong>{{ formatMoney(result.sale.perBox.vat) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    С НДС:
+                                    <strong>{{ formatMoney(result.sale.perBox.gross) }} {{ currencyCode }}</strong>
+                                </div>
+
+                                <v-divider class="my-2" />
+
+                                <div>
+                                    Прибыль без НДС:
+                                    <strong>{{ formatMoney(result.sale.perBox.profit) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    Маржа:
+                                    <strong>{{ result.sale.perBox.marginPercent }}%</strong>
+                                </div>
+                                <div>
+                                    Наценка к закупке:
+                                    <strong>{{ result.sale.perBox.markupPercent }}%</strong>
+                                </div>
                             </v-card-text>
                         </v-card>
                     </v-col>
@@ -202,9 +314,33 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Продажа / 1 тонна</v-card-title>
                             <v-card-text>
-                                <div>Без НДС: <strong>{{ formatMoney(result.sale.perTon.net) }} {{ currencyCode }}</strong></div>
-                                <div>НДС: <strong>{{ formatMoney(result.sale.perTon.vat) }} {{ currencyCode }}</strong></div>
-                                <div>С НДС: <strong>{{ formatMoney(result.sale.perTon.gross) }} {{ currencyCode }}</strong></div>
+                                <div>
+                                    Без НДС:
+                                    <strong>{{ formatMoney(result.sale.perTon.net) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    НДС:
+                                    <strong>{{ formatMoney(result.sale.perTon.vat) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    С НДС:
+                                    <strong>{{ formatMoney(result.sale.perTon.gross) }} {{ currencyCode }}</strong>
+                                </div>
+
+                                <v-divider class="my-2" />
+
+                                <div>
+                                    Прибыль без НДС:
+                                    <strong>{{ formatMoney(result.sale.perTon.profit) }} {{ currencyCode }}</strong>
+                                </div>
+                                <div>
+                                    Маржа:
+                                    <strong>{{ result.sale.perTon.marginPercent }}%</strong>
+                                </div>
+                                <div>
+                                    Наценка к закупке:
+                                    <strong>{{ result.sale.perTon.markupPercent }}%</strong>
+                                </div>
                             </v-card-text>
                         </v-card>
                     </v-col>
