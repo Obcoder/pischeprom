@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from "vue";
-import { useQuotationCalculator } from "@/Composables/useQuotationCalculator";
+import { ref, watch } from "vue"
+import { useQuotationCalculator } from "@/Composables/useQuotationCalculator"
 
 const props = defineProps({
     quotations: {
@@ -19,18 +19,18 @@ const props = defineProps({
         type: String,
         default: "RUB",
     },
-});
+})
 
 function toNumber(value, fallback = 0) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
+    const number = Number(value)
+    return Number.isFinite(number) ? number : fallback
 }
 
 function formatMoney(value) {
     return new Intl.NumberFormat("ru-RU", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    }).format(toNumber(value));
+    }).format(toNumber(value))
 }
 
 const form = ref({
@@ -39,13 +39,27 @@ const form = ref({
     priceIncludesVat: true,
     markupType: "percent",
     markupValue: 0,
-    boxWeightKg: props.defaultBoxWeightKg,
-});
+    boxWeightKg: props.defaultBoxWeightKg ?? 1,
+})
+
+watch(
+    () => props.defaultBoxWeightKg,
+    (value) => {
+        const weight = Number(value)
+
+        if (Number.isFinite(weight) && weight > 0) {
+            form.value.boxWeightKg = weight
+        }
+    },
+    {
+        immediate: true
+    }
+)
 
 const { result } = useQuotationCalculator({
     quotations: props.quotations,
     form,
-});
+})
 </script>
 
 <template>
@@ -67,7 +81,7 @@ const { result } = useQuotationCalculator({
                             <v-list-item
                                 v-bind="props"
                                 :title="`${item.raw.unit?.name || '-'} | ${formatMoney(item.raw.price)} ${currencyCode}`"
-                                :subtitle="`${item.raw.measure?.name || '-'} | делитель: ${item.raw.denominator || 1}`"
+                                :subtitle="`${item.raw.measure?.name || '-'} | делитель quotation: ${item.raw.denominator || 1}`"
                             />
                         </template>
 
@@ -96,6 +110,8 @@ const { result } = useQuotationCalculator({
                         type="number"
                         step="0.001"
                         variant="solo"
+                        hint="По умолчанию берется из good.denominator"
+                        persistent-hint
                     />
                 </v-col>
             </v-row>
@@ -139,10 +155,7 @@ const { result } = useQuotationCalculator({
             <template v-if="result">
                 <v-row class="mb-2">
                     <v-col cols="12">
-                        <v-alert
-                            type="info"
-                            variant="tonal"
-                        >
+                        <v-alert type="info" variant="tonal">
                             Базовая цена quotation, приведенная к 1 кг:
                             <strong>{{ formatMoney(result.meta.sourcePricePerKg) }} {{ currencyCode }}</strong>
                         </v-alert>
@@ -154,18 +167,9 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Закупка / 1 кг</v-card-title>
                             <v-card-text>
-                                <div>
-                                    Без НДС:
-                                    <strong>{{ formatMoney(result.purchase.perKg.net) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    НДС:
-                                    <strong>{{ formatMoney(result.purchase.perKg.vat) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    С НДС:
-                                    <strong>{{ formatMoney(result.purchase.perKg.gross) }} {{ currencyCode }}</strong>
-                                </div>
+                                <div>Без НДС: <strong>{{ formatMoney(result.purchase.perKg.net) }} {{ currencyCode }}</strong></div>
+                                <div>НДС: <strong>{{ formatMoney(result.purchase.perKg.vat) }} {{ currencyCode }}</strong></div>
+                                <div>С НДС: <strong>{{ formatMoney(result.purchase.perKg.gross) }} {{ currencyCode }}</strong></div>
                             </v-card-text>
                         </v-card>
                     </v-col>
@@ -174,18 +178,9 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Продажа / 1 кг</v-card-title>
                             <v-card-text>
-                                <div>
-                                    Без НДС:
-                                    <strong>{{ formatMoney(result.sale.perKg.net) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    НДС:
-                                    <strong>{{ formatMoney(result.sale.perKg.vat) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    С НДС:
-                                    <strong>{{ formatMoney(result.sale.perKg.gross) }} {{ currencyCode }}</strong>
-                                </div>
+                                <div>Без НДС: <strong>{{ formatMoney(result.sale.perKg.net) }} {{ currencyCode }}</strong></div>
+                                <div>НДС: <strong>{{ formatMoney(result.sale.perKg.vat) }} {{ currencyCode }}</strong></div>
+                                <div>С НДС: <strong>{{ formatMoney(result.sale.perKg.gross) }} {{ currencyCode }}</strong></div>
                             </v-card-text>
                         </v-card>
                     </v-col>
@@ -194,18 +189,9 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Продажа / коробка</v-card-title>
                             <v-card-text>
-                                <div>
-                                    Без НДС:
-                                    <strong>{{ formatMoney(result.sale.perBox.net) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    НДС:
-                                    <strong>{{ formatMoney(result.sale.perBox.vat) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    С НДС:
-                                    <strong>{{ formatMoney(result.sale.perBox.gross) }} {{ currencyCode }}</strong>
-                                </div>
+                                <div>Без НДС: <strong>{{ formatMoney(result.sale.perBox.net) }} {{ currencyCode }}</strong></div>
+                                <div>НДС: <strong>{{ formatMoney(result.sale.perBox.vat) }} {{ currencyCode }}</strong></div>
+                                <div>С НДС: <strong>{{ formatMoney(result.sale.perBox.gross) }} {{ currencyCode }}</strong></div>
                             </v-card-text>
                         </v-card>
                     </v-col>
@@ -216,18 +202,9 @@ const { result } = useQuotationCalculator({
                         <v-card variant="tonal">
                             <v-card-title>Продажа / 1 тонна</v-card-title>
                             <v-card-text>
-                                <div>
-                                    Без НДС:
-                                    <strong>{{ formatMoney(result.sale.perTon.net) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    НДС:
-                                    <strong>{{ formatMoney(result.sale.perTon.vat) }} {{ currencyCode }}</strong>
-                                </div>
-                                <div>
-                                    С НДС:
-                                    <strong>{{ formatMoney(result.sale.perTon.gross) }} {{ currencyCode }}</strong>
-                                </div>
+                                <div>Без НДС: <strong>{{ formatMoney(result.sale.perTon.net) }} {{ currencyCode }}</strong></div>
+                                <div>НДС: <strong>{{ formatMoney(result.sale.perTon.vat) }} {{ currencyCode }}</strong></div>
+                                <div>С НДС: <strong>{{ formatMoney(result.sale.perTon.gross) }} {{ currencyCode }}</strong></div>
                             </v-card-text>
                         </v-card>
                     </v-col>

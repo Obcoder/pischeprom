@@ -582,7 +582,7 @@ onMounted(() => {
                     <GoodQuotationCalculator
                         :quotations="goodData.quotations || []"
                         :default-vat-rate="20"
-                        :default-box-weight-kg="1"
+                        :default-box-weight-kg="goodData.denominator || 1"
                         currency-code="RUB"
                     />
                 </v-col>
