@@ -58,6 +58,7 @@ class ProductController extends Controller
                                  'components',
                                  'goods',
                                  'units',
+                                 'goods.quotations',
                              ])->findOrFail($id);
     }
 
