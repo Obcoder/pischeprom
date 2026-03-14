@@ -95,7 +95,7 @@ onMounted(loadProduct)
 
 <template>
     <v-container fluid class="pa-4 fill-height">
-        <v-row class="mb-4" align="center" justify="space-between">
+        <v-row>
             <v-col cols="12" lg="8">
                 <div class="d-flex align-center ga-3 flex-wrap">
                     <v-btn
@@ -116,7 +116,9 @@ onMounted(loadProduct)
                     </div>
                 </div>
             </v-col>
+        </v-row>
 
+        <v-row class="mb-4" align="center" justify="space-between">
             <v-col cols="12" lg="4" class="text-lg-right">
                 <div class="d-flex justify-lg-end flex-wrap ga-2">
                     <v-chip
