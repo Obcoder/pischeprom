@@ -4,8 +4,9 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Sale;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -29,22 +30,33 @@ class ProductController extends Controller
         return $query->get();
     }
 
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
-        Product::create($request->all());
-//        return redirect()->route('Ameise.products');
+        $data = $request->validate([
+                                       'rus' => ['required', 'string', 'max:255'],
+                                       'eng' => ['nullable', 'string', 'max:255'],
+                                       'zh' => ['nullable', 'string', 'max:255'],
+                                       'es' => ['nullable', 'string', 'max:255'],
+                                       'ar' => ['nullable', 'string', 'max:255'],
+                                       'po' => ['nullable', 'string', 'max:255'],
+                                       'de' => ['nullable', 'string', 'max:255'],
+                                       'fr' => ['nullable', 'string', 'max:255'],
+                                       'hi' => ['nullable', 'string', 'max:255'],
+                                       'tu' => ['nullable', 'string', 'max:255'],
+                                       'vi' => ['nullable', 'string', 'max:255'],
+                                       'it' => ['nullable', 'string', 'max:255'],
+                                       'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+                                   ]);
+
+        $product = Product::create($data);
+
+        return Product::with([
+                                 'category',
+                                 'manufacturers',
+                             ])->findOrFail($product->id);
     }
 
     /**
@@ -52,25 +64,27 @@ class ProductController extends Controller
      */
     public function show(string $id)
     {
-        return Product::with([
-                                 'category',
-                                 'manufacturers',
-                                 'components',
-                                 'goods',
-                                 'units',
-                                 'goods.quotations',
-                                 'consumers.product',
-                                 'consumers.unit',
-                                 'consumers.measure',
-                             ])->findOrFail($id);
-    }
+        $product = Product::with([
+                                     'category',
+                                     'manufacturers',
+                                     'components',
+                                     'goods.quotations',
+                                     'units',
+                                     'consumers.product',
+                                     'consumers.unit',
+                                     'consumers.measure',
+                                 ])->findOrFail($id);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
+        $product->setAttribute(
+            'sales',
+            Sale::query()
+                ->with(['entity', 'goods'])
+                ->byProduct((int) $id)
+                ->orderByDesc('date')
+                ->get()
+        );
+
+        return $product;
     }
 
     /**
@@ -78,7 +92,28 @@ class ProductController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $data = $request->validate([
+                                       'rus' => ['required', 'string', 'max:255'],
+                                       'eng' => ['nullable', 'string', 'max:255'],
+                                       'zh' => ['nullable', 'string', 'max:255'],
+                                       'es' => ['nullable', 'string', 'max:255'],
+                                       'ar' => ['nullable', 'string', 'max:255'],
+                                       'po' => ['nullable', 'string', 'max:255'],
+                                       'de' => ['nullable', 'string', 'max:255'],
+                                       'fr' => ['nullable', 'string', 'max:255'],
+                                       'hi' => ['nullable', 'string', 'max:255'],
+                                       'tu' => ['nullable', 'string', 'max:255'],
+                                       'vi' => ['nullable', 'string', 'max:255'],
+                                       'it' => ['nullable', 'string', 'max:255'],
+                                       'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+                                   ]);
+
+        $product = Product::create($data);
+
+        return Product::with([
+                                 'category',
+                                 'manufacturers',
+                             ])->findOrFail($product->id);
     }
 
     /**
@@ -86,6 +121,11 @@ class ProductController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        $product = Product::findOrFail($id);
+        $product->delete();
+
+        return response()->json([
+                                    'message' => 'Product deleted successfully',
+                                ]);
     }
 }

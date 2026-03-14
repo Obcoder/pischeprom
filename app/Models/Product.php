@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder;
 
 class Product extends Model
 {
@@ -28,6 +28,7 @@ class Product extends Model
         'it',
         'category_id',
     ];
+
     protected $with = [
         'category',
         'manufacturers',
@@ -37,41 +38,33 @@ class Product extends Model
     {
         return $this->belongsTo(Category::class);
     }
+
     public function components(): BelongsToMany
     {
         return $this->belongsToMany(Component::class);
     }
-    public function consumers()
+
+    public function consumers(): HasMany
     {
-        return $this->hasMany(
-            Consumption::class, // Модель конечной таблицы
-            'product_id', // Промежуточная таблица
-            'id', // Внешний ключ в `consumptions`, который ссылается на `products`
-            'unit_id', // Внешний ключ в `units`, который связывается с `consumptions.unit_id`
-            'id', // Локальный ключ в `products`
-            'id' // Локальный ключ в `consumptions`
-        );
+        return $this->hasMany(Consumption::class, 'product_id', 'id');
     }
+
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class);
     }
+
     public function manufacturers(): BelongsToMany
     {
-        return $this->BelongsToMany(Unit::class, 'manufacturers', 'product_id', 'unit_id');
+        return $this->belongsToMany(Unit::class, 'manufacturers', 'product_id', 'unit_id');
     }
-    public function sales()
-    {
-        return $this->hasMany(Sale::class);
-    }
-    public function units()
+
+    public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class)
-            ->using(product_unit::class)
             ->withPivot(['action_id'])
             ->withTimestamps();
     }
-
 
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
@@ -86,13 +79,16 @@ class Product extends Model
 
             $q->where('rus', 'like', $like)
                 ->orWhere('eng', 'like', $like)
-                ->orWhere('de', 'like', $like)
-                ->orWhere('fr', 'like', $like)
+                ->orWhere('zh', 'like', $like)
                 ->orWhere('es', 'like', $like)
                 ->orWhere('ar', 'like', $like)
                 ->orWhere('po', 'like', $like)
+                ->orWhere('de', 'like', $like)
+                ->orWhere('fr', 'like', $like)
                 ->orWhere('hi', 'like', $like)
-                ->orWhere('zh', 'like', $like);
+                ->orWhere('tu', 'like', $like)
+                ->orWhere('vi', 'like', $like)
+                ->orWhere('it', 'like', $like);
         });
     }
 

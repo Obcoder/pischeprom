@@ -35,7 +35,7 @@ class Sale extends Model
      */
     public function scopeByProduct(Builder $query, int $productId): Builder
     {
-        return $query->whereHas('goods.products', function ($q) use ($productId) {
+        return $query->whereHas('goods.products', function (Builder $q) use ($productId) {
             $q->where('products.id', $productId);
         });
     }
