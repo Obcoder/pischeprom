@@ -56,12 +56,7 @@ class ProductController extends Controller
                                  'category',
                                  'manufacturers',
                                  'components',
-                                 'goods.quotations',
-                                 'units',
-                                 'sales',
-                                 'consumers.product',
-                                 'consumers.unit',
-                                 'consumers.measure',
+                                 'goods',
                              ])->findOrFail($id);
     }
 
