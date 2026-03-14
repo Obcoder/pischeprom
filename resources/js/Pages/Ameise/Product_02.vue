@@ -107,7 +107,7 @@ onMounted(loadProduct)
 </script>
 
 <template>
-    <v-container fluid class="page-wrap pa-3 pa-md-4">
+    <v-container class="page-wrap pa-3 pa-md-4">
         <div class="page-header mb-3">
             <div class="d-flex align-center justify-space-between ga-3 flex-wrap">
                 <div class="d-flex align-center ga-2 min-w-0">
