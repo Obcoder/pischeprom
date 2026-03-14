@@ -98,14 +98,6 @@ onMounted(loadProduct)
         <v-row>
             <v-col cols="12" lg="8">
                 <div class="d-flex align-center ga-3 flex-wrap">
-                    <v-btn
-                        variant="text"
-                        prepend-icon="mdi-arrow-left"
-                        @click="goBack"
-                    >
-                        Назад
-                    </v-btn>
-
                     <div>
                         <div class="text-h4 font-weight-bold">
                             {{ productTitle }}
@@ -506,6 +498,14 @@ onMounted(loadProduct)
                     </div>
                 </v-window-item>
             </v-window>
+
+            <v-btn
+                variant="text"
+                prepend-icon="mdi-arrow-left"
+                @click="goBack"
+            >
+                Назад
+            </v-btn>
         </v-card>
 
         <v-alert
