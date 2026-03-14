@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 
 class Product extends Model
 {
@@ -22,6 +23,9 @@ class Product extends Model
         'de',
         'fr',
         'hi',
+        'tu',
+        'vi',
+        'it',
         'category_id',
     ];
     protected $with = [

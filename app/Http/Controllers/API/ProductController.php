@@ -53,8 +53,16 @@ class ProductController extends Controller
     public function show(string $id)
     {
         return Product::with([
-            'components', 'goods.quotations'])
-            ->findOrFail($id);
+                                 'category',
+                                 'manufacturers',
+                                 'components',
+                                 'goods.quotations',
+                                 'units',
+                                 'sales',
+                                 'consumers.product',
+                                 'consumers.unit',
+                                 'consumers.measure',
+                             ])->findOrFail($id);
     }
 
     /**

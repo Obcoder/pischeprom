@@ -241,6 +241,15 @@ onMounted(loadAll)
                         </div>
                     </template>
 
+                    <template #item.rus="{ item }">
+                        <Link
+                            :href="route('product.show', item.id)"
+                            class="text-decoration-none font-weight-medium"
+                        >
+                            {{ item.rus || '—' }}
+                        </Link>
+                    </template>
+
                     <template #item.manufacturers="{ item }">
                         <div class="text-body-2">
                             <template v-for="(m, index) in item.manufacturers" :key="m.id">

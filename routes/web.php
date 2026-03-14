@@ -133,14 +133,13 @@ Route::get('/Ameise/perfume/', function (){
 Route::get('/Ameise/products/', function (){
     return Inertia::render('Ameise/Products');
 })->name('Ameise.products');
-Route::get('/Ameise/product/{id}', function ($id) {
-    $product = Product::with('consumers.product')
-        ->with('consumers.unit')
-        ->with('consumers.measure')
-        ->with(['components','goods'])
-        ->findOrFail($id);
-    return Inertia::render('Ameise/Product', ['product'=>$product]);
+
+Route::get('/Ameise/product/{product}', function (Product $product) {
+    return Inertia::render('Ameise/Product_02', [
+        'id' => $product->id,
+    ]);
 })->name('product.show');
+
 //   R E G I O N
 Route::get('/Ameise/region/{id}', function ($id){
     $data = [
