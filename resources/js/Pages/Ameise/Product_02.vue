@@ -41,6 +41,19 @@ const languageRows = computed(() => {
     ]
 })
 
+const summaryChips = computed(() => {
+    const p = product.value || {}
+
+    return [
+        { label: 'Производители', value: p.manufacturers?.length || 0 },
+        { label: 'Компоненты', value: p.components?.length || 0 },
+        { label: 'Goods', value: p.goods?.length || 0 },
+        { label: 'Units', value: p.units?.length || 0 },
+        { label: 'Consumers', value: p.consumers?.length || 0 },
+        { label: 'Sales', value: p.sales?.length || 0 },
+    ]
+})
+
 function formatDate(value) {
     if (!value) return '—'
 
@@ -94,55 +107,47 @@ onMounted(loadProduct)
 </script>
 
 <template>
-    <v-container fluid class="pa-4 fill-height">
-        <v-row>
-            <v-col cols="12" lg="8">
-                <div class="d-flex align-center ga-3 flex-wrap">
-                    <div>
-                        <div class="text-h4 font-weight-bold">
+    <v-container fluid class="page-wrap pa-3 pa-md-4">
+        <div class="page-header mb-3">
+            <div class="d-flex align-center justify-space-between ga-3 flex-wrap">
+                <div class="d-flex align-center ga-2 min-w-0">
+                    <v-btn
+                        variant="text"
+                        density="comfortable"
+                        prepend-icon="mdi-arrow-left"
+                        @click="goBack"
+                    >
+                        Назад
+                    </v-btn>
+
+                    <div class="min-w-0">
+                        <div class="text-h5 font-weight-bold text-truncate">
                             {{ productTitle }}
                         </div>
-                        <div class="text-medium-emphasis">
+                        <div class="text-caption text-medium-emphasis">
                             Карточка продукта
                         </div>
                     </div>
                 </div>
-            </v-col>
-        </v-row>
 
-        <v-row class="mb-4" align="center" justify="space-between">
-            <v-col cols="12" lg="4" class="text-lg-right">
-                <div class="d-flex justify-lg-end flex-wrap ga-2">
-                    <v-chip
-                        v-if="product?.id"
-                        color="primary"
-                        variant="outlined"
-                    >
-                        ID: {{ product.id }}
-                    </v-chip>
-
-                    <v-chip variant="outlined">
-                        Категория:
-                        {{ product?.category?.rus || product?.category?.name || '—' }}
-                    </v-chip>
-
-                    <v-chip variant="outlined">
-                        Создан: {{ formatDate(product?.created_at) }}
+                <div v-if="product" class="d-flex align-center ga-2 flex-wrap">
+                    <v-chip size="small" variant="outlined">ID: {{ product.id }}</v-chip>
+                    <v-chip size="small" variant="outlined">
+                        {{ product.category?.rus || product.category?.name || 'Без категории' }}
                     </v-chip>
                 </div>
-            </v-col>
-        </v-row>
+            </div>
+        </div>
 
         <v-skeleton-loader
             v-if="loading"
-            type="article, article, table"
+            type="article, table"
         />
 
         <v-alert
             v-else-if="error"
             type="error"
             variant="tonal"
-            class="mb-4"
         >
             {{ error }}
         </v-alert>
@@ -150,362 +155,471 @@ onMounted(loadProduct)
         <v-card
             v-else-if="product"
             rounded="xl"
-            class="d-flex flex-column product-card"
+            class="product-card"
         >
-            <v-tabs
-                v-model="tab"
-                color="primary"
-                align-tabs="start"
-                density="comfortable"
-                class="px-2"
-            >
-                <v-tab value="main">Основное</v-tab>
-                <v-tab value="translations">Переводы</v-tab>
-                <v-tab value="manufacturers">Производители</v-tab>
-                <v-tab value="components">Компоненты</v-tab>
-                <v-tab value="goods">Goods</v-tab>
-                <v-tab value="units">Units</v-tab>
-                <v-tab value="consumers">Consumers</v-tab>
-                <v-tab value="sales">Sales</v-tab>
-            </v-tabs>
+            <div class="tabs-header">
+                <v-tabs
+                    v-model="tab"
+                    color="primary"
+                    align-tabs="start"
+                    density="compact"
+                    show-arrows
+                    class="px-2"
+                >
+                    <v-tab value="main">
+                        <v-icon start size="18">mdi-view-dashboard-outline</v-icon>
+                        Основное
+                    </v-tab>
+
+                    <v-tab value="translations">
+                        <v-icon start size="18">mdi-translate</v-icon>
+                        Переводы
+                    </v-tab>
+
+                    <v-tab value="manufacturers">
+                        <v-icon start size="18">mdi-factory</v-icon>
+                        Производители
+                    </v-tab>
+
+                    <v-tab value="components">
+                        <v-icon start size="18">mdi-puzzle-outline</v-icon>
+                        Компоненты
+                    </v-tab>
+
+                    <v-tab value="goods">
+                        <v-icon start size="18">mdi-package-variant-closed</v-icon>
+                        Goods
+                    </v-tab>
+
+                    <v-tab value="units">
+                        <v-icon start size="18">mdi-domain</v-icon>
+                        Units
+                    </v-tab>
+
+                    <v-tab value="consumers">
+                        <v-icon start size="18">mdi-account-group-outline</v-icon>
+                        Consumers
+                    </v-tab>
+
+                    <v-tab value="sales">
+                        <v-icon start size="18">mdi-cash-multiple</v-icon>
+                        Sales
+                    </v-tab>
+                </v-tabs>
+            </div>
 
             <v-divider />
 
-            <v-window v-model="tab" class="flex-grow-1">
-                <!-- Основное -->
-                <v-window-item value="main">
-                    <div class="tab-scroll pa-4">
-                        <v-row>
-                            <v-col cols="12" md="6">
-                                <v-card variant="tonal" rounded="lg">
-                                    <v-card-title>Общая информация</v-card-title>
-                                    <v-card-text>
-                                        <v-table density="comfortable">
-                                            <tbody>
-                                            <tr>
-                                                <td class="font-weight-medium">ID</td>
-                                                <td>{{ product.id || '—' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="font-weight-medium">Русское название</td>
-                                                <td>{{ product.rus || '—' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="font-weight-medium">English</td>
-                                                <td>{{ product.eng || '—' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="font-weight-medium">Категория</td>
-                                                <td>{{ product.category?.rus || product.category?.name || '—' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="font-weight-medium">Создан</td>
-                                                <td>{{ formatDate(product.created_at) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="font-weight-medium">Обновлён</td>
-                                                <td>{{ formatDate(product.updated_at) }}</td>
-                                            </tr>
-                                            </tbody>
-                                        </v-table>
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-card variant="tonal" rounded="lg">
-                                    <v-card-title>Сводка</v-card-title>
-                                    <v-card-text>
-                                        <div class="d-flex flex-wrap ga-2">
-                                            <v-chip color="primary" variant="outlined">
-                                                manufacturers: {{ product.manufacturers?.length || 0 }}
-                                            </v-chip>
-                                            <v-chip color="primary" variant="outlined">
-                                                components: {{ product.components?.length || 0 }}
-                                            </v-chip>
-                                            <v-chip color="primary" variant="outlined">
-                                                goods: {{ product.goods?.length || 0 }}
-                                            </v-chip>
-                                            <v-chip color="primary" variant="outlined">
-                                                units: {{ product.units?.length || 0 }}
-                                            </v-chip>
-                                            <v-chip color="primary" variant="outlined">
-                                                consumers: {{ product.consumers?.length || 0 }}
-                                            </v-chip>
-                                            <v-chip color="primary" variant="outlined">
-                                                sales: {{ product.sales?.length || 0 }}
-                                            </v-chip>
-                                        </div>
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-                        </v-row>
-                    </div>
-                </v-window-item>
-
-                <!-- Переводы -->
-                <v-window-item value="translations">
-                    <div class="tab-scroll pa-4">
-                        <v-card variant="tonal" rounded="lg">
-                            <v-card-title>Названия и переводы</v-card-title>
-                            <v-card-text>
-                                <v-table density="comfortable">
-                                    <thead>
-                                    <tr>
-                                        <th class="text-left">Поле</th>
-                                        <th class="text-left">Значение</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <tr v-for="row in languageRows" :key="row.key">
-                                        <td class="font-weight-medium">{{ row.label }}</td>
-                                        <td>{{ row.value || '—' }}</td>
-                                    </tr>
-                                    </tbody>
-                                </v-table>
-                            </v-card-text>
-                        </v-card>
-                    </div>
-                </v-window-item>
-
-                <!-- Производители -->
-                <v-window-item value="manufacturers">
-                    <div class="tab-scroll pa-4">
-                        <template v-if="product.manufacturers?.length">
-                            <v-row>
+            <div class="tabs-body">
+                <v-window v-model="tab" class="window-fill" :touch="false">
+                    <v-window-item value="main" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <v-row class="mb-2" dense>
                                 <v-col
-                                    v-for="manufacturer in product.manufacturers"
-                                    :key="manufacturer.id"
-                                    cols="12"
-                                    sm="6"
+                                    v-for="item in summaryChips"
+                                    :key="item.label"
+                                    cols="6"
                                     md="4"
-                                    lg="3"
+                                    lg="2"
                                 >
-                                    <v-card rounded="lg" variant="tonal" height="100%">
-                                        <v-card-text>
-                                            <div class="text-subtitle-1 font-weight-medium mb-2">
-                                                <Link
-                                                    :href="route('web.unit.show', manufacturer.id)"
-                                                    class="text-decoration-none"
-                                                >
-                                                    {{ entityTitle(manufacturer) }}
-                                                </Link>
+                                    <v-card rounded="lg" variant="tonal" class="stat-card">
+                                        <v-card-text class="py-3">
+                                            <div class="text-caption text-medium-emphasis mb-1">
+                                                {{ item.label }}
                                             </div>
-                                            <div class="text-medium-emphasis">
-                                                ID: {{ manufacturer.id }}
+                                            <div class="text-h6 font-weight-bold">
+                                                {{ item.value }}
                                             </div>
                                         </v-card-text>
                                     </v-card>
                                 </v-col>
                             </v-row>
-                        </template>
 
-                        <v-alert v-else type="info" variant="tonal">
-                            Производители не найдены
-                        </v-alert>
-                    </div>
-                </v-window-item>
+                            <v-row dense>
+                                <v-col cols="12" lg="7">
+                                    <v-card rounded="lg" variant="tonal" class="h-100">
+                                        <v-card-title class="text-subtitle-1">
+                                            Общая информация
+                                        </v-card-title>
 
-                <!-- Компоненты -->
-                <v-window-item value="components">
-                    <div class="tab-scroll pa-4">
-                        <template v-if="product.components?.length">
-                            <v-table density="comfortable">
-                                <thead>
-                                <tr>
-                                    <th class="text-left">ID</th>
-                                    <th class="text-left">Название</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <tr v-for="component in product.components" :key="component.id">
-                                    <td>{{ component.id }}</td>
-                                    <td>{{ entityTitle(component) }}</td>
-                                </tr>
-                                </tbody>
-                            </v-table>
-                        </template>
+                                        <v-divider />
 
-                        <v-alert v-else type="info" variant="tonal">
-                            Компоненты отсутствуют
-                        </v-alert>
-                    </div>
-                </v-window-item>
-
-                <!-- Goods -->
-                <v-window-item value="goods">
-                    <div class="tab-scroll pa-4">
-                        <template v-if="product.goods?.length">
-                            <v-expansion-panels variant="accordion">
-                                <v-expansion-panel
-                                    v-for="good in product.goods"
-                                    :key="good.id"
-                                >
-                                    <v-expansion-panel-title>
-                                        <div class="d-flex align-center justify-space-between w-100 pr-4">
-                                            <div>
-                                                <div class="font-weight-medium">
-                                                    {{ entityTitle(good) }}
+                                        <v-card-text class="pt-3">
+                                            <div class="info-grid">
+                                                <div class="info-row">
+                                                    <div class="info-key">ID</div>
+                                                    <div class="info-value">{{ product.id || '—' }}</div>
                                                 </div>
-                                                <div class="text-medium-emphasis text-body-2">
-                                                    ID: {{ good.id }}
+
+                                                <div class="info-row">
+                                                    <div class="info-key">Название</div>
+                                                    <div class="info-value break-word">{{ product.rus || '—' }}</div>
+                                                </div>
+
+                                                <div class="info-row">
+                                                    <div class="info-key">English</div>
+                                                    <div class="info-value break-word">{{ product.eng || '—' }}</div>
+                                                </div>
+
+                                                <div class="info-row">
+                                                    <div class="info-key">Категория</div>
+                                                    <div class="info-value">
+                                                        {{ product.category?.rus || product.category?.name || '—' }}
+                                                    </div>
+                                                </div>
+
+                                                <div class="info-row">
+                                                    <div class="info-key">Создан</div>
+                                                    <div class="info-value">{{ formatDate(product.created_at) }}</div>
+                                                </div>
+
+                                                <div class="info-row">
+                                                    <div class="info-key">Обновлён</div>
+                                                    <div class="info-value">{{ formatDate(product.updated_at) }}</div>
                                                 </div>
                                             </div>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-col>
 
-                                            <v-chip size="small" variant="outlined">
-                                                quotations: {{ good.quotations?.length || 0 }}
-                                            </v-chip>
-                                        </div>
-                                    </v-expansion-panel-title>
+                                <v-col cols="12" lg="5">
+                                    <v-card rounded="lg" variant="tonal" class="mb-3">
+                                        <v-card-title class="text-subtitle-1">
+                                            Быстрые связи
+                                        </v-card-title>
 
-                                    <v-expansion-panel-text>
-                                        <template v-if="good.quotations?.length">
-                                            <v-table density="compact">
-                                                <thead>
-                                                <tr>
-                                                    <th class="text-left">ID</th>
-                                                    <th class="text-left">Цена</th>
-                                                    <th class="text-left">Дата</th>
-                                                </tr>
-                                                </thead>
-                                                <tbody>
-                                                <tr
-                                                    v-for="quotation in good.quotations"
-                                                    :key="quotation.id"
-                                                >
-                                                    <td>{{ quotation.id }}</td>
-                                                    <td>{{ quotation.price ?? quotation.value ?? '—' }}</td>
-                                                    <td>{{ formatDate(quotation.created_at || quotation.date) }}</td>
-                                                </tr>
-                                                </tbody>
-                                            </v-table>
-                                        </template>
+                                        <v-divider />
 
-                                        <v-alert v-else type="info" variant="tonal">
-                                            Quotations отсутствуют
-                                        </v-alert>
-                                    </v-expansion-panel-text>
-                                </v-expansion-panel>
-                            </v-expansion-panels>
-                        </template>
+                                        <v-card-text class="pt-3">
+                                            <div class="text-caption text-medium-emphasis mb-2">
+                                                Производители
+                                            </div>
 
-                        <v-alert v-else type="info" variant="tonal">
-                            Goods не найдены
-                        </v-alert>
-                    </div>
-                </v-window-item>
-
-                <!-- Units -->
-                <v-window-item value="units">
-                    <div class="tab-scroll pa-4">
-                        <template v-if="product.units?.length">
-                            <v-table density="comfortable">
-                                <thead>
-                                <tr>
-                                    <th class="text-left">ID</th>
-                                    <th class="text-left">Название</th>
-                                    <th class="text-left">action_id</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <tr v-for="unit in product.units" :key="unit.id">
-                                    <td>{{ unit.id }}</td>
-                                    <td>{{ entityTitle(unit) }}</td>
-                                    <td>{{ unit.pivot?.action_id ?? '—' }}</td>
-                                </tr>
-                                </tbody>
-                            </v-table>
-                        </template>
-
-                        <v-alert v-else type="info" variant="tonal">
-                            Units не найдены
-                        </v-alert>
-                    </div>
-                </v-window-item>
-
-                <!-- Consumers -->
-                <v-window-item value="consumers">
-                    <div class="tab-scroll pa-4">
-                        <template v-if="product.consumers?.length">
-                            <v-table density="comfortable">
-                                <thead>
-                                <tr>
-                                    <th class="text-left">ID</th>
-                                    <th class="text-left">Продукт</th>
-                                    <th class="text-left">Unit</th>
-                                    <th class="text-left">Measure</th>
-                                    <th class="text-left">Количество</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <tr v-for="consumer in product.consumers" :key="consumer.id">
-                                    <td>{{ consumer.id }}</td>
-                                    <td>{{ entityTitle(consumer.product) }}</td>
-                                    <td>{{ entityTitle(consumer.unit) }}</td>
-                                    <td>{{ entityTitle(consumer.measure) }}</td>
-                                    <td>{{ consumer.quantity ?? consumer.amount ?? '—' }}</td>
-                                </tr>
-                                </tbody>
-                            </v-table>
-                        </template>
-
-                        <v-alert v-else type="info" variant="tonal">
-                            Consumers не найдены
-                        </v-alert>
-                    </div>
-                </v-window-item>
-
-                <!-- Sales -->
-                <v-window-item value="sales">
-                    <div class="tab-scroll pa-4">
-                        <template v-if="product.sales?.length">
-                            <v-table density="comfortable">
-                                <thead>
-                                <tr>
-                                    <th class="text-left">ID</th>
-                                    <th class="text-left">Дата</th>
-                                    <th class="text-left">Контрагент</th>
-                                    <th class="text-left">Goods</th>
-                                    <th class="text-left">Сумма</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <tr v-for="sale in product.sales" :key="sale.id">
-                                    <td>{{ sale.id }}</td>
-                                    <td>{{ formatDate(sale.date || sale.created_at) }}</td>
-                                    <td>{{ entityTitle(sale.entity) }}</td>
-                                    <td>
-                                        <div class="d-flex flex-wrap ga-1">
-                                            <v-chip
-                                                v-for="good in sale.goods"
-                                                :key="good.id"
-                                                size="small"
-                                                variant="outlined"
+                                            <div
+                                                v-if="product.manufacturers?.length"
+                                                class="d-flex flex-wrap ga-2"
                                             >
-                                                {{ entityTitle(good) }}
-                                            </v-chip>
-                                        </div>
-                                    </td>
-                                    <td>{{ sale.total ?? '—' }}</td>
-                                </tr>
-                                </tbody>
-                            </v-table>
-                        </template>
+                                                <Link
+                                                    v-for="manufacturer in product.manufacturers"
+                                                    :key="manufacturer.id"
+                                                    :href="route('web.unit.show', manufacturer.id)"
+                                                    class="text-decoration-none"
+                                                >
+                                                    <v-chip size="small" variant="outlined">
+                                                        {{ entityTitle(manufacturer) }}
+                                                    </v-chip>
+                                                </Link>
+                                            </div>
 
-                        <v-alert v-else type="info" variant="tonal">
-                            Продажи отсутствуют
-                        </v-alert>
-                    </div>
-                </v-window-item>
-            </v-window>
+                                            <div v-else class="text-medium-emphasis">
+                                                Нет производителей
+                                            </div>
+                                        </v-card-text>
+                                    </v-card>
 
-            <v-btn
-                variant="text"
-                prepend-icon="mdi-arrow-left"
-                @click="goBack"
-            >
-                Назад
-            </v-btn>
+                                    <v-card rounded="lg" variant="tonal">
+                                        <v-card-title class="text-subtitle-1">
+                                            Кратко
+                                        </v-card-title>
+
+                                        <v-divider />
+
+                                        <v-card-text class="pt-3">
+                                            <div class="d-flex flex-column ga-2">
+                                                <div class="d-flex justify-space-between ga-4">
+                                                    <span class="text-medium-emphasis">Goods</span>
+                                                    <strong>{{ product.goods?.length || 0 }}</strong>
+                                                </div>
+                                                <div class="d-flex justify-space-between ga-4">
+                                                    <span class="text-medium-emphasis">Components</span>
+                                                    <strong>{{ product.components?.length || 0 }}</strong>
+                                                </div>
+                                                <div class="d-flex justify-space-between ga-4">
+                                                    <span class="text-medium-emphasis">Consumers</span>
+                                                    <strong>{{ product.consumers?.length || 0 }}</strong>
+                                                </div>
+                                                <div class="d-flex justify-space-between ga-4">
+                                                    <span class="text-medium-emphasis">Sales</span>
+                                                    <strong>{{ product.sales?.length || 0 }}</strong>
+                                                </div>
+                                            </div>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="translations" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <v-card rounded="lg" variant="tonal">
+                                <v-card-title class="text-subtitle-1">
+                                    Названия и переводы
+                                </v-card-title>
+
+                                <v-divider />
+
+                                <v-card-text class="pt-3">
+                                    <v-table density="compact" class="data-table-fixed">
+                                        <thead>
+                                        <tr>
+                                            <th class="text-left">Поле</th>
+                                            <th class="text-left">Значение</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <tr v-for="row in languageRows" :key="row.key">
+                                            <td class="table-key">{{ row.label }}</td>
+                                            <td class="break-word">{{ row.value || '—' }}</td>
+                                        </tr>
+                                        </tbody>
+                                    </v-table>
+                                </v-card-text>
+                            </v-card>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="manufacturers" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <template v-if="product.manufacturers?.length">
+                                <v-row dense>
+                                    <v-col
+                                        v-for="manufacturer in product.manufacturers"
+                                        :key="manufacturer.id"
+                                        cols="12"
+                                        sm="6"
+                                        md="4"
+                                        xl="3"
+                                    >
+                                        <v-card rounded="lg" variant="tonal" class="h-100">
+                                            <v-card-text>
+                                                <div class="text-subtitle-2 font-weight-medium mb-2">
+                                                    <Link
+                                                        :href="route('web.unit.show', manufacturer.id)"
+                                                        class="text-decoration-none"
+                                                    >
+                                                        {{ entityTitle(manufacturer) }}
+                                                    </Link>
+                                                </div>
+                                                <div class="text-caption text-medium-emphasis">
+                                                    ID: {{ manufacturer.id }}
+                                                </div>
+                                            </v-card-text>
+                                        </v-card>
+                                    </v-col>
+                                </v-row>
+                            </template>
+
+                            <v-alert v-else type="info" variant="tonal">
+                                Производители не найдены
+                            </v-alert>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="components" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <template v-if="product.components?.length">
+                                <v-card rounded="lg" variant="tonal">
+                                    <v-card-text class="pt-3">
+                                        <v-table density="compact" class="data-table-fixed">
+                                            <thead>
+                                            <tr>
+                                                <th class="text-left">ID</th>
+                                                <th class="text-left">Название</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr v-for="component in product.components" :key="component.id">
+                                                <td class="table-id">{{ component.id }}</td>
+                                                <td class="break-word">{{ entityTitle(component) }}</td>
+                                            </tr>
+                                            </tbody>
+                                        </v-table>
+                                    </v-card-text>
+                                </v-card>
+                            </template>
+
+                            <v-alert v-else type="info" variant="tonal">
+                                Компоненты отсутствуют
+                            </v-alert>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="goods" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <template v-if="product.goods?.length">
+                                <v-expansion-panels variant="accordion">
+                                    <v-expansion-panel
+                                        v-for="good in product.goods"
+                                        :key="good.id"
+                                    >
+                                        <v-expansion-panel-title>
+                                            <div class="d-flex align-center justify-space-between w-100 ga-3 pr-4">
+                                                <div class="min-w-0">
+                                                    <div class="font-weight-medium text-truncate">
+                                                        {{ entityTitle(good) }}
+                                                    </div>
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        ID: {{ good.id }}
+                                                    </div>
+                                                </div>
+
+                                                <v-chip size="small" variant="outlined">
+                                                    quotations: {{ good.quotations?.length || 0 }}
+                                                </v-chip>
+                                            </div>
+                                        </v-expansion-panel-title>
+
+                                        <v-expansion-panel-text>
+                                            <template v-if="good.quotations?.length">
+                                                <v-table density="compact" class="data-table-fixed">
+                                                    <thead>
+                                                    <tr>
+                                                        <th class="text-left">ID</th>
+                                                        <th class="text-left">Цена</th>
+                                                        <th class="text-left">Дата</th>
+                                                    </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                    <tr
+                                                        v-for="quotation in good.quotations"
+                                                        :key="quotation.id"
+                                                    >
+                                                        <td class="table-id">{{ quotation.id }}</td>
+                                                        <td>{{ quotation.price ?? quotation.value ?? '—' }}</td>
+                                                        <td>{{ formatDate(quotation.created_at || quotation.date) }}</td>
+                                                    </tr>
+                                                    </tbody>
+                                                </v-table>
+                                            </template>
+
+                                            <v-alert v-else type="info" variant="tonal">
+                                                Quotations отсутствуют
+                                            </v-alert>
+                                        </v-expansion-panel-text>
+                                    </v-expansion-panel>
+                                </v-expansion-panels>
+                            </template>
+
+                            <v-alert v-else type="info" variant="tonal">
+                                Goods не найдены
+                            </v-alert>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="units" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <template v-if="product.units?.length">
+                                <v-card rounded="lg" variant="tonal">
+                                    <v-card-text class="pt-3">
+                                        <v-table density="compact" class="data-table-fixed">
+                                            <thead>
+                                            <tr>
+                                                <th class="text-left">ID</th>
+                                                <th class="text-left">Название</th>
+                                                <th class="text-left">action_id</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr v-for="unit in product.units" :key="unit.id">
+                                                <td class="table-id">{{ unit.id }}</td>
+                                                <td class="break-word">{{ entityTitle(unit) }}</td>
+                                                <td>{{ unit.pivot?.action_id ?? '—' }}</td>
+                                            </tr>
+                                            </tbody>
+                                        </v-table>
+                                    </v-card-text>
+                                </v-card>
+                            </template>
+
+                            <v-alert v-else type="info" variant="tonal">
+                                Units не найдены
+                            </v-alert>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="consumers" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <template v-if="product.consumers?.length">
+                                <v-card rounded="lg" variant="tonal">
+                                    <v-card-text class="pt-3">
+                                        <v-table density="compact" class="data-table-fixed">
+                                            <thead>
+                                            <tr>
+                                                <th class="text-left">ID</th>
+                                                <th class="text-left">Продукт</th>
+                                                <th class="text-left">Unit</th>
+                                                <th class="text-left">Measure</th>
+                                                <th class="text-left">Количество</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr v-for="consumer in product.consumers" :key="consumer.id">
+                                                <td class="table-id">{{ consumer.id }}</td>
+                                                <td class="break-word">{{ entityTitle(consumer.product) }}</td>
+                                                <td class="break-word">{{ entityTitle(consumer.unit) }}</td>
+                                                <td class="break-word">{{ entityTitle(consumer.measure) }}</td>
+                                                <td>{{ consumer.quantity ?? consumer.amount ?? '—' }}</td>
+                                            </tr>
+                                            </tbody>
+                                        </v-table>
+                                    </v-card-text>
+                                </v-card>
+                            </template>
+
+                            <v-alert v-else type="info" variant="tonal">
+                                Consumers не найдены
+                            </v-alert>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="sales" class="window-pane">
+                        <div class="tab-scroll pa-4">
+                            <template v-if="product.sales?.length">
+                                <v-card rounded="lg" variant="tonal">
+                                    <v-card-text class="pt-3">
+                                        <v-table density="compact" class="data-table-fixed">
+                                            <thead>
+                                            <tr>
+                                                <th class="text-left">ID</th>
+                                                <th class="text-left">Дата</th>
+                                                <th class="text-left">Контрагент</th>
+                                                <th class="text-left">Goods</th>
+                                                <th class="text-left">Сумма</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr v-for="sale in product.sales" :key="sale.id">
+                                                <td class="table-id">{{ sale.id }}</td>
+                                                <td>{{ formatDate(sale.date || sale.created_at) }}</td>
+                                                <td class="break-word">{{ entityTitle(sale.entity) }}</td>
+                                                <td>
+                                                    <div class="d-flex flex-wrap ga-1">
+                                                        <v-chip
+                                                            v-for="good in sale.goods"
+                                                            :key="good.id"
+                                                            size="x-small"
+                                                            variant="outlined"
+                                                        >
+                                                            {{ entityTitle(good) }}
+                                                        </v-chip>
+                                                    </div>
+                                                </td>
+                                                <td>{{ sale.total ?? '—' }}</td>
+                                            </tr>
+                                            </tbody>
+                                        </v-table>
+                                    </v-card-text>
+                                </v-card>
+                            </template>
+
+                            <v-alert v-else type="info" variant="tonal">
+                                Продажи отсутствуют
+                            </v-alert>
+                        </div>
+                    </v-window-item>
+                </v-window>
+            </div>
         </v-card>
 
         <v-alert
@@ -519,17 +633,102 @@ onMounted(loadProduct)
 </template>
 
 <style scoped>
+.page-wrap {
+    height: 100vh;
+    overflow: hidden;
+}
+
+.page-header {
+    flex: 0 0 auto;
+}
+
 .product-card {
-    height: calc(100vh - 140px);
-    min-height: 650px;
+    height: calc(100vh - 92px);
+    min-height: 620px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tabs-header {
+    flex: 0 0 auto;
+    overflow-x: auto;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgb(var(--v-theme-surface));
+}
+
+.tabs-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.window-fill {
+    height: 100%;
+}
+
+.window-pane {
+    height: 100%;
 }
 
 .tab-scroll {
     height: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
 }
 
-.w-100 {
+.info-grid {
+    display: grid;
+    grid-template-columns: minmax(140px, 180px) 1fr;
+    row-gap: 10px;
+    column-gap: 16px;
+}
+
+.info-row {
+    display: contents;
+}
+
+.info-key {
+    font-weight: 600;
+    color: rgba(var(--v-theme-on-surface), 0.68);
+    white-space: nowrap;
+}
+
+.info-value {
+    min-width: 0;
+}
+
+.table-id {
+    width: 72px;
+    white-space: nowrap;
+}
+
+.table-key {
+    width: 180px;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.stat-card {
+    min-height: 84px;
+}
+
+.break-word {
+    word-break: break-word;
+}
+
+.min-w-0 {
+    min-width: 0;
+}
+
+.h-100 {
+    height: 100%;
+}
+
+.data-table-fixed {
+    table-layout: fixed;
     width: 100%;
 }
 </style>
