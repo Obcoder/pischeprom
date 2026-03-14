@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
-
+import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 const props = defineProps({
     id: {
         type: [Number, String],
