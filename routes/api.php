@@ -42,6 +42,23 @@ use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
+use App\Services\YandexSearchService;
+
+Route::get('/yandex-search-test', function (YandexSearchService $service) {
+    $query = request('q', 'хлопья картофельные купить');
+    $page = (int) request('page', 0);
+
+    $response = $service->search($query, $page);
+    $results = $service->parseXmlResults($response['rawData']);
+
+    return response()->json([
+                                'query' => $query,
+                                'page' => $page,
+                                'count' => count($results),
+                                'results' => $results,
+                                'raw_excerpt' => mb_substr($response['rawData'], 0, 1500),
+                            ]);
+});
 
 Route::get('/user', function (Request $request) {
     return $request->user();

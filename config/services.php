@@ -43,4 +43,11 @@ return [
         'client_secret' => env('AVITO_CLIENT_SECRET'),
         'api_url' => env('AVITO_API_URL', 'https://api.avito.ru/token'),
     ],
+
+    'yandex_search' => [
+        'api_key' => env('YANDEX_SEARCH_API_KEY'),
+        'folder_id' => env('YANDEX_SEARCH_FOLDER_ID'),
+        'region' => env('YANDEX_SEARCH_REGION', 'ru'),
+        'host' => env('YANDEX_SEARCH_HOST', 'searchapi.api.cloud.yandex.net'),
+    ],
 ];
