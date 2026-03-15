@@ -253,8 +253,6 @@ onBeforeUnmount(() => {
                         {{ item.snippet || '—' }}
                     </div>
                 </template>
-
-                <template #bottom />
             </v-data-table>
         </v-card-text>
     </v-card>
