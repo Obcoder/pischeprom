@@ -63,10 +63,17 @@ class YandexSearchService
     /**
      * Разобрать XML rawData и вернуть плоский список результатов.
      */
-    public function parseXmlResults(string $xml): array
+    public function parseXmlResults(string $rawData): array
     {
-        if (trim($xml) === '') {
+        if (trim($rawData) === '') {
             return [];
+        }
+
+        $xml = base64_decode($rawData, true);
+
+        if ($xml === false || trim($xml) === '') {
+            // если вдруг rawData уже не base64, пробуем как есть
+            $xml = $rawData;
         }
 
         libxml_use_internal_errors(true);
@@ -79,15 +86,14 @@ class YandexSearchService
         $results = [];
         $position = 1;
 
-        // В XML Яндекса документы обычно лежат в response/results/grouping/group/doc
         $docs = $xmlObject->xpath('//response/results/grouping/group/doc') ?: [];
 
         foreach ($docs as $doc) {
-            $url = (string) ($doc->url ?? '');
+            $url = trim((string) ($doc->url ?? ''));
             $title = trim((string) ($doc->title ?? ''));
             $headline = trim((string) ($doc->headline ?? ''));
             $snippet = trim((string) ($doc->passages ?? ''));
-            $domain = parse_url($url, PHP_URL_HOST) ?: null;
+            $domain = $url ? parse_url($url, PHP_URL_HOST) : null;
 
             $results[] = [
                 'position' => $position++,

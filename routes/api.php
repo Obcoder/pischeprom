@@ -49,6 +49,12 @@ Route::get('/yandex-search-test', function (YandexSearchService $service) {
     $page = (int) request('page', 0);
 
     $response = $service->search($query, $page);
+
+    $decodedXml = base64_decode($response['rawData'], true);
+    if ($decodedXml === false) {
+        $decodedXml = $response['rawData'];
+    }
+
     $results = $service->parseXmlResults($response['rawData']);
 
     return response()->json([
@@ -56,7 +62,7 @@ Route::get('/yandex-search-test', function (YandexSearchService $service) {
                                 'page' => $page,
                                 'count' => count($results),
                                 'results' => $results,
-                                'raw_excerpt' => mb_substr($response['rawData'], 0, 1500),
+                                'xml_excerpt' => mb_substr($decodedXml, 0, 2000),
                             ]);
 });
 
