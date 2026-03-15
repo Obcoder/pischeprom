@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -9,7 +9,7 @@ const props = defineProps({
     },
     productName: {
         type: String,
-        required: true,
+        default: '',
     },
 })
 
@@ -20,7 +20,7 @@ const headers = [
     { title: 'Сниппет', key: 'snippet' },
 ]
 
-const query = ref(`${props.productName} купить`)
+const query = ref(props.productName ? `${props.productName} купить` : '')
 const maxResults = ref(100)
 
 const request = ref(null)
@@ -32,9 +32,19 @@ const isLoadingInitial = ref(false)
 
 let pollTimer = null
 
+watch(
+    () => props.productName,
+    (newValue) => {
+        if ((!query.value || query.value === 'undefined купить') && newValue) {
+            query.value = `${newValue} купить`
+        }
+    },
+    { immediate: true }
+)
+
 function shortUrl(url) {
     if (!url) return '—'
-    return url.length > 60 ? url.slice(0, 60) + '…' : url
+    return url.length > 70 ? url.slice(0, 70) + '…' : url
 }
 
 async function loadLatest() {
@@ -209,7 +219,8 @@ onBeforeUnmount(() => {
                 :headers="headers"
                 :items="results"
                 :loading="isLoadingInitial"
-                items-per-page="10"
+                :items-per-page="20"
+                :items-per-page-options="[10, 20, 50, 100]"
             >
                 <template #item.title="{ item }">
                     <div class="py-2">

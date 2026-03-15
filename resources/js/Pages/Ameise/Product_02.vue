@@ -354,7 +354,7 @@ onMounted(loadProduct)
                                 <v-col>
                                     <ProductYandexSearchCard
                                         :product-id="product.id"
-                                        :product-name="product.name"
+                                        :product-name="product.rus"
                                     />
                                 </v-col>
                             </v-row>
