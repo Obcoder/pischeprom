@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
-import { route } from 'ziggy-js'
+import { route } from 'ziggy-js';
+import ProductYandexSearchCard from "@/Components/ProductYandexSearchCard.vue";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,
@@ -348,6 +349,13 @@ onMounted(loadProduct)
                                             </div>
                                         </v-card-text>
                                     </v-card>
+                                </v-col>
+
+                                <v-col>
+                                    <ProductYandexSearchCard
+                                        :product-id="product.id"
+                                        :product-name="product.name"
+                                    />
                                 </v-col>
                             </v-row>
                         </div>

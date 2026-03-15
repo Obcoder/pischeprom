@@ -30,6 +30,7 @@ use App\Http\Controllers\API\MessageController;
 use App\Http\Controllers\API\NoteController;
 use App\Http\Controllers\API\PlantController;
 use App\Http\Controllers\API\ProductController;
+use App\Http\Controllers\API\ProductSearchController;
 use App\Http\Controllers\API\PurchaseController;
 use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\RegionController;
@@ -43,28 +44,6 @@ use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Services\YandexSearchService;
-
-Route::get('/yandex-search-test', function (YandexSearchService $service) {
-    $query = request('q', 'хлопья картофельные купить');
-    $page = (int) request('page', 0);
-
-    $response = $service->search($query, $page);
-
-    $decodedXml = base64_decode($response['rawData'], true);
-    if ($decodedXml === false) {
-        $decodedXml = $response['rawData'];
-    }
-
-    $results = $service->parseXmlResults($response['rawData']);
-
-    return response()->json([
-                                'query' => $query,
-                                'page' => $page,
-                                'count' => count($results),
-                                'results' => $results,
-                                'xml_excerpt' => mb_substr($decodedXml, 0, 2000),
-                            ]);
-});
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -148,3 +127,15 @@ Route::get('/units/{name}/files', [\App\Http\Controllers\API\UnitController::cla
  * -------------------------
  */
 Route::get('/avito/user', [AvitoController::class, 'getUserInfo']);
+
+/*
+ * ---------------------------
+ * Yandex Search API
+ * ---------------------------
+ */
+
+Route::prefix('products/{product}')->group(function () {
+    Route::post('/yandex-search', [ProductSearchController::class, 'store']);
+    Route::get('/yandex-search/latest', [ProductSearchController::class, 'latest']);
+    Route::get('/yandex-search/{searchRequest}', [ProductSearchController::class, 'show']);
+});

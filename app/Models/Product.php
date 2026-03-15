@@ -59,6 +59,11 @@ class Product extends Model
         return $this->belongsToMany(Unit::class, 'manufacturers', 'product_id', 'unit_id');
     }
 
+    public function searchRequests()
+    {
+        return $this->hasMany(\App\Models\ProductSearchRequest::class);
+    }
+
     public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class)

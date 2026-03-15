@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\Factory as HttpFactory;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Arr;
+use RuntimeException;
 
 class YandexSearchService
 {
@@ -12,32 +12,24 @@ class YandexSearchService
         protected HttpFactory $http
     ) {}
 
-    /**
-     * Выполнить 1 запрос к Yandex Search API.
-     */
     public function search(string $queryText, int $page = 0): array
     {
         $apiKey = config('services.yandex_search.api_key');
         $folderId = config('services.yandex_search.folder_id');
-        $host = config('services.yandex_search.host');
+        $host = config('services.yandex_search.host', 'searchapi.api.cloud.yandex.net');
 
         if (!$apiKey || !$folderId) {
-            throw new \RuntimeException('YANDEX_SEARCH_API_KEY или YANDEX_SEARCH_FOLDER_ID не заданы.');
+            throw new RuntimeException('YANDEX_SEARCH_API_KEY или YANDEX_SEARCH_FOLDER_ID не заданы.');
         }
 
         $payload = [
             'query' => [
-                // Для RU-поиска:
                 'searchType' => 'SEARCH_TYPE_RU',
                 'queryText' => $queryText,
                 'page' => $page,
-                // можно управлять режимом опечаток при желании:
                 'fixTypoMode' => 'FIX_TYPO_MODE_OFF',
             ],
             'folderId' => $folderId,
-
-            // Просим XML-ответ в rawData — его удобнее разбирать.
-            // Search API возвращает результаты в XML или HTML в rawData. :contentReference[oaicite:1]{index=1}
             'responseFormat' => 'FORMAT_XML',
         ];
 
@@ -60,10 +52,7 @@ class YandexSearchService
         ];
     }
 
-    /**
-     * Разобрать XML rawData и вернуть плоский список результатов.
-     */
-    public function parseXmlResults(string $rawData): array
+    public function parseXmlResults(string $rawData, int $positionOffset = 0): array
     {
         if (trim($rawData) === '') {
             return [];
@@ -72,7 +61,6 @@ class YandexSearchService
         $xml = base64_decode($rawData, true);
 
         if ($xml === false || trim($xml) === '') {
-            // если вдруг rawData уже не base64, пробуем как есть
             $xml = $rawData;
         }
 
@@ -84,16 +72,20 @@ class YandexSearchService
         }
 
         $results = [];
-        $position = 1;
+        $position = $positionOffset + 1;
 
         $docs = $xmlObject->xpath('//response/results/grouping/group/doc') ?: [];
 
         foreach ($docs as $doc) {
             $url = trim((string) ($doc->url ?? ''));
-            $title = trim((string) ($doc->title ?? ''));
-            $headline = trim((string) ($doc->headline ?? ''));
-            $snippet = trim((string) ($doc->passages ?? ''));
-            $domain = $url ? parse_url($url, PHP_URL_HOST) : null;
+            $title = $this->flattenXmlText($doc->title ?? null);
+            $headline = $this->flattenXmlText($doc->headline ?? null);
+            $snippet = $this->extractPassages($doc);
+            $domain = trim((string) ($doc->domain ?? ''));
+
+            if ($domain === '' && $url !== '') {
+                $domain = parse_url($url, PHP_URL_HOST) ?: null;
+            }
 
             $results[] = [
                 'position' => $position++,
@@ -105,5 +97,37 @@ class YandexSearchService
         }
 
         return $results;
+    }
+
+    protected function extractPassages(\SimpleXMLElement $doc): ?string
+    {
+        if (!isset($doc->passages)) {
+            return null;
+        }
+
+        $parts = [];
+
+        foreach ($doc->passages->passage ?? [] as $passage) {
+            $text = $this->flattenXmlText($passage);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return count($parts) ? implode("\n", $parts) : null;
+    }
+
+    protected function flattenXmlText($node): string
+    {
+        if (!$node) {
+            return '';
+        }
+
+        $dom = dom_import_simplexml($node);
+        if (!$dom) {
+            return trim((string) $node);
+        }
+
+        return trim($dom->textContent ?? '');
     }
 }
