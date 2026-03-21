@@ -22,7 +22,7 @@ const quickLinks = [
     },
     {
         label: 'Овощи',
-        href: route('categories.show', 30),
+        href: route('Categories', 30),
     },
     {
         label: 'Бакалея',
