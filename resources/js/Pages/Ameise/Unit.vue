@@ -1244,7 +1244,7 @@ useHead({
                                         style="border: 2px solid red; padding: 20px;">
                                     <v-row>
                                         <v-col cols="7">
-                                            <v-autocomplete :items="products"
+                                            <v-autocomplete :items="dict.products"
                                                             :item-title="'rus'"
                                                             :item-value="'id'"
                                                             v-model="formConsumption.product_id"
