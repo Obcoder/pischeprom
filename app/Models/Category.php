@@ -29,4 +29,12 @@ class Category extends Model
             $q->where('name', 'like', "%{$search}%");
         });
     }
+
+    public function scopeOrdered(
+        Builder $query,
+        string $column = 'name',
+        string $direction = 'asc'
+    ): Builder {
+        return $query->orderBy($column, $direction);
+    }
 }
