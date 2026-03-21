@@ -1,6 +1,6 @@
 <script setup>
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import { computed } from 'vue'
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 
 defineOptions({
     layout: LayoutDefault,
@@ -13,12 +13,15 @@ const props = defineProps({
     },
 })
 
-const products = computed(() => props.category?.products ?? [])
+const category = computed(() => props.category ?? {})
+const products = computed(() => category.value.products ?? [])
 </script>
 
 <template>
     <v-container class="py-8">
-        <v-row class="mb-6" align="center">
+        <pre class="mb-6">{{ category }}</pre>
+
+        <v-row class="mb-6">
             <v-col cols="12" md="3">
                 <v-img
                     v-if="category.image"
@@ -35,7 +38,7 @@ const products = computed(() => props.category?.products ?? [])
                 </h1>
 
                 <div class="text-body-1 text-medium-emphasis">
-                    Товаров в категории: {{ category.products_count ?? products.length }}
+                    Товаров в категории: {{ category.products_count ?? 0 }}
                 </div>
             </v-col>
         </v-row>
