@@ -12,16 +12,20 @@ class CategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'slug' => $this->slug,
             'image' => $this->image,
-
             'products_count' => $this->whenCounted('products'),
 
-            'products' => ProductResource::collection(
-                $this->whenLoaded('products')
-            ),
-
-            'created_at' => $this->created_at?->toDateTimeString(),
-            'updated_at' => $this->updated_at?->toDateTimeString(),
+            'products' => $this->whenLoaded('products', function () {
+                return $this->products->map(function ($product) {
+                    return [
+                        'id' => $product->id,
+                        'rus' => $product->rus,
+                        'name' => $product->name ?? null,
+                        'image' => $product->image ?? null,
+                    ];
+                });
+            }),
         ];
     }
 }

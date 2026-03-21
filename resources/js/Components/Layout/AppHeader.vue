@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
                                     :key="category.id"
                                 >
                                     <Link
-                                        :href="route('Categories', category.id)"
+                                        :href="route('category.show', category.id)"
                                         class="text-decoration-none text-high-emphasis"
                                     >
                                         {{ category.name }}

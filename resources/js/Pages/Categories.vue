@@ -12,14 +12,6 @@ const props = defineProps({
 
 const category = ref()
 
-function fetchCategory(category){
-    axios.get(route('category.show', category)).then(function (response){
-        category.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-
 onMounted(()=>{
     category.value = props.category
 })
