@@ -34,7 +34,7 @@ class CategoryController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        return Inertia::render('Categories/Index', [
+        return Inertia::render('Categories', [
             'filters' => [
                 'search' => $validated['search'] ?? '',
                 'sortBy' => $sortBy,

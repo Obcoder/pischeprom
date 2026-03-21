@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Category extends Model
 {
@@ -13,25 +14,19 @@ class Category extends Model
     protected $fillable = [
         'name',
         'image',
-        'description',
         'slug',
     ];
+
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class)
+            ->where('is_published', 1);
+    }
 
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
         return $query->when($search, function (Builder $q) use ($search) {
             $q->where('name', 'like', "%{$search}%");
         });
-    }
-
-    public function scopeOrdered(Builder $query, string $column = 'name', string $direction = 'asc'): Builder
-    {
-        return $query->orderBy($column, $direction);
-    }
-
-    public function products()
-    {
-        return $this->hasMany(Product::class)
-            ->where('is_published', 1);
     }
 }
