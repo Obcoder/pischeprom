@@ -63,7 +63,7 @@ class CategoryController extends Controller
     {
         $category->load('products')->loadCount('products');
 
-        return Inertia::render('Pages/Categories', [
+        return Inertia::render('/Categories', [
             'category' => new CategoryResource($category),
         ]);
     }
