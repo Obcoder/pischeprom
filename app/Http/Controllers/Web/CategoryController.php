@@ -59,12 +59,12 @@ class CategoryController extends Controller
             ->with('success', 'Категория успешно создана');
     }
 
-    public function show(Category $category)
+    public function show(Category $category): Response
     {
         $category->load('products')->loadCount('products');
 
         return Inertia::render('Categories/Show', [
-            'category' => new CategoryResource($category),
+            'category' => (new CategoryResource($category))->resolve(),
         ]);
     }
 

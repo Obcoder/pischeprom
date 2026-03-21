@@ -19,8 +19,6 @@ const products = computed(() => category.value.products ?? [])
 
 <template>
     <v-container class="py-8">
-        <pre class="mb-6">{{ category }}</pre>
-
         <v-row class="mb-6">
             <v-col cols="12" md="3">
                 <v-img
