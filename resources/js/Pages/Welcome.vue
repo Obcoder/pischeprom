@@ -97,9 +97,15 @@ useHead({
 
 <template>
     <div class="bg-grey-lighten-5">
+        <HomeHeroSection :stats="stats" />
+
         <HomeCategoriesSection :categories="categories" />
 
-        <HomeHeroSection :stats="stats" />
+        <HomeFeaturedProductsSection
+            title="Популярные товары"
+            subtitle="Ключевые позиции для пищевой промышленности"
+            :products="featuredProducts"
+        />
     </div>
     <v-container fluid>
         <v-row>
