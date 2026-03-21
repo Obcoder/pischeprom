@@ -5,7 +5,11 @@ import CocoaButterClassification from "@/Components/CocoaButterClassification.vu
 import {useHead} from "@vueuse/head";
 import axios from "axios";
 import {route} from "ziggy-js";
-import LayoutDefault from '@/Layouts/LayoutDefault.vue'
+import LayoutDefault from '@/Layouts/LayoutDefault.vue';
+import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
+import HomeCategoriesSection from '@/Components/Home/HomeCategoriesSection.vue'
+import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
+
 defineOptions({
     layout: LayoutDefault,
 })
@@ -59,18 +63,21 @@ onMounted(()=>{
 })
 
 useHead({
-    title: `ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий`,
+    title: 'ПИЩЕПРОМ-СЕРВЕР — маркетплейс для пищевой промышленности: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий',
     meta: [
         {
             name: 'description',
-            content: `ПИЩЕПРОМ-СЕРВЕР: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий.
-            Создаем логистическую сеть для снижения транспортных расходов при доставке товаров.`,
-        }
-    ]
+            content: 'Маркетплейс пищевого сырья, ингредиентов и добавок: категории, фото, характеристики, быстрый поиск и удобный каталог.',
+        },
+    ],
 })
+
 </script>
 
 <template>
+    <div class="bg-grey-lighten-5">
+        <HomeCategoriesSection :categories="categories" />
+    </div>
     <v-container fluid>
         <v-row>
             <v-col cols="1"
