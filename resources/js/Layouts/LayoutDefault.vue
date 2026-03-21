@@ -100,7 +100,7 @@ onMounted(() => {
                         <v-card title="Телефон">
                             <v-card-text>
                                 <v-sheet>
-                                    +7-905-753-26-48
+                                    +7-965-016-0001
                                 </v-sheet>
                             </v-card-text>
                         </v-card>

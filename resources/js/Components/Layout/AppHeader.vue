@@ -22,7 +22,7 @@ const quickLinks = [
     },
     {
         label: 'Овощи',
-        href: '/vegetables',
+        href: route('categories.show', 30),
     },
     {
         label: 'Бакалея',
@@ -32,12 +32,12 @@ const quickLinks = [
 
 const mainContacts = [
     {
-        label: '+7-905-753-26-48',
-        href: 'tel:+79057532648',
+        label: '+7-965-016-0001',
+        href: 'tel:+79650160001',
     },
     {
-        label: 'info@pischeprom.ru',
-        href: 'mailto:info@pischeprom.ru',
+        label: 'office@180022.ru',
+        href: 'mailto:office@180022.ru',
     },
 ]
 </script>
@@ -205,7 +205,7 @@ const mainContacts = [
 }
 
 .app-header__inner {
-    min-height: 118px;
+    min-height: 101px;
     display: grid;
     grid-template-columns: 1fr 220px 1fr;
     align-items: center;
@@ -271,8 +271,8 @@ const mainContacts = [
 }
 
 .app-header__logo-shell {
-    width: 180px;
-    height: 180px;
+    width: 160px;
+    height: 160px;
     margin-top: 26px;
     margin-bottom: -26px;
     border-radius: 50%;
@@ -287,7 +287,7 @@ const mainContacts = [
 }
 
 .app-header__logo {
-    width: 78%;
+    width:65%;
     height: auto;
     object-fit: contain;
     display: block;
