@@ -205,7 +205,7 @@ const mainContacts = [
 }
 
 .app-header__inner {
-    min-height: 101px;
+    min-height: 80px;
     display: grid;
     grid-template-columns: 1fr 220px 1fr;
     align-items: center;
@@ -216,14 +216,14 @@ const mainContacts = [
 .app-header__left {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 9px;
     align-items: flex-start;
 }
 
 .app-header__contacts {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px 18px;
+    gap: 6px 12px;
 }
 
 .app-header__contact {
@@ -241,7 +241,7 @@ const mainContacts = [
 .app-header__quick-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
 }
 
 .app-header__quick-link {
@@ -271,10 +271,10 @@ const mainContacts = [
 }
 
 .app-header__logo-shell {
-    width: 160px;
-    height: 160px;
-    margin-top: 26px;
-    margin-bottom: -26px;
+    width: 140px;
+    height: 140px;
+    margin-top: 22px;
+    margin-bottom: -22px;
     border-radius: 50%;
     background: #fffaf5;
     box-shadow:
@@ -342,7 +342,7 @@ const mainContacts = [
 }
 
 .app-header__bottom-inner {
-    min-height: 62px;
+    min-height: 48px;
     display: flex;
     align-items: center;
     justify-content: space-between;
