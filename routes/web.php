@@ -72,7 +72,7 @@ Route::get('/Ameise/Botany/', function (){
 
 //   C A T E G O R I E S
 
-Route::get('/категория/{category}', [WebCategoryController::class, 'show'])
+Route::get('/категория/{id}', [WebCategoryController::class, 'show'])
     ->name('Categories');
 
 //   C H E C K S
