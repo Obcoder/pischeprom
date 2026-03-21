@@ -18,7 +18,7 @@ const user = computed(() => page.props.auth?.user ?? null)
 const quickLinks = [
     {
         label: 'Рыба',
-        href: '/Seaprom',
+        href: route('Categories', 25),
     },
     {
         label: 'Овощи',
