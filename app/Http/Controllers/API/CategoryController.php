@@ -7,79 +7,67 @@ use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    public function index(Request $request): AnonymousResourceCollection
     {
-        $request->validate([
-                               'search' => 'nullable|string',
-                               'sortBy' => 'nullable|string|in:id,name', // Опционально: ограничьте допустимые поля сортировки, чтобы избежать SQL-ошибок
-                               'sortDesc' => 'nullable|boolean',
-                               'page' => 'nullable|integer|min:1',
-                               'per_page' => 'nullable|integer|min:1|max:100',
-                           ]);
+        $validated = $request->validate([
+                                            'search' => ['nullable', 'string'],
+                                            'sortBy' => ['nullable', 'string', 'in:id,name'],
+                                            'sortDesc' => ['nullable', 'boolean'],
+                                            'page' => ['nullable', 'integer', 'min:1'],
+                                            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+                                        ]);
 
-        $perPage = $request->per_page ?? 100;
+        $perPage = $validated['per_page'] ?? 15;
+        $sortBy = $validated['sortBy'] ?? 'name';
+        $sortDirection = !empty($validated['sortDesc']) ? 'desc' : 'asc';
 
-        $query = Category::query()
+        $categories = Category::query()
             ->withCount('products')
-            ->when($request->search, fn ($q) => $q->where('name', 'like', "%{$request->search}%"))
-            ->when($request->sortBy, fn ($q) => $q->orderBy($request->sortBy, $request->sortDesc ? 'desc' : 'asc'));
-
-        $categories = $query->paginate($perPage);
+            ->search($validated['search'] ?? null)
+            ->ordered($sortBy, $sortDirection)
+            ->paginate($perPage)
+            ->withQueryString();
 
         return CategoryResource::collection($categories);
     }
 
-
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(CategoryFormRequest $request)
+    public function store(CategoryFormRequest $request): CategoryResource
     {
-        return DB::transaction(function () use ($request) {
-            $category = Category::create($request->validated());
-            return new CategoryResource($category);
+        $category = DB::transaction(function () use ($request) {
+            return Category::create($request->validated());
         });
+
+        return new CategoryResource($category->loadCount('products'));
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Category $category): CategoryResource
     {
-        $category = Category::with('products')->findOrFail($id);
+        $category->load(['products'])->loadCount('products');
+
         return new CategoryResource($category);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(CategoryFormRequest $request, string $id)
+    public function update(CategoryFormRequest $request, Category $category): CategoryResource
     {
-        $category = Category::findOrFail($id);
-
-        return DB::transaction(function () use ($request, $category) {
+        DB::transaction(function () use ($request, $category) {
             $category->update($request->validated());
-            return new CategoryResource($category);
         });
+
+        return new CategoryResource($category->fresh()->loadCount('products'));
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy(Category $category): JsonResponse
     {
-        $category = Category::findOrFail($id);
-        $category->delete(); // Если SoftDeletes, иначе forceDelete()
+        $category->delete();
 
-        return response()->json(['message' => 'Category deleted'], 200);
+        return response()->json([
+                                    'message' => 'Category deleted',
+                                ]);
     }
 }

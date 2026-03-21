@@ -1,7 +1,5 @@
 <?php
 
-use App\Http\Controllers\API\FragranceController;
-use App\Http\Controllers\API\QuotationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Models\Category;
@@ -16,7 +14,8 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
 use App\Http\Controllers\API\BuildingController;
-use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\FragranceController;
+use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\CheckCommodityController;
@@ -31,10 +30,12 @@ use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\TelephoneController;
-use App\Http\Controllers\Web\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
+
+use App\Http\Controllers\Web\CategoryController as WebCategoryController;
+use App\Http\Controllers\Web\UnitController;
 
 use App\Http\Controllers\EmailTrackingController;
 
@@ -70,11 +71,10 @@ Route::get('/Ameise/Botany/', function (){
 })->name('Ameise.botany');
 
 //   C A T E G O R I E S
-Route::get('/категория/{id}', function ($id) {
-    return Inertia::render('Categories', [
-        'category' => Category::with('products')->findOrFail($id)
-    ]);
-})->name('Categories');
+
+Route::get('/категория/{category}', [WebCategoryController::class, 'show'])
+    ->name('Categories');
+
 //   C H E C K S
 Route::get('Ameise/checks', function (){
     return Inertia::render('Ameise/Checks');
