@@ -12,7 +12,7 @@ const props = defineProps({
 
 const category = ref()
 
-function fetchCategory(id){
+function fetchCategory(category){
     axios.get(route('category.show', category)).then(function (response){
         category.value = response.data
     }).catch(function (error){
