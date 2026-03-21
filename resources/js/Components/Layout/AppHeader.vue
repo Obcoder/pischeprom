@@ -18,9 +18,9 @@ const search = ref('')
 const isCompact = ref(false)
 
 const quickLinks = [
-    { label: 'Рыба', href: route('Categories', 25) },
-    { label: 'Овощи', href: route('Categories', 30) },
-    { label: 'Бакалея', href: '/grocery' },
+    { label: 'Рыба', href: route('categories.show', 25) },
+    { label: 'Овощи', href: route('categories.show', 30) },
+    { label: 'Бакалея', href: route('categories.show', 31) },
 ]
 
 const mainContacts = [
