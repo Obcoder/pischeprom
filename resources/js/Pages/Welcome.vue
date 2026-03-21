@@ -28,12 +28,33 @@ const props = defineProps({
         type: String,
         required: true,
     },
-    categories: {
-        type: Object,
-    },
     goodOfTheDay: Object,
     productsCount: Number,
     goodsCount: Number,
+
+    categories: {
+        type: Array,
+        default: () => [],
+    },
+    featuredProducts: {
+        type: Array,
+        default: () => [],
+    },
+    promoProduct: {
+        type: Object,
+        default: null,
+    },
+    videos: {
+        type: Array,
+        default: () => [],
+    },
+    stats: {
+        type: Object,
+        default: () => ({
+            productsCount: 0,
+            goodsCount: 0,
+        }),
+    },
 })
 
 const goods = ref([])
@@ -77,6 +98,8 @@ useHead({
 <template>
     <div class="bg-grey-lighten-5">
         <HomeCategoriesSection :categories="categories" />
+
+        <HomeHeroSection :stats="stats" />
     </div>
     <v-container fluid>
         <v-row>
