@@ -201,7 +201,7 @@ onMounted(loadAll)
                 />
 
                 <!-- Фильтр по категориям -->
-                <v-select
+                <v-autocomplete
                     v-model="categoryId"
                     :items="categoryItems"
                     item-title="title"
