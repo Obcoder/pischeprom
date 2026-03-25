@@ -23,7 +23,7 @@ class CategoryController extends Controller
                                             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
                                         ]);
 
-//        $perPage = $validated['per_page'] ?? 15;
+        $perPage = $validated['per_page'] ?? 1115;
         $sortBy = $validated['sortBy'] ?? 'name';
         $sortDirection = !empty($validated['sortDesc']) ? 'desc' : 'asc';
 
@@ -31,7 +31,7 @@ class CategoryController extends Controller
             ->withCount('products')
             ->search($validated['search'] ?? null)
             ->ordered($sortBy, $sortDirection)
-//            ->paginate($perPage)
+            ->paginate($perPage)
             ->withQueryString();
 
         return CategoryResource::collection($categories);
