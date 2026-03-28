@@ -17,7 +17,7 @@ class GoodController extends Controller
     public function index(Request $request)
     {
         $page = (int) $request->input('page', 1);
-        $perPage = (int) $request->input('per_page', 25);
+        $perPage = (int) $request->input('per_page', 9999);
         $search = trim((string) $request->input('search', ''));
         $isPublished = $request->input('is_published');
         $sortBy = (string) $request->input('sort_by', 'name');
