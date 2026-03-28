@@ -138,8 +138,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import axios from 'axios'
-import { usePurchases } from '@/composables/usePurchases.js'
-import { usePurchaseForm } from '@/composables/usePurchaseForm.js'
+import { usePurchases } from '@/Composables/usePurchases.js'
+import { usePurchaseForm } from '@/Composables/usePurchaseForm.js'
 
 const {
     items,
