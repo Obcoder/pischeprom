@@ -180,13 +180,24 @@ const loadPurchases = async () => {
 }
 
 const loadDictionaries = async () => {
-    const [entitiesRes, goodsRes] = await Promise.all([
-        axios.get('/api/entities', { params: { per_page: 1000 } }),
-        axios.get('/api/goods', { params: { per_page: 1000 } }),
-    ])
+    try {
+        const [entitiesRes, goodsRes] = await Promise.all([
+            axios.get('/api/entities'),
+            axios.get('/api/goods'),
+        ])
 
-    entities.value = entitiesRes.data.data
-    goodsOptions.value = goodsRes.data.data
+        entities.value = Array.isArray(entitiesRes.data)
+            ? entitiesRes.data
+            : (entitiesRes.data.data ?? [])
+
+        goodsOptions.value = Array.isArray(goodsRes.data)
+            ? goodsRes.data
+            : (goodsRes.data.data ?? [])
+    } catch (error) {
+        console.error('Ошибка загрузки справочников', error)
+        entities.value = []
+        goodsOptions.value = []
+    }
 }
 
 const openCreate = () => {
