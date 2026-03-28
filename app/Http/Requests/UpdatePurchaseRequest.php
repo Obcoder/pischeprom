@@ -19,13 +19,12 @@ class UpdatePurchaseRequest extends FormRequest
             'amount' => ['nullable', 'numeric', 'min:0'],
 
             'items' => ['required', 'array', 'min:1'],
-
             'items.*.good_id' => ['required', 'exists:goods,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.0001'],
             'items.*.measure_id' => ['nullable', 'exists:measures,id'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
             'items.*.currency_id' => ['nullable', 'exists:currencies,id'],
-            'items.*.total' => ['required', 'numeric', 'min:0'],
+            'items.*.total' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

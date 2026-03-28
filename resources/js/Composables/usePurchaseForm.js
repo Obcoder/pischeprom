@@ -67,7 +67,6 @@ export function usePurchaseForm() {
                 measure_id: item.measure_id || null,
                 price: Number(item.price || 0),
                 currency_id: item.currency_id || null,
-                total: Number(item.total || 0),
             })),
     }))
 

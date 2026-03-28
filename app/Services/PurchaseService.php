@@ -58,7 +58,6 @@ class PurchaseService
                 'measure_id' => $item['measure_id'] ?: null,
                 'price' => (float) $item['price'],
                 'currency_id' => $item['currency_id'] ?: null,
-                'total' => (float) $item['total'],
             ];
         }
 
