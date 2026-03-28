@@ -73,7 +73,7 @@
                         </v-col>
 
                         <v-col cols="12" md="4">
-                            <v-select
+                            <v-autocomplete
                                 v-model="form.entity_id"
                                 :items="entities"
                                 item-title="name"
@@ -106,7 +106,7 @@
                         class="align-center"
                     >
                         <v-col cols="10">
-                            <v-select
+                            <v-autocomplete
                                 v-model="goodRow.id"
                                 :items="goodsOptions"
                                 item-title="name"
