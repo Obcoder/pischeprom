@@ -13,7 +13,7 @@ class PurchaseService
         return DB::transaction(function () use ($data) {
             $items = Arr::pull($data, 'items', []);
 
-            $amount = collect($items)->sum(fn ($item) => (float) $item['total']);
+            $amount = $this->calculateAmount($items);
 
             $purchase = Purchase::create([
                                              'date' => $data['date'],
@@ -32,7 +32,7 @@ class PurchaseService
         return DB::transaction(function () use ($purchase, $data) {
             $items = Arr::pull($data, 'items', []);
 
-            $amount = collect($items)->sum(fn ($item) => (float) $item['total']);
+            $amount = $this->calculateAmount($items);
 
             $purchase->update([
                                   'date' => $data['date'],
@@ -46,6 +46,16 @@ class PurchaseService
         });
     }
 
+    protected function calculateAmount(array $items): float
+    {
+        return (float) collect($items)->sum(function ($item) {
+            $quantity = (float) ($item['quantity'] ?? 0);
+            $price = (float) ($item['price'] ?? 0);
+
+            return $quantity * $price;
+        });
+    }
+
     protected function prepareSyncData(array $items): array
     {
         $syncData = [];
@@ -54,10 +64,10 @@ class PurchaseService
             $goodId = (int) $item['good_id'];
 
             $syncData[$goodId] = [
-                'quantity' => (float) $item['quantity'],
-                'measure_id' => $item['measure_id'] ?: null,
-                'price' => (float) $item['price'],
-                'currency_id' => $item['currency_id'] ?: null,
+                'quantity' => (float) ($item['quantity'] ?? 0),
+                'measure_id' => !empty($item['measure_id']) ? (int) $item['measure_id'] : null,
+                'price' => (float) ($item['price'] ?? 0),
+                'currency_id' => !empty($item['currency_id']) ? (int) $item['currency_id'] : null,
             ];
         }
 
