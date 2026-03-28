@@ -90,7 +90,21 @@ class Good extends Model
     {
         return $this->hasMany(Price::class)->latest();
     }
-
+    public function purchases(): BelongsToMany
+    {
+        return $this->belongsToMany(Purchase::class, 'good_purchase')
+            ->withPivot([
+                            'id',
+                            'quantity',
+                            'measure_id',
+                            'price',
+                            'currency_id',
+                            'total',
+                            'created_at',
+                            'updated_at',
+                        ])
+            ->withTimestamps();
+    }
     public function quotations(): HasMany
     {
         return $this->hasMany(Quotation::class)->latest();

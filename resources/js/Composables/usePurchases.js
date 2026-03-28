@@ -18,11 +18,13 @@ export function usePurchases() {
         try {
             const { data } = await axios.get('/api/purchases', { params })
             items.value = data.data
-            pagination.value = {
-                total: data.meta.total,
-                per_page: data.meta.per_page,
-                current_page: data.meta.current_page,
-                last_page: data.meta.last_page,
+            if (data.meta) {
+                pagination.value = {
+                    total: data.meta.total,
+                    per_page: data.meta.per_page,
+                    current_page: data.meta.current_page,
+                    last_page: data.meta.last_page,
+                }
             }
         } finally {
             loading.value = false

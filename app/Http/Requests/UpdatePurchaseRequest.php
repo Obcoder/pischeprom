@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Purchase;
 
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -17,8 +17,15 @@ class UpdatePurchaseRequest extends FormRequest
             'date' => ['required', 'date'],
             'entity_id' => ['required', 'exists:entities,id'],
             'amount' => ['nullable', 'numeric', 'min:0'],
-            'goods' => ['nullable', 'array'],
-            'goods.*.id' => ['required', 'exists:goods,id'],
+
+            'items' => ['required', 'array', 'min:1'],
+
+            'items.*.good_id' => ['required', 'exists:goods,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.0001'],
+            'items.*.measure_id' => ['nullable', 'exists:measures,id'],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.currency_id' => ['nullable', 'exists:currencies,id'],
+            'items.*.total' => ['required', 'numeric', 'min:0'],
         ];
     }
 }

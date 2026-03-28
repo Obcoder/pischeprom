@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StorePurchaseRequest;
-use App\Http\Requests\UpdatePurchaseRequest;
+use App\Http\Requests\Purchase\StorePurchaseRequest;
+use App\Http\Requests\Purchase\UpdatePurchaseRequest;
 use App\Http\Resources\PurchaseResource;
 use App\Models\Purchase;
 use App\Services\PurchaseService;
@@ -33,9 +33,7 @@ class PurchaseController extends Controller
 
     public function show(Purchase $purchase): PurchaseResource
     {
-        return new PurchaseResource(
-            $purchase->load(['entity', 'goods'])
-        );
+        return new PurchaseResource($purchase->load(['entity', 'goods']));
     }
 
     public function store(StorePurchaseRequest $request): PurchaseResource
