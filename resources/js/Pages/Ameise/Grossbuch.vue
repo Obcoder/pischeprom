@@ -16,6 +16,13 @@ import Industries from "@/Components/Dictionaries/Industries.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
 import Purchases from "@/Pages/Purchases/Purchases.vue";
 
+import { useUnits } from '@/Composables/useUnits.js'
+const {
+    units,
+    loadingUnits,
+    indexUnits,
+} = useUnits()
+
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -53,7 +60,6 @@ const sale = ref()
 const sales = ref([])
 const segments = ref([])
 const telephones = ref([])
-const units = ref([])
 
 let manufacturers = ref();
 
@@ -1123,17 +1129,15 @@ const formatBuildingTitle = (building) => {
                                                                         </v-row>
                                                                         <v-row>
                                                                             <v-col>
-                                                                                <v-autocomplete :items="units"
-                                                                                                :item-value="'id'"
-                                                                                                :item-title="'name'"
-                                                                                                v-model="formEntity.units"
-                                                                                                label="Units"
-                                                                                                placeholder="Привяжите к entity unit"
-                                                                                                variant="outlined"
-                                                                                                density="compact"
-                                                                                                color="light-green-accent-3"
-                                                                                                hide-details
-                                                                                ></v-autocomplete>
+                                                                                <v-autocomplete
+                                                                                    v-model="form.unit_id"
+                                                                                    :items="units"
+                                                                                    item-title="name"
+                                                                                    item-value="id"
+                                                                                    label="Unit"
+                                                                                    :loading="loadingUnits"
+                                                                                    variant="outlined"
+                                                                                />
                                                                             </v-col>
                                                                         </v-row>
                                                                     </v-form>
