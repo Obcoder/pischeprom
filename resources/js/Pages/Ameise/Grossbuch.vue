@@ -1129,15 +1129,17 @@ const formatBuildingTitle = (building) => {
                                                                         </v-row>
                                                                         <v-row>
                                                                             <v-col>
-                                                                                <v-autocomplete
-                                                                                    v-model="form.unit_id"
-                                                                                    :items="units"
-                                                                                    item-title="name"
-                                                                                    item-value="id"
-                                                                                    label="Unit"
-                                                                                    :loading="loadingUnits"
-                                                                                    variant="outlined"
-                                                                                />
+                                                                                <v-autocomplete :items="units"
+                                                                                                :item-value="'id'"
+                                                                                                :item-title="'name'"
+                                                                                                v-model="formEntity.units"
+                                                                                                label="Units"
+                                                                                                placeholder="Привяжите к entity unit"
+                                                                                                variant="outlined"
+                                                                                                density="compact"
+                                                                                                color="light-green-accent-3"
+                                                                                                hide-details
+                                                                                ></v-autocomplete>
                                                                             </v-col>
                                                                         </v-row>
                                                                     </v-form>
