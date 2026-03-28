@@ -3,65 +3,61 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Purchase\StorePurchaseRequest;
+use App\Http\Requests\Purchase\UpdatePurchaseRequest;
+use App\Http\Resources\PurchaseResource;
 use App\Models\Purchase;
+use App\Services\PurchaseService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PurchaseController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct(
+        protected PurchaseService $purchaseService
+    ) {}
+
+    public function index(Request $request)
     {
-        return Purchase::orderBy('created_at', 'desc')
-            ->get();
+        $purchases = Purchase::query()
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $query->whereHas('entity', function ($q) use ($request) {
+                    $q->where('name', 'like', '%' . $request->string('search') . '%');
+                });
+            })
+            ->orderByDesc('date')
+            ->paginate(15);
+
+        return PurchaseResource::collection($purchases);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function show(Purchase $purchase): PurchaseResource
     {
-        //
+        return new PurchaseResource(
+            $purchase->load(['entity', 'goods'])
+        );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(StorePurchaseRequest $request): PurchaseResource
     {
-        //
+        $purchase = $this->purchaseService->store($request->validated());
+
+        return new PurchaseResource($purchase);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function update(UpdatePurchaseRequest $request, Purchase $purchase): PurchaseResource
     {
-        //
+        $purchase = $this->purchaseService->update($purchase, $request->validated());
+
+        return new PurchaseResource($purchase);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function destroy(Purchase $purchase): JsonResponse
     {
-        //
-    }
+        $purchase->delete();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json([
+                                    'message' => 'Закупка удалена',
+                                ]);
     }
 }

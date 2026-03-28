@@ -14,6 +14,7 @@ import Uris from '@/Components/Dictionaries/Uris.vue';
 import Products from '@/Components/Dictionaries/Products.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
+import Purchases from "@/Pages/Purchases/Purchases.vue";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -784,15 +785,6 @@ function storeTelephone(){
 
 
 
-
-
-//   U R I S
-
-
-//     E N D  U R I S
-
-
-
 //    C I T Y  S T O R E
 const formCity = useForm({
     name: null,
@@ -965,6 +957,7 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
                             <v-tab value="geography">География</v-tab>
+                            <v-tab value="purchases">Закупки</v-tab>
                             <v-tab value="sales">Продажи</v-tab>
                         </v-tabs>
 
@@ -1732,6 +1725,11 @@ const formatBuildingTitle = (building) => {
                                     </v-tabs-window>
                                 </v-tabs-window-item>
                                 <!--      E N D  G E O G R A P H Y      -->
+
+
+                                <v-tabs-window-item value="purchases">
+                                    <Purchases />
+                                </v-tabs-window-item>
 
                                 <!--           К О Н Т А К Т Ы           -->
                                 <v-tabs-window-item value="contacts">
