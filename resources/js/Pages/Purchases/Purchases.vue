@@ -1,8 +1,8 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import axios from 'axios'
-import { usePurchases } from '../../Composables/usePurchases'
-import { usePurchaseForm } from '../../Composables/usePurchaseForm'
+import { usePurchases } from '@/Composables/usePurchases.js'
+import { usePurchaseForm } from '@/Composables/usePurchaseForm.js'
 
 const {
     items,
@@ -220,7 +220,7 @@ onMounted(async () => {
                         </v-col>
 
                         <v-col cols="12" md="4">
-                            <v-select
+                            <v-autocomplete
                                 v-model="form.entity_id"
                                 :items="entities"
                                 item-title="name"
