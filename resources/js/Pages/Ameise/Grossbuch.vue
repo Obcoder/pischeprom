@@ -906,7 +906,7 @@ onMounted(()=>{
     indexSales()
     indexSegments()
     indexTelephones()
-    // indexUnits()
+    indexUnits()
     // indexUris()
 
     getManufacturers();
