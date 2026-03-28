@@ -170,6 +170,7 @@ onMounted(async () => {
                     :items="items"
                     :loading="loading"
                     item-value="id"
+                    hover
                 >
                     <template #item.entity="{ item }">
                         {{ item.entity?.name }}
@@ -252,7 +253,7 @@ onMounted(async () => {
                         class="align-center mb-2"
                     >
                         <v-col cols="12" md="3">
-                            <v-select
+                            <v-autocomplete
                                 v-model="itemRow.good_id"
                                 :items="goodsOptions"
                                 item-title="name"
