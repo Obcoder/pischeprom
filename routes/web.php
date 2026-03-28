@@ -151,11 +151,13 @@ Route::get('/Ameise/region/{id}', function ($id){
 
 //     P U R C H A S E
 
-Route::prefix('purchases')->group(function () {
-    Route::get('/', [PurchaseController::class, 'index'])->name('purchases.index');
-    Route::get('/create', [PurchaseController::class, 'create'])->name('purchases.create');
-    Route::get('/{purchase}/edit', [PurchaseController::class, 'edit'])->name('purchases.edit');
-});
+Route::prefix('purchases')
+    ->name('web.purchases.')
+    ->group(function () {
+        Route::get('/', [PurchaseController::class, 'index'])->name('index');
+        Route::get('/create', [PurchaseController::class, 'create'])->name('create');
+        Route::get('/{purchase}/edit', [PurchaseController::class, 'edit'])->name('edit');
+    });
 
 //     S A L E S
 Route::get('/Ameise/Sales/', function (){
