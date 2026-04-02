@@ -103,7 +103,10 @@ Route::get('/Ameise/ContactsCentre', function (){
 
 //      E N T I T I E S
 
-Route::resource('entities', EntityController::class);
+Route::prefix('web')->name('web.')->group(function () {
+    Route::resource('entities', EntityController::class);
+});
+
 
 //     F L U X  M O N I T O R
 Route::get('/Ameise/FluxMonitor/', function (){
