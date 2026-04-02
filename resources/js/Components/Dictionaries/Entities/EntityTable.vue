@@ -44,8 +44,8 @@ const headers = [
 ]
 
 const localPanels = computed({
-    get: () => (props.filtersOpened ? [0] : []),
-    set: (value) => emit('update:filtersOpened', value.includes(0)),
+    get: () => (props.filtersOpened ? 0 : null),
+    set: (value) => emit('update:filtersOpened', value === 0),
 })
 
 const onOptionsUpdate = (options) => {

@@ -33,13 +33,13 @@ class EntityMetaController extends Controller
                                         ->get(),
 
                                     'buildings' => Building::query()
-                                        ->select('id', 'name')
-                                        ->orderBy('name')
+                                        ->select('id', 'address')
+                                        ->orderBy('address')
                                         ->get(),
 
                                     'emails' => Email::query()
-                                        ->select('id', 'email')
-                                        ->orderBy('email')
+                                        ->select('id', 'address')
+                                        ->orderBy('address')
                                         ->get(),
 
                                     'telephones' => Telephone::query()
@@ -53,8 +53,8 @@ class EntityMetaController extends Controller
                                         ->get(),
 
                                     'chats' => Chat::query()
-                                        ->select('id', 'name')
-                                        ->orderBy('name')
+                                        ->select('id', 'numbers')
+                                        ->orderBy('numbers')
                                         ->get(),
                                 ]);
     }
