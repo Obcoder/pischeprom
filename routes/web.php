@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
+
+use App\Http\Controllers\EntityController;
+
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\QuotationController;
@@ -20,7 +23,6 @@ use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\CheckCommodityController;
 use App\Http\Controllers\API\CommodityController;
-use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
@@ -98,10 +100,11 @@ Route::get('/Ameise/Commodities/', function (){
 Route::get('/Ameise/ContactsCentre', function (){
     return Inertia::render('Ameise/ContactsCentre');
 })->name('Ameise.contactsCentre');
+
 //      E N T I T I E S
-Route::get('/Ameise/entities/', function (){
-    return Inertia::render('Ameise/Entities');
-})->name('Ameise.entities');
+
+Route::resource('entities', EntityController::class);
+
 //     F L U X  M O N I T O R
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
@@ -233,23 +236,31 @@ Route::post('/web/checkcommodity/store/', [CheckCommodityController::class, 'sto
 //     C O M M O D I T Y
 Route::post('/web/commodity/store', [CommodityController::class, 'store'])
     ->name('web.commodity.store');
-//    E N T I T Y
-Route::post('/entity/store', [EntityController::class, 'store'])
-    ->name('web.entity.store');
+
 //      F R A G R A N C E
 Route::post('/web/fragrance/store', [FragranceController::class, 'store'])
     ->name('web.fragrance.store');
 //    G E N U S
 Route::post('/api/genus/store', [GenusController::class, 'store'])
     ->name('web.genus.store');
-Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
-    ->name('web.labelunit.store');
+Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, 'toggleAgriculturable'])
+    ->name('genera.toggleAgriculturable');
+
+
+
 //    G O O D
 Route::post('/api/good/store', [GoodController::class, 'store'])
     ->name('web.good.store');
 //    G O O D - S A L E
 Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
     ->name('web.goodsale.store');
+
+//   L A B E L S
+
+Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
+    ->name('web.labelunit.store');
+
+
 //      M A N U F A C T U R E R
 Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
     ->name('web.manufacturer.store');
@@ -317,7 +328,3 @@ Route::get('/Ameise/TelegramBot/', function (){
     return Inertia::render('Ameise/TelegramBot');
 })->name('ameise.telegrambot');
 ///E N D//////////////////////////////////////////////////////////
-
-
-Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, 'toggleAgriculturable'])
-    ->name('genera.toggleAgriculturable');

@@ -8,13 +8,18 @@ import {useDate} from 'vuetify';
 import {logo} from "@/Pages/Helpers/consts.js";
 import {format} from "date-fns";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+defineOptions({
+    layout: VerwalterLayout,
+})
+
 import Categories from '@/Components/Dictionaries/Categories.vue';
+import Entities from "@/Components/Dictionaries/Entities.vue";
+import Goods from "@/Components/Dictionaries/Goods.vue";
+import Industries from "@/Components/Dictionaries/Industries.vue";
+import Products from '@/Components/Dictionaries/Products.vue';
+import Purchases from "@/Pages/Purchases/Purchases.vue";
 import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
-import Products from '@/Components/Dictionaries/Products.vue';
-import Industries from "@/Components/Dictionaries/Industries.vue";
-import Goods from "@/Components/Dictionaries/Goods.vue";
-import Purchases from "@/Pages/Purchases/Purchases.vue";
 
 import { useUnits } from '@/Composables/useUnits.js'
 const {
@@ -22,10 +27,6 @@ const {
     loadingUnits,
     indexUnits,
 } = useUnits()
-
-defineOptions({
-    layout: VerwalterLayout,
-})
 
 const date = useDate()
 
@@ -46,7 +47,6 @@ const commodities = ref([])
 const components = ref([])
 const countries = ref([])
 const emails = ref([])
-const entities = ref([])
 const entityClassifications = ref([])
 const fields = ref([])
 const good = ref(null)
@@ -374,113 +374,6 @@ function indexEmails(){
 
 
 
-//   E N T I T I E S
-function indexEntities(){
-    axios.get(route('entities.index')).then(function (response){
-        entities.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-const headerEntities = [
-    {
-        title: 'name',
-        key: 'name',
-        align: 'start',
-        width: '24%',
-    },
-    {
-        title: 'Вид entity',
-        key: 'classification.name',
-        align: 'start',
-    },
-    {
-        title: 'ИНН',
-        key: 'INN',
-        align: 'start',
-    },
-    {
-        title: 'ОГРН',
-        key: 'OGRN',
-        align: 'start',
-    },
-    {
-        title: 'Телефоны',
-        key: 'telephones',
-        align: 'start',
-    },
-    {
-        key: 'emails',
-        title: 'Emails',
-        align: 'start',
-        sortable: true,
-    },
-    {
-        title: 'Buildings',
-        key: 'buildings',
-        align: 'start',
-        width: '12%',
-    },
-    {
-        title: 'Units',
-        key: 'units',
-        align: 'start',
-    },
-    {
-        title: 'Города',
-        key: 'cities',
-        align: 'start',
-    },
-    {
-        title: 'Страна',
-        key: 'country.name',
-        align: 'start',
-    },
-    {
-        title: 'Chats',
-        key: 'chats',
-        align: 'start',
-    },
-]
-const searchEntities = ref('')
-const filteredEntities = computed(()=>{
-    let filteredItems = entities.value
-
-    if(searchEntities.value){
-        const search = searchEntities.value.toLowerCase()
-        filteredItems = filteredItems.filter(item => item.name.toLowerCase().includes(search))
-    }
-
-    return filteredItems
-})
-const dialogFormEntity = ref(false);
-const formEntity = useForm({
-    name: null,
-    entity_classification_id: null,
-    INN: null,
-    OGRN: null,
-    country_id: null,
-    buildings: null,
-    cities: null,
-    emails: null,
-    telephones: null,
-    units: null,
-})
-function storeEntity(){
-    formEntity.post(route('web.entity.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formEntity.reset()
-            indexEntities()
-        },
-    })
-}
-//  E N D  E N T I T I E S
-
-
-
 //     E N T I T Y  C L A S S I F I C A T I O N S
 function indexEntityClassifications(){
     axios.get(route('entities-classification.index')).then(function (response){
@@ -593,11 +486,7 @@ function indexProducts(){
         // always executed
     });
 }
-const filteredProducts = computed(()=>{
-    const search = searchProducts.value.toLowerCase()
-    return products.value.filter(i => i.rus.toLowerCase().includes(search) &&
-        (selectedCategoriesIDs.value.length === 0 || selectedCategoriesIDs.value.includes(i.category_id)))
-})
+
 // Функция выбора категорий
 const toggleCategories = (categoryId) => {
     if (selectedCategoriesIDs.value.includes(categoryId)) {
@@ -900,7 +789,6 @@ onMounted(()=>{
     indexComponents()
     indexCountries()
     indexEmails()
-    indexEntities()
     indexEntityClassifications()
     indexFields()
     indexGoods()
@@ -981,232 +869,12 @@ const formatBuildingTitle = (building) => {
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="entities">
                                             <v-container fluid>
-                                                <v-row>
-                                                    <v-col lg="2">
-                                                        <v-text-field v-model="searchEntities"
-                                                                      label="Поиск по entities"
-                                                                      placeholder="By name"
-                                                                      variant="outlined"
-                                                                      density="compact"
-                                                                      hide-details
-                                                                      color="purple-darken-4"
-                                                                      class="text-sm"
-                                                        ></v-text-field>
-                                                    </v-col>
-                                                    <v-col lg="1">
-                                                        <v-btn text="+"
-                                                               @click="dialogFormEntity = !dialogFormEntity"
-                                                               variant="elevated"
-                                                               density="compact"
-                                                               color="purple-darken-3"
-                                                        ></v-btn>
-                                                        <v-dialog v-model="dialogFormEntity"
-                                                                  width="990"
-                                                                  transition="dialog-top-transition"
-                                                        >
-                                                            <v-card>
-                                                                <v-card-title>Form Entity</v-card-title>
-                                                                <v-card-text>
-                                                                    <v-form @submit.prevent>
-                                                                        <v-row>
-                                                                            <v-col cols="9">
-                                                                                <v-text-field v-model="formEntity.name"
-                                                                                              label="Name"
-                                                                                              variant="outlined"
-                                                                                              density="comfortable"
-                                                                                              color="purple"
-                                                                                              hide-details
-                                                                                ></v-text-field>
-                                                                            </v-col>
-                                                                            <v-col cols="3">
-                                                                                <v-select :items="entityClassifications"
-                                                                                          :item-value="'id'"
-                                                                                          :item-title="'name'"
-                                                                                          v-model="formEntity.entity_classification_id"
-                                                                                          label="Вид entity"
-                                                                                          variant="solo"
-                                                                                          density="comfortable"
-                                                                                          class="text-sm"
-                                                                                          hide-details
-                                                                                ></v-select>
-                                                                            </v-col>
-                                                                        </v-row>
-                                                                        <v-row>
-                                                                            <v-col>
-                                                                                <v-autocomplete :items="telephones"
-                                                                                                :item-value="'id'"
-                                                                                                :item-title="'number'"
-                                                                                                v-model="formEntity.telephones"
-                                                                                                label="Telephones"
-                                                                                                placeholder="number without +7"
-                                                                                                variant="outlined"
-                                                                                                density="comfortable"
-                                                                                                color="yellow-accent-1"
-                                                                                                hide-details
-                                                                                                multiple
-                                                                                                chips
-                                                                                ></v-autocomplete>
-                                                                            </v-col>
-                                                                            <v-col>
-                                                                                <v-autocomplete :items="emails"
-                                                                                                :item-value="'id'"
-                                                                                                :item-title="'address'"
-                                                                                                v-model="formEntity.emails"
-                                                                                                label="Emails"
-                                                                                                placeholder="email address"
-                                                                                                variant="solo"
-                                                                                                density="comfortable"
-                                                                                                color="yellow-accent-1"
-                                                                                                hide-details
-                                                                                                multiple
-                                                                                                chips
-                                                                                ></v-autocomplete>
-                                                                            </v-col>
-                                                                            <v-col>
-                                                                                <v-autocomplete :items="buildings"
-                                                                                                :item-value="'id'"
-                                                                                                :item-title="'address'"
-                                                                                                v-model="formEntity.buildings"
-                                                                                                multiple
-                                                                                                label="Buildings"
-                                                                                                placeholder="Адрес здания"
-                                                                                                variant="outlined"
-                                                                                                density="comfortable"
-                                                                                                color="teal"
-                                                                                                hide-details
-                                                                                ></v-autocomplete>
-                                                                            </v-col>
-                                                                        </v-row>
-                                                                        <v-row>
-                                                                            <v-col>
-                                                                                <v-text-field v-model="formEntity.INN"
-                                                                                              label="ИНН"
-                                                                                              placeholder="Введите цифры ИНН"
-                                                                                              variant="solo"
-                                                                                              density="comfortable"
-                                                                                              color="indigo-accent-2"
-                                                                                              hide-details></v-text-field>
-                                                                            </v-col>
-                                                                            <v-col>
-                                                                                <v-text-field v-model="formEntity.OGRN"
-                                                                                              label="ОГРН"
-                                                                                              placeholder="Введите цифры ОГРН"
-                                                                                              variant="solo"
-                                                                                              density="comfortable"
-                                                                                              color="indigo-accent-2"
-                                                                                              hide-details
-                                                                                ></v-text-field>
-                                                                            </v-col>
-                                                                        </v-row>
-                                                                        <v-row>
-                                                                            <v-col>
-                                                                                <v-autocomplete :items="cities"
-                                                                                                :item-value="'id'"
-                                                                                                :item-title="'name'"
-                                                                                                v-model="formEntity.cities"
-                                                                                                label="Cities"
-                                                                                                placeholder="Населенный пункт"
-                                                                                                variant="solo"
-                                                                                                density="comfortable"
-                                                                                                color="grey"
-                                                                                                hide-details
-                                                                                                multiple
-                                                                                ></v-autocomplete>
-                                                                            </v-col>
-                                                                            <v-col>
-                                                                                <v-autocomplete :items="countries"
-                                                                                                :item-value="'id'"
-                                                                                                :item-title="'name'"
-                                                                                                v-model="formEntity.country_id"
-                                                                                                label="Country"
-                                                                                                placeholder="Страна"
-                                                                                                variant="filled"
-                                                                                                density="comfortable"
-                                                                                                color="purple-lighten-5"
-                                                                                                hide-details
-                                                                                ></v-autocomplete>
-                                                                            </v-col>
-                                                                        </v-row>
-                                                                        <v-row>
-                                                                            <v-col>
-                                                                                <v-autocomplete :items="units"
-                                                                                                :item-value="'id'"
-                                                                                                :item-title="'name'"
-                                                                                                v-model="formEntity.units"
-                                                                                                label="Units"
-                                                                                                placeholder="Привяжите к entity unit"
-                                                                                                variant="outlined"
-                                                                                                density="compact"
-                                                                                                color="light-green-accent-3"
-                                                                                                hide-details
-                                                                                ></v-autocomplete>
-                                                                            </v-col>
-                                                                        </v-row>
-                                                                    </v-form>
-                                                                </v-card-text>
-                                                                <v-card-actions>
-                                                                    <v-btn @click="storeEntity"
-                                                                           text="сохранить"
-                                                                           variant="flat"
-                                                                    ></v-btn>
-                                                                </v-card-actions>
-                                                            </v-card>
-                                                        </v-dialog>
-                                                    </v-col>
-                                                </v-row>
-                                                <v-row>
-                                                    <v-col>
-                                                        <v-data-table :items="filteredEntities"
-                                                                      items-per-page="160"
-                                                                      :headers="headerEntities"
-                                                                      fixed-header
-                                                                      height="875px"
-                                                                      fixed-footer
-                                                                      density="compact"
-                                                                      hover
-                                                                      class="border rounded"
-                                                        >
-                                                            <template v-slot:item.telephones="{item}">
-                                                                <div v-for="telephone in item.telephones">
-                                                                    {{telephone.number}}
-                                                                </div>
-                                                            </template>
-                                                            <template v-slot:item.buildings="{item}">
-                                                                <div v-for="building in item.buildings"
-                                                                     class="text-xs"
-                                                                >
-                                                                    {{building.address}}
-                                                                </div>
-                                                            </template>
-                                                            <template v-slot:item.units="{item}">
-                                                                <div v-for="unit in item.units"
-                                                                     class="text-xs"
-                                                                >
-                                                                    {{unit.name}}
-                                                                </div>
-                                                            </template>
-                                                            <template v-slot:item.cities="{item}">
-                                                                <div v-for="city in item.cities">
-                                                                    {{city.name}}
-                                                                </div>
-                                                            </template>
-                                                            <template v-slot:item.chats="{item}">
-                                                                <div v-for="chat in item.chats"
-                                                                     class="text-[8px]"
-                                                                >
-                                                                    {{chat.numbers}}
-                                                                </div>
-                                                            </template>
-                                                        </v-data-table>
-                                                    </v-col>
-                                                </v-row>
+                                                <Entities />
                                             </v-container>
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>
                                 <!--           E N D  U N I T S           -->
-
-
 
 
 
@@ -2198,13 +1866,6 @@ const formatBuildingTitle = (building) => {
                                     </div>
                                 </v-tabs-window-item>
                                 <!--  E N D  M A I L    -->
-
-
-
-
-
-
-
 
 
 
