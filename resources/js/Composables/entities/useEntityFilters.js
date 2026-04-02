@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 
 export function useEntityFilters() {
-    const filters = reactive({
+    const initialState = () => ({
         search: '',
         entity_classification_ids: [],
         country_ids: [],
@@ -13,16 +13,10 @@ export function useEntityFilters() {
         chat_ids: [],
     })
 
+    const filters = reactive(initialState())
+
     const resetFilters = () => {
-        filters.search = ''
-        filters.entity_classification_ids = []
-        filters.country_ids = []
-        filters.city_ids = []
-        filters.building_ids = []
-        filters.email_ids = []
-        filters.telephone_ids = []
-        filters.unit_ids = []
-        filters.chat_ids = []
+        Object.assign(filters, initialState())
     }
 
     return {

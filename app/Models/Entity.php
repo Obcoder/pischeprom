@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -22,15 +22,8 @@ class Entity extends Model
     ];
 
     protected $with = [
-        'buildings',
         'classification',
         'country',
-        'emails',
-    ];
-
-    protected $appends = [
-        'city_names',
-        'formatted_phones',
     ];
 
     public function buildings(): BelongsToMany
@@ -76,68 +69,28 @@ class Entity extends Model
 
     public function sales(): HasMany
     {
-        return $this->hasMany(Sale::class)
-            ->orderByDesc('date');
+        return $this->hasMany(Sale::class)->orderByDesc('date');
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Accessors
-    |--------------------------------------------------------------------------
-    */
-
-    public function getCityNamesAttribute(): string
-    {
-        return $this->cities->pluck('name')->filter()->implode(', ');
-    }
-
-    public function getFormattedPhonesAttribute(): string
-    {
-        return $this->telephones
-            ->map(function ($phone) {
-                $raw = preg_replace('/\D+/', '', $phone->number ?? '');
-
-                // Пример: 79001234567 -> +7 900 123-45-67
-                if (mb_strlen($raw) === 11) {
-                    $countryCode = mb_substr($raw, 0, 1);
-                    $part1 = mb_substr($raw, 1, 3);
-                    $part2 = mb_substr($raw, 4, 3);
-                    $part3 = mb_substr($raw, 7, 2);
-                    $part4 = mb_substr($raw, 9, 2);
-
-                    return "+{$countryCode} {$part1} {$part2}-{$part3}-{$part4}";
-                }
-
-                return $phone->number ?? '';
-            })
-            ->implode(', ');
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Scopes
-    |--------------------------------------------------------------------------
-    */
 
     public function scopeBaseRelations(Builder $query): Builder
     {
         return $query->with([
-                                'buildings',
                                 'classification',
                                 'country',
+                                'buildings',
+                                'cities',
                                 'emails',
                                 'telephones',
-                                'cities',
-                                'chats',
                                 'units',
+                                'chats',
                             ]);
     }
 
-    public function scopeWithStats(Builder $query): Builder
+    public function scopeWithTableStats(Builder $query): Builder
     {
         return $query
             ->withCount('sales')
-            ->withMax('sales', 'date'); // sales_max_date
+            ->withMax('sales', 'date');
     }
 
     public function scopeSearch(Builder $query, ?string $search): Builder
@@ -153,8 +106,8 @@ class Entity extends Model
                 ->orWhereHas('classification', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('country', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('cities', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('telephones', fn (Builder $sq) => $sq->where('number', 'like', "%{$search}%"))
                 ->orWhereHas('emails', fn (Builder $sq) => $sq->where('email', 'like', "%{$search}%"))
+                ->orWhereHas('telephones', fn (Builder $sq) => $sq->where('number', 'like', "%{$search}%"))
                 ->orWhereHas('units', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('chats', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('buildings', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"));
@@ -190,16 +143,16 @@ class Entity extends Model
             });
     }
 
-    public function scopeApplySort(Builder $query, ?string $sortBy = null, ?string $sortDesc = null): Builder
+    public function scopeApplySort(Builder $query, ?string $sortBy = null, bool $sortDesc = true): Builder
     {
-        $direction = filter_var($sortDesc, FILTER_VALIDATE_BOOLEAN) ? 'desc' : 'asc';
+        $direction = $sortDesc ? 'desc' : 'asc';
 
         return match ($sortBy) {
             'name' => $query->orderBy('name', $direction),
             'INN' => $query->orderBy('INN', $direction),
             'OGRN' => $query->orderBy('OGRN', $direction),
             'sales_count' => $query->orderBy('sales_count', $direction),
-            'last_purchase_date' => $query->orderBy('sales_max_date', $direction),
+            'sales_max_date' => $query->orderBy('sales_max_date', $direction),
             default => $query->orderByDesc('sales_count')->orderBy('name'),
         };
     }

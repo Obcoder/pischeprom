@@ -18,6 +18,10 @@ export function useEntityForm() {
 
     const form = reactive(initialState())
 
+    const resetForm = () => {
+        Object.assign(form, initialState())
+    }
+
     const fillForm = (entity) => {
         form.id = entity.id ?? null
         form.name = entity.name ?? ''
@@ -25,16 +29,12 @@ export function useEntityForm() {
         form.INN = entity.INN ?? ''
         form.OGRN = entity.OGRN ?? ''
         form.country_id = entity.country_id ?? null
-        form.buildings = entity.buildings?.map(i => i.id) ?? []
-        form.cities = entity.cities?.map(i => i.id) ?? []
-        form.emails = entity.emails?.map(i => i.id) ?? []
-        form.telephones = entity.telephones?.map(i => i.id) ?? []
-        form.units = entity.units?.map(i => i.id) ?? []
-        form.chats = entity.chats?.map(i => i.id) ?? []
-    }
-
-    const resetForm = () => {
-        Object.assign(form, initialState())
+        form.buildings = entity.buildings?.map(x => x.id) ?? []
+        form.cities = entity.cities?.map(x => x.id) ?? []
+        form.emails = entity.emails?.map(x => x.id) ?? []
+        form.telephones = entity.telephones?.map(x => x.id) ?? []
+        form.units = entity.units?.map(x => x.id) ?? []
+        form.chats = entity.chats?.map(x => x.id) ?? []
     }
 
     const toPayload = () => ({
@@ -53,8 +53,8 @@ export function useEntityForm() {
 
     return {
         form,
-        fillForm,
         resetForm,
+        fillForm,
         toPayload,
     }
 }

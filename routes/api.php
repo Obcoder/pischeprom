@@ -17,6 +17,7 @@ use App\Http\Controllers\API\CountryController;
 use App\Http\Controllers\API\CurrencyController;
 use App\Http\Controllers\API\EmailController;
 use App\Http\Controllers\API\EntityController;
+use App\Http\Controllers\API\EntityMetaController;
 use App\Http\Controllers\API\EntitiesClassification;
 use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
@@ -60,7 +61,10 @@ Route::apiResource('components', ComponentController::class);
 Route::apiResource('countries', CountryController::class);
 Route::apiResource('currencies', CurrencyController::class);
 Route::apiResource('emails', EmailController::class);
+
+Route::get('/entities-meta', [EntityMetaController::class, 'index']);
 Route::apiResource('entities', EntityController::class);
+
 Route::apiResource('entities-classification', EntitiesClassification::class);
 Route::apiResource('fields', FieldController::class);
 Route::apiResource('fragrances', FragranceController::class);

@@ -104,7 +104,7 @@ Route::get('/Ameise/ContactsCentre', function (){
 //      E N T I T I E S
 
 Route::prefix('web')->name('web.')->group(function () {
-    Route::resource('entities', EntityController::class);
+    Route::get('/entities', [EntityController::class, 'index'])->name('entities.index');
 });
 
 

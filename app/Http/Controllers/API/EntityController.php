@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Entity\StoreEntityRequest;
 use App\Http\Requests\Entity\UpdateEntityRequest;
+use App\Http\Resources\EntityResource;
 use App\Models\Entity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,10 +14,10 @@ class EntityController extends Controller
 {
     public function index(Request $request)
     {
-        $perPage = (int) ($request->get('itemsPerPage', 10));
-        $page = (int) ($request->get('page', 1));
-        $sortBy = $request->get('sortBy');
-        $sortDesc = $request->get('sortDesc');
+        $perPage = max((int) $request->integer('itemsPerPage', 10), 1);
+        $page = max((int) $request->integer('page', 1), 1);
+        $sortBy = $request->string('sortBy')->toString() ?: 'sales_count';
+        $sortDesc = filter_var($request->get('sortDesc', true), FILTER_VALIDATE_BOOLEAN);
 
         $filters = [
             'entity_classification_ids' => $request->input('entity_classification_ids', []),
@@ -31,41 +32,36 @@ class EntityController extends Controller
 
         $baseQuery = Entity::query()
             ->baseRelations()
-            ->withStats()
+            ->withTableStats()
             ->search($request->get('search'))
             ->filter($filters);
 
-        $paginated = (clone $baseQuery)
+        $paginator = (clone $baseQuery)
             ->applySort($sortBy, $sortDesc)
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $pageMarkers = $this->buildPageMarkers((clone $baseQuery), $perPage, $sortBy, $sortDesc);
-
         return response()->json([
-                                    'data' => $paginated->items(),
+                                    'data' => EntityResource::collection($paginator->items()),
                                     'meta' => [
-                                        'current_page' => $paginated->currentPage(),
-                                        'last_page' => $paginated->lastPage(),
-                                        'per_page' => $paginated->perPage(),
-                                        'total' => $paginated->total(),
-                                        'page_markers' => $pageMarkers,
+                                        'current_page' => $paginator->currentPage(),
+                                        'last_page' => $paginator->lastPage(),
+                                        'per_page' => $paginator->perPage(),
+                                        'total' => $paginator->total(),
+                                        'page_markers' => $this->buildPageMarkers(clone $baseQuery, $perPage, $sortBy, $sortDesc),
                                     ],
                                 ]);
     }
 
-    protected function buildPageMarkers($query, int $perPage, ?string $sortBy, ?string $sortDesc): array
+    protected function buildPageMarkers($query, int $perPage, string $sortBy, bool $sortDesc): array
     {
-        $sorted = (clone $query)->applySort($sortBy, $sortDesc);
-
-        $total = (clone $sorted)->count();
+        $sortedQuery = (clone $query)->applySort($sortBy, $sortDesc);
+        $total = (clone $sortedQuery)->count();
         $lastPage = (int) ceil($total / $perPage);
 
         $markers = [];
 
         for ($page = 1; $page <= $lastPage; $page++) {
-            $firstItem = (clone $sorted)
-                ->forPage($page, $perPage)
-                ->first();
+            $firstItem = (clone $sortedQuery)->forPage($page, $perPage)->first();
 
             $markers[] = [
                 'page' => $page,
@@ -78,7 +74,7 @@ class EntityController extends Controller
 
     public function store(StoreEntityRequest $request)
     {
-        DB::transaction(function () use ($request, &$entity) {
+        $entity = DB::transaction(function () use ($request) {
             $entity = Entity::create($request->validated());
 
             $entity->buildings()->sync($request->input('buildings', []));
@@ -87,11 +83,12 @@ class EntityController extends Controller
             $entity->telephones()->sync($request->input('telephones', []));
             $entity->units()->sync($request->input('units', []));
             $entity->chats()->sync($request->input('chats', []));
+
+            return $entity;
         });
 
-        return response()->json(
-            Entity::query()->baseRelations()->withStats()->findOrFail($entity->id),
-            201
+        return new EntityResource(
+            Entity::query()->baseRelations()->withTableStats()->findOrFail($entity->id)
         );
     }
 
@@ -99,10 +96,10 @@ class EntityController extends Controller
     {
         $entity = Entity::query()
             ->baseRelations()
-            ->withStats()
+            ->withTableStats()
             ->findOrFail($id);
 
-        return response()->json($entity);
+        return new EntityResource($entity);
     }
 
     public function update(UpdateEntityRequest $request, string $id)
@@ -120,8 +117,8 @@ class EntityController extends Controller
             $entity->chats()->sync($request->input('chats', []));
         });
 
-        return response()->json(
-            Entity::query()->baseRelations()->withStats()->findOrFail($entity->id)
+        return new EntityResource(
+            Entity::query()->baseRelations()->withTableStats()->findOrFail($entity->id)
         );
     }
 

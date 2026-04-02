@@ -13,7 +13,7 @@ defineOptions({
 })
 
 import Categories from '@/Components/Dictionaries/Categories.vue';
-import Entities from "@/Components/Dictionaries/Entities.vue";
+import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
 import Industries from "@/Components/Dictionaries/Industries.vue";
 import Products from '@/Components/Dictionaries/Products.vue';
