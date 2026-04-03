@@ -81,25 +81,166 @@ const goToPage = (p) => {
         </v-card-title>
 
         <v-card-text class="entity-table-content">
-            <v-expansion-panels
-                v-model="localPanels"
-                variant="accordion"
-                class="mb-2"
-            >
-                <v-expansion-panel>
-                    <v-expansion-panel-title>
-                        Фильтры
-                    </v-expansion-panel-title>
+            <div class="entity-filters">
+                <v-expansion-panels
+                    v-model="localPanels"
+                    variant="accordion"
+                >
+                    <v-expansion-panel>
+                        <v-expansion-panel-title>
+                            Фильтры
+                        </v-expansion-panel-title>
 
-                    <v-expansion-panel-text>
-                        <!-- фильтры -->
-                    </v-expansion-panel-text>
-                </v-expansion-panel>
-            </v-expansion-panels>
+                        <v-expansion-panel-text>
+                            <v-row dense>
+                                <v-col cols="12" md="3">
+                                    <v-text-field
+                                        v-model="filters.search"
+                                        label="Поиск"
+                                        density="compact"
+                                        clearable
+                                        hide-details
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.entity_classification_ids"
+                                        :items="meta.classifications"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Классификации"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.country_ids"
+                                        :items="meta.countries"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Страны"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.city_ids"
+                                        :items="meta.cities"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Города"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.building_ids"
+                                        :items="meta.buildings"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Здания"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.email_ids"
+                                        :items="meta.emails"
+                                        item-title="address"
+                                        item-value="id"
+                                        label="Emails"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.telephone_ids"
+                                        :items="meta.telephones"
+                                        item-title="number"
+                                        item-value="id"
+                                        label="Телефоны"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.unit_ids"
+                                        :items="meta.units"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Units"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="3">
+                                    <v-select
+                                        v-model="filters.chat_ids"
+                                        :items="meta.chats"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Chats"
+                                        multiple
+                                        chips
+                                        closable-chips
+                                        density="compact"
+                                        clearable
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" class="pt-1">
+                                    <div class="d-flex ga-2">
+                                        <v-btn variant="text" @click="emit('resetFilters')">
+                                            Сбросить
+                                        </v-btn>
+                                        <v-btn variant="text" @click="emit('reload')">
+                                            Обновить
+                                        </v-btn>
+                                    </div>
+                                </v-col>
+                            </v-row>
+                        </v-expansion-panel-text>
+                    </v-expansion-panel>
+                </v-expansion-panels>
+            </div>
 
             <div class="entity-table-wrapper">
                 <v-data-table-server
-                    class="entity-data-table"
                     :headers="headers"
                     :items="items"
                     :items-length="totalItems"
@@ -108,9 +249,9 @@ const goToPage = (p) => {
                     :items-per-page="itemsPerPage"
                     :sort-by="sortBy"
                     fixed-header
-                    height="100%"
                     hide-default-footer
                     item-value="id"
+                    height="100%"
                     @update:options="onOptionsUpdate"
                 >
                     <template #item.name="{ item }">
@@ -178,20 +319,22 @@ const goToPage = (p) => {
 }
 
 .entity-table-content {
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.entity-filters {
+    flex: 0 0 auto;
+    margin-bottom: 8px;
 }
 
 .entity-table-wrapper {
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-}
-
-.entity-data-table {
-    height: 100%;
 }
 
 .entity-table-footer {
