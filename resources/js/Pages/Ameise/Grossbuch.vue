@@ -843,8 +843,8 @@ const formatBuildingTitle = (building) => {
     <v-theme-provider theme="dark">
         <v-container fluid>
             <v-row>
-                <v-col>
-                    <v-card>
+                <v-col class="d-flex">
+                    <v-card class="flex-grow-1 d-flex flex-column dictionaries-card">
                         <v-tabs v-model="tab">
                             <v-tab value="units">Объекты</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
@@ -855,8 +855,8 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="sales">Продажи</v-tab>
                         </v-tabs>
 
-                        <v-card-text>
-                            <v-tabs-window v-model="tab">
+                        <v-card-text class="flex-grow-1 d-flex flex-column dictionaries-card-text">
+                            <v-tabs-window v-model="tab" class="flex-grow-1">
                                 <!--   О Б Ъ Е К Т Ы   -->
                                 <v-tabs-window-item value="units">
                                     <v-tabs v-model="tabsUnits">
@@ -867,10 +867,10 @@ const formatBuildingTitle = (building) => {
                                         <v-tabs-window-item value="units_sub">
                                             <Units />
                                         </v-tabs-window-item>
-                                        <v-tabs-window-item value="entities">
-                                            <v-container fluid>
+                                        <v-tabs-window-item value="entities" class="entities-tab-window-item">
+                                            <div class="entities-tab-content">
                                                 <Entities />
-                                            </v-container>
+                                            </div>
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>
@@ -1955,5 +1955,38 @@ const formatBuildingTitle = (building) => {
 <style scoped>
 .rounded-full {
     border-radius: 50%;
+}
+
+.dictionaries-card {
+    min-height: 0;
+}
+
+.dictionaries-card-text {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.entities-tab-window-item {
+    height: 100%;
+    min-height: 0;
+}
+
+.entities-tab-content {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+}
+
+:deep(.v-window__container) {
+    min-height: 0;
+    height: 100%;
+}
+
+:deep(.v-window-item) {
+    min-height: 0;
+}
+
+:deep(.v-card-text) {
+    min-height: 0;
 }
 </style>
