@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
 
 const props = defineProps({
@@ -58,10 +58,28 @@ const goToPage = (p) => {
     emit('update:page', p)
     emit('reload')
 }
+
+const viewportHeight = ref(window.innerHeight)
+
+const updateViewportHeight = () => {
+    viewportHeight.value = window.innerHeight
+}
+
+onMounted(() => {
+    window.addEventListener('resize', updateViewportHeight)
+})
+
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', updateViewportHeight)
+})
+
+const tableHeight = computed(() => {
+    return Math.max(viewportHeight.value - (props.filtersOpened ? 420 : 260), 400)
+})
 </script>
 
 <template>
-    <v-card class="h-100">
+    <v-card class="h-100 d-flex flex-column">
         <v-card-title class="d-flex align-center flex-wrap ga-2">
             <span>Entities</span>
             <v-spacer />
@@ -79,7 +97,7 @@ const goToPage = (p) => {
             </v-btn>
         </v-card-title>
 
-        <v-card-text>
+        <v-card-text class="d-flex flex-column flex-grow-1">
             <v-expansion-panels
                 v-model="localPanels"
                 variant="accordion"
@@ -245,8 +263,11 @@ const goToPage = (p) => {
                 :page="page"
                 :items-per-page="itemsPerPage"
                 :sort-by="sortBy"
+                :height="tableHeight"
+                fixed-header
                 item-value="id"
                 @update:options="onOptionsUpdate"
+                class="flex-grow-1"
             >
                 <template #item.name="{ item }">
                     <a

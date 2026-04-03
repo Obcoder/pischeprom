@@ -41,7 +41,7 @@ class EntityController extends Controller
             ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
-                                    'data' => EntityResource::collection($paginator->items()),
+                                    'data' => EntityResource::collection(collect($paginator->items())),
                                     'meta' => [
                                         'current_page' => $paginator->currentPage(),
                                         'last_page' => $paginator->lastPage(),

@@ -38,7 +38,7 @@ const totalItems = ref(0)
 const pageMarkers = ref([])
 
 const page = ref(1)
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(60)
 const sortBy = ref([{ key: 'sales_count', order: 'desc' }])
 
 const tableItems = computed(() => {
@@ -195,9 +195,9 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid>
-        <v-row>
-            <v-col cols="12" md="9">
+    <v-container fluid class="pa-2 fill-height">
+        <v-row class="fill-height">
+            <v-col cols="12" md="9" class="flex-grow-1">
                 <EntityTable
                     :items="tableItems"
                     :loading="loading"
@@ -224,9 +224,12 @@ onMounted(async () => {
                 />
             </v-col>
 
-            <v-col cols="12" md="3">
+            <v-col cols="12" md="3" class="d-flex">
                 <slot name="details" :entity="selectedEntity">
-                    <EntityDetailCard :entity="selectedEntity" />
+                    <EntityDetailCard
+                        class="flex-grow-1"
+                        :entity="selectedEntity"
+                    />
                 </slot>
             </v-col>
         </v-row>
