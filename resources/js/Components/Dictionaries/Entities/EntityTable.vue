@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { usePhoneFormatter } from '@/Сomposables/entities/usePhoneFormatter'
+import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
 
 const props = defineProps({
     items: { type: Array, default: () => [] },
