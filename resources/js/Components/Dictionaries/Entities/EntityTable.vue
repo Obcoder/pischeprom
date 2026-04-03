@@ -166,7 +166,7 @@ const goToPage = (p) => {
                                 <v-select
                                     v-model="filters.email_ids"
                                     :items="meta.emails"
-                                    item-title="email"
+                                    item-title="address"
                                     item-value="id"
                                     label="Emails"
                                     multiple

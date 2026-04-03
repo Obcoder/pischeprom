@@ -106,11 +106,11 @@ class Entity extends Model
                 ->orWhereHas('classification', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('country', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('cities', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('emails', fn (Builder $sq) => $sq->where('email', 'like', "%{$search}%"))
+                ->orWhereHas('emails', fn (Builder $sq) => $sq->where('address', 'like', "%{$search}%"))
                 ->orWhereHas('telephones', fn (Builder $sq) => $sq->where('number', 'like', "%{$search}%"))
                 ->orWhereHas('units', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('chats', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('buildings', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"));
+                ->orWhereHas('chats', fn (Builder $sq) => $sq->where('numbers', 'like', "%{$search}%"))
+                ->orWhereHas('buildings', fn (Builder $sq) => $sq->where('address', 'like', "%{$search}%"));
         });
     }
 

@@ -40,7 +40,12 @@ class EntityMetaController extends Controller
                                     'emails' => Email::query()
                                         ->select('id', 'address')
                                         ->orderBy('address')
-                                        ->get(),
+                                        ->get()
+                                        ->map(fn ($item) => [
+                                            'id' => $item->id,
+                                            'address' => $item->address,
+                                        ])
+                                        ->values(),
 
                                     'telephones' => Telephone::query()
                                         ->select('id', 'number')

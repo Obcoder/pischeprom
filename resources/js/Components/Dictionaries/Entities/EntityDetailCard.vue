@@ -25,11 +25,11 @@ const { formatPhones } = usePhoneFormatter()
             <div class="mb-2"><strong>Классификация:</strong> {{ entity.classification?.name || '—' }}</div>
             <div class="mb-2"><strong>Страна:</strong> {{ entity.country?.name || '—' }}</div>
             <div class="mb-2"><strong>Города:</strong> {{ entity.cities?.map(i => i.name).join(', ') || '—' }}</div>
-            <div class="mb-2"><strong>Здания:</strong> {{ entity.buildings?.map(i => i.name).join(', ') || '—' }}</div>
-            <div class="mb-2"><strong>Email:</strong> {{ entity.emails?.map(i => i.email).join(', ') || '—' }}</div>
+            <div class="mb-2"><strong>Здания:</strong> {{ entity.buildings?.map(i => i.address).join(', ') || '—' }}</div>
+            <div class="mb-2"><strong>Email:</strong> {{ entity.emails?.map(i => i.address).join(', ') || '—' }}</div>
             <div class="mb-2"><strong>Телефоны:</strong> {{ formatPhones(entity.telephones || []) || '—' }}</div>
             <div class="mb-2"><strong>Units:</strong> {{ entity.units?.map(i => i.name).join(', ') || '—' }}</div>
-            <div class="mb-2"><strong>Chats:</strong> {{ entity.chats?.map(i => i.name).join(', ') || '—' }}</div>
+            <div class="mb-2"><strong>Chats:</strong> {{ entity.chats?.map(i => i.numbers).join(', ') || '—' }}</div>
             <div class="mb-2"><strong>Продаж:</strong> {{ entity.sales_count ?? 0 }}</div>
             <div class="mb-2">
                 <strong>Последний purchase:</strong>

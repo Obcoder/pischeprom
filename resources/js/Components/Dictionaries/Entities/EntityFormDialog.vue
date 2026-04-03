@@ -90,7 +90,7 @@ const save = () => emit('submit')
                         <v-select
                             v-model="form.emails"
                             :items="meta.emails"
-                            item-title="email"
+                            item-title="address"
                             item-value="id"
                             label="Emails"
                             multiple

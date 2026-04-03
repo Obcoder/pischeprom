@@ -29,7 +29,7 @@ class EntityResource extends JsonResource
 
             'buildings' => $this->whenLoaded('buildings', fn () => $this->buildings->map(fn ($item) => [
                 'id' => $item->id,
-                'name' => $item->address,
+                'address' => $item->address,
             ])),
 
             'cities' => $this->whenLoaded('cities', fn () => $this->cities->map(fn ($item) => [
@@ -39,8 +39,8 @@ class EntityResource extends JsonResource
 
             'emails' => $this->whenLoaded('emails', fn () => $this->emails->map(fn ($item) => [
                 'id' => $item->id,
-                'email' => $item->address,
-            ])),
+                'address' => $item->address,
+            ])->values()),
 
             'telephones' => $this->whenLoaded('telephones', fn () => $this->telephones->map(fn ($item) => [
                 'id' => $item->id,
@@ -54,7 +54,7 @@ class EntityResource extends JsonResource
 
             'chats' => $this->whenLoaded('chats', fn () => $this->chats->map(fn ($item) => [
                 'id' => $item->id,
-                'name' => $item->numbers,
+                'numbers' => $item->numbers,
             ])),
 
             'sales_count' => $this->whenCounted('sales', fn () => $this->sales_count),
