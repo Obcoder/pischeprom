@@ -855,8 +855,8 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="sales">Продажи</v-tab>
                         </v-tabs>
 
-                        <v-card-text class="flex-grow-1 d-flex flex-column dictionaries-card-text">
-                            <v-tabs-window v-model="tab" class="flex-grow-1">
+                        <v-card-text>
+                            <v-tabs-window v-model="tab">
                                 <!--   О Б Ъ Е К Т Ы   -->
                                 <v-tabs-window-item value="units">
                                     <v-tabs v-model="tabsUnits">
@@ -868,8 +868,8 @@ const formatBuildingTitle = (building) => {
                                             <Units />
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="entities">
-                                            <v-container fluid>
-                                                <Entities />
+                                            <v-container fluid class="pa-0 fill-width">
+                                                <Entities class="w-100" />
                                             </v-container>
                                         </v-tabs-window-item>
                                     </v-tabs-window>
@@ -1955,5 +1955,10 @@ const formatBuildingTitle = (building) => {
 <style scoped>
 .rounded-full {
     border-radius: 50%;
+}
+
+.fill-width {
+    width: 100%;
+    max-width: 100%;
 }
 </style>

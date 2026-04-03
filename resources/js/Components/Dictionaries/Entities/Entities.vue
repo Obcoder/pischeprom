@@ -224,10 +224,11 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid class="pa-2">
-        <v-row>
-            <v-col cols="12" md="9" class="pa-1">
+    <v-container fluid class="pa-2 w-100" style="max-width: 100%">
+        <v-row class="w-100 ma-0">
+            <v-col cols="12" md="9" class="pa-1 d-flex">
                 <EntityTable
+                    class="w-100"
                     :items="tableItems"
                     :loading="loading"
                     :total-items="totalItems"
@@ -253,9 +254,12 @@ onMounted(async () => {
                 />
             </v-col>
 
-            <v-col cols="12" md="3" class="pa-1">
+            <v-col cols="12" md="3" class="pa-1 d-flex">
                 <slot name="details" :entity="selectedEntity">
-                    <EntityDetailCard :entity="selectedEntity" />
+                    <EntityDetailCard
+                        class="w-100"
+                        :entity="selectedEntity"
+                    />
                 </slot>
             </v-col>
         </v-row>
@@ -270,3 +274,10 @@ onMounted(async () => {
         />
     </v-container>
 </template>
+
+<style scoped>
+.w-100 {
+    width: 100%;
+    max-width: 100%;
+}
+</style>

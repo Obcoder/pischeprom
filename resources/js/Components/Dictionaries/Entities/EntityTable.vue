@@ -61,7 +61,7 @@ const goToPage = (p) => {
 </script>
 
 <template>
-    <v-card>
+    <v-card class="w-100">
         <v-card-title class="d-flex align-center flex-wrap ga-2">
             <span>Entities</span>
 
@@ -317,5 +317,10 @@ const goToPage = (p) => {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.w-100 {
+    width: 100%;
+    max-width: 100%;
 }
 </style>
