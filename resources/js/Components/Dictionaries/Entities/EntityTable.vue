@@ -84,7 +84,7 @@ const goToPage = (p) => {
             <v-expansion-panels
                 v-model="localPanels"
                 variant="accordion"
-                class="mb-2 flex-0"
+                class="mb-2"
             >
                 <v-expansion-panel>
                     <v-expansion-panel-title>
@@ -92,148 +92,7 @@ const goToPage = (p) => {
                     </v-expansion-panel-title>
 
                     <v-expansion-panel-text>
-                        <v-row dense>
-                            <v-col cols="12" md="3">
-                                <v-text-field
-                                    v-model="filters.search"
-                                    label="Поиск"
-                                    density="compact"
-                                    clearable
-                                    hide-details
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.entity_classification_ids"
-                                    :items="meta.classifications"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Классификации"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.country_ids"
-                                    :items="meta.countries"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Страны"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.city_ids"
-                                    :items="meta.cities"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Города"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.building_ids"
-                                    :items="meta.buildings"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Здания"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.email_ids"
-                                    :items="meta.emails"
-                                    item-title="address"
-                                    item-value="id"
-                                    label="Emails"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.telephone_ids"
-                                    :items="meta.telephones"
-                                    item-title="number"
-                                    item-value="id"
-                                    label="Телефоны"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.unit_ids"
-                                    :items="meta.units"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Units"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-select
-                                    v-model="filters.chat_ids"
-                                    :items="meta.chats"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Chats"
-                                    multiple
-                                    chips
-                                    closable-chips
-                                    density="compact"
-                                    clearable
-                                />
-                            </v-col>
-
-                            <v-col cols="12" class="pt-1">
-                                <div class="d-flex ga-2">
-                                    <v-btn variant="text" @click="emit('resetFilters')">
-                                        Сбросить
-                                    </v-btn>
-                                    <v-btn variant="text" @click="emit('reload')">
-                                        Обновить
-                                    </v-btn>
-                                </div>
-                            </v-col>
-                        </v-row>
+                        <!-- фильтры -->
                     </v-expansion-panel-text>
                 </v-expansion-panel>
             </v-expansion-panels>
@@ -250,6 +109,7 @@ const goToPage = (p) => {
                     :sort-by="sortBy"
                     fixed-header
                     height="100%"
+                    hide-default-footer
                     item-value="id"
                     @update:options="onOptionsUpdate"
                 >
@@ -285,27 +145,25 @@ const goToPage = (p) => {
                             <v-btn size="small" variant="text" color="error" @click="emit('delete', item)">del</v-btn>
                         </div>
                     </template>
-
-                    <template #bottom>
-                        <div class="entity-table-bottom">
-                            <div class="d-flex flex-wrap ga-2 pa-2">
-                                <v-btn
-                                    v-for="p in pageMarkers"
-                                    :key="p.page"
-                                    :variant="page === p.page ? 'flat' : 'outlined'"
-                                    size="small"
-                                    class="entity-page-chip"
-                                    @click="goToPage(p.page)"
-                                >
-                                    <div class="d-flex flex-column align-center">
-                                        <span>{{ p.page }}</span>
-                                        <span class="entity-page-marker">{{ p.first_name }}</span>
-                                    </div>
-                                </v-btn>
-                            </div>
-                        </div>
-                    </template>
                 </v-data-table-server>
+            </div>
+
+            <div class="entity-table-footer">
+                <div class="d-flex flex-wrap ga-2 pa-2">
+                    <v-btn
+                        v-for="p in pageMarkers"
+                        :key="p.page"
+                        :variant="page === p.page ? 'flat' : 'outlined'"
+                        size="small"
+                        class="entity-page-chip"
+                        @click="goToPage(p.page)"
+                    >
+                        <div class="d-flex flex-column align-center">
+                            <span>{{ p.page }}</span>
+                            <span class="entity-page-marker">{{ p.first_name }}</span>
+                        </div>
+                    </v-btn>
+                </div>
             </div>
         </v-card-text>
     </v-card>
@@ -320,10 +178,9 @@ const goToPage = (p) => {
 }
 
 .entity-table-content {
+    height: 100%;
     display: flex;
     flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
     overflow: hidden;
 }
 
@@ -337,6 +194,12 @@ const goToPage = (p) => {
     height: 100%;
 }
 
+.entity-table-footer {
+    flex: 0 0 auto;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    background: inherit;
+}
+
 .entity-page-chip {
     min-width: 48px;
 }
@@ -348,14 +211,5 @@ const goToPage = (p) => {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.entity-table-bottom {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-    background: inherit;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
 }
 </style>
