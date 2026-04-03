@@ -249,9 +249,9 @@ const goToPage = (p) => {
                     :items-per-page="itemsPerPage"
                     :sort-by="sortBy"
                     fixed-header
+                    height="100%"
                     hide-default-footer
                     item-value="id"
-                    height="100%"
                     @update:options="onOptionsUpdate"
                 >
                     <template #item.name="{ item }">

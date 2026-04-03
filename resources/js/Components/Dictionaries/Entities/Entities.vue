@@ -4,10 +4,10 @@ import EntityTable from '@/Components/Dictionaries/Entities/EntityTable.vue'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
 import EntityDetailCard from '@/Components/Dictionaries/Entities/EntityDetailCard.vue'
 
-import { useEntityApi } from '@/Composables/entities/useEntityApi'
-import { useEntityFilters } from '@/Composables/entities/useEntityFilters'
-import { useEntityForm } from '@/Composables/entities/useEntityForm'
-import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
+import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
+import { useEntityFilters } from '@/Composables/entities/useEntityFilters.js'
+import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
+import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter.js'
 
 const { getMeta, getList, getOne, createOne, updateOne, deleteOne } = useEntityApi()
 const { filters, resetFilters } = useEntityFilters()
@@ -41,6 +41,8 @@ const page = ref(1)
 const itemsPerPage = ref(60)
 const sortBy = ref([{ key: 'sales_count', order: 'desc' }])
 
+let debounceTimer = null
+
 const tableItems = computed(() => {
     const mapped = items.value.map(item => ({
         ...item,
@@ -57,14 +59,16 @@ const tableItems = computed(() => {
     return [...mapped].sort((a, b) => {
         const aCity = a.city_names || 'Без города'
         const bCity = b.city_names || 'Без города'
-        return aCity.localeCompare(bCity)
+        return aCity.localeCompare(bCity, 'ru')
     })
 })
 
-let debounceTimer = null
-
 const loadMeta = async () => {
-    meta.value = await getMeta()
+    try {
+        meta.value = await getMeta()
+    } catch (error) {
+        console.error('loadMeta error:', error?.response?.data || error)
+    }
 }
 
 const loadItems = async () => {
@@ -85,13 +89,15 @@ const loadItems = async () => {
             telephone_ids: filters.telephone_ids,
             unit_ids: filters.unit_ids,
             chat_ids: filters.chat_ids,
-            sortBy: sort.key,
+            sortBy: sort.key ?? 'sales_count',
             sortDesc: sort.order === 'desc',
         })
 
-        items.value = response.data
-        totalItems.value = response.meta.total
-        pageMarkers.value = response.meta.page_markers ?? []
+        items.value = Array.isArray(response.data) ? response.data : []
+        totalItems.value = response.meta?.total ?? 0
+        pageMarkers.value = response.meta?.page_markers ?? []
+    } catch (error) {
+        console.error('loadItems error:', error?.response?.data || error)
     } finally {
         loading.value = false
     }
@@ -99,6 +105,7 @@ const loadItems = async () => {
 
 const debouncedLoad = () => {
     clearTimeout(debounceTimer)
+
     debounceTimer = setTimeout(() => {
         page.value = 1
         loadItems()
@@ -112,10 +119,14 @@ const openCreate = () => {
 }
 
 const openEdit = async (item) => {
-    const entity = await getOne(item.id)
-    fillForm(entity)
-    isEdit.value = true
-    dialog.value = true
+    try {
+        const entity = await getOne(item.id)
+        fillForm(entity)
+        isEdit.value = true
+        dialog.value = true
+    } catch (error) {
+        console.error('openEdit error:', error?.response?.data || error)
+    }
 }
 
 const submit = async () => {
@@ -131,6 +142,8 @@ const submit = async () => {
         dialog.value = false
         resetForm()
         await loadItems()
+    } catch (error) {
+        console.error('submit error:', error?.response?.data || error)
     } finally {
         saving.value = false
     }
@@ -141,17 +154,25 @@ const removeItem = async (item) => {
         return
     }
 
-    await deleteOne(item.id)
+    try {
+        await deleteOne(item.id)
 
-    if (selectedEntity.value?.id === item.id) {
-        selectedEntity.value = null
+        if (selectedEntity.value?.id === item.id) {
+            selectedEntity.value = null
+        }
+
+        await loadItems()
+    } catch (error) {
+        console.error('removeItem error:', error?.response?.data || error)
     }
-
-    await loadItems()
 }
 
 const showEntity = async (item) => {
-    selectedEntity.value = await getOne(item.id)
+    try {
+        selectedEntity.value = await getOne(item.id)
+    } catch (error) {
+        console.error('showEntity error:', error?.response?.data || error)
+    }
 }
 
 const handleResetFilters = async () => {
@@ -162,7 +183,7 @@ const handleResetFilters = async () => {
 
 watch(
     () => ({
-        ...filters,
+        search: filters.search,
         entity_classification_ids: [...filters.entity_classification_ids],
         country_ids: [...filters.country_ids],
         city_ids: [...filters.city_ids],
@@ -178,15 +199,23 @@ watch(
     { deep: true }
 )
 
-watch(page, loadItems)
-watch(itemsPerPage, () => {
+watch(itemsPerPage, async () => {
     page.value = 1
-    loadItems()
+    await loadItems()
 })
-watch(sortBy, () => {
-    page.value = 1
-    loadItems()
-}, { deep: true })
+
+watch(
+    sortBy,
+    async () => {
+        page.value = 1
+        await loadItems()
+    },
+    { deep: true }
+)
+
+watch(page, async () => {
+    await loadItems()
+})
 
 onMounted(async () => {
     await loadMeta()
@@ -197,7 +226,7 @@ onMounted(async () => {
 <template>
     <v-container fluid class="entities-page pa-2">
         <v-row class="fill-height ma-0">
-            <v-col cols="12" md="9" class="pa-1 d-flex">
+            <v-col cols="12" md="9" class="pa-1 d-flex entity-table-col">
                 <EntityTable
                     class="flex-grow-1"
                     :items="tableItems"
@@ -225,7 +254,7 @@ onMounted(async () => {
                 />
             </v-col>
 
-            <v-col cols="12" md="3" class="pa-1 d-flex">
+            <v-col cols="12" md="3" class="pa-1 d-flex entity-detail-col">
                 <slot name="details" :entity="selectedEntity">
                     <EntityDetailCard
                         class="flex-grow-1"
@@ -248,7 +277,16 @@ onMounted(async () => {
 
 <style scoped>
 .entities-page {
-    height: calc(100vh - 64px);
+    height: calc(100vh - 72px);
     overflow: hidden;
+}
+
+.entity-table-col,
+.entity-detail-col {
+    min-height: 0;
+}
+
+:deep(.v-col) {
+    min-height: 0;
 }
 </style>
