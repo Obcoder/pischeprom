@@ -844,7 +844,7 @@ const formatBuildingTitle = (building) => {
         <v-container fluid>
             <v-row>
                 <v-col class="d-flex">
-                    <v-card class="flex-grow-1 d-flex flex-column dictionaries-card">
+                    <v-card>
                         <v-tabs v-model="tab">
                             <v-tab value="units">Объекты</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
@@ -867,10 +867,10 @@ const formatBuildingTitle = (building) => {
                                         <v-tabs-window-item value="units_sub">
                                             <Units />
                                         </v-tabs-window-item>
-                                        <v-tabs-window-item value="entities" class="entities-tab-window-item">
-                                            <div class="entities-tab-content">
+                                        <v-tabs-window-item value="entities">
+                                            <v-container fluid>
                                                 <Entities />
-                                            </div>
+                                            </v-container>
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>
@@ -1955,38 +1955,5 @@ const formatBuildingTitle = (building) => {
 <style scoped>
 .rounded-full {
     border-radius: 50%;
-}
-
-.dictionaries-card {
-    min-height: 0;
-}
-
-.dictionaries-card-text {
-    min-height: 0;
-    overflow: hidden;
-}
-
-.entities-tab-window-item {
-    height: 100%;
-    min-height: 0;
-}
-
-.entities-tab-content {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-}
-
-:deep(.v-window__container) {
-    min-height: 0;
-    height: 100%;
-}
-
-:deep(.v-window-item) {
-    min-height: 0;
-}
-
-:deep(.v-card-text) {
-    min-height: 0;
 }
 </style>
