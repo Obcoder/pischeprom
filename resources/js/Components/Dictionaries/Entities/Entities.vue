@@ -277,7 +277,7 @@ onMounted(async () => {
 
 <style scoped>
 .entities-page {
-    height: calc(100vh - 72px);
+    height: 100vh;
     overflow: hidden;
 }
 
