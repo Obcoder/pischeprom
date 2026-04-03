@@ -195,10 +195,11 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid class="pa-2 fill-height">
-        <v-row class="fill-height">
-            <v-col cols="12" md="9" class="flex-grow-1">
+    <v-container fluid class="entities-page pa-2">
+        <v-row class="fill-height ma-0">
+            <v-col cols="12" md="9" class="pa-1 d-flex">
                 <EntityTable
+                    class="flex-grow-1"
                     :items="tableItems"
                     :loading="loading"
                     :total-items="totalItems"
@@ -224,7 +225,7 @@ onMounted(async () => {
                 />
             </v-col>
 
-            <v-col cols="12" md="3" class="d-flex">
+            <v-col cols="12" md="3" class="pa-1 d-flex">
                 <slot name="details" :entity="selectedEntity">
                     <EntityDetailCard
                         class="flex-grow-1"
@@ -244,3 +245,10 @@ onMounted(async () => {
         />
     </v-container>
 </template>
+
+<style scoped>
+.entities-page {
+    height: calc(100vh - 64px);
+    overflow: hidden;
+}
+</style>

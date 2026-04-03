@@ -44,8 +44,8 @@ class EntityResource extends JsonResource
 
             'telephones' => $this->whenLoaded('telephones', fn () => $this->telephones->map(fn ($item) => [
                 'id' => $item->id,
-                'number' => $item->number,
-            ])),
+                'number' => $item->number ?? $item->telephone ?? $item->phone,
+            ])->values()),
 
             'units' => $this->whenLoaded('units', fn () => $this->units->map(fn ($item) => [
                 'id' => $item->id,

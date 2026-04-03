@@ -48,9 +48,13 @@ class EntityMetaController extends Controller
                                         ->values(),
 
                                     'telephones' => Telephone::query()
-                                        ->select('id', 'number')
-                                        ->orderBy('number')
-                                        ->get(),
+                                        ->get()
+                                        ->map(fn ($item) => [
+                                            'id' => $item->id,
+                                            'number' => $item->number ?? $item->telephone ?? $item->phone,
+                                        ])
+                                        ->sortBy('number')
+                                        ->values(),
 
                                     'units' => Unit::query()
                                         ->select('id', 'name')

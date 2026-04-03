@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
+import { computed } from 'vue'
+import { usePhoneFormatter } from '@/Сomposables/entities/usePhoneFormatter'
 
 const props = defineProps({
     items: { type: Array, default: () => [] },
@@ -45,7 +45,7 @@ const headers = [
 
 const localPanels = computed({
     get: () => (props.filtersOpened ? 0 : null),
-    set: (value) => emit('update:filtersOpened', value === 0),
+    set: value => emit('update:filtersOpened', value === 0),
 })
 
 const onOptionsUpdate = (options) => {
@@ -58,30 +58,13 @@ const goToPage = (p) => {
     emit('update:page', p)
     emit('reload')
 }
-
-const viewportHeight = ref(window.innerHeight)
-
-const updateViewportHeight = () => {
-    viewportHeight.value = window.innerHeight
-}
-
-onMounted(() => {
-    window.addEventListener('resize', updateViewportHeight)
-})
-
-onBeforeUnmount(() => {
-    window.removeEventListener('resize', updateViewportHeight)
-})
-
-const tableHeight = computed(() => {
-    return Math.max(viewportHeight.value - (props.filtersOpened ? 420 : 260), 400)
-})
 </script>
 
 <template>
-    <v-card class="h-100 d-flex flex-column">
+    <v-card class="entity-table-card">
         <v-card-title class="d-flex align-center flex-wrap ga-2">
             <span>Entities</span>
+
             <v-spacer />
 
             <v-btn color="primary" @click="emit('create')">
@@ -97,11 +80,11 @@ const tableHeight = computed(() => {
             </v-btn>
         </v-card-title>
 
-        <v-card-text class="d-flex flex-column flex-grow-1">
+        <v-card-text class="entity-table-content">
             <v-expansion-panels
                 v-model="localPanels"
                 variant="accordion"
-                class="mb-4"
+                class="mb-2 flex-0"
             >
                 <v-expansion-panel>
                     <v-expansion-panel-title>
@@ -255,76 +238,105 @@ const tableHeight = computed(() => {
                 </v-expansion-panel>
             </v-expansion-panels>
 
-            <v-data-table-server
-                :headers="headers"
-                :items="items"
-                :items-length="totalItems"
-                :loading="loading"
-                :page="page"
-                :items-per-page="itemsPerPage"
-                :sort-by="sortBy"
-                :height="tableHeight"
-                fixed-header
-                item-value="id"
-                @update:options="onOptionsUpdate"
-                class="flex-grow-1"
-            >
-                <template #item.name="{ item }">
-                    <a
-                        href="#"
-                        class="text-decoration-none font-weight-medium"
-                        @click.prevent="emit('show', item)"
-                    >
-                        {{ item.name }}
-                    </a>
-                </template>
-
-                <template #item.city_names="{ item }">
-                    <div v-if="groupByCities" class="d-flex flex-column">
-                        <strong>{{ item.city_names || 'Без города' }}</strong>
-                        <span class="text-medium-emphasis">{{ item.name }}</span>
-                    </div>
-                    <span v-else>{{ item.city_names || '—' }}</span>
-                </template>
-
-                <template #item.telephones_display="{ item }">
-                    {{ item.telephones_display || formatPhones(item.telephones || []) || '—' }}
-                </template>
-
-                <template #item.last_purchase_date="{ item }">
-                    {{ item.last_purchase_date ? new Date(item.last_purchase_date).toLocaleDateString() : '—' }}
-                </template>
-
-                <template #item.actions="{ item }">
-                    <div class="d-flex ga-1 justify-end">
-                        <v-btn size="small" variant="text" @click="emit('edit', item)">edit</v-btn>
-                        <v-btn size="small" variant="text" color="error" @click="emit('delete', item)">del</v-btn>
-                    </div>
-                </template>
-
-                <template #bottom>
-                    <div class="d-flex flex-wrap ga-2 pa-4">
-                        <v-btn
-                            v-for="p in pageMarkers"
-                            :key="p.page"
-                            :variant="page === p.page ? 'flat' : 'outlined'"
-                            size="small"
-                            class="entity-page-chip"
-                            @click="goToPage(p.page)"
+            <div class="entity-table-wrapper">
+                <v-data-table-server
+                    class="entity-data-table"
+                    :headers="headers"
+                    :items="items"
+                    :items-length="totalItems"
+                    :loading="loading"
+                    :page="page"
+                    :items-per-page="itemsPerPage"
+                    :sort-by="sortBy"
+                    fixed-header
+                    height="100%"
+                    item-value="id"
+                    @update:options="onOptionsUpdate"
+                >
+                    <template #item.name="{ item }">
+                        <a
+                            href="#"
+                            class="text-decoration-none font-weight-medium"
+                            @click.prevent="emit('show', item)"
                         >
-                            <div class="d-flex flex-column align-center">
-                                <span>{{ p.page }}</span>
-                                <span class="entity-page-marker">{{ p.first_name }}</span>
+                            {{ item.name }}
+                        </a>
+                    </template>
+
+                    <template #item.city_names="{ item }">
+                        <div v-if="groupByCities" class="d-flex flex-column">
+                            <strong>{{ item.city_names || 'Без города' }}</strong>
+                            <span class="text-medium-emphasis">{{ item.name }}</span>
+                        </div>
+                        <span v-else>{{ item.city_names || '—' }}</span>
+                    </template>
+
+                    <template #item.telephones_display="{ item }">
+                        {{ item.telephones_display || formatPhones(item.telephones || []) || '—' }}
+                    </template>
+
+                    <template #item.last_purchase_date="{ item }">
+                        {{ item.last_purchase_date ? new Date(item.last_purchase_date).toLocaleDateString() : '—' }}
+                    </template>
+
+                    <template #item.actions="{ item }">
+                        <div class="d-flex ga-1 justify-end">
+                            <v-btn size="small" variant="text" @click="emit('edit', item)">edit</v-btn>
+                            <v-btn size="small" variant="text" color="error" @click="emit('delete', item)">del</v-btn>
+                        </div>
+                    </template>
+
+                    <template #bottom>
+                        <div class="entity-table-bottom">
+                            <div class="d-flex flex-wrap ga-2 pa-2">
+                                <v-btn
+                                    v-for="p in pageMarkers"
+                                    :key="p.page"
+                                    :variant="page === p.page ? 'flat' : 'outlined'"
+                                    size="small"
+                                    class="entity-page-chip"
+                                    @click="goToPage(p.page)"
+                                >
+                                    <div class="d-flex flex-column align-center">
+                                        <span>{{ p.page }}</span>
+                                        <span class="entity-page-marker">{{ p.first_name }}</span>
+                                    </div>
+                                </v-btn>
                             </div>
-                        </v-btn>
-                    </div>
-                </template>
-            </v-data-table-server>
+                        </div>
+                    </template>
+                </v-data-table-server>
+            </div>
         </v-card-text>
     </v-card>
 </template>
 
 <style scoped>
+.entity-table-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.entity-table-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.entity-table-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.entity-data-table {
+    height: 100%;
+}
+
 .entity-page-chip {
     min-width: 48px;
 }
@@ -336,5 +348,14 @@ const tableHeight = computed(() => {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.entity-table-bottom {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: inherit;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
 }
 </style>
