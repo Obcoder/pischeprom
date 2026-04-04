@@ -273,7 +273,7 @@ const goToPage = (p) => {
                 </template>
 
                 <template #item.buildings="{item}">
-                    <span class="text-sm">{{item.address}}</span>
+                    <span v-for="building in item.buildings" class="text-sm">{{building.address}}</span>
                 </template>
 
                 <template #item.telephones_display="{ item }">
