@@ -184,9 +184,9 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import { useTelephoneTable } from '@/composables/telephones/useTelephoneTable'
-import { useTelephoneForm } from '@/composables/telephones/useTelephoneForm'
-import { useTelephoneMeta } from '@/composables/telephones/useTelephoneMeta'
+import { useTelephoneTable } from '@/Composables/telephones/useTelephoneTable'
+import { useTelephoneForm } from '@/Composables/telephones/useTelephoneForm'
+import { useTelephoneMeta } from '@/Composables/telephones/useTelephoneMeta'
 
 const headers = [
     { title: 'ID', key: 'id', sortable: true },
