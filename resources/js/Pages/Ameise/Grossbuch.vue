@@ -64,7 +64,6 @@ const telephones = ref([])
 let manufacturers = ref();
 
 const searchCities = ref('')
-const searchGoods = ref('')
 const searchProducts = ref('')
 let searchComponents = ref('');
 
@@ -100,20 +99,7 @@ const headerCountries = [
         key: 'name',
     },
 ]
-const headersProducts = [
-    {
-        title: 'rus',
-        key: 'rus',
-    },
-    {
-        title: 'eng',
-        key: 'eng',
-    },
-    {
-        title: 'Category',
-        key: 'category',
-    },
-]
+
 const headerRegions = ref([
     {
         title: 'Регион',
@@ -403,58 +389,6 @@ const headerFields = ref([
     },
 ])
 // E N D  F I E L D S
-
-
-
-//   G O O D S
-function indexGoods(){
-    axios.get(route('goods.index')).then(function (response){
-        goods.value = response.data
-        // Проверяем, есть ли элементы в goods и берём первый
-        if (goods.value && goods.value.length > 0) {
-            fetchGood(goods.value[0].id);
-        }
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-const headerGoods = [
-    {
-        title: 'Avatar',
-        key: 'ava_image',
-    },
-    {
-        title: 'name',
-        key: 'name',
-    },
-]
-function fetchGood(id){
-    axios.get(route('good.fetch', id)).then(function (response){
-        good.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
-}
-const formGood = useForm({
-    products: null,
-    name: null,
-    ava_image: null,
-    denominator: null,
-    description: null,
-    is_published: true,
-})
-function storeGood(){
-    formGood.post(route('web.good.store'), {
-        replace: true,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formGood.reset()
-            indexGoods()
-        },
-    });
-}
-// E N D  G O O D S
 
 
 
@@ -791,7 +725,6 @@ onMounted(()=>{
     indexEmails()
     indexEntityClassifications()
     indexFields()
-    indexGoods()
     indexLabels()
     indexMeasures()
     indexProducts()
