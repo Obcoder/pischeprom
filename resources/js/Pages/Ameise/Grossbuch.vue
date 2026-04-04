@@ -566,55 +566,6 @@ function indexSegments(){
 
 
 
-//   T E L E P H O N E S
-function indexTelephones(){
-    axios.get(route('telephones.index')).then(function (response){
-        telephones.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
-}
-const searchTelephones = ref('')
-// const sortKey = ref('number'); // Ключ сортировки (например, 'number', 'name')
-const sortOrder = ref('asc'); // Направление сортировки: 'asc' или 'desc'
-const filteredTelephones = computed(()=>{
-    const search = searchTelephones.value.toLowerCase()
-    // Фильтрация
-    let filtered = telephones.value.filter((t) =>
-        t.number.toLowerCase().includes(search)
-    )
-    // Сортировка по number
-    return filtered.sort((a, b) => {
-        const valueA = a.number;
-        const valueB = b.number;
-        return sortOrder.value === 'asc'
-            ? valueA.localeCompare(valueB)
-            : valueB.localeCompare(valueA);
-    })
-})
-// Метод для переключения сортировки
-const toggleSort = () => {
-    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
-};
-let dialogFormTelephone = ref(false)
-const formTelephone = useForm({
-    number: null,
-})
-function storeTelephone(){
-    formTelephone.post(route('web.telephone.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formTelephone.reset()
-            indexTelephones(searchTelephones.value)
-        },
-    })
-}
-// E N D  T E L E P H O N E S
-
-
-
 //    C I T Y  S T O R E
 const formCity = useForm({
     name: null,
