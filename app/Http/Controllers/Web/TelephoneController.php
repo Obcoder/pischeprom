@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class TelephoneController extends Controller
 {
-    public function index(): View
+    public function index(): Response
     {
-        return view('telephones.index');
+        return Inertia::render('Dictionaries/telephones/TelephonePage');
     }
 }
