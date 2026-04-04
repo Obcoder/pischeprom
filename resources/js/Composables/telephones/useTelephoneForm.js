@@ -24,8 +24,8 @@ export function useTelephoneForm(onSaved = null) {
     const setForm = (payload) => {
         form.id = payload?.id ?? null
         form.number = payload?.number ?? ''
-        form.entity_ids = Array.isArray(payload?.entity_ids) ? payload.entity_ids : []
-        form.unit_ids = Array.isArray(payload?.unit_ids) ? payload.unit_ids : []
+        form.entity_ids = Array.isArray(payload?.entity_ids) ? [...payload.entity_ids] : []
+        form.unit_ids = Array.isArray(payload?.unit_ids) ? [...payload.unit_ids] : []
     }
 
     const resetForm = () => {

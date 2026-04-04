@@ -124,7 +124,6 @@
             :saving="saving"
             :entities="entities"
             :units="units"
-            @update:form="setForm"
             @submit="submit"
             @close="close"
         />
@@ -169,7 +168,6 @@ const {
     saving,
     errors,
     form,
-    setForm,
     openCreate,
     openEdit,
     close,

@@ -13,7 +13,7 @@
                 <v-row>
                     <v-col cols="12">
                         <v-text-field
-                            v-model="localForm.number"
+                            v-model="form.number"
                             label="Номер"
                             variant="outlined"
                             density="comfortable"
@@ -23,7 +23,7 @@
 
                     <v-col cols="12">
                         <v-autocomplete
-                            v-model="localForm.entity_ids"
+                            v-model="form.entity_ids"
                             :items="entities"
                             item-title="name"
                             item-value="id"
@@ -40,7 +40,7 @@
 
                     <v-col cols="12">
                         <v-autocomplete
-                            v-model="localForm.unit_ids"
+                            v-model="form.unit_ids"
                             :items="units"
                             item-title="name"
                             item-value="id"
@@ -65,7 +65,7 @@
                 <v-btn
                     color="primary"
                     :loading="saving"
-                    @click="onSubmit"
+                    @click="$emit('submit')"
                 >
                     Сохранить
                 </v-btn>
@@ -75,7 +75,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
     modelValue: {
@@ -104,47 +104,11 @@ const props = defineProps({
     },
 })
 
-const emit = defineEmits([
+defineEmits([
     'update:modelValue',
-    'update:form',
     'submit',
     'close',
 ])
 
-const localForm = reactive({
-    id: null,
-    number: '',
-    entity_ids: [],
-    unit_ids: [],
-})
-
-watch(
-    () => props.form,
-    (value) => {
-        localForm.id = value?.id ?? null
-        localForm.number = value?.number ?? ''
-        localForm.entity_ids = Array.isArray(value?.entity_ids) ? [...value.entity_ids] : []
-        localForm.unit_ids = Array.isArray(value?.unit_ids) ? [...value.unit_ids] : []
-    },
-    { immediate: true, deep: true }
-)
-
-watch(
-    localForm,
-    (value) => {
-        emit('update:form', {
-            id: value.id,
-            number: value.number,
-            entity_ids: [...value.entity_ids],
-            unit_ids: [...value.unit_ids],
-        })
-    },
-    { deep: true }
-)
-
-const isEdit = computed(() => !!localForm.id)
-
-const onSubmit = () => {
-    emit('submit')
-}
+const isEdit = computed(() => !!props.form.id)
 </script>
