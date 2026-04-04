@@ -179,7 +179,7 @@ const goToPage = (p) => {
                             </v-col>
 
                             <v-col cols="12" md="3">
-                                <v-select
+                                <v-autocomplete
                                     v-model="filters.telephone_ids"
                                     :items="meta.telephones"
                                     item-title="number"
@@ -190,6 +190,7 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo"
                                 />
                             </v-col>
 
