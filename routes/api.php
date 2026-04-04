@@ -91,7 +91,17 @@ Route::apiResource('sales', SaleController::class);
 Route::apiResource('segments', SegmentController::class);
 Route::apiResource('sendings', SendingController::class);
 Route::apiResource('stages', StageController::class);
-Route::apiResource('telephones', TelephoneController::class);
+
+//  Telephones
+Route::prefix('telephones')->group(function () {
+    Route::get('/meta', [TelephoneController::class, 'meta']);
+    Route::get('/', [TelephoneController::class, 'index']);
+    Route::post('/', [TelephoneController::class, 'store']);
+    Route::get('/{telephone}', [TelephoneController::class, 'show']);
+    Route::put('/{telephone}', [TelephoneController::class, 'update']);
+});
+//
+
 Route::apiResource('units', UnitController::class);
 Route::get('/units/{unit}', [ApiUnitController::class, 'show'])
     ->name('api.units.show');

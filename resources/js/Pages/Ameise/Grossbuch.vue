@@ -18,6 +18,7 @@ import Goods from "@/Components/Dictionaries/Goods.vue";
 import Industries from "@/Components/Dictionaries/Industries.vue";
 import Products from '@/Components/Dictionaries/Products.vue';
 import Purchases from "@/Pages/Purchases/Purchases.vue";
+import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
 import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
 
@@ -793,79 +794,7 @@ const formatBuildingTitle = (building) => {
                                                     <Uris />
                                                 </v-tabs-window-item>
                                                 <v-tabs-window-item value="telephones">
-                                                    <v-container>
-                                                        <v-row>
-                                                            <v-col lg="3">
-                                                                <v-text-field v-model="searchTelephones"
-                                                                              label="Поиск по телефонам"
-                                                                              variant="solo"
-                                                                              density="comfortable"
-                                                                              hide-details
-                                                                ></v-text-field>
-                                                            </v-col>
-                                                            <v-col lg="1">
-                                                                <v-btn text="New tel"
-                                                                       @click="dialogFormTelephone = !dialogFormTelephone"
-                                                                       variant="elevated"
-                                                                       density="comfortable"
-                                                                       color="indigo-lighten-1"
-                                                                ></v-btn>
-                                                                <v-dialog v-model="dialogFormTelephone"
-                                                                          width="500"
-                                                                >
-                                                                    <template v-slot:default="{ isActive }">
-                                                                        <v-card>
-                                                                            <v-card-title>Form Telephone</v-card-title>
-                                                                            <v-card-text>
-                                                                                <v-form @submit.prevent>
-                                                                                    <v-row>
-                                                                                        <v-col>
-                                                                                            <v-text-field v-model="formTelephone.number"
-                                                                                                          label="Number"
-                                                                                                          placeholder="+...."
-                                                                                                          variant="outlined"
-                                                                                                          color="indigo"
-                                                                                            ></v-text-field>
-                                                                                        </v-col>
-                                                                                    </v-row>
-                                                                                </v-form>
-                                                                            </v-card-text>
-                                                                            <v-card-actions>
-                                                                                <v-divider vertical
-                                                                                           thickness="1"
-                                                                                           opacity="90"
-                                                                                ></v-divider>
-
-                                                                                <v-btn @click="storeTelephone"
-                                                                                       text="save"
-                                                                                       variant="elevated"
-                                                                                       color="success"
-                                                                                ></v-btn>
-                                                                            </v-card-actions>
-                                                                        </v-card>
-                                                                    </template>
-                                                                </v-dialog>
-                                                            </v-col>
-                                                        </v-row>
-                                                        <v-row>
-                                                            <v-col>
-                                                                <v-data-table :items="filteredTelephones"
-                                                                              items-per-page="100"
-                                                                              :headers="headerTelephones"
-                                                                              fixed-header
-                                                                              height="500px"
-                                                                              density="compact"
-                                                                              hover
-                                                                >
-                                                                    <template v-slot:item.entities="{item}">
-                                                                        <div v-for="entity in item.entities"
-                                                                             class="text-xs"
-                                                                        >{{entity.name}}</div>
-                                                                    </template>
-                                                                </v-data-table>
-                                                            </v-col>
-                                                        </v-row>
-                                                    </v-container>
+                                                    <TelephonePage />
                                                 </v-tabs-window-item>
                                             </v-tabs-window>
                                         </v-col>

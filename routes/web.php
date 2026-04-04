@@ -31,13 +31,14 @@ use App\Http\Controllers\API\NoteController;
 use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\SaleController;
-use App\Http\Controllers\API\TelephoneController;
+
 use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\PurchaseController;
+use App\Http\Controllers\Web\TelephoneController;
 use App\Http\Controllers\Web\UnitController;
 
 use App\Http\Controllers\EmailTrackingController;
@@ -200,6 +201,10 @@ Route::get('/кунжут/', function (){
     return Inertia::render('Sesame');
 })->name('web.sesame');
 
+//  Telephones
+Route::get('/telephones', [TelephoneController::class, 'index'])
+    ->name('telephones.index');
+
 
 
 //                     A         P         I
@@ -282,9 +287,7 @@ Route::post('/web/quotation/store', [QuotationController::class, 'store'])
 //      S A L E
 Route::post('/web/sale/store', [SaleController::class, 'store'])
     ->name('web.sale.store');
-//    T E L E P H O N E
-Route::post('/web/telephone/store', [TelephoneController::class, 'store'])
-    ->name('web.telephone.store');
+
 //      U N I T
 Route::post('/api/unit/store', [ApiUnitController::class, 'store'])
     ->name('web.unit.store');
