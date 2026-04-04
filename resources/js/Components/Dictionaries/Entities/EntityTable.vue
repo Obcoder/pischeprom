@@ -272,6 +272,10 @@ const goToPage = (p) => {
                     <span v-else>{{ item.city_names || '—' }}</span>
                 </template>
 
+                <template #item.buildings="{item}">
+                    <span class="text-sm">{{item.address}}</span>
+                </template>
+
                 <template #item.telephones_display="{ item }">
                     {{ item.telephones_display || formatPhones(item.telephones || []) || '—' }}
                 </template>
