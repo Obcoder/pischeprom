@@ -35,11 +35,12 @@ const { formatPhones } = usePhoneFormatter()
 const headers = [
     { title: 'Название', key: 'name', sortable: true },
     { title: 'Классификация', key: 'classification_name', sortable: false },
-    { title: 'Страна', key: 'country_name', sortable: false },
     { title: 'Города', key: 'city_names', sortable: false },
+    { title: 'Дом', key: 'buildings', sortable: true },
     { title: 'Телефоны', key: 'telephones_display', sortable: false },
     { title: 'Продаж', key: 'sales_count', sortable: true },
     { title: 'Последний purchase', key: 'last_purchase_date', sortable: true },
+    { title: 'Страна', key: 'country_name', sortable: false },
     { title: '', key: 'actions', sortable: false, width: 120 },
 ]
 
@@ -250,7 +251,7 @@ const goToPage = (p) => {
                 fixed-header
                 hide-default-footer
                 item-value="id"
-                height="650"
+                height="770"
                 @update:options="onOptionsUpdate"
             >
                 <template #item.name="{ item }">

@@ -22,6 +22,7 @@ class Entity extends Model
     ];
 
     protected $with = [
+        'buildings',
         'classification',
         'country',
     ];
