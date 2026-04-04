@@ -656,33 +656,6 @@ function storeCheck(){
 
 
 
-//    P R O D U C T  S T O R E
-const formProduct = useForm({
-    rus: null,
-    eng: null,
-    zh: null,
-    es: null,
-    ar: null,
-    po: null,
-    de: null,
-    fr: null,
-    hi: null,
-    category_id: null,
-})
-function storeProduct(){
-    formProduct.post(route('web.product.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formProduct.reset();
-            indexProducts(searchProducts);
-        },
-    })
-}
-
-
-
 function getManufacturers(){
     axios.get(route('api.manufacturers')).then(function (response) {
         // handle success
@@ -776,7 +749,7 @@ const formatBuildingTitle = (building) => {
     <v-theme-provider theme="dark">
         <v-container fluid>
             <v-row>
-                <v-col class="d-flex">
+                <v-col>
                     <v-card>
                         <v-tabs v-model="tab">
                             <v-tab value="units">Объекты</v-tab>
