@@ -38,7 +38,6 @@ use App\Http\Controllers\API\UriController;
 
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\PurchaseController;
-use App\Http\Controllers\Web\TelephoneController;
 use App\Http\Controllers\Web\UnitController;
 
 use App\Http\Controllers\EmailTrackingController;
@@ -201,10 +200,6 @@ Route::get('/кунжут/', function (){
     return Inertia::render('Sesame');
 })->name('web.sesame');
 
-//  Telephones
-Route::get('/telephones', [TelephoneController::class, 'index'])
-    ->name('telephones.index');
-
 
 
 //                     A         P         I
@@ -248,6 +243,7 @@ Route::post('/web/commodity/store', [CommodityController::class, 'store'])
 //      F R A G R A N C E
 Route::post('/web/fragrance/store', [FragranceController::class, 'store'])
     ->name('web.fragrance.store');
+
 //    G E N U S
 Route::post('/api/genus/store', [GenusController::class, 'store'])
     ->name('web.genus.store');
@@ -255,10 +251,10 @@ Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, '
     ->name('genera.toggleAgriculturable');
 
 
-
 //    G O O D
 Route::post('/api/good/store', [GoodController::class, 'store'])
     ->name('web.good.store');
+
 //    G O O D - S A L E
 Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
     ->name('web.goodsale.store');
