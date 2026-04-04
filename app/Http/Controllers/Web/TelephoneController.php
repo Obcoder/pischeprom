@@ -10,6 +10,6 @@ class TelephoneController extends Controller
 {
     public function index(): Response
     {
-        return Inertia::render('Dictionaries/telephones/TelephonePage');
+        return Inertia::render('Components/Dictionaries/telephones/TelephonePage');
     }
 }
