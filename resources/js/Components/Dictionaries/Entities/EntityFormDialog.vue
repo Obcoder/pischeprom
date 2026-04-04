@@ -74,19 +74,30 @@ const save = () => emit('submit')
                         />
                     </v-col>
 
-                    <v-col cols="12" md="6">
-                        <v-autocomplete
-                            v-model="form.buildings"
-                            :items="meta.buildings"
-                            item-title="name"
-                            item-value="id"
-                            label="Здания"
-                            multiple
-                            chips
-                            closable-chips
-                            variant="solo"
-                        />
-                    </v-col>
+                    <v-autocomplete
+                        v-model="form.buildings"
+                        :items="meta.buildings"
+                        item-title="address"
+                        item-value="id"
+                        label="Здания"
+                        multiple
+                        closable-chips
+                        variant="outlined"
+                        color="primary"
+                        bg-color="grey-darken-4"
+                        class="buildings-autocomplete"
+                    >
+                        <template #chip="{ props, item }">
+                            <v-chip
+                                v-bind="props"
+                                color="primary"
+                                variant="tonal"
+                                size="small"
+                            >
+                                {{ item.raw.address }}
+                            </v-chip>
+                        </template>
+                    </v-autocomplete>
 
                     <v-col cols="12" md="6">
                         <v-select
@@ -150,3 +161,17 @@ const save = () => emit('submit')
         </v-card>
     </v-dialog>
 </template>
+
+<style scoped>
+.buildings-autocomplete :deep(.v-field) {
+    border-radius: 12px;
+}
+
+.buildings-autocomplete :deep(.v-label) {
+    color: #cbd5e1;
+}
+
+.buildings-autocomplete :deep(.v-field__input) {
+    color: #fff;
+}
+</style>
