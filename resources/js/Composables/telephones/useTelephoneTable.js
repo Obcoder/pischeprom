@@ -1,6 +1,6 @@
 import { ref, reactive, watch, toRef } from 'vue'
 import { useTelephonesApi } from './useTelephonesApi'
-import { useDebounce } from '@/composables/common/useDebounce'
+import { useDebounce } from '@/Composables/common/useDebounce'
 
 export function useTelephoneTable() {
     const api = useTelephonesApi()
