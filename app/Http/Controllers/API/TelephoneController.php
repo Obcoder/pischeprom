@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Telephone\StoreTelephoneRequest;
 use App\Http\Requests\Telephone\UpdateTelephoneRequest;
+use App\Http\Resources\TelephoneResource;
 use App\Models\Entity;
 use App\Models\Telephone;
 use App\Models\Unit;
@@ -29,7 +30,13 @@ class TelephoneController extends Controller
             ->applySort($sortBy, $sortOrder)
             ->paginate($perPage, ['*'], 'page', $page);
 
-        return response()->json($telephones);
+        return response()->json([
+                                    'data' => TelephoneResource::collection($telephones->getCollection()),
+                                    'current_page' => $telephones->currentPage(),
+                                    'last_page' => $telephones->lastPage(),
+                                    'per_page' => $telephones->perPage(),
+                                    'total' => $telephones->total(),
+                                ]);
     }
 
     public function store(StoreTelephoneRequest $request): JsonResponse
@@ -40,27 +47,20 @@ class TelephoneController extends Controller
 
         $telephone->entities()->sync($request->input('entity_ids', []));
         $telephone->units()->sync($request->input('unit_ids', []));
-
-        $telephone->load([
-                             'entities:id,name',
-                             'units:id,name',
-                         ]);
+        $telephone->load(['entities:id,name', 'units:id,name']);
 
         return response()->json([
                                     'message' => 'Telephone created successfully.',
-                                    'data' => $telephone,
+                                    'data' => new TelephoneResource($telephone),
                                 ], 201);
     }
 
     public function show(Telephone $telephone): JsonResponse
     {
-        $telephone->load([
-                             'entities:id,name',
-                             'units:id,name',
-                         ]);
+        $telephone->load(['entities:id,name', 'units:id,name']);
 
         return response()->json([
-                                    'data' => $telephone,
+                                    'data' => new TelephoneResource($telephone),
                                 ]);
     }
 
@@ -72,15 +72,11 @@ class TelephoneController extends Controller
 
         $telephone->entities()->sync($request->input('entity_ids', []));
         $telephone->units()->sync($request->input('unit_ids', []));
-
-        $telephone->load([
-                             'entities:id,name',
-                             'units:id,name',
-                         ]);
+        $telephone->load(['entities:id,name', 'units:id,name']);
 
         return response()->json([
                                     'message' => 'Telephone updated successfully.',
-                                    'data' => $telephone,
+                                    'data' => new TelephoneResource($telephone),
                                 ]);
     }
 
@@ -91,6 +87,7 @@ class TelephoneController extends Controller
                                         ->select('id', 'name')
                                         ->orderBy('name')
                                         ->get(),
+
                                     'units' => Unit::query()
                                         ->select('id', 'name')
                                         ->orderBy('name')

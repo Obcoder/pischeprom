@@ -18,8 +18,6 @@
                             clearable
                             density="comfortable"
                             variant="outlined"
-                            @update:model-value="onFilterChanged"
-                            @click:clear="onFilterChanged"
                         />
                     </v-col>
 
@@ -36,7 +34,6 @@
                             clearable
                             density="comfortable"
                             variant="outlined"
-                            @update:model-value="onFilterChanged"
                         />
                     </v-col>
 
@@ -53,7 +50,6 @@
                             clearable
                             density="comfortable"
                             variant="outlined"
-                            @update:model-value="onFilterChanged"
                         />
                     </v-col>
                 </v-row>
@@ -93,6 +89,20 @@
                         </div>
                     </template>
 
+                    <template #item.created_at="{ item }">
+                        <div>{{ formatDate(item.created_at) }}</div>
+                        <div class="text-medium-emphasis text-caption">
+                            {{ formatTime(item.created_at) }}
+                        </div>
+                    </template>
+
+                    <template #item.updated_at="{ item }">
+                        <div>{{ formatDate(item.updated_at) }}</div>
+                        <div class="text-medium-emphasis text-caption">
+                            {{ formatTime(item.updated_at) }}
+                        </div>
+                    </template>
+
                     <template #item.actions="{ item }">
                         <v-btn
                             size="small"
@@ -107,78 +117,17 @@
             </v-card-text>
         </v-card>
 
-        <v-dialog
+        <TelephoneFormDialog
             v-model="dialog"
-            max-width="700"
-        >
-            <v-card>
-                <v-card-title>
-                    {{ isEdit ? 'Редактирование телефона' : 'Новый телефон' }}
-                </v-card-title>
-
-                <v-card-text>
-                    <v-row>
-                        <v-col cols="12">
-                            <v-text-field
-                                v-model="form.number"
-                                label="Номер"
-                                variant="outlined"
-                                density="comfortable"
-                                :error-messages="errors.number || []"
-                            />
-                        </v-col>
-
-                        <v-col cols="12">
-                            <v-autocomplete
-                                v-model="form.entity_ids"
-                                :items="entities"
-                                item-title="name"
-                                item-value="id"
-                                label="Entities"
-                                multiple
-                                chips
-                                closable-chips
-                                clearable
-                                variant="outlined"
-                                density="comfortable"
-                                :error-messages="errors.entity_ids || []"
-                            />
-                        </v-col>
-
-                        <v-col cols="12">
-                            <v-autocomplete
-                                v-model="form.unit_ids"
-                                :items="units"
-                                item-title="name"
-                                item-value="id"
-                                label="Units"
-                                multiple
-                                chips
-                                closable-chips
-                                clearable
-                                variant="outlined"
-                                density="comfortable"
-                                :error-messages="errors.unit_ids || []"
-                            />
-                        </v-col>
-                    </v-row>
-                </v-card-text>
-
-                <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="close">
-                        Отмена
-                    </v-btn>
-
-                    <v-btn
-                        color="primary"
-                        :loading="saving"
-                        @click="submit"
-                    >
-                        Сохранить
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
+            :form="form"
+            :errors="errors"
+            :saving="saving"
+            :entities="entities"
+            :units="units"
+            @update:form="setForm"
+            @submit="submit"
+            @close="close"
+        />
     </v-container>
 </template>
 
@@ -187,6 +136,8 @@ import { onMounted } from 'vue'
 import { useTelephoneTable } from '@/Composables/telephones/useTelephoneTable'
 import { useTelephoneForm } from '@/Composables/telephones/useTelephoneForm'
 import { useTelephoneMeta } from '@/Composables/telephones/useTelephoneMeta'
+import { formatDate, formatTime } from '@/utils/formatters/dateTime'
+import TelephoneFormDialog from '@/Components/Dictionaries/telephones/TelephoneFormDialog.vue'
 
 const headers = [
     { title: 'ID', key: 'id', sortable: true },
@@ -205,11 +156,9 @@ const {
     options,
     filters,
     fetchItems,
-    resetPage,
 } = useTelephoneTable()
 
 const {
-    loadingMeta,
     entities,
     units,
     fetchMeta,
@@ -220,7 +169,7 @@ const {
     saving,
     errors,
     form,
-    isEdit,
+    setForm,
     openCreate,
     openEdit,
     close,
@@ -228,11 +177,6 @@ const {
 } = useTelephoneForm(async () => {
     await fetchItems()
 })
-
-const onFilterChanged = () => {
-    resetPage()
-    fetchItems()
-}
 
 onMounted(async () => {
     await fetchMeta()

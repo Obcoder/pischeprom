@@ -21,8 +21,15 @@ export function useTelephoneForm(onSaved = null) {
 
     const isEdit = computed(() => !!form.id)
 
+    const setForm = (payload) => {
+        form.id = payload?.id ?? null
+        form.number = payload?.number ?? ''
+        form.entity_ids = Array.isArray(payload?.entity_ids) ? payload.entity_ids : []
+        form.unit_ids = Array.isArray(payload?.unit_ids) ? payload.unit_ids : []
+    }
+
     const resetForm = () => {
-        Object.assign(form, getDefaultForm())
+        setForm(getDefaultForm())
         errors.value = {}
     }
 
@@ -32,10 +39,13 @@ export function useTelephoneForm(onSaved = null) {
     }
 
     const openEdit = (item) => {
-        form.id = item.id
-        form.number = item.number
-        form.entity_ids = item.entities?.map((x) => x.id) || []
-        form.unit_ids = item.units?.map((x) => x.id) || []
+        setForm({
+            id: item.id,
+            number: item.number,
+            entity_ids: item.entities?.map((x) => x.id) || [],
+            unit_ids: item.units?.map((x) => x.id) || [],
+        })
+
         errors.value = {}
         dialog.value = true
     }
@@ -83,6 +93,8 @@ export function useTelephoneForm(onSaved = null) {
         errors,
         form,
         isEdit,
+        setForm,
+        resetForm,
         openCreate,
         openEdit,
         close,

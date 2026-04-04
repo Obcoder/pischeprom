@@ -1,5 +1,6 @@
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, toRef } from 'vue'
 import { useTelephonesApi } from './useTelephonesApi'
+import { useDebounce } from '@/composables/common/useDebounce'
 
 export function useTelephoneTable() {
     const api = useTelephonesApi()
@@ -20,6 +21,8 @@ export function useTelephoneTable() {
         unit_ids: [],
     })
 
+    const debouncedSearch = useDebounce(toRef(filters, 'search'), 500)
+
     const fetchItems = async () => {
         loading.value = true
 
@@ -31,7 +34,7 @@ export function useTelephoneTable() {
                 per_page: options.itemsPerPage,
                 sort_by: sort.key || 'id',
                 sort_order: sort.order || 'desc',
-                search: filters.search,
+                search: debouncedSearch.value,
                 entity_ids: filters.entity_ids,
                 unit_ids: filters.unit_ids,
             })
@@ -43,24 +46,32 @@ export function useTelephoneTable() {
         }
     }
 
-    watch(
-        () => [
-            options.page,
-            options.itemsPerPage,
-            JSON.stringify(options.sortBy),
-            filters.search,
-            JSON.stringify(filters.entity_ids),
-            JSON.stringify(filters.unit_ids),
-        ],
-        () => {
-            fetchItems()
-        },
-        { immediate: true }
-    )
-
     const resetPage = () => {
         options.page = 1
     }
+
+    watch(
+        () => debouncedSearch.value,
+        () => {
+            resetPage()
+            fetchItems()
+        }
+    )
+
+    watch(
+        () => [JSON.stringify(filters.entity_ids), JSON.stringify(filters.unit_ids)],
+        () => {
+            resetPage()
+            fetchItems()
+        }
+    )
+
+    watch(
+        () => [options.page, options.itemsPerPage, JSON.stringify(options.sortBy)],
+        () => {
+            fetchItems()
+        }
+    )
 
     return {
         loading,
