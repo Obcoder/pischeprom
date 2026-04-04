@@ -240,7 +240,7 @@ const goToPage = (p) => {
                 </v-expansion-panel>
             </v-expansion-panels>
 
-            <v-data-table-server
+            <v-data-table-server class="text-caption"
                 :headers="headers"
                 :items="items"
                 :items-length="totalItems"
@@ -253,6 +253,7 @@ const goToPage = (p) => {
                 item-value="id"
                 height="770"
                 @update:options="onOptionsUpdate"
+                hover
             >
                 <template #item.name="{ item }">
                     <a
@@ -273,7 +274,9 @@ const goToPage = (p) => {
                 </template>
 
                 <template #item.buildings="{item}">
-                    <span v-for="building in item.buildings" class="text-sm">{{building.address}}</span>
+                    <span v-for="building in item.buildings"
+                          style="font-size: 8px; font-weight: bold;"
+                    >{{building.address}}</span>
                 </template>
 
                 <template #item.telephones_display="{ item }">
