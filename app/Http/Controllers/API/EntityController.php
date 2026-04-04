@@ -14,7 +14,7 @@ class EntityController extends Controller
 {
     public function index(Request $request)
     {
-        $perPage = max((int) $request->integer('itemsPerPage', 60), 1);
+        $perPage = max((int) $request->integer('itemsPerPage', 1000), 1);
         $page = max((int) $request->integer('page', 1), 1);
         $sortBy = $request->string('sortBy')->toString() ?: 'sales_count';
         $sortDesc = filter_var($request->get('sortDesc', true), FILTER_VALIDATE_BOOLEAN);
