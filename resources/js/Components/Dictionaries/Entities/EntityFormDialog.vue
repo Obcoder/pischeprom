@@ -27,7 +27,7 @@ const save = () => emit('submit')
             <v-card-text>
                 <v-row dense>
                     <v-col cols="12" md="6">
-                        <v-text-field v-model="form.name" label="Название" />
+                        <v-text-field v-model="form.name" label="Название" variant="outlined"/>
                     </v-col>
 
                     <v-col cols="12" md="3">
@@ -61,7 +61,7 @@ const save = () => emit('submit')
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-select
+                        <v-autocomplete
                             v-model="form.cities"
                             :items="meta.cities"
                             item-title="name"
@@ -70,11 +70,12 @@ const save = () => emit('submit')
                             multiple
                             chips
                             closable-chips
+                            variant="solo-filled"
                         />
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-select
+                        <v-autocomplete
                             v-model="form.buildings"
                             :items="meta.buildings"
                             item-title="name"
@@ -83,6 +84,7 @@ const save = () => emit('submit')
                             multiple
                             chips
                             closable-chips
+                            variant="solo"
                         />
                     </v-col>
 
@@ -100,7 +102,7 @@ const save = () => emit('submit')
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-select
+                        <v-autocomplete
                             v-model="form.telephones"
                             :items="meta.telephones"
                             item-title="number"

@@ -29,7 +29,7 @@ class EntityMetaController extends Controller
 
                                     'cities' => City::query()
                                         ->select('id', 'name')
-                                        ->orderBy('name')
+                                        ->orderBy('population', 'desc')
                                         ->get(),
 
                                     'buildings' => Building::query()

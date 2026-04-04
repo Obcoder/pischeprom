@@ -17,6 +17,11 @@ class EntityResource extends JsonResource
             'entity_classification_id' => $this->entity_classification_id,
             'country_id' => $this->country_id,
 
+            'cities' => $this->whenLoaded('cities', fn () => $this->cities->map(fn ($item) => [
+                'id' => $item->id,
+                'name' => $item->name,
+            ])),
+
             'classification' => $this->whenLoaded('classification', fn () => [
                 'id' => $this->classification?->id,
                 'name' => $this->classification?->name,
@@ -30,11 +35,6 @@ class EntityResource extends JsonResource
             'buildings' => $this->whenLoaded('buildings', fn () => $this->buildings->map(fn ($item) => [
                 'id' => $item->id,
                 'address' => $item->address,
-            ])),
-
-            'cities' => $this->whenLoaded('cities', fn () => $this->cities->map(fn ($item) => [
-                'id' => $item->id,
-                'name' => $item->name,
             ])),
 
             'emails' => $this->whenLoaded('emails', fn () => $this->emails->map(fn ($item) => [
