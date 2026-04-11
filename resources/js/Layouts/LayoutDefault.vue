@@ -26,16 +26,13 @@ const footerLinks = [
     <div class="layout-shell">
         <AppHeader :categories="categories" />
 
-        <v-main class="layout-main">
+        <main class="layout-main">
             <slot />
-        </v-main>
+        </main>
 
-        <v-footer
-            class="layout-footer text-yellow-50"
-            color="#800000"
-        >
+        <footer class="layout-footer">
             <v-container>
-                <v-row class="py-4" justify="center">
+                <v-row class="py-6" justify="center">
                     <v-col cols="12" md="4" class="text-center">
                         <div class="text-subtitle-1 font-weight-bold mb-2">
                             Телефон
@@ -66,7 +63,7 @@ const footerLinks = [
                     </v-col>
                 </v-row>
             </v-container>
-        </v-footer>
+        </footer>
     </div>
 </template>
 
@@ -85,5 +82,7 @@ const footerLinks = [
 
 .layout-footer {
     margin-top: auto;
+    background: #800000;
+    color: #fef2f2;
 }
 </style>
