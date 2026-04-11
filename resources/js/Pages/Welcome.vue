@@ -1,18 +1,20 @@
 <script setup>
-import {Link} from '@inertiajs/vue3';
-import {computed, onMounted, ref} from "vue";
-import CocoaButterClassification from "@/Components/CocoaButterClassification.vue";
-import {useHead} from "@vueuse/head";
-import axios from "axios";
-import {route} from "ziggy-js";
-import LayoutDefault from '@/Layouts/LayoutDefault.vue';
+import { Link } from '@inertiajs/vue3'
+import { computed, onMounted, ref } from 'vue'
+import { useHead } from '@vueuse/head'
+import axios from 'axios'
+import { route } from 'ziggy-js'
+
+import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
 import HomeCategoriesSection from '@/Components/Home/HomeCategoriesSection.vue'
 import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
+import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 
 defineOptions({
     layout: LayoutDefault,
 })
+
 const props = defineProps({
     canLogin: {
         type: Boolean,
@@ -28,10 +30,18 @@ const props = defineProps({
         type: String,
         required: true,
     },
-    goodOfTheDay: Object,
-    productsCount: Number,
-    goodsCount: Number,
-
+    goodOfTheDay: {
+        type: Object,
+        default: null,
+    },
+    productsCount: {
+        type: Number,
+        default: 0,
+    },
+    goodsCount: {
+        type: Number,
+        default: 0,
+    },
     categories: {
         type: Array,
         default: () => [],
@@ -58,33 +68,37 @@ const props = defineProps({
 })
 
 const goods = ref([])
-
 const searchGoods = ref('')
+const showGlycerin = ref(false)
 
-const show = ref(false)
-
-//   G O O D S
-function indexGoods(){
-    axios.get(route('goods.published')).then(function (response){
-        goods.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
+function indexGoods() {
+    axios.get(route('goods.published'))
+        .then((response) => {
+            goods.value = response.data
+        })
+        .catch((error) => {
+            console.error(error)
+        })
 }
-const filteredGoods = computed(()=>{
-    const search = searchGoods.value.toLowerCase();
-    return goods.value
-        .filter(i => i.name.toLowerCase().includes(search))
-        .slice(0, 12);
-})
-//
 
-onMounted(()=>{
-    indexGoods()
+const filteredGoods = computed(() => {
+    const search = searchGoods.value.trim().toLowerCase()
+
+    if (!search) {
+        return goods.value.slice(0, 8)
+    }
+
+    return goods.value
+        .filter((item) => item.name?.toLowerCase().includes(search))
+        .slice(0, 8)
+})
+
+const goodOfTheDayTitle = computed(() => {
+    return props.goodOfTheDay?.good?.name || 'Товар дня скоро появится'
 })
 
 useHead({
-    title: 'ПИЩЕПРОМ-СЕРВЕР — маркетплейс для пищевой промышленности: пищевое сырьё, пищевые ингредиенты и добавки, стабильно, каталог пищевых технологий',
+    title: 'ПИЩЕПРОМ-СЕРВЕР — маркетплейс для пищевой промышленности: пищевое сырьё, ингредиенты и добавки',
     meta: [
         {
             name: 'description',
@@ -93,10 +107,13 @@ useHead({
     ],
 })
 
+onMounted(() => {
+    indexGoods()
+})
 </script>
 
 <template>
-    <div class="bg-grey-lighten-5">
+    <div class="welcome-page">
         <HomeHeroSection :stats="stats" />
 
         <HomeCategoriesSection :categories="categories" />
@@ -106,218 +123,519 @@ useHead({
             subtitle="Ключевые позиции для пищевой промышленности"
             :products="featuredProducts"
         />
-    </div>
-    <v-container fluid>
-        <v-row>
-            <v-col cols="1"
-                   v-for="category in categories"
-                   :key="category.id"
-            >
-                <Link :href="route('Categories', category.id)">
-                    <v-img :src="category.image"
-                           aspect-ratio="1/1"
-                           cover
-                           rounded
-                    >
-                        <div class="bg-red-800 text-slate-100 text-center opacity-50">
-                            <span class="opacity-100">{{category.name}}</span>
-                        </div>
-                    </v-img>
-                </Link>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col>
-                <div class="flex flex-row justify-start">
-                    <div><Link :href="route('web.sesame')">Кунжут</Link></div>
+
+        <section class="welcome-section">
+            <v-container>
+                <v-row class="align-stretch" dense>
+                    <v-col cols="12" lg="8">
+                        <v-card class="welcome-banner-card" rounded="xl" elevation="2">
+                            <v-row dense class="fill-height">
+                                <v-col cols="12" md="7">
+                                    <div class="welcome-banner-card__content">
+                                        <div class="welcome-eyebrow">
+                                            Маркетплейс для пищевой промышленности
+                                        </div>
+
+                                        <h2 class="welcome-title">
+                                            Пищевое сырьё, ингредиенты и добавки
+                                        </h2>
+
+                                        <p class="welcome-text">
+                                            Подбор номенклатуры, каталог товарных позиций, быстрый
+                                            поиск и удобная навигация по категориям.
+                                        </p>
+
+                                        <div class="welcome-actions">
+                                            <Link :href="route('goods')">
+                                                <v-btn color="#800000" rounded="xl" size="large">
+                                                    Перейти в каталог
+                                                </v-btn>
+                                            </Link>
+
+                                            <Link :href="route('web.sesame')">
+                                                <v-btn variant="outlined" color="#800000" rounded="xl" size="large">
+                                                    Кунжут
+                                                </v-btn>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </v-col>
+
+                                <v-col cols="12" md="5">
+                                    <v-img
+                                        src="https://storage.yandexcloud.net/pps/banners/%D0%91%D0%B0%D0%BD%D0%BD%D0%B5%D1%80%20%D0%BB%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD_%D0%9B%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD%20%D0%BA%D0%BE%D0%BF%D0%B8%D1%8F.png"
+                                        height="100%"
+                                        cover
+                                        class="welcome-banner-card__image"
+                                    />
+                                </v-col>
+                            </v-row>
+                        </v-card>
+                    </v-col>
+
+                    <v-col cols="12" lg="4">
+                        <v-card class="stats-card h-100" rounded="xl" elevation="2">
+                            <v-card-title class="text-h6 font-weight-bold">
+                                О проекте
+                            </v-card-title>
+
+                            <v-card-text class="stats-card__body">
+                                <div class="stats-card__numbers">
+                                    <div class="stats-chip">
+                                        <span class="stats-chip__value">{{ productsCount }}</span>
+                                        <span class="stats-chip__label">товарных наименований</span>
+                                    </div>
+
+                                    <div class="stats-chip">
+                                        <span class="stats-chip__value">{{ goodsCount }}</span>
+                                        <span class="stats-chip__label">товаров</span>
+                                    </div>
+                                </div>
+
+                                <p class="welcome-text mb-0">
+                                    ПИЩЕПРОМ-СЕРВЕР — работа по поддержанию широкого
+                                    ассортимента пищевых добавок, ингредиентов и сырья.
+                                </p>
+                            </v-card-text>
+                        </v-card>
+                    </v-col>
+                </v-row>
+            </v-container>
+        </section>
+
+        <section class="welcome-section welcome-section--soft">
+            <v-container>
+                <div class="section-heading">
+                    <div>
+                        <div class="welcome-eyebrow">Быстрый поиск</div>
+                        <h2 class="section-title">Найти товар по сайту</h2>
+                    </div>
                 </div>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col lg="2"
-                   md="4"
-            >
-                <v-text-field v-model="searchGoods"
-                              variant="outlined"
-                              density="comfortable"
-                              label="Поиск по сайту"
-                              placeholder="Поиск по товарам на нашем сервере"
-                              hide-details
-                              clearable
-                ></v-text-field>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col cols="3">
-                <v-card>
-                    <v-card-title>Результаты поиска</v-card-title>
-                    <v-card-subtitle>вводите запрос в поле выше</v-card-subtitle>
-                    <v-card-text>
-                        <v-list lines="one">
-                            <v-list-item v-for="good in filteredGoods"
-                            >
-                                <span>{{good.name}}</span>
-                            </v-list-item>
-                        </v-list>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col>
-                <v-row>
-                    <v-col>
-                        <v-img src="https://storage.yandexcloud.net/pps/banners/%D0%91%D0%B0%D0%BD%D0%BD%D0%B5%D1%80%20%D0%BB%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD_%D0%9B%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD%20%D0%BA%D0%BE%D0%BF%D0%B8%D1%8F.png"
-                               cover
-                               rounded
-                        ></v-img>
-                    </v-col>
-                </v-row>
-                <v-row class="max-h-160">
-                    <v-col cols="4">
-                        <v-img src="https://storage.yandexcloud.net/pps/banners/%D0%9D%D1%83%D1%82-01%20(2025-08-10-g).png"
-                               cover
-                               rounded
-                        ></v-img>
-                    </v-col>
-                </v-row>
-            </v-col>
-            <v-col cols="3">
-                <v-card>
-                    <v-img src="https://storage.yandexcloud.net/cold-reserve/GIElems/shutterstock_1476761888-3.webp"
-                           cover
-                    ></v-img>
-                    <v-card-title>
-                        {{productsCount + " товарных наименований"}}
-                    </v-card-title>
-                    <v-card-title>
-                        {{goodsCount + " товаров"}}
-                    </v-card-title>
-                    <v-card-text>
-                        ПИЩЕПРОМ-СЕРВЕР - работа по поддержанию наиболее возможного ассортимента номенклатуры пищевых добавок, ингредиентов и сырья.
-                    </v-card-text>
-                </v-card>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col lg="1"></v-col>
-            <v-col>
-                <div class="bg-red-800 text-orange-100 text-center rounded"><span class="text-3xl text-black">Ягоды</span></div>
-            </v-col>
-            <v-col lg="1"></v-col>
-        </v-row>
-        <v-row>
-            <v-col lg="1"></v-col>
-            <v-col>
-                <div class="bg-red-600 text-slate-300 text-center rounded"><span class="text-3xl text-black">Эмульгаторы</span></div>
-            </v-col>
-            <v-col lg="1"></v-col>
-        </v-row>
-        <v-row>
-            <v-col>
-                <CocoaButterClassification></CocoaButterClassification>
-            </v-col>
-            <v-col>
-                <v-card>
-                    <v-img height="200"
-                           src="https://storage.yandexcloud.net/cold-reserve/Goods/Cocoa/butter/buttercocoa-borrowed-01-330.jpg"
-                           cover
-                    ></v-img>
-                    <v-card-title>Какао-масло</v-card-title>
-                    <v-card-text>
-                        <strong>Состав:</strong>
-                        диглицериды и триглицериды, смешанные с жирными кислотами.
-                        Содержание жирных кислот: олеиновая кислота — до 43%, стеариновая кислота — до 34%, лауриновая и пальмитиновая кислоты — до 25%, линолевая кислота — 2%, арахиновая кислота — следы.
-                        <strong>Консистенция:</strong>
-                        при температуре 16–18 °C масло твёрдое и ломкое. Температура плавления — 32–35 °C. При 40 °C масло прозрачное.
-                        <strong>Применение:</strong>
-                        используется как жировая основа для производства шоколада и других кондитерских изделий, а также в парфюмерной и фармацевтической промышленностях. В частности, служит основой для приготовления суппозиториев (слабительных и обезболивающих свечей), различных лечебных мазей. Широкое применение находит оно и в косметологии, поскольку имеет заживляющее и тонизирующее действие.
-                        Какао-масло бывает двух видов:
-                        <strong>Нерафинированное масло</strong> – продукт, выжатый из бобов шоколадного дерева и не прошедший последующую очистку.
-                        <strong>Рафинированное масло</strong> – продукт, прошедший специальную очистку. Оно более мягкое и деликатное, включает меньшее количество жирных кислот. Такое масло светлее, запах у него полностью отсутствует. После процедуры рафинации повышается срок хранения продукта.
-                    </v-card-text>
-                </v-card>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col>
-                <v-card>
-                    <v-img
-                        height="300px"
-                        src="https://storage.yandexcloud.net/cold-reserve/Goods/Lecithin/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202024-08-21%20%D0%B2%2019.51.31.png"
-                        cover
-                        ></v-img>
-                    <v-card-title>Лецитин</v-card-title>
-                    <v-card-subtitle>подсолнечный</v-card-subtitle>
-                    <v-card-text>
-                        Концетрат фосфатидный подсолнечный
-                        <br />
 
-                        Лецитин играет ключевую роль в производстве шоколада. Благодаря добавлению лецитина в шоколадную массу достигается равномерное распределение жира и предотвращается появление нежелательных мазков. Это позволяет получить шоколад с более гладкой текстурой и лучшим вкусом.
+                <v-row dense class="align-stretch">
+                    <v-col cols="12" lg="4">
+                        <v-card rounded="xl" elevation="2" class="h-100">
+                            <v-card-text>
+                                <v-text-field
+                                    v-model="searchGoods"
+                                    variant="outlined"
+                                    density="comfortable"
+                                    label="Поиск по товарам"
+                                    placeholder="Например: лецитин, глицерин, какао-масло"
+                                    hide-details
+                                    clearable
+                                />
+                            </v-card-text>
 
-                        Фосфатидные концентраты широко используются при производстве комбикормов для сельскохозяйственных животных и птицы. Это обусловлено их физиологической ролью в питании, так как они содержат до 65% фосфолипидов и являются источником незаменимых жирных кислот, витаминов группы В, Е и F. Кроме того, фосфатидные концентраты способствуют повышению продуктивности животных за счёт улучшения усвоения корма и нормализации обмена веществ. Подсолнечные фосфатидные концентраты обладают рядом преимуществ перед соевыми аналогами благодаря отсутствию антипитательных факторов (ингибиторов трипсина) и аллергенов.
-                    </v-card-text>
-                </v-card>
-            </v-col>
-            <v-col>
-                <v-col cols="4">
-                    <v-card title="Акция дня">
-                        <v-card-text>
-                            {{goodOfTheDay.good.name}}
-                        </v-card-text>
-                    </v-card>
-                </v-col>
-            </v-col>
-            <v-col>
-                <v-card
-                    class="mx-auto"
-                    max-width="344"
-                >
-                    <v-img
-                        height="200px"
-                        src="https://storage.yandexcloud.net/cold-reserve/Goods/Glycerol/glycerol-25.jpg"
-                        cover
-                    ></v-img>
+                            <v-divider />
 
-                    <v-card-title>
-                        Глицерин
-                    </v-card-title>
+                            <v-card-title class="text-subtitle-1 font-weight-bold">
+                                Результаты
+                            </v-card-title>
 
-                    <v-card-subtitle>
-                        ПК-94, Д-98
-                    </v-card-subtitle>
-
-                    <v-card-actions>
-                        <v-btn
-                            color="orange-lighten-2"
-                            text="Информация"
-                        ></v-btn>
-
-                        <v-spacer></v-spacer>
-
-                        <v-btn
-                            :icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-                            @click="show = !show"
-                        ></v-btn>
-                    </v-card-actions>
-
-                    <v-expand-transition>
-                        <div v-show="show">
-                            <v-divider></v-divider>
+                            <v-card-subtitle>
+                                {{
+                                    searchGoods
+                                        ? 'Найденные позиции'
+                                        : 'Популярные позиции из каталога'
+                                }}
+                            </v-card-subtitle>
 
                             <v-card-text>
-                                Пищевая добавка Е422
-
-                                Канистры: 10 кг, 25 кг
-
-                                Получают из глицерина натурального сырого, произведенного из растительного рапсового масла, способом дистилляции и очистки.
-
-                                Применяется для фармакопейных целей, а также в пищевой, косметической и дургих отраслях промышленности.
-
-                                Срок хранения до вскрытия упаковки: 5 лет
+                                <v-list lines="one" density="compact">
+                                    <v-list-item
+                                        v-for="good in filteredGoods"
+                                        :key="good.id"
+                                    >
+                                        <template #title>
+                                            <span class="text-body-2">{{ good.name }}</span>
+                                        </template>
+                                    </v-list-item>
+                                </v-list>
                             </v-card-text>
-                        </div>
-                    </v-expand-transition>
-                </v-card>
-            </v-col>
-        </v-row>
-    </v-container>
+
+                            <v-card-actions class="px-4 pb-4">
+                                <Link :href="route('goods')" class="w-100">
+                                    <v-btn
+                                        block
+                                        color="#800000"
+                                        rounded="xl"
+                                    >
+                                        Открыть весь каталог
+                                    </v-btn>
+                                </Link>
+                            </v-card-actions>
+                        </v-card>
+                    </v-col>
+
+                    <v-col cols="12" lg="8">
+                        <v-row dense>
+                            <v-col cols="12">
+                                <v-card rounded="xl" elevation="2" overflow="hidden">
+                                    <v-img
+                                        src="https://storage.yandexcloud.net/pps/banners/%D0%9D%D1%83%D1%82-01%20(2025-08-10-g).png"
+                                        height="260"
+                                        cover
+                                    />
+                                </v-card>
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
+                                    <v-card-title class="text-h6 font-weight-bold">
+                                        Акция дня
+                                    </v-card-title>
+                                    <v-card-text class="text-body-1">
+                                        {{ goodOfTheDayTitle }}
+                                    </v-card-text>
+                                </v-card>
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
+                                    <v-card-title class="text-h6 font-weight-bold">
+                                        Основные категории
+                                    </v-card-title>
+                                    <v-card-text>
+                                        <div class="category-tags">
+                                            <Link
+                                                v-for="category in categories.slice(0, 6)"
+                                                :key="category.id"
+                                                :href="route('category.show', category.id)"
+                                                class="category-tag"
+                                            >
+                                                {{ category.name }}
+                                            </Link>
+                                        </div>
+                                    </v-card-text>
+                                </v-card>
+                            </v-col>
+                        </v-row>
+                    </v-col>
+                </v-row>
+            </v-container>
+        </section>
+
+        <section class="welcome-section">
+            <v-container>
+                <div class="section-heading">
+                    <div>
+                        <div class="welcome-eyebrow">Тематические материалы</div>
+                        <h2 class="section-title">Сырьё и ингредиенты</h2>
+                    </div>
+                </div>
+
+                <v-row dense class="align-stretch">
+                    <v-col cols="12" lg="6">
+                        <v-card rounded="xl" elevation="2" class="h-100">
+                            <v-card-title class="text-h6 font-weight-bold">
+                                Классификация какао-масла
+                            </v-card-title>
+                            <v-card-text>
+                                <CocoaButterClassification />
+                            </v-card-text>
+                        </v-card>
+                    </v-col>
+
+                    <v-col cols="12" lg="6">
+                        <v-card rounded="xl" elevation="2" class="h-100">
+                            <v-img
+                                height="240"
+                                src="https://storage.yandexcloud.net/cold-reserve/Goods/Cocoa/butter/buttercocoa-borrowed-01-330.jpg"
+                                cover
+                            />
+                            <v-card-title class="text-h6 font-weight-bold">
+                                Какао-масло
+                            </v-card-title>
+                            <v-card-text class="text-body-2">
+                                <p>
+                                    <strong>Состав:</strong>
+                                    диглицериды и триглицериды, смешанные с жирными кислотами.
+                                </p>
+                                <p>
+                                    <strong>Температура плавления:</strong>
+                                    32–35 °C. При 40 °C масло прозрачное.
+                                </p>
+                                <p>
+                                    <strong>Применение:</strong>
+                                    шоколад, кондитерские изделия, косметика,
+                                    фармацевтика.
+                                </p>
+                                <p class="mb-0">
+                                    Существует в нерафинированном и рафинированном виде,
+                                    отличающихся степенью очистки, запахом и сроком хранения.
+                                </p>
+                            </v-card-text>
+                        </v-card>
+                    </v-col>
+                </v-row>
+            </v-container>
+        </section>
+
+        <section class="welcome-section welcome-section--soft">
+            <v-container>
+                <v-row dense class="align-stretch">
+                    <v-col cols="12" md="6" lg="4">
+                        <v-card rounded="xl" elevation="2" class="h-100">
+                            <v-img
+                                height="220"
+                                src="https://storage.yandexcloud.net/cold-reserve/Goods/Lecithin/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202024-08-21%20%D0%B2%2019.51.31.png"
+                                cover
+                            />
+                            <v-card-title class="text-h6 font-weight-bold">
+                                Лецитин
+                            </v-card-title>
+                            <v-card-subtitle>
+                                Подсолнечный
+                            </v-card-subtitle>
+                            <v-card-text class="text-body-2">
+                                Концентрат фосфатидный подсолнечный. Используется в
+                                шоколадном производстве, помогает стабилизировать массу
+                                и улучшать текстуру продукта.
+                            </v-card-text>
+                        </v-card>
+                    </v-col>
+
+                    <v-col cols="12" md="6" lg="4">
+                        <v-card rounded="xl" elevation="2" class="h-100">
+                            <v-img
+                                height="220"
+                                src="https://storage.yandexcloud.net/cold-reserve/Goods/Glycerol/glycerol-25.jpg"
+                                cover
+                            />
+                            <v-card-title class="text-h6 font-weight-bold">
+                                Глицерин
+                            </v-card-title>
+                            <v-card-subtitle>
+                                ПК-94, Д-98
+                            </v-card-subtitle>
+
+                            <v-card-actions>
+                                <v-btn
+                                    color="#800000"
+                                    variant="text"
+                                    @click="showGlycerin = !showGlycerin"
+                                >
+                                    {{ showGlycerin ? 'Скрыть' : 'Подробнее' }}
+                                </v-btn>
+                            </v-card-actions>
+
+                            <v-expand-transition>
+                                <div v-show="showGlycerin">
+                                    <v-divider />
+                                    <v-card-text class="text-body-2">
+                                        Пищевая добавка Е422. Канистры 10 кг и 25 кг.
+                                        Используется для фармакопейных целей, а также в
+                                        пищевой, косметической и других отраслях промышленности.
+                                        Срок хранения до вскрытия упаковки — 5 лет.
+                                    </v-card-text>
+                                </div>
+                            </v-expand-transition>
+                        </v-card>
+                    </v-col>
+
+                    <v-col cols="12" lg="4">
+                        <v-card rounded="xl" elevation="2" class="h-100 info-card">
+                            <v-card-title class="text-h6 font-weight-bold">
+                                Что есть на платформе
+                            </v-card-title>
+
+                            <v-card-text>
+                                <ul class="info-list">
+                                    <li>каталог товаров и ингредиентов</li>
+                                    <li>навигация по категориям</li>
+                                    <li>подбор популярных позиций</li>
+                                    <li>поиск по опубликованным товарам</li>
+                                    <li>витрина для пищевой промышленности</li>
+                                </ul>
+                            </v-card-text>
+
+                            <v-card-actions class="px-4 pb-4">
+                                <Link :href="route('goods')" class="w-100">
+                                    <v-btn block color="#800000" rounded="xl">
+                                        Смотреть товары
+                                    </v-btn>
+                                </Link>
+                            </v-card-actions>
+                        </v-card>
+                    </v-col>
+                </v-row>
+            </v-container>
+        </section>
+    </div>
 </template>
+
+<style scoped>
+.welcome-page {
+    background: #f8fafc;
+}
+
+.welcome-section {
+    padding: 32px 0;
+}
+
+.welcome-section--soft {
+    background: linear-gradient(180deg, #fffaf8 0%, #fff 100%);
+}
+
+.section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.section-title {
+    margin: 4px 0 0;
+    font-size: 1.75rem;
+    line-height: 1.15;
+    font-weight: 800;
+    color: #3f1d1d;
+}
+
+.welcome-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(128, 0, 0, 0.08);
+    color: #8b1e1e;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.welcome-title {
+    margin: 14px 0 12px;
+    font-size: 2rem;
+    line-height: 1.15;
+    font-weight: 800;
+    color: #3f1d1d;
+}
+
+.welcome-text {
+    color: #5f5753;
+    line-height: 1.65;
+    font-size: 0.98rem;
+}
+
+.welcome-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.welcome-banner-card {
+    overflow: hidden;
+    background:
+        linear-gradient(135deg, #fffaf8 0%, #fff 35%, #fff6f3 100%);
+}
+
+.welcome-banner-card__content {
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 100%;
+}
+
+.welcome-banner-card__image {
+    min-height: 100%;
+}
+
+.stats-card {
+    background: linear-gradient(180deg, #ffffff 0%, #fff8f5 100%);
+}
+
+.stats-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.stats-card__numbers {
+    display: grid;
+    gap: 12px;
+}
+
+.stats-chip {
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(128, 0, 0, 0.05);
+    border: 1px solid rgba(128, 0, 0, 0.08);
+}
+
+.stats-chip__value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #7f1d1d;
+    line-height: 1.1;
+}
+
+.stats-chip__label {
+    margin-top: 4px;
+    color: #6b625d;
+    font-size: 0.92rem;
+}
+
+.promo-mini-card {
+    background: #fff;
+}
+
+.category-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.category-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 999px;
+    text-decoration: none;
+    color: #7f1d1d;
+    background: rgba(128, 0, 0, 0.06);
+    border: 1px solid rgba(128, 0, 0, 0.08);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.info-card {
+    background: linear-gradient(180deg, #fff 0%, #fffaf7 100%);
+}
+
+.info-list {
+    margin: 0;
+    padding-left: 18px;
+    color: #5f5753;
+    line-height: 1.8;
+}
+
+@media (max-width: 960px) {
+    .welcome-section {
+        padding: 24px 0;
+    }
+
+    .welcome-title {
+        font-size: 1.65rem;
+    }
+
+    .section-title {
+        font-size: 1.45rem;
+    }
+
+    .welcome-banner-card__content {
+        padding: 22px;
+    }
+}
+
+@media (max-width: 600px) {
+    .welcome-actions {
+        flex-direction: column;
+    }
+}
+</style>
