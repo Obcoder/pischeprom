@@ -38,7 +38,7 @@ function submitSearch() {
 }
 
 function handleScroll() {
-    isCompact.value = window.scrollY > 40
+    isCompact.value = window.scrollY > 24
 }
 
 onMounted(() => {
@@ -52,52 +52,25 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <header
-        :class="['app-header', { 'app-header--compact': isCompact }]"
-    >
+    <header :class="['app-header', { 'app-header--compact': isCompact }]">
         <div class="app-header__top">
             <v-container class="py-0">
-                <div class="app-header__inner">
-                    <div class="app-header__left">
-                        <div class="app-header__contacts">
-                            <a
-                                v-for="contact in mainContacts"
-                                :key="contact.href"
-                                :href="contact.href"
-                                class="app-header__contact"
-                            >
-                                {{ contact.label }}
-                            </a>
-                        </div>
-
-                        <nav class="app-header__quick-links">
-                            <Link
-                                v-for="item in quickLinks"
-                                :key="item.label"
-                                :href="item.href"
-                                class="app-header__quick-link"
-                            >
-                                {{ item.label }}
-                            </Link>
-                        </nav>
+                <div class="app-header__top-inner">
+                    <div class="app-header__contacts">
+                        <a
+                            v-for="contact in mainContacts"
+                            :key="contact.href"
+                            :href="contact.href"
+                            class="app-header__contact"
+                        >
+                            {{ contact.label }}
+                        </a>
                     </div>
 
-                    <div class="app-header__center">
-                        <Link href="/" class="app-header__logo-link">
-                            <div class="app-header__logo-shell">
-                                <img
-                                    :src="logo"
-                                    alt="ПИЩЕПРОМ-СЕРВЕР"
-                                    class="app-header__logo"
-                                >
-                            </div>
-                        </Link>
-                    </div>
-
-                    <div class="app-header__right">
+                    <div class="app-header__auth">
                         <template v-if="user">
                             <div class="app-header__user">
-                                <v-avatar color="white" size="38">
+                                <v-avatar color="white" size="30">
                                     <span class="text-red-darken-4 font-weight-bold">
                                         {{ user.name?.[0] || 'U' }}
                                     </span>
@@ -106,9 +79,6 @@ onBeforeUnmount(() => {
                                 <div class="app-header__user-meta">
                                     <div class="app-header__user-name">
                                         {{ user.name }}
-                                    </div>
-                                    <div class="app-header__user-email">
-                                        {{ user.email }}
                                     </div>
                                 </div>
 
@@ -154,10 +124,31 @@ onBeforeUnmount(() => {
             </v-container>
         </div>
 
-        <div class="app-header__bottom">
+        <div class="app-header__main">
             <v-container class="py-0">
-                <div class="app-header__bottom-inner">
-                    <div class="app-header__left-bottom">
+                <div class="app-header__main-inner">
+                    <div class="app-header__brand">
+                        <Link href="/" class="app-header__logo-link">
+                            <div class="app-header__logo-shell">
+                                <img
+                                    :src="logo"
+                                    alt="ПИЩЕПРОМ-СЕРВЕР"
+                                    class="app-header__logo"
+                                >
+                            </div>
+                        </Link>
+
+                        <div class="app-header__brand-text">
+                            <Link href="/" class="app-header__brand-title">
+                                ПИЩЕПРОМ-СЕРВЕР
+                            </Link>
+                            <div class="app-header__brand-subtitle">
+                                Маркетплейс для пищевой промышленности
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="app-header__nav">
                         <Link :href="route('goods')" class="app-header__catalog-link">
                             Все товары
                         </Link>
@@ -189,6 +180,17 @@ onBeforeUnmount(() => {
                                 </v-list-item>
                             </v-list>
                         </v-menu>
+
+                        <nav class="app-header__quick-links">
+                            <Link
+                                v-for="item in quickLinks"
+                                :key="item.label"
+                                :href="item.href"
+                                class="app-header__quick-link"
+                            >
+                                {{ item.label }}
+                            </Link>
+                        </nav>
                     </div>
 
                     <div class="app-header__search">
@@ -226,118 +228,46 @@ onBeforeUnmount(() => {
     position: sticky;
     top: 0;
     z-index: 100;
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    transition: box-shadow 0.2s ease;
 }
 
 .app-header__top {
-    background: linear-gradient(90deg, #5c0000 0%, #800000 45%, #6d0000 100%);
+    background: linear-gradient(90deg, #6b0000 0%, #800000 50%, #6b0000 100%);
     color: #fff7ed;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    transition: background 0.25s ease, box-shadow 0.25s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.app-header__inner {
-    min-height: 82px;
-    display: grid;
-    grid-template-columns: 1fr 160px 1fr;
-    align-items: center;
-    gap: 18px;
-    transition: min-height 0.25s ease, gap 0.25s ease, padding 0.25s ease;
-}
-
-.app-header__left {
+.app-header__top-inner {
+    min-height: 38px;
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-start;
-    transition: gap 0.25s ease;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
 }
 
 .app-header__contacts {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 12px;
-    transition: gap 0.25s ease;
+    gap: 8px 14px;
 }
 
 .app-header__contact {
     color: #ffedd5;
     text-decoration: none;
-    font-size: 0.84rem;
+    font-size: 0.82rem;
     line-height: 1.2;
     opacity: 0.95;
-    transition: font-size 0.25s ease, opacity 0.2s ease;
 }
 
 .app-header__contact:hover {
     opacity: 1;
 }
 
-.app-header__quick-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    transition: gap 0.25s ease;
-}
-
-.app-header__quick-link {
-    color: white;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.88rem;
-    padding: 6px 10px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.07);
-    transition: all 0.25s ease;
-}
-
-.app-header__quick-link:hover {
-    background: rgba(255, 255, 255, 0.14);
-    transform: translateY(-1px);
-}
-
-.app-header__center {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.app-header__logo-link {
-    text-decoration: none;
-}
-
-.app-header__logo-shell {
-    width: 128px;
-    height: 128px;
-    margin-top: 10px;
-    margin-bottom: -10px;
-    border-radius: 50%;
-    background: #fffaf5;
-    box-shadow:
-        0 8px 24px rgba(0, 0, 0, 0.14),
-        inset 0 0 0 6px rgba(128, 0, 0, 0.08);
+.app-header__auth {
     display: flex;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    transition:
-        width 0.25s ease,
-        height 0.25s ease,
-        margin-top 0.25s ease,
-        margin-bottom 0.25s ease,
-        box-shadow 0.25s ease;
-}
-
-.app-header__logo {
-    width: 78%;
-    height: auto;
-    object-fit: contain;
-    display: block;
-}
-
-.app-header__right {
-    display: flex;
     justify-content: flex-end;
 }
 
@@ -355,50 +285,90 @@ onBeforeUnmount(() => {
 .app-header__user {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .app-header__user-meta {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    max-width: 190px;
+    align-items: center;
 }
 
 .app-header__user-name {
-    font-weight: 700;
-    font-size: 0.95rem;
-    line-height: 1.1;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #fff;
 }
 
-.app-header__user-email {
-    font-size: 0.8rem;
-    color: #fed7aa;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 190px;
-}
-
-.app-header__bottom {
+.app-header__main {
     background: #fffaf8;
-    border-bottom: 1px solid rgba(128, 0, 0, 0.12);
-    transition: background 0.25s ease, border-color 0.25s ease;
 }
 
-.app-header__bottom-inner {
-    min-height: 52px;
+.app-header__main-inner {
+    min-height: 72px;
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr minmax(280px, 420px);
     align-items: center;
-    gap: 16px;
-    transition: min-height 0.25s ease, gap 0.25s ease, padding 0.25s ease;
+    gap: 20px;
+    padding: 10px 0;
 }
 
-.app-header__left-bottom {
+.app-header__brand {
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
+}
+
+.app-header__logo-link {
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.app-header__logo-shell {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid rgba(128, 0, 0, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.app-header__logo {
+    width: 78%;
+    height: 78%;
+    object-fit: contain;
+    display: block;
+}
+
+.app-header__brand-text {
+    min-width: 0;
+}
+
+.app-header__brand-title {
+    display: inline-block;
+    color: #7f1d1d;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.app-header__brand-subtitle {
+    font-size: 0.8rem;
+    color: #7c6f6a;
+    line-height: 1.2;
+    margin-top: 2px;
+}
+
+.app-header__nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .app-header__catalog-link {
@@ -408,147 +378,108 @@ onBeforeUnmount(() => {
     white-space: nowrap;
 }
 
+.app-header__quick-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.app-header__quick-link {
+    color: #7f1d1d;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.84rem;
+    padding: 5px 10px;
+    border: 1px solid rgba(128, 0, 0, 0.14);
+    border-radius: 999px;
+    background: rgba(128, 0, 0, 0.04);
+    transition: all 0.2s ease;
+}
+
+.app-header__quick-link:hover {
+    background: rgba(128, 0, 0, 0.08);
+}
+
 .app-header__search {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
 }
 
 .app-header__search-btn {
     height: 40px;
-    min-width: 104px;
+    min-width: 98px;
     font-weight: 700;
 }
 
-/* compact state */
+/* compact */
 .app-header--compact {
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
 }
 
-.app-header--compact .app-header__inner {
+.app-header--compact .app-header__top-inner {
+    min-height: 34px;
+}
+
+.app-header--compact .app-header__main-inner {
     min-height: 64px;
-    gap: 14px;
-}
-
-.app-header--compact .app-header__left {
-    gap: 4px;
-}
-
-.app-header--compact .app-header__contacts {
-    gap: 4px 10px;
-}
-
-.app-header--compact .app-header__contact {
-    font-size: 0.78rem;
-}
-
-.app-header--compact .app-header__quick-links {
-    gap: 6px;
-}
-
-.app-header--compact .app-header__quick-link {
-    padding: 4px 8px;
-    font-size: 0.8rem;
+    padding: 8px 0;
 }
 
 .app-header--compact .app-header__logo-shell {
-    width: 92px;
-    height: 92px;
-    margin-top: 4px;
-    margin-bottom: -4px;
-    box-shadow:
-        0 6px 16px rgba(0, 0, 0, 0.12),
-        inset 0 0 0 5px rgba(128, 0, 0, 0.08);
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
 }
 
-.app-header--compact .app-header__user-name {
-    font-size: 0.88rem;
+.app-header--compact .app-header__brand-title {
+    font-size: 0.95rem;
 }
 
-.app-header--compact .app-header__user-email {
-    font-size: 0.75rem;
-}
-
-.app-header--compact .app-header__bottom-inner {
-    min-height: 44px;
-    gap: 12px;
-}
-
-.app-header--compact .app-header__search-btn {
-    height: 36px;
-    min-width: 96px;
+.app-header--compact .app-header__brand-subtitle {
+    font-size: 0.76rem;
 }
 
 @media (max-width: 1264px) {
-    .app-header__inner {
-        grid-template-columns: 1fr 140px 1fr;
+    .app-header__main-inner {
+        grid-template-columns: auto 1fr;
     }
 
-    .app-header__logo-shell {
-        width: 112px;
-        height: 112px;
-    }
-
-    .app-header--compact .app-header__logo-shell {
-        width: 84px;
-        height: 84px;
+    .app-header__search {
+        grid-column: 1 / -1;
     }
 }
 
 @media (max-width: 960px) {
     .app-header {
         position: relative;
-        top: auto;
     }
 
-    .app-header__inner {
-        grid-template-columns: 1fr;
-        text-align: center;
-        padding-top: 14px;
-        padding-bottom: 14px;
+    .app-header__top-inner {
+        flex-direction: column;
+        justify-content: center;
+        padding: 8px 0;
     }
 
-    .app-header__left,
-    .app-header__right {
-        align-items: center;
+    .app-header__contacts,
+    .app-header__auth {
         justify-content: center;
     }
 
-    .app-header__right {
-        justify-content: center;
-    }
-
-    .app-header__user-meta {
-        align-items: center;
-    }
-
-    .app-header__center {
-        order: -1;
-    }
-
-    .app-header__logo-shell {
-        width: 104px;
-        height: 104px;
-        margin-top: 0;
-        margin-bottom: 0;
-    }
-
-    .app-header--compact .app-header__logo-shell {
-        width: 104px;
-        height: 104px;
-        margin-top: 0;
-        margin-bottom: 0;
-    }
-
-    .app-header__bottom-inner {
+    .app-header__main-inner {
         grid-template-columns: 1fr;
+        gap: 14px;
         padding: 12px 0;
     }
 
-    .app-header__left-bottom {
+    .app-header__brand {
         justify-content: center;
-        flex-wrap: wrap;
+        text-align: center;
+    }
+
+    .app-header__nav {
+        justify-content: center;
     }
 }
 
@@ -558,6 +489,7 @@ onBeforeUnmount(() => {
     .app-header__guest,
     .app-header__user {
         justify-content: center;
+        flex-wrap: wrap;
     }
 
     .app-header__user {
@@ -570,6 +502,10 @@ onBeforeUnmount(() => {
 
     .app-header__search-btn {
         width: 100%;
+    }
+
+    .app-header__brand {
+        flex-direction: column;
     }
 }
 </style>
