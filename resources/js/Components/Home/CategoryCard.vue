@@ -11,7 +11,7 @@ defineProps({
 </script>
 
 <template>
-    <Link :href="route('Categories', category.id)" class="text-decoration-none">
+    <Link :href="route('category.show', category.id)" class="text-decoration-none">
         <v-card
             rounded="xl"
             elevation="2"
