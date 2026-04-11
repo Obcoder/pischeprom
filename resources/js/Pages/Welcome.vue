@@ -146,7 +146,7 @@ onMounted(() => {
                                         </p>
 
                                         <div class="welcome-actions">
-                                            <Link :href="route('goods')">
+                                            <Link :href="route('goods.published')">
                                                 <v-btn color="#800000" rounded="xl" size="large">
                                                     Перейти в каталог
                                                 </v-btn>

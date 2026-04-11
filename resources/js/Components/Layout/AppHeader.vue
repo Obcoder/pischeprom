@@ -29,7 +29,7 @@ const mainContacts = [
 ]
 
 function submitSearch() {
-    router.get(route('goods'), {
+    router.get(route('goods.published'), {
         search: search.value?.trim() || '',
     }, {
         preserveState: true,
@@ -149,7 +149,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="app-header__nav">
-                        <Link :href="route('goods')" class="app-header__catalog-link">
+                        <Link :href="route('goods.published')" class="app-header__catalog-link">
                             Все товары
                         </Link>
 
