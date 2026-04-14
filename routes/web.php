@@ -31,12 +31,12 @@ use App\Http\Controllers\API\NoteController;
 use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\SaleController;
-
 use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
+use App\Http\Controllers\Web\GoodController as WebGoodController;
 use App\Http\Controllers\Web\PurchaseController;
 use App\Http\Controllers\Web\UnitController;
 
@@ -116,6 +116,7 @@ Route::get('/Ameise/FluxMonitor/', function (){
 Route::get('/Ameise/Geography/', function (){
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
+
 //   G O O D S
 Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
@@ -128,6 +129,12 @@ Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
 })->name('Ameise.good.show');
 Route::get('/goods/published', [GoodController::class, 'indexPublished'])
     ->name('goods.published');
+
+//      G O O D
+
+Route::get('/goods/{good:slug}', [WebGoodController::class, 'show'])
+    ->name('goods.show');
+
 //     G R O S S B U C H
 Route::get('/Ameise/grossbuch/', function (){
     return Inertia::render('Ameise/Grossbuch');

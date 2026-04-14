@@ -6,32 +6,69 @@ use App\Models\Category;
 use App\Models\Good;
 use App\Models\GoodOfTheDay;
 use App\Models\Product;
-use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class MainController extends Controller
 {
-    public function index()
+    public function index(): Response
     {
-        $categories = Category::where('is_published', 1)
+        $categories = Category::query()
+            ->where('is_published', true)
             ->inRandomOrder()
             ->limit(12)
             ->get();
-        $good = Good::inRandomOrder()->first();
-        $goodOfTheDay = GoodOfTheDay::create([
-            'good_id' => $good->id,
-            'date' => date('Y-m-d'),
-                                                 ]);
-        $productsCount = Product::count();
-        $goodsCount = Good::count();
 
-        $data = [
+        $goodOfTheDay = $this->resolveGoodOfTheDay();
+
+        $heroGoods = Good::query()
+            ->where('is_published', true)
+            ->whereNotNull('ava_thumb')
+            ->inRandomOrder()
+            ->limit(random_int(8, 16))
+            ->get([
+                      'id',
+                      'name',
+                      'slug',
+                      'ava_thumb',
+                  ]);
+
+        return Inertia::render('Welcome', [
             'categories' => $categories,
-            'goodOfTheDay' => $goodOfTheDay::with('good')->find($goodOfTheDay->id),
-            'productsCount' => $productsCount,
-            'goodsCount' => $goodsCount,
-        ];
+            'goodOfTheDay' => $goodOfTheDay,
+            'productsCount' => Product::query()->count(),
+            'goodsCount' => Good::query()->count(),
+            'heroGoods' => $heroGoods,
+        ]);
+    }
 
-        return Inertia::render('Welcome', $data);
+    private function resolveGoodOfTheDay(): ?GoodOfTheDay
+    {
+        $today = Carbon::today()->toDateString();
+
+        $record = GoodOfTheDay::query()
+            ->with('good')
+            ->firstWhere('date', $today);
+
+        if ($record) {
+            return $record;
+        }
+
+        $randomGood = Good::query()
+            ->where('is_published', true)
+            ->inRandomOrder()
+            ->first();
+
+        if (! $randomGood) {
+            return null;
+        }
+
+        return GoodOfTheDay::query()
+            ->create([
+                         'good_id' => $randomGood->id,
+                         'date' => $today,
+                     ])
+            ->load('good');
     }
 }

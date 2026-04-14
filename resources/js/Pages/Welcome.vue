@@ -65,6 +65,7 @@ const props = defineProps({
             goodsCount: 0,
         }),
     },
+    heroGoods: Array,
 })
 
 const goods = ref([])
@@ -114,7 +115,13 @@ onMounted(() => {
 
 <template>
     <div class="welcome-page">
-        <HomeHeroSection :stats="stats" />
+        <HomeHeroSection
+            :stats="{
+        productsCount,
+        goodsCount
+    }"
+            :hero-goods="heroGoods"
+        />
 
         <HomeCategoriesSection :categories="categories" />
 
