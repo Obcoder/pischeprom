@@ -132,7 +132,7 @@ Route::get('/goods/published', [GoodController::class, 'indexPublished'])
 
 //      G O O D
 
-Route::get('/goods/{good:slug}', [WebGoodController::class, 'show'])
+Route::get('/g/{good:slug}', [WebGoodController::class, 'show'])
     ->name('goods.show');
 
 //     G R O S S B U C H

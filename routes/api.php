@@ -72,7 +72,7 @@ Route::apiResource('industries', IndustryController::class);
 // если нужно быстро получить units по industry:
 Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
 Route::apiResource('genera', GenusController::class);
-Route::apiResource('goods', GoodController::class);
+Route::apiResource('goods', GoodController::class)->except(['show']);
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
     ->where('id', '[0-9]+')->name('good.fetch');
 Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
