@@ -84,6 +84,24 @@ function entityTitle(entity) {
     )
 }
 
+function consumerSite(consumer) {
+    const uris = consumer?.unit?.uris || []
+
+    if (!uris.length) return null
+
+    const validUri =
+        uris.find(uri => uri?.is_valid && uri?.address) ||
+        uris.find(uri => uri?.address)
+
+    return validUri?.address || null
+}
+
+function normalizeUrl(url) {
+    if (!url) return null
+    if (/^https?:\/\//i.test(url)) return url
+    return `https://${url}`
+}
+
 function goBack() {
     if (window.history.length > 1) {
         window.history.back()
@@ -550,27 +568,95 @@ onMounted(loadProduct)
                     </v-window-item>
 
                     <v-window-item value="consumers" class="window-pane">
-                        <div class="tab-scroll pa-4">
+                        <div class="tab-scroll pa-4 consumers-pane">
                             <template v-if="product.consumers?.length">
-                                <v-card rounded="lg" variant="tonal">
-                                    <v-card-text class="pt-3">
-                                        <v-table density="compact" class="data-table-fixed">
+                                <v-card rounded="xl" variant="flat" class="consumers-card">
+                                    <div class="consumers-hero px-4 px-md-6 py-4">
+                                        <div class="d-flex align-center justify-space-between ga-3 flex-wrap">
+                                            <div>
+                                                <div class="text-overline consumers-overline mb-1">
+                                                    Потребители продукта
+                                                </div>
+                                                <div class="text-h6 font-weight-bold">
+                                                    Consumers
+                                                </div>
+                                                <div class="text-body-2 text-medium-emphasis mt-1">
+                                                    Компании и unit, использующие текущий продукт
+                                                </div>
+                                            </div>
+
+                                            <v-chip color="success" variant="flat" size="large">
+                                                {{ product.consumers.length }}
+                                            </v-chip>
+                                        </div>
+                                    </div>
+
+                                    <v-divider />
+
+                                    <v-card-text class="pt-4">
+                                        <v-table density="comfortable" class="data-table-fixed consumers-table">
                                             <thead>
                                             <tr>
                                                 <th class="text-left">ID</th>
-                                                <th class="text-left">Продукт</th>
                                                 <th class="text-left">Unit</th>
                                                 <th class="text-left">Measure</th>
                                                 <th class="text-left">Количество</th>
+                                                <th class="text-left">Сайт</th>
                                             </tr>
                                             </thead>
                                             <tbody>
                                             <tr v-for="consumer in product.consumers" :key="consumer.id">
                                                 <td class="table-id">{{ consumer.id }}</td>
-                                                <td class="break-word">{{ entityTitle(consumer.product) }}</td>
-                                                <td class="break-word">{{ entityTitle(consumer.unit) }}</td>
-                                                <td class="break-word">{{ entityTitle(consumer.measure) }}</td>
-                                                <td>{{ consumer.quantity ?? consumer.amount ?? '—' }}</td>
+
+                                                <td class="break-word">
+                                                    <Link
+                                                        v-if="consumer.unit?.id"
+                                                        :href="route('web.unit.show', consumer.unit.id)"
+                                                        class="text-decoration-none"
+                                                    >
+                                                        <v-chip
+                                                            color="success"
+                                                            variant="tonal"
+                                                            size="small"
+                                                            class="consumer-unit-chip"
+                                                        >
+                                                            {{ entityTitle(consumer.unit) }}
+                                                        </v-chip>
+                                                    </Link>
+
+                                                    <span v-else class="text-medium-emphasis">—</span>
+                                                </td>
+
+                                                <td class="break-word">
+                                                    <v-chip
+                                                        v-if="consumer.measure"
+                                                        color="green-darken-2"
+                                                        variant="outlined"
+                                                        size="small"
+                                                    >
+                                                        {{ entityTitle(consumer.measure) }}
+                                                    </v-chip>
+                                                    <span v-else class="text-medium-emphasis">—</span>
+                                                </td>
+
+                                                <td>
+                                <span class="consumer-qty">
+                                    {{ consumer.quantity ?? '—' }}
+                                </span>
+                                                </td>
+
+                                                <td class="break-word">
+                                                    <a
+                                                        v-if="consumerSite(consumer)"
+                                                        :href="normalizeUrl(consumerSite(consumer))"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        class="consumer-site-link"
+                                                    >
+                                                        {{ consumerSite(consumer) }}
+                                                    </a>
+                                                    <span v-else class="text-medium-emphasis">—</span>
+                                                </td>
                                             </tr>
                                             </tbody>
                                         </v-table>
@@ -578,7 +664,7 @@ onMounted(loadProduct)
                                 </v-card>
                             </template>
 
-                            <v-alert v-else type="info" variant="tonal">
+                            <v-alert v-else type="info" variant="tonal" color="success">
                                 Consumers не найдены
                             </v-alert>
                         </div>
@@ -741,5 +827,74 @@ onMounted(loadProduct)
 .data-table-fixed {
     table-layout: fixed;
     width: 100%;
+}
+
+.consumers-pane {
+    background: linear-gradient(
+        180deg,
+        rgba(76, 175, 80, 0.06) 0%,
+        rgba(129, 199, 132, 0.03) 100%
+    );
+    border-radius: 20px;
+}
+
+.consumers-card {
+    border: 1px solid rgba(76, 175, 80, 0.16);
+    background: linear-gradient(
+        180deg,
+        rgba(241, 248, 233, 0.98) 0%,
+        rgba(255, 255, 255, 0.98) 100%
+    );
+    box-shadow: 0 10px 30px rgba(56, 142, 60, 0.08);
+}
+
+.consumers-hero {
+    background: linear-gradient(
+        135deg,
+        rgba(76, 175, 80, 0.14) 0%,
+        rgba(139, 195, 74, 0.10) 100%
+    );
+}
+
+.consumers-overline {
+    color: rgb(46, 125, 50);
+    letter-spacing: 0.08em;
+}
+
+.consumers-table :deep(thead th) {
+    color: rgb(46, 125, 50);
+    font-weight: 700;
+    background: rgba(76, 175, 80, 0.08);
+    white-space: nowrap;
+}
+
+.consumers-table :deep(tbody tr) {
+    transition: background-color 0.18s ease;
+}
+
+.consumers-table :deep(tbody tr:hover) {
+    background: rgba(76, 175, 80, 0.05);
+}
+
+.consumer-unit-chip {
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.consumer-site-link {
+    color: rgb(33, 150, 83);
+    font-weight: 600;
+    text-decoration: none;
+    word-break: break-word;
+}
+
+.consumer-site-link:hover {
+    color: rgb(27, 94, 32);
+    text-decoration: underline;
+}
+
+.consumer-qty {
+    font-weight: 700;
+    color: rgb(46, 125, 50);
 }
 </style>
