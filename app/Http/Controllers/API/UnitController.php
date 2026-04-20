@@ -132,6 +132,10 @@ class UnitController extends Controller
     public function show(Unit $unit)
     {
         $unit->load([
+                        'fields',
+                        'labels',
+                        'telephones',
+                        'uris',
                         'entities.telephones',
                         'entities.sales',
                         'buildings.city',
@@ -139,9 +143,6 @@ class UnitController extends Controller
                         'consumptions.measure',
                         'manufactures',
                         'emails.sendings',
-                        'telephones',
-                        'uris',
-                        'labels',
                         'stages',
                         'quotations.good',
                         'quotations.measure',
