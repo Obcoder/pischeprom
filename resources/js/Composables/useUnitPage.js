@@ -10,6 +10,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
         unit: false,
         dict: false,
         files: false,
+        goods: false,
     })
 
     const dict = ref({
@@ -97,13 +98,19 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
     }
 
     async function searchGoods(search = '') {
+        loading.value.goods = true
         try {
             const { data } = await axios.get(route('goods.index'), {
                 params: { search }
             })
-            dict.value.goods = Array.isArray(data) ? data : (data.data ?? [])
+
+            dict.value.goods = Array.isArray(data)
+                ? data
+                : (data.data ?? [])
         } catch (e) {
             console.error('Ошибка поиска goods:', e)
+        } finally {
+            loading.value.goods = false
         }
     }
 

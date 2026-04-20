@@ -1,18 +1,24 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { useForm, Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
-import axios from 'axios'
 
 const props = defineProps({
     unit: Object,
     dict: Object,
+    goodsLoading: Boolean,
+    searchGoods: {
+        type: Function,
+        required: true,
+    },
 })
 
 const emit = defineEmits(['refresh'])
 
 const dialogAddQuotation = ref(false)
+const goodsSearch = ref('')
 
 const headers = [
     { key: 'good.name', title: 'Good', sortable: true },
@@ -27,14 +33,19 @@ const formQuotation = useForm({
     measure_id: null,
 })
 
-async function searchGoods(search = '') {
-    try {
-        const { data } = await axios.get(route('goods.index'), {
-            params: { search }
-        })
-        props.dict.goods = Array.isArray(data) ? data : (data.data || [])
-    } catch (e) {
-        console.error(e)
+const debouncedSearchGoods = useDebounceFn(async (value) => {
+    await props.searchGoods(value)
+}, 350)
+
+watch(goodsSearch, (value) => {
+    debouncedSearchGoods(value)
+})
+
+async function openDialog() {
+    dialogAddQuotation.value = true
+
+    if (!props.dict.goods?.length) {
+        await props.searchGoods('')
     }
 }
 
@@ -46,6 +57,7 @@ function storeQuotation() {
         preserveScroll: true,
         onSuccess: async () => {
             formQuotation.reset()
+            goodsSearch.value = ''
             dialogAddQuotation.value = false
             emit('refresh')
         },
@@ -60,7 +72,7 @@ function storeQuotation() {
                 size="small"
                 color="deep-purple-darken-1"
                 variant="tonal"
-                @click="dialogAddQuotation = true"
+                @click="openDialog"
             >
                 + Quotation
             </v-btn>
@@ -92,11 +104,13 @@ function storeQuotation() {
         <v-dialog v-model="dialogAddQuotation" max-width="860">
             <v-card rounded="xl">
                 <v-card-title>Новая цена (Quotation)</v-card-title>
+
                 <v-card-text>
                     <v-row>
                         <v-col cols="12" md="6">
                             <v-autocomplete
                                 v-model="formQuotation.good_id"
+                                v-model:search="goodsSearch"
                                 :items="dict.goods"
                                 item-title="name"
                                 item-value="id"
@@ -104,7 +118,8 @@ function storeQuotation() {
                                 variant="outlined"
                                 density="comfortable"
                                 clearable
-                                @update:search="searchGoods"
+                                :loading="goodsLoading"
+                                no-filter
                             />
                             <div v-if="formQuotation.errors.good_id" class="text-red text-caption">
                                 {{ formQuotation.errors.good_id }}
