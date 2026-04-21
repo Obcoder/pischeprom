@@ -24,7 +24,7 @@ export function useUnitUris(refreshUnit) {
             address,
         })
 
-        return data.uri
+        return data?.uri ?? null
     }
 
     async function updateUri(uriId, address) {

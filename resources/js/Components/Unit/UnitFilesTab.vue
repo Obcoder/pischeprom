@@ -82,10 +82,14 @@ function closeRenameDialog() {
 async function submitRename() {
     if (isRenameDisabled.value) return
 
+    const file = fileToRename.value   // ✅ сохраняем
     const trimmedBaseName = newBaseFileName.value.trim()
+
+    if (!file) return
+
     const finalName = `${trimmedBaseName}${fileExtension.value}`
 
-    await renameFile(fileToRename.value.path, finalName)
+    await renameFile(file.path, finalName)
 
     closeRenameDialog()
 }

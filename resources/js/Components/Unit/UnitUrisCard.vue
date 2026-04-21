@@ -52,6 +52,8 @@ async function submitCreate() {
 
     const uri = await createUri(newUriAddress.value.trim())
 
+    if (!uri?.id) return   // ✅ ВОТ СЮДА
+
     await attachUri(props.unit.id, uri.id)
 
     newUriAddress.value = ''
@@ -76,10 +78,14 @@ async function submitEdit() {
 }
 
 async function submitDetach(uriId) {
+    if (!uriId) return   // ✅ защита
+
     await detachUri(props.unit.id, uriId)
 }
 
 async function submitDelete(uriId) {
+    if (!uriId) return   // ✅
+
     await deleteUri(uriId)
     await emit('refresh')
 }
