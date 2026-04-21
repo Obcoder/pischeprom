@@ -2,7 +2,6 @@ import axios from 'axios'
 import { route } from 'ziggy-js'
 
 export function useUnitUris(refreshUnit) {
-
     async function attachUri(unitId, uriId) {
         await axios.post(route('api.units.uris.attach', unitId), {
             uri_id: uriId,
@@ -21,7 +20,7 @@ export function useUnitUris(refreshUnit) {
     }
 
     async function createUri(address) {
-        const { data } = await axios.post(route('api.uris.store'), {
+        const { data } = await axios.post(route('uris.store'), {
             address,
         })
 
@@ -29,13 +28,13 @@ export function useUnitUris(refreshUnit) {
     }
 
     async function updateUri(uriId, address) {
-        await axios.put(route('api.uris.update', uriId), {
+        await axios.put(route('uris.update', uriId), {
             address,
         })
     }
 
     async function deleteUri(uriId) {
-        await axios.delete(route('api.uris.destroy', uriId))
+        await axios.delete(route('uris.destroy', uriId))
     }
 
     return {
