@@ -4,6 +4,7 @@ import { useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import UnitFilesTab from '@/Components/Unit/UnitFilesTab.vue'
+import UnitUrisCard from '@/Components/Unit/UnitUrisCard.vue'
 
 const props = defineProps({
     unit: Object,
@@ -124,17 +125,11 @@ const formatBuildingTitle = (building) => {
             <v-window-item value="info">
                 <div class="mb-3">
                     <div class="text-caption text-medium-emphasis mb-2">URI</div>
-                    <v-chip
-                        v-for="uri in (unit.uris || [])"
-                        :key="uri.id"
-                        class="me-2 mb-2"
-                        size="small"
-                        variant="outlined"
-                    >
-                        <a :href="uri.address" target="_blank" class="text-decoration-none">
-                            {{ uri.address }}
-                        </a>
-                    </v-chip>
+                        <UnitUrisCard
+                            :unit="unit"
+                            :dict="dict"
+                            @refresh="emit('refresh')"
+                        />
                 </div>
 
                 <div>
