@@ -35,18 +35,17 @@ class UnitFileController extends Controller
     public function store(Request $request, Unit $unit): JsonResponse
     {
         $validated = $request->validate([
-                                            'file' => ['required', 'file', 'max:20480'], // 20 MB
+                                            'file' => ['required', 'file', 'max:20480'],
                                         ]);
 
         $disk = Storage::disk('yandex');
         $folder = "units/{$unit->name}";
         $file = $validated['file'];
 
-        $filename = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-        $extension = $file->getClientOriginalExtension();
-        $fullName = $extension ? "{$filename}.{$extension}" : $filename;
+        $originalName = $file->getClientOriginalName();
+        $safeName = $this->sanitizeFileName($originalName);
 
-        $path = $disk->putFileAs($folder, $file, $fullName, ['visibility' => 'public']);
+        $path = $disk->putFileAs($folder, $file, $safeName);
 
         return response()->json([
                                     'message' => 'File uploaded',
@@ -80,5 +79,77 @@ class UnitFileController extends Controller
         return response()->json([
                                     'message' => 'File deleted',
                                 ]);
+    }
+
+    public function rename(Request $request, Unit $unit): JsonResponse
+    {
+        $validated = $request->validate([
+                                            'path' => ['required', 'string'],
+                                            'new_name' => ['required', 'string', 'max:255'],
+                                        ]);
+
+        $disk = Storage::disk('yandex');
+        $oldPath = $validated['path'];
+        $newName = $this->sanitizeFileName($validated['new_name']);
+
+        $expectedPrefix = "units/{$unit->name}/";
+        abort_unless(Str::startsWith($oldPath, $expectedPrefix), 403, 'Invalid file path');
+
+        if (! $disk->exists($oldPath)) {
+            return response()->json([
+                                        'message' => 'File not found',
+                                    ], 404);
+        }
+
+        if ($newName === 'placeholder.txt') {
+            return response()->json([
+                                        'message' => 'Invalid file name',
+                                    ], 422);
+        }
+
+        $newPath = $expectedPrefix . $newName;
+
+        if ($oldPath === $newPath) {
+            return response()->json([
+                                        'message' => 'File name is the same',
+                                    ]);
+        }
+
+        if ($disk->exists($newPath)) {
+            return response()->json([
+                                        'message' => 'A file with this name already exists',
+                                    ], 422);
+        }
+
+        $copied = $disk->copy($oldPath, $newPath);
+
+        if (! $copied) {
+            return response()->json([
+                                        'message' => 'Failed to rename file',
+                                    ], 500);
+        }
+
+        $disk->delete($oldPath);
+
+        return response()->json([
+                                    'message' => 'File renamed',
+                                    'file' => [
+                                        'name' => basename($newPath),
+                                        'path' => $newPath,
+                                        'url' => $disk->url($newPath),
+                                        'size' => $disk->size($newPath),
+                                        'last_modified' => $disk->lastModified($newPath),
+                                    ],
+                                ]);
+    }
+
+    protected function sanitizeFileName(string $name): string
+    {
+        $name = trim($name);
+        $name = str_replace(['\\', '/'], '-', $name);
+        $name = preg_replace('/[\x00-\x1F\x7F]/u', '', $name);
+        $name = preg_replace('/\s+/', ' ', $name);
+
+        return $name;
     }
 }

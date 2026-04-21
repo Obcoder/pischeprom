@@ -7,6 +7,7 @@ export function useUnitFiles(unitId) {
     const loadingFiles = ref(false)
     const uploadingFile = ref(false)
     const deletingFilePath = ref(null)
+    const renamingFilePath = ref(null)
 
     async function loadFiles() {
         loadingFiles.value = true
@@ -51,13 +52,29 @@ export function useUnitFiles(unitId) {
         }
     }
 
+    async function renameFile(path, newName) {
+        renamingFilePath.value = path
+        try {
+            await axios.patch(route('api.units.files.rename', unitId), {
+                path,
+                new_name: newName,
+            })
+
+            await loadFiles()
+        } finally {
+            renamingFilePath.value = null
+        }
+    }
+
     return {
         files,
         loadingFiles,
         uploadingFile,
         deletingFilePath,
+        renamingFilePath,
         loadFiles,
         uploadFile,
         deleteFile,
+        renameFile,
     }
 }

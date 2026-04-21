@@ -146,6 +146,7 @@ Route::prefix('units/{unit}')->group(function () {
     Route::get('/files', [UnitFileController::class, 'index'])->name('api.units.files.index');
     Route::post('/files', [UnitFileController::class, 'store'])->name('api.units.files.store');
     Route::delete('/files', [UnitFileController::class, 'destroy'])->name('api.units.files.destroy');
+    Route::patch('/files/rename', [UnitFileController::class, 'rename'])->name('api.units.files.rename');
 });
 Route::apiResource('units', UnitController::class);
 Route::get('/units/{unit}', [ApiUnitController::class, 'show'])
