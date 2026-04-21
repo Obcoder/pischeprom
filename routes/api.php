@@ -40,8 +40,12 @@ use App\Http\Controllers\API\SegmentController;
 use App\Http\Controllers\API\SendingController;
 use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\TelephoneController;
+
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
+use App\Http\Controllers\API\UnitRelationController;
+use App\Http\Controllers\API\UnitFileController;
+
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Services\YandexSearchService;
@@ -92,7 +96,19 @@ Route::apiResource('segments', SegmentController::class);
 Route::apiResource('sendings', SendingController::class);
 Route::apiResource('stages', StageController::class);
 
-//  Telephones
+
+/*
+ * ------------------
+ *  E N T I T I E S
+ * __________________
+ */
+Route::apiResource('entities', EntityController::class)->only(['store', 'update', 'destroy']);
+
+/*
+ * ----------------------
+ *  T E L E P H O N E S
+ * ______________________
+ */
 Route::prefix('telephones')->group(function () {
     Route::get('/meta', [TelephoneController::class, 'meta']);
     Route::get('/', [TelephoneController::class, 'index']);
@@ -100,13 +116,47 @@ Route::prefix('telephones')->group(function () {
     Route::get('/{telephone}', [TelephoneController::class, 'show']);
     Route::put('/{telephone}', [TelephoneController::class, 'update']);
 });
-//
 
+/*
+ * ------------------
+ *  U N I T S
+ * __________________
+ */
+Route::prefix('units/{unit}')->group(function () {
+    Route::get('/', [UnitController::class, 'show'])->name('api.units.show');
+
+    Route::post('/uris', [UnitRelationController::class, 'attachUri'])->name('api.units.uris.attach');
+    Route::delete('/uris/{uri}', [UnitRelationController::class, 'detachUri'])->name('api.units.uris.detach');
+
+    Route::post('/telephones', [UnitRelationController::class, 'attachTelephone'])->name('api.units.telephones.attach');
+    Route::delete('/telephones/{telephone}', [UnitRelationController::class, 'detachTelephone'])->name('api.units.telephones.detach');
+
+    Route::post('/buildings', [UnitRelationController::class, 'attachBuilding'])->name('api.units.buildings.attach');
+    Route::delete('/buildings/{building}', [UnitRelationController::class, 'detachBuilding'])->name('api.units.buildings.detach');
+
+    Route::post('/labels', [UnitRelationController::class, 'attachLabel'])->name('api.units.labels.attach');
+    Route::delete('/labels/{label}', [UnitRelationController::class, 'detachLabel'])->name('api.units.labels.detach');
+
+    Route::post('/fields', [UnitRelationController::class, 'attachField'])->name('api.units.fields.attach');
+    Route::delete('/fields/{field}', [UnitRelationController::class, 'detachField'])->name('api.units.fields.detach');
+
+    Route::post('/entities/attach', [UnitRelationController::class, 'attachEntity'])->name('api.units.entities.attach');
+    Route::delete('/entities/{entity}', [UnitRelationController::class, 'detachEntity'])->name('api.units.entities.detach');
+
+    Route::get('/files', [UnitFileController::class, 'index'])->name('api.units.files.index');
+    Route::post('/files', [UnitFileController::class, 'store'])->name('api.units.files.store');
+    Route::delete('/files', [UnitFileController::class, 'destroy'])->name('api.units.files.destroy');
+});
 Route::apiResource('units', UnitController::class);
 Route::get('/units/{unit}', [ApiUnitController::class, 'show'])
     ->name('api.units.show');
+
+
+
 Route::apiResource('uris', UriController::class);
+
 Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rates');
+
 Route::apiResource('yandex-requests', YandexRequestController::class);
 
 

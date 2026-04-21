@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
+import UnitFilesTab from '@/Components/Unit/UnitFilesTab.vue'
 
 const props = defineProps({
     unit: Object,
@@ -163,20 +164,7 @@ const formatBuildingTitle = (building) => {
             </v-window-item>
 
             <v-window-item value="files">
-                <v-skeleton-loader
-                    v-if="loading.files"
-                    type="list-item-three-line"
-                />
-                <v-list v-else density="compact">
-                    <v-list-item
-                        v-for="file in files"
-                        :key="file.name"
-                    >
-                        <a :href="file.url" target="_blank" class="text-decoration-none">
-                            {{ file.name }}
-                        </a>
-                    </v-list-item>
-                </v-list>
+                <UnitFilesTab :unit-id="unit.id" />
             </v-window-item>
 
             <v-window-item value="buildings">

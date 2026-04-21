@@ -13,6 +13,24 @@ class Unit extends Model
 {
     use HasFactory;
 
+    public const DETAIL_RELATIONS = [
+        'fields',
+        'labels',
+        'telephones',
+        'uris',
+        'entities.classification',
+        'entities.telephones',
+        'entities.sales',
+        'buildings.city',
+        'consumptions.product',
+        'consumptions.measure',
+        'manufactures',
+        'emails.sendings',
+        'stages',
+        'quotations.good',
+        'quotations.measure',
+    ];
+
     protected $fillable = [
         'name',
     ];
