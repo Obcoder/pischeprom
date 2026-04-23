@@ -186,6 +186,9 @@ Route::get('/Ameise/units/', function (){
 Route::get('/Ameise/unit/{unit}', [UnitController::class, 'show'])
     ->name('web.unit.show');
 
+Route::post('/api/unit/store', [ApiUnitController::class, 'store'])
+    ->name('web.unit.store');
+
 use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
 use App\Http\Controllers\Web\UnitRelationSyncController;
 
@@ -302,11 +305,7 @@ Route::post('/web/quotation/store', [QuotationController::class, 'store'])
 Route::post('/web/sale/store', [SaleController::class, 'store'])
     ->name('web.sale.store');
 
-//      U N I T
-Route::post('/api/unit/store', [ApiUnitController::class, 'store'])
-    ->name('web.unit.store');
-Route::post('/api/unituri/store', [UnitUriController::class, 'store'])
-    ->name('web.unituri.store');
+
 //    U R I
 Route::post('/api/uri/store', [UriController::class, 'store'])
     ->name('web.uri.store');
