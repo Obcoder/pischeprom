@@ -140,8 +140,11 @@ Route::prefix('units/{unit}')->group(function () {
     Route::post('/fields', [UnitRelationController::class, 'attachField'])->name('api.units.fields.attach');
     Route::delete('/fields/{field}', [UnitRelationController::class, 'detachField'])->name('api.units.fields.detach');
 
-    Route::post('/cities', [UnitRelationController::class, 'attachCity'])->name('api.units.cities.attach');
-    Route::delete('/cities/{city}', [UnitRelationController::class, 'detachCity'])->name('api.units.cities.detach');
+    Route::post('/cities', [UnitRelationController::class, 'attachCity'])
+        ->name('api.units.cities.attach');
+
+    Route::delete('/cities/{city}', [UnitRelationController::class, 'detachCity'])
+        ->name('api.units.cities.detach');
 
     Route::post('/entities/attach', [UnitRelationController::class, 'attachEntity'])->name('api.units.entities.attach');
     Route::delete('/entities/{entity}', [UnitRelationController::class, 'detachEntity'])->name('api.units.entities.detach');
