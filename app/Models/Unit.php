@@ -29,7 +29,7 @@ class Unit extends Model
         'stages',
         'quotations.good',
         'quotations.measure',
-        'cities.region', // <-- новое
+        'cities.region',
     ];
 
     protected $fillable = [

@@ -123,7 +123,7 @@ Route::prefix('telephones')->group(function () {
  * __________________
  */
 Route::prefix('units/{unit}')->group(function () {
-    Route::get('/', [UnitController::class, 'show'])->name('api.units.show');
+    Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
 
     Route::post('/uris', [UnitRelationController::class, 'attachUri'])->name('api.units.uris.attach');
     Route::delete('/uris/{uri}', [UnitRelationController::class, 'detachUri'])->name('api.units.uris.detach');
@@ -140,6 +140,9 @@ Route::prefix('units/{unit}')->group(function () {
     Route::post('/fields', [UnitRelationController::class, 'attachField'])->name('api.units.fields.attach');
     Route::delete('/fields/{field}', [UnitRelationController::class, 'detachField'])->name('api.units.fields.detach');
 
+    Route::post('/cities', [UnitRelationController::class, 'attachCity'])->name('api.units.cities.attach');
+    Route::delete('/cities/{city}', [UnitRelationController::class, 'detachCity'])->name('api.units.cities.detach');
+
     Route::post('/entities/attach', [UnitRelationController::class, 'attachEntity'])->name('api.units.entities.attach');
     Route::delete('/entities/{entity}', [UnitRelationController::class, 'detachEntity'])->name('api.units.entities.detach');
 
@@ -148,10 +151,8 @@ Route::prefix('units/{unit}')->group(function () {
     Route::delete('/files', [UnitFileController::class, 'destroy'])->name('api.units.files.destroy');
     Route::patch('/files/rename', [UnitFileController::class, 'rename'])->name('api.units.files.rename');
 });
-Route::apiResource('units', UnitController::class);
-Route::get('/units/{unit}', [ApiUnitController::class, 'show'])
-    ->name('api.units.show');
 
+Route::apiResource('units', UnitController::class)->except(['show']);
 
 
 Route::apiResource('uris', UriController::class);

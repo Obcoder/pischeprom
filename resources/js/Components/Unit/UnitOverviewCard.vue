@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import axios from 'axios'
 import { useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 
@@ -43,6 +44,12 @@ const dialogCities = ref(false)
 const selectedUri = ref(null)
 const uriSearch = ref('')
 
+const savingLabels = ref(false)
+const savingFields = ref(false)
+const savingTelephones = ref(false)
+const savingCities = ref(false)
+const savingUri = ref(false)
+
 const formAttachEmail = useForm({
     email_id: null,
     unit_id: props.unit.id,
@@ -52,11 +59,22 @@ const formAddEmail = useForm({
     address: null,
 })
 
-const formAttachUri = useForm({
-    unit_id: props.unit.id,
-    uri_id: null,
-    address: null,
-})
+function getIds(items = []) {
+    return items
+        .filter(item => typeof item === 'object' && item?.id)
+        .map(item => item.id)
+}
+
+function getStrings(items = []) {
+    return items
+        .filter(item => typeof item === 'string' && item.trim() !== '')
+        .map(item => item.trim())
+}
+
+async function refreshAndClose(dialogRef) {
+    dialogRef.value = false
+    await emit('refresh')
+}
 
 function attachEmail() {
     formAttachEmail.unit_id = props.unit.id
@@ -84,30 +102,221 @@ function storeEmail() {
     })
 }
 
-function attachUri() {
+async function attachUri() {
     const typedValue = String(uriSearch.value || '').trim()
-
-    formAttachUri.unit_id = props.unit.id
-    formAttachUri.uri_id =
+    const selectedId =
         selectedUri.value && typeof selectedUri.value === 'object'
             ? (selectedUri.value.id ?? null)
             : null
 
-    formAttachUri.address = formAttachUri.uri_id
-        ? null
-        : typedValue || (typeof selectedUri.value === 'string' ? selectedUri.value.trim() : null)
+    const payload = selectedId
+        ? { uri_id: selectedId }
+        : { address: typedValue || (typeof selectedUri.value === 'string' ? selectedUri.value.trim() : null) }
 
-    formAttachUri.post(route('web.unituri.store'), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            selectedUri.value = null
-            uriSearch.value = ''
-            formAttachUri.reset('uri_id', 'address')
-            dialogAttachUri.value = false
-            emit('refresh')
-        },
-    })
+    if (!payload.uri_id && !payload.address) {
+        return
+    }
+
+    savingUri.value = true
+    try {
+        await axios.post(
+            route('api.units.uris.attach', props.unit.id),
+            payload
+        )
+
+        selectedUri.value = null
+        uriSearch.value = ''
+        dialogAttachUri.value = false
+        emit('refresh')
+    } catch (error) {
+        console.error('Ошибка привязки URI:', error)
+    } finally {
+        savingUri.value = false
+    }
+}
+
+async function syncLabels(payload) {
+    savingLabels.value = true
+
+    try {
+        const currentIds = (props.unit.labels || []).map(item => item.id)
+        const nextIds = getIds(payload)
+        const newNames = getStrings(payload)
+
+        const idsToDetach = currentIds.filter(id => !nextIds.includes(id))
+
+        await Promise.all(
+            idsToDetach.map(id =>
+                axios.delete(route('api.units.labels.detach', {
+                    unit: props.unit.id,
+                    label: id,
+                }))
+            )
+        )
+
+        await Promise.all(
+            nextIds
+                .filter(id => !currentIds.includes(id))
+                .map(id =>
+                    axios.post(route('api.units.labels.attach', props.unit.id), {
+                        label_id: id,
+                    })
+                )
+        )
+
+        await Promise.all(
+            newNames.map(name =>
+                axios.post(route('api.units.labels.attach', props.unit.id), {
+                    name,
+                })
+            )
+        )
+
+        dialogLabels.value = false
+        emit('refresh')
+    } catch (error) {
+        console.error('Ошибка сохранения labels:', error)
+    } finally {
+        savingLabels.value = false
+    }
+}
+
+async function syncFields(payload) {
+    savingFields.value = true
+
+    try {
+        const currentIds = (props.unit.fields || []).map(item => item.id)
+        const nextIds = getIds(payload)
+        const newNames = getStrings(payload)
+
+        const idsToDetach = currentIds.filter(id => !nextIds.includes(id))
+
+        await Promise.all(
+            idsToDetach.map(id =>
+                axios.delete(route('api.units.fields.detach', {
+                    unit: props.unit.id,
+                    field: id,
+                }))
+            )
+        )
+
+        await Promise.all(
+            nextIds
+                .filter(id => !currentIds.includes(id))
+                .map(id =>
+                    axios.post(route('api.units.fields.attach', props.unit.id), {
+                        field_id: id,
+                    })
+                )
+        )
+
+        await Promise.all(
+            newNames.map(name =>
+                axios.post(route('api.units.fields.attach', props.unit.id), {
+                    name,
+                })
+            )
+        )
+
+        dialogFields.value = false
+        emit('refresh')
+    } catch (error) {
+        console.error('Ошибка сохранения fields:', error)
+    } finally {
+        savingFields.value = false
+    }
+}
+
+async function syncTelephones(payload) {
+    savingTelephones.value = true
+
+    try {
+        const currentIds = (props.unit.telephones || []).map(item => item.id)
+        const nextIds = getIds(payload)
+        const newNumbers = getStrings(payload)
+
+        const idsToDetach = currentIds.filter(id => !nextIds.includes(id))
+
+        await Promise.all(
+            idsToDetach.map(id =>
+                axios.delete(route('api.units.telephones.detach', {
+                    unit: props.unit.id,
+                    telephone: id,
+                }))
+            )
+        )
+
+        await Promise.all(
+            nextIds
+                .filter(id => !currentIds.includes(id))
+                .map(id =>
+                    axios.post(route('api.units.telephones.attach', props.unit.id), {
+                        telephone_id: id,
+                    })
+                )
+        )
+
+        await Promise.all(
+            newNumbers.map(number =>
+                axios.post(route('api.units.telephones.attach', props.unit.id), {
+                    number,
+                })
+            )
+        )
+
+        dialogTelephones.value = false
+        emit('refresh')
+    } catch (error) {
+        console.error('Ошибка сохранения telephones:', error)
+    } finally {
+        savingTelephones.value = false
+    }
+}
+
+async function syncCities(payload) {
+    savingCities.value = true
+
+    try {
+        const currentIds = (props.unit.cities || []).map(item => item.id)
+        const nextIds = getIds(payload)
+        const newNames = getStrings(payload)
+
+        const idsToDetach = currentIds.filter(id => !nextIds.includes(id))
+
+        await Promise.all(
+            idsToDetach.map(id =>
+                axios.delete(route('api.units.cities.detach', {
+                    unit: props.unit.id,
+                    city: id,
+                }))
+            )
+        )
+
+        await Promise.all(
+            nextIds
+                .filter(id => !currentIds.includes(id))
+                .map(id =>
+                    axios.post(route('api.units.cities.attach', props.unit.id), {
+                        city_id: id,
+                    })
+                )
+        )
+
+        await Promise.all(
+            newNames.map(name =>
+                axios.post(route('api.units.cities.attach', props.unit.id), {
+                    name,
+                })
+            )
+        )
+
+        dialogCities.value = false
+        emit('refresh')
+    } catch (error) {
+        console.error('Ошибка сохранения cities:', error)
+    } finally {
+        savingCities.value = false
+    }
 }
 </script>
 
@@ -131,7 +340,7 @@ function attachUri() {
             </v-menu>
         </template>
 
-        <div class="text-h6 font-weight-bold mb-3 bg-indigo">
+        <div class="text-h6 font-weight-bold mb-3">
             {{ unit.name }}
         </div>
 
@@ -383,7 +592,7 @@ function attachUri() {
 
                     <v-btn
                         color="primary"
-                        :loading="formAttachUri.processing"
+                        :loading="savingUri"
                         @click="attachUri"
                     >
                         Attach
@@ -395,55 +604,47 @@ function attachUri() {
         <UnitRelationManagerDialog
             v-model="dialogLabels"
             title="Manage Labels"
-            payload-key="labels"
-            route-name="web.units.labels.sync"
-            :unit-id="unit.id"
             :items="unit.labels || []"
             :dict-items="dict.labels || []"
             item-title="name"
             item-value="id"
-            @saved="emit('refresh')"
+            :loading="savingLabels"
+            @save="syncLabels"
         />
 
         <UnitRelationManagerDialog
             v-model="dialogFields"
             title="Manage Fields"
-            payload-key="fields"
-            route-name="web.units.fields.sync"
-            :unit-id="unit.id"
             :items="unit.fields || []"
             :dict-items="dict.fields || []"
             item-title="name"
             item-value="id"
-            @saved="emit('refresh')"
+            :loading="savingFields"
+            @save="syncFields"
         />
 
         <UnitRelationManagerDialog
             v-model="dialogTelephones"
             title="Manage Telephones"
-            payload-key="telephones"
-            route-name="web.units.telephones.sync"
-            :unit-id="unit.id"
             :items="unit.telephones || []"
             :dict-items="dict.telephones || []"
             item-title="number"
             item-value="id"
             hint="Можно выбрать номер из базы или ввести новый"
-            @saved="emit('refresh')"
+            :loading="savingTelephones"
+            @save="syncTelephones"
         />
 
         <UnitRelationManagerDialog
             v-model="dialogCities"
             title="Manage Cities"
-            payload-key="cities"
-            route-name="web.units.cities.sync"
-            :unit-id="unit.id"
             :items="unit.cities || []"
             :dict-items="dict.cities || []"
             item-title="name"
             item-value="id"
             hint="Города офисов, складов, производств и доставки"
-            @saved="emit('refresh')"
+            :loading="savingCities"
+            @save="syncCities"
         />
     </BaseSectionCard>
 </template>

@@ -48,17 +48,36 @@ useHead(() => ({
     meta: [
         {
             name: 'description',
-            content: `Информация о блоке ${unit.value?.name ?? ''}`,
-        },
-    ],
+            content: `Информация о блоке ${unit.value?.name ?? ''}`
+        }
+    ]
 }))
+
+const requiredDictionaryKeys = [
+    'buildings',
+    'cities',
+    'emails',
+    'entities',
+    'entityClassifications',
+    'fields',
+    'goods',
+    'labels',
+    'measures',
+    'products',
+    'telephones',
+    'uris',
+]
+
+function hasAllDictionaries(source = {}) {
+    return requiredDictionaryKeys.every((key) => Array.isArray(source?.[key]))
+}
 
 onMounted(async () => {
     if (!props.files?.length) {
         await loadFiles()
     }
 
-    if (!Object.keys(props.dictionaries || {}).length) {
+    if (!hasAllDictionaries(props.dictionaries)) {
         await loadDictionaries()
     }
 })
@@ -67,7 +86,7 @@ onMounted(async () => {
 <template>
     <v-container fluid class="pa-4">
         <v-row>
-            <v-col cols="12" lg="6">
+            <v-col cols="12" lg="5">
                 <UnitOverviewCard
                     :unit="unit"
                     :files="files"
@@ -77,7 +96,7 @@ onMounted(async () => {
                 />
             </v-col>
 
-            <v-col cols="12" lg="6">
+            <v-col cols="12" lg="7">
                 <UnitEntitiesCard
                     :unit="unit"
                     :dict="dict"

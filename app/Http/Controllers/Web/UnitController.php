@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Building;
+use App\Models\City;
 use App\Models\Email;
 use App\Models\Entity;
 use App\Models\EntityClassification;
+use App\Models\Field;
 use App\Models\Good;
 use App\Models\Label;
 use App\Models\Measure;
@@ -26,6 +28,8 @@ class UnitController extends Controller
                         'labels',
                         'telephones',
                         'uris',
+                        'cities.region',
+                        'entities.classification',
                         'entities.telephones',
                         'entities.sales',
                         'buildings.city',
@@ -42,15 +46,17 @@ class UnitController extends Controller
             'unit' => $unit,
             'dictionaries' => [
                 'buildings' => Building::with('city')->orderBy('address')->get(),
+                'cities' => City::orderBy('name')->get(['id', 'name']),
                 'emails' => Email::orderBy('address')->get(),
                 'entities' => Entity::orderBy('name')->get(),
                 'entityClassifications' => EntityClassification::orderBy('name')->get(),
+                'fields' => Field::orderBy('name')->get(['id', 'name']),
                 'goods' => Good::orderBy('name')->limit(100)->get(),
-                'labels' => Label::orderBy('name')->get(),
+                'labels' => Label::orderBy('name')->get(['id', 'name']),
                 'measures' => Measure::orderBy('name')->get(),
                 'products' => Product::orderBy('rus')->get(),
-                'telephones' => Telephone::orderBy('number')->get(),
-                'uris' => Uri::orderBy('address')->get(),
+                'telephones' => Telephone::orderBy('number')->get(['id', 'number']),
+                'uris' => Uri::orderBy('address')->get(['id', 'address']),
             ],
             'files' => $this->getUnitFiles($unit->name),
         ]);

@@ -1,7 +1,5 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { useForm } from '@inertiajs/vue3'
-import { route } from 'ziggy-js'
 
 const props = defineProps({
     modelValue: {
@@ -10,18 +8,6 @@ const props = defineProps({
     },
     title: {
         type: String,
-        required: true,
-    },
-    payloadKey: {
-        type: String,
-        required: true,
-    },
-    routeName: {
-        type: String,
-        required: true,
-    },
-    unitId: {
-        type: Number,
         required: true,
     },
     items: {
@@ -44,15 +30,15 @@ const props = defineProps({
         type: String,
         default: 'Можно выбрать из списка или ввести новое значение',
     },
+    loading: {
+        type: Boolean,
+        default: false,
+    },
 })
 
-const emit = defineEmits(['update:modelValue', 'saved'])
+const emit = defineEmits(['update:modelValue', 'save'])
 
 const localValue = ref([])
-
-const form = useForm({
-    [props.payloadKey]: [],
-})
 
 watch(
     () => props.modelValue,
@@ -92,19 +78,12 @@ function normalizeItem(item) {
     return item?.[props.itemTitle] ?? null
 }
 
-function save() {
-    form[props.payloadKey] = (localValue.value || [])
+function submit() {
+    const payload = (localValue.value || [])
         .map(normalizeItem)
         .filter(Boolean)
 
-    form.post(route(props.routeName, props.unitId), {
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => {
-            close()
-            emit('saved')
-        },
-    })
+    emit('save', payload)
 }
 </script>
 
@@ -143,8 +122,8 @@ function save() {
 
                 <v-btn
                     color="primary"
-                    :loading="form.processing"
-                    @click="save"
+                    :loading="loading"
+                    @click="submit"
                 >
                     Save
                 </v-btn>

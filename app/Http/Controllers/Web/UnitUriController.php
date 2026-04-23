@@ -19,9 +19,9 @@ class UnitUriController extends Controller
                                    ]);
 
         if (empty($data['uri_id']) && blank($data['address'])) {
-            throw ValidationException::withMessages([
-                                                        'address' => 'Укажите URI или выберите существующий.',
-                                                    ]);
+            return back()->withErrors([
+                                          'address' => 'Укажите URI или выберите существующий.',
+                                      ]);
         }
 
         $unit = Unit::findOrFail($data['unit_id']);
@@ -34,7 +34,7 @@ class UnitUriController extends Controller
 
         $unit->uris()->syncWithoutDetaching([$uri->id]);
 
-        return back()->with('success', 'URI успешно привязан.');
+        return back()->with('success', 'URI attached.');
     }
 
     public function destroy(Unit $unit, Uri $uri)
