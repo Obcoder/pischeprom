@@ -6,7 +6,6 @@ import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { useUnitPage } from '@/Composables/useUnitPage'
 
 import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
-import UnitLabelsCard from '@/Components/Unit/UnitLabelsCard.vue'
 import UnitEntitiesCard from '@/Components/Unit/UnitEntitiesCard.vue'
 import UnitQuotationsCard from '@/Components/Unit/UnitQuotationsCard.vue'
 import UnitManufacturesCard from '@/Components/Unit/UnitManufacturesCard.vue'
@@ -44,15 +43,15 @@ const {
 
 const pageTitle = computed(() => `Unit: ${unit.value?.name ?? ''}`)
 
-useHead({
-    title: pageTitle,
+useHead(() => ({
+    title: pageTitle.value,
     meta: [
         {
             name: 'description',
-            content: `Информация о блоке ${unit.value?.name ?? ''}`
-        }
-    ]
-})
+            content: `Информация о блоке ${unit.value?.name ?? ''}`,
+        },
+    ],
+}))
 
 onMounted(async () => {
     if (!props.files?.length) {
@@ -68,20 +67,12 @@ onMounted(async () => {
 <template>
     <v-container fluid class="pa-4">
         <v-row>
-            <v-col cols="12" lg="4">
+            <v-col cols="12" lg="6">
                 <UnitOverviewCard
                     :unit="unit"
                     :files="files"
                     :dict="dict"
                     :loading="loading"
-                    @refresh="refreshUnit"
-                />
-            </v-col>
-
-            <v-col cols="12" lg="2">
-                <UnitLabelsCard
-                    :unit="unit"
-                    :dict="dict"
                     @refresh="refreshUnit"
                 />
             </v-col>

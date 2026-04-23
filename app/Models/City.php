@@ -26,18 +26,26 @@ class City extends Model
         'region',
     ];
 
+    public function buildings()
+    {
+        return $this->hasMany(Building::class, 'city_id', 'id');
+    }
+
+    public function entities(): BelongsToMany
+    {
+        return $this->belongsToMany(Entity::class);
+    }
+
     public function region(): BelongsTo
     {
         return $this->belongsTo(Region::class)
             ->withDefault();
     }
 
-    public function buildings()
+    public function units(): BelongsToMany
     {
-        return $this->hasMany(Building::class, 'city_id', 'id');
-    }
-    public function entities(): BelongsToMany
-    {
-        return $this->belongsToMany(Entity::class);
+        return $this->belongsToMany(Unit::class)
+            ->using(city_unit::class)
+            ->withTimestamps();
     }
 }

@@ -29,6 +29,7 @@ class Unit extends Model
         'stages',
         'quotations.good',
         'quotations.measure',
+        'cities.region', // <-- новое
     ];
 
     protected $fillable = [
@@ -42,51 +43,59 @@ class Unit extends Model
         'uris',
     ];
 
-    //      S C O P E S
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
         return $query->when($search, fn ($q) =>
         $q->where('name', 'like', "%{$search}%")
         );
     }
+
     public function scopeForGood(Builder $query, int $goodId): Builder
     {
         return $query->whereHas('quotations', fn ($q) =>
         $q->where('good_id', $goodId)
         );
     }
+
     public function scopeLimitIfPresent(Builder $query, ?int $limit): Builder
     {
         return $query->when($limit, fn ($q) => $q->limit($limit));
     }
-    // E N D  S C O P E S
 
     public function buildings()
     {
         return $this->belongsToMany(Building::class)
             ->using(building_unit::class);
     }
+
+    public function cities(): BelongsToMany
+    {
+        return $this->belongsToMany(City::class)
+            ->using(city_unit::class)
+            ->withTimestamps();
+    }
+
     public function consumptions(): HasMany
     {
         return $this->hasMany(Consumption::class)
             ->orderByDesc('created_at');
     }
+
     public function emails(): BelongsToMany
     {
         return $this->belongsToMany(Email::class);
     }
+
     public function entities()
     {
         return $this->belongsToMany(Entity::class)
             ->using(entity_unit::class);
     }
 
-    // F I E L D S
     public function fields(): BelongsToMany
     {
         return $this->belongsToMany(Field::class);
     }
-
 
     public function industries(): BelongsToMany
     {
@@ -94,6 +103,7 @@ class Unit extends Model
             ->withPivot('is_primary')
             ->withTimestamps();
     }
+
     public function primaryIndustry()
     {
         return $this->belongsToMany(Industry::class)
@@ -101,15 +111,18 @@ class Unit extends Model
             ->withPivot('is_primary')
             ->first();
     }
+
     public function labels()
     {
         return $this->belongsToMany(Label::class)
             ->using(label_unit::class);
     }
+
     public function manufactures(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'manufacturers', 'unit_id', 'product_id');
     }
+
     public function products()
     {
         return $this->belongsToMany(Product::class)
@@ -118,22 +131,24 @@ class Unit extends Model
             ->withTimestamps();
     }
 
-    //  Q U O T A T I O N S
     public function quotations(): HasMany
     {
         return $this->hasMany(Quotation::class);
     }
+
     public function stages()
     {
         return $this->belongsToMany(Stage::class)
             ->using(stage_unit::class)
             ->withPivot('startDate', 'endDate', 'isActive');
     }
+
     public function telephones()
     {
         return $this->belongsToMany(Telephone::class)
             ->using(telephone_unit::class);
     }
+
     public function uris(): BelongsToMany
     {
         return $this->belongsToMany(Uri::class)

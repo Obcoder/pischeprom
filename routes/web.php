@@ -186,6 +186,17 @@ Route::get('/Ameise/units/', function (){
 Route::get('/Ameise/unit/{unit}', [UnitController::class, 'show'])
     ->name('web.unit.show');
 
+use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
+use App\Http\Controllers\Web\UnitRelationSyncController;
+
+Route::post('/web/unit-uri', [WebUnitUriController::class, 'store'])->name('web.unituri.store');
+Route::delete('/web/units/{unit}/uris/{uri}', [WebUnitUriController::class, 'destroy'])->name('web.unituri.destroy');
+
+Route::post('/web/units/{unit}/labels/sync', [UnitRelationSyncController::class, 'syncLabels'])->name('web.units.labels.sync');
+Route::post('/web/units/{unit}/fields/sync', [UnitRelationSyncController::class, 'syncFields'])->name('web.units.fields.sync');
+Route::post('/web/units/{unit}/telephones/sync', [UnitRelationSyncController::class, 'syncTelephones'])->name('web.units.telephones.sync');
+Route::post('/web/units/{unit}/cities/sync', [UnitRelationSyncController::class, 'syncCities'])->name('web.units.cities.sync');
+
 
 //   Y A N D E X
 Route::get('/Ameise/yandex', function (){
