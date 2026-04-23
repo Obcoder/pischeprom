@@ -30,6 +30,26 @@ const props = defineProps({
 
 const emit = defineEmits(['refresh'])
 
+const emojiDigitMap = {
+    '0': '0️⃣',
+    '1': '1️⃣',
+    '2': '2️⃣',
+    '3': '3️⃣',
+    '4': '4️⃣',
+    '5': '5️⃣',
+    '6': '6️⃣',
+    '7': '7️⃣',
+    '8': '8️⃣',
+    '9': '9️⃣',
+}
+
+function formatUnitIdToEmoji(id) {
+    return String(id ?? '')
+        .split('')
+        .map(char => emojiDigitMap[char] ?? char)
+        .join('')
+}
+
 const activeTab = ref('info')
 
 const dialogAttachEmail = ref(false)
@@ -296,8 +316,19 @@ async function syncCities(payload) {
             </v-menu>
         </template>
 
-        <div class="text-h6 font-weight-bold mb-3">
-            {{ unit.name }}
+        <div class="d-flex align-start justify-space-between mb-3">
+            <div class="text-h4 font-weight-bold">
+                {{ unit.name }}
+            </div>
+
+            <div class="text-right">
+                <div class="text-caption text-medium-emphasis">
+                    ID
+                </div>
+                <div class="text-h5 font-weight-bold">
+                    {{ formatUnitIdToEmoji(unit.id) }}
+                </div>
+            </div>
         </div>
 
         <v-tabs v-model="activeTab" color="primary" density="comfortable">
