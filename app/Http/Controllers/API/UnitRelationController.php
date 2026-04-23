@@ -181,14 +181,18 @@ class UnitRelationController extends Controller
         $field = !empty($data['field_id'])
             ? Field::findOrFail($data['field_id'])
             : Field::firstOrCreate([
-                                       'name' => trim($data['name']),
+                                       'title' => trim($data['name']),
                                    ]);
 
         $unit->fields()->syncWithoutDetaching([$field->id]);
 
         return response()->json([
                                     'message' => 'Field attached.',
-                                    'data' => $field,
+                                    'data' => [
+                                        'id' => $field->id,
+                                        'name' => $field->name,
+                                        'title' => $field->title,
+                                    ],
                                 ]);
     }
 

@@ -50,7 +50,10 @@ class UnitController extends Controller
                 'emails' => Email::orderBy('address')->get(),
                 'entities' => Entity::orderBy('name')->get(),
                 'entityClassifications' => EntityClassification::orderBy('name')->get(),
-                'fields' => Field::orderBy('name')->get(['id', 'name']),
+                'fields' => Field::query()
+                    ->selectRaw('id, title as name, title')
+                    ->orderBy('title')
+                    ->get(),
                 'goods' => Good::orderBy('name')->limit(100)->get(),
                 'labels' => Label::orderBy('name')->get(['id', 'name']),
                 'measures' => Measure::orderBy('name')->get(),
