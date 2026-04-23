@@ -131,7 +131,7 @@ function attachUri() {
             </v-menu>
         </template>
 
-        <div class="text-h6 font-weight-bold mb-3">
+        <div class="text-h6 font-weight-bold mb-3 bg-indigo">
             {{ unit.name }}
         </div>
 
