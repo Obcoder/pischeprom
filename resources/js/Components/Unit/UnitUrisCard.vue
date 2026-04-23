@@ -25,6 +25,18 @@ const deletingId = ref(null)
 const uriItems = computed(() => props.dict?.uris || [])
 const unitUris = computed(() => props.unit?.uris || [])
 
+function normalizeUri(address) {
+    const value = String(address || '').trim()
+
+    if (!value) return '#'
+
+    if (/^https?:\/\//i.test(value)) {
+        return value
+    }
+
+    return `https://${value}`
+}
+
 async function attachUri() {
     const selectedId =
         selectedUri.value && typeof selectedUri.value === 'object'
@@ -107,9 +119,19 @@ async function detachUri(uriId) {
                 closable
                 color="primary"
                 variant="tonal"
-                @click:close="detachUri(uri.id)"
+                @click:close.prevent="detachUri(uri.id)"
+                density="compact"
+                size="small"
             >
-                {{ uri.address }}
+                <a
+                    :href="normalizeUri(uri.address)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-decoration-none text-inherit"
+                    @click.stop
+                >
+                    {{ uri.address }}
+                </a>
             </v-chip>
         </div>
 
