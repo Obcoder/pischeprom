@@ -41,6 +41,7 @@ const dialogTelephones = ref(false)
 const dialogCities = ref(false)
 
 const selectedUri = ref(null)
+const uriSearch = ref('')
 
 const formAttachEmail = useForm({
     email_id: null,
@@ -84,21 +85,24 @@ function storeEmail() {
 }
 
 function attachUri() {
+    const typedValue = String(uriSearch.value || '').trim()
+
     formAttachUri.unit_id = props.unit.id
+    formAttachUri.uri_id =
+        selectedUri.value && typeof selectedUri.value === 'object'
+            ? (selectedUri.value.id ?? null)
+            : null
 
-    formAttachUri.uri_id = typeof selectedUri.value === 'object'
-        ? selectedUri.value?.id ?? null
-        : null
-
-    formAttachUri.address = typeof selectedUri.value === 'string'
-        ? selectedUri.value.trim()
-        : null
+    formAttachUri.address = formAttachUri.uri_id
+        ? null
+        : typedValue || (typeof selectedUri.value === 'string' ? selectedUri.value.trim() : null)
 
     formAttachUri.post(route('web.unituri.store'), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
             selectedUri.value = null
+            uriSearch.value = ''
             formAttachUri.reset('uri_id', 'address')
             dialogAttachUri.value = false
             emit('refresh')
@@ -152,19 +156,12 @@ function attachUri() {
                 <div class="mb-4">
                     <div class="d-flex align-center justify-space-between mb-2">
                         <div class="text-caption text-medium-emphasis">Labels</div>
-                        <v-btn
-                            size="x-small"
-                            variant="text"
-                            @click="dialogLabels = true"
-                        >
+                        <v-btn size="x-small" variant="text" @click="dialogLabels = true">
                             Manage
                         </v-btn>
                     </div>
 
-                    <div
-                        v-if="unit.labels?.length"
-                        class="d-flex flex-wrap ga-2"
-                    >
+                    <div v-if="unit.labels?.length" class="d-flex flex-wrap ga-2">
                         <v-chip
                             v-for="label in unit.labels"
                             :key="label.id"
@@ -184,19 +181,12 @@ function attachUri() {
                 <div class="mb-4">
                     <div class="d-flex align-center justify-space-between mb-2">
                         <div class="text-caption text-medium-emphasis">Fields</div>
-                        <v-btn
-                            size="x-small"
-                            variant="text"
-                            @click="dialogFields = true"
-                        >
+                        <v-btn size="x-small" variant="text" @click="dialogFields = true">
                             Manage
                         </v-btn>
                     </div>
 
-                    <div
-                        v-if="unit.fields?.length"
-                        class="d-flex flex-wrap ga-2"
-                    >
+                    <div v-if="unit.fields?.length" class="d-flex flex-wrap ga-2">
                         <v-chip
                             v-for="field in unit.fields"
                             :key="field.id"
@@ -218,19 +208,12 @@ function attachUri() {
                         <div class="text-caption text-medium-emphasis">
                             Cities for offices / warehouses / production / delivery
                         </div>
-                        <v-btn
-                            size="x-small"
-                            variant="text"
-                            @click="dialogCities = true"
-                        >
+                        <v-btn size="x-small" variant="text" @click="dialogCities = true">
                             Manage
                         </v-btn>
                     </div>
 
-                    <div
-                        v-if="unit.cities?.length"
-                        class="d-flex flex-wrap ga-2"
-                    >
+                    <div v-if="unit.cities?.length" class="d-flex flex-wrap ga-2">
                         <v-chip
                             v-for="city in unit.cities"
                             :key="city.id"
@@ -252,19 +235,12 @@ function attachUri() {
                 <div class="mb-4">
                     <div class="d-flex align-center justify-space-between mb-2">
                         <div class="text-caption text-medium-emphasis">Telephones</div>
-                        <v-btn
-                            size="x-small"
-                            variant="text"
-                            @click="dialogTelephones = true"
-                        >
+                        <v-btn size="x-small" variant="text" @click="dialogTelephones = true">
                             Manage
                         </v-btn>
                     </div>
 
-                    <div
-                        v-if="unit.telephones?.length"
-                        class="d-flex flex-wrap ga-2"
-                    >
+                    <div v-if="unit.telephones?.length" class="d-flex flex-wrap ga-2">
                         <v-chip
                             v-for="telephone in unit.telephones"
                             :key="telephone.id"
@@ -385,6 +361,7 @@ function attachUri() {
                 <v-card-text>
                     <v-combobox
                         v-model="selectedUri"
+                        v-model:search="uriSearch"
                         :items="dict.uris || []"
                         item-title="address"
                         item-value="id"
