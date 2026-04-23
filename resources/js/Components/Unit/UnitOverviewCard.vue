@@ -1,8 +1,8 @@
 <script setup>
 import { ref } from 'vue'
-import axios from 'axios'
 import { useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
+import axios from 'axios'
 
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import UnitFilesTab from '@/Components/Unit/UnitFilesTab.vue'
@@ -34,21 +34,16 @@ const activeTab = ref('info')
 
 const dialogAttachEmail = ref(false)
 const dialogAddEmail = ref(false)
-const dialogAttachUri = ref(false)
 
 const dialogLabels = ref(false)
 const dialogFields = ref(false)
 const dialogTelephones = ref(false)
 const dialogCities = ref(false)
 
-const selectedUri = ref(null)
-const uriSearch = ref('')
-
 const savingLabels = ref(false)
 const savingFields = ref(false)
 const savingTelephones = ref(false)
 const savingCities = ref(false)
-const savingUri = ref(false)
 
 const formAttachEmail = useForm({
     email_id: null,
@@ -69,11 +64,6 @@ function getStrings(items = []) {
     return items
         .filter(item => typeof item === 'string' && item.trim() !== '')
         .map(item => item.trim())
-}
-
-async function refreshAndClose(dialogRef) {
-    dialogRef.value = false
-    await emit('refresh')
 }
 
 function attachEmail() {
@@ -100,39 +90,6 @@ function storeEmail() {
             emit('refresh')
         },
     })
-}
-
-async function attachUri() {
-    const typedValue = String(uriSearch.value || '').trim()
-    const selectedId =
-        selectedUri.value && typeof selectedUri.value === 'object'
-            ? (selectedUri.value.id ?? null)
-            : null
-
-    const payload = selectedId
-        ? { uri_id: selectedId }
-        : { address: typedValue || (typeof selectedUri.value === 'string' ? selectedUri.value.trim() : null) }
-
-    if (!payload.uri_id && !payload.address) {
-        return
-    }
-
-    savingUri.value = true
-    try {
-        await axios.post(
-            route('api.units.uris.attach', props.unit.id),
-            payload
-        )
-
-        selectedUri.value = null
-        uriSearch.value = ''
-        dialogAttachUri.value = false
-        emit('refresh')
-    } catch (error) {
-        console.error('Ошибка привязки URI:', error)
-    } finally {
-        savingUri.value = false
-    }
 }
 
 async function syncLabels(payload) {
@@ -335,7 +292,6 @@ async function syncCities(payload) {
 
                 <v-list density="compact">
                     <v-list-item title="Attach email" @click="dialogAttachEmail = true" />
-                    <v-list-item title="Attach URI" @click="dialogAttachUri = true" />
                 </v-list>
             </v-menu>
         </template>
@@ -558,44 +514,6 @@ async function syncCities(payload) {
                         @click="storeEmail"
                     >
                         Save
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
-        <v-dialog v-model="dialogAttachUri" max-width="720">
-            <v-card rounded="xl">
-                <v-card-title>Attach URI</v-card-title>
-
-                <v-card-text>
-                    <v-combobox
-                        v-model="selectedUri"
-                        v-model:search="uriSearch"
-                        :items="dict.uris || []"
-                        item-title="address"
-                        item-value="id"
-                        label="URI"
-                        hint="Выберите URI из базы или введите новый адрес прямо в это поле"
-                        persistent-hint
-                        clearable
-                        return-object
-                        variant="outlined"
-                        density="comfortable"
-                        @keydown.enter.prevent="attachUri"
-                    />
-                </v-card-text>
-
-                <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="dialogAttachUri = false">
-                        Cancel
-                    </v-btn>
-
-                    <v-btn
-                        color="primary"
-                        :loading="savingUri"
-                        @click="attachUri"
-                    >
-                        Attach
                     </v-btn>
                 </v-card-actions>
             </v-card>

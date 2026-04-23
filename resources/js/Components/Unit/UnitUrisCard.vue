@@ -1,207 +1,158 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { useUnitUris } from '@/Composables/useUnitUris'
+import { computed, ref } from 'vue'
+import axios from 'axios'
+import { route } from 'ziggy-js'
 
 const props = defineProps({
-    unit: Object,
-    dict: Object,
+    unit: {
+        type: Object,
+        required: true,
+    },
+    dict: {
+        type: Object,
+        default: () => ({}),
+    },
 })
 
 const emit = defineEmits(['refresh'])
 
-const {
-    attachUri,
-    detachUri,
-    createUri,
-    updateUri,
-    deleteUri,
-} = useUnitUris(async () => {
-    await emit('refresh')
-})
+const dialogAttach = ref(false)
+const selectedUri = ref(null)
+const uriSearch = ref('')
+const saving = ref(false)
+const deletingId = ref(null)
 
-/* ---------- dialogs ---------- */
+const uriItems = computed(() => props.dict?.uris || [])
+const unitUris = computed(() => props.unit?.uris || [])
 
-const attachDialog = ref(false)
-const createDialog = ref(false)
-const editDialog = ref(false)
+async function attachUri() {
+    const selectedId =
+        selectedUri.value && typeof selectedUri.value === 'object'
+            ? (selectedUri.value.id ?? null)
+            : null
 
-/* ---------- forms ---------- */
+    const typedValue = String(uriSearch.value || '').trim()
+    const fallbackString = typeof selectedUri.value === 'string'
+        ? selectedUri.value.trim()
+        : ''
 
-const selectedUriId = ref(null)
-const newUriAddress = ref('')
-const editUriAddress = ref('')
-const editingUri = ref(null)
+    const address = selectedId ? null : (typedValue || fallbackString || null)
 
-/* ---------- computed ---------- */
+    if (!selectedId && !address) {
+        return
+    }
 
-const isCreateDisabled = computed(() => !newUriAddress.value.trim())
-const isEditDisabled = computed(() => !editUriAddress.value.trim())
+    saving.value = true
 
-/* ---------- actions ---------- */
+    try {
+        await axios.post(
+            route('api.units.uris.attach', props.unit.id),
+            selectedId
+                ? { uri_id: selectedId }
+                : { address }
+        )
 
-async function submitAttach() {
-    if (!selectedUriId.value) return
-
-    await attachUri(props.unit.id, selectedUriId.value)
-    selectedUriId.value = null
-    attachDialog.value = false
+        selectedUri.value = null
+        uriSearch.value = ''
+        dialogAttach.value = false
+        emit('refresh')
+    } catch (error) {
+        console.error('Ошибка привязки URI:', error)
+    } finally {
+        saving.value = false
+    }
 }
 
-async function submitCreate() {
-    if (isCreateDisabled.value) return
+async function detachUri(uriId) {
+    deletingId.value = uriId
 
-    const uri = await createUri(newUriAddress.value.trim())
+    try {
+        await axios.delete(
+            route('api.units.uris.detach', {
+                unit: props.unit.id,
+                uri: uriId,
+            })
+        )
 
-    if (!uri?.id) return   // ✅ ВОТ СЮДА
-
-    await attachUri(props.unit.id, uri.id)
-
-    newUriAddress.value = ''
-    createDialog.value = false
-}
-
-function openEdit(uri) {
-    editingUri.value = uri
-    editUriAddress.value = uri.address
-    editDialog.value = true
-}
-
-async function submitEdit() {
-    if (!editingUri.value || isEditDisabled.value) return
-
-    await updateUri(editingUri.value.id, editUriAddress.value.trim())
-
-    editDialog.value = false
-    editingUri.value = null
-
-    await emit('refresh')
-}
-
-async function submitDetach(uriId) {
-    if (!uriId) return   // ✅ защита
-
-    await detachUri(props.unit.id, uriId)
-}
-
-async function submitDelete(uriId) {
-    if (!uriId) return   // ✅
-
-    await deleteUri(uriId)
-    await emit('refresh')
+        emit('refresh')
+    } catch (error) {
+        console.error('Ошибка отвязки URI:', error)
+    } finally {
+        deletingId.value = null
+    }
 }
 </script>
 
 <template>
-    <v-card>
-        <v-card-title class="d-flex justify-space-between">
-            <span>Uris</span>
+    <div>
+        <div class="d-flex align-center justify-space-between mb-2">
+            <div class="text-h6">Uris</div>
 
-            <div class="d-flex ga-2">
-                <v-btn size="small" variant="text" @click="attachDialog = true">
-                    Attach
-                </v-btn>
+            <v-btn
+                size="small"
+                variant="text"
+                @click="dialogAttach = true"
+            >
+                Attach
+            </v-btn>
+        </div>
 
-                <v-btn size="small" variant="text" @click="createDialog = true">
-                    New
-                </v-btn>
-            </div>
-        </v-card-title>
+        <div
+            v-if="unitUris.length"
+            class="d-flex flex-wrap ga-2"
+        >
+            <v-chip
+                v-for="uri in unitUris"
+                :key="uri.id"
+                closable
+                color="primary"
+                variant="tonal"
+                @click:close="detachUri(uri.id)"
+            >
+                {{ uri.address }}
+            </v-chip>
+        </div>
 
-        <v-card-text>
-            <v-list density="compact">
-                <v-list-item
-                    v-for="uri in unit.uris"
-                    :key="uri.id"
-                >
-                    <template #title>
-                        <a :href="uri.address" target="_blank">
-                            {{ uri.address }}
-                        </a>
-                    </template>
+        <div v-else class="text-caption text-disabled">
+            No uris
+        </div>
 
-                    <template #append>
-                        <div class="d-flex ga-1">
-                            <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(uri)" />
+        <v-dialog v-model="dialogAttach" max-width="720">
+            <v-card rounded="xl">
+                <v-card-title>Select URI</v-card-title>
 
-                            <v-btn icon="mdi-link-off" size="small" variant="text"
-                                   color="warning"
-                                   @click="submitDetach(uri.id)" />
+                <v-card-text>
+                    <v-combobox
+                        v-model="selectedUri"
+                        v-model:search="uriSearch"
+                        :items="uriItems"
+                        item-title="address"
+                        item-value="id"
+                        label="Uri"
+                        hint="Выберите URI из базы или введите новый прямо в этом поле"
+                        persistent-hint
+                        clearable
+                        return-object
+                        variant="outlined"
+                        density="comfortable"
+                        @keydown.enter.prevent="attachUri"
+                    />
+                </v-card-text>
 
-                            <v-btn icon="mdi-delete" size="small" variant="text"
-                                   color="error"
-                                   @click="submitDelete(uri.id)" />
-                        </div>
-                    </template>
-                </v-list-item>
-            </v-list>
-        </v-card-text>
-    </v-card>
+                <v-card-actions class="justify-end">
+                    <v-btn variant="text" @click="dialogAttach = false">
+                        Cancel
+                    </v-btn>
 
-    <!-- Attach dialog -->
-    <v-dialog v-model="attachDialog" max-width="500">
-        <v-card>
-            <v-card-title>Select URI</v-card-title>
-
-            <v-card-text>
-                <v-autocomplete
-                    v-model="selectedUriId"
-                    :items="dict.uris"
-                    item-title="address"
-                    item-value="id"
-                    label="Uri"
-                />
-            </v-card-text>
-
-            <v-card-actions>
-                <v-btn text @click="attachDialog = false">Cancel</v-btn>
-                <v-btn color="primary" @click="submitAttach">Attach</v-btn>
-            </v-card-actions>
-        </v-card>
-    </v-dialog>
-
-    <!-- Create dialog -->
-    <v-dialog v-model="createDialog" max-width="500">
-        <v-card>
-            <v-card-title>New URI</v-card-title>
-
-            <v-card-text>
-                <v-text-field
-                    v-model="newUriAddress"
-                    label="Address"
-                />
-            </v-card-text>
-
-            <v-card-actions>
-                <v-btn text @click="createDialog = false">Cancel</v-btn>
-                <v-btn color="primary"
-                       :disabled="isCreateDisabled"
-                       @click="submitCreate">
-                    Save
-                </v-btn>
-            </v-card-actions>
-        </v-card>
-    </v-dialog>
-
-    <!-- Edit dialog -->
-    <v-dialog v-model="editDialog" max-width="500">
-        <v-card>
-            <v-card-title>Edit URI</v-card-title>
-
-            <v-card-text>
-                <v-text-field
-                    v-model="editUriAddress"
-                    label="Address"
-                />
-            </v-card-text>
-
-            <v-card-actions>
-                <v-btn text @click="editDialog = false">Cancel</v-btn>
-                <v-btn color="primary"
-                       :disabled="isEditDisabled"
-                       @click="submitEdit">
-                    Save
-                </v-btn>
-            </v-card-actions>
-        </v-card>
-    </v-dialog>
+                    <v-btn
+                        color="primary"
+                        :loading="saving"
+                        @click="attachUri"
+                    >
+                        Attach
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+    </div>
 </template>
