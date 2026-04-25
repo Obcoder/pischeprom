@@ -19,17 +19,18 @@ class UpdateCityRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'region_id' => ['sometimes', 'required', 'integer', 'exists:regions,id'],
 
-            'wiki' => ['nullable', 'string', 'max:2048'],
+            'wiki' => ['nullable', 'string', 'max:4096'],
+            'wiki_thumbnail' => ['nullable', 'string', 'max:4096'],
+            'yandexmapsgeo' => ['nullable', 'string', 'max:4096'],
+            'twogis' => ['nullable', 'string', 'max:4096'],
+
             'wiki_title' => ['nullable', 'string', 'max:255'],
             'wiki_summary' => ['nullable', 'string'],
-            'wiki_thumbnail' => ['nullable', 'string', 'max:2048'],
             'wiki_page_id' => ['nullable', 'integer', 'min:1'],
             'wiki_lang' => ['nullable', 'string', 'max:8'],
 
             'population' => ['nullable', 'integer', 'min:0'],
 
-            'yandexmapsgeo' => ['nullable', 'string', 'max:2048'],
-            'twogis' => ['nullable', 'string', 'max:2048'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
 
