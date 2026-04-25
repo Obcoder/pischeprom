@@ -13,6 +13,7 @@ defineOptions({
 })
 
 import Categories from '@/Components/Dictionaries/Categories.vue';
+import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue'
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
 import Industries from "@/Components/Dictionaries/Industries.vue";
@@ -64,15 +65,10 @@ const telephones = ref([])
 
 let manufacturers = ref();
 
-const searchCities = ref('')
-const searchProducts = ref('')
 let searchComponents = ref('');
 
 const dialogFormBuilding = ref(false)
 const dialogFormCheck = ref(false)
-const dialogFormCity = ref(false)
-const dialogFormUnit = ref(false)
-const dialogFormUri = ref(false)
 
 const selectedCategoriesIDs = ref([])
 
@@ -243,19 +239,6 @@ function indexChecks(){
         console.log(error)
     })
 }
-//   C I T I E S
-function indexCities(){
-    axios.get(route('cities.index')).then(function (response){
-        cities.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
-}
-const filteredCities = computed(()=>{
-    const string = searchCities.value.toLowerCase()
-    return cities.value.filter(i => i.name.toLowerCase().includes(string))
-})
-// E N D  C I T I E S
 
 
 
@@ -565,29 +548,6 @@ function indexSegments(){
 // E N D  S E G M E N T S
 
 
-
-//    C I T Y  S T O R E
-const formCity = useForm({
-    name: null,
-    population: null,
-    wiki: null,
-    region_id: null,
-    yandexmapsgeo: null,
-    twogis: null,
-    latitude: null,
-    longitude: null,
-})
-function storeCity(){
-    formCity.post(route('web.city.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formCity.reset();
-            indexCities(searchCities.value)
-        },
-    })
-}
 //    S T O R E  C H E C K
 const formCheck = useForm({
     date: null,
@@ -643,7 +603,6 @@ onMounted(()=>{
     indexCatalogs()
     indexCategories()
     indexChecks()
-    indexCities()
     indexCommodities()
     indexComponents()
     indexCountries()
@@ -995,8 +954,6 @@ const formatBuildingTitle = (building) => {
 
 
 
-
-
                                 <!--           G E O G R A P H Y           -->
                                 <v-tabs-window-item value="geography">
                                     <v-tabs v-model="tabsGeography">
@@ -1006,136 +963,11 @@ const formatBuildingTitle = (building) => {
                                         <v-tab value="countries">Countries</v-tab>
                                     </v-tabs>
                                     <v-tabs-window v-model="tabsGeography">
+
                                         <v-tabs-window-item value="cities">
-                                            <v-row>
-                                                <v-col lg="3">
-                                                    <v-text-field v-model="searchCities"
-                                                                  label="Поиск по городам"
-                                                                  variant="solo"
-                                                                  density="compact"
-                                                                  color="purple-lighten-4"
-                                                                  hide-details
-                                                    ></v-text-field>
-                                                </v-col>
-                                                <v-col cols="1">
-                                                    <v-btn text="+ 🏰"
-                                                           @click="dialogFormCity = !dialogFormCity"
-                                                           variant="tonal"
-                                                           density="compact"></v-btn>
-                                                    <v-dialog v-model="dialogFormCity"
-                                                              width="900"
-                                                    >
-                                                        <v-card>
-                                                            <v-card-title>Form City</v-card-title>
-                                                            <v-card-text>
-                                                                <v-form @submit.prevent>
-                                                                    <v-row>
-                                                                        <v-col lg="9">
-                                                                            <v-text-field v-model="formCity.wiki"
-                                                                                          label="Wiki"
-                                                                                          variant="outlined"
-                                                                                          density="comfortable"
-                                                                                          size="small"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                        <v-col lg="3">
-                                                                            <v-text-field v-model="formCity.population"
-                                                                                          label="Население"
-                                                                                          variant="outlined"
-                                                                                          density="comfortable"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                    </v-row>
-                                                                    <v-row>
-                                                                        <v-col lg="6">
-                                                                            <v-text-field v-model="formCity.name"
-                                                                                          label="Название"
-                                                                                          variant="solo"
-                                                                                          density="comfortable"
-                                                                                          color="indigo-lighten-4"
-                                                                                          class="font-UnderdogRegular"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                        <v-col lg="6">
-                                                                            <v-autocomplete :items="regions"
-                                                                                            :item-title="'name'"
-                                                                                            :item-value="'id'"
-                                                                                            v-model="formCity.region_id"
-                                                                                            label="Регион"
-                                                                                            variant="filled"
-                                                                                            density="comfortable"
-                                                                                            color="purple"
-                                                                            ></v-autocomplete>
-                                                                        </v-col>
-                                                                    </v-row>
-                                                                    <v-row>
-                                                                        <v-col>
-                                                                            <v-text-field v-model="formCity.yandexmapsgeo"
-                                                                                          label="yandex.ru/maps/geo/"
-                                                                                          variant="solo"
-                                                                                          density="comfortable"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                    </v-row>
-                                                                    <v-row>
-                                                                        <v-col>
-                                                                            <v-text-field v-model="formCity.latitude"
-                                                                                          label="Широта"
-                                                                                          variant="outlined"
-                                                                                          density="comfortable"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                        <v-col>
-                                                                            <v-text-field v-model="formCity.longitude"
-                                                                                          label="Долгота"
-                                                                                          variant="outlined"
-                                                                                          density="comfortable"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                    </v-row>
-                                                                    <v-row>
-                                                                        <v-col>
-                                                                            <v-text-field v-model="formCity.twogis"
-                                                                                          label="2GIS"
-                                                                                          variant="solo"
-                                                                                          density="compact"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                    </v-row>
-                                                                </v-form>
-                                                            </v-card-text>
-                                                            <v-card-actions>
-                                                                <v-btn @click="storeCity"
-                                                                       text="сохранить"
-                                                                       variant="elevated"
-                                                                       color="green">
-                                                                </v-btn>
-                                                            </v-card-actions>
-                                                        </v-card>
-                                                    </v-dialog>
-                                                </v-col>
-                                            </v-row>
-                                            <v-row>
-                                                <v-col>
-                                                    <v-sheet>
-                                                        <div v-for="(city, index) in filteredCities"
-                                                             :key="city.id"
-                                                             class="inline-block mr-1 p-1 rounded text-xs text-teal-200 hover:bg-teal-200 hover:text-black"
-                                                        >
-                                                            <div>
-                                                                <a :href="city.yandexmapsgeo" target="_blank"
-                                                                   class="inline-flex items-center justify-center mr-1 bg-teal-500 text-white rounded-full text-[6px] font-bold w-3 h-3"
-                                                                >{{ index + 1 }}</a>
-                                                                <Link :href="route('city.show', city.id)">
-                                                                    {{city.name}}
-                                                                </Link>
-                                                            </div>
-                                                            <div class="text-[7px] text-teal-500">{{city.region.name}}</div>
-                                                        </div>
-                                                    </v-sheet>
-                                                </v-col>
-                                            </v-row>
+                                            <CitiesPage />
                                         </v-tabs-window-item>
+
                                         <v-tabs-window-item value="buildings">
                                             <v-row>
                                                 <v-col cols="1">
@@ -1401,8 +1233,86 @@ const formatBuildingTitle = (building) => {
                                 <!--  E N D  P R O D U C T S  -->
 
 
-
-
+                                <!--        К Л А С С И Ф И К А Т О Р Ы        -->
+                                <v-tabs-window-item value="segments">
+                                    <v-container fluid>
+                                        <v-tabs v-model="tabsSegments">
+                                            <v-tab value="industries">Industries</v-tab>
+                                            <v-tab value="catalogs">Catalogs</v-tab>
+                                            <v-tab value="fields">Fields</v-tab>
+                                            <v-tab value="segments_tab">Segments</v-tab>
+                                        </v-tabs>
+                                        <v-tabs-window v-model="tabsSegments">
+                                            <v-tabs-window-item value="industries">
+                                                <v-container>
+                                                    <v-row>
+                                                        <v-col cols="9">
+                                                            <Industries />
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
+                                            <v-tabs-window-item value="catalogs">
+                                                <v-container fluid>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-data-table :items="catalogs"
+                                                                          items-per-page="25"
+                                                                          :headers="headersCatalogs"
+                                                                          density="compact"
+                                                                          hover
+                                                                          class="border rounded"
+                                                            >
+                                                                <template v-slot:item.uri="{item}">
+                                                                    <a :href="item.uri" target="_blank">
+                                                                        {{item.uri}}
+                                                                    </a>
+                                                                </template>
+                                                            </v-data-table>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
+                                            <v-tabs-window-item value="fields">
+                                                <v-container fluid>
+                                                    <v-row>
+                                                        <v-col cols="2">
+                                                            <v-text-field label="Search"
+                                                                          variant="solo-inverted"
+                                                                          density="compact"
+                                                                          hide-details
+                                                            ></v-text-field>
+                                                        </v-col>
+                                                    </v-row>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-data-table :items="fields"
+                                                                          items-per-page="100"
+                                                                          :headers="headerFields"
+                                                                          fixed-header
+                                                                          height="500px"
+                                                                          density="compact"
+                                                                          hover
+                                                                          class="border rounded"
+                                                            ></v-data-table>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
+                                            <v-tabs-window-item value="segments_tab">
+                                                <v-container fluid>
+                                                    <v-row>
+                                                        <v-col>
+                                                            <v-data-table :items="segments"
+                                                            ></v-data-table>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-container>
+                                            </v-tabs-window-item>
+                                        </v-tabs-window>
+                                    </v-container>
+                                </v-tabs-window-item>
+                                <!--           К О Н Е Ц  К Л А С С И Ф И К А Т О Р Ы           -->
 
 
 
@@ -1514,94 +1424,6 @@ const formatBuildingTitle = (building) => {
 
 
 
-
-
-                                <!--        К Л А С С И Ф И К А Т О Р Ы        -->
-                                <v-tabs-window-item value="segments">
-                                    <v-container fluid>
-                                        <v-tabs v-model="tabsSegments">
-                                            <v-tab value="industries">Industries</v-tab>
-                                            <v-tab value="catalogs">Catalogs</v-tab>
-                                            <v-tab value="fields">Fields</v-tab>
-                                            <v-tab value="segments_tab">Segments</v-tab>
-                                        </v-tabs>
-                                        <v-tabs-window v-model="tabsSegments">
-                                            <v-tabs-window-item value="industries">
-                                                <v-container>
-                                                    <v-row>
-                                                        <v-col cols="9">
-                                                            <Industries />
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-container>
-                                            </v-tabs-window-item>
-                                            <v-tabs-window-item value="catalogs">
-                                                <v-container fluid>
-                                                    <v-row>
-                                                        <v-col>
-                                                            <v-data-table :items="catalogs"
-                                                                          items-per-page="25"
-                                                                          :headers="headersCatalogs"
-                                                                          density="compact"
-                                                                          hover
-                                                                          class="border rounded"
-                                                            >
-                                                                <template v-slot:item.uri="{item}">
-                                                                    <a :href="item.uri" target="_blank">
-                                                                        {{item.uri}}
-                                                                    </a>
-                                                                </template>
-                                                            </v-data-table>
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-container>
-                                            </v-tabs-window-item>
-                                            <v-tabs-window-item value="fields">
-                                                <v-container fluid>
-                                                    <v-row>
-                                                        <v-col cols="2">
-                                                            <v-text-field label="Search"
-                                                                          variant="solo-inverted"
-                                                                          density="compact"
-                                                                          hide-details
-                                                            ></v-text-field>
-                                                        </v-col>
-                                                    </v-row>
-                                                    <v-row>
-                                                        <v-col>
-                                                            <v-data-table :items="fields"
-                                                                          items-per-page="100"
-                                                                          :headers="headerFields"
-                                                                          fixed-header
-                                                                          height="500px"
-                                                                          density="compact"
-                                                                          hover
-                                                                          class="border rounded"
-                                                            ></v-data-table>
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-container>
-                                            </v-tabs-window-item>
-                                            <v-tabs-window-item value="segments_tab">
-                                                <v-container fluid>
-                                                    <v-row>
-                                                        <v-col>
-                                                            <v-data-table :items="segments"
-                                                            ></v-data-table>
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-container>
-                                            </v-tabs-window-item>
-                                        </v-tabs-window>
-                                    </v-container>
-                                </v-tabs-window-item>
-                                <!--           К О Н Е Ц  К Л А С С И Ф И К А Т О Р Ы           -->
-
-
-
-
-
-
                                 <!--                                M A I L (не работает)!!!-->
                                 <v-tabs-window-item value="eleven">
                                     <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md border border-gray-200">
@@ -1644,80 +1466,6 @@ const formatBuildingTitle = (building) => {
 
 
 
-
-
-                                <!--           B R A N D S               -->
-                                <v-tabs-window-item value="brands">
-                                    <v-sheet>
-                                        <v-text-field v-model="searchBrands"
-                                                      label="Поиск по брендам"
-                                                      variant="solo"
-                                                      density="compact"
-                                                      color="deep-purple"
-                                        ></v-text-field>
-                                        <div v-for="brand in filteredBrands"
-                                             class="text-xs"
-                                        >{{brand.name}}</div>
-                                    </v-sheet>
-                                </v-tabs-window-item>
-                                <!--              E N D  B R A N D S               -->
-
-
-
-
-                                <!--      C O N P O N E N T S       -->
-                                <v-tabs-window-item value="components">
-                                    <v-container>
-                                        <v-row>
-                                            <v-col cols="8">
-
-                                            </v-col>
-                                            <v-col cols="4">
-                                                <v-dialog transition="dialog-top-transition"
-                                                          width="605"
-                                                >
-                                                    <template v-slot:activator="{ props: activatorProps }">
-                                                        <v-btn v-bind="activatorProps"
-                                                               text="Добавить"
-                                                               block
-                                                               variant="elevated"
-                                                               color="purple"
-                                                        ></v-btn>
-                                                    </template>
-                                                    <template v-slot:default="{ isActive }">
-                                                        <v-card>
-                                                            <v-card-title>Form Component</v-card-title>
-                                                            <v-card-text>
-                                                                <v-form @submit.prevent>
-                                                                    <v-row>
-                                                                        <v-text-field v-model="formComponent.name"
-                                                                                      label="Name"
-                                                                                      variant="outlined"
-                                                                        ></v-text-field>
-                                                                    </v-row>
-                                                                    <v-row>
-                                                                        <v-row>
-                                                                            <v-col></v-col>
-                                                                            <v-col>
-                                                                                <v-btn text="save"
-                                                                                       variant="elevated"
-                                                                                       @click="storeComponent"
-                                                                                       color="purple-darken-4"
-                                                                                ></v-btn>
-                                                                            </v-col>
-                                                                            <v-col></v-col>
-                                                                        </v-row>
-                                                                    </v-row>
-                                                                </v-form>
-                                                            </v-card-text>
-                                                        </v-card>
-                                                    </template>
-                                                </v-dialog>
-                                            </v-col>
-                                        </v-row>
-                                    </v-container>
-                                </v-tabs-window-item>
-                                <!--      E N D  C O M P O N E N T S      -->
                             </v-tabs-window>
                         </v-card-text>
                     </v-card>

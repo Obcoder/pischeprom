@@ -50,4 +50,8 @@ return [
         'region' => env('YANDEX_SEARCH_REGION', 'ru'),
         'host' => env('YANDEX_SEARCH_HOST', 'searchapi.api.cloud.yandex.net'),
     ],
+
+    'wikipedia' => [
+        'user_agent' => env('WIKIPEDIA_USER_AGENT', 'pischeprom/1.0'),
+    ],
 ];

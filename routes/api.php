@@ -10,7 +10,6 @@ use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\CatalogController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CheckController;
-use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CommodityController;
 use App\Http\Controllers\API\ComponentController;
 use App\Http\Controllers\API\CountryController;
@@ -59,7 +58,31 @@ Route::apiResource('buildings', BuildingController::class);
 Route::apiResource('catalogs', CatalogController::class);
 Route::apiResource('categories', CategoryController::class);
 Route::apiResource('checks', CheckController::class);
+
+//  C I T I E S
+use App\Http\Controllers\API\CityController;
 Route::apiResource('cities', CityController::class);
+use App\Http\Controllers\API\CityPopulationController;
+Route::prefix('cities/{city}')
+    ->name('cities.')
+    ->group(function () {
+        Route::get('/populations', [CityPopulationController::class, 'index'])
+            ->name('populations.index');
+
+        Route::post('/populations', [CityPopulationController::class, 'store'])
+            ->name('populations.store');
+
+        Route::put('/populations/{cityPopulation}', [CityPopulationController::class, 'update'])
+            ->name('populations.update');
+
+        Route::patch('/populations/{cityPopulation}', [CityPopulationController::class, 'update'])
+            ->name('populations.patch');
+
+        Route::delete('/populations/{cityPopulation}', [CityPopulationController::class, 'destroy'])
+            ->name('populations.destroy');
+    });
+//
+
 Route::apiResource('commodities', CommodityController::class);
 Route::apiResource('components', ComponentController::class);
 Route::apiResource('countries', CountryController::class);
