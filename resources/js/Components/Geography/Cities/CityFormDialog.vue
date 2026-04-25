@@ -91,6 +91,14 @@ function submit() {
     })
 }
 
+function openWiki() {
+    if (!form.wiki) {
+        return
+    }
+
+    window.open(form.wiki, '_blank', 'noopener,noreferrer')
+}
+
 watch(
     () => model.value,
     value => {
@@ -174,7 +182,20 @@ watch(
                                 variant="outlined"
                                 density="comfortable"
                                 color="blue"
-                            />
+                                clearable
+                            >
+                                <template #append-inner>
+                                    <v-btn
+                                        icon="mdi-open-in-new"
+                                        size="x-small"
+                                        variant="text"
+                                        color="blue-lighten-2"
+                                        :disabled="!form.wiki"
+                                        title="Открыть статью в новой вкладке"
+                                        @click.stop="openWiki"
+                                    />
+                                </template>
+                            </v-text-field>
                         </v-col>
                     </v-row>
 

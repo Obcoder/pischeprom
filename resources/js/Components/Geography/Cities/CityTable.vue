@@ -116,7 +116,35 @@ function latestPopulationYear(city) {
     >
         <template #item.wiki_thumbnail="{ item }">
             <div class="d-flex justify-center py-1">
+                <a
+                    v-if="item.wiki"
+                    :href="item.wiki"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Открыть статью в Wikipedia"
+                >
+                    <v-avatar
+                        size="52"
+                        rounded="lg"
+                        class="border border-teal-700 bg-slate-800 cursor-pointer hover:opacity-80"
+                    >
+                        <v-img
+                            v-if="item.wiki_thumbnail"
+                            :src="item.wiki_thumbnail"
+                            cover
+                        />
+
+                        <span
+                            v-else
+                            class="text-teal-lighten-3 text-caption"
+                        >
+                    {{ item.name?.slice(0, 1) }}
+                </span>
+                    </v-avatar>
+                </a>
+
                 <v-avatar
+                    v-else
                     size="52"
                     rounded="lg"
                     class="border border-teal-700 bg-slate-800"
@@ -126,12 +154,13 @@ function latestPopulationYear(city) {
                         :src="item.wiki_thumbnail"
                         cover
                     />
+
                     <span
                         v-else
                         class="text-teal-lighten-3 text-caption"
                     >
-                        {{ item.name?.slice(0, 1) }}
-                    </span>
+                {{ item.name?.slice(0, 1) }}
+            </span>
                 </v-avatar>
             </div>
         </template>
@@ -164,6 +193,7 @@ function latestPopulationYear(city) {
                         v-if="item.wiki"
                         :href="item.wiki"
                         target="_blank"
+                        rel="noopener noreferrer"
                         class="hover:text-teal-lighten-2"
                     >
                         {{ item.wiki_title || item.wiki }}
