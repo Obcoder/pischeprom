@@ -61,7 +61,6 @@ const regions = ref([])
 const sale = ref()
 const sales = ref([])
 const segments = ref([])
-const telephones = ref([])
 
 let manufacturers = ref();
 
