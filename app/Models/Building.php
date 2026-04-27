@@ -12,9 +12,13 @@ class Building extends Model
     use HasFactory;
 
     protected $fillable = [
-        'address',
         'city_id',
+        'address',
         'postcode',
+    ];
+
+    protected $casts = [
+        'city_id' => 'integer',
     ];
 
     protected $with = [

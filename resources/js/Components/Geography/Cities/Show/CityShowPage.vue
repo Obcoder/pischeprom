@@ -2,6 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
+import axios from 'axios'
+import CityBuildingFormDialog from '@/Components/Geography/Cities/Show/CityBuildingFormDialog.vue'
 
 import CityHeroCard from '@/Components/Geography/Cities/Show/CityHeroCard.vue'
 import CityStatsCards from '@/Components/Geography/Cities/Show/CityStatsCards.vue'
@@ -95,6 +97,87 @@ async function handlePopulationSaved() {
     }
 }
 
+const buildingDialog = ref(false)
+const buildingDialogMode = ref('create')
+const selectedBuilding = ref(null)
+const savingBuilding = ref(false)
+
+function openCreateBuildingDialog() {
+    selectedBuilding.value = null
+    buildingDialogMode.value = 'create'
+    buildingDialog.value = true
+}
+
+function openEditBuildingDialog(building) {
+    selectedBuilding.value = building
+    buildingDialogMode.value = 'edit'
+    buildingDialog.value = true
+}
+
+async function handleSaveBuilding(payload) {
+    savingBuilding.value = true
+
+    try {
+        if (buildingDialogMode.value === 'create') {
+            await axios.post(route('buildings.store'), payload)
+        } else {
+            await axios.patch(
+                route('buildings.update', selectedBuilding.value.id),
+                payload
+            )
+        }
+
+        await fetchCity()
+
+        buildingDialog.value = false
+
+        snackbar.value = {
+            show: true,
+            text: buildingDialogMode.value === 'create'
+                ? 'Здание добавлено'
+                : 'Здание обновлено',
+            color: 'success',
+        }
+    } catch (error) {
+        console.error(error)
+
+        snackbar.value = {
+            show: true,
+            text: 'Ошибка сохранения здания',
+            color: 'error',
+        }
+    } finally {
+        savingBuilding.value = false
+    }
+}
+
+async function handleDeleteBuilding(building) {
+    const confirmed = window.confirm(`Удалить здание "${building.address}"?`)
+
+    if (!confirmed) {
+        return
+    }
+
+    try {
+        await axios.delete(route('buildings.destroy', building.id))
+        await fetchCity()
+
+        snackbar.value = {
+            show: true,
+            text: 'Здание удалено',
+            color: 'success',
+        }
+    } catch (error) {
+        console.error(error)
+
+        snackbar.value = {
+            show: true,
+            text: 'Ошибка удаления здания',
+            color: 'error',
+        }
+    }
+}
+
 onMounted(async () => {
     await Promise.all([
         fetchRegions(),
@@ -161,7 +244,12 @@ onMounted(async () => {
 
                     <v-row>
                         <v-col cols="12" lg="4">
-                            <CityBuildingsCard :city="city" />
+                            <CityBuildingsCard
+                                :city="city"
+                                @create="openCreateBuildingDialog"
+                                @edit="openEditBuildingDialog"
+                                @delete="handleDeleteBuilding"
+                            />
                         </v-col>
 
                         <v-col cols="12" lg="4">
@@ -186,6 +274,15 @@ onMounted(async () => {
                         v-model="populationDialog"
                         :city="city"
                         @saved="handlePopulationSaved"
+                    />
+
+                    <CityBuildingFormDialog
+                        v-model="buildingDialog"
+                        :mode="buildingDialogMode"
+                        :city="city"
+                        :building="selectedBuilding"
+                        :loading="savingBuilding"
+                        @save="handleSaveBuilding"
                     />
                 </template>
 
