@@ -109,7 +109,7 @@ onMounted(async () => {
             <v-col>
                 <div class="mb-3">
                     <Link
-                        :href="route('#')"
+                        :href="#"
                         class="text-teal-lighten-3 hover:text-white text-sm"
                     >
                         ← Grossbuch / Geography / Cities
