@@ -82,16 +82,21 @@ Route::get('/категория/{category}', [WebCategoryController::class, 'sho
 Route::get('Ameise/checks', function (){
     return Inertia::render('Ameise/Checks');
 })->name('Ameise.checks');
+//
+
+
 //   C I T I E S
 Route::get('/Ameise/Cities', function (){
     return Inertia::render('Ameise/Cities');
 })->name('Ameise.cities');
-Route::get('/Ameise/city/{id}', function ($id) {
-    $data = [
-        'city' => City::with('buildings')->with('entities')->findOrFail($id)
-    ];
-    return Inertia::render('Ameise/City', $data);
+Route::get('/Ameise/city/{city}', function (City $city) {
+    return Inertia::render('Ameise/City', [
+        'cityId' => $city->id,
+    ]);
 })->name('city.show');
+//
+
+
 //   C O M M O D I T I E S
 Route::get('/Ameise/Commodities/', function (){
     return Inertia::render('Ameise/Commodities');

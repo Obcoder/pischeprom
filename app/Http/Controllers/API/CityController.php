@@ -107,10 +107,16 @@ class CityController extends Controller
                         'region.country',
                         'latestPopulation',
                         'populations',
-                        'buildings',
-                        'entities',
+                        'buildings.units',
+                        'entities.classification',
                         'units',
                     ]);
+
+        $city->loadCount([
+                             'buildings',
+                             'entities',
+                             'units',
+                         ]);
 
         return response()->json($city);
     }
