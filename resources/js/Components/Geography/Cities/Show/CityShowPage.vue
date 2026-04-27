@@ -108,12 +108,13 @@ onMounted(async () => {
         <v-row>
             <v-col>
                 <div class="mb-3">
-                    <Link
-                        :href="#"
+                    <button
+                        type="button"
                         class="text-teal-lighten-3 hover:text-white text-sm"
+                        @click="window.history.back()"
                     >
                         ← Grossbuch / Geography / Cities
-                    </Link>
+                    </button>
                 </div>
 
                 <v-skeleton-loader
