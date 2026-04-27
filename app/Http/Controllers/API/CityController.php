@@ -23,13 +23,10 @@ class CityController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $itemsPerPage = (int) $request->input('itemsPerPage', 25);
+        $requestedItemsPerPage = (int) $request->input('itemsPerPage', 25);
+        $isAllRequested = $requestedItemsPerPage === -1;
 
-        if ($itemsPerPage === -1) {
-            $itemsPerPage = 200;
-        }
-
-        $itemsPerPage = max(1, min($itemsPerPage, 200));
+        $itemsPerPage = max(1, min($requestedItemsPerPage, 200));
         $page = max(1, (int) $request->input('page', 1));
 
         $query = City::query()
@@ -47,6 +44,17 @@ class CityController extends Controller
             ->filterHasBuildings($request->input('has_buildings'));
 
         $this->applySorting($query, $request);
+
+        if ($isAllRequested) {
+            $items = $query->get();
+
+            return response()->json([
+                                        'items' => $items,
+                                        'total' => $items->count(),
+                                        'page' => 1,
+                                        'itemsPerPage' => -1,
+                                    ]);
+        }
 
         $paginator = $query->paginate(
             perPage: $itemsPerPage,

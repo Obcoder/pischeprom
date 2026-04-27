@@ -75,6 +75,29 @@ const headers = computed(() => [
     },
 ])
 
+const itemsPerPageOptions = [
+    {
+        value: 25,
+        title: '25',
+    },
+    {
+        value: 50,
+        title: '50',
+    },
+    {
+        value: 100,
+        title: '100',
+    },
+    {
+        value: 200,
+        title: '200',
+    },
+    {
+        value: -1,
+        title: 'All',
+    },
+]
+
 function formatNumber(value) {
     if (value === null || value === undefined || value === '') {
         return '—'
@@ -105,6 +128,7 @@ function latestPopulationYear(city) {
         :loading="loading"
         :page="options.page"
         :items-per-page="options.itemsPerPage"
+        :items-per-page-options="itemsPerPageOptions"
         :sort-by="options.sortBy"
         item-value="id"
         density="compact"

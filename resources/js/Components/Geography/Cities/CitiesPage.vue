@@ -142,7 +142,12 @@ async function handleDeleteCity(city) {
 }
 
 function handleOptionsUpdate(newOptions) {
-    fetchCities(newOptions)
+    const itemsPerPageChanged = newOptions.itemsPerPage !== options.value.itemsPerPage
+
+    fetchCities({
+        ...newOptions,
+        page: itemsPerPageChanged ? 1 : newOptions.page,
+    })
 }
 
 const debouncedFetch = debounce(() => {
