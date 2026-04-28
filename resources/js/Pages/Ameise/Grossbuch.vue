@@ -13,7 +13,8 @@ defineOptions({
 })
 
 import Categories from '@/Components/Dictionaries/Categories.vue';
-import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue'
+import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue';
+import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
 import Industries from "@/Components/Dictionaries/Industries.vue";
@@ -693,16 +694,25 @@ const formatBuildingTitle = (building) => {
                                     <v-row>
                                         <v-col>
                                             <v-tabs v-model="tabsContacts">
-                                                <v-tab value="telephones">Телефоны</v-tab>
                                                 <v-tab value="uris">Uris</v-tab>
+                                                <v-tab value="emails">Emails</v-tab>
+                                                <v-tab value="telephones">Телефоны</v-tab>
                                             </v-tabs>
+
                                             <v-tabs-window v-model="tabsContacts">
                                                 <v-tabs-window-item value="uris">
                                                     <Uris />
                                                 </v-tabs-window-item>
+
+                                                <v-tabs-window-item value="emails">
+                                                    <EmailsPage />
+                                                </v-tabs-window-item>
+
                                                 <v-tabs-window-item value="telephones">
                                                     <TelephonePage />
                                                 </v-tabs-window-item>
+
+
                                             </v-tabs-window>
                                         </v-col>
                                     </v-row>
@@ -1129,12 +1139,15 @@ const formatBuildingTitle = (building) => {
                                                 </v-row>
                                             </v-container>
                                         </v-tabs-window-item>
+
                                         <v-tabs-window-item value="categories_products">
                                             <Products />
                                         </v-tabs-window-item>
+
                                         <v-tabs-window-item value="goods">
                                             <Goods />
                                         </v-tabs-window-item>
+
                                         <v-tabs-window-item value="components">
                                             <v-container fluid>
                                                 <v-row>

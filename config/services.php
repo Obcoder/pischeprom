@@ -54,4 +54,18 @@ return [
     'wikipedia' => [
         'user_agent' => env('WIKIPEDIA_USER_AGENT', 'pischeprom/1.0'),
     ],
+
+    'yandex_mail' => [
+        'address' => env('YANDEX_MAIL_ADDRESS', env('MAIL_FROM_ADDRESS')),
+
+        'imap' => [
+            'host' => env('YANDEX_IMAP_HOST', 'imap.yandex.com'),
+            'port' => (int) env('YANDEX_IMAP_PORT', 993),
+            'encryption' => env('YANDEX_IMAP_ENCRYPTION', 'ssl'),
+            'username' => env('YANDEX_IMAP_USERNAME'),
+            'password' => env('YANDEX_IMAP_PASSWORD'),
+            'inbox' => env('YANDEX_IMAP_INBOX', 'INBOX'),
+            'sent' => env('YANDEX_IMAP_SENT', 'Sent'),
+        ],
+    ],
 ];

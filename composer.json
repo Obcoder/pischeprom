@@ -6,6 +6,9 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "ext-dom": "*",
+        "ext-libxml": "*",
+        "ext-simplexml": "*",
         "inertiajs/inertia-laravel": "^1.0",
         "intervention/image": "^3.11",
         "laravel/framework": "^11.0",
@@ -19,9 +22,7 @@
         "symfony/mailgun-mailer": "^7.1",
         "telegram-bot/api": "^3.0",
         "tightenco/ziggy": "^2.0",
-        "ext-libxml": "*",
-        "ext-simplexml": "*",
-        "ext-dom": "*"
+        "webklex/laravel-imap": "^6.2"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

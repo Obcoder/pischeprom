@@ -14,7 +14,6 @@ use App\Http\Controllers\API\CommodityController;
 use App\Http\Controllers\API\ComponentController;
 use App\Http\Controllers\API\CountryController;
 use App\Http\Controllers\API\CurrencyController;
-use App\Http\Controllers\API\EmailController;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\EntityMetaController;
 use App\Http\Controllers\API\EntitiesClassification;
@@ -87,7 +86,28 @@ Route::apiResource('commodities', CommodityController::class);
 Route::apiResource('components', ComponentController::class);
 Route::apiResource('countries', CountryController::class);
 Route::apiResource('currencies', CurrencyController::class);
+
+//  E M A I L S
+use App\Http\Controllers\API\EmailController;
+use App\Http\Controllers\API\EmailMailboxController;
+use App\Http\Controllers\API\EmailRelationController;
+Route::get('emails/meta', [EmailController::class, 'meta'])
+    ->name('emails.meta');
+
+Route::post('emails/sync-yandex', [EmailMailboxController::class, 'sync'])
+    ->name('emails.sync-yandex');
+
+Route::get('emails/{email}/mailbox', [EmailMailboxController::class, 'show'])
+    ->name('emails.mailbox');
+
+Route::post('emails/{email}/units/sync', [EmailRelationController::class, 'syncUnits'])
+    ->name('emails.units.sync');
+
+Route::post('emails/{email}/entities/sync', [EmailRelationController::class, 'syncEntities'])
+    ->name('emails.entities.sync');
+
 Route::apiResource('emails', EmailController::class);
+// E N D  E M A I L S
 
 Route::get('/entities-meta', [EntityMetaController::class, 'index']);
 Route::apiResource('entities', EntityController::class);
