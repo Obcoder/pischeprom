@@ -29,24 +29,52 @@ class YandexMailboxService
         $client = $this->client();
         $client->connect();
 
-        $folder = $client->getFolder($folderName);
+        try {
+            $folder = $client->getFolder($folderName);
 
-        $messages = $folder
-            ->query()
-            ->all()
-            ->limit($limit)
-            ->get();
+            $total = $folder->query()->all()->count();
 
-        $count = 0;
+            if ($total === 0) {
+                return 0;
+            }
 
-        foreach ($messages as $message) {
-            $this->storeMessage($message, $folderName, $direction);
-            $count++;
+            $pageSize = 25;
+            $maxToFetch = min($total, $limit);
+            $pages = (int) ceil($maxToFetch / $pageSize);
+
+            $stored = 0;
+
+            for ($page = 1; $page <= $pages; $page++) {
+                $query = $folder
+                    ->query()
+                    ->all()
+                    ->leaveUnread()
+                    ->setFetchBody(false)
+                    ->softFail()
+                    ->setFetchOrderDesc();
+
+                if (method_exists($query, 'setFetchAttachment')) {
+                    $query->setFetchAttachment(false);
+                }
+
+                $messages = $query
+                    ->limit($pageSize, $page)
+                    ->get();
+
+                foreach ($messages as $message) {
+                    if ($stored >= $limit) {
+                        break 2;
+                    }
+
+                    $this->storeMessage($message, $folderName, $direction);
+                    $stored++;
+                }
+            }
+
+            return $stored;
+        } finally {
+            $client->disconnect();
         }
-
-        $client->disconnect();
-
-        return $count;
     }
 
     protected function client()
@@ -85,8 +113,8 @@ class YandexMailboxService
                 'from_name' => $from['name'] ?? null,
                 'to' => $to,
                 'cc' => $cc,
-                'preview' => $this->preview($message),
-                'has_attachments' => (bool) $this->call($message, 'hasAttachments'),
+                'preview' => null,
+                'has_attachments' => false,
                 'raw_headers' => null,
             ]
         );
