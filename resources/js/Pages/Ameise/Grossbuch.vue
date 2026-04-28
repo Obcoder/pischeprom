@@ -332,18 +332,6 @@ function indexCountries(){
 
 
 
-//      E M A I L S
-function indexEmails(){
-    axios.get(route('emails.index')).then(function (response){
-        emails.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-// E N D  E M A I L S
-
-
-
 //     E N T I T Y  C L A S S I F I C A T I O N S
 function indexEntityClassifications(){
     axios.get(route('entities-classification.index')).then(function (response){
@@ -606,7 +594,6 @@ onMounted(()=>{
     indexCommodities()
     indexComponents()
     indexCountries()
-    indexEmails()
     indexEntityClassifications()
     indexFields()
     indexLabels()
