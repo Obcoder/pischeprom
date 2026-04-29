@@ -8,7 +8,6 @@ use Carbon\Carbon;
 use DateTimeInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Webklex\PHPIMAP\ClientManager;
 
@@ -162,39 +161,26 @@ class YandexMailboxService
     protected function findOrCreateEmail(string $address, ?string $name = null): Email
     {
         $address = Str::lower(trim($address));
-        $domain = Str::after($address, '@');
-
-        $createData = [
-            'name' => $name,
-            'source' => 'yandex',
-            'is_active' => true,
-            'last_seen_at' => now(),
-        ];
-
-        if (Schema::hasColumn('emails', 'domain')) {
-            $createData['domain'] = $domain;
-        }
 
         $email = Email::withTrashed()->firstOrCreate(
             ['address' => $address],
-            $createData
+            [
+                'name' => $name,
+                'source' => 'yandex',
+                'is_active' => true,
+                'last_seen_at' => now(),
+            ]
         );
 
         if ($email->trashed()) {
             $email->restore();
         }
 
-        $updateData = [
-            'last_seen_at' => now(),
-            'name' => $email->name ?: $name,
-            'source' => $email->source ?: 'yandex',
-        ];
-
-        if (Schema::hasColumn('emails', 'domain') && empty($email->domain)) {
-            $updateData['domain'] = $domain;
-        }
-
-        $email->forceFill($updateData)->save();
+        $email->forceFill([
+                              'last_seen_at' => now(),
+                              'name' => $email->name ?: $name,
+                              'source' => $email->source ?: 'yandex',
+                          ])->save();
 
         return $email;
     }
