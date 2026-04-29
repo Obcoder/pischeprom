@@ -98,17 +98,47 @@ class YandexMailboxService
         $to = $this->addresses($this->call($message, 'getTo'));
         $cc = $this->addresses($this->call($message, 'getCc'));
 
+        $messageId = $this->stringValue($this->call($message, 'getMessageId'));
+        $subject = $this->stringValue($this->call($message, 'getSubject'));
+        $messageDate = $this->dateValue($this->call($message, 'getDate'));
+
+        $imapUid = $this->uid($message);
+
+        if (!$imapUid) {
+            $imapUid = $this->fallbackUid(
+                folderName: $folderName,
+                direction: $direction,
+                messageId: $messageId,
+                subject: $subject,
+                messageDate: $messageDate?->toDateTimeString(),
+                from: $from,
+                to: $to,
+                cc: $cc,
+            );
+        }
+
+        \Log::info('Yandex parsed message addresses', [
+            'folder' => $folderName,
+            'direction' => $direction,
+            'imap_uid' => $imapUid,
+            'message_id' => $messageId,
+            'subject' => $subject,
+            'from' => $from,
+            'to' => $to,
+            'cc' => $cc,
+        ]);
+
         $mailMessage = MailMessage::updateOrCreate(
             [
                 'mailbox' => config('services.yandex_mail.address'),
                 'folder' => $folderName,
-                'imap_uid' => $this->uid($message),
+                'imap_uid' => $imapUid,
             ],
             [
                 'direction' => $direction,
-                'message_id' => $this->stringValue($this->call($message, 'getMessageId')),
-                'subject' => $this->stringValue($this->call($message, 'getSubject')),
-                'message_date' => $this->dateValue($this->call($message, 'getDate')),
+                'message_id' => $messageId,
+                'subject' => $subject,
+                'message_date' => $messageDate,
                 'from_address' => $from['address'] ?? null,
                 'from_name' => $from['name'] ?? null,
                 'to' => $to,
@@ -181,20 +211,70 @@ class YandexMailboxService
 
     protected function uid($message): int
     {
-        $uid = $this->call($message, 'getUid');
-        $value = $this->stringValue($uid);
+        foreach (['getUid', 'getUID', 'uid'] as $method) {
+            if (is_object($message) && method_exists($message, $method)) {
+                $value = $message->{$method}();
 
-        if ($value) {
-            return (int) $value;
+                if (is_numeric($value)) {
+                    return (int) $value;
+                }
+
+                $string = $this->stringValue($value);
+
+                if (is_numeric($string)) {
+                    return (int) $string;
+                }
+            }
         }
 
+        foreach (['uid', 'msgno', 'message_no'] as $property) {
+            if (is_object($message) && isset($message->{$property}) && is_numeric($message->{$property})) {
+                return (int) $message->{$property};
+            }
+        }
+
+        $messageId = $this->stringValue($this->call($message, 'getMessageId'));
+        $subject = $this->stringValue($this->call($message, 'getSubject'));
+        $date = $this->stringValue($this->call($message, 'getDate'));
+
+        $from = json_encode($this->addresses($this->call($message, 'getFrom')), JSON_UNESCAPED_UNICODE);
+        $to = json_encode($this->addresses($this->call($message, 'getTo')), JSON_UNESCAPED_UNICODE);
+        $cc = json_encode($this->addresses($this->call($message, 'getCc')), JSON_UNESCAPED_UNICODE);
+
         $fallback = implode('|', [
-            $this->stringValue($this->call($message, 'getMessageId')),
-            $this->stringValue($this->call($message, 'getSubject')),
-            $this->stringValue($this->call($message, 'getDate')),
+            $messageId,
+            $subject,
+            $date,
+            $from,
+            $to,
+            $cc,
         ]);
 
-        return abs(crc32($fallback));
+        return abs(crc32($fallback ?: spl_object_hash($message)));
+    }
+
+    protected function fallbackUid(
+        string $folderName,
+        string $direction,
+        ?string $messageId,
+        ?string $subject,
+        ?string $messageDate,
+        ?array $from,
+        array $to,
+        array $cc,
+    ): int {
+        $fingerprint = json_encode([
+                                       'folder' => $folderName,
+                                       'direction' => $direction,
+                                       'message_id' => $messageId,
+                                       'subject' => $subject,
+                                       'message_date' => $messageDate,
+                                       'from' => $from,
+                                       'to' => $to,
+                                       'cc' => $cc,
+                                   ], JSON_UNESCAPED_UNICODE);
+
+        return (int) sprintf('%u', crc32($fingerprint));
     }
 
     protected function preview($message): ?string
@@ -234,16 +314,24 @@ class YandexMailboxService
             return trim((string) $value) ?: null;
         }
 
-        if (is_object($value) && method_exists($value, 'first')) {
-            return $this->stringValue($value->first());
-        }
-
         if (is_object($value) && method_exists($value, 'toString')) {
             return trim($value->toString()) ?: null;
         }
 
         if (is_object($value) && method_exists($value, '__toString')) {
             return trim((string) $value) ?: null;
+        }
+
+        if (is_object($value) && method_exists($value, 'first')) {
+            return $this->stringValue($value->first());
+        }
+
+        if (is_object($value) && method_exists($value, 'get')) {
+            return $this->stringValue($value->get());
+        }
+
+        if (is_array($value)) {
+            return null;
         }
 
         return null;
@@ -276,36 +364,89 @@ class YandexMailboxService
 
         if (is_object($collection) && method_exists($collection, 'all')) {
             $collection = $collection->all();
-        }
-
-        if (is_object($collection) && method_exists($collection, 'toArray')) {
+        } elseif (is_object($collection) && method_exists($collection, 'toArray')) {
             $collection = $collection->toArray();
+        } elseif (is_object($collection) && method_exists($collection, 'get')) {
+            $collection = $collection->get();
         }
 
         if (!is_iterable($collection)) {
-            return [];
+            $collection = [$collection];
         }
 
         $addresses = [];
 
         foreach ($collection as $item) {
-            $address = $item['mail']
-                ?? $item['email']
-                ?? $item->mail
-                ?? $item->email
-                ?? null;
+            $address = null;
+            $name = null;
 
-            if (!$address) {
+            if (is_array($item)) {
+                $address = $item['mail']
+                    ?? $item['email']
+                    ?? $item['address']
+                    ?? null;
+
+                $name = $item['personal']
+                    ?? $item['name']
+                    ?? null;
+
+                if (!$address && !empty($item['mailbox']) && !empty($item['host'])) {
+                    $address = $item['mailbox'] . '@' . $item['host'];
+                }
+            }
+
+            if (is_object($item)) {
+                $address = $item->mail
+                    ?? $item->email
+                    ?? $item->address
+                    ?? null;
+
+                $name = $item->personal
+                    ?? $item->name
+                    ?? null;
+
+                if (!$address && !empty($item->mailbox) && !empty($item->host)) {
+                    $address = $item->mailbox . '@' . $item->host;
+                }
+
+                if (!$address && method_exists($item, 'toArray')) {
+                    $array = $item->toArray();
+
+                    $address = $array['mail']
+                        ?? $array['email']
+                        ?? $array['address']
+                        ?? null;
+
+                    $name = $name
+                        ?? $array['personal']
+                        ?? $array['name']
+                        ?? null;
+
+                    if (!$address && !empty($array['mailbox']) && !empty($array['host'])) {
+                        $address = $array['mailbox'] . '@' . $array['host'];
+                    }
+                }
+
+                if (!$address && method_exists($item, '__toString')) {
+                    $raw = (string) $item;
+
+                    if (preg_match('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $raw, $matches)) {
+                        $address = $matches[0];
+                    }
+
+                    if (!$name) {
+                        $name = trim(str_replace($address ?? '', '', $raw), " <>\\t\\n\\r\\0\\x0B\"'");
+                    }
+                }
+            }
+
+            if (!$address || !filter_var($address, FILTER_VALIDATE_EMAIL)) {
                 continue;
             }
 
             $addresses[] = [
                 'address' => Str::lower(trim($address)),
-                'name' => $item['personal']
-                    ?? $item['name']
-                        ?? $item->personal
-                        ?? $item->name
-                        ?? null,
+                'name' => $name ? trim($name) : null,
             ];
         }
 
