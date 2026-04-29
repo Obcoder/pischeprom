@@ -570,7 +570,6 @@ function getManufacturers(){
         });
 }
 
-let email = ref('');
 let message = ref('');
 let successMessage = ref('');
 async function sendMail() {
