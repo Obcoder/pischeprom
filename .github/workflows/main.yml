@@ -11,19 +11,19 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.PORT }} -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy to VPS
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.HOST }} -p ${{ secrets.PORT }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p ${{ secrets.PORT }} ${{ secrets.USERNAME }}@${{ secrets.HOST }} << 'EOF'
             set -e
 
             cd ${{ secrets.TARGET_DIR }}
@@ -36,7 +36,9 @@ jobs:
 
             php artisan down || true
 
-            composer install --no-dev --optimize-autoloader
+            trap 'php artisan up || true' EXIT
+
+            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
             npm ci
             npm run build
@@ -46,9 +48,17 @@ jobs:
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
+            php artisan view:cache
 
             chown -R forge:www-data storage bootstrap/cache
             chmod -R 775 storage bootstrap/cache
 
+            php artisan queue:restart
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart pischeprom-mail-sync-worker
+
             php artisan up
+
+            trap - EXIT
           EOF
