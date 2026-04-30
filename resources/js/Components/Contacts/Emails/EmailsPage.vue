@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import EmailsToolbar from './EmailsToolbar.vue'
 import EmailsTable from './EmailsTable.vue'
 import EmailFormDialog from './EmailFormDialog.vue'
@@ -137,11 +137,24 @@ async function runSyncYandex() {
     }
 }
 
+let autoRefreshTimer = null
+
+
 onMounted(async () => {
     await Promise.all([
         fetchMeta(),
         fetchEmails(),
     ])
+
+    autoRefreshTimer = window.setInterval(() => {
+        fetchEmails()
+    }, 30000)
+})
+
+onUnmounted(() => {
+    if (autoRefreshTimer) {
+        window.clearInterval(autoRefreshTimer)
+    }
 })
 </script>
 
