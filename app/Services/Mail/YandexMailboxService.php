@@ -479,4 +479,87 @@ class YandexMailboxService
 
         return null;
     }
+
+    public function loadBody(MailMessage $mailMessage, bool $force = false): MailMessage
+    {
+        if (!$force && $mailMessage->body_loaded_at) {
+            return $mailMessage;
+        }
+
+        $client = $this->client();
+        $client->connect();
+
+        try {
+            $folder = $this->resolveFolder($client, $mailMessage->folder);
+
+            if (!$folder) {
+                return $mailMessage;
+            }
+
+            $message = $folder
+                ->query()
+                ->leaveUnread()
+                ->setFetchBody(true)
+                ->getMessageByUid((int) $mailMessage->imap_uid);
+
+            if (!$message) {
+                return $mailMessage;
+            }
+
+            $html = $this->messageBody($message, 'html');
+            $text = $this->messageBody($message, 'text');
+
+            if (!$text && $html) {
+                $text = trim(strip_tags($html));
+            }
+
+            $mailMessage->forceFill([
+                                        'html' => $html,
+                                        'text' => $text,
+                                        'body_loaded_at' => now(),
+                                    ])->save();
+
+            return $mailMessage->fresh();
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    protected function messageBody($message, string $type): ?string
+    {
+        foreach ([
+                     'getHTMLBody',
+                     'getHtmlBody',
+                     'getTextBody',
+                     'getPlainBody',
+                 ] as $method) {
+            if (
+                is_object($message)
+                && method_exists($message, $method)
+                && (
+                    ($type === 'html' && str_contains(strtolower($method), 'html'))
+                    || ($type === 'text' && !str_contains(strtolower($method), 'html'))
+                )
+            ) {
+                $value = $message->{$method}();
+
+                if ($body = $this->stringValue($value)) {
+                    return $body;
+                }
+            }
+        }
+
+        $vars = is_object($message) ? get_object_vars($message) : [];
+        $bodies = $vars['bodies'] ?? [];
+
+        if (is_array($bodies)) {
+            $value = $bodies[$type] ?? null;
+
+            if ($body = $this->stringValue($value)) {
+                return $body;
+            }
+        }
+
+        return null;
+    }
 }

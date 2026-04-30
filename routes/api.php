@@ -107,6 +107,13 @@ Route::post('emails/{email}/entities/sync', [EmailRelationController::class, 'sy
     ->name('emails.entities.sync');
 
 Route::apiResource('emails', EmailController::class);
+
+use App\Http\Controllers\API\MailMessageController;
+Route::get('mail-messages', [MailMessageController::class, 'index'])
+    ->name('mail-messages.index');
+
+Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show'])
+    ->name('mail-messages.show');
 // E N D  E M A I L S
 
 Route::get('/entities-meta', [EntityMetaController::class, 'index']);

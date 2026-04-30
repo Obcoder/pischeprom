@@ -18,6 +18,7 @@ import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
 import Industries from "@/Components/Dictionaries/Industries.vue";
+import MailMessagesPage from '@/Components/Contacts/Emails/MailMessagesPage.vue';
 import Products from '@/Components/Dictionaries/Products.vue';
 import Purchases from "@/Pages/Purchases/Purchases.vue";
 import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
@@ -680,9 +681,10 @@ const formatBuildingTitle = (building) => {
                                     <v-row>
                                         <v-col>
                                             <v-tabs v-model="tabsContacts">
+                                                <v-tab value="telephones">Телефоны</v-tab>
                                                 <v-tab value="uris">Uris</v-tab>
                                                 <v-tab value="emails">Emails</v-tab>
-                                                <v-tab value="telephones">Телефоны</v-tab>
+                                                <v-tab value="mail_messages">Письма</v-tab>
                                             </v-tabs>
 
                                             <v-tabs-window v-model="tabsContacts">
@@ -698,7 +700,9 @@ const formatBuildingTitle = (building) => {
                                                     <TelephonePage />
                                                 </v-tabs-window-item>
 
-
+                                                <v-tabs-window-item value="mail_messages">
+                                                    <MailMessagesPage />
+                                                </v-tabs-window-item>
                                             </v-tabs-window>
                                         </v-col>
                                     </v-row>
