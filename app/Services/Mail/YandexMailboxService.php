@@ -202,13 +202,37 @@ class YandexMailboxService
 
     protected function uid($message): ?int
     {
-        if (is_object($message) && isset($message->uid) && is_numeric($message->uid)) {
-            return (int) $message->uid;
+        foreach (['uid', 'msgno', 'message_no'] as $property) {
+            try {
+                $value = is_object($message)
+                    ? $message->{$property}
+                    : null;
+            } catch (\Throwable) {
+                $value = null;
+            }
+
+            $value = $this->firstAttributeValue($value) ?? $value;
+
+            if (is_numeric($value)) {
+                return (int) $value;
+            }
+
+            $string = $this->stringValue($value);
+
+            if (is_numeric($string)) {
+                return (int) $string;
+            }
         }
 
         foreach (['getUid', 'getUID'] as $method) {
             if (is_object($message) && method_exists($message, $method)) {
-                $value = $message->{$method}();
+                try {
+                    $value = $message->{$method}();
+                } catch (\Throwable) {
+                    $value = null;
+                }
+
+                $value = $this->firstAttributeValue($value) ?? $value;
 
                 if (is_numeric($value)) {
                     return (int) $value;
@@ -480,6 +504,47 @@ class YandexMailboxService
         return null;
     }
 
+    protected function resolveFolder($client, string $folderName)
+    {
+        $folder = $client->getFolder($folderName);
+
+        if ($folder) {
+            return $folder;
+        }
+
+        $folders = $client->getFolders();
+
+        foreach ($folders as $availableFolder) {
+            $path = $availableFolder->path ?? null;
+            $name = $availableFolder->name ?? null;
+
+            if ($path === $folderName || $name === $folderName) {
+                return $availableFolder;
+            }
+        }
+
+        $needle = mb_strtolower($folderName);
+
+        foreach ($folders as $availableFolder) {
+            $path = mb_strtolower((string) ($availableFolder->path ?? ''));
+            $name = mb_strtolower((string) ($availableFolder->name ?? ''));
+
+            if ($path === $needle || $name === $needle) {
+                return $availableFolder;
+            }
+        }
+
+        logger()->warning('Yandex IMAP folder not resolved', [
+            'requested_folder' => $folderName,
+            'available_folders' => collect($folders)->map(fn ($folder) => [
+                'path' => $folder->path ?? null,
+                'name' => $folder->name ?? null,
+            ])->values()->all(),
+        ]);
+
+        return null;
+    }
+
     public function loadBody(MailMessage $mailMessage, bool $force = false): MailMessage
     {
         if (!$force && $mailMessage->body_loaded_at) {
@@ -493,6 +558,12 @@ class YandexMailboxService
             $folder = $this->resolveFolder($client, $mailMessage->folder);
 
             if (!$folder) {
+                logger()->warning('Yandex load body folder not found', [
+                    'mail_message_id' => $mailMessage->id,
+                    'folder' => $mailMessage->folder,
+                    'imap_uid' => $mailMessage->imap_uid,
+                ]);
+
                 return $mailMessage;
             }
 
@@ -503,6 +574,13 @@ class YandexMailboxService
                 ->getMessageByUid((int) $mailMessage->imap_uid);
 
             if (!$message) {
+                logger()->warning('Yandex message body not found by uid', [
+                    'mail_message_id' => $mailMessage->id,
+                    'folder' => $mailMessage->folder,
+                    'imap_uid' => $mailMessage->imap_uid,
+                    'subject' => $mailMessage->subject,
+                ]);
+
                 return $mailMessage;
             }
 
@@ -520,6 +598,15 @@ class YandexMailboxService
                                     ])->save();
 
             return $mailMessage->fresh();
+        } catch (\Throwable $exception) {
+            logger()->error('Yandex load body failed', [
+                'mail_message_id' => $mailMessage->id,
+                'folder' => $mailMessage->folder,
+                'imap_uid' => $mailMessage->imap_uid,
+                'message' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
         } finally {
             $client->disconnect();
         }
