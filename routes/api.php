@@ -109,6 +109,8 @@ Route::post('emails/{email}/entities/sync', [EmailRelationController::class, 'sy
 Route::apiResource('emails', EmailController::class);
 
 use App\Http\Controllers\API\MailMessageController;
+Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
+    ->name('mail-messages.folders');
 Route::get('mail-messages', [MailMessageController::class, 'index'])
     ->name('mail-messages.index');
 

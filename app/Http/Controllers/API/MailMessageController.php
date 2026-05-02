@@ -57,6 +57,27 @@ class MailMessageController extends Controller
         );
     }
 
+    public function folders(): JsonResponse
+    {
+        $folders = MailMessage::query()
+            ->whereNotNull('folder')
+            ->select('folder')
+            ->distinct()
+            ->orderBy('folder')
+            ->pluck('folder')
+            ->map(fn ($folder) => [
+                'title' => $folder,
+                'value' => $folder,
+            ])
+            ->prepend([
+                          'title' => 'Все',
+                          'value' => null,
+                      ])
+            ->values();
+
+        return response()->json($folders);
+    }
+
     public function show(
         Request $request,
         MailMessage $mailMessage,

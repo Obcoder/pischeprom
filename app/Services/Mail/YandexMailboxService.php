@@ -15,30 +15,64 @@ class YandexMailboxService
 {
     public function syncAll(int $limit = 1000): array
     {
-        $inbox = config('services.yandex_mail.imap.inbox', 'INBOX');
-        $sent = config('services.yandex_mail.imap.sent', 'Sent');
+        $folders = config('services.yandex_mail.imap.folders', [
+            config('services.yandex_mail.imap.inbox', 'INBOX'),
+            config('services.yandex_mail.imap.sent', 'Sent'),
+        ]);
 
-        return [
-            'incoming' => $this->syncFolder($inbox, 'incoming', $limit),
-            'outgoing' => $this->syncFolder($sent, 'outgoing', $limit),
-        ];
+        $result = [];
+
+        foreach ($folders as $folder) {
+            $result[$folder] = $this->syncFolder(
+                folderName: $folder,
+                direction: null,
+                limit: $limit,
+            );
+        }
+
+        return $result;
     }
 
-    public function syncFolder(string $folderName, string $direction, int $limit = 1000): int
+    public function syncFolder(string $folderName, ?string $direction = null, int $limit = 1000): int
     {
         $client = $this->client();
         $client->connect();
 
         try {
-            $folder = $client->getFolder($folderName);
+            $folder = $this->resolveFolder($client, $folderName);
+
+            if (!$folder) {
+                logger()->warning('Yandex IMAP folder not found', [
+                    'requested_folder' => $folderName,
+                    'direction' => $direction,
+                    'available_folders' => collect($client->getFolders())->map(fn ($folder) => [
+                        'path' => $folder->path ?? null,
+                        'name' => $folder->name ?? null,
+                    ])->values()->all(),
+                ]);
+
+                return 0;
+            }
+
+            logger()->info('Yandex folder opened', [
+                'folder' => $folderName,
+                'direction' => $direction,
+            ]);
 
             $total = $folder->query()->all()->count();
+
+            logger()->info('Yandex folder count', [
+                'folder' => $folderName,
+                'direction' => $direction,
+                'total' => $total,
+                'limit' => $limit,
+            ]);
 
             if ($total === 0) {
                 return 0;
             }
 
-            $pageSize = 25;
+            $pageSize = 10;
             $maxToFetch = min($total, $limit);
             $pages = (int) ceil($maxToFetch / $pageSize);
 
@@ -66,10 +100,21 @@ class YandexMailboxService
                         break 2;
                     }
 
-                    $this->storeMessage($message, $folderName, $direction);
+                    $this->storeMessage(
+                        message: $message,
+                        folderName: $folderName,
+                        direction: $direction,
+                    );
+
                     $stored++;
                 }
             }
+
+            logger()->info('Yandex folder synced', [
+                'folder' => $folderName,
+                'direction' => $direction,
+                'stored' => $stored,
+            ]);
 
             return $stored;
         } finally {
@@ -92,17 +137,33 @@ class YandexMailboxService
                               ]);
     }
 
-    protected function storeMessage($message, string $folderName, string $direction): void
+    protected function storeMessage($message, string $folderName, ?string $direction = null): void
     {
         $from = Arr::first($this->addresses($this->attribute($message, 'from')));
         $to = $this->addresses($this->attribute($message, 'to'));
         $cc = $this->addresses($this->attribute($message, 'cc'));
 
-        $messageId = $this->stringValue($this->firstAttributeValue($this->attribute($message, 'message_id')));
-        $subject = $this->decodeMime(
-            $this->stringValue($this->firstAttributeValue($this->attribute($message, 'subject')))
+        $direction = $direction ?: $this->detectDirection($from);
+
+        $messageId = $this->stringValue(
+            $this->firstAttributeValue(
+                $this->attribute($message, 'message_id')
+            )
         );
-        $messageDate = $this->dateValue($this->firstAttributeValue($this->attribute($message, 'date')));
+
+        $subject = $this->decodeMime(
+            $this->stringValue(
+                $this->firstAttributeValue(
+                    $this->attribute($message, 'subject')
+                )
+            )
+        );
+
+        $messageDate = $this->dateValue(
+            $this->firstAttributeValue(
+                $this->attribute($message, 'date')
+            )
+        );
 
         $imapUid = $this->uid($message);
 
@@ -119,15 +180,23 @@ class YandexMailboxService
             );
         }
 
-        $mailMessage = MailMessage::updateOrCreate(
-            [
+        $identity = $messageId
+            ? [
+                'mailbox' => config('services.yandex_mail.address'),
+                'message_id' => $messageId,
+            ]
+            : [
                 'mailbox' => config('services.yandex_mail.address'),
                 'folder' => $folderName,
                 'imap_uid' => $imapUid,
-            ],
+            ];
+
+        $mailMessage = MailMessage::updateOrCreate(
+            $identity,
             [
+                'folder' => $folderName,
+                'imap_uid' => $imapUid,
                 'direction' => $direction,
-                'message_id' => $messageId,
                 'subject' => $subject,
                 'message_date' => $messageDate,
                 'from_address' => $from['address'] ?? null,
@@ -141,21 +210,43 @@ class YandexMailboxService
         );
 
         if ($direction === 'incoming' && !empty($from['address'])) {
-            $email = $this->findOrCreateEmail($from['address'], $from['name'] ?? null);
+            $email = $this->findOrCreateEmail(
+                address: $from['address'],
+                name: $from['name'] ?? null,
+            );
+
             $this->attachRole($mailMessage, $email, 'from');
         }
 
         if ($direction === 'outgoing') {
             foreach ($to as $address) {
-                $email = $this->findOrCreateEmail($address['address'], $address['name'] ?? null);
+                $email = $this->findOrCreateEmail(
+                    address: $address['address'],
+                    name: $address['name'] ?? null,
+                );
+
                 $this->attachRole($mailMessage, $email, 'to');
             }
 
             foreach ($cc as $address) {
-                $email = $this->findOrCreateEmail($address['address'], $address['name'] ?? null);
+                $email = $this->findOrCreateEmail(
+                    address: $address['address'],
+                    name: $address['name'] ?? null,
+                );
+
                 $this->attachRole($mailMessage, $email, 'cc');
             }
         }
+    }
+
+    protected function detectDirection(?array $from): string
+    {
+        $ownAddress = Str::lower((string) config('services.yandex_mail.address'));
+        $fromAddress = Str::lower((string) ($from['address'] ?? ''));
+
+        return $fromAddress === $ownAddress
+            ? 'outgoing'
+            : 'incoming';
     }
 
     protected function findOrCreateEmail(string $address, ?string $name = null): Email

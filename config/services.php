@@ -67,5 +67,10 @@ return [
             'inbox' => env('YANDEX_IMAP_INBOX', 'INBOX'),
             'sent' => env('YANDEX_IMAP_SENT', 'Sent'),
         ],
+
+        'folders' => array_values(array_filter(array_map(
+                                                   'trim',
+                                                   explode(',', env('YANDEX_IMAP_FOLDERS', 'INBOX,Sent'))
+                                               ))),
     ],
 ];
