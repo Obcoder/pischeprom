@@ -341,27 +341,25 @@ const unitMailRecipients = computed(() => {
     })
 })
 
-console.log('UnitOverviewCard unitMailRecipients:', unitMailRecipients.value)
-
 function openFileMail(file) {
     quickMailFiles.value = file?.path ? [file.path] : []
     quickMailRecipients.value = cloneRecipients(unitMailRecipients.value)
     quickMailDialog.value = true
-
-    console.log('openFileMail quickMailRecipients:', quickMailRecipients.value)
 }
 
 function openQuickMail() {
     quickMailFiles.value = []
     quickMailRecipients.value = cloneRecipients(unitMailRecipients.value)
     quickMailDialog.value = true
-
-    console.log('openQuickMail quickMailRecipients:', quickMailRecipients.value)
 }
 </script>
 
 <template>
-    <BaseSectionCard title="Unit Overview" icon="mdi-factory">
+    <BaseSectionCard
+        title="Unit Overview"
+        icon="mdi-factory"
+        compact
+    >
         <template #actions>
             <v-menu>
                 <template #activator="{ props: menuProps }">
@@ -374,7 +372,17 @@ function openQuickMail() {
                 </template>
 
                 <v-list density="compact">
-                    <v-list-item title="Attach email" @click="dialogAttachEmail = true" />
+                    <v-list-item
+                        title="Write email"
+                        prepend-icon="mdi-email-plus-outline"
+                        @click="openQuickMail"
+                    />
+
+                    <v-list-item
+                        title="Attach email"
+                        prepend-icon="mdi-email-link-outline"
+                        @click="dialogAttachEmail = true"
+                    />
                 </v-list>
             </v-menu>
         </template>
@@ -530,11 +538,13 @@ function openQuickMail() {
                 </div>
             </v-window-item>
 
-            <UnitFilesTab
-                v-if="unit?.id"
-                :unit-id="Number(unit.id)"
-                @send-file="openFileMail"
-            />
+            <v-window-item value="files">
+                <UnitFilesTab
+                    v-if="unit?.id"
+                    :unit-id="Number(unit.id)"
+                    @send-file="openFileMail"
+                />
+            </v-window-item>
 
             <v-window-item value="buildings">
                 <v-list density="compact">

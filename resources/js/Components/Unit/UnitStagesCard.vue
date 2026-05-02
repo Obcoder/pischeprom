@@ -21,7 +21,11 @@ function timeDiff(time) {
 </script>
 
 <template>
-    <BaseSectionCard title="Stages" icon="mdi-stairs">
+    <BaseSectionCard
+        title="Stages"
+        icon="mdi-timeline-clock-outline"
+        compact
+    >
         <div class="d-flex flex-column ga-3">
             <v-sheet
                 v-for="stage in stages"

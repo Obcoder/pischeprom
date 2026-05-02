@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import MailMessageReaderDialog from '@/Components/Contacts/Emails/MailMessageReaderDialog.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
@@ -88,6 +88,14 @@ const directionItems = [
     },
 ]
 
+const visibleRelatedEmails = computed(() => {
+    return relatedEmails.value.slice(0, 5)
+})
+
+const hiddenRelatedEmailsCount = computed(() => {
+    return Math.max(relatedEmails.value.length - visibleRelatedEmails.value.length, 0)
+})
+
 function formatDate(value) {
     if (!value) return '—'
 
@@ -145,7 +153,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <BaseSectionCard title="Mail" icon="mdi-email-fast-outline">
+    <BaseSectionCard
+        title="Mail"
+        icon="mdi-email-fast-outline"
+        compact
+    >
         <template #actions>
             <div class="d-flex ga-1">
                 <v-btn
@@ -180,15 +192,24 @@ onUnmounted(() => {
                 Письма по emails Unit и emails связанных Entities
             </div>
 
-            <div class="d-flex flex-wrap ga-1 mt-2">
+            <div class="d-flex flex-wrap ga-1 mt-1 unit-mail-related-emails">
                 <v-chip
-                    v-for="email in relatedEmails"
+                    v-for="email in visibleRelatedEmails"
                     :key="email.address"
                     size="x-small"
                     color="blue"
                     variant="tonal"
                 >
                     {{ email.address }}
+                </v-chip>
+
+                <v-chip
+                    v-if="hiddenRelatedEmailsCount"
+                    size="x-small"
+                    color="grey"
+                    variant="tonal"
+                >
+                    +{{ hiddenRelatedEmailsCount }}
                 </v-chip>
             </div>
         </div>
@@ -228,7 +249,7 @@ onUnmounted(() => {
             item-value="id"
             density="compact"
             fixed-header
-            height="520"
+            height="340"
             hover
             class="rounded border border-blue-900 bg-slate-950"
             @update:options="options = $event"
@@ -330,6 +351,11 @@ onUnmounted(() => {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.unit-mail-related-emails {
+    max-height: 24px;
     overflow: hidden;
 }
 </style>

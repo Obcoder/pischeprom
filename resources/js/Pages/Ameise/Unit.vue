@@ -85,7 +85,7 @@ onMounted(async () => {
 
 <template>
     <v-container fluid class="pa-4">
-        <v-row>
+        <v-row align="start" dense>
             <v-col cols="12" lg="4">
                 <UnitOverviewCard
                     :unit="unit"
