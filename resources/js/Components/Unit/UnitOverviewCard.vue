@@ -301,37 +301,42 @@ const quickMailDialog = ref(false)
 const quickMailFiles = ref([])
 
 const unitMailRecipients = computed(() => {
-    const directEmails = (props.unit.emails || []).map((email) => ({
-        id: email.id,
-        address: email.address,
-        name: email.name || null,
-        source: 'unit',
-        source_label: 'Unit',
-    }))
+    const result = []
 
-    console.log('UnitOverviewCard unit.id:', props.unit?.id)
-    console.log('UnitOverviewCard unit.emails:', props.unit?.emails)
-    console.log('UnitOverviewCard unit.entities:', props.unit?.entities)
-    console.log('UnitOverviewCard unitMailRecipients:', unitMailRecipients.value)
+    ;(props.unit?.emails || []).forEach((email) => {
+        if (!email?.address) return
 
-    const entityEmails = (props.unit.entities || []).flatMap((entity) => {
-        return (entity.emails || []).map((email) => ({
-            id: email.id,
+        result.push({
+            id: email.id ?? email.address,
             address: email.address,
             name: email.name || null,
-            source: 'entity',
-            source_label: `Entity: ${entity.name}`,
-            entity_id: entity.id,
-            entity_name: entity.name,
-        }))
+            source: 'unit',
+            source_label: 'Unit',
+        })
     })
 
-    return [...directEmails, ...entityEmails]
-        .filter((email, index, array) => (
-            email.address
-            && array.findIndex((candidate) => candidate.address === email.address) === index
-        ))
+    ;(props.unit?.entities || []).forEach((entity) => {
+        ;(entity?.emails || []).forEach((email) => {
+            if (!email?.address) return
+
+            result.push({
+                id: email.id ?? email.address,
+                address: email.address,
+                name: email.name || null,
+                source: 'entity',
+                source_label: `Entity: ${entity.name}`,
+                entity_id: entity.id,
+                entity_name: entity.name,
+            })
+        })
+    })
+
+    return result.filter((email, index, array) => {
+        return array.findIndex((item) => item.address === email.address) === index
+    })
 })
+
+console.log('UnitOverviewCard unitMailRecipients:', unitMailRecipients.value)
 
 function openFileMail(file) {
     quickMailFiles.value = [file.path]

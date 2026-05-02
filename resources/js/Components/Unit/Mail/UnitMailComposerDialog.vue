@@ -44,11 +44,13 @@ const loadingTemplates = ref(false)
 const fileInput = ref(null)
 
 const recipientItems = computed(() => {
-    return props.recipients.map((item) => ({
-        ...item,
-        title: `${item.address} — ${item.source_label || 'Unit'}`,
-        value: item.address,
-    }))
+    return (props.recipients || [])
+        .filter((item) => item?.address)
+        .map((item) => ({
+            ...item,
+            title: `${item.address}${item.source_label ? ` — ${item.source_label}` : ''}`,
+            value: item.address,
+        }))
 })
 
 const storageFileItems = computed(() => {
@@ -166,6 +168,14 @@ watch(() => props.initialStorageFiles, (value) => {
         storageFiles.value = [...value]
     }
 }, {
+    deep: true,
+})
+
+watch(() => props.recipients, (value) => {
+    console.log('UnitMailComposerDialog recipients:', value)
+    console.log('UnitMailComposerDialog recipientItems:', recipientItems.value)
+}, {
+    immediate: true,
     deep: true,
 })
 </script>
