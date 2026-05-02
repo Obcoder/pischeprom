@@ -86,7 +86,7 @@ onMounted(async () => {
 <template>
     <v-container fluid class="pa-4">
         <v-row>
-            <v-col cols="12" lg="5">
+            <v-col cols="12" lg="4">
                 <UnitOverviewCard
                     :unit="unit"
                     :files="files"
@@ -96,12 +96,12 @@ onMounted(async () => {
                 />
             </v-col>
 
-            <v-col cols="12" lg="7">
-                <UnitEntitiesCard
-                    :unit="unit"
-                    :dict="dict"
-                    @refresh="refreshUnit"
-                />
+            <v-col cols="12" lg="5">
+                <UnitSendingsCard :unit="unit" />
+            </v-col>
+
+            <v-col cols="12" lg="3">
+                <UnitStagesCard :stages="unit.stages || []" />
             </v-col>
         </v-row>
 
@@ -134,15 +134,15 @@ onMounted(async () => {
         </v-row>
 
         <v-row>
-            <v-col cols="12" lg="4">
-                <UnitStagesCard :stages="unit.stages || []" />
+            <v-col cols="12" lg="5">
+                <UnitEntitiesCard
+                    :unit="unit"
+                    :dict="dict"
+                    @refresh="refreshUnit"
+                />
             </v-col>
 
-            <v-col cols="12" lg="4">
-                <UnitSendingsCard :unit="unit" />
-            </v-col>
-
-            <v-col cols="12" lg="4">
+            <v-col cols="12" lg="7">
                 <UnitSalesCard :entities="unit.entities || []" />
             </v-col>
         </v-row>
