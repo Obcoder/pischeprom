@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
+use Illuminate\Support\Facades\Log;
 
 class UnitMailController extends Controller
 {
@@ -66,6 +67,16 @@ class UnitMailController extends Controller
 
     public function send(Request $request, Unit $unit): JsonResponse
     {
+        Log::info('Unit mail send endpoint reached', [
+            'unit_id' => $unit->id,
+            'unit_name' => $unit->name,
+            'payload_keys' => array_keys($request->all()),
+            'to' => $request->input('to'),
+            'subject' => $request->input('subject'),
+            'has_local_attachments' => $request->hasFile('attachments'),
+            'storage_files' => $request->input('storage_files'),
+        ]);
+
         $data = $request->validate([
                                        'to' => ['required', 'array', 'min:1'],
                                        'to.*' => ['required', 'email'],
