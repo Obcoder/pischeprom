@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, toRef } from 'vue'
 import { useUnitFiles } from '@/Composables/useUnitFiles'
 
 const props = defineProps({
@@ -8,6 +8,10 @@ const props = defineProps({
         required: true,
     },
 })
+
+const emit = defineEmits(['send-file'])
+
+const unitIdRef = toRef(props, 'unitId')
 
 const fileInput = ref(null)
 
@@ -26,7 +30,7 @@ const {
     uploadFile,
     deleteFile,
     renameFile,
-} = useUnitFiles(props.unitId)
+} = useUnitFiles(unitIdRef)
 
 const isRenameDisabled = computed(() => {
     const trimmedBaseName = newBaseFileName.value.trim()
@@ -82,7 +86,7 @@ function closeRenameDialog() {
 async function submitRename() {
     if (isRenameDisabled.value) return
 
-    const file = fileToRename.value   // ✅ сохраняем
+    const file = fileToRename.value
     const trimmedBaseName = newBaseFileName.value.trim()
 
     if (!file) return
@@ -94,11 +98,20 @@ async function submitRename() {
     closeRenameDialog()
 }
 
-const emit = defineEmits([
-    'send-file',
-])
+onMounted(() => {
+    if (props.unitId) {
+        loadFiles()
+    }
+})
 
-onMounted(loadFiles)
+watch(
+    () => props.unitId,
+    (value, oldValue) => {
+        if (value && value !== oldValue) {
+            loadFiles()
+        }
+    }
+)
 </script>
 
 <template>

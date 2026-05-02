@@ -504,12 +504,11 @@ function openFileMail(file) {
                 </div>
             </v-window-item>
 
-            <v-window-item value="files">
-                <UnitFilesTab
-                    :unit-id="unit.id"
-                    @send-file="openFileMail"
-                />
-            </v-window-item>
+            <UnitFilesTab
+                v-if="unit?.id"
+                :unit-id="Number(unit.id)"
+                @send-file="openFileMail"
+            />
 
             <v-window-item value="buildings">
                 <v-list density="compact">

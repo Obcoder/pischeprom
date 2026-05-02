@@ -53,17 +53,26 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
     }
 
     async function loadFiles() {
-        if (!unit.value?.name) {
+        if (!unit.value?.id) {
             files.value = []
             return
         }
 
         loading.value.files = true
+
         try {
-            const { data } = await axios.get(`/api/units/${unit.value.name}/files`)
-            files.value = asArray(data)
-        } catch (e) {
-            console.error('Ошибка загрузки файлов:', e)
+            const { data } = await axios.get(`/api/units/${unit.value.id}/files`)
+
+            files.value = data.files ?? data ?? []
+        } catch (error) {
+            console.error('Ошибка загрузки файлов:', {
+                unitId: unit.value?.id,
+                unitName: unit.value?.name,
+                status: error.response?.status,
+                data: error.response?.data,
+                error,
+            })
+
             files.value = []
         } finally {
             loading.value.files = false

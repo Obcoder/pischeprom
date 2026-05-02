@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, unref } from 'vue'
 import axios from 'axios'
 
 export function useUnitFiles(unitId) {
@@ -9,17 +9,38 @@ export function useUnitFiles(unitId) {
     const deletingFilePath = ref(null)
     const renamingFilePath = ref(null)
 
-    function unitFilesUrl() {
-        if (!unitId) {
-            throw new Error('useUnitFiles: unitId is empty')
+    function getUnitId() {
+        const value = unref(unitId)
+
+        if (!value) {
+            return null
         }
 
-        return `/api/units/${unitId}/files`
+        const id = Number(value)
+
+        if (!Number.isInteger(id) || id <= 0) {
+            console.error('useUnitFiles ожидает unit.id, но получил:', value)
+            return null
+        }
+
+        return id
+    }
+
+    function getFilesUrl() {
+        const id = getUnitId()
+
+        if (!id) {
+            return null
+        }
+
+        return `/api/units/${id}/files`
     }
 
     async function loadFiles() {
-        if (!unitId) {
-            console.warn('useUnitFiles: loadFiles skipped, unitId is empty')
+        const url = getFilesUrl()
+
+        if (!url) {
+            console.warn('useUnitFiles: loadFiles skipped, unitId is invalid')
             files.value = []
             return
         }
@@ -27,10 +48,16 @@ export function useUnitFiles(unitId) {
         loadingFiles.value = true
 
         try {
-            const { data } = await axios.get(unitFilesUrl())
+            const { data } = await axios.get(url)
             files.value = data.files ?? data ?? []
         } catch (error) {
-            console.error('Ошибка загрузки файлов:', error)
+            console.error('Ошибка загрузки файлов:', {
+                url,
+                status: error.response?.status,
+                data: error.response?.data,
+                error,
+            })
+
             files.value = []
         } finally {
             loadingFiles.value = false
@@ -38,7 +65,9 @@ export function useUnitFiles(unitId) {
     }
 
     async function uploadFile(file) {
-        if (!file || !unitId) return
+        const url = getFilesUrl()
+
+        if (!file || !url) return
 
         uploadingFile.value = true
 
@@ -46,57 +75,52 @@ export function useUnitFiles(unitId) {
         formData.append('file', file)
 
         try {
-            await axios.post(unitFilesUrl(), formData, {
+            await axios.post(url, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
             })
 
             await loadFiles()
-        } catch (error) {
-            console.error('Ошибка загрузки файла:', error)
-            throw error
         } finally {
             uploadingFile.value = false
         }
     }
 
     async function deleteFile(path) {
-        if (!path || !unitId) return
+        const url = getFilesUrl()
+
+        if (!path || !url) return
 
         deletingFilePath.value = path
 
         try {
-            await axios.delete(unitFilesUrl(), {
+            await axios.delete(url, {
                 data: {
                     path,
                 },
             })
 
             await loadFiles()
-        } catch (error) {
-            console.error('Ошибка удаления файла:', error)
-            throw error
         } finally {
             deletingFilePath.value = null
         }
     }
 
     async function renameFile(path, name) {
-        if (!path || !name || !unitId) return
+        const url = getFilesUrl()
+
+        if (!path || !name || !url) return
 
         renamingFilePath.value = path
 
         try {
-            await axios.patch(`${unitFilesUrl()}/rename`, {
+            await axios.patch(`${url}/rename`, {
                 path,
                 name,
             })
 
             await loadFiles()
-        } catch (error) {
-            console.error('Ошибка переименования файла:', error)
-            throw error
         } finally {
             renamingFilePath.value = null
         }
