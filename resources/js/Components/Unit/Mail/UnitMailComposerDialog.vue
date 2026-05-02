@@ -114,7 +114,7 @@ async function submit() {
     formData.append('body', body.value)
 
     storageFiles.value.forEach((path) => {
-        formData.append('unit_file_paths[]', path)
+        formData.append('storage_files[]', path)
     })
 
     localFiles.value.forEach((file) => {

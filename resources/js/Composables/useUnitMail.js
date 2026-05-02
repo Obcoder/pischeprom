@@ -32,12 +32,12 @@ export function useUnitMail(unitId) {
                     search: search.value,
                     direction: direction.value,
                     page: options.value.page,
-                    itemsPerPage: options.value.itemsPerPage,
+                    per_page: options.value.itemsPerPage,
                 },
             })
 
             messages.value = data.data ?? []
-            totalItems.value = data.total ?? 0
+            totalItems.value = data.meta?.total ?? data.total ?? 0
             relatedEmails.value = data.related_emails ?? []
         } catch (error) {
             console.error('Unit mail loading error:', error)

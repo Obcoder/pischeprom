@@ -119,6 +119,7 @@ class UnitController extends Controller
 
             return [
                 'name' => basename($file),
+                'path' => $file,
                 'url' => "{$baseUrl}/{$bucket}/{$file}",
             ];
         }, $files);

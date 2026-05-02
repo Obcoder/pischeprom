@@ -71,6 +71,9 @@ class UnitMailController extends Controller
                                         ->getCollection()
                                         ->map(fn (MailMessage $message) => $this->serializeMailMessage($message))
                                         ->values(),
+
+                                    'related_emails' => $this->collectUnitRecipientEmails($unit),
+
                                     'meta' => [
                                         'current_page' => $paginator->currentPage(),
                                         'last_page' => $paginator->lastPage(),
@@ -78,6 +81,56 @@ class UnitMailController extends Controller
                                         'total' => $paginator->total(),
                                     ],
                                 ]);
+    }
+
+    private function collectUnitRecipientEmails(Unit $unit): array
+    {
+        $unit->loadMissing([
+                               'emails',
+                               'entities.emails',
+                           ]);
+
+        $result = collect();
+
+        foreach ($unit->emails as $email) {
+            if (!$email?->address) {
+                continue;
+            }
+
+            $result->push([
+                              'id' => $email->id,
+                              'address' => $email->address,
+                              'name' => $email->name ?? null,
+                              'source' => 'unit',
+                              'source_label' => 'Unit',
+                              'entity_id' => null,
+                              'entity_name' => null,
+                          ]);
+        }
+
+        foreach ($unit->entities as $entity) {
+            foreach ($entity->emails as $email) {
+                if (!$email?->address) {
+                    continue;
+                }
+
+                $result->push([
+                                  'id' => $email->id,
+                                  'address' => $email->address,
+                                  'name' => $email->name ?? null,
+                                  'source' => 'entity',
+                                  'source_label' => 'Entity: ' . $entity->name,
+                                  'entity_id' => $entity->id,
+                                  'entity_name' => $entity->name,
+                              ]);
+            }
+        }
+
+        return $result
+            ->filter(fn ($email) => filter_var($email['address'], FILTER_VALIDATE_EMAIL))
+            ->unique(fn ($email) => mb_strtolower($email['address']))
+            ->values()
+            ->all();
     }
 
     public function send(Request $request, Unit $unit): JsonResponse
