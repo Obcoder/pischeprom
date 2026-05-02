@@ -51,6 +51,7 @@ const bodyClasses = computed(() => [
         rounded="xl"
         elevation="1"
         border
+        color="white"
         :class="cardClasses"
     >
         <div :class="headerClasses">
@@ -81,7 +82,7 @@ const bodyClasses = computed(() => [
 <style scoped>
 .base-section-card {
     overflow: hidden;
-    background: rgba(15, 23, 42, 0.96);
+    background: #ffffff;
 }
 
 .base-section-card__header {
@@ -91,7 +92,7 @@ const bodyClasses = computed(() => [
     gap: 12px;
     min-height: 48px;
     padding: 9px 14px;
-    border-bottom: 1px solid rgba(127, 29, 29, 0.55);
+    border-bottom: 1px solid rgba(128, 0, 32, 0.18);
 }
 
 .base-section-card__header--compact {
@@ -101,36 +102,32 @@ const bodyClasses = computed(() => [
 }
 
 .base-section-card__header--maroon {
-    color: #ffe4e6;
+    color: #5f0f24;
     background:
         linear-gradient(
             135deg,
-            rgba(76, 5, 25, 0.98),
-            rgba(127, 29, 29, 0.94),
-            rgba(88, 28, 28, 0.98)
+            rgba(128, 0, 32, 0.09),
+            rgba(128, 0, 32, 0.045)
         );
-    box-shadow:
-        inset 0 -1px 0 rgba(255, 255, 255, 0.08),
-        0 8px 24px rgba(76, 5, 25, 0.2);
 }
 
 .base-section-card__header--default {
     color: inherit;
-    background: rgba(15, 23, 42, 0.96);
+    background: #ffffff;
 }
 
 .base-section-card__header--blue {
-    color: #dbeafe;
+    color: #1e3a8a;
     background:
         linear-gradient(
             135deg,
-            rgba(30, 41, 59, 0.98),
-            rgba(30, 64, 175, 0.88)
+            rgba(59, 130, 246, 0.08),
+            rgba(59, 130, 246, 0.035)
         );
 }
 
 .base-section-card__icon {
-    opacity: 0.95;
+    opacity: 0.9;
 }
 
 .base-section-card__title {
@@ -147,6 +144,7 @@ const bodyClasses = computed(() => [
 
 .base-section-card__body {
     padding: 14px;
+    background: #ffffff;
 }
 
 .base-section-card__body--compact {
