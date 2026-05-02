@@ -17,7 +17,7 @@ export function useUnitMail(unitId) {
 
     const options = ref({
         page: 1,
-        itemsPerPage: 25,
+        itemsPerPage: 15,
         sortBy: [],
     })
 
