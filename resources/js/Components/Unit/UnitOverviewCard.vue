@@ -299,6 +299,11 @@ async function syncCities(payload) {
 
 const quickMailDialog = ref(false)
 const quickMailFiles = ref([])
+const quickMailRecipients = ref([])
+
+function cloneRecipients(items = []) {
+    return items.map((item) => ({ ...item }))
+}
 
 const unitMailRecipients = computed(() => {
     const result = []
@@ -339,8 +344,19 @@ const unitMailRecipients = computed(() => {
 console.log('UnitOverviewCard unitMailRecipients:', unitMailRecipients.value)
 
 function openFileMail(file) {
-    quickMailFiles.value = [file.path]
+    quickMailFiles.value = file?.path ? [file.path] : []
+    quickMailRecipients.value = cloneRecipients(unitMailRecipients.value)
     quickMailDialog.value = true
+
+    console.log('openFileMail quickMailRecipients:', quickMailRecipients.value)
+}
+
+function openQuickMail() {
+    quickMailFiles.value = []
+    quickMailRecipients.value = cloneRecipients(unitMailRecipients.value)
+    quickMailDialog.value = true
+
+    console.log('openQuickMail quickMailRecipients:', quickMailRecipients.value)
 }
 </script>
 
@@ -648,7 +664,7 @@ function openFileMail(file) {
         <UnitMailComposerDialog
             v-model="quickMailDialog"
             :unit-id="unit.id"
-            :recipients="unitMailRecipients"
+            :recipients="quickMailRecipients"
             :initial-storage-files="quickMailFiles"
             @sent="emit('refresh')"
         />
