@@ -24,7 +24,7 @@ class UnitMailController extends Controller
         $relatedEmails = $this->relatedEmails($unit);
         $emailIds = $relatedEmails->pluck('id')->values();
 
-        $itemsPerPage = (int) $request->input('itemsPerPage', 25);
+        $itemsPerPage = (int) $request->input('itemsPerPage', 15);
 
         $query = MailMessage::query()
             ->with(['emails:id,address,name'])
