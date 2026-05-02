@@ -18,15 +18,20 @@ class Unit extends Model
         'labels',
         'telephones',
         'uris',
+
         'entities.classification',
         'entities.telephones',
         'entities.emails',
         'entities.sales',
+
         'buildings.city',
         'consumptions.product',
         'consumptions.measure',
         'manufactures',
+
+        'emails',
         'emails.sendings',
+
         'stages',
         'quotations.good',
         'quotations.measure',
