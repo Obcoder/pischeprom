@@ -94,6 +94,10 @@ async function submitRename() {
     closeRenameDialog()
 }
 
+const emit = defineEmits([
+    'send-file',
+])
+
 onMounted(loadFiles)
 </script>
 
@@ -147,6 +151,13 @@ onMounted(loadFiles)
 
                 <template #append>
                     <div class="d-flex align-center ga-1">
+                        <v-btn
+                            icon="mdi-email-send-outline"
+                            variant="text"
+                            color="blue"
+                            @click="emit('send-file', file)"
+                        />
+
                         <v-btn
                             icon="mdi-pencil-outline"
                             variant="text"

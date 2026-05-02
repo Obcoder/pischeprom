@@ -139,7 +139,7 @@ onMounted(async () => {
             </v-col>
 
             <v-col cols="12" lg="4">
-                <UnitSendingsCard :emails="unit.emails || []" />
+                <UnitSendingsCard :unit="unit" />
             </v-col>
 
             <v-col cols="12" lg="4">

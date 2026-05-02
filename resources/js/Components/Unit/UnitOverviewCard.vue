@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
@@ -8,6 +8,7 @@ import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import UnitFilesTab from '@/Components/Unit/UnitFilesTab.vue'
 import UnitUrisCard from '@/Components/Unit/UnitUrisCard.vue'
 import UnitRelationManagerDialog from '@/Components/Unit/UnitRelationManagerDialog.vue'
+import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
 
 const props = defineProps({
     unit: {
@@ -295,6 +296,42 @@ async function syncCities(payload) {
         savingCities.value = false
     }
 }
+
+const quickMailDialog = ref(false)
+const quickMailFiles = ref([])
+
+const unitMailRecipients = computed(() => {
+    const directEmails = (props.unit.emails || []).map((email) => ({
+        id: email.id,
+        address: email.address,
+        name: email.name || null,
+        source: 'unit',
+        source_label: 'Unit',
+    }))
+
+    const entityEmails = (props.unit.entities || []).flatMap((entity) => {
+        return (entity.emails || []).map((email) => ({
+            id: email.id,
+            address: email.address,
+            name: email.name || null,
+            source: 'entity',
+            source_label: `Entity: ${entity.name}`,
+            entity_id: entity.id,
+            entity_name: entity.name,
+        }))
+    })
+
+    return [...directEmails, ...entityEmails]
+        .filter((email, index, array) => (
+            email.address
+            && array.findIndex((candidate) => candidate.address === email.address) === index
+        ))
+})
+
+function openFileMail(file) {
+    quickMailFiles.value = [file.path]
+    quickMailDialog.value = true
+}
 </script>
 
 <template>
@@ -468,7 +505,10 @@ async function syncCities(payload) {
             </v-window-item>
 
             <v-window-item value="files">
-                <UnitFilesTab :unit-id="unit.id" />
+                <UnitFilesTab
+                    :unit-id="unit.id"
+                    @send-file="openFileMail"
+                />
             </v-window-item>
 
             <v-window-item value="buildings">
@@ -594,6 +634,14 @@ async function syncCities(payload) {
             hint="Города офисов, складов, производств и доставки"
             :loading="savingCities"
             @save="syncCities"
+        />
+
+        <UnitMailComposerDialog
+            v-model="quickMailDialog"
+            :unit-id="unit.id"
+            :recipients="unitMailRecipients"
+            :initial-storage-files="quickMailFiles"
+            @sent="emit('refresh')"
         />
     </BaseSectionCard>
 </template>

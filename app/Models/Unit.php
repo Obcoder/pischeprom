@@ -20,6 +20,7 @@ class Unit extends Model
         'uris',
         'entities.classification',
         'entities.telephones',
+        'entities.emails',
         'entities.sales',
         'buildings.city',
         'consumptions.product',

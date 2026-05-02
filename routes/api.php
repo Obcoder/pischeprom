@@ -116,6 +116,10 @@ Route::get('mail-messages', [MailMessageController::class, 'index'])
 
 Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show'])
     ->name('mail-messages.show');
+
+use App\Http\Controllers\API\MailTemplateController;
+Route::apiResource('mail-templates', MailTemplateController::class)
+    ->except(['show']);
 // E N D  E M A I L S
 
 Route::get('/entities-meta', [EntityMetaController::class, 'index']);
@@ -174,6 +178,8 @@ Route::prefix('telephones')->group(function () {
  *  U N I T S
  * __________________
  */
+use App\Http\Controllers\API\UnitMailController;
+
 Route::prefix('units/{unit}')->group(function () {
     Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
 
@@ -205,6 +211,12 @@ Route::prefix('units/{unit}')->group(function () {
     Route::post('/files', [UnitFileController::class, 'store'])->name('api.units.files.store');
     Route::delete('/files', [UnitFileController::class, 'destroy'])->name('api.units.files.destroy');
     Route::patch('/files/rename', [UnitFileController::class, 'rename'])->name('api.units.files.rename');
+
+    Route::get('/mail-messages', [UnitMailController::class, 'index'])
+        ->name('api.units.mail-messages.index');
+
+    Route::post('/mail/send', [UnitMailController::class, 'send'])
+        ->name('api.units.mail.send');
 });
 
 Route::apiResource('units', UnitController::class)->except(['show']);
@@ -215,6 +227,8 @@ Route::apiResource('uris', UriController::class);
 Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rates');
 
 Route::apiResource('yandex-requests', YandexRequestController::class);
+
+// E N D  U N I T S
 
 
 /*
