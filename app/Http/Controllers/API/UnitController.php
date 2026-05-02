@@ -49,8 +49,37 @@ class UnitController extends Controller
 
     public function show(Unit $unit)
     {
+        $unit->load([
+                        'fields',
+                        'labels',
+                        'telephones',
+                        'uris',
+
+                        'cities.region',
+
+                        'entities.classification',
+                        'entities.telephones',
+                        'entities.emails',
+                        'entities.sales',
+
+                        'buildings.city',
+
+                        'consumptions.product',
+                        'consumptions.measure',
+
+                        'manufactures',
+
+                        'emails',
+                        'emails.sendings',
+
+                        'stages',
+
+                        'quotations.good',
+                        'quotations.measure',
+                    ]);
+
         return response()->json([
-                                    'data' => $unit->load(Unit::DETAIL_RELATIONS),
+                                    'data' => $unit,
                                 ]);
     }
 
