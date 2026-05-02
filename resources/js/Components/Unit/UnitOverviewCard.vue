@@ -309,6 +309,11 @@ const unitMailRecipients = computed(() => {
         source_label: 'Unit',
     }))
 
+    console.log('UnitOverviewCard unit.id:', props.unit?.id)
+    console.log('UnitOverviewCard unit.emails:', props.unit?.emails)
+    console.log('UnitOverviewCard unit.entities:', props.unit?.entities)
+    console.log('UnitOverviewCard unitMailRecipients:', unitMailRecipients.value)
+
     const entityEmails = (props.unit.entities || []).flatMap((entity) => {
         return (entity.emails || []).map((email) => ({
             id: email.id,
