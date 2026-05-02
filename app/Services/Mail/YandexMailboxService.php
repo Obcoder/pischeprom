@@ -191,23 +191,29 @@ class YandexMailboxService
                 'imap_uid' => $imapUid,
             ];
 
-        $mailMessage = MailMessage::updateOrCreate(
-            $identity,
-            [
-                'folder' => $folderName,
-                'imap_uid' => $imapUid,
-                'direction' => $direction,
-                'subject' => $subject,
-                'message_date' => $messageDate,
-                'from_address' => $from['address'] ?? null,
-                'from_name' => $from['name'] ?? null,
-                'to' => $to,
-                'cc' => $cc,
-                'preview' => null,
-                'has_attachments' => false,
-                'raw_headers' => $message->header->raw ?? null,
-            ]
-        );
+        $mailbox = config('services.yandex_mail.address');
+
+        $mailMessage = MailMessage::query()->firstOrNew([
+                                                            'mailbox' => $mailbox,
+                                                            'folder' => $folderName,
+                                                            'imap_uid' => $imapUid,
+                                                        ]);
+
+        $mailMessage->fill([
+                               'message_id' => $messageId,
+                               'direction' => $direction,
+                               'subject' => $subject,
+                               'message_date' => $messageDate,
+                               'from_address' => $from['address'] ?? null,
+                               'from_name' => $from['name'] ?? null,
+                               'to' => $to,
+                               'cc' => $cc,
+                               'preview' => $mailMessage->preview,
+                               'has_attachments' => $mailMessage->has_attachments ?? false,
+                               'raw_headers' => $message->header->raw ?? null,
+                           ]);
+
+        $mailMessage->save();
 
         if ($direction === 'incoming' && !empty($from['address'])) {
             $email = $this->findOrCreateEmail(

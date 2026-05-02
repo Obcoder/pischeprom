@@ -191,7 +191,14 @@ class UnitMailController extends Controller
             }
         }
 
-        SyncYandexMailboxJob::dispatch(50)->delay(now()->addSeconds(15));
+        try {
+            SyncYandexMailboxJob::dispatch(50)->delay(now()->addSeconds(15));
+        } catch (Throwable $exception) {
+            logger()->warning('Yandex sync dispatch after unit mail sending failed', [
+                'unit_id' => $unit->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         return response()->json([
                                     'message' => 'Письмо отправлено',
