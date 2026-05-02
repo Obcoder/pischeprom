@@ -15,6 +15,8 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    'unit_files_disk' => env('UNIT_FILES_DISK', 'yandex'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks

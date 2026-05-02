@@ -65,7 +65,7 @@ class UnitMailController extends Controller
                                 ]);
     }
 
-    public function send(Request $request, Unit $unit): JsonResponse
+    public function send(Request $request, Unit $unit)
     {
         Log::info('Unit mail send endpoint reached', [
             'unit_id' => $unit->id,
@@ -77,144 +77,102 @@ class UnitMailController extends Controller
             'storage_files' => $request->input('storage_files'),
         ]);
 
-        $data = $request->validate([
-                                       'to' => ['required', 'array', 'min:1'],
-                                       'to.*' => ['required', 'email'],
-                                       'cc' => ['nullable', 'array'],
-                                       'cc.*' => ['nullable', 'email'],
-                                       'subject' => ['required', 'string', 'max:255'],
-                                       'body' => ['required', 'string'],
-                                       'unit_file_paths' => ['nullable', 'array'],
-                                       'unit_file_paths.*' => ['string'],
-                                       'attachments' => ['nullable', 'array'],
-                                       'attachments.*' => ['file', 'max:20480'],
-                                   ]);
+        $validated = $request->validate([
+                                            'to' => ['required', 'array', 'min:1'],
+                                            'to.*' => ['required', 'email'],
 
-        $relatedAddresses = $this->relatedEmails($unit)
-            ->pluck('address')
-            ->map(fn ($address) => Str::lower($address))
-            ->values();
+                                            'subject' => ['required', 'string', 'max:255'],
+                                            'body' => ['nullable', 'string'],
 
-        $to = collect($data['to'])
-            ->map(fn ($address) => Str::lower(trim($address)))
-            ->unique()
-            ->values();
+                                            'attachments' => ['nullable', 'array'],
+                                            'attachments.*' => ['file', 'max:20480'],
 
-        $cc = collect($data['cc'] ?? [])
-            ->map(fn ($address) => Str::lower(trim($address)))
-            ->filter()
-            ->unique()
-            ->values();
+                                            'storage_files' => ['nullable', 'array'],
+                                            'storage_files.*' => ['string'],
+                                        ]);
 
-        $forbidden = $to
-            ->merge($cc)
-            ->reject(fn ($address) => $relatedAddresses->contains($address))
-            ->values();
+        $to = array_values(array_filter($validated['to'] ?? []));
+        $subject = $validated['subject'];
+        $body = $validated['body'] ?? '';
 
-        if ($forbidden->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                                                        'to' => 'Есть адреса, которые не связаны с этим Unit: ' . $forbidden->implode(', '),
-                                                    ]);
-        }
-
-        $unitFilePaths = collect($data['unit_file_paths'] ?? [])
-            ->filter()
-            ->unique()
-            ->values();
-
-        $localFiles = $request->file('attachments', []);
-
-        $sent = [];
-
-        foreach ($to as $recipientAddress) {
-            $email = Email::withTrashed()->firstOrCreate(
-                ['address' => $recipientAddress],
-                [
-                    'source' => 'manual',
-                    'is_active' => true,
-                    'last_seen_at' => now(),
-                ]
-            );
-
-            if ($email->trashed()) {
-                $email->restore();
-            }
-
-            $sending = Sending::create([
-                                           'email_id' => $email->id,
-                                           'subject' => $data['subject'],
-                                           'text' => $this->renderTemplate($data['body'], $unit, $recipientAddress),
-                                           'provider' => 'yandex_smtp',
-                                           'status' => 'queued',
-                                       ]);
-
-            $html = $this->htmlBody(
-                text: $this->renderTemplate($data['body'], $unit, $recipientAddress),
-                sending: $sending
-            );
-
-            try {
-                Mail::html($html, function ($message) use (
-                    $recipientAddress,
-                    $cc,
-                    $data,
-                    $localFiles,
-                    $unitFilePaths
-                ) {
-                    $message
-                        ->to($recipientAddress)
-                        ->subject($data['subject']);
-
-                    if ($cc->isNotEmpty()) {
-                        $message->cc($cc->all());
-                    }
-
-                    foreach ($localFiles as $file) {
-                        $message->attach($file->getRealPath(), [
-                            'as' => $file->getClientOriginalName(),
-                            'mime' => $file->getMimeType(),
-                        ]);
-                    }
-
-                    foreach ($unitFilePaths as $path) {
-                        $this->attachStorageFile($message, $path);
-                    }
-                });
-
-                $sending->forceFill([
-                                        'html' => $html,
-                                        'status' => 'sent',
-                                        'sent_at' => now(),
-                                        'error' => null,
-                                    ])->save();
-
-                $sent[] = [
-                    'email' => $recipientAddress,
-                    'sending_id' => $sending->id,
-                ];
-            } catch (Throwable $exception) {
-                $sending->forceFill([
-                                        'status' => 'failed',
-                                        'error' => $exception->getMessage(),
-                                    ])->save();
-
-                throw $exception;
-            }
-        }
+        $localAttachments = $request->file('attachments', []);
+        $storageFiles = $validated['storage_files'] ?? [];
 
         try {
-            SyncYandexMailboxJob::dispatch(50)->delay(now()->addSeconds(15));
-        } catch (Throwable $exception) {
-            logger()->warning('Yandex sync dispatch after unit mail sending failed', [
-                'unit_id' => $unit->id,
-                'error' => $exception->getMessage(),
-            ]);
-        }
+            Mail::html(nl2br(e($body)), function ($message) use (
+                $to,
+                $subject,
+                $localAttachments,
+                $storageFiles
+            ) {
+                $message->to($to);
+                $message->subject($subject);
 
-        return response()->json([
-                                    'message' => 'Письмо отправлено',
-                                    'sent' => $sent,
-                                ]);
+                foreach ($localAttachments as $file) {
+                    if (!$file) {
+                        continue;
+                    }
+
+                    $message->attach($file->getRealPath(), [
+                        'as' => $file->getClientOriginalName(),
+                        'mime' => $file->getMimeType() ?: 'application/octet-stream',
+                    ]);
+                }
+
+                $diskName = config('filesystems.unit_files_disk', 'yandex');
+                $disk = Storage::disk($diskName);
+
+                foreach ($storageFiles as $path) {
+                    if (!$path) {
+                        continue;
+                    }
+
+                    if (!$disk->exists($path)) {
+                        Log::warning('Unit mail storage attachment not found', [
+                            'disk' => $diskName,
+                            'path' => $path,
+                        ]);
+
+                        continue;
+                    }
+
+                    $message->attachData(
+                        $disk->get($path),
+                        basename($path),
+                        [
+                            'mime' => $disk->mimeType($path) ?: 'application/octet-stream',
+                        ]
+                    );
+                }
+            });
+
+            Log::info('Unit mail sent successfully', [
+                'unit_id' => $unit->id,
+                'unit_name' => $unit->name,
+                'to' => $to,
+                'subject' => $subject,
+                'local_attachments_count' => count($localAttachments),
+                'storage_files_count' => count($storageFiles),
+            ]);
+
+            return response()->json([
+                                        'message' => 'Письмо успешно отправлено.',
+                                    ]);
+        } catch (Throwable $exception) {
+            Log::error('Unit mail send failed', [
+                'unit_id' => $unit->id,
+                'unit_name' => $unit->name,
+                'to' => $to,
+                'subject' => $subject,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                                        'message' => 'Не удалось отправить письмо.',
+                                        'error' => $exception->getMessage(),
+                                    ], 500);
+        }
     }
 
     protected function relatedEmails(Unit $unit)
