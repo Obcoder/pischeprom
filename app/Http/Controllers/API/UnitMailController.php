@@ -135,6 +135,14 @@ class UnitMailController extends Controller
 
     public function send(Request $request, Unit $unit): JsonResponse
     {
+        Log::info('DEBUG UnitMailController send started', [
+            'unit_id' => $unit->id,
+            'payload_keys' => array_keys($request->all()),
+            'files' => array_keys($request->allFiles()),
+            'to' => $request->input('to'),
+            'storage_files' => $request->input('storage_files'),
+        ]);
+
         $request->validate([
                                'subject' => ['nullable', 'string', 'max:998'],
                                'body' => ['nullable', 'string'],
