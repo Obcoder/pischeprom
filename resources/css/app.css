@@ -46,3 +46,13 @@
 [x-cloak] {
     display: none;
 }
+
+.mdi,
+.mdi:before,
+.v-icon.mdi,
+.v-icon .mdi,
+i.mdi {
+    font-family: "Material Design Icons" !important;
+    font-weight: normal !important;
+    font-style: normal !important;
+}
