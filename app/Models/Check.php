@@ -15,23 +15,25 @@ class Check extends Model
         'amount',
     ];
 
+    protected $casts = [
+        'date' => 'date',
+        'amount' => 'float',
+    ];
+
     protected $with = [
         'entity',
     ];
 
-    public function entity(){
+    public function entity()
+    {
         return $this->belongsTo(Entity::class);
     }
 
     public function commodities()
     {
         return $this->belongsToMany(Commodity::class, 'check_commodity')
-            ->using(check_commodity::class)
-            ->withPivot('quantity', 'measure_id', 'price', 'total_price');
-    }
-    public function measure()
-    {
-        return $this->hasOneThrough(Measure::class, check_commodity::class, 'measure_id', 'id', 'id', 'measure_id')
-            ->withDefault();
+            ->using(CheckCommodity::class)
+            ->withPivot('quantity', 'measure_id', 'price', 'total_price')
+            ->withTimestamps();
     }
 }

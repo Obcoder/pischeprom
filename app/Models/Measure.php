@@ -8,4 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 class Measure extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'name',
+    ];
+
+    public function checkCommodities()
+    {
+        return $this->hasMany(CheckCommodity::class);
+    }
 }

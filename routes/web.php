@@ -13,9 +13,6 @@ use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
-
-use App\Http\Controllers\EntityController;
-
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\QuotationController;
@@ -97,20 +94,38 @@ Route::get('/Ameise/city/{city}', function (City $city) {
 //
 
 
-//   C O M M O D I T I E S
-Route::get('/Ameise/Commodities/', function (){
+/*
+|--------------------------------------------------------------------------
+| C O M M O D I T I E S
+|--------------------------------------------------------------------------
+*/
+use App\Http\Controllers\Web\CommodityController as WebCommodityController;
+
+Route::get('/Ameise/Commodities/', function () {
     return Inertia::render('Ameise/Commodities');
 })->name('Ameise.commodities');
+
+Route::get('/Ameise/Commodities/{commodity}', [WebCommodityController::class, 'show'])
+    ->name('Ameise.commodity.show');
+
+//  E N D  C O M M O D I T I E S
+
+
 //   C O N T A C T S  C E N T R E
 Route::get('/Ameise/ContactsCentre', function (){
     return Inertia::render('Ameise/ContactsCentre');
 })->name('Ameise.contactsCentre');
 
+//
+
 //      E N T I T I E S
+use App\Http\Controllers\EntityController;
 
 Route::prefix('web')->name('web.')->group(function () {
     Route::get('/entities', [EntityController::class, 'index'])->name('entities.index');
 });
+
+//  E N D  E N T I T I E S
 
 
 //     F L U X  M O N I T O R

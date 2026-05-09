@@ -57,6 +57,9 @@ Route::apiResource('buildings', BuildingController::class);
 Route::apiResource('catalogs', CatalogController::class);
 Route::apiResource('categories', CategoryController::class);
 Route::apiResource('checks', CheckController::class);
+Route::apiResource('components', ComponentController::class);
+Route::apiResource('countries', CountryController::class);
+Route::apiResource('currencies', CurrencyController::class);
 
 //  C I T I E S
 use App\Http\Controllers\API\CityController;
@@ -80,12 +83,39 @@ Route::prefix('cities/{city}')
         Route::delete('/populations/{cityPopulation}', [CityPopulationController::class, 'destroy'])
             ->name('populations.destroy');
     });
-//
+//  E N D  C I T I E S
+
+
+/*
+|--------------------------------------------------------------------------
+| C O M M O D I T I E S
+|--------------------------------------------------------------------------
+*/
+use App\Http\Controllers\API\CommodityMediaController;
+
+Route::prefix('commodities/{commodity}')
+    ->name('api.commodities.')
+    ->group(function () {
+        Route::get('/media', [CommodityMediaController::class, 'index'])
+            ->name('media.index');
+
+        Route::post('/media', [CommodityMediaController::class, 'store'])
+            ->name('media.store');
+
+        Route::patch('/media/{media}/rename', [CommodityMediaController::class, 'rename'])
+            ->name('media.rename');
+
+        Route::patch('/media/{media}/ava', [CommodityMediaController::class, 'setAva'])
+            ->name('media.ava');
+
+        Route::delete('/media/{media}', [CommodityMediaController::class, 'destroy'])
+            ->name('media.destroy');
+    });
 
 Route::apiResource('commodities', CommodityController::class);
-Route::apiResource('components', ComponentController::class);
-Route::apiResource('countries', CountryController::class);
-Route::apiResource('currencies', CurrencyController::class);
+
+//  E N D  C O M M O D I T I E S
+
 
 //  E M A I L S
 use App\Http\Controllers\API\EmailController;
@@ -122,36 +152,6 @@ Route::apiResource('mail-templates', MailTemplateController::class)
     ->except(['show']);
 // E N D  E M A I L S
 
-Route::get('/entities-meta', [EntityMetaController::class, 'index']);
-Route::apiResource('entities', EntityController::class);
-
-Route::apiResource('entities-classification', EntitiesClassification::class);
-Route::apiResource('fields', FieldController::class);
-Route::apiResource('fragrances', FragranceController::class);
-Route::apiResource('industries', IndustryController::class);
-// если нужно быстро получить units по industry:
-Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
-Route::apiResource('genera', GenusController::class);
-Route::apiResource('goods', GoodController::class)->except(['show']);
-Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
-    ->where('id', '[0-9]+')->name('good.fetch');
-Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
-    ->name('api.goods.publish');
-Route::apiResource('goodsales', GoodSaleController::class);
-Route::apiResource('labels', LabelController::class);
-Route::apiResource('measures', MeasureController::class);
-Route::apiResource('messages', MessageController::class);
-Route::apiResource('notes', NoteController::class);
-Route::apiResource('plants', PlantController::class);
-Route::apiResource('products', ProductController::class);
-Route::apiResource('purchases', PurchaseController::class);
-Route::apiResource('quotations', QuotationController::class);
-Route::apiResource('regions', RegionController::class);
-Route::apiResource('sales', SaleController::class);
-Route::apiResource('segments', SegmentController::class);
-Route::apiResource('sendings', SendingController::class);
-Route::apiResource('stages', StageController::class);
-
 
 /*
  * ------------------
@@ -159,19 +159,11 @@ Route::apiResource('stages', StageController::class);
  * __________________
  */
 Route::apiResource('entities', EntityController::class)->only(['store', 'update', 'destroy']);
+Route::get('/entities-meta', [EntityMetaController::class, 'index']);
+Route::apiResource('entities', EntityController::class);
 
-/*
- * ----------------------
- *  T E L E P H O N E S
- * ______________________
- */
-Route::prefix('telephones')->group(function () {
-    Route::get('/meta', [TelephoneController::class, 'meta']);
-    Route::get('/', [TelephoneController::class, 'index']);
-    Route::post('/', [TelephoneController::class, 'store']);
-    Route::get('/{telephone}', [TelephoneController::class, 'show']);
-    Route::put('/{telephone}', [TelephoneController::class, 'update']);
-});
+//  E N D  E N T I T I E S
+
 
 /*
  * ------------------
@@ -229,6 +221,50 @@ Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rat
 Route::apiResource('yandex-requests', YandexRequestController::class);
 
 // E N D  U N I T S
+
+
+Route::apiResource('entities-classification', EntitiesClassification::class);
+Route::apiResource('fields', FieldController::class);
+Route::apiResource('fragrances', FragranceController::class);
+Route::apiResource('industries', IndustryController::class);
+// если нужно быстро получить units по industry:
+Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
+Route::apiResource('genera', GenusController::class);
+Route::apiResource('goods', GoodController::class)->except(['show']);
+Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
+    ->where('id', '[0-9]+')->name('good.fetch');
+Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
+    ->name('api.goods.publish');
+Route::apiResource('goodsales', GoodSaleController::class);
+Route::apiResource('labels', LabelController::class);
+Route::apiResource('measures', MeasureController::class);
+Route::apiResource('messages', MessageController::class);
+Route::apiResource('notes', NoteController::class);
+Route::apiResource('plants', PlantController::class);
+Route::apiResource('products', ProductController::class);
+Route::apiResource('purchases', PurchaseController::class);
+Route::apiResource('quotations', QuotationController::class);
+Route::apiResource('regions', RegionController::class);
+Route::apiResource('sales', SaleController::class);
+Route::apiResource('segments', SegmentController::class);
+Route::apiResource('sendings', SendingController::class);
+Route::apiResource('stages', StageController::class);
+
+
+
+
+/*
+ * ----------------------
+ *  T E L E P H O N E S
+ * ______________________
+ */
+Route::prefix('telephones')->group(function () {
+    Route::get('/meta', [TelephoneController::class, 'meta']);
+    Route::get('/', [TelephoneController::class, 'index']);
+    Route::post('/', [TelephoneController::class, 'store']);
+    Route::get('/{telephone}', [TelephoneController::class, 'show']);
+    Route::put('/{telephone}', [TelephoneController::class, 'update']);
+});
 
 
 /*

@@ -12,6 +12,7 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
+import CommoditiesPage from '@/Components/Dictionaries/Commodities/CommoditiesPage.vue';
 import Categories from '@/Components/Dictionaries/Categories.vue';
 import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue';
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
@@ -240,46 +241,6 @@ function indexChecks(){
         console.log(error)
     })
 }
-
-
-
-//      C O M M O D I T I E S
-function indexCommodities(){
-    axios.get(route('commodities.index')).then(function (response){
-        commodities.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-const filteredCommodities = computed(()=>{
-    const like = searchCommodities.value.toLowerCase()
-    return commodities.value.filter(i => i.name.toLowerCase().includes(like))
-})
-const headerCommodities = ref([
-    {
-        key: 'name',
-        title: 'Наименование',
-        align: 'start',
-        sortable: true,
-    },
-])
-const searchCommodities = ref('')
-const showFormCommodity = ref(false)
-const formCommodity = useForm({
-    name: null,
-})
-function storeCommodity(){
-    formCommodity.post(route('web.commodity.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formCommodity.reset()
-            indexCommodities()
-        },
-    })
-}
-// E N D  C O M M O D I T I E S
 
 
 
@@ -591,7 +552,6 @@ onMounted(()=>{
     indexCatalogs()
     indexCategories()
     indexChecks()
-    indexCommodities()
     indexComponents()
     indexCountries()
     indexEntityClassifications()
@@ -659,6 +619,7 @@ const formatBuildingTitle = (building) => {
 
                         <v-card-text>
                             <v-tabs-window v-model="tab">
+
                                 <!--   О Б Ъ Е К Т Ы   -->
                                 <v-tabs-window-item value="units">
                                     <v-tabs v-model="tabsUnits">
@@ -675,6 +636,7 @@ const formatBuildingTitle = (building) => {
                                     </v-tabs-window>
                                 </v-tabs-window-item>
                                 <!--           E N D  U N I T S           -->
+
 
                                 <!--           К О Н Т А К Т Ы           -->
                                 <v-tabs-window-item value="contacts">
@@ -708,6 +670,72 @@ const formatBuildingTitle = (building) => {
                                     </v-row>
                                 </v-tabs-window-item>
                                 <!--        К О Н Е Ц  К О Н Т А К Т Ы         -->
+
+
+                                <!--   P R O D U C T S   -->
+                                <v-tabs-window-item value="products">
+                                    <v-tabs v-model="tabsProducts">
+                                        <v-tab value="categories">Categories</v-tab>
+                                        <v-tab value="categories_products">Products</v-tab>
+                                        <v-tab value="goods">Goods</v-tab>
+                                        <v-tab value="components">Components</v-tab>
+                                        <v-tab value="commodities">Commodities</v-tab>
+                                    </v-tabs>
+                                    <v-tabs-window v-model="tabsProducts">
+                                        <v-tabs-window-item value="categories">
+                                            <v-container>
+                                                <v-row>
+                                                    <v-col lg="4">
+                                                        <Categories />
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
+                                        </v-tabs-window-item>
+
+                                        <v-tabs-window-item value="categories_products">
+                                            <Products />
+                                        </v-tabs-window-item>
+
+                                        <v-tabs-window-item value="goods">
+                                            <Goods />
+                                        </v-tabs-window-item>
+
+                                        <v-tabs-window-item value="components">
+                                            <v-container fluid>
+                                                <v-row>
+                                                    <v-col>
+                                                        <v-text-field v-model="searchComponents"
+                                                                      label="search components"
+                                                                      variant="solo"
+                                                                      density="comfortable"
+                                                                      clearable
+                                                                      hide-details
+                                                                      class="border rounded"
+                                                        ></v-text-field>
+                                                    </v-col>
+                                                </v-row>
+                                                <v-row>
+                                                    <v-col>
+                                                        <v-data-table :items="components"
+                                                                      items-per-page="150"
+                                                                      :headers="headerComponents"
+                                                                      fixed-header
+                                                                      height="810px"
+                                                                      density="compact"
+                                                                      hover
+                                                                      class="border rounded border-lime-300"
+                                                        ></v-data-table>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
+                                        </v-tabs-window-item>
+
+                                        <v-tabs-window-item value="commodities">
+                                            <CommoditiesPage />
+                                        </v-tabs-window-item>
+                                    </v-tabs-window>
+                                </v-tabs-window-item>
+                                <!--  E N D  P R O D U C T S  -->
 
 
                                 <!--           S A L E S           -->
@@ -1108,131 +1136,6 @@ const formatBuildingTitle = (building) => {
                                 <v-tabs-window-item value="purchases">
                                     <Purchases />
                                 </v-tabs-window-item>
-
-
-                                <!--   P R O D U C T S   -->
-                                <v-tabs-window-item value="products">
-                                    <v-tabs v-model="tabsProducts">
-                                        <v-tab value="categories">Categories</v-tab>
-                                        <v-tab value="categories_products">Products</v-tab>
-                                        <v-tab value="goods">Goods</v-tab>
-                                        <v-tab value="components">Components</v-tab>
-                                        <v-tab value="commodities">Commodities</v-tab>
-                                    </v-tabs>
-                                    <v-tabs-window v-model="tabsProducts">
-                                        <v-tabs-window-item value="categories">
-                                            <v-container>
-                                                <v-row>
-                                                    <v-col lg="4">
-                                                        <Categories />
-                                                    </v-col>
-                                                </v-row>
-                                            </v-container>
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="categories_products">
-                                            <Products />
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="goods">
-                                            <Goods />
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="components">
-                                            <v-container fluid>
-                                                <v-row>
-                                                    <v-col>
-                                                        <v-text-field v-model="searchComponents"
-                                                                      label="search components"
-                                                                      variant="solo"
-                                                                      density="comfortable"
-                                                                      clearable
-                                                                      hide-details
-                                                                      class="border rounded"
-                                                        ></v-text-field>
-                                                    </v-col>
-                                                </v-row>
-                                                <v-row>
-                                                    <v-col>
-                                                        <v-data-table :items="components"
-                                                                      items-per-page="150"
-                                                                      :headers="headerComponents"
-                                                                      fixed-header
-                                                                      height="810px"
-                                                                      density="compact"
-                                                                      hover
-                                                                      class="border rounded border-lime-300"
-                                                        ></v-data-table>
-                                                    </v-col>
-                                                </v-row>
-                                            </v-container>
-                                        </v-tabs-window-item>
-                                        <v-tabs-window-item value="commodities">
-                                            <v-container fluid>
-                                                <v-row>
-                                                    <v-col cols="9">
-                                                        <v-text-field v-model="searchCommodities"
-                                                                      label="Commodities"
-                                                                      placeholder="search"
-                                                                      variant="outlined"
-                                                                      density="compact"
-                                                                      hide-details
-                                                        ></v-text-field>
-                                                    </v-col>
-                                                    <v-col cols="3">
-                                                        <v-btn text="+com"
-                                                               @click="showFormCommodity = !showFormCommodity"
-                                                               variant="elevated"
-                                                               color="grey"
-                                                        ></v-btn>
-                                                        <v-dialog v-model="showFormCommodity"
-                                                                  width="800"
-                                                        >
-                                                            <template v-slot:default="{isActive}">
-                                                                <v-card>
-                                                                    <v-card-title>Form Commodity</v-card-title>
-                                                                    <v-card-text>
-                                                                        <v-form @submit.prevent>
-                                                                            <v-row>
-                                                                                <v-col>
-                                                                                    <v-text-field v-model="formCommodity.name"
-                                                                                                  label="Name"
-                                                                                                  variant="outlined"
-                                                                                    ></v-text-field>
-                                                                                </v-col>
-                                                                            </v-row>
-                                                                        </v-form>
-                                                                    </v-card-text>
-                                                                    <v-card-actions>
-                                                                        <v-btn text="store"
-                                                                               @click="storeCommodity"
-                                                                               variant="tonal"
-                                                                               color="orange"
-                                                                        ></v-btn>
-                                                                    </v-card-actions>
-                                                                </v-card>
-                                                            </template>
-                                                        </v-dialog>
-                                                    </v-col>
-                                                </v-row>
-                                                <v-row>
-                                                    <v-col>
-                                                        <v-data-table :items="filteredCommodities"
-                                                                      items-per-page="100"
-                                                                      :headers="headerCommodities"
-                                                                      fixed-header
-                                                                      height="779px"
-                                                                      density="compact"
-                                                                      hover
-                                                                      class="border rounded"
-                                                        ></v-data-table>
-                                                    </v-col>
-                                                </v-row>
-                                            </v-container>
-                                        </v-tabs-window-item>
-                                    </v-tabs-window>
-                                </v-tabs-window-item>
-                                <!--  E N D  P R O D U C T S  -->
 
 
                                 <!--        К Л А С С И Ф И К А Т О Р Ы        -->
