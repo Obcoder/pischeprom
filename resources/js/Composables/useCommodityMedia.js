@@ -40,12 +40,7 @@ export function useCommodityMedia() {
         try {
             const response = await axios.post(
                 route('api.commodities.media.store', commodityId),
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
-                }
+                formData
             )
 
             media.value = response.data.data || []
