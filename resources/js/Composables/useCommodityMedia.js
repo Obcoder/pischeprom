@@ -40,7 +40,12 @@ export function useCommodityMedia() {
         try {
             const response = await axios.post(
                 route('api.commodities.media.store', commodityId),
-                formData
+                formData,
+                {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                }
             )
 
             media.value = response.data.data || []
@@ -48,6 +53,12 @@ export function useCommodityMedia() {
             return media.value
         } catch (error) {
             console.error('uploadCommodityMedia error:', error)
+
+            if (error.response) {
+                console.error('status:', error.response.status)
+                console.error('data:', error.response.data)
+            }
+
             throw error
         } finally {
             uploadingMedia.value = false
