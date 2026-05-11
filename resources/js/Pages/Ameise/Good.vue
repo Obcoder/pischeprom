@@ -965,10 +965,12 @@ onMounted(() => {
                 <!-- CALCULATOR -->
                 <v-window-item value="calculator">
                     <GoodQuotationCalculator
+                        :good-id="goodData.id"
                         :quotations="goodData.quotations || []"
                         :default-vat-rate="defaultVatRate"
                         :default-box-weight-kg="goodBoxWeight"
                         currency-code="RUB"
+                        @saved="activeTab = 'calculations'"
                     />
                 </v-window-item>
 
