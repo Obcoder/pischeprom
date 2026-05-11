@@ -10,21 +10,45 @@ use Inertia\Response;
 class GoodController extends Controller
 {
     /**
-     * Страница одного товара
+     * Публичная карточка товара
      */
     public function show(Good $good): Response
     {
         abort_unless($good->is_published, 404);
 
         $good->load([
-                        'products:id,name,slug',
-                        'prices',
+                        'products.category',
+
                         'vatRate:id,title,rate',
+
+                        'seo',
+
+                        'publishedMedia.folder',
+
+                        'priceTypeValues' => function ($query) {
+                            $query
+                                ->where('is_published', true)
+                                ->with([
+                                           'priceType.currency',
+                                           'currency',
+                                       ])
+                                ->orderByDesc('updated_at');
+                        },
                     ]);
 
         $relatedGoods = Good::query()
             ->where('id', '!=', $good->id)
             ->where('is_published', true)
+            ->with([
+                       'seo',
+                       'publishedMedia' => function ($query) {
+                           $query
+                               ->where('type', 'image')
+                               ->orderByDesc('is_ava')
+                               ->orderBy('sort_order')
+                               ->orderBy('id');
+                       },
+                   ])
             ->inRandomOrder()
             ->limit(8)
             ->get([
@@ -33,6 +57,7 @@ class GoodController extends Controller
                       'slug',
                       'ava_thumb',
                       'ava_image',
+                      'description',
                   ]);
 
         return Inertia::render('Goods/Show', [
