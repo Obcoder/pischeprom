@@ -59,10 +59,63 @@ const filteredGoods = computed(() => {
     return items.slice(0, props.limit);
 });
 
+const hasSearch = computed(() => {
+    return search.value.trim().length > 0;
+});
+
+const newestGoods = computed(() => {
+    return [...props.goods]
+        .sort((a, b) => {
+            const dateA = new Date(a.created_at || 0).getTime();
+            const dateB = new Date(b.created_at || 0).getTime();
+
+            return dateB - dateA;
+        })
+        .slice(0, props.limit);
+});
+
+const visibleGoods = computed(() => {
+    const query = search.value.trim().toLowerCase();
+
+    if (!query) {
+        return newestGoods.value;
+    }
+
+    return props.goods
+        .filter((good) => {
+            const productText = (good.products || [])
+                .map((product) => {
+                    return [
+                        product.rus,
+                        product.eng,
+                        product.name,
+                        product.title,
+                        product.category?.name,
+                    ]
+                        .filter(Boolean)
+                        .join(" ");
+                })
+                .join(" ");
+
+            const haystack = [
+                good.name,
+                good.description,
+                good.slug,
+                productText,
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+
+            return haystack.includes(query);
+        })
+        .slice(0, props.limit);
+});
+
 const groupedGoods = computed(() => {
     const groups = new Map();
 
-    filteredGoods.value.forEach((good) => {
+    visibleGoods.value.forEach((good) => {
         const products = (good.products || []).length
             ? good.products
             : [null];
@@ -84,10 +137,6 @@ const groupedGoods = computed(() => {
     });
 
     return [...groups.values()];
-});
-
-const hasSearch = computed(() => {
-    return search.value.trim().length > 0;
 });
 
 function goodImage(good) {
@@ -154,11 +203,15 @@ function shortDescription(good) {
         <v-divider />
 
         <v-card-title class="text-subtitle-1 font-weight-bold">
-            {{ hasSearch ? "Найденные товары" : "Популярные товары" }}
+            {{ hasSearch ? "Найденные товары" : "Новинки каталога" }}
         </v-card-title>
 
         <v-card-subtitle>
-            Поиск работает по названию, описанию и связанным Product
+            {{
+                hasSearch
+                    ? "Поиск работает по названию, описанию и связанным продуктам"
+                    : "Последние добавленные опубликованные товары"
+            }}
         </v-card-subtitle>
 
         <v-card-text class="goods-search-card__body">
@@ -238,7 +291,11 @@ function shortDescription(good) {
                 type="info"
                 variant="tonal"
             >
-                Ничего не найдено.
+                {{
+                    hasSearch
+                        ? "Ничего не найдено."
+                        : "Новинки каталога пока не найдены."
+                }}
             </v-alert>
         </v-card-text>
 
