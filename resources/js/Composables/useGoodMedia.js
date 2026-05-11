@@ -14,6 +14,7 @@ export function useGoodMedia(goodId) {
     const deleting = ref({});
     const publishing = ref({});
     const settingAva = ref({});
+    const processing = ref({});
 
     async function fetchMedia() {
         loading.value = true;
@@ -262,6 +263,34 @@ export function useGoodMedia(goodId) {
         }
     }
 
+    async function processVideoMedia(item) {
+        processing.value[item.id] = true;
+
+        const previousStatus = item.processing_status;
+
+        item.processing_status = "queued";
+
+        try {
+            const { data } = await axios.patch(
+                route("api.goods.media.process", {
+                    good: goodId,
+                    media: item.id,
+                })
+            );
+
+            media.value = media.value.map((row) =>
+                row.id === data.id ? data : row
+            );
+
+            return data;
+        } catch (error) {
+            item.processing_status = previousStatus;
+            throw error;
+        } finally {
+            processing.value[item.id] = false;
+        }
+    }
+
     async function deleteMedia(mediaId) {
         deleting.value[`media-${mediaId}`] = true;
 
@@ -291,6 +320,7 @@ export function useGoodMedia(goodId) {
         deleting,
         publishing,
         settingAva,
+        processing,
 
         fetchMedia,
         fetchFolders,
@@ -304,6 +334,7 @@ export function useGoodMedia(goodId) {
         renameMedia,
         toggleMediaPublish,
         setMediaAva,
+        processVideoMedia,
         deleteMedia,
     };
 }

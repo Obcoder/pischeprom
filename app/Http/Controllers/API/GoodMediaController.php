@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\Encoders\JpegEncoder;
 use Intervention\Image\ImageManager;
+use App\Jobs\ProcessGoodVideoJob;
 
 class GoodMediaController extends Controller
 {
@@ -378,6 +379,23 @@ class GoodMediaController extends Controller
                                      'is_processed' => false,
                                      'processing_status' => 'pending',
                                  ]);
+    }
+
+    public function processVideo(Good $good, GoodMedia $media): JsonResponse
+    {
+        abort_unless($media->good_id === $good->id, 404);
+        abort_unless($media->type === 'video', 422);
+
+        $media->update([
+                           'processing_status' => 'queued',
+                           'processing_error' => null,
+                       ]);
+
+        ProcessGoodVideoJob::dispatch($media->id);
+
+        return response()->json(
+            $media->fresh('folder')
+        );
     }
 
     private function storeDocument(

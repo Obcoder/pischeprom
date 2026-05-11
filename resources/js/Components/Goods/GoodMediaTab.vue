@@ -26,6 +26,7 @@ const {
     deleting,
     publishing,
     settingAva,
+    processing,
 
     fetchMedia,
     fetchFolders,
@@ -39,6 +40,7 @@ const {
     renameMedia,
     toggleMediaPublish,
     setMediaAva,
+    processVideoMedia,
     deleteMedia,
 } = useGoodMedia(props.good.id);
 
@@ -494,6 +496,18 @@ async function handleSetAva(item) {
     }
 }
 
+async function handleProcessVideo(item) {
+    errorMessage.value = "";
+
+    try {
+        const saved = await processVideoMedia(item);
+
+        emit("changed", saved);
+    } catch (error) {
+        handleError(error);
+    }
+}
+
 function askDeleteMedia(item) {
     selectedMedia.value = item;
     dialogDeleteMedia.value = true;
@@ -833,6 +847,17 @@ onMounted(() => {
                                                 color="amber-darken-2"
                                                 :loading="!!settingAva[item.id]"
                                                 @click="handleSetAva(item)"
+                                            />
+
+                                            <v-btn
+                                                v-if="item.type === 'video'"
+                                                icon="mdi-cog-play"
+                                                size="small"
+                                                variant="text"
+                                                color="deep-purple"
+                                                :loading="!!processing[item.id]"
+                                                :disabled="['queued', 'processing'].includes(item.processing_status)"
+                                                @click="handleProcessVideo(item)"
                                             />
 
                                             <v-btn

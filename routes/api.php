@@ -245,6 +245,9 @@ Route::prefix('goods/{good}')
 
         Route::delete('/media/{media}', [GoodMediaController::class, 'destroy'])
             ->name('media.destroy');
+
+        Route::patch('/media/{media}/process', [GoodMediaController::class, 'processVideo'])
+            ->name('media.process');
     });
 
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
