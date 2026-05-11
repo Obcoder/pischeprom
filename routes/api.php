@@ -31,6 +31,8 @@ use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodPriceCalculationController;
 use App\Http\Controllers\API\GoodPriceTypeValueController;
+use App\Http\Controllers\API\GoodMediaController;
+use App\Http\Controllers\API\GoodMediaFolderController;
 use App\Http\Controllers\API\GoodSeoController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\LabelController;
@@ -210,6 +212,39 @@ Route::prefix('goods/{good}')
 
         Route::delete('/price-type-values/{value}', [GoodPriceTypeValueController::class, 'destroy'])
             ->name('price-type-values.destroy');
+
+        Route::get('/media-folders', [GoodMediaFolderController::class, 'index'])
+            ->name('media-folders.index');
+
+        Route::post('/media-folders', [GoodMediaFolderController::class, 'store'])
+            ->name('media-folders.store');
+
+        Route::patch('/media-folders/{folder}', [GoodMediaFolderController::class, 'update'])
+            ->name('media-folders.update');
+
+        Route::delete('/media-folders/{folder}', [GoodMediaFolderController::class, 'destroy'])
+            ->name('media-folders.destroy');
+
+        Route::get('/media', [GoodMediaController::class, 'index'])
+            ->name('media.index');
+
+        Route::post('/media', [GoodMediaController::class, 'store'])
+            ->name('media.store');
+
+        Route::patch('/media/{media}', [GoodMediaController::class, 'update'])
+            ->name('media.update');
+
+        Route::patch('/media/{media}/rename', [GoodMediaController::class, 'rename'])
+            ->name('media.rename');
+
+        Route::patch('/media/{media}/ava', [GoodMediaController::class, 'setAva'])
+            ->name('media.ava');
+
+        Route::patch('/media/{media}/publish', [GoodMediaController::class, 'togglePublish'])
+            ->name('media.publish');
+
+        Route::delete('/media/{media}', [GoodMediaController::class, 'destroy'])
+            ->name('media.destroy');
     });
 
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
