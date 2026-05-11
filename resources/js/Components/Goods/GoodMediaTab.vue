@@ -26,6 +26,7 @@ const {
     deleting,
     publishing,
     settingAva,
+    settingMainVideo,
     processing,
 
     fetchMedia,
@@ -40,6 +41,7 @@ const {
     renameMedia,
     toggleMediaPublish,
     setMediaAva,
+    setMainVideoMedia,
     processVideoMedia,
     deleteMedia,
 } = useGoodMedia(props.good.id);
@@ -528,6 +530,18 @@ async function handleSetAva(item) {
     }
 }
 
+async function handleSetMainVideo(item) {
+    errorMessage.value = "";
+
+    try {
+        const saved = await setMainVideoMedia(item);
+
+        emit("changed", saved);
+    } catch (error) {
+        handleError(error);
+    }
+}
+
 async function handleProcessVideo(item) {
     errorMessage.value = "";
 
@@ -872,6 +886,15 @@ onBeforeUnmount(() => {
                                         >
                                             {{ item.processing_status || "pending" }}
                                         </v-chip>
+
+                                        <v-chip
+                                            v-if="item.is_main_video"
+                                            size="x-small"
+                                            color="deep-purple"
+                                            variant="flat"
+                                        >
+                                            main video
+                                        </v-chip>
                                     </div>
                                 </div>
 
@@ -933,6 +956,17 @@ onBeforeUnmount(() => {
                                                 :loading="!!processing[item.id]"
                                                 :disabled="['queued', 'processing'].includes(item.processing_status)"
                                                 @click="handleProcessVideo(item)"
+                                            />
+
+                                            <v-btn
+                                                v-if="item.type === 'video'"
+                                                icon="mdi-video-star"
+                                                size="small"
+                                                variant="text"
+                                                color="deep-purple-darken-2"
+                                                :loading="!!settingMainVideo[item.id]"
+                                                :disabled="item.processing_status !== 'done' || !item.video_mp4_url"
+                                                @click="handleSetMainVideo(item)"
                                             />
 
                                             <v-btn

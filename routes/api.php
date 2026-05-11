@@ -248,6 +248,9 @@ Route::prefix('goods/{good}')
 
         Route::patch('/media/{media}/process', [GoodMediaController::class, 'processVideo'])
             ->name('media.process');
+
+        Route::patch('/media/{media}/main-video', [GoodMediaController::class, 'setMainVideo'])
+            ->name('media.main-video');
     });
 
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])

@@ -15,6 +15,7 @@ export function useGoodMedia(goodId) {
     const publishing = ref({});
     const settingAva = ref({});
     const processing = ref({});
+    const settingMainVideo = ref({});
 
     async function fetchMedia() {
         loading.value = true;
@@ -263,6 +264,29 @@ export function useGoodMedia(goodId) {
         }
     }
 
+    async function setMainVideoMedia(item) {
+        settingMainVideo.value[item.id] = true;
+
+        try {
+            const { data } = await axios.patch(
+                route("api.goods.media.main-video", {
+                    good: goodId,
+                    media: item.id,
+                })
+            );
+
+            media.value = media.value.map((row) => ({
+                ...row,
+                is_main_video: row.id === data.id,
+                is_published: row.id === data.id ? data.is_published : row.is_published,
+            }));
+
+            return data;
+        } finally {
+            settingMainVideo.value[item.id] = false;
+        }
+    }
+
     async function processVideoMedia(item) {
         processing.value[item.id] = true;
 
@@ -321,6 +345,7 @@ export function useGoodMedia(goodId) {
         publishing,
         settingAva,
         processing,
+        settingMainVideo,
 
         fetchMedia,
         fetchFolders,
@@ -336,5 +361,6 @@ export function useGoodMedia(goodId) {
         setMediaAva,
         processVideoMedia,
         deleteMedia,
+        setMainVideoMedia,
     };
 }

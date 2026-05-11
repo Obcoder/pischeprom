@@ -15,6 +15,7 @@ use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\Encoders\JpegEncoder;
 use Intervention\Image\ImageManager;
 use App\Jobs\ProcessGoodVideoJob;
+use Illuminate\Support\Facades\DB;
 
 class GoodMediaController extends Controller
 {
@@ -205,6 +206,38 @@ class GoodMediaController extends Controller
                           'ava_image' => $media->url,
                           'ava_thumb' => $media->thumb_url ?: $media->url,
                       ]);
+
+        $this->syncGoodJson($good);
+
+        return response()->json(
+            $media->fresh('folder')
+        );
+    }
+
+    public function setMainVideo(Good $good, GoodMedia $media): JsonResponse
+    {
+        abort_unless($media->good_id === $good->id, 404);
+        abort_unless($media->type === 'video', 422);
+
+        if ($media->processing_status !== 'done' || !$media->video_mp4_url) {
+            return response()->json([
+                                        'message' => 'Сначала нужно обработать видео через FFmpeg.',
+                                    ], 422);
+        }
+
+        DB::transaction(function () use ($good, $media) {
+            GoodMedia::query()
+                ->where('good_id', $good->id)
+                ->where('type', 'video')
+                ->update([
+                             'is_main_video' => false,
+                         ]);
+
+            $media->update([
+                               'is_main_video' => true,
+                               'is_published' => true,
+                           ]);
+        });
 
         $this->syncGoodJson($good);
 

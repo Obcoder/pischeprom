@@ -59,7 +59,10 @@ const videoItems = computed(() => {
 });
 
 const mainVideo = computed(() => {
-    return videoItems.value.find((item) => item.processing_status === "done") ||
+    return videoItems.value.find((item) => {
+            return item.is_main_video && item.processing_status === "done";
+        }) ||
+        videoItems.value.find((item) => item.processing_status === "done") ||
         videoItems.value[0] ||
         null;
 });
