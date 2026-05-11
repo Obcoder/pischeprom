@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useGoodMedia } from "@/Composables/useGoodMedia";
 
 const props = defineProps({
@@ -180,6 +180,13 @@ const filteredMedia = computed(() => {
     return items;
 });
 
+const hasActiveVideoProcessing = computed(() => {
+    return media.value.some((item) => {
+        return item.type === "video" &&
+            ["pending", "queued", "processing"].includes(item.processing_status);
+    });
+});
+
 // --------------------------------------------------
 // HELPERS
 // --------------------------------------------------
@@ -281,6 +288,31 @@ async function reload() {
     } catch (error) {
         handleError(error);
     }
+}
+
+function formatDuration(seconds) {
+    const value = Number(seconds || 0);
+
+    if (!value) {
+        return "—";
+    }
+
+    const minutes = Math.floor(value / 60);
+    const restSeconds = Math.round(value % 60);
+
+    if (minutes <= 0) {
+        return `${restSeconds} сек.`;
+    }
+
+    return `${minutes} мин. ${String(restSeconds).padStart(2, "0")} сек.`;
+}
+
+function mediaResolution(item) {
+    if (!item.width || !item.height) {
+        return "—";
+    }
+
+    return `${item.width}×${item.height}`;
 }
 
 // --------------------------------------------------
@@ -502,6 +534,8 @@ async function handleProcessVideo(item) {
     try {
         const saved = await processVideoMedia(item);
 
+        startAutoRefresh();
+
         emit("changed", saved);
     } catch (error) {
         handleError(error);
@@ -532,11 +566,45 @@ async function confirmDeleteMedia() {
     }
 }
 
+let refreshTimer = null;
+
+function startAutoRefresh() {
+    if (refreshTimer) {
+        return;
+    }
+
+    refreshTimer = window.setInterval(async () => {
+        if (!hasActiveVideoProcessing.value) {
+            stopAutoRefresh();
+            return;
+        }
+
+        await fetchMedia();
+    }, 5000);
+}
+
+function stopAutoRefresh() {
+    if (!refreshTimer) {
+        return;
+    }
+
+    window.clearInterval(refreshTimer);
+    refreshTimer = null;
+}
+
 // --------------------------------------------------
 // LIFECYCLE
 // --------------------------------------------------
-onMounted(() => {
-    reload();
+onMounted(async () => {
+    await reload();
+
+    if (hasActiveVideoProcessing.value) {
+        startAutoRefresh();
+    }
+});
+
+onBeforeUnmount(() => {
+    stopAutoRefresh();
 });
 </script>
 
@@ -818,6 +886,13 @@ onMounted(() => {
 
                                     <div class="text-caption text-medium-emphasis">
                                         {{ formatSize(item.size) }} · {{ formatDate(item.created_at) }}
+                                    </div>
+
+                                    <div
+                                        v-if="item.type === 'video'"
+                                        class="text-caption text-medium-emphasis"
+                                    >
+                                        {{ formatDuration(item.duration_seconds) }} · {{ mediaResolution(item) }}
                                     </div>
 
                                     <div
