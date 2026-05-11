@@ -960,14 +960,26 @@ onBeforeUnmount(() => {
 
                                             <v-btn
                                                 v-if="item.type === 'video'"
-                                                icon="mdi-video-star"
                                                 size="small"
                                                 variant="text"
                                                 color="deep-purple-darken-2"
                                                 :loading="!!settingMainVideo[item.id]"
                                                 :disabled="item.processing_status !== 'done' || !item.video_mp4_url"
                                                 @click="handleSetMainVideo(item)"
-                                            />
+                                            >
+                                                <span class="main-video-icon">
+                                                    <v-icon
+                                                        icon="mdi-video"
+                                                        size="22"
+                                                    />
+
+                                                    <v-icon
+                                                        icon="mdi-star"
+                                                        size="11"
+                                                        class="main-video-icon__star"
+                                                    />
+                                                </span>
+                                            </v-btn>
 
                                             <v-btn
                                                 icon="mdi-open-in-new"
@@ -1409,5 +1421,22 @@ onBeforeUnmount(() => {
     justify-content: center;
     background: rgba(var(--v-theme-surface-variant), 0.45);
     color: rgba(var(--v-theme-on-surface), 0.65);
+}
+
+.main-video-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.main-video-icon__star {
+    position: absolute;
+    right: -2px;
+    bottom: -1px;
+    color: #ffc107;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
 </style>
