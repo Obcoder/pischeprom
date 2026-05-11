@@ -15,7 +15,7 @@ const props = defineProps({
     },
 });
 
-const activeMediaId = ref(null);
+const activeImageId = ref(null);
 
 const seo = computed(() => {
     return props.good.seo || {};
@@ -49,19 +49,35 @@ const imageItems = computed(() => {
 });
 
 const videoItems = computed(() => {
-    return mediaItems.value.filter((item) => item.type === "video");
+    return mediaItems.value.filter((item) => {
+        return item.type === "video" && mediaVideoUrl(item);
+    });
 });
 
-const activeMedia = computed(() => {
-    if (!mediaItems.value.length) {
+const mainVideo = computed(() => {
+    return videoItems.value.find((item) => item.processing_status === "done") ||
+        videoItems.value[0] ||
+        null;
+});
+
+const otherVideoItems = computed(() => {
+    if (!mainVideo.value) {
+        return videoItems.value;
+    }
+
+    return videoItems.value.filter((item) => item.id !== mainVideo.value.id);
+});
+
+const activeImage = computed(() => {
+    if (!imageItems.value.length) {
         return null;
     }
 
-    if (!activeMediaId.value) {
-        return mediaItems.value[0];
+    if (!activeImageId.value) {
+        return imageItems.value[0];
     }
 
-    return mediaItems.value.find((item) => item.id === activeMediaId.value) || mediaItems.value[0];
+    return imageItems.value.find((item) => item.id === activeImageId.value) || imageItems.value[0];
 });
 
 const fallbackImage = computed(() => {
@@ -226,10 +242,17 @@ useHead({
 });
 
 watch(
-    mediaItems,
+    imageItems,
     (items) => {
-        if (!activeMediaId.value && items.length) {
-            activeMediaId.value = items[0].id;
+        if (!items.length) {
+            activeImageId.value = null;
+            return;
+        }
+
+        const exists = items.some((item) => item.id === activeImageId.value);
+
+        if (!activeImageId.value || !exists) {
+            activeImageId.value = items[0].id;
         }
     },
     {
@@ -278,38 +301,66 @@ function relatedImage(item) {
 <template>
     <v-container class="py-8">
         <v-row>
-            <!-- GALLERY -->
+            <!-- MEDIA / PHOTO -->
             <v-col cols="12" md="5">
+                <!-- MAIN VIDEO -->
+                <v-card
+                    v-if="mainVideo"
+                    rounded="xl"
+                    elevation="2"
+                    class="overflow-hidden mb-4 hero-video-card"
+                >
+                    <video
+                        class="product-hero-video"
+                        autoplay
+                        muted
+                        loop
+                        playsinline
+                        preload="metadata"
+                        disablepictureinpicture
+                        controlslist="nodownload noplaybackrate nofullscreen"
+                        :poster="mainVideo.poster_url || undefined"
+                        :aria-label="mainVideo.title || good.name"
+                    >
+                        <source
+                            :src="mediaVideoUrl(mainVideo)"
+                            type="video/mp4"
+                        >
+
+                        Ваш браузер не поддерживает video.
+                    </video>
+
+                    <div class="video-overlay">
+                        <v-chip
+                            size="small"
+                            color="black"
+                            variant="flat"
+                            class="text-white"
+                        >
+                            <v-icon
+                                icon="mdi-play-circle"
+                                size="16"
+                                class="mr-1"
+                            />
+
+                            Видео товара
+                        </v-chip>
+                    </div>
+                </v-card>
+
+                <!-- PHOTO GALLERY -->
                 <v-card
                     rounded="xl"
                     elevation="2"
                     class="overflow-hidden"
                 >
-                    <template v-if="activeMedia">
-                        <v-img
-                            v-if="activeMedia.type === 'image'"
-                            :src="activeMedia.url"
-                            :alt="activeMedia.alt || good.name"
-                            height="420"
-                            cover
-                        />
-
-                        <video
-                            v-else-if="activeMedia.type === 'video' && mediaVideoUrl(activeMedia)"
-                            class="product-video"
-                            controls
-                            playsinline
-                            preload="metadata"
-                            :poster="activeMedia.poster_url || undefined"
-                        >
-                            <source
-                                :src="mediaVideoUrl(activeMedia)"
-                                type="video/mp4"
-                            >
-
-                            Ваш браузер не поддерживает video.
-                        </video>
-                    </template>
+                    <v-img
+                        v-if="activeImage"
+                        :src="activeImage.url"
+                        :alt="activeImage.alt || good.name"
+                        height="420"
+                        cover
+                    />
 
                     <v-img
                         v-else-if="fallbackImage"
@@ -334,48 +385,27 @@ function relatedImage(item) {
                 </v-card>
 
                 <v-row
-                    v-if="mediaItems.length"
+                    v-if="imageItems.length"
                     class="mt-3"
                     dense
                 >
                     <v-col
-                        v-for="item in mediaItems"
+                        v-for="item in imageItems"
                         :key="item.id"
                         cols="3"
                     >
                         <v-card
                             class="media-thumb"
-                            :class="{ 'media-thumb--active': activeMedia?.id === item.id }"
+                            :class="{ 'media-thumb--active': activeImage?.id === item.id }"
                             rounded="lg"
                             variant="tonal"
-                            @click="activeMediaId = item.id"
+                            @click="activeImageId = item.id"
                         >
                             <v-img
-                                v-if="mediaPreview(item)"
                                 :src="mediaPreview(item)"
                                 height="84"
                                 cover
                             />
-
-                            <div
-                                v-else
-                                class="media-thumb-empty"
-                            >
-                                <v-icon
-                                    :icon="item.type === 'video' ? 'mdi-video' : 'mdi-file'"
-                                    size="28"
-                                />
-                            </div>
-
-                            <v-chip
-                                v-if="item.type === 'video'"
-                                size="x-small"
-                                color="deep-purple"
-                                variant="flat"
-                                class="media-thumb-chip"
-                            >
-                                video
-                            </v-chip>
                         </v-card>
                     </v-col>
                 </v-row>
@@ -481,19 +511,19 @@ function relatedImage(item) {
             </v-col>
         </v-row>
 
-        <!-- VIDEO BLOCK -->
+        <!-- OTHER VIDEOS -->
         <v-row
-            v-if="videoItems.length"
+            v-if="otherVideoItems.length"
             class="mt-8"
         >
             <v-col cols="12">
                 <h2 class="text-h5 font-weight-bold mb-4">
-                    Видео товара
+                    Другие видео товара
                 </h2>
             </v-col>
 
             <v-col
-                v-for="video in videoItems"
+                v-for="video in otherVideoItems"
                 :key="video.id"
                 cols="12"
                 md="6"
@@ -692,5 +722,26 @@ function relatedImage(item) {
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+.hero-video-card {
+    position: relative;
+    background: #000;
+}
+
+.product-hero-video {
+    width: 100%;
+    height: 420px;
+    display: block;
+    object-fit: cover;
+    background: #000;
+}
+
+.video-overlay {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 2;
+    pointer-events: none;
 }
 </style>
