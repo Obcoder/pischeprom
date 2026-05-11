@@ -3,6 +3,10 @@ import { computed, ref, watch } from "vue";
 import { Link } from "@inertiajs/vue3";
 import { useHead } from "@vueuse/head";
 import { route } from "ziggy-js";
+import LayoutDefault from "@/Layouts/LayoutDefault.vue";
+defineOptions({
+    layout: LayoutDefault,
+});
 
 const props = defineProps({
     good: {
@@ -99,10 +103,13 @@ const publicPrices = computed(() => {
         });
 });
 
-const productNames = computed(() => {
+const productItems = computed(() => {
     return (props.good.products || [])
-        .map((product) => product.rus || product.name || product.title)
-        .filter(Boolean);
+        .map((product) => ({
+            id: product.id,
+            title: product.rus || product.name || product.title || product.eng || `Product #${product.id}`,
+        }))
+        .filter((product) => product.id && product.title);
 });
 
 const pageTitle = computed(() => {
@@ -413,68 +420,83 @@ function relatedImage(item) {
 
             <!-- INFO -->
             <v-col cols="12" md="7">
-                <div class="mb-4 text-overline text-medium-emphasis">
-                    Товар
+                <div
+                    v-if="productItems.length"
+                    class="mb-4 product-links"
+                >
+                    <Link
+                        v-for="product in productItems"
+                        :key="product.id"
+                        :href="route('shop.products.show', product.id)"
+                        class="text-decoration-none d-inline-block mr-2 mb-2"
+                    >
+                        <v-chip
+                            size="small"
+                            class="product-link-chip"
+                        >
+                            <v-icon
+                                icon="mdi-leaf"
+                                size="15"
+                                class="mr-1"
+                            />
+
+                            {{ product.title }}
+                        </v-chip>
+                    </Link>
                 </div>
 
                 <h1 class="text-h3 font-weight-bold mb-4">
                     {{ pageH1 }}
                 </h1>
 
-                <div
-                    v-if="productNames.length"
-                    class="mb-4"
-                >
-                    <v-chip
-                        v-for="name in productNames"
-                        :key="name"
-                        size="small"
-                        class="mr-2 mb-2"
-                        color="teal"
-                        variant="tonal"
-                    >
-                        {{ name }}
-                    </v-chip>
-                </div>
-
-                <v-card
+                <section
                     v-if="publicPrices.length"
-                    variant="tonal"
-                    class="mb-5"
+                    class="price-panel mb-5"
                 >
-                    <v-card-title>
-                        Цены
-                    </v-card-title>
+                    <div class="price-panel__header">
+                        <div>
+                            <div class="price-panel__eyebrow">
+                                Актуальные цены
+                            </div>
 
-                    <v-card-text>
-                        <v-row dense>
-                            <v-col
-                                v-for="price in publicPrices"
-                                :key="price.id"
-                                cols="12"
-                                sm="6"
-                            >
-                                <v-card
-                                    variant="flat"
-                                    class="pa-3 price-card"
-                                >
-                                    <div class="text-caption text-medium-emphasis">
-                                        {{ price.price_type?.name || "Цена" }}
-                                    </div>
+                            <h2 class="price-panel__title">
+                                Цены
+                            </h2>
+                        </div>
 
-                                    <div class="text-h6 font-weight-bold">
-                                        {{ formatMoney(price.price_gross) }}
-                                        {{ price.currency?.code || price.price_type?.currency?.code || "RUB" }}
-                                    </div>
+                        <v-icon
+                            icon="mdi-cash-multiple"
+                            size="34"
+                            class="price-panel__icon"
+                        />
+                    </div>
 
-                                    <div class="text-caption text-medium-emphasis">
-                                        с НДС / кг
-                                    </div>
-                                </v-card>
-                            </v-col>
-                        </v-row>
-                    </v-card-text>
-                </v-card>
+                    <v-row dense>
+                        <v-col
+                            v-for="price in publicPrices"
+                            :key="price.id"
+                            cols="12"
+                            sm="6"
+                        >
+                            <div class="price-tile">
+                                <div class="price-tile__name">
+                                    {{ price.price_type?.name || "Цена" }}
+                                </div>
+
+                                <div class="price-tile__value">
+                                    {{ formatMoney(price.price_gross) }}
+                                    <span>
+                        {{ price.currency?.code || price.price_type?.currency?.code || "RUB" }}
+                    </span>
+                                </div>
+
+                                <div class="price-tile__note">
+                                    с НДС / кг
+                                </div>
+                            </div>
+                        </v-col>
+                    </v-row>
+                </section>
 
                 <div
                     v-if="good.description"
@@ -743,5 +765,85 @@ function relatedImage(item) {
     bottom: 16px;
     z-index: 2;
     pointer-events: none;
+}
+
+.product-link-chip {
+    color: #5c0000;
+    background: #fff1df;
+    border: 1px solid rgba(128, 0, 0, 0.18);
+    font-weight: 700;
+}
+
+.product-link-chip:hover {
+    background: #ffe5c2;
+}
+
+.price-panel {
+    border: 1px solid rgba(128, 0, 0, 0.16);
+    border-radius: 24px;
+    padding: 20px;
+    background: linear-gradient(135deg, #ffffff 0%, #fff8f0 52%, #fff0dc 100%);
+    box-shadow: 0 12px 32px rgba(92, 0, 0, 0.08);
+}
+
+.price-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.price-panel__eyebrow {
+    color: #8a3b00;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.price-panel__title {
+    margin: 0;
+    color: #5c0000;
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
+.price-panel__icon {
+    color: #800000;
+    opacity: 0.85;
+}
+
+.price-tile {
+    height: 100%;
+    padding: 16px;
+    border: 1px solid rgba(128, 0, 0, 0.12);
+    border-radius: 18px;
+    background: #ffffff;
+}
+
+.price-tile__name {
+    margin-bottom: 6px;
+    color: #7a2500;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.price-tile__value {
+    color: #5c0000;
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.price-tile__value span {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.price-tile__note {
+    margin-top: 4px;
+    color: rgba(var(--v-theme-on-surface), 0.62);
+    font-size: 0.78rem;
 }
 </style>

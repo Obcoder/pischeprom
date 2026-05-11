@@ -34,6 +34,7 @@ use App\Http\Controllers\API\UriController;
 
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
+use App\Http\Controllers\Web\ProductController as WebProductController;
 use App\Http\Controllers\Web\PurchaseController;
 use App\Http\Controllers\Web\UnitController;
 
@@ -182,8 +183,15 @@ Route::get('/Ameise/region/{id}', function ($id){
     return Inertia::render('Ameise/Region', $data);
 })->name('Ameise.region');
 
-//     P U R C H A S E
 
+
+//     P R O D U C T S
+Route::get('/p/{product}', [WebProductController::class, 'show'])
+    ->name('shop.products.show');
+
+//  E N D  P R O D U C T S
+
+//     P U R C H A S E
 Route::prefix('purchases')
     ->name('web.purchases.')
     ->group(function () {
