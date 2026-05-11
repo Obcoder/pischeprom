@@ -10,6 +10,7 @@ import { useForm } from "@inertiajs/vue3";
 import GoodQuotationCalculator from "@/Components/GoodQuotationCalculator.vue";
 import GoodSeoTab from "@/Components/Goods/GoodSeoTab.vue";
 import GoodPriceCalculationsTab from "@/Components/Goods/GoodPriceCalculationsTab.vue";
+import GoodPriceTypesTab from "@/Components/Goods/GoodPriceTypesTab.vue";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -981,20 +982,7 @@ onMounted(() => {
 
                 <!-- PRICE TYPES -->
                 <v-window-item value="price-types">
-                    <v-card>
-                        <v-card-title>Виды цен</v-card-title>
-
-                        <v-card-text>
-                            <v-alert
-                                type="info"
-                                variant="tonal"
-                            >
-                                Backend для <strong>price-types</strong> уже подключён.
-                                На следующем этапе добавим отдельный компонент для управления видами цен:
-                                розничная, оптовая, дилерская, VIP и другие.
-                            </v-alert>
-                        </v-card-text>
-                    </v-card>
+                    <GoodPriceTypesTab :currencies="currencies" />
                 </v-window-item>
 
                 <!-- MEDIA -->
