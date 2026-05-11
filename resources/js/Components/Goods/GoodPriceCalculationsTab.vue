@@ -1,6 +1,8 @@
 <script setup>
-import { onMounted, ref } from 'vue'
 import { useGoodPriceCalculations } from '@/Composables/useGoodPriceCalculations'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { usePriceTypes } from '@/Composables/usePriceTypes'
+import { useGoodPriceTypeValues } from '@/Composables/useGoodPriceTypeValues'
 
 const props = defineProps({
     goodId: {
@@ -18,6 +20,31 @@ const {
     updateCalculation,
     deleteCalculation,
 } = useGoodPriceCalculations(props.goodId)
+
+const emit = defineEmits(['applied'])
+
+const {
+    priceTypes,
+    fetchPriceTypes,
+} = usePriceTypes()
+
+const {
+    storeValue,
+    saving: applying,
+} = useGoodPriceTypeValues(props.goodId)
+
+const dialogApply = ref(false)
+const applySource = ref(null)
+
+const applyForm = reactive({
+    price_type_id: null,
+    price_net: null,
+    price_gross: null,
+    vat_rate: 20,
+    is_manual: false,
+    is_published: false,
+    manual_comment: '',
+})
 
 const dialogEdit = ref(false)
 const edited = ref(null)
@@ -87,8 +114,54 @@ async function saveEdit() {
     dialogEdit.value = false
 }
 
+const selectedPriceType = computed(() => {
+    return priceTypes.value.find((item) => Number(item.id) === Number(applyForm.price_type_id)) || null
+})
+
+watch(
+    () => applyForm.price_type_id,
+    () => {
+        if (selectedPriceType.value) {
+            applyForm.is_published = !!selectedPriceType.value.is_public
+        }
+    }
+)
+
+function openApply(item) {
+    applySource.value = item
+
+    applyForm.price_type_id = null
+    applyForm.price_net = item.sale_net_per_kg ?? null
+    applyForm.price_gross = item.sale_gross_per_kg ?? null
+    applyForm.vat_rate = item.result?.input?.vatRate ?? item.input?.vatRate ?? 20
+    applyForm.is_manual = false
+    applyForm.is_published = false
+    applyForm.manual_comment = item.name || `Расчёт #${item.id}`
+
+    dialogApply.value = true
+}
+
+async function applyToPriceType() {
+    if (!applySource.value?.id || !applyForm.price_type_id) return
+
+    await storeValue({
+        calculation_id: applySource.value.id,
+        price_type_id: applyForm.price_type_id,
+        price_net: applyForm.price_net,
+        price_gross: applyForm.price_gross,
+        vat_rate: applyForm.vat_rate,
+        is_manual: applyForm.is_manual,
+        manual_comment: applyForm.manual_comment,
+        is_published: applyForm.is_published,
+    })
+
+    dialogApply.value = false
+    emit('applied')
+}
+
 onMounted(() => {
     fetchCalculations()
+    fetchPriceTypes()
 })
 </script>
 
@@ -184,6 +257,14 @@ onMounted(() => {
                     />
 
                     <v-btn
+                        icon="mdi-tag-plus"
+                        size="small"
+                        variant="text"
+                        color="deep-purple"
+                        @click="openApply(item)"
+                    />
+
+                    <v-btn
                         icon="mdi-delete"
                         size="small"
                         variant="text"
@@ -242,6 +323,119 @@ onMounted(() => {
                         Сохранить
                     </v-btn>
                 </v-card-actions>
+
+                <v-dialog
+                    v-model="dialogApply"
+                    width="640"
+                >
+                    <v-card>
+                        <v-card-title>Применить расчёт к виду цены</v-card-title>
+
+                        <v-card-text>
+                            <v-select
+                                v-model="applyForm.price_type_id"
+                                :items="priceTypes"
+                                item-title="name"
+                                item-value="id"
+                                label="Вид цены"
+                                variant="outlined"
+                                density="compact"
+                            >
+                                <template #item="{ props, item }">
+                                    <v-list-item
+                                        v-bind="props"
+                                        :title="item.raw.name"
+                                        :subtitle="item.raw.code"
+                                    />
+                                </template>
+                            </v-select>
+
+                            <v-row>
+                                <v-col cols="12" md="4">
+                                    <v-text-field
+                                        v-model="applyForm.price_gross"
+                                        label="Цена с НДС / кг"
+                                        type="number"
+                                        step="0.01"
+                                        variant="outlined"
+                                        density="compact"
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="4">
+                                    <v-text-field
+                                        v-model="applyForm.price_net"
+                                        label="Цена без НДС / кг"
+                                        type="number"
+                                        step="0.01"
+                                        variant="outlined"
+                                        density="compact"
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="4">
+                                    <v-text-field
+                                        v-model="applyForm.vat_rate"
+                                        label="НДС %"
+                                        type="number"
+                                        step="0.01"
+                                        variant="outlined"
+                                        density="compact"
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="6">
+                                    <v-switch
+                                        v-model="applyForm.is_manual"
+                                        label="Считать ручной ценой"
+                                        color="orange"
+                                        inset
+                                        hide-details
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" md="6">
+                                    <v-switch
+                                        v-model="applyForm.is_published"
+                                        label="Публиковать"
+                                        color="green"
+                                        inset
+                                        hide-details
+                                    />
+                                </v-col>
+
+                                <v-col cols="12">
+                                    <v-textarea
+                                        v-model="applyForm.manual_comment"
+                                        label="Комментарий"
+                                        rows="3"
+                                        variant="outlined"
+                                        density="compact"
+                                    />
+                                </v-col>
+                            </v-row>
+                        </v-card-text>
+
+                        <v-card-actions>
+                            <v-btn
+                                variant="text"
+                                @click="dialogApply = false"
+                            >
+                                Закрыть
+                            </v-btn>
+
+                            <v-btn
+                                color="deep-purple-darken-1"
+                                variant="tonal"
+                                :loading="applying"
+                                :disabled="!applyForm.price_type_id"
+                                @click="applyToPriceType"
+                            >
+                                Применить
+                            </v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
             </v-card>
         </v-dialog>
     </v-card>

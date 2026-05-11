@@ -11,6 +11,7 @@ import GoodQuotationCalculator from "@/Components/GoodQuotationCalculator.vue";
 import GoodSeoTab from "@/Components/Goods/GoodSeoTab.vue";
 import GoodPriceCalculationsTab from "@/Components/Goods/GoodPriceCalculationsTab.vue";
 import GoodPriceTypesTab from "@/Components/Goods/GoodPriceTypesTab.vue";
+import GoodPriceTypeValuesTab from "@/Components/Goods/GoodPriceTypeValuesTab.vue";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -620,6 +621,7 @@ onMounted(() => {
                     <v-tab value="calculator">Расчёт цены</v-tab>
                     <v-tab value="calculations">Сохранённые расчёты</v-tab>
                     <v-tab value="price-types">Виды цен</v-tab>
+                    <v-tab value="price-values">Цены товара</v-tab>
                     <v-tab value="media">Media</v-tab>
                     <v-tab value="seo">SEO</v-tab>
                     <v-tab value="sales">Продажи</v-tab>
@@ -977,12 +979,22 @@ onMounted(() => {
 
                 <!-- SAVED CALCULATIONS -->
                 <v-window-item value="calculations">
-                    <GoodPriceCalculationsTab :good-id="goodData.id" />
+                    <GoodPriceCalculationsTab
+                        :good-id="goodData.id"
+                        @applied="activeTab = 'price-values'"
+                    />
                 </v-window-item>
 
                 <!-- PRICE TYPES -->
                 <v-window-item value="price-types">
                     <GoodPriceTypesTab :currencies="currencies" />
+                </v-window-item>
+
+                <v-window-item value="price-values">
+                    <GoodPriceTypeValuesTab
+                        :good-id="goodData.id"
+                        :currencies="currencies"
+                    />
                 </v-window-item>
 
                 <!-- MEDIA -->
