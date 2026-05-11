@@ -227,14 +227,14 @@ function formatDate(value) {
 
 function mediaPreview(item) {
     if (item.type === "image") {
-        return item.thumb_url || item.url;
+        return item.thumb_url || item.url || null;
     }
 
     if (item.type === "video") {
-        return item.poster_url || item.thumb_url || "/default-image.jpg";
+        return item.poster_url || item.thumb_url || null;
     }
 
-    return "/default-image.jpg";
+    return null;
 }
 
 function mediaTypeIcon(item) {
@@ -728,6 +728,7 @@ onMounted(() => {
                             >
                                 <div class="media-preview">
                                     <v-img
+                                        v-if="mediaPreview(item)"
                                         :src="mediaPreview(item)"
                                         height="180"
                                         cover
@@ -738,6 +739,25 @@ onMounted(() => {
                                             </div>
                                         </template>
                                     </v-img>
+
+                                    <div
+                                        v-else
+                                        class="media-empty-preview"
+                                    >
+                                        <v-icon
+                                            :icon="mediaTypeIcon(item)"
+                                            size="56"
+                                            class="mb-2"
+                                        />
+
+                                        <div class="text-subtitle-2">
+                                            {{ item.type === "video" ? "Видео ожидает обработки" : "Нет preview" }}
+                                        </div>
+
+                                        <div class="text-caption text-medium-emphasis mt-1">
+                                            {{ item.processing_status || "pending" }}
+                                        </div>
+                                    </div>
 
                                     <div class="media-preview__badges">
                                         <v-chip
@@ -1245,5 +1265,15 @@ onMounted(() => {
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
+}
+
+.media-empty-preview {
+    height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--v-theme-surface-variant), 0.45);
+    color: rgba(var(--v-theme-on-surface), 0.65);
 }
 </style>
