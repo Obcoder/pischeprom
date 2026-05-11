@@ -22,6 +22,9 @@ use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\IndustryController;
 use App\Http\Controllers\API\GenusController;
+use App\Http\Controllers\API\GoodController;
+use App\Http\Controllers\API\GoodPriceCalculationController;
+use App\Http\Controllers\API\GoodSeoController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\LabelController;
 use App\Http\Controllers\API\MeasureController;
@@ -237,9 +240,6 @@ Route::apiResource('genera', GenusController::class);
  *  G O O D S
  * ______________________
  */
-use App\Http\Controllers\API\GoodController;
-use App\Http\Controllers\API\GoodPriceCalculationController;
-use App\Http\Controllers\API\GoodSeoController;
 Route::apiResource('goods', GoodController::class)->except(['show']);
 Route::prefix('goods/{good}')
     ->name('api.goods.')
