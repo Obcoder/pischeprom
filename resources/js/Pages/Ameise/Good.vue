@@ -12,6 +12,7 @@ import GoodSeoTab from "@/Components/Goods/GoodSeoTab.vue";
 import GoodPriceCalculationsTab from "@/Components/Goods/GoodPriceCalculationsTab.vue";
 import GoodPriceTypesTab from "@/Components/Goods/GoodPriceTypesTab.vue";
 import GoodPriceTypeValuesTab from "@/Components/Goods/GoodPriceTypeValuesTab.vue";
+import GoodMediaTab from "@/Components/Goods/GoodMediaTab.vue";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -999,59 +1000,11 @@ onMounted(() => {
 
                 <!-- MEDIA -->
                 <v-window-item value="media">
-                    <v-card>
-                        <v-card-title>Media</v-card-title>
-
-                        <v-card-text>
-                            <v-alert
-                                type="info"
-                                variant="tonal"
-                                class="mb-4"
-                            >
-                                Таблицы <strong>good_media</strong> и
-                                <strong>good_media_folders</strong> уже созданы.
-                                Следующим этапом подключим загрузку фото, видео, папки, архив,
-                                выбор ava и обработку видео через FFmpeg.
-                            </v-alert>
-
-                            <v-row v-if="(goodData.media || []).length">
-                                <v-col
-                                    v-for="media in goodData.media || []"
-                                    :key="media.id"
-                                    cols="12"
-                                    sm="6"
-                                    md="4"
-                                    lg="3"
-                                >
-                                    <v-card variant="tonal">
-                                        <v-img
-                                            v-if="media.type === 'image'"
-                                            :src="media.thumb_url || media.url"
-                                            height="160"
-                                            cover
-                                        />
-
-                                        <v-img
-                                            v-else-if="media.type === 'video'"
-                                            :src="media.poster_url || '/default-image.jpg'"
-                                            height="160"
-                                            cover
-                                        />
-
-                                        <v-card-text>
-                                            <div class="font-weight-medium text-truncate">
-                                                {{ media.title || media.file_name || media.original_name || `media #${media.id}` }}
-                                            </div>
-
-                                            <div class="text-caption text-medium-emphasis">
-                                                {{ media.type }} / {{ media.processing_status || "—" }}
-                                            </div>
-                                        </v-card-text>
-                                    </v-card>
-                                </v-col>
-                            </v-row>
-                        </v-card-text>
-                    </v-card>
+                    <GoodMediaTab
+                        :good="goodData"
+                        @changed="fetchGood"
+                        @ava-updated="fetchGood"
+                    />
                 </v-window-item>
 
                 <!-- SEO -->
