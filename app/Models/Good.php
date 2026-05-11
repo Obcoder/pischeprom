@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Good extends Model
 {
@@ -120,5 +121,59 @@ class Good extends Model
     public function vatRate(): BelongsTo
     {
         return $this->belongsTo(VatRate::class);
+    }
+
+    public function mediaFolders(): HasMany
+    {
+        return $this->hasMany(GoodMediaFolder::class);
+    }
+
+    public function media(): HasMany
+    {
+        return $this->hasMany(GoodMedia::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function publishedMedia(): HasMany
+    {
+        return $this->hasMany(GoodMedia::class)
+            ->where('is_published', true)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(GoodMedia::class)
+            ->where('type', 'image')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function videos(): HasMany
+    {
+        return $this->hasMany(GoodMedia::class)
+            ->where('type', 'video')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function seo(): HasOne
+    {
+        return $this->hasOne(GoodSeo::class);
+    }
+
+    public function priceFormulas(): HasMany
+    {
+        return $this->hasMany(GoodPriceFormula::class);
+    }
+
+    public function priceCalculations(): HasMany
+    {
+        return $this->hasMany(GoodPriceCalculation::class)->latest();
+    }
+
+    public function priceTypeValues(): HasMany
+    {
+        return $this->hasMany(GoodPriceTypeValue::class);
     }
 }

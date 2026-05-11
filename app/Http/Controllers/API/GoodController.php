@@ -121,20 +121,43 @@ class GoodController extends Controller
     public function show(string $id, $slug = null)
     {
         $good = Good::with([
+                               'products.category',
+
                                'prices.currency',
+
                                'quotations.unit',
                                'quotations.measure',
-                               'sales',
+
+                               'purchases.entity',
+
+                               'sales.entity',
+
                                'vatRate',
+
+                               'media.folder',
+                               'mediaFolders',
+
+                               'seo',
+
+                               'priceCalculations.currency',
+                               'priceCalculations.priceType',
+                               'priceCalculations.quotation.unit',
+                               'priceCalculations.purchase.entity',
+
+                               'priceTypeValues.priceType',
+                               'priceTypeValues.currency',
                            ])->findOrFail($id);
 
-        $expectedSlug = \Str::slug($good->name);
+        $expectedSlug = \Illuminate\Support\Str::slug($good->name);
 
         if ($slug && $slug !== $expectedSlug) {
-            return redirect()->route('goods.show', ['id' => $id, 'slug' => $expectedSlug], 301);
+            return redirect()->route('good.fetch', [
+                'id' => $id,
+                'slug' => $expectedSlug,
+            ], 301);
         }
 
-        return $good;
+        return response()->json($good);
     }
 
     public function update(Request $request, Good $good)

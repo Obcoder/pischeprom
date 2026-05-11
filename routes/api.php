@@ -21,7 +21,6 @@ use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\IndustryController;
 use App\Http\Controllers\API\GenusController;
-use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\LabelController;
 use App\Http\Controllers\API\MeasureController;
@@ -230,11 +229,48 @@ Route::apiResource('industries', IndustryController::class);
 // если нужно быстро получить units по industry:
 Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
 Route::apiResource('genera', GenusController::class);
+
+
+/*
+ * ----------------------
+ *  G O O D S
+ * ______________________
+ */
+use App\Http\Controllers\API\GoodController;
+use App\Http\Controllers\API\GoodPriceCalculationController;
+use App\Http\Controllers\API\GoodSeoController;
 Route::apiResource('goods', GoodController::class)->except(['show']);
+Route::prefix('goods/{good}')
+    ->name('api.goods.')
+    ->group(function () {
+        Route::get('/price-calculations', [GoodPriceCalculationController::class, 'index'])
+            ->name('price-calculations.index');
+
+        Route::post('/price-calculations', [GoodPriceCalculationController::class, 'store'])
+            ->name('price-calculations.store');
+
+        Route::patch('/price-calculations/{calculation}', [GoodPriceCalculationController::class, 'update'])
+            ->name('price-calculations.update');
+
+        Route::delete('/price-calculations/{calculation}', [GoodPriceCalculationController::class, 'destroy'])
+            ->name('price-calculations.destroy');
+
+        Route::get('/seo', [GoodSeoController::class, 'show'])
+            ->name('seo.show');
+
+        Route::put('/seo', [GoodSeoController::class, 'upsert'])
+            ->name('seo.upsert');
+
+        Route::patch('/seo', [GoodSeoController::class, 'upsert'])
+            ->name('seo.patch');
+    });
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
     ->where('id', '[0-9]+')->name('good.fetch');
 Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
     ->name('api.goods.publish');
+
+
+
 Route::apiResource('goodsales', GoodSaleController::class);
 Route::apiResource('labels', LabelController::class);
 Route::apiResource('measures', MeasureController::class);

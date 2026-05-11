@@ -19,7 +19,7 @@ class GoodController extends Controller
         $good->load([
                         'products:id,name,slug',
                         'prices',
-                        'vatRate:id,name,rate',
+                        'vatRate:id,title,rate',
                     ]);
 
         $relatedGoods = Good::query()

@@ -58,7 +58,7 @@ export function useGoods() {
     }
 
     async function showGood(id) {
-        const { data } = await axios.get(route('api.goods.show', id))
+        const { data } = await axios.get(route('good.fetch', id))
         return data
     }
 
@@ -119,7 +119,7 @@ export function useGoods() {
     }
 
     async function deleteGood(id) {
-        await axios.delete(route('api.goods.destroy', id))
+        await axios.delete(route('goods.destroy', id))
     }
 
     async function toggleGoodPublish(item) {

@@ -9,13 +9,17 @@ class Quotation extends Model
 {
     protected $casts = [
         'price' => 'decimal:2',
+        'denominator' => 'float',
     ];
+
     protected $fillable = [
         'good_id',
         'unit_id',
         'price',
         'measure_id',
+        'denominator',
     ];
+
     protected $with = [
         'good',
         'unit',
@@ -26,10 +30,12 @@ class Quotation extends Model
     {
         return $this->belongsTo(Good::class);
     }
+
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
     }
+
     public function measure(): BelongsTo
     {
         return $this->belongsTo(Measure::class);
