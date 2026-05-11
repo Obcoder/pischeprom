@@ -91,6 +91,12 @@ class Good extends Model
     {
         return $this->hasMany(Price::class)->latest();
     }
+
+    public function latestPrice(): HasOne
+    {
+        return $this->hasOne(Price::class)->latestOfMany();
+    }
+
     public function purchases(): BelongsToMany
     {
         return $this->belongsToMany(Purchase::class, 'good_purchase')
@@ -106,6 +112,7 @@ class Good extends Model
                         ])
             ->withTimestamps();
     }
+
     public function quotations(): HasMany
     {
         return $this->hasMany(Quotation::class)->latest();

@@ -10,6 +10,7 @@ import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
 import HomeCategoriesSection from '@/Components/Home/HomeCategoriesSection.vue'
 import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
+import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
 
 defineOptions({
     layout: LayoutDefault,
@@ -69,30 +70,26 @@ const props = defineProps({
 })
 
 const goods = ref([])
-const searchGoods = ref('')
+const goodsLoading = ref(false)
 const showGlycerin = ref(false)
 
 function indexGoods() {
+    goodsLoading.value = true
+
     axios.get(route('goods.published'))
         .then((response) => {
-            goods.value = response.data
+            goods.value = Array.isArray(response.data)
+                ? response.data
+                : response.data.data || []
         })
         .catch((error) => {
             console.error(error)
+            goods.value = []
+        })
+        .finally(() => {
+            goodsLoading.value = false
         })
 }
-
-const filteredGoods = computed(() => {
-    const search = searchGoods.value.trim().toLowerCase()
-
-    if (!search) {
-        return goods.value.slice(0, 8)
-    }
-
-    return goods.value
-        .filter((item) => item.name?.toLowerCase().includes(search))
-        .slice(0, 8)
-})
 
 const goodOfTheDayTitle = computed(() => {
     return props.goodOfTheDay?.good?.name || 'Товар дня скоро появится'
@@ -115,6 +112,79 @@ onMounted(() => {
 
 <template>
     <div class="welcome-page">
+        <section class="welcome-section welcome-section--soft welcome-section--top-search">
+            <v-container>
+                <div class="section-heading">
+                    <div>
+                        <div class="welcome-eyebrow">
+                            Быстрый поиск
+                        </div>
+
+                        <h2 class="section-title">
+                            Найти товар по сайту
+                        </h2>
+                    </div>
+                </div>
+
+                <v-row dense class="align-stretch">
+                    <v-col cols="12" lg="4">
+                        <HomeGoodsSearchCard
+                            :goods="goods"
+                            :loading="goodsLoading"
+                            :limit="24"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" lg="8">
+                        <v-row dense>
+                            <v-col cols="12">
+                                <v-card rounded="xl" elevation="2" overflow="hidden">
+                                    <v-img
+                                        src="https://storage.yandexcloud.net/pps/banners/%D0%9D%D1%83%D1%82-01%20(2025-08-10-g).png"
+                                        height="260"
+                                        cover
+                                    />
+                                </v-card>
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
+                                    <v-card-title class="text-h6 font-weight-bold">
+                                        Акция дня
+                                    </v-card-title>
+
+                                    <v-card-text class="text-body-1">
+                                        {{ goodOfTheDayTitle }}
+                                    </v-card-text>
+                                </v-card>
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
+                                    <v-card-title class="text-h6 font-weight-bold">
+                                        Основные категории
+                                    </v-card-title>
+
+                                    <v-card-text>
+                                        <div class="category-tags">
+                                            <Link
+                                                v-for="category in categories.slice(0, 6)"
+                                                :key="category.id"
+                                                :href="route('category.show', category.id)"
+                                                class="category-tag"
+                                            >
+                                                {{ category.name }}
+                                            </Link>
+                                        </div>
+                                    </v-card-text>
+                                </v-card>
+                            </v-col>
+                        </v-row>
+                    </v-col>
+                </v-row>
+            </v-container>
+        </section>
+
         <HomeHeroSection
             :stats="{
         productsCount,
@@ -205,119 +275,6 @@ onMounted(() => {
                                 </p>
                             </v-card-text>
                         </v-card>
-                    </v-col>
-                </v-row>
-            </v-container>
-        </section>
-
-        <section class="welcome-section welcome-section--soft">
-            <v-container>
-                <div class="section-heading">
-                    <div>
-                        <div class="welcome-eyebrow">Быстрый поиск</div>
-                        <h2 class="section-title">Найти товар по сайту</h2>
-                    </div>
-                </div>
-
-                <v-row dense class="align-stretch">
-                    <v-col cols="12" lg="4">
-                        <v-card rounded="xl" elevation="2" class="h-100">
-                            <v-card-text>
-                                <v-text-field
-                                    v-model="searchGoods"
-                                    variant="outlined"
-                                    density="comfortable"
-                                    label="Поиск по товарам"
-                                    placeholder="Например: лецитин, глицерин, какао-масло"
-                                    hide-details
-                                    clearable
-                                />
-                            </v-card-text>
-
-                            <v-divider />
-
-                            <v-card-title class="text-subtitle-1 font-weight-bold">
-                                Результаты
-                            </v-card-title>
-
-                            <v-card-subtitle>
-                                {{
-                                    searchGoods
-                                        ? 'Найденные позиции'
-                                        : 'Популярные позиции из каталога'
-                                }}
-                            </v-card-subtitle>
-
-                            <v-card-text>
-                                <v-list lines="one" density="compact">
-                                    <v-list-item
-                                        v-for="good in filteredGoods"
-                                        :key="good.id"
-                                    >
-                                        <template #title>
-                                            <span class="text-body-2">{{ good.name }}</span>
-                                        </template>
-                                    </v-list-item>
-                                </v-list>
-                            </v-card-text>
-
-                            <v-card-actions class="px-4 pb-4">
-                                <Link :href="route('goods')" class="w-100">
-                                    <v-btn
-                                        block
-                                        color="#800000"
-                                        rounded="xl"
-                                    >
-                                        Открыть весь каталог
-                                    </v-btn>
-                                </Link>
-                            </v-card-actions>
-                        </v-card>
-                    </v-col>
-
-                    <v-col cols="12" lg="8">
-                        <v-row dense>
-                            <v-col cols="12">
-                                <v-card rounded="xl" elevation="2" overflow="hidden">
-                                    <v-img
-                                        src="https://storage.yandexcloud.net/pps/banners/%D0%9D%D1%83%D1%82-01%20(2025-08-10-g).png"
-                                        height="260"
-                                        cover
-                                    />
-                                </v-card>
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
-                                    <v-card-title class="text-h6 font-weight-bold">
-                                        Акция дня
-                                    </v-card-title>
-                                    <v-card-text class="text-body-1">
-                                        {{ goodOfTheDayTitle }}
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
-                                    <v-card-title class="text-h6 font-weight-bold">
-                                        Основные категории
-                                    </v-card-title>
-                                    <v-card-text>
-                                        <div class="category-tags">
-                                            <Link
-                                                v-for="category in categories.slice(0, 6)"
-                                                :key="category.id"
-                                                :href="route('category.show', category.id)"
-                                                class="category-tag"
-                                            >
-                                                {{ category.name }}
-                                            </Link>
-                                        </div>
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-                        </v-row>
                     </v-col>
                 </v-row>
             </v-container>
@@ -475,6 +432,10 @@ onMounted(() => {
 <style scoped>
 .welcome-page {
     background: #f8fafc;
+}
+
+.welcome-section--top-search {
+    padding-top: 28px;
 }
 
 .welcome-section {

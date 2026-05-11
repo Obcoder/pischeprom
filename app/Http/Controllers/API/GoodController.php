@@ -77,8 +77,8 @@ class GoodController extends Controller
         return Good::query()
             ->with([
                        'vatRate',
-                       'seo',
-                       'publishedMedia',
+                       'products.category',
+                       'latestPrice.currency',
                    ])
             ->published(true)
             ->inRandomOrder()
