@@ -66,6 +66,8 @@ const dialogDeleteFolder = ref(false);
 const selectedMedia = ref(null);
 const selectedFolder = ref(null);
 
+const sortingMedia = ref({});
+
 // --------------------------------------------------
 // FORMS
 // --------------------------------------------------
@@ -179,7 +181,23 @@ const filteredMedia = computed(() => {
         });
     }
 
-    return items;
+    return items.sort((a, b) => {
+        const typeA = String(a.type || "");
+        const typeB = String(b.type || "");
+
+        if (typeA !== typeB) {
+            return typeA.localeCompare(typeB);
+        }
+
+        const orderA = Number(a.sort_order ?? 100);
+        const orderB = Number(b.sort_order ?? 100);
+
+        if (orderA !== orderB) {
+            return orderA - orderB;
+        }
+
+        return Number(a.id) - Number(b.id);
+    });
 });
 
 const hasActiveVideoProcessing = computed(() => {
@@ -315,6 +333,62 @@ function mediaResolution(item) {
     }
 
     return `${item.width}×${item.height}`;
+}
+
+function mediaPosition(item) {
+    return filteredMedia.value.findIndex((row) => row.id === item.id);
+}
+
+function canMoveMediaUp(item) {
+    return mediaPosition(item) > 0;
+}
+
+function canMoveMediaDown(item) {
+    const index = mediaPosition(item);
+
+    return index >= 0 && index < filteredMedia.value.length - 1;
+}
+
+async function moveMedia(item, direction) {
+    const items = filteredMedia.value;
+    const currentIndex = items.findIndex((row) => row.id === item.id);
+
+    if (currentIndex < 0) {
+        return;
+    }
+
+    const targetIndex = currentIndex + direction;
+    const targetItem = items[targetIndex];
+
+    if (!targetItem) {
+        return;
+    }
+
+    sortingMedia.value[item.id] = true;
+    sortingMedia.value[targetItem.id] = true;
+    errorMessage.value = "";
+
+    const currentOrder = Number(item.sort_order ?? ((currentIndex + 1) * 10));
+    const targetOrder = Number(targetItem.sort_order ?? ((targetIndex + 1) * 10));
+
+    try {
+        await updateMedia(item.id, {
+            sort_order: targetOrder,
+        });
+
+        await updateMedia(targetItem.id, {
+            sort_order: currentOrder,
+        });
+
+        await fetchMedia();
+
+        emit("changed");
+    } catch (error) {
+        handleError(error);
+    } finally {
+        sortingMedia.value[item.id] = false;
+        sortingMedia.value[targetItem.id] = false;
+    }
 }
 
 // --------------------------------------------------
@@ -937,6 +1011,24 @@ onBeforeUnmount(() => {
                                         />
 
                                         <div class="d-flex align-center">
+                                            <v-btn
+                                                icon="mdi-arrow-up"
+                                                size="small"
+                                                variant="text"
+                                                :disabled="!canMoveMediaUp(item)"
+                                                :loading="!!sortingMedia[item.id]"
+                                                @click="moveMedia(item, -1)"
+                                            />
+
+                                            <v-btn
+                                                icon="mdi-arrow-down"
+                                                size="small"
+                                                variant="text"
+                                                :disabled="!canMoveMediaDown(item)"
+                                                :loading="!!sortingMedia[item.id]"
+                                                @click="moveMedia(item, 1)"
+                                            />
+
                                             <v-btn
                                                 v-if="item.type === 'image'"
                                                 icon="mdi-star"
