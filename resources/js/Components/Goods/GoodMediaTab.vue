@@ -252,6 +252,16 @@ function mediaOpenUrl(item) {
 function handleError(error) {
     console.error(error);
 
+    const errors = error?.response?.data?.errors || null;
+
+    if (errors) {
+        errorMessage.value = Object.values(errors)
+            .flat()
+            .join("\n");
+
+        return;
+    }
+
     errorMessage.value =
         error?.response?.data?.message ||
         error?.message ||

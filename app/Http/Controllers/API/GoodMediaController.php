@@ -40,8 +40,8 @@ class GoodMediaController extends Controller
                                             'file' => [
                                                 'required',
                                                 'file',
-                                                'max:51200',
-                                                'mimes:jpg,jpeg,png,webp,mp4,mov,avi,mkv,webm',
+                                                'max:204800',
+                                                'mimetypes:image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                                             ],
                                             'title' => [
                                                 'nullable',
