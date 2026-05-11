@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\PriceTypeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AvitoController;
@@ -277,6 +278,7 @@ Route::apiResource('measures', MeasureController::class);
 Route::apiResource('messages', MessageController::class);
 Route::apiResource('notes', NoteController::class);
 Route::apiResource('plants', PlantController::class);
+Route::apiResource('price-types', PriceTypeController::class);
 Route::apiResource('products', ProductController::class);
 Route::apiResource('purchases', PurchaseController::class);
 Route::apiResource('quotations', QuotationController::class);

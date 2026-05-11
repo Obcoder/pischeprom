@@ -26,7 +26,7 @@ class GoodController extends Controller
         $allowedSorts = [
             'name',
             'is_published',
-            'created_at'
+            'created_at',
         ];
 
         if (!in_array($sortBy, $allowedSorts, true)) {
@@ -37,11 +37,14 @@ class GoodController extends Controller
             ->with([
                        'products.category',
                        'vatRate',
+                       'seo',
+                       'media',
                    ]);
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%")
                     ->orWhere('denominator', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%");
             });
@@ -72,7 +75,11 @@ class GoodController extends Controller
     public function indexPublished()
     {
         return Good::query()
-            ->with('vatRate')
+            ->with([
+                       'vatRate',
+                       'seo',
+                       'publishedMedia',
+                   ])
             ->published(true)
             ->inRandomOrder()
             ->get();
@@ -86,7 +93,9 @@ class GoodController extends Controller
                                             'description' => ['nullable', 'string'],
                                             'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
                                             'is_published' => ['nullable', 'boolean'],
+
                                             'ava_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+
                                             'products' => ['nullable', 'array'],
                                             'products.*' => ['integer', 'exists:products,id'],
                                         ]);
@@ -99,21 +108,23 @@ class GoodController extends Controller
                                  'is_published' => $validated['is_published'] ?? true,
                              ]);
 
-        if (!empty($validated['products'])) {
-            $good->products()->sync($validated['products']);
+        if (array_key_exists('products', $validated)) {
+            $good->products()->sync($validated['products'] ?? []);
         }
 
         if ($request->hasFile('ava_image')) {
             $this->storeAvatarFiles($good, $request->file('ava_image'));
         }
 
-        Storage::disk('yandex')->put(
-            "goods/{$good->id}/good.json",
-            $good->fresh()->load('vatRate')->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-        );
+        $this->syncGoodJson($good);
 
         return response()->json(
-            $good->fresh()->load('products', 'vatRate'),
+            $good->fresh([
+                             'products.category',
+                             'vatRate',
+                             'seo',
+                             'media',
+                         ]),
             201
         );
     }
@@ -139,20 +150,23 @@ class GoodController extends Controller
 
                                'seo',
 
+                               'priceFormulas.priceType',
+
                                'priceCalculations.currency',
                                'priceCalculations.priceType',
                                'priceCalculations.quotation.unit',
+                               'priceCalculations.quotation.measure',
                                'priceCalculations.purchase.entity',
 
                                'priceTypeValues.priceType',
                                'priceTypeValues.currency',
                            ])->findOrFail($id);
 
-        $expectedSlug = \Illuminate\Support\Str::slug($good->name);
+        $expectedSlug = Str::slug($good->name);
 
         if ($slug && $slug !== $expectedSlug) {
             return redirect()->route('good.fetch', [
-                'id' => $id,
+                'id' => $good->id,
                 'slug' => $expectedSlug,
             ], 301);
         }
@@ -168,14 +182,21 @@ class GoodController extends Controller
                                             'description' => ['nullable', 'string'],
                                             'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
                                             'is_published' => ['nullable', 'boolean'],
+
                                             'ava_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+
                                             'products' => ['nullable', 'array'],
                                             'products.*' => ['integer', 'exists:products,id'],
+
                                             'remove_ava' => ['nullable', 'boolean'],
                                         ]);
 
         $dataToUpdate = collect($validated)
-            ->except(['ava_image', 'products', 'remove_ava'])
+            ->except([
+                         'ava_image',
+                         'products',
+                         'remove_ava',
+                     ])
             ->toArray();
 
         $good->update($dataToUpdate);
@@ -186,6 +207,7 @@ class GoodController extends Controller
 
         if (!empty($validated['remove_ava'])) {
             $this->deleteAvatarFiles($good);
+
             $good->update([
                               'ava_image' => null,
                               'ava_thumb' => null,
@@ -197,19 +219,22 @@ class GoodController extends Controller
             $this->storeAvatarFiles($good, $request->file('ava_image'));
         }
 
-        Storage::disk('yandex')->put(
-            "goods/{$good->id}/good.json",
-            $good->fresh()->load('vatRate')->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-        );
+        $this->syncGoodJson($good);
 
         return response()->json(
-            $good->fresh()->load('products', 'vatRate')
+            $good->fresh([
+                             'products.category',
+                             'vatRate',
+                             'seo',
+                             'media',
+                         ])
         );
     }
 
     public function destroy(Good $good)
     {
         Storage::disk('yandex')->deleteDirectory("goods/{$good->id}");
+
         $good->delete();
 
         return response()->json(null, 204);
@@ -225,6 +250,8 @@ class GoodController extends Controller
                           'is_published' => $validated['is_published'],
                       ]);
 
+        $this->syncGoodJson($good);
+
         return response()->json([
                                     'id' => $good->id,
                                     'is_published' => $good->is_published,
@@ -237,7 +264,11 @@ class GoodController extends Controller
             VatRate::query()
                 ->orderBy('rate')
                 ->orderBy('title')
-                ->get(['id', 'title', 'rate'])
+                ->get([
+                          'id',
+                          'title',
+                          'rate',
+                      ])
         );
     }
 
@@ -259,6 +290,7 @@ class GoodController extends Controller
 
         $thumb = clone $image;
         $thumb->cover(160, 160);
+
         $encoded = $thumb->encode(new JpegEncoder(78));
 
         $disk->put($thumbPath, (string) $encoded, [
@@ -288,5 +320,20 @@ class GoodController extends Controller
                 $disk->delete($path);
             }
         }
+    }
+
+    private function syncGoodJson(Good $good): void
+    {
+        Storage::disk('yandex')->put(
+            "goods/{$good->id}/good.json",
+            $good->fresh([
+                             'products.category',
+                             'vatRate',
+                             'seo',
+                             'publishedMedia',
+                             'priceTypeValues.priceType',
+                             'priceTypeValues.currency',
+                         ])->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        );
     }
 }
