@@ -149,7 +149,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="app-header__nav">
-                        <Link :href="route('goods.published')" class="app-header__catalog-link">
+                        <Link :href="route('public.goods.index')" class="app-header__catalog-link">
                             Все товары
                         </Link>
 

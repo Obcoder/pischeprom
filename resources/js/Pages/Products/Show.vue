@@ -76,7 +76,7 @@ function goodImage(item) {
                 md="3"
             >
                 <Link
-                    :href="route('goods.show', good.slug)"
+                    :href="route('public.goods.show', { good: good.slug })"
                     class="text-decoration-none"
                 >
                     <v-card

@@ -419,7 +419,7 @@ onMounted(() => {
                             </v-card-text>
 
                             <v-card-actions class="px-4 pb-4">
-                                <Link :href="route('goods')" class="w-100">
+                                <Link :href="route('public.goods.index')" class="w-100">
                                     <v-btn block color="#800000" rounded="xl">
                                         Смотреть товары
                                     </v-btn>

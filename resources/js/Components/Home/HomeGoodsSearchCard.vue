@@ -254,7 +254,7 @@ function shortDescription(good) {
                         <Link
                             v-for="good in group.goods"
                             :key="`${group.id || 'no-product'}-${good.id}`"
-                            :href="route('goods.show', good.slug)"
+                            :href="route('public.goods.show', { good: good.slug })"
                             class="good-row"
                         >
                             <v-avatar
@@ -301,7 +301,7 @@ function shortDescription(good) {
 
         <v-card-actions class="px-4 pb-4">
             <Link
-                :href="route('goods')"
+                :href="route('public.goods.index')"
                 class="w-100"
             >
                 <v-btn

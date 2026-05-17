@@ -139,23 +139,48 @@ Route::get('/Ameise/Geography/', function (){
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
 
-//   G O O D S
+
+
+/*
+|--------------------------------------------------------------------------
+| G O O D S
+|--------------------------------------------------------------------------
+*/
 Route::get('/Ameise/Goods/', function (){
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');
+
 Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
     $data = [
         'good' => Good::with('prices')->findOrFail($id),
     ];
     return Inertia::render('Ameise/Good', $data);
 })->name('Ameise.good.show');
+
+
 Route::get('/goods/published', [GoodController::class, 'indexPublished'])
     ->name('goods.published');
 
-//      G O O D
+Route::post('/api/good/store', [GoodController::class, 'store'])
+    ->name('web.good.store');
+
+
+Route::get('/g', function () {
+    return Inertia::render('Goods');
+})->name('public.goods.index');
 
 Route::get('/g/{good:slug}', [WebGoodController::class, 'show'])
     ->name('public.goods.show');
+
+Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
+    return redirect()->route('public.goods.show', [
+        'good' => $good->slug,
+    ], 301);
+})->name('public.goods.redirect');
+
+//  E N D  G O O D
+
+
 
 //     G R O S S B U C H
 Route::get('/Ameise/grossbuch/', function (){
@@ -223,12 +248,6 @@ Route::get('/yandex-feed.xml', [SeoController::class, 'yandexFeed'])
 
 Route::get('/indexnow-key.txt', [SeoController::class, 'indexNowKey'])
     ->name('seo.indexnow-key');
-
-Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
-    return redirect()->route('public.goods.show', [
-        'good' => $good->slug,
-    ], 301);
-})->name('public.goods.redirect');
 
 //  E N D  S E O
 
@@ -329,9 +348,6 @@ Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, '
     ->name('genera.toggleAgriculturable');
 
 
-//    G O O D
-Route::post('/api/good/store', [GoodController::class, 'store'])
-    ->name('web.good.store');
 
 //    G O O D - S A L E
 Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])

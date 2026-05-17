@@ -82,7 +82,7 @@ const advantages = [
 function submitSearch() {
     const value = search.value?.trim() || ''
 
-    router.get(route('goods'), {
+    router.get(route('public.goods.index'), {
         search: value,
     }, {
         preserveState: true,
@@ -230,7 +230,7 @@ function applyQuickQuery(query) {
                             <Link
                                 v-for="item in collageItems"
                                 :key="item.id"
-                                :href="route('goods.show', item.slug)"
+                                :href="route('public.goods.show', { good: item.slug })"
                                 class="hero-v2__collage-item"
                                 :class="`hero-v2__collage-item--${item.layout}`"
                             >
