@@ -6,12 +6,12 @@ use Spatie\Sitemap\SitemapGenerator;
 use App\Jobs\SyncYandexMailboxJob;
 use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('sitemap:generate', function () {
-    SitemapGenerator::create('https://пищепром-сервер.рф')
-        ->writeToFile(public_path('sitemap.xml'));
-
-    $this->info('Sitemap generated successfully!');
-});
+//Artisan::command('sitemap:generate', function () {
+//    SitemapGenerator::create('https://пищепром-сервер.рф')
+//        ->writeToFile(public_path('sitemap.xml'));
+//
+//    $this->info('Sitemap generated successfully!');
+//});
 
 
 Artisan::command('inspire', function () {
