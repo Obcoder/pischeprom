@@ -165,10 +165,10 @@ Route::post('/api/good/store', [GoodController::class, 'store'])
     ->name('web.good.store');
 
 
-Route::get('/g', [GoodController::class, 'index'])
+Route::get('/g', [WebGoodController::class, 'index'])
     ->name('public.goods.index');
 
-Route::get('/g/{good}', [GoodController::class, 'show'])
+Route::get('/g/{good}', [WebGoodController::class, 'show'])
     ->name('public.goods.show');
 
 Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
