@@ -15,8 +15,10 @@ const {
     seo,
     loading,
     saving,
+    generating,
     fetchSeo,
     saveSeo,
+    generateStructuredData,
 } = useGoodSeo(goodId.value)
 
 const form = reactive({
@@ -47,6 +49,20 @@ const form = reactive({
     breadcrumbs_title: '',
 
     is_active: true,
+
+    include_in_sitemap: true,
+    include_in_yandex_feed: true,
+
+    yandex_direct_title_1: '',
+    yandex_direct_title_2: '',
+    yandex_direct_text: '',
+    utm_template: '',
+
+    availability_status: 'on_request',
+    min_order: '',
+    delivery_note: '',
+    payment_note: '',
+    faq_text: '',
 })
 
 function linesToArray(value) {
@@ -92,6 +108,20 @@ function fillForm(data) {
     form.breadcrumbs_title = data?.breadcrumbs_title || ''
 
     form.is_active = data?.is_active ?? true
+
+    form.include_in_sitemap = data?.include_in_sitemap ?? true
+    form.include_in_yandex_feed = data?.include_in_yandex_feed ?? true
+
+    form.yandex_direct_title_1 = data?.yandex_direct_title_1 || ''
+    form.yandex_direct_title_2 = data?.yandex_direct_title_2 || ''
+    form.yandex_direct_text = data?.yandex_direct_text || ''
+    form.utm_template = data?.utm_template || ''
+
+    form.availability_status = data?.availability_status || 'on_request'
+    form.min_order = data?.min_order || ''
+    form.delivery_note = data?.delivery_note || ''
+    form.payment_note = data?.payment_note || ''
+    form.faq_text = arrayToLines((data?.faq || []).map((item) => `${item.question} | ${item.answer}`))
 }
 
 function payload() {
@@ -133,7 +163,42 @@ function payload() {
         breadcrumbs_title: form.breadcrumbs_title,
 
         is_active: form.is_active,
+
+        include_in_sitemap: form.include_in_sitemap,
+        include_in_yandex_feed: form.include_in_yandex_feed,
+
+        yandex_direct_title_1: form.yandex_direct_title_1,
+        yandex_direct_title_2: form.yandex_direct_title_2,
+        yandex_direct_text: form.yandex_direct_text,
+        utm_template: form.utm_template,
+
+        availability_status: form.availability_status,
+        min_order: form.min_order,
+        delivery_note: form.delivery_note,
+        payment_note: form.payment_note,
+        faq: faqToArray(form.faq_text),
     }
+}
+
+async function generateJsonLd() {
+    const data = await generateStructuredData()
+    fillForm(data)
+}
+
+function faqToArray(value) {
+    return String(value || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+            const [question, answer] = line.split('|').map((item) => item?.trim())
+
+            return {
+                question: question || '',
+                answer: answer || '',
+            }
+        })
+        .filter((item) => item.question && item.answer)
 }
 
 async function submit() {
@@ -267,6 +332,155 @@ onMounted(async () => {
             </v-row>
 
             <v-divider class="my-4" />
+
+            <v-row>
+                <v-col cols="12">
+                    <v-alert type="success" variant="tonal">
+                        Публикация и продвижение
+                    </v-alert>
+                </v-col>
+
+                <v-col cols="12" md="4">
+                    <v-switch
+                        v-model="form.include_in_sitemap"
+                        label="Включить в sitemap"
+                        color="green"
+                        hide-details
+                    />
+                </v-col>
+
+                <v-col cols="12" md="4">
+                    <v-switch
+                        v-model="form.include_in_yandex_feed"
+                        label="Включить в Yandex Direct feed"
+                        color="green"
+                        hide-details
+                    />
+                </v-col>
+
+                <v-col cols="12" md="4">
+                    <v-select
+                        v-model="form.availability_status"
+                        :items="[
+                { title: 'В наличии', value: 'in_stock' },
+                { title: 'По запросу', value: 'on_request' },
+                { title: 'Под заказ', value: 'preorder' },
+                { title: 'Нет в наличии', value: 'out_of_stock' },
+            ]"
+                        item-title="title"
+                        item-value="value"
+                        label="Наличие"
+                        variant="outlined"
+                        density="compact"
+                    />
+                </v-col>
+
+                <v-col cols="12" md="4">
+                    <v-text-field
+                        v-model="form.min_order"
+                        label="Минимальная партия"
+                        variant="outlined"
+                        density="compact"
+                        placeholder="Например: от 1 паллеты / от 100 кг"
+                    />
+                </v-col>
+
+                <v-col cols="12" md="4">
+                    <v-textarea
+                        v-model="form.delivery_note"
+                        label="Доставка"
+                        variant="outlined"
+                        density="compact"
+                        rows="2"
+                    />
+                </v-col>
+
+                <v-col cols="12" md="4">
+                    <v-textarea
+                        v-model="form.payment_note"
+                        label="Оплата"
+                        variant="outlined"
+                        density="compact"
+                        rows="2"
+                    />
+                </v-col>
+            </v-row>
+
+            <v-divider class="my-4" />
+
+            <v-row>
+                <v-col cols="12">
+                    <v-alert type="info" variant="tonal">
+                        Данные для Яндекс.Директа
+                    </v-alert>
+                </v-col>
+
+                <v-col cols="12" md="6">
+                    <v-text-field
+                        v-model="form.yandex_direct_title_1"
+                        label="Заголовок Директ 1"
+                        variant="outlined"
+                        density="compact"
+                    />
+                </v-col>
+
+                <v-col cols="12" md="6">
+                    <v-text-field
+                        v-model="form.yandex_direct_title_2"
+                        label="Заголовок Директ 2"
+                        variant="outlined"
+                        density="compact"
+                    />
+                </v-col>
+
+                <v-col cols="12">
+                    <v-textarea
+                        v-model="form.yandex_direct_text"
+                        label="Текст объявления"
+                        variant="outlined"
+                        density="compact"
+                        rows="3"
+                    />
+                </v-col>
+
+                <v-col cols="12">
+                    <v-textarea
+                        v-model="form.utm_template"
+                        label="UTM-шаблон"
+                        variant="outlined"
+                        density="compact"
+                        rows="2"
+                        placeholder="utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}&utm_term={keyword}"
+                    />
+                </v-col>
+            </v-row>
+
+            <v-divider class="my-4" />
+
+            <v-row>
+                <v-col cols="12">
+                    <v-textarea
+                        v-model="form.faq_text"
+                        label="FAQ"
+                        variant="outlined"
+                        density="compact"
+                        rows="5"
+                        hint="Формат: вопрос | ответ. Каждый FAQ с новой строки."
+                        persistent-hint
+                    />
+                </v-col>
+
+                <v-col cols="12">
+                    <v-btn
+                        color="teal"
+                        variant="tonal"
+                        :loading="generating"
+                        @click="generateJsonLd"
+                    >
+                        Сгенерировать JSON-LD Product
+                    </v-btn>
+                </v-col>
+            </v-row>
 
             <v-row>
                 <v-col cols="12" md="6">

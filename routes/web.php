@@ -36,6 +36,7 @@ use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
 use App\Http\Controllers\Web\ProductController as WebProductController;
 use App\Http\Controllers\Web\PurchaseController;
+use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
 
 use App\Http\Controllers\EmailTrackingController;
@@ -204,6 +205,31 @@ Route::prefix('purchases')
 Route::get('/Ameise/Sales/', function (){
     return Inertia::render('Ameise/Sales');
 })->name('Ameise.sales');
+
+
+/*
+|--------------------------------------------------------------------------
+| S E O
+|--------------------------------------------------------------------------
+*/
+Route::get('/robots.txt', [SeoController::class, 'robots'])
+    ->name('seo.robots');
+
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])
+    ->name('seo.sitemap');
+
+Route::get('/yandex-feed.xml', [SeoController::class, 'yandexFeed'])
+    ->name('seo.yandex-feed');
+
+Route::get('/indexnow-key.txt', [SeoController::class, 'indexNowKey'])
+    ->name('seo.indexnow-key');
+
+Route::get('/товар/{good:slug}', [WebGoodController::class, 'show'])
+    ->name('public.goods.show');
+
+//  E N D  S E O
+
+
 
 //     U N I T S
 

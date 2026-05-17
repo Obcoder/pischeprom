@@ -201,6 +201,9 @@ Route::prefix('goods/{good}')
         Route::patch('/seo', [GoodSeoController::class, 'upsert'])
             ->name('seo.patch');
 
+        Route::post('/seo/generate-structured-data', [GoodSeoController::class, 'generateStructuredData'])
+            ->name('seo.generate-structured-data');
+
         Route::get('/price-type-values', [GoodPriceTypeValueController::class, 'index'])
             ->name('price-type-values.index');
 

@@ -6,6 +6,7 @@ export function useGoodSeo(goodId) {
     const seo = ref(null)
     const loading = ref(false)
     const saving = ref(false)
+    const generating = ref(false)
 
     async function fetchSeo() {
         loading.value = true
@@ -31,11 +32,25 @@ export function useGoodSeo(goodId) {
         }
     }
 
+    async function generateStructuredData() {
+        generating.value = true
+
+        try {
+            const { data } = await axios.post(route('api.goods.seo.generate-structured-data', goodId))
+            seo.value = data
+            return data
+        } finally {
+            generating.value = false
+        }
+    }
+
     return {
         seo,
         loading,
         saving,
+        generating,
         fetchSeo,
         saveSeo,
+        generateStructuredData,
     }
 }

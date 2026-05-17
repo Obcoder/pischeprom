@@ -75,4 +75,12 @@ return [
                                                    explode(',', env('YANDEX_IMAP_FOLDERS', 'INBOX,Sent'))
                                                ))),
     ],
+
+    'indexnow' => [
+        'key' => env('INDEXNOW_KEY'),
+    ],
+
+    'yandex_metrica' => [
+        'counter_id' => env('YANDEX_METRICA_COUNTER_ID'),
+    ],
 ];

@@ -16,6 +16,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "league/flysystem-aws-s3-v3": "^3.29",
+        "spatie/array-to-xml": "^3.4",
         "spatie/laravel-permission": "^6.24",
         "spatie/laravel-sitemap": "^7.3",
         "symfony/http-client": "^7.2",

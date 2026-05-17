@@ -1,9 +1,10 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
 import { Link } from "@inertiajs/vue3";
 import { useHead } from "@vueuse/head";
 import { route } from "ziggy-js";
 import LayoutDefault from "@/Layouts/LayoutDefault.vue";
+import { useYandexMetrica } from "@/Composables/useYandexMetrica";
 defineOptions({
     layout: LayoutDefault,
 });
@@ -18,6 +19,13 @@ const props = defineProps({
         default: () => [],
     },
 });
+
+const metricaCounterId = import.meta.env.VITE_YANDEX_METRICA_COUNTER_ID;
+
+const {
+    reachGoal,
+    ecommerceViewItem,
+} = useYandexMetrica(metricaCounterId);
 
 const activeImageId = ref(null);
 
@@ -306,6 +314,47 @@ function relatedImage(item) {
 
     return mediaImage?.thumb_url || mediaImage?.url || item.ava_thumb || item.ava_image || null;
 }
+
+function requestPrice() {
+    reachGoal("request_price_click", {
+        good_id: props.good.id,
+        good_name: props.good.name,
+    });
+
+    window.location.href = `mailto:office@180022.ru?subject=${encodeURIComponent("Запрос цены: " + props.good.name)}`;
+}
+
+function clickPhone() {
+    reachGoal("phone_click", {
+        good_id: props.good.id,
+        good_name: props.good.name,
+    });
+}
+
+function clickEmail() {
+    reachGoal("email_click", {
+        good_id: props.good.id,
+        good_name: props.good.name,
+    });
+}
+
+onMounted(() => {
+    reachGoal("view_good", {
+        good_id: props.good.id,
+        good_name: props.good.name,
+    });
+
+    ecommerceViewItem({
+        id: String(props.good.id),
+        name: props.good.name,
+        category: productItems.value[0]?.title || "Товар",
+        price: publicPrices.value[0]?.price_gross || 0,
+        currency:
+            publicPrices.value[0]?.currency?.code ||
+            publicPrices.value[0]?.price_type?.currency?.code ||
+            "RUB",
+    });
+});
 </script>
 
 <template>
@@ -524,6 +573,37 @@ function relatedImage(item) {
                     {{ seo.short_seo_text }}
                 </div>
 
+                <div class="d-flex flex-wrap ga-3 mb-4">
+                    <v-btn
+                        color="deep-purple-darken-1"
+                        size="large"
+                        rounded="xl"
+                        @click="requestPrice"
+                    >
+                        Запросить цену
+                    </v-btn>
+
+                    <v-btn
+                        variant="tonal"
+                        size="large"
+                        rounded="xl"
+                        href="tel:+79650160001"
+                        @click="clickPhone"
+                    >
+                        Позвонить
+                    </v-btn>
+
+                    <v-btn
+                        variant="tonal"
+                        size="large"
+                        rounded="xl"
+                        href="mailto:office@180022.ru"
+                        @click="clickEmail"
+                    >
+                        Написать на email
+                    </v-btn>
+                </div>
+
                 <v-alert
                     type="info"
                     variant="tonal"
@@ -631,7 +711,7 @@ function relatedImage(item) {
                 md="3"
             >
                 <Link
-                    :href="route('goods.show', item.slug)"
+                    :href="route('public.goods.show', item.slug)"
                     class="text-decoration-none"
                 >
                     <v-card
