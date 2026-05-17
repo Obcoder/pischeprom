@@ -193,30 +193,6 @@ onBeforeUnmount(() => {
                         </nav>
                     </div>
 
-                    <div class="app-header__search">
-                        <v-text-field
-                            v-model="search"
-                            placeholder="Поиск по товарам"
-                            variant="solo-filled"
-                            density="compact"
-                            hide-details
-                            clearable
-                            rounded="xl"
-                            flat
-                            bg-color="white"
-                            prepend-inner-icon="mdi-magnify"
-                            @keyup.enter="submitSearch"
-                        />
-
-                        <v-btn
-                            color="#800000"
-                            rounded="xl"
-                            class="app-header__search-btn"
-                            @click="submitSearch"
-                        >
-                            Найти
-                        </v-btn>
-                    </div>
                 </div>
             </v-container>
         </div>
@@ -400,19 +376,6 @@ onBeforeUnmount(() => {
     background: rgba(128, 0, 0, 0.08);
 }
 
-.app-header__search {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 8px;
-    align-items: center;
-}
-
-.app-header__search-btn {
-    height: 40px;
-    min-width: 98px;
-    font-weight: 700;
-}
-
 /* compact */
 .app-header--compact {
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
@@ -444,10 +407,6 @@ onBeforeUnmount(() => {
 @media (max-width: 1264px) {
     .app-header__main-inner {
         grid-template-columns: auto 1fr;
-    }
-
-    .app-header__search {
-        grid-column: 1 / -1;
     }
 }
 
@@ -494,14 +453,6 @@ onBeforeUnmount(() => {
 
     .app-header__user {
         flex-direction: column;
-    }
-
-    .app-header__search {
-        grid-template-columns: 1fr;
-    }
-
-    .app-header__search-btn {
-        width: 100%;
     }
 
     .app-header__brand {
