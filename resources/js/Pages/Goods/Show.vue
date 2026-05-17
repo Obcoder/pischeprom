@@ -711,7 +711,7 @@ onMounted(() => {
                 md="3"
             >
                 <Link
-                    :href="route('public.goods.show', item.slug)"
+                    :href="route('public.goods.show', { good: item.slug })"
                     class="text-decoration-none"
                 >
                     <v-card
