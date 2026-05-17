@@ -6,17 +6,41 @@ use App\Http\Controllers\Controller;
 use App\Models\Good;
 use App\Services\Seo\GoodSeoService;
 use App\Services\Seo\GoodStructuredDataService;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class GoodController extends Controller
 {
     public function show(
-        Good $good,
+        string $good,
         GoodSeoService $seoService,
         GoodStructuredDataService $structuredDataService,
-    ): Response {
+    ): Response|RedirectResponse {
+        $requestedSlug = trim($good);
+
+        $good = Good::query()
+            ->with('seo')
+            ->where(function ($query) use ($requestedSlug) {
+                $query
+                    ->where('slug', $requestedSlug)
+                    ->orWhereHas('seo', function ($seoQuery) use ($requestedSlug) {
+                        $seoQuery
+                            ->where('is_active', true)
+                            ->where('slug_override', $requestedSlug);
+                    });
+            })
+            ->firstOrFail();
+
         abort_unless($good->is_published, 404);
+
+        $canonicalSlug = $this->canonicalSlug($good);
+
+        if ($requestedSlug !== $canonicalSlug) {
+            return redirect()->route('public.goods.show', [
+                'good' => $canonicalSlug,
+            ], 301);
+        }
 
         $good->load([
                         'products.category',
@@ -87,5 +111,16 @@ class GoodController extends Controller
                 'metricaCounterId' => config('services.yandex_metrica.counter_id'),
             ],
         ]);
+    }
+
+    private function canonicalSlug(Good $good): string
+    {
+        $seo = $good->seo;
+
+        if ($seo?->is_active && filled($seo->slug_override)) {
+            return trim($seo->slug_override);
+        }
+
+        return $good->slug;
     }
 }
