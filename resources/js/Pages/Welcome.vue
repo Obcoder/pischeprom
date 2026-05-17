@@ -105,7 +105,6 @@ useHead({
         {
             name: "yandex-verification",
             content: "9eaa399be3fa6a51",
-
         },
     ],
 })

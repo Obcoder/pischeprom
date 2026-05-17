@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="yandex-verification" content="9eaa399be3fa6a51">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
