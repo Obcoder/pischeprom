@@ -155,7 +155,7 @@ Route::get('/goods/published', [GoodController::class, 'indexPublished'])
 //      G O O D
 
 Route::get('/g/{good:slug}', [WebGoodController::class, 'show'])
-    ->name('goods.show');
+    ->name('public.goods.show');
 
 //     G R O S S B U C H
 Route::get('/Ameise/grossbuch/', function (){
@@ -224,8 +224,11 @@ Route::get('/yandex-feed.xml', [SeoController::class, 'yandexFeed'])
 Route::get('/indexnow-key.txt', [SeoController::class, 'indexNowKey'])
     ->name('seo.indexnow-key');
 
-Route::get('/товар/{good:slug}', [WebGoodController::class, 'show'])
-    ->name('public.goods.show');
+Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
+    return redirect()->route('public.goods.show', [
+        'good' => $good->slug,
+    ], 301);
+})->name('public.goods.redirect');
 
 //  E N D  S E O
 

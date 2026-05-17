@@ -119,7 +119,7 @@ class GoodSeoController extends Controller
                                            ]);
 
         $seo->update([
-                         'structured_data' => $structuredDataService->make($good),
+                         'structured_data' => $structuredDataService->make($good, true),
                          'last_generated_at' => now(),
                      ]);
 

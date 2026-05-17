@@ -10,16 +10,29 @@ class GoodStructuredDataService
         private readonly GoodSeoService $seo,
     ) {}
 
-    public function make(Good $good): array
+    public function make(Good $good, bool $forceGenerate = false): array
     {
-        if (is_array($good->seo?->structured_data) && count($good->seo->structured_data)) {
-            return $good->seo->structured_data;
+        if (
+            !$forceGenerate
+            && is_array($good->seo?->structured_data)
+            && count($good->seo->structured_data)
+        ) {
+            return $this->normalizeStructuredData($good->seo->structured_data);
         }
 
         return [
             $this->product($good),
             $this->breadcrumbs($good),
         ];
+    }
+
+    private function normalizeStructuredData(array $structuredData): array
+    {
+        if (isset($structuredData['@type'])) {
+            return [$structuredData];
+        }
+
+        return $structuredData;
     }
 
     public function product(Good $good): array
