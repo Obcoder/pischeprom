@@ -2,6 +2,9 @@
 import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
+import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
+
+const { goodPublicUrl } = usePublicGoodUrl()
 
 const props = defineProps({
     stats: {
@@ -230,7 +233,8 @@ function applyQuickQuery(query) {
                             <Link
                                 v-for="item in collageItems"
                                 :key="item.id"
-                                :href="route('public.goods.show', { good: item.slug })"
+                                v-if="goodPublicUrl(item)"
+                                :href="goodPublicUrl(item)"
                                 class="hero-v2__collage-item"
                                 :class="`hero-v2__collage-item--${item.layout}`"
                             >

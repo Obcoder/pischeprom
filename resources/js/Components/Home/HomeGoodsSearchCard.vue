@@ -3,6 +3,9 @@ import { computed, ref } from "vue";
 import { Link } from "@inertiajs/vue3";
 import { route } from "ziggy-js";
 import { logo } from "@/Pages/Helpers/consts.js";
+import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
+
+const { goodPublicUrl } = usePublicGoodUrl()
 
 const props = defineProps({
     goods: {
@@ -254,7 +257,8 @@ function shortDescription(good) {
                         <Link
                             v-for="good in group.goods"
                             :key="`${group.id || 'no-product'}-${good.id}`"
-                            :href="route('public.goods.show', { good: good.slug })"
+                            v-if="goodPublicUrl(good)"
+                            :href="goodPublicUrl(good)"
                             class="good-row"
                         >
                             <v-avatar

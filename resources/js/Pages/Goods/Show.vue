@@ -5,6 +5,9 @@ import { route as ziggyRoute } from "ziggy-js";
 
 import LayoutDefault from "@/Layouts/LayoutDefault.vue";
 import { useYandexMetrica } from "@/Composables/useYandexMetrica";
+import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl';
+
+const { goodPublicUrl } = usePublicGoodUrl()
 
 defineOptions({
     layout: LayoutDefault,
@@ -801,7 +804,8 @@ onMounted(() => {
                 md="3"
             >
                 <Link
-                    :href="route('public.goods.show', { good: item.slug })"
+                    v-if="goodPublicUrl(item)"
+                    :href="goodPublicUrl(item)"
                     class="text-decoration-none"
                 >
                     <v-card
