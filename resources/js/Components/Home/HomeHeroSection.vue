@@ -233,7 +233,6 @@ function applyQuickQuery(query) {
                             <Link
                                 v-for="item in collageItems"
                                 :key="item.id"
-                                v-if="goodPublicUrl(item)"
                                 :href="goodPublicUrl(item)"
                                 class="hero-v2__collage-item"
                                 :class="`hero-v2__collage-item--${item.layout}`"

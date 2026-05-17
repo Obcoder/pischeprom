@@ -257,7 +257,6 @@ function shortDescription(good) {
                         <Link
                             v-for="good in group.goods"
                             :key="`${group.id || 'no-product'}-${good.id}`"
-                            v-if="goodPublicUrl(good)"
                             :href="goodPublicUrl(good)"
                             class="good-row"
                         >
