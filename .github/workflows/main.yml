@@ -57,6 +57,7 @@ jobs:
 
             sudo systemctl daemon-reload
             sudo systemctl restart pischeprom-mail-sync-worker
+            sudo systemctl restart pischeprom-ssr
 
             php artisan up
 
