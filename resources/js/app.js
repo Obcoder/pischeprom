@@ -12,7 +12,6 @@ import { createHead } from '@vueuse/head'
 
 // Vuetify
 import { createVuetify } from 'vuetify'
-import VuetifyInertiaLink from 'vuetify-inertia-link'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
@@ -53,7 +52,6 @@ createInertiaApp({
             .use(plugin)
             .use(ZiggyVue)
             .use(vuetify)
-            .use(VuetifyInertiaLink)
             .use(head)
             .mount(el)
     },

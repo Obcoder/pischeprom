@@ -1,8 +1,12 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Link, router, usePage } from '@inertiajs/vue3'
-import { route } from 'ziggy-js'
 import { logo } from '@/Pages/Helpers/consts.js'
+import { Link, router, usePage } from '@inertiajs/vue3'
+import { route as ziggyRoute } from 'ziggy-js'
+
+const route = (name, params = {}, absolute = true) => {
+    return ziggyRoute(name, params, absolute, page.props.ziggy)
+}
 
 const props = defineProps({
     categories: {

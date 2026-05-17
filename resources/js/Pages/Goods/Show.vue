@@ -1,10 +1,11 @@
 <script setup>
 import { computed, ref, watch, onMounted } from "vue";
-import { Link } from "@inertiajs/vue3";
-import { useHead } from "@vueuse/head";
-import { route } from "ziggy-js";
+import { Head, Link, usePage } from "@inertiajs/vue3";
+import { route as ziggyRoute } from "ziggy-js";
+
 import LayoutDefault from "@/Layouts/LayoutDefault.vue";
 import { useYandexMetrica } from "@/Composables/useYandexMetrica";
+
 defineOptions({
     layout: LayoutDefault,
 });
@@ -18,7 +19,17 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    seo: {
+        type: Object,
+        default: () => ({}),
+    },
 });
+
+const page = usePage();
+
+const route = (name, params = {}, absolute = true) => {
+    return ziggyRoute(name, params, absolute, page.props.ziggy);
+};
 
 const metricaCounterId = import.meta.env.VITE_YANDEX_METRICA_COUNTER_ID;
 
@@ -28,14 +39,6 @@ const {
 } = useYandexMetrica(metricaCounterId);
 
 const activeImageId = ref(null);
-
-const seo = computed(() => {
-    return props.good.seo || {};
-});
-
-const seoIsActive = computed(() => {
-    return seo.value?.is_active !== false;
-});
 
 const mediaItems = computed(() => {
     return (props.good.published_media || [])
@@ -123,63 +126,78 @@ const productItems = computed(() => {
         .filter((product) => product.id && product.title);
 });
 
-const pageTitle = computed(() => {
-    if (seoIsActive.value && seo.value.meta_title) {
-        return seo.value.meta_title;
-    }
+/*
+|--------------------------------------------------------------------------
+| SEO / Head / JSON-LD
+|--------------------------------------------------------------------------
+*/
 
-    return `${props.good.name} — ПИЩЕПРОМ-СЕРВЕР`;
+const pageSeo = computed(() => {
+    return props.seo || {};
+});
+
+const seo = computed(() => {
+    return props.good.seo || {};
+});
+
+const seoIsActive = computed(() => {
+    return seo.value?.is_active !== false;
+});
+
+const pageTitle = computed(() => {
+    return pageSeo.value.title
+        || (seoIsActive.value && seo.value.meta_title)
+        || `${props.good.name} — ПИЩЕПРОМ-СЕРВЕР`;
 });
 
 const pageDescription = computed(() => {
-    if (seoIsActive.value && seo.value.meta_description) {
-        return seo.value.meta_description;
-    }
-
-    return String(props.good.description || "").slice(0, 160);
+    return pageSeo.value.description
+        || (seoIsActive.value && seo.value.meta_description)
+        || String(props.good.description || "").slice(0, 160);
 });
 
 const pageH1 = computed(() => {
-    if (seoIsActive.value && seo.value.h1) {
-        return seo.value.h1;
-    }
-
-    return props.good.name;
+    return pageSeo.value.h1
+        || (seoIsActive.value && seo.value.h1)
+        || props.good.name;
 });
 
 const ogTitle = computed(() => {
-    return seoIsActive.value && seo.value.og_title
-        ? seo.value.og_title
-        : pageTitle.value;
+    return pageSeo.value.title
+        || (seoIsActive.value && seo.value.og_title)
+        || pageTitle.value;
 });
 
 const ogDescription = computed(() => {
-    return seoIsActive.value && seo.value.og_description
-        ? seo.value.og_description
-        : pageDescription.value;
+    return pageSeo.value.description
+        || (seoIsActive.value && seo.value.og_description)
+        || pageDescription.value;
 });
 
 const ogImage = computed(() => {
-    return seoIsActive.value && seo.value.og_image
-        ? seo.value.og_image
-        : fallbackImage.value;
+    return pageSeo.value.image
+        || (seoIsActive.value && seo.value.og_image)
+        || fallbackImage.value
+        || "";
 });
 
 const canonicalUrl = computed(() => {
-    if (seoIsActive.value && seo.value.canonical_url) {
-        return seo.value.canonical_url;
-    }
-
-    return typeof window !== "undefined" ? window.location.href : "";
+    return pageSeo.value.canonical
+        || (seoIsActive.value && seo.value.canonical_url)
+        || "";
 });
 
 const robots = computed(() => {
-    return seoIsActive.value && seo.value.robots
-        ? seo.value.robots
-        : "index,follow";
+    return pageSeo.value.robots
+        || (seoIsActive.value && seo.value.robots)
+        || "index,follow";
 });
 
 const structuredData = computed(() => {
+    if (pageSeo.value.jsonLd) {
+        return pageSeo.value.jsonLd;
+    }
+
     if (seoIsActive.value && seo.value.structured_data) {
         return seo.value.structured_data;
     }
@@ -197,67 +215,31 @@ const structuredData = computed(() => {
     };
 });
 
-useHead({
-    title: pageTitle,
-    meta: [
-        {
-            name: "description",
-            content: pageDescription,
-        },
-        {
-            name: "robots",
-            content: robots,
-        },
-        {
-            property: "og:title",
-            content: ogTitle,
-        },
-        {
-            property: "og:description",
-            content: ogDescription,
-        },
-        {
-            property: "og:type",
-            content: "product",
-        },
-        {
-            property: "og:image",
-            content: ogImage,
-        },
-        {
-            property: "og:url",
-            content: canonicalUrl,
-        },
-        {
-            name: "twitter:card",
-            content: "summary_large_image",
-        },
-        {
-            name: "twitter:title",
-            content: computed(() => seo.value.twitter_title || ogTitle.value),
-        },
-        {
-            name: "twitter:description",
-            content: computed(() => seo.value.twitter_description || ogDescription.value),
-        },
-        {
-            name: "twitter:image",
-            content: computed(() => seo.value.twitter_image || ogImage.value),
-        },
-    ],
-    link: [
-        {
-            rel: "canonical",
-            href: canonicalUrl,
-        },
-    ],
-    script: [
-        {
-            type: "application/ld+json",
-            children: computed(() => JSON.stringify(structuredData.value)),
-        },
-    ],
+const structuredDataForHead = computed(() => {
+    const data = structuredData.value;
+
+    if (!data) {
+        return [];
+    }
+
+    if (Array.isArray(data)) {
+        return data;
+    }
+
+    return [data];
 });
+
+const structuredDataJsonForHead = computed(() => {
+    return structuredDataForHead.value.map((item) => {
+        return JSON.stringify(item);
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Watchers
+|--------------------------------------------------------------------------
+*/
 
 watch(
     imageItems,
@@ -277,6 +259,12 @@ watch(
         immediate: true,
     }
 );
+
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
 
 function formatMoney(value) {
     if (value === null || value === undefined || value === "") {
@@ -315,6 +303,12 @@ function relatedImage(item) {
     return mediaImage?.thumb_url || mediaImage?.url || item.ava_thumb || item.ava_image || null;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Actions
+|--------------------------------------------------------------------------
+*/
+
 function requestPrice() {
     reachGoal("request_price_click", {
         good_id: props.good.id,
@@ -338,6 +332,12 @@ function clickEmail() {
     });
 }
 
+/*
+|--------------------------------------------------------------------------
+| Mounted
+|--------------------------------------------------------------------------
+*/
+
 onMounted(() => {
     reachGoal("view_good", {
         good_id: props.good.id,
@@ -358,6 +358,96 @@ onMounted(() => {
 </script>
 
 <template>
+    <Head>
+        <title>{{ pageTitle }}</title>
+
+        <meta
+            head-key="description"
+            name="description"
+            :content="pageDescription"
+        >
+
+        <meta
+            head-key="robots"
+            name="robots"
+            :content="robots"
+        >
+
+        <link
+            v-if="canonicalUrl"
+            head-key="canonical"
+            rel="canonical"
+            :href="canonicalUrl"
+        >
+
+        <meta
+            head-key="og:title"
+            property="og:title"
+            :content="ogTitle"
+        >
+
+        <meta
+            head-key="og:description"
+            property="og:description"
+            :content="ogDescription"
+        >
+
+        <meta
+            head-key="og:type"
+            property="og:type"
+            content="product"
+        >
+
+        <meta
+            v-if="canonicalUrl"
+            head-key="og:url"
+            property="og:url"
+            :content="canonicalUrl"
+        >
+
+        <meta
+            v-if="ogImage"
+            head-key="og:image"
+            property="og:image"
+            :content="ogImage"
+        >
+
+        <meta
+            head-key="twitter:card"
+            name="twitter:card"
+            content="summary_large_image"
+        >
+
+        <meta
+            head-key="twitter:title"
+            name="twitter:title"
+            :content="ogTitle"
+        >
+
+        <meta
+            head-key="twitter:description"
+            name="twitter:description"
+            :content="ogDescription"
+        >
+
+        <meta
+            v-if="ogImage"
+            head-key="twitter:image"
+            name="twitter:image"
+            :content="ogImage"
+        >
+
+        <component
+            :is="'script'"
+            v-for="(json, index) in structuredDataJsonForHead"
+            :key="`json-ld-${index}`"
+            :head-key="`json-ld-${index}`"
+            type="application/ld+json"
+        >
+            {{ json }}
+        </component>
+    </Head>
+
     <v-container class="py-8">
         <v-row>
             <!-- MEDIA / PHOTO -->
@@ -479,7 +569,7 @@ onMounted(() => {
                     <Link
                         v-for="product in productItems"
                         :key="product.id"
-                        :href="route('shop.products.show', product.id)"
+                        :href="route('shop.products.show', { product: product.id })"
                         class="text-decoration-none d-inline-block mr-2 mb-2"
                     >
                         <v-chip
@@ -538,8 +628,8 @@ onMounted(() => {
                                 <div class="price-tile__value">
                                     {{ formatMoney(price.price_gross) }}
                                     <span>
-                        {{ price.currency?.code || price.price_type?.currency?.code || "RUB" }}
-                    </span>
+                                        {{ price.currency?.code || price.price_type?.currency?.code || "RUB" }}
+                                    </span>
                                 </div>
 
                                 <div class="price-tile__note">
