@@ -40,7 +40,9 @@ const appName = import.meta.env?.['VITE_APP_NAME'] || 'ПИЩЕПРОМ-СЕРВ
 async function bootstrap() {
     try {
         await createInertiaApp({
-            title: (title) => title ? `${title}` : appName,
+            title: (title) => title
+                ? `${title} — ПИЩЕПРОМ-СЕРВЕР`
+                : 'ПИЩЕПРОМ-СЕРВЕР — маркетплейс пищевой промышленности',
 
             resolve: (name) => {
                 return resolvePageComponent(

@@ -95,16 +95,98 @@ const goodOfTheDayTitle = computed(() => {
     return props.goodOfTheDay?.good?.name || 'Товар дня скоро появится'
 })
 
+const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
+const title = 'Пищепром-Сервер — ингредиенты оптом для пищевой промышленности'
+const description = 'Каталог ингредиентов, сырья и товаров пищевой промышленности: замороженные овощи, ягоды, бакалея, продукция для производств, HoReCa и оптовых и розничных покупателей.'
+const canonicalUrl = route('home')
+
 useHead({
-    title: 'ПИЩЕПРОМ-СЕРВЕР — маркетплейс для пищевой промышленности: пищевое сырьё, ингредиенты и добавки',
+    title,
+
     meta: [
         {
             name: 'description',
-            content: 'Маркетплейс пищевого сырья, ингредиентов и добавок: категории, фото, характеристики, быстрый поиск и удобный каталог.',
+            content: description,
         },
         {
-            name: "yandex-verification",
-            content: "9eaa399be3fa6a51",
+            property: 'og:type',
+            content: 'website',
+        },
+        {
+            property: 'og:site_name',
+            content: siteName,
+        },
+        {
+            property: 'og:title',
+            content: title,
+        },
+        {
+            property: 'og:description',
+            content: description,
+        },
+        {
+            property: 'og:url',
+            content: canonicalUrl,
+        },
+        {
+            property: 'og:image',
+            content: 'https://ингредиенты-оптом.рф/images/og/pischeprom-home.jpg',
+        },
+        {
+            name: 'twitter:card',
+            content: 'summary_large_image',
+        },
+        {
+            name: 'twitter:title',
+            content: title,
+        },
+        {
+            name: 'twitter:description',
+            content: description,
+        },
+        {
+            name: 'twitter:image',
+            content: 'https://ингредиенты-оптом.рф/images/og/pischeprom-home.jpg',
+        },
+    ],
+
+    link: [
+        {
+            rel: 'canonical',
+            href: canonicalUrl,
+        },
+    ],
+
+    script: [
+        {
+            type: 'application/ld+json',
+            children: JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'WebSite',
+                name: 'Пищепром-сервер',
+                alternateName: [
+                    'Pischeprom-server',
+                    'Ингредиенты оптом',
+                ],
+                url: canonicalUrl,
+                description,
+                potentialAction: {
+                    '@type': 'SearchAction',
+                    target: `${canonicalUrl}?search={search_term_string}`,
+                    'query-input': 'required name=search_term_string',
+                },
+            }),
+        },
+        {
+            type: 'application/ld+json',
+            children: JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'Organization',
+                name: 'Пищепром-сервер',
+                url: canonicalUrl,
+                logo: 'https://ингредиенты-оптом.рф/images/logo/pischeprom-logo.png',
+                description,
+            }),
         },
     ],
 })
