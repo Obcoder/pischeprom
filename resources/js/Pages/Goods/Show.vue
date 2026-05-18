@@ -232,12 +232,6 @@ const structuredDataForHead = computed(() => {
     return [data];
 });
 
-const structuredDataJsonForHead = computed(() => {
-    return structuredDataForHead.value.map((item) => {
-        return JSON.stringify(item);
-    });
-});
-
 /*
 |--------------------------------------------------------------------------
 | Watchers
@@ -439,16 +433,6 @@ onMounted(() => {
             name="twitter:image"
             :content="ogImage"
         >
-
-        <component
-            :is="'script'"
-            v-for="(json, index) in structuredDataJsonForHead"
-            :key="`json-ld-${index}`"
-            :head-key="`json-ld-${index}`"
-            type="application/ld+json"
-        >
-            {{ json }}
-        </component>
     </Head>
 
     <v-container class="py-8">
