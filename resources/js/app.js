@@ -4,7 +4,7 @@ import '@mdi/font/css/materialdesignicons.css'
 import './bootstrap'
 import '../css/app.css'
 
-import { createApp, h } from 'vue'
+import { createSSRApp, h } from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from 'ziggy-js'
@@ -35,28 +35,52 @@ const vuetify = createVuetify({
     directives,
 })
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel'
+const appName = import.meta.env?.['VITE_APP_NAME'] || 'ПИЩЕПРОМ-СЕРВЕР'
 
-createInertiaApp({
-    title: (title) => `${title}`,
+async function bootstrap() {
+    try {
+        await createInertiaApp({
+            title: (title) => title ? `${title}` : appName,
 
-    resolve: (name) => resolvePageComponent(
-        `./Pages/${name}.vue`,
-        import.meta.glob('./Pages/**/*.vue')
-    ),
+            resolve: (name) => {
+                return resolvePageComponent(
+                    `./Pages/${name}.vue`,
+                    import.meta.glob('./Pages/**/*.vue')
+                )
+            },
 
-    setup({ el, App, props, plugin }) {
-        return createApp({
-            render: () => h(App, props),
+            setup({ el, App, props, plugin }) {
+                const app = createSSRApp({
+                    render: () => h(App, props),
+                })
+
+                app.use(plugin)
+                app.use(vuetify)
+                app.use(head)
+
+                const initialPage = props?.initialPage || {}
+                const initialPageProps = initialPage?.props || {}
+                const ziggyConfig = initialPageProps['ziggy']
+
+                if (ziggyConfig?.location) {
+                    app.use(ZiggyVue, {
+                        ...ziggyConfig,
+                        location: new URL(ziggyConfig.location),
+                    })
+                } else {
+                    app.use(ZiggyVue)
+                }
+
+                return app.mount(el)
+            },
+
+            progress: {
+                color: '#4B5563',
+            },
         })
-            .use(plugin)
-            .use(ZiggyVue)
-            .use(vuetify)
-            .use(head)
-            .mount(el)
-    },
+    } catch (error) {
+        console.error('Failed to initialize Inertia app:', error)
+    }
+}
 
-    progress: {
-        color: '#4B5563',
-    },
-})
+void bootstrap()

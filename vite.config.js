@@ -26,7 +26,9 @@ export default defineConfig({
             autoImport: true,
         }),
 
-        inertia(),
+        inertia({
+            ssr: false,
+        }),
     ],
 
     resolve: {
