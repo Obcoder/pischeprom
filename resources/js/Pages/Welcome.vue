@@ -236,18 +236,6 @@ onMounted(() => {
                             <v-col cols="12" md="6">
                                 <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
                                     <v-card-title class="text-h6 font-weight-bold">
-                                        Акция дня
-                                    </v-card-title>
-
-                                    <v-card-text class="text-body-1">
-                                        {{ goodOfTheDayTitle }}
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
-                                    <v-card-title class="text-h6 font-weight-bold">
                                         Основные категории
                                     </v-card-title>
 
@@ -265,6 +253,7 @@ onMounted(() => {
                                     </v-card-text>
                                 </v-card>
                             </v-col>
+
                         </v-row>
                     </v-col>
                 </v-row>
