@@ -1,9 +1,9 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
+import { route as ziggyRoute } from 'ziggy-js'
 import { computed, onMounted, ref } from 'vue'
 import { useHead } from '@vueuse/head'
 import axios from 'axios'
-import { route } from 'ziggy-js'
 
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
@@ -69,6 +69,12 @@ const props = defineProps({
     },
     heroGoods: Array,
 })
+
+const page = usePage()
+
+const route = (name, params = {}, absolute = true) => {
+    return ziggyRoute(name, params, absolute, page.props.ziggy)
+}
 
 const goods = ref([])
 const goodsLoading = ref(false)

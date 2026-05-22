@@ -22,6 +22,8 @@ const user = computed(() => page.props.auth?.user ?? null)
 const search = ref('')
 const isCompact = ref(false)
 
+const canRegister = computed(() => page.props.canRegister === true)
+
 const quickLinks = [
     { label: 'Рыба', href: route('category.show', 25) },
     { label: 'Овощи', href: route('category.show', 30) },
@@ -122,7 +124,7 @@ onBeforeUnmount(() => {
                                 </Link>
 
                                 <Link
-                                    v-if="page.props.canRegister"
+                                    v-if="canRegister"
                                     :href="route('register')"
                                 >
                                     <v-btn

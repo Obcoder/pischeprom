@@ -6,6 +6,7 @@ use App\Models\City;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
+use Illuminate\Support\Facades\Route as LaravelRoute;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -21,6 +22,9 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
 
+            'canLogin' => LaravelRoute::has('login'),
+            'canRegister' => LaravelRoute::has('register'),
+
             'auth' => [
                 'user' => fn () => $request->user()
                     ? [
@@ -35,6 +39,7 @@ class HandleInertiaRequests extends Middleware
                         'email_verified_at' => $request->user()->email_verified_at,
                         'phone_verified_at' => $request->user()->phone_verified_at,
                         'city_id' => $request->user()->city_id,
+                        'user' => fn () => $request->user(),
                     ]
                     : null,
             ],
