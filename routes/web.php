@@ -39,8 +39,8 @@ use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
 
-use App\Http\Controllers\Web\CustomerDashboardController;
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
+use App\Http\Controllers\Web\CustomerDashboardController;
 use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
 use App\Http\Controllers\Web\LocationController;
@@ -56,7 +56,6 @@ use App\Http\Controllers\Web\LegalPageController;
 Route::middleware([
                       'auth:sanctum',
                       config('jetstream.auth_session'),
-                      'verified',
                   ])->group(function () {
     Route::get('/dashboard', [CustomerDashboardController::class, 'index'])
         ->name('dashboard');
@@ -67,10 +66,6 @@ Route::get('/location/cities', [LocationController::class, 'cities'])
 
 Route::post('/location/city', [LocationController::class, 'updateCity'])
     ->name('location.city.update');
-
-Route::get('/organizations/lookup', [OrganizationLookupController::class, 'show'])
-    ->middleware('throttle:20,1')
-    ->name('organizations.lookup');
 
 Route::get('/privacy-policy', [LegalPageController::class, 'privacy'])
     ->name('legal.privacy');

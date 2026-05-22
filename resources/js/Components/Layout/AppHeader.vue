@@ -3,7 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import { route as ziggyRoute } from 'ziggy-js'
-import RegisterDialog from '@/Components/Auth/RegisterDialog.vue'
+import CitySelector from '@/Components/Location/CitySelector.vue';
+import RegisterDialog from '@/Components/Auth/RegisterDialog.vue';
 
 const page = usePage()
 
@@ -96,7 +97,17 @@ onBeforeUnmount(() => {
                         <template v-if="user">
                             <div class="app-header__user">
                                 <v-avatar color="white" size="30">
-                                    <span class="text-red-darken-4 font-weight-bold">
+                                    <v-img
+                                        v-if="user.profile_photo_url"
+                                        :src="user.profile_photo_url"
+                                        :alt="user.name || 'Пользователь'"
+                                        cover
+                                    />
+
+                                    <span
+                                        v-else
+                                        class="text-red-darken-4 font-weight-bold"
+                                    >
                                         {{ user.name?.[0] || 'U' }}
                                     </span>
                                 </v-avatar>
