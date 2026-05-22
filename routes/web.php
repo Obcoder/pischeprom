@@ -1,15 +1,17 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Mail\TestEmail;
+
 use App\Models\Category;
 use App\Models\City;
 use App\Models\Good;
 use App\Models\Product;
 use App\Models\Region;
 use App\Models\Unit;
-use App\Mail\TestEmail;
+
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 
 
 use App\Http\Controllers\EmailTrackingController;
@@ -41,6 +43,7 @@ use App\Http\Controllers\API\UriController;
 
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\CustomerDashboardController;
+use App\Http\Controllers\Web\CustomerProfileController;
 use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
 use App\Http\Controllers\Web\LocationController;
@@ -48,10 +51,21 @@ use App\Http\Controllers\Web\ProductController as WebProductController;
 use App\Http\Controllers\Web\PurchaseController;
 use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
+use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
+use App\Http\Controllers\Web\UnitRelationSyncController;
 
 
 use App\Http\Controllers\Web\LegalPageController;
 
+
+
+/*
+|--------------------------------------------------------------------------
+| И Н Т Е Р Н Е Т - М А Г А З И Н
+|--------------------------------------------------------------------------
+*/
+
+//     D A S H B O A R D
 
 Route::middleware([
                       'auth:sanctum',
@@ -59,7 +73,27 @@ Route::middleware([
                   ])->group(function () {
     Route::get('/dashboard', [CustomerDashboardController::class, 'index'])
         ->name('dashboard');
+
+    Route::get('/dashboard/profile', [CustomerProfileController::class, 'edit'])
+        ->name('customer.profile.edit');
+
+    Route::post('/dashboard/profile', [CustomerProfileController::class, 'update'])
+        ->name('customer.profile.update');
 });
+
+//  E N D  D A S H B O A R D
+
+Route::get('/g', [WebGoodController::class, 'index'])
+    ->name('public.goods.index');
+
+Route::get('/g/{good}', [WebGoodController::class, 'show'])
+    ->name('public.goods.show');
+
+Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
+    return redirect()->route('public.goods.show', [
+        'good' => $good->slug,
+    ], 301);
+})->name('public.goods.redirect');
 
 Route::get('/location/cities', [LocationController::class, 'cities'])
     ->name('location.cities');
@@ -202,19 +236,6 @@ Route::get('/goods/published', [GoodController::class, 'indexPublished'])
 Route::post('/api/good/store', [GoodController::class, 'store'])
     ->name('web.good.store');
 
-
-Route::get('/g', [WebGoodController::class, 'index'])
-    ->name('public.goods.index');
-
-Route::get('/g/{good}', [WebGoodController::class, 'show'])
-    ->name('public.goods.show');
-
-Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
-    return redirect()->route('public.goods.show', [
-        'good' => $good->slug,
-    ], 301);
-})->name('public.goods.redirect');
-
 //  E N D  G O O D
 
 
@@ -249,6 +270,7 @@ Route::get('/Ameise/region/{id}', function ($id){
 
 
 //     P R O D U C T S
+
 Route::get('/p/{product}', [WebProductController::class, 'show'])
     ->name('shop.products.show');
 
@@ -301,9 +323,6 @@ Route::get('/Ameise/unit/{unit}', [UnitController::class, 'show'])
 
 Route::post('/api/unit/store', [ApiUnitController::class, 'store'])
     ->name('web.unit.store');
-
-use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
-use App\Http\Controllers\Web\UnitRelationSyncController;
 
 Route::post('/web/unit-uri', [WebUnitUriController::class, 'store'])->name('web.unituri.store');
 Route::delete('/web/units/{unit}/uris/{uri}', [WebUnitUriController::class, 'destroy'])->name('web.unituri.destroy');
