@@ -1,6 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
-import { route as ziggyRoute } from 'ziggy-js'
+import { route } from "ziggy-js";
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 
 defineOptions({
@@ -13,31 +13,6 @@ const props = defineProps({
         required: true,
     },
 })
-
-const page = usePage()
-
-function route(name, params = {}, absolute = false) {
-    const ziggy = page.props.ziggy
-
-    if (ziggy?.routes?.[name]) {
-        return ziggyRoute(name, params, absolute, ziggy)
-    }
-
-    const fallback = {
-        dashboard: '/dashboard',
-        'customer.profile.edit': '/dashboard/profile',
-        'customer.profile.update': '/dashboard/profile',
-        'location.cities': '/location/cities',
-        'web.entities.lookup-by-inn': '/web/entities/lookup-by-inn',
-        'profile.show': '/user/profile',
-    }
-
-    return fallback[name] || '#'
-}
-
-function hasRoute(name) {
-    return Boolean(page.props.ziggy?.routes?.[name])
-}
 
 const accountTypeLabel = {
     individual: 'Физическое лицо',
