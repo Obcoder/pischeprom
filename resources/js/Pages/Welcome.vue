@@ -1,9 +1,9 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3'
-import { route as ziggyRoute } from 'ziggy-js'
 import { computed, onMounted, ref } from 'vue'
 import { useHead } from '@vueuse/head'
 import axios from 'axios'
+import { route as ziggyRoute } from 'ziggy-js'
 
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
@@ -20,17 +20,19 @@ defineOptions({
 const props = defineProps({
     canLogin: {
         type: Boolean,
+        default: false,
     },
     canRegister: {
         type: Boolean,
+        default: false,
     },
     laravelVersion: {
         type: String,
-        required: true,
+        default: '',
     },
     phpVersion: {
         type: String,
-        required: true,
+        default: '',
     },
     goodOfTheDay: {
         type: Object,
@@ -67,18 +69,120 @@ const props = defineProps({
             goodsCount: 0,
         }),
     },
-    heroGoods: Array,
+    heroGoods: {
+        type: Array,
+        default: () => [],
+    },
 })
 
 const page = usePage()
 
-const route = (name, params = {}, absolute = true) => {
-    return ziggyRoute(name, params, absolute, page.props.ziggy)
+const SITE_BASE_URL = 'https://ингредиенты-оптом.рф'
+
+function absoluteUrl(path) {
+    if (!path) {
+        return SITE_BASE_URL
+    }
+
+    if (String(path).startsWith('http://') || String(path).startsWith('https://')) {
+        return path
+    }
+
+    return `${SITE_BASE_URL}${String(path).startsWith('/') ? path : `/${path}`}`
+}
+
+function firstParam(params) {
+    if (params === null || params === undefined) {
+        return ''
+    }
+
+    if (typeof params === 'string' || typeof params === 'number') {
+        return params
+    }
+
+    if (typeof params === 'object') {
+        return params.id ?? params.category ?? params.good ?? ''
+    }
+
+    return ''
+}
+
+function fallbackRoute(name, params = {}, absolute = false) {
+    let path = '#'
+
+    switch (name) {
+        case 'home':
+            path = '/'
+            break
+
+        case 'goods.published':
+            path = '/goods/published'
+            break
+
+        case 'public.goods.index':
+            path = '/g'
+            break
+
+        case 'category.show':
+            path = `/категория/${encodeURIComponent(firstParam(params))}`
+            break
+
+        case 'web.sesame':
+            path = '/sesame'
+            break
+
+        case 'legal.privacy':
+            path = '/privacy-policy'
+            break
+
+        case 'legal.terms':
+            path = '/terms'
+            break
+
+        case 'legal.personal-data-consent':
+            path = '/personal-data-consent'
+            break
+
+        default:
+            path = '#'
+            break
+    }
+
+    return absolute ? absoluteUrl(path) : path
+}
+
+function hasRoute(name) {
+    return Boolean(page.props.ziggy?.routes?.[name])
+}
+
+function route(name, params = {}, absolute = false) {
+    const ziggy = page.props.ziggy
+
+    if (ziggy?.routes?.[name]) {
+        try {
+            return ziggyRoute(name, params, absolute, ziggy)
+        } catch (error) {
+            console.warn(`[Welcome.vue] Ziggy route fallback used for "${name}"`, error)
+        }
+    }
+
+    return fallbackRoute(name, params, absolute)
 }
 
 const goods = ref([])
 const goodsLoading = ref(false)
 const showGlycerin = ref(false)
+
+const heroStats = computed(() => ({
+    productsCount: props.productsCount ?? props.stats?.productsCount ?? 0,
+    goodsCount: props.goodsCount ?? props.stats?.goodsCount ?? 0,
+}))
+
+const topCategories = computed(() => {
+    return Array.isArray(props.categories)
+        ? props.categories.slice(0, 6)
+        : []
+})
 
 function indexGoods() {
     goodsLoading.value = true
@@ -90,7 +194,7 @@ function indexGoods() {
                 : response.data.data || []
         })
         .catch((error) => {
-            console.error(error)
+            console.error('[Welcome.vue] goods.published loading error:', error)
             goods.value = []
         })
         .finally(() => {
@@ -98,14 +202,10 @@ function indexGoods() {
         })
 }
 
-const goodOfTheDayTitle = computed(() => {
-    return props.goodOfTheDay?.good?.name || 'Товар дня скоро появится'
-})
-
 const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
 const title = 'Пищепром-Сервер — ингредиенты оптом для пищевой промышленности'
 const description = 'Каталог ингредиентов, сырья и товаров пищевой промышленности: замороженные овощи, ягоды, бакалея, продукция для производств, HoReCa и оптовых и розничных покупателей.'
-const canonicalUrl = route('home')
+const canonicalUrl = route('home', {}, true)
 
 useHead({
     title,
@@ -137,7 +237,7 @@ useHead({
         },
         {
             property: 'og:image',
-            content: 'https://ингредиенты-оптом.рф/images/og/pischeprom-home.jpg',
+            content: absoluteUrl('/images/og/pischeprom-home.jpg'),
         },
         {
             name: 'twitter:card',
@@ -153,7 +253,7 @@ useHead({
         },
         {
             name: 'twitter:image',
-            content: 'https://ингредиенты-оптом.рф/images/og/pischeprom-home.jpg',
+            content: absoluteUrl('/images/og/pischeprom-home.jpg'),
         },
     ],
 
@@ -191,20 +291,12 @@ useHead({
                 '@type': 'Organization',
                 name: 'Пищепром-сервер',
                 url: canonicalUrl,
-                logo: 'https://ингредиенты-оптом.рф/images/logo/pischeprom-logo.png',
+                logo: absoluteUrl('/images/logo/pischeprom-logo.png'),
                 description,
             }),
         },
     ],
 })
-
-const footerLinks = [
-    { label: 'Главная', href: route('home') },
-    { label: 'Каталог', href: route('public.goods.index') },
-    { label: 'Политика конфиденциальности', href: route('legal.privacy') },
-    { label: 'Пользовательское соглашение', href: route('legal.terms') },
-    { label: 'Согласие на обработку персональных данных', href: route('legal.personal-data-consent') },
-]
 
 onMounted(() => {
     indexGoods()
@@ -237,8 +329,10 @@ onMounted(() => {
                     </v-col>
 
                     <v-col cols="12" lg="8">
-                        <v-row dense>
-                            <HomeWelcomeBanner :categories="categories" />
+                        <v-row dense class="align-stretch">
+                            <v-col cols="12">
+                                <HomeWelcomeBanner :categories="categories" />
+                            </v-col>
 
                             <v-col cols="12" md="6">
                                 <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
@@ -247,9 +341,12 @@ onMounted(() => {
                                     </v-card-title>
 
                                     <v-card-text>
-                                        <div class="category-tags">
+                                        <div
+                                            v-if="topCategories.length"
+                                            class="category-tags"
+                                        >
                                             <Link
-                                                v-for="category in categories.slice(0, 6)"
+                                                v-for="category in topCategories"
                                                 :key="category.id"
                                                 :href="route('category.show', category.id)"
                                                 class="category-tag"
@@ -257,10 +354,33 @@ onMounted(() => {
                                                 {{ category.name }}
                                             </Link>
                                         </div>
+
+                                        <p
+                                            v-else
+                                            class="welcome-text mb-0"
+                                        >
+                                            Категории скоро появятся.
+                                        </p>
                                     </v-card-text>
                                 </v-card>
                             </v-col>
 
+                            <v-col cols="12" md="6">
+                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
+                                    <v-card-title class="text-h6 font-weight-bold">
+                                        Для кого
+                                    </v-card-title>
+
+                                    <v-card-text>
+                                        <ul class="mini-list">
+                                            <li>производства пищевой промышленности</li>
+                                            <li>переработчики и заготовители</li>
+                                            <li>HoReCa и общепит</li>
+                                            <li>оптовые и частные заказчики</li>
+                                        </ul>
+                                    </v-card-text>
+                                </v-card>
+                            </v-col>
                         </v-row>
                     </v-col>
                 </v-row>
@@ -268,10 +388,7 @@ onMounted(() => {
         </section>
 
         <HomeHeroSection
-            :stats="{
-        productsCount,
-        goodsCount
-    }"
+            :stats="heroStats"
             :hero-goods="heroGoods"
         />
 
@@ -300,19 +417,27 @@ onMounted(() => {
                                         </h2>
 
                                         <p class="welcome-text">
-                                            Подбор номенклатуры, каталог товарных позиций, быстрый
-                                            поиск и удобная навигация по категориям.
+                                            Подбор номенклатуры, каталог товарных позиций,
+                                            быстрый поиск и удобная навигация по категориям.
                                         </p>
 
                                         <div class="welcome-actions">
-                                            <Link :href="route('goods.published')">
+                                            <Link :href="route('public.goods.index')">
                                                 <v-btn color="#800000" rounded="xl" size="large">
                                                     Перейти в каталог
                                                 </v-btn>
                                             </Link>
 
-                                            <Link :href="route('web.sesame')">
-                                                <v-btn variant="outlined" color="#800000" rounded="xl" size="large">
+                                            <Link
+                                                v-if="hasRoute('web.sesame')"
+                                                :href="route('web.sesame')"
+                                            >
+                                                <v-btn
+                                                    variant="outlined"
+                                                    color="#800000"
+                                                    rounded="xl"
+                                                    size="large"
+                                                >
                                                     Кунжут
                                                 </v-btn>
                                             </Link>
@@ -341,13 +466,21 @@ onMounted(() => {
                             <v-card-text class="stats-card__body">
                                 <div class="stats-card__numbers">
                                     <div class="stats-chip">
-                                        <span class="stats-chip__value">{{ productsCount }}</span>
-                                        <span class="stats-chip__label">товарных наименований</span>
+                                        <span class="stats-chip__value">
+                                            {{ heroStats.productsCount }}
+                                        </span>
+                                        <span class="stats-chip__label">
+                                            товарных наименований
+                                        </span>
                                     </div>
 
                                     <div class="stats-chip">
-                                        <span class="stats-chip__value">{{ goodsCount }}</span>
-                                        <span class="stats-chip__label">товаров</span>
+                                        <span class="stats-chip__value">
+                                            {{ heroStats.goodsCount }}
+                                        </span>
+                                        <span class="stats-chip__label">
+                                            товаров
+                                        </span>
                                     </div>
                                 </div>
 
@@ -366,8 +499,13 @@ onMounted(() => {
             <v-container>
                 <div class="section-heading">
                     <div>
-                        <div class="welcome-eyebrow">Тематические материалы</div>
-                        <h2 class="section-title">Сырьё и ингредиенты</h2>
+                        <div class="welcome-eyebrow">
+                            Тематические материалы
+                        </div>
+
+                        <h2 class="section-title">
+                            Сырьё и ингредиенты
+                        </h2>
                     </div>
                 </div>
 
@@ -377,6 +515,7 @@ onMounted(() => {
                             <v-card-title class="text-h6 font-weight-bold">
                                 Классификация какао-масла
                             </v-card-title>
+
                             <v-card-text>
                                 <CocoaButterClassification />
                             </v-card-text>
@@ -390,23 +529,28 @@ onMounted(() => {
                                 src="https://storage.yandexcloud.net/cold-reserve/Goods/Cocoa/butter/buttercocoa-borrowed-01-330.jpg"
                                 cover
                             />
+
                             <v-card-title class="text-h6 font-weight-bold">
                                 Какао-масло
                             </v-card-title>
+
                             <v-card-text class="text-body-2">
                                 <p>
                                     <strong>Состав:</strong>
                                     диглицериды и триглицериды, смешанные с жирными кислотами.
                                 </p>
+
                                 <p>
                                     <strong>Температура плавления:</strong>
                                     32–35 °C. При 40 °C масло прозрачное.
                                 </p>
+
                                 <p>
                                     <strong>Применение:</strong>
                                     шоколад, кондитерские изделия, косметика,
                                     фармацевтика.
                                 </p>
+
                                 <p class="mb-0">
                                     Существует в нерафинированном и рафинированном виде,
                                     отличающихся степенью очистки, запахом и сроком хранения.
@@ -428,12 +572,15 @@ onMounted(() => {
                                 src="https://storage.yandexcloud.net/cold-reserve/Goods/Lecithin/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202024-08-21%20%D0%B2%2019.51.31.png"
                                 cover
                             />
+
                             <v-card-title class="text-h6 font-weight-bold">
                                 Лецитин
                             </v-card-title>
+
                             <v-card-subtitle>
                                 Подсолнечный
                             </v-card-subtitle>
+
                             <v-card-text class="text-body-2">
                                 Концентрат фосфатидный подсолнечный. Используется в
                                 шоколадном производстве, помогает стабилизировать массу
@@ -449,9 +596,11 @@ onMounted(() => {
                                 src="https://storage.yandexcloud.net/cold-reserve/Goods/Glycerol/glycerol-25.jpg"
                                 cover
                             />
+
                             <v-card-title class="text-h6 font-weight-bold">
                                 Глицерин
                             </v-card-title>
+
                             <v-card-subtitle>
                                 ПК-94, Д-98
                             </v-card-subtitle>
@@ -469,6 +618,7 @@ onMounted(() => {
                             <v-expand-transition>
                                 <div v-show="showGlycerin">
                                     <v-divider />
+
                                     <v-card-text class="text-body-2">
                                         Пищевая добавка Е422. Канистры 10 кг и 25 кг.
                                         Используется для фармакопейных целей, а также в
@@ -654,15 +804,20 @@ onMounted(() => {
     font-weight: 600;
 }
 
-.info-card {
-    background: linear-gradient(180deg, #fff 0%, #fffaf7 100%);
+.category-tag:hover {
+    background: rgba(128, 0, 0, 0.10);
 }
 
+.mini-list,
 .info-list {
     margin: 0;
     padding-left: 18px;
     color: #5f5753;
     line-height: 1.8;
+}
+
+.info-card {
+    background: linear-gradient(180deg, #fff 0%, #fffaf7 100%);
 }
 
 @media (max-width: 960px) {
@@ -686,6 +841,10 @@ onMounted(() => {
 @media (max-width: 600px) {
     .welcome-actions {
         flex-direction: column;
+    }
+
+    .welcome-actions :deep(.v-btn) {
+        width: 100%;
     }
 }
 </style>

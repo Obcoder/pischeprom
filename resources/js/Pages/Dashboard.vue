@@ -11,10 +11,6 @@ const props = defineProps({
         type: Object,
         required: true,
     },
-    organizations: {
-        type: Array,
-        default: () => [],
-    },
 })
 
 const accountTypeLabel = {
