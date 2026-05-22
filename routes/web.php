@@ -12,10 +12,13 @@ use App\Mail\TestEmail;
 use Illuminate\Support\Facades\Mail;
 
 
+use App\Http\Controllers\EmailTrackingController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
+
+
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\QuotationController;
@@ -35,19 +38,20 @@ use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
 
+
+use App\Http\Controllers\Web\CustomerDashboardController;
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
+use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
+use App\Http\Controllers\Web\LocationController;
 use App\Http\Controllers\Web\ProductController as WebProductController;
 use App\Http\Controllers\Web\PurchaseController;
 use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
 
-use App\Http\Controllers\EmailTrackingController;
 
-use App\Http\Controllers\Web\CustomerDashboardController;
-use App\Http\Controllers\Web\LocationController;
-use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\LegalPageController;
+
 
 Route::middleware([
                       'auth:sanctum',

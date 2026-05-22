@@ -3,10 +3,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import { route as ziggyRoute } from 'ziggy-js'
-import CitySelector from '@/Components/Location/CitySelector.vue'
+import RegisterDialog from '@/Components/Auth/RegisterDialog.vue'
+
+const page = usePage()
 
 const route = (name, params = {}, absolute = true) => {
     return ziggyRoute(name, params, absolute, page.props.ziggy)
+}
+
+const hasRoute = (name) => {
+    return Boolean(page.props.ziggy?.routes?.[name])
 }
 
 const props = defineProps({
@@ -16,13 +22,12 @@ const props = defineProps({
     },
 })
 
-const page = usePage()
 const user = computed(() => page.props.auth?.user ?? null)
+const canRegister = computed(() => hasRoute('register') || hasRoute('register.store'))
 
 const search = ref('')
 const isCompact = ref(false)
-
-const canRegister = computed(() => page.props.canRegister === true)
+const registerDialog = ref(false)
 
 const quickLinks = [
     { label: 'Рыба', href: route('category.show', 25) },
@@ -123,20 +128,18 @@ onBeforeUnmount(() => {
                                     </v-btn>
                                 </Link>
 
-                                <Link
+                                <v-btn
                                     v-if="canRegister"
-                                    :href="route('register')"
+                                    color="white"
+                                    variant="flat"
+                                    rounded="xl"
+                                    size="small"
+                                    class="app-header__register-btn"
+                                    @click="registerDialog = true"
                                 >
-                                    <v-btn
-                                        color="white"
-                                        variant="flat"
-                                        rounded="xl"
-                                        size="small"
-                                        class="app-header__register-btn"
-                                    >
-                                        Регистрация
-                                    </v-btn>
-                                </Link>
+                                    Регистрация
+                                </v-btn>
+
                             </div>
                         </template>
                     </div>
@@ -216,6 +219,8 @@ onBeforeUnmount(() => {
                 </div>
             </v-container>
         </div>
+
+        <RegisterDialog v-model="registerDialog" />
     </header>
 </template>
 
