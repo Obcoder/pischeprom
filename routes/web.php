@@ -10,6 +10,9 @@ use App\Models\Region;
 use App\Models\Unit;
 use App\Mail\TestEmail;
 use Illuminate\Support\Facades\Mail;
+
+
+use App\Http\Controllers\EntityController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
@@ -40,6 +43,39 @@ use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
 
 use App\Http\Controllers\EmailTrackingController;
+
+use App\Http\Controllers\Web\CustomerDashboardController;
+use App\Http\Controllers\Web\LocationController;
+use App\Http\Controllers\Web\EntityLookupController;
+use App\Http\Controllers\Web\LegalPageController;
+
+Route::middleware([
+                      'auth:sanctum',
+                      config('jetstream.auth_session'),
+                      'verified',
+                  ])->group(function () {
+    Route::get('/dashboard', [CustomerDashboardController::class, 'index'])
+        ->name('dashboard');
+});
+
+Route::get('/location/cities', [LocationController::class, 'cities'])
+    ->name('location.cities');
+
+Route::post('/location/city', [LocationController::class, 'updateCity'])
+    ->name('location.city.update');
+
+Route::get('/organizations/lookup', [OrganizationLookupController::class, 'show'])
+    ->middleware('throttle:20,1')
+    ->name('organizations.lookup');
+
+Route::get('/privacy-policy', [LegalPageController::class, 'privacy'])
+    ->name('legal.privacy');
+
+Route::get('/terms', [LegalPageController::class, 'terms'])
+    ->name('legal.terms');
+
+Route::get('/personal-data-consent', [LegalPageController::class, 'personalDataConsent'])
+    ->name('legal.personal-data-consent');
 
 
 /*
@@ -121,12 +157,14 @@ Route::get('/Ameise/ContactsCentre', function (){
 //
 
 //      E N T I T I E S
-use App\Http\Controllers\EntityController;
-
 Route::prefix('web')->name('web.')->group(function () {
-    Route::get('/entities', [EntityController::class, 'index'])->name('entities.index');
-});
+    Route::get('/entities', [EntityController::class, 'index'])
+        ->name('entities.index');
 
+    Route::get('/entities/lookup-by-inn', [EntityLookupController::class, 'lookupByInn'])
+        ->middleware('throttle:30,1')
+        ->name('entities.lookup-by-inn');
+});
 //  E N D  E N T I T I E S
 
 
@@ -134,6 +172,7 @@ Route::prefix('web')->name('web.')->group(function () {
 Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('Ameise.fluxmonitor');
+
 //   G E O G R A P H Y
 Route::get('/Ameise/Geography/', function (){
     return Inertia::render('Ameise/Geography');

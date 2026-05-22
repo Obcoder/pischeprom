@@ -83,4 +83,10 @@ return [
     'yandex_metrica' => [
         'counter_id' => env('YANDEX_METRICA_COUNTER_ID'),
     ],
+
+    'dadata' => [
+        'token' => env('DADATA_TOKEN'),
+        'secret' => env('DADATA_SECRET'),
+    ],
+
 ];

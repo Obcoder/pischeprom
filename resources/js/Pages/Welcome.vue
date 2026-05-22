@@ -11,6 +11,7 @@ import HomeCategoriesSection from '@/Components/Home/HomeCategoriesSection.vue'
 import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
+import HomeWelcomeBanner from '@/Components/Home/HomeWelcomeBanner.vue'
 
 defineOptions({
     layout: LayoutDefault,
@@ -191,6 +192,14 @@ useHead({
     ],
 })
 
+const footerLinks = [
+    { label: 'Главная', href: route('home') },
+    { label: 'Каталог', href: route('public.goods.index') },
+    { label: 'Политика конфиденциальности', href: route('legal.privacy') },
+    { label: 'Пользовательское соглашение', href: route('legal.terms') },
+    { label: 'Согласие на обработку персональных данных', href: route('legal.personal-data-consent') },
+]
+
 onMounted(() => {
     indexGoods()
 })
@@ -223,15 +232,7 @@ onMounted(() => {
 
                     <v-col cols="12" lg="8">
                         <v-row dense>
-                            <v-col cols="12">
-                                <v-card rounded="xl" elevation="2" overflow="hidden">
-                                    <v-img
-                                        src="https://storage.yandexcloud.net/pps/banners/%D0%9D%D1%83%D1%82-01%20(2025-08-10-g).png"
-                                        height="260"
-                                        cover
-                                    />
-                                </v-card>
-                            </v-col>
+                            <HomeWelcomeBanner :categories="categories" />
 
                             <v-col cols="12" md="6">
                                 <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">

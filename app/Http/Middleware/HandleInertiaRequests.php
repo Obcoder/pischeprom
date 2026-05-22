@@ -2,47 +2,76 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\City;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * The root template that's loaded on the first page visit.
-     *
-     * @see https://inertiajs.com/server-side-setup#root-template
-     *
-     * @var string
-     */
     protected $rootView = 'app';
 
-    /**
-     * Determines the current asset version.
-     *
-     * @see https://inertiajs.com/asset-versioning
-     */
     public function version(Request $request): ?string
     {
         return parent::version($request);
     }
 
-    /**
-     * Define the props that are shared by default.
-     *
-     * @see https://inertiajs.com/shared-data
-     *
-     * @return array<string, mixed>
-     */
     public function share(Request $request): array
     {
         return [
             ...parent::share($request),
+
+            'auth' => [
+                'user' => fn () => $request->user()
+                    ? [
+                        'id' => $request->user()->id,
+                        'name' => $request->user()->name,
+                        'email' => $request->user()->email,
+                        'phone' => $request->user()->phone,
+                        'type' => $request->user()->type,
+                        'status' => $request->user()->status,
+                        'account_type' => $request->user()->account_type,
+                        'profile_photo_url' => $request->user()->profile_photo_url,
+                        'email_verified_at' => $request->user()->email_verified_at,
+                        'phone_verified_at' => $request->user()->phone_verified_at,
+                        'city_id' => $request->user()->city_id,
+                    ]
+                    : null,
+            ],
+
+            'location' => fn () => [
+                'city' => $this->resolveCurrentCity($request),
+            ],
 
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
         ];
+    }
+
+    protected function resolveCurrentCity(Request $request): ?array
+    {
+        $cityId = $request->user()?->city_id ?: $request->cookie('pps_city_id');
+
+        $city = $cityId
+            ? City::query()->with('region:id,name')->find($cityId)
+            : null;
+
+        if (! $city) {
+            $city = City::query()
+                ->with('region:id,name')
+                ->where('name', 'Санкт-Петербург')
+                ->first();
+        }
+
+        return $city
+            ? [
+                'id' => $city->id,
+                'name' => $city->name,
+                'region' => $city->region?->name,
+                'label' => trim($city->name . ($city->region ? ', ' . $city->region->name : '')),
+            ]
+            : null;
     }
 }

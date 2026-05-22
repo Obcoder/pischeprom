@@ -2,44 +2,49 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use App\Models\Entity;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens;
     use HasFactory;
     use HasProfilePhoto;
     use Notifiable;
     use TwoFactorAuthenticatable;
-    use HasRoles; // ← ВАЖНО
+    use HasRoles;
 
     protected $guard_name = 'crm';
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'email',
+        'phone',
         'password',
-        'type',    // customer | employee
-        'status',  // active | blocked
+
+        'type',          // customer | employee
+        'status',        // active | blocked
+        'account_type',  // individual | organization
+
+        'city_id',
+
+        'profile_photo_path',
+
+        'personal_data_consent_at',
+        'personal_data_consent_ip',
+        'marketing_consent_at',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
@@ -47,25 +52,39 @@ class User extends Authenticatable
         'two_factor_secret',
     ];
 
-    /**
-     * The accessors to append to the model's array form.
-     *
-     * @var array<int, string>
-     */
     protected $appends = [
         'profile_photo_url',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
+            'personal_data_consent_at' => 'datetime',
+            'marketing_consent_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class);
+    }
+
+    public function entities(): BelongsToMany
+    {
+        return $this->belongsToMany(Entity::class)
+            ->withPivot([
+                            'role',
+                            'status',
+                            'is_primary',
+                        ])
+            ->withTimestamps();
+    }
+
+    public function organizations(): HasMany
+    {
+        return $this->hasMany(Organization::class);
     }
 }

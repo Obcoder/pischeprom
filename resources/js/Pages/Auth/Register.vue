@@ -7,17 +7,81 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import axios from 'axios'
+import { route } from 'ziggy-js'
+import { ref } from 'vue'
+
+const innLoading = ref(false)
+const innSuggestions = ref([])
+
+function lookupEntityByInn() {
+    const inn = String(form.organization_INN || '').replace(/\D+/g, '')
+
+    if (![10, 12].includes(inn.length)) {
+        innSuggestions.value = []
+        return
+    }
+
+    innLoading.value = true
+
+    axios.get(route('web.entities.lookup-by-inn'), {
+        params: {
+            inn,
+        },
+    })
+        .then((response) => {
+            innSuggestions.value = response.data.data || []
+
+            if (innSuggestions.value.length === 1) {
+                applyEntitySuggestion(innSuggestions.value[0])
+            }
+        })
+        .finally(() => {
+            innLoading.value = false
+        })
+}
+
+function applyEntitySuggestion(suggestion) {
+    const entity = suggestion.entity || {}
+
+    form.organization_name = entity.name || ''
+    form.organization_full_name = entity.full_name || ''
+    form.organization_KPP = entity.KPP || ''
+    form.organization_OGRN = entity.OGRN || ''
+    form.organization_legal_address = entity.legal_address || ''
+    form.entity_classification_id = entity.entity_classification_id || null
+    form.organization_opf = entity.opf || ''
+    form.organization_dadata_raw = suggestion.raw || null
+}
 
 const form = useForm({
+    account_type: 'individual',
+
     name: '',
     email: '',
+    phone: '',
+    city_id: null,
     password: '',
     password_confirmation: '',
-    terms: false,
-});
+    avatar: null,
+
+    personal_data_consent: false,
+    marketing_consent: false,
+
+    organization_INN: '',
+    organization_KPP: '',
+    organization_OGRN: '',
+    organization_name: '',
+    organization_full_name: '',
+    organization_legal_address: '',
+    organization_opf: '',
+    organization_dadata_raw: null,
+    entity_classification_id: null,
+})
 
 const submit = () => {
     form.post(route('register'), {
+        forceFormData: true,
         onFinish: () => form.reset('password', 'password_confirmation'),
     });
 };

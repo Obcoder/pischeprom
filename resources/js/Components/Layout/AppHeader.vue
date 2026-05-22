@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import { route as ziggyRoute } from 'ziggy-js'
+import CitySelector from '@/Components/Location/CitySelector.vue'
 
 const route = (name, params = {}, absolute = true) => {
     return ziggyRoute(name, params, absolute, page.props.ziggy)
@@ -61,6 +62,19 @@ onBeforeUnmount(() => {
             <v-container class="py-0">
                 <div class="app-header__top-inner">
                     <div class="app-header__contacts">
+                        <a
+                            v-for="contact in mainContacts"
+                            :key="contact.href"
+                            :href="contact.href"
+                            class="app-header__contact"
+                        >
+                            {{ contact.label }}
+                        </a>
+                    </div>
+
+                    <div class="app-header__contacts">
+                        <CitySelector />
+
                         <a
                             v-for="contact in mainContacts"
                             :key="contact.href"

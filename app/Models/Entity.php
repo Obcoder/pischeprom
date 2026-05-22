@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\User;
+
 
 class Entity extends Model
 {
@@ -15,10 +17,20 @@ class Entity extends Model
 
     protected $fillable = [
         'name',
+        'full_name',
         'entity_classification_id',
         'INN',
+        'KPP',
         'OGRN',
+        'legal_address',
         'country_id',
+        'dadata_raw',
+        'dadata_loaded_at',
+    ];
+
+    protected $casts = [
+        'dadata_raw' => 'array',
+        'dadata_loaded_at' => 'datetime',
     ];
 
     protected $with = [
@@ -66,6 +78,17 @@ class Entity extends Model
     public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)
+            ->withPivot([
+                            'role',
+                            'status',
+                            'is_primary',
+                        ])
+            ->withTimestamps();
     }
 
     public function sales(): HasMany
