@@ -64,22 +64,13 @@ createServer((page) =>
             })
 
             const vuetify = createVuetify({
+                ssr: true,
                 components,
                 directives,
             })
 
             const ziggy = makeZiggyConfig(page)
 
-            /**
-             * Важно для SSR:
-             *
-             * app.use(ZiggyVue, ziggy) помогает только $route / route внутри Vue-плагина.
-             * Но прямой импорт `import { route } from 'ziggy-js'`
-             * во время SSR не знает про Vue plugin.
-             *
-             * Поэтому кладём конфиг в globalThis.Ziggy.
-             * Это чинит старые компоненты, где route импортирован напрямую из ziggy-js.
-             */
             globalThis.Ziggy = ziggy
 
             app.use(plugin)

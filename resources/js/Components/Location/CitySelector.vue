@@ -1,7 +1,7 @@
 <script setup>
 import axios from 'axios'
 import { router, usePage } from '@inertiajs/vue3'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { useAppRoute } from '@/Composables/useAppRoute'
 
@@ -24,6 +24,10 @@ const saving = ref(false)
 const search = ref('')
 const cities = ref([])
 const errorMessage = ref('')
+const failedThumbnails = ref(new Set())
+
+let searchTimer = null
+let abortController = null
 
 const currentCity = computed(() => {
     return inertiaPage.props.location?.city ?? null
@@ -34,7 +38,11 @@ const currentCityName = computed(() => {
 })
 
 const currentCityRegion = computed(() => {
-    return currentCity.value?.region || ''
+    return currentCity.value?.region || currentCity.value?.region_name || ''
+})
+
+const currentCityThumbnail = computed(() => {
+    return currentCity.value?.wiki_thumbnail || ''
 })
 
 const citiesUrl = computed(() => {
@@ -53,19 +61,24 @@ const updateCityUrl = computed(() => {
         : '/location/city'
 })
 
+const normalizedSearch = computed(() => {
+    return String(search.value ?? '').trim()
+})
+
 const normalizedCities = computed(() => {
     return cities.value
         .filter((city) => city?.id && city?.name)
         .map((city) => ({
             id: city.id,
             name: city.name,
-            region: city.region || city.region_name || '',
+            region: city.region || city.region_name || city.subject || '',
             label: city.label || makeCityLabel(city),
+            wiki_thumbnail: city.wiki_thumbnail || city.thumbnail || city.image || '',
         }))
 })
 
 const filteredCities = computed(() => {
-    const query = search.value.trim().toLowerCase()
+    const query = normalizedSearch.value.toLowerCase()
 
     if (!query) {
         return normalizedCities.value
@@ -86,12 +99,31 @@ const selectedCityId = computed(() => {
     return currentCity.value?.id ?? null
 })
 
-function makeCityLabel(city) {
-    if (!city?.region) {
-        return city?.name || ''
-    }
+const showInitialHint = computed(() => {
+    return !loading.value
+        && !errorMessage.value
+        && !filteredCities.value.length
+        && !normalizedSearch.value
+})
 
-    return `${city.name}, ${city.region}`
+const showEmptySearch = computed(() => {
+    return !loading.value
+        && !errorMessage.value
+        && !filteredCities.value.length
+        && Boolean(normalizedSearch.value)
+})
+
+function makeCityLabel(city) {
+    const name = city?.name || ''
+
+    const region = city?.region
+        || city?.region_name
+        || city?.subject
+        || ''
+
+    return region
+        ? `${name}, ${region}`
+        : name
 }
 
 function normalizeCitiesResponse(payload) {
@@ -107,35 +139,78 @@ function normalizeCitiesResponse(payload) {
         return payload.cities
     }
 
+    if (Array.isArray(payload?.items)) {
+        return payload.items
+    }
+
     return []
 }
 
-async function loadCities() {
-    if (loading.value || cities.value.length) {
-        return
+function cancelPendingSearch() {
+    if (searchTimer) {
+        clearTimeout(searchTimer)
+        searchTimer = null
     }
+
+    if (abortController) {
+        abortController.abort()
+        abortController = null
+    }
+}
+
+async function loadCities(query = '') {
+    cancelPendingSearch()
 
     loading.value = true
     errorMessage.value = ''
 
+    abortController = new AbortController()
+
     try {
-        const response = await axios.get(citiesUrl.value)
+        const response = await axios.get(citiesUrl.value, {
+            params: {
+                search: query,
+                q: query,
+                term: query,
+            },
+            signal: abortController.signal,
+        })
 
         cities.value = normalizeCitiesResponse(response.data)
     } catch (error) {
+        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+            return
+        }
+
         console.error('[CitySelector] Cities loading error:', error)
 
         errorMessage.value = 'Не удалось загрузить список городов.'
         cities.value = []
     } finally {
         loading.value = false
+        abortController = null
     }
+}
+
+function scheduleCitiesSearch() {
+    if (!dialog.value) {
+        return
+    }
+
+    if (searchTimer) {
+        clearTimeout(searchTimer)
+    }
+
+    searchTimer = setTimeout(() => {
+        loadCities(normalizedSearch.value)
+    }, 300)
 }
 
 async function openDialog() {
     dialog.value = true
+    errorMessage.value = ''
 
-    await loadCities()
+    await loadCities(normalizedSearch.value)
 }
 
 function closeDialog() {
@@ -146,6 +221,7 @@ function closeDialog() {
     dialog.value = false
     search.value = ''
     errorMessage.value = ''
+    cancelPendingSearch()
 }
 
 function selectCity(city) {
@@ -180,6 +256,49 @@ function selectCity(city) {
         },
     )
 }
+
+function cityInitials(city) {
+    const name = String(city?.name || '').trim()
+
+    if (!name) {
+        return 'Г'
+    }
+
+    const words = name
+        .split(/\s+/)
+        .filter(Boolean)
+
+    if (words.length >= 2) {
+        return `${words[0][0]}${words[1][0]}`.toUpperCase()
+    }
+
+    return name.slice(0, 2).toUpperCase()
+}
+
+function hasCityThumbnail(city) {
+    return Boolean(city?.wiki_thumbnail)
+        && !failedThumbnails.value.has(city.id)
+}
+
+function markThumbnailFailed(city) {
+    if (!city?.id) {
+        return
+    }
+
+    const next = new Set(failedThumbnails.value)
+
+    next.add(city.id)
+
+    failedThumbnails.value = next
+}
+
+watch(search, () => {
+    scheduleCitiesSearch()
+})
+
+onBeforeUnmount(() => {
+    cancelPendingSearch()
+})
 </script>
 
 <template>
@@ -192,7 +311,20 @@ function selectCity(city) {
             }"
             @click="openDialog"
         >
+            <v-avatar
+                v-if="currentCityThumbnail && !compact"
+                size="22"
+                class="city-selector__button-avatar"
+            >
+                <img
+                    :src="currentCityThumbnail"
+                    :alt="currentCityName"
+                    loading="lazy"
+                >
+            </v-avatar>
+
             <v-icon
+                v-else
                 icon="mdi-map-marker"
                 size="16"
                 class="city-selector__icon"
@@ -206,7 +338,7 @@ function selectCity(city) {
 
         <v-dialog
             v-model="dialog"
-            max-width="560"
+            max-width="620"
             scrollable
         >
             <v-card rounded="xl">
@@ -219,6 +351,7 @@ function selectCity(city) {
                         <div class="text-body-2 text-medium-emphasis">
                             Текущий город:
                             <strong>{{ currentCityName }}</strong>
+
                             <template v-if="currentCityRegion">
                                 , {{ currentCityRegion }}
                             </template>
@@ -249,11 +382,13 @@ function selectCity(city) {
                     <v-text-field
                         v-model="search"
                         label="Поиск города"
+                        placeholder="Начните вводить город: Москва, Казань, Набережные Челны..."
                         prepend-inner-icon="mdi-magnify"
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
                         clearable
+                        autofocus
                         hide-details
                         class="mb-4"
                     />
@@ -270,7 +405,7 @@ function selectCity(city) {
                         />
 
                         <span>
-                            Загружаем города...
+                            Ищем города...
                         </span>
                     </div>
 
@@ -284,16 +419,32 @@ function selectCity(city) {
                             :key="city.id"
                             :active="city.id === selectedCityId"
                             rounded="lg"
+                            class="city-selector__city-item"
                             @click="selectCity(city)"
                         >
                             <template #prepend>
-                                <v-icon
-                                    :icon="city.id === selectedCityId ? 'mdi-map-marker-check' : 'mdi-map-marker-outline'"
-                                    color="#800000"
-                                />
+                                <v-avatar
+                                    size="46"
+                                    class="city-selector__avatar"
+                                >
+                                    <img
+                                        v-if="hasCityThumbnail(city)"
+                                        :src="city.wiki_thumbnail"
+                                        :alt="city.name"
+                                        loading="lazy"
+                                        @error="markThumbnailFailed(city)"
+                                    >
+
+                                    <span
+                                        v-else
+                                        class="city-selector__avatar-fallback"
+                                    >
+                                        {{ cityInitials(city) }}
+                                    </span>
+                                </v-avatar>
                             </template>
 
-                            <v-list-item-title>
+                            <v-list-item-title class="city-selector__city-title">
                                 {{ city.name }}
                             </v-list-item-title>
 
@@ -319,7 +470,14 @@ function selectCity(city) {
                     </v-list>
 
                     <div
-                        v-else
+                        v-else-if="showInitialHint"
+                        class="city-selector__empty"
+                    >
+                        Начните вводить название города.
+                    </div>
+
+                    <div
+                        v-else-if="showEmptySearch"
                         class="city-selector__empty"
                     >
                         Город не найден.
@@ -380,6 +538,17 @@ function selectCity(city) {
     font-size: 0.84rem;
 }
 
+.city-selector__button-avatar {
+    background: rgba(255, 255, 255, 0.18);
+    flex: 0 0 auto;
+}
+
+.city-selector__button-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .city-selector__icon {
     opacity: 0.9;
     flex: 0 0 auto;
@@ -387,7 +556,7 @@ function selectCity(city) {
 
 .city-selector__text {
     display: inline-block;
-    max-width: 240px;
+    max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -416,13 +585,56 @@ function selectCity(city) {
 }
 
 .city-selector__list {
-    max-height: 420px;
+    max-height: 460px;
     overflow: auto;
+}
+
+.city-selector__city-item {
+    min-height: 62px;
+}
+
+.city-selector__avatar {
+    background: rgba(128, 0, 0, 0.08);
+    color: #7f1d1d;
+    font-weight: 800;
+    overflow: hidden;
+}
+
+.city-selector__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.city-selector__avatar-fallback {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    background:
+        linear-gradient(
+            135deg,
+            rgba(128, 0, 0, 0.12),
+            rgba(128, 0, 0, 0.04)
+        );
+    color: #7f1d1d;
+    font-size: 0.88rem;
+    font-weight: 900;
+}
+
+.city-selector__city-title {
+    font-weight: 700;
 }
 
 @media (max-width: 600px) {
     .city-selector__text {
-        max-width: 170px;
+        max-width: 180px;
+    }
+
+    .city-selector__avatar {
+        width: 40px;
+        height: 40px;
     }
 }
 </style>

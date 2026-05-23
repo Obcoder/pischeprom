@@ -8,12 +8,11 @@ use App\Http\Requests\UpdateCityRequest;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\Region;
+use App\Services\Wikipedia\WikipediaCityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-
-use App\Services\Wikipedia\WikipediaCityService;
 
 class CityController extends Controller
 {
@@ -28,6 +27,7 @@ class CityController extends Controller
 
         $itemsPerPage = max(1, min($requestedItemsPerPage, 200));
         $page = max(1, (int) $request->input('page', 1));
+        $search = $this->searchTerm($request);
 
         $query = City::query()
             ->forCitiesTable()
@@ -36,7 +36,7 @@ class CityController extends Controller
                             'entities',
                             'units',
                         ])
-            ->search($request->input('search'))
+            ->search($search)
             ->filterRegion($request->input('region_id'))
             ->filterCountry($request->input('country_id'))
             ->filterUnit($request->input('unit_id'))
@@ -47,9 +47,16 @@ class CityController extends Controller
 
         if ($isAllRequested) {
             $items = $query->get();
+            $selectorItems = $this->formatCitiesForSelector($items);
 
             return response()->json([
+                                        // Старый формат для CRM/ERP-таблиц.
                                         'items' => $items,
+
+                                        // Удобный формат для CitySelector.
+                                        'data' => $selectorItems,
+                                        'cities' => $selectorItems,
+
                                         'total' => $items->count(),
                                         'page' => 1,
                                         'itemsPerPage' => -1,
@@ -63,8 +70,17 @@ class CityController extends Controller
             page: $page,
         );
 
+        $items = $paginator->getCollection();
+        $selectorItems = $this->formatCitiesForSelector($items);
+
         return response()->json([
+                                    // Старый формат для CRM/ERP-таблиц.
                                     'items' => $paginator->items(),
+
+                                    // Удобный формат для CitySelector.
+                                    'data' => $selectorItems,
+                                    'cities' => $selectorItems,
+
                                     'total' => $paginator->total(),
                                     'page' => $paginator->currentPage(),
                                     'itemsPerPage' => $paginator->perPage(),
@@ -160,6 +176,72 @@ class CityController extends Controller
         $city->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function searchTerm(Request $request): ?string
+    {
+        foreach (['search', 'q', 'term', 'query'] as $key) {
+            $value = $request->input($key);
+
+            if ($value === null) {
+                continue;
+            }
+
+            $value = trim((string) $value);
+
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function formatCitiesForSelector(iterable $cities): array
+    {
+        $items = [];
+
+        foreach ($cities as $city) {
+            if (! $city instanceof City) {
+                continue;
+            }
+
+            $region = $city->region;
+            $country = $region?->country;
+
+            $regionName = $region?->name;
+            $countryName = $country?->name;
+
+            $items[] = [
+                'id' => $city->id,
+                'name' => $city->name,
+
+                'region' => $regionName,
+                'region_name' => $regionName,
+
+                'country' => $countryName,
+                'country_name' => $countryName,
+
+                'label' => $regionName
+                    ? "{$city->name}, {$regionName}"
+                    : $city->name,
+
+                'wiki' => $city->wiki,
+                'wiki_title' => $city->wiki_title,
+                'wiki_thumbnail' => $city->wiki_thumbnail,
+
+                // Alias на случай, если какой-то frontend-компонент ждёт thumbnail.
+                'thumbnail' => $city->wiki_thumbnail,
+
+                'population' => $city->population,
+                'latest_population' => $city->latestPopulation?->population,
+
+                'latitude' => $city->latitude,
+                'longitude' => $city->longitude,
+            ];
+        }
+
+        return $items;
     }
 
     private function syncPopulations(City $city, array $populations): void

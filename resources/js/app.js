@@ -31,6 +31,7 @@ const vuetify = createVuetify({
         },
     },
 
+    ssr: true,
     components,
     directives,
 })
