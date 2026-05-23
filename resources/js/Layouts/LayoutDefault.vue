@@ -1,29 +1,43 @@
 <script setup>
+import { computed } from 'vue'
+import { usePage } from '@inertiajs/vue3'
+
 import AppHeader from '@/Components/Layout/AppHeader.vue'
 
-const props = defineProps({
-    categories: {
-        type: Array,
-        default: () => [],
-    },
-    canRegister: {
-        type: Boolean,
-        default: false,
-    },
+const inertiaPage = usePage()
+
+const categories = computed(() => {
+    const props = inertiaPage.props || {}
+
+    const possibleCategories = [
+        props.categories,
+        props.publicCategories,
+        props.headerCategories,
+        props.navigation?.categories,
+    ]
+
+    return possibleCategories.find((items) => Array.isArray(items)) || []
 })
 
 const footerLinks = [
-    'Home',
-    'About Us',
-    'Team',
-    'Services',
-    'Blog',
-    'Contact Us',
+    {
+        label: 'Политика конфиденциальности',
+        href: '/privacy-policy',
+    },
+    {
+        label: 'Пользовательское соглашение',
+        href: '/terms',
+    },
+    {
+        label: 'Согласие на обработку ПД',
+        href: '/personal-data-consent',
+    },
 ]
+
+const currentYear = new Date().getFullYear()
 </script>
 
 <template>
-
     <div class="layout-shell">
         <AppHeader :categories="categories" />
 
@@ -38,27 +52,31 @@ const footerLinks = [
                         <div class="text-subtitle-1 font-weight-bold mb-2">
                             Телефон
                         </div>
-                        <div>+7-965-016-0001</div>
+
+                        <div>
+                            +7-965-016-0001
+                        </div>
                     </v-col>
 
                     <v-col cols="12" md="4" class="text-center">
                         <div class="d-flex flex-wrap justify-center ga-2">
                             <v-btn
                                 v-for="link in footerLinks"
-                                :key="link"
+                                :key="link.href"
+                                :href="link.href"
                                 color="white"
                                 rounded="xl"
                                 variant="text"
                                 size="small"
                             >
-                                {{ link }}
+                                {{ link.label }}
                             </v-btn>
                         </div>
                     </v-col>
 
                     <v-col cols="12" md="4" class="text-center">
                         <div>
-                            2022 - {{ new Date().getFullYear() }} —
+                            2022 - {{ currentYear }} —
                             <strong>ООО "Пищепром-сервер"</strong>
                         </div>
                     </v-col>
@@ -66,7 +84,6 @@ const footerLinks = [
             </v-container>
         </footer>
     </div>
-
 </template>
 
 <style scoped>
