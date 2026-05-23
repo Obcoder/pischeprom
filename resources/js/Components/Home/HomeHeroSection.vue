@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
-import { route } from 'ziggy-js'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
+import { useAppRoute } from "@/Composables/useAppRoute";
+
+const { route } = useAppRoute();
 
 const { goodPublicUrl } = usePublicGoodUrl()
 

@@ -2,15 +2,19 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { Link, router, usePage } from '@inertiajs/vue3'
-import { route as ziggyRoute } from 'ziggy-js'
 import CitySelector from '@/Components/Location/CitySelector.vue';
 import RegisterDialog from '@/Components/Auth/RegisterDialog.vue';
+import { useAppRoute } from "@/Composables/useAppRoute";
 
-const page = usePage()
+const { route } = useAppRoute();
+const page = usePage();
 
-const route = (name, params = {}, absolute = true) => {
-    return ziggyRoute(name, params, absolute, page.props.ziggy)
-}
+const navLinks = computed(() => [
+    { label: "Рыба", href: route("category.show", 25) },
+    { label: "Овощи", href: route("category.show", 30) },
+    { label: "Бакалея", href: route("category.show", 31) },
+]);
+
 
 const hasRoute = (name) => {
     return Boolean(page.props.ziggy?.routes?.[name])
@@ -29,12 +33,6 @@ const canRegister = computed(() => hasRoute('register') || hasRoute('register.st
 const search = ref('')
 const isCompact = ref(false)
 const registerDialog = ref(false)
-
-const quickLinks = [
-    { label: 'Рыба', href: route('category.show', 25) },
-    { label: 'Овощи', href: route('category.show', 30) },
-    { label: 'Бакалея', href: route('category.show', 31) },
-]
 
 const mainContacts = [
     { label: '+7-965-016-00-01', href: 'tel:+79650160001' },
@@ -217,10 +215,9 @@ onBeforeUnmount(() => {
 
                         <nav class="app-header__quick-links">
                             <Link
-                                v-for="item in quickLinks"
+                                v-for="item in navLinks"
                                 :key="item.label"
                                 :href="item.href"
-                                class="app-header__quick-link"
                             >
                                 {{ item.label }}
                             </Link>

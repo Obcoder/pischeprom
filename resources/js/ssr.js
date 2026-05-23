@@ -16,6 +16,33 @@ import * as directives from 'vuetify/directives'
 
 const appName = import.meta.env.VITE_APP_NAME || 'ПИЩЕПРОМ-СЕРВЕР'
 
+function normalizeZiggyLocation(page, ziggy) {
+    if (ziggy?.location) {
+        return new URL(ziggy.location)
+    }
+
+    if (ziggy?.url && page?.url) {
+        return new URL(page.url, ziggy.url)
+    }
+
+    if (ziggy?.url) {
+        return new URL(ziggy.url)
+    }
+
+    return new URL(page?.url || '/', 'http://localhost')
+}
+
+function makeZiggyConfig(page) {
+    const ziggy = page.props?.ziggy || {}
+
+    return {
+        ...ziggy,
+        defaults: ziggy.defaults || {},
+        routes: ziggy.routes || {},
+        location: normalizeZiggyLocation(page, ziggy),
+    }
+}
+
 createServer((page) =>
     createInertiaApp({
         page,
@@ -41,17 +68,23 @@ createServer((page) =>
                 directives,
             })
 
+            const ziggy = makeZiggyConfig(page)
+
+            /**
+             * Важно для SSR:
+             *
+             * app.use(ZiggyVue, ziggy) помогает только $route / route внутри Vue-плагина.
+             * Но прямой импорт `import { route } from 'ziggy-js'`
+             * во время SSR не знает про Vue plugin.
+             *
+             * Поэтому кладём конфиг в globalThis.Ziggy.
+             * Это чинит старые компоненты, где route импортирован напрямую из ziggy-js.
+             */
+            globalThis.Ziggy = ziggy
+
             app.use(plugin)
             app.use(vuetify)
-
-            if (page.props.ziggy) {
-                app.use(ZiggyVue, {
-                    ...page.props.ziggy,
-                    location: new URL(page.props.ziggy.location),
-                })
-            } else {
-                app.use(ZiggyVue)
-            }
+            app.use(ZiggyVue, ziggy)
 
             return app
         },

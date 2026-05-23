@@ -1,9 +1,9 @@
 <script setup>
-import { Link, usePage } from '@inertiajs/vue3'
+import { Head, Link, usePage } from '@inertiajs/vue3'
 import { computed, onMounted, ref } from 'vue'
-import { useHead } from '@vueuse/head'
 import axios from 'axios'
-import { route as ziggyRoute } from 'ziggy-js'
+
+import { useAppRoute } from '@/Composables/useAppRoute'
 
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
@@ -77,18 +77,28 @@ const props = defineProps({
 
 const page = usePage()
 
-const SITE_BASE_URL = 'https://ингредиенты-оптом.рф'
+const {
+    route: appRoute,
+} = useAppRoute()
+
+const SITE_BASE_URL_FALLBACK = 'https://пищепром-сервер.рф'
+
+const siteBaseUrl = computed(() => {
+    return String(page.props.ziggy?.url || SITE_BASE_URL_FALLBACK).replace(/\/+$/, '')
+})
 
 function absoluteUrl(path) {
     if (!path) {
-        return SITE_BASE_URL
+        return siteBaseUrl.value
     }
 
-    if (String(path).startsWith('http://') || String(path).startsWith('https://')) {
-        return path
+    const value = String(path)
+
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+        return value
     }
 
-    return `${SITE_BASE_URL}${String(path).startsWith('/') ? path : `/${path}`}`
+    return `${siteBaseUrl.value}${value.startsWith('/') ? value : `/${value}`}`
 }
 
 function firstParam(params) {
@@ -123,12 +133,16 @@ function fallbackRoute(name, params = {}, absolute = false) {
             path = '/g'
             break
 
-        case 'category.show':
-            path = `/категория/${encodeURIComponent(firstParam(params))}`
+        case 'category.show': {
+            const category = firstParam(params)
+            path = category
+                ? `/категория/${encodeURIComponent(category)}`
+                : '#'
             break
+        }
 
         case 'web.sesame':
-            path = '/sesame'
+            path = '/кунжут'
             break
 
         case 'legal.privacy':
@@ -148,20 +162,30 @@ function fallbackRoute(name, params = {}, absolute = false) {
             break
     }
 
-    return absolute ? absoluteUrl(path) : path
+    return absolute && path !== '#'
+        ? absoluteUrl(path)
+        : path
+}
+
+function routeExistsInZiggy(name) {
+    const ziggy = page.props.ziggy || globalThis.Ziggy || {}
+
+    return Boolean(ziggy.routes?.[name])
 }
 
 function hasRoute(name) {
-    return Boolean(page.props.ziggy?.routes?.[name])
+    return routeExistsInZiggy(name)
 }
 
 function route(name, params = {}, absolute = false) {
-    const ziggy = page.props.ziggy
+    try {
+        const url = appRoute(name, params, absolute)
 
-    if (ziggy?.routes?.[name]) {
-        try {
-            return ziggyRoute(name, params, absolute, ziggy)
-        } catch (error) {
+        if (typeof url === 'string' && url.length > 0 && url !== '#') {
+            return url
+        }
+    } catch (error) {
+        if (import.meta.env.DEV) {
             console.warn(`[Welcome.vue] Ziggy route fallback used for "${name}"`, error)
         }
     }
@@ -205,98 +229,44 @@ function indexGoods() {
 const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
 const title = 'Пищепром-Сервер — ингредиенты оптом для пищевой промышленности'
 const description = 'Каталог ингредиентов, сырья и товаров пищевой промышленности: замороженные овощи, ягоды, бакалея, продукция для производств, HoReCa и оптовых и розничных покупателей.'
-const canonicalUrl = route('home', {}, true)
 
-useHead({
-    title,
-
-    meta: [
-        {
-            name: 'description',
-            content: description,
-        },
-        {
-            property: 'og:type',
-            content: 'website',
-        },
-        {
-            property: 'og:site_name',
-            content: siteName,
-        },
-        {
-            property: 'og:title',
-            content: title,
-        },
-        {
-            property: 'og:description',
-            content: description,
-        },
-        {
-            property: 'og:url',
-            content: canonicalUrl,
-        },
-        {
-            property: 'og:image',
-            content: absoluteUrl('/images/og/pischeprom-home.jpg'),
-        },
-        {
-            name: 'twitter:card',
-            content: 'summary_large_image',
-        },
-        {
-            name: 'twitter:title',
-            content: title,
-        },
-        {
-            name: 'twitter:description',
-            content: description,
-        },
-        {
-            name: 'twitter:image',
-            content: absoluteUrl('/images/og/pischeprom-home.jpg'),
-        },
-    ],
-
-    link: [
-        {
-            rel: 'canonical',
-            href: canonicalUrl,
-        },
-    ],
-
-    script: [
-        {
-            type: 'application/ld+json',
-            children: JSON.stringify({
-                '@context': 'https://schema.org',
-                '@type': 'WebSite',
-                name: 'Пищепром-сервер',
-                alternateName: [
-                    'Pischeprom-server',
-                    'Ингредиенты оптом',
-                ],
-                url: canonicalUrl,
-                description,
-                potentialAction: {
-                    '@type': 'SearchAction',
-                    target: `${canonicalUrl}?search={search_term_string}`,
-                    'query-input': 'required name=search_term_string',
-                },
-            }),
-        },
-        {
-            type: 'application/ld+json',
-            children: JSON.stringify({
-                '@context': 'https://schema.org',
-                '@type': 'Organization',
-                name: 'Пищепром-сервер',
-                url: canonicalUrl,
-                logo: absoluteUrl('/images/logo/pischeprom-logo.png'),
-                description,
-            }),
-        },
-    ],
+const canonicalUrl = computed(() => {
+    return route('home', {}, true)
 })
+
+const homeOgImage = computed(() => {
+    return absoluteUrl('/images/og/pischeprom-home.jpg')
+})
+
+const searchTargetUrl = computed(() => {
+    return `${route('public.goods.index', {}, true)}?search={search_term_string}`
+})
+
+const websiteJsonLd = computed(() => JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Пищепром-сервер',
+    alternateName: [
+        'Pischeprom-server',
+        'Ингредиенты оптом',
+    ],
+    url: canonicalUrl.value,
+    description,
+    potentialAction: {
+        '@type': 'SearchAction',
+        target: searchTargetUrl.value,
+        'query-input': 'required name=search_term_string',
+    },
+}))
+
+const organizationJsonLd = computed(() => JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Пищепром-сервер',
+    url: canonicalUrl.value,
+    logo: absoluteUrl('/images/logo/pischeprom-logo.png'),
+    description,
+}))
 
 onMounted(() => {
     indexGoods()
@@ -304,6 +274,102 @@ onMounted(() => {
 </script>
 
 <template>
+    <Head>
+        <title>{{ title }}</title>
+
+        <meta
+            head-key="description"
+            name="description"
+            :content="description"
+        >
+
+        <meta
+            head-key="robots"
+            name="robots"
+            content="index,follow"
+        >
+
+        <link
+            head-key="canonical"
+            rel="canonical"
+            :href="canonicalUrl"
+        >
+
+        <meta
+            head-key="og:type"
+            property="og:type"
+            content="website"
+        >
+
+        <meta
+            head-key="og:site_name"
+            property="og:site_name"
+            :content="siteName"
+        >
+
+        <meta
+            head-key="og:title"
+            property="og:title"
+            :content="title"
+        >
+
+        <meta
+            head-key="og:description"
+            property="og:description"
+            :content="description"
+        >
+
+        <meta
+            head-key="og:url"
+            property="og:url"
+            :content="canonicalUrl"
+        >
+
+        <meta
+            head-key="og:image"
+            property="og:image"
+            :content="homeOgImage"
+        >
+
+        <meta
+            head-key="twitter:card"
+            name="twitter:card"
+            content="summary_large_image"
+        >
+
+        <meta
+            head-key="twitter:title"
+            name="twitter:title"
+            :content="title"
+        >
+
+        <meta
+            head-key="twitter:description"
+            name="twitter:description"
+            :content="description"
+        >
+
+        <meta
+            head-key="twitter:image"
+            name="twitter:image"
+            :content="homeOgImage"
+        >
+
+        <component
+            :is="'script'"
+            head-key="json-ld-website"
+            type="application/ld+json"
+            v-html="websiteJsonLd"
+        />
+
+        <component
+            :is="'script'"
+            head-key="json-ld-organization"
+            type="application/ld+json"
+            v-html="organizationJsonLd"
+        />
+    </Head>
+
     <div class="welcome-page">
         <section class="welcome-section welcome-section--soft welcome-section--top-search">
             <v-container>
