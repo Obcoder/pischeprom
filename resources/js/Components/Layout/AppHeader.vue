@@ -26,7 +26,10 @@ const isCompact = ref(false)
 const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
 const siteSubtitle = 'Маркетплейс для пищевой промышленности'
 
-const logoUrl = '/images/logo/pischeprom-logo.png'
+
+//   L O G O
+const logoUrl = 'https://storage.yandexcloud.net/pps/images/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg'
+
 const logoFailed = ref(false)
 
 const showLogoImage = computed(() => {
@@ -36,6 +39,8 @@ const showLogoImage = computed(() => {
 function markLogoFailed() {
     logoFailed.value = true
 }
+
+
 
 const contacts = [
     {
@@ -330,6 +335,7 @@ onBeforeUnmount(() => {
                                 height="54"
                                 class="app-header__logo-image"
                                 loading="eager"
+                                decoding="async"
                                 @error="markLogoFailed"
                             >
 
