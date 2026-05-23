@@ -6,6 +6,7 @@ import { useHead } from "@vueuse/head";
 import { route } from "ziggy-js";
 import { useDate } from "vuetify";
 import { useForm } from "@inertiajs/vue3";
+import { usePage } from "@inertiajs/vue3";
 
 import GoodQuotationCalculator from "@/Components/GoodQuotationCalculator.vue";
 import GoodSeoTab from "@/Components/Goods/GoodSeoTab.vue";
@@ -26,6 +27,24 @@ const props = defineProps({
 });
 
 const date = useDate();
+
+const page = usePage();
+
+const currentUrl = computed(() => {
+    const ziggyLocation = page.props.ziggy?.location;
+
+    if (ziggyLocation) {
+        return String(ziggyLocation);
+    }
+
+    const ziggyUrl = page.props.ziggy?.url;
+
+    if (ziggyUrl) {
+        return String(ziggyUrl);
+    }
+
+    return "https://пищепром-сервер.рф";
+});
 
 // --------------------------------------------------
 // STATE
@@ -377,8 +396,8 @@ useHead({
         },
         {
             property: "og:url",
-            content: window.location.href,
-        },
+            content: currentUrl,
+        }
     ],
 });
 
