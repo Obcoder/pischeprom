@@ -1,24 +1,9 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { logo } from '@/Pages/Helpers/consts.js'
 import { Link, router, usePage } from '@inertiajs/vue3'
-import CitySelector from '@/Components/Location/CitySelector.vue';
-import RegisterDialog from '@/Components/Auth/RegisterDialog.vue';
-import { useAppRoute } from "@/Composables/useAppRoute";
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-const { route } = useAppRoute();
-const page = usePage();
-
-const navLinks = computed(() => [
-    { label: "Рыба", href: route("category.show", 25) },
-    { label: "Овощи", href: route("category.show", 30) },
-    { label: "Бакалея", href: route("category.show", 31) },
-]);
-
-
-const hasRoute = (name) => {
-    return Boolean(page.props.ziggy?.routes?.[name])
-}
+import CitySelector from '@/Components/Location/CitySelector.vue'
+import { useAppRoute } from '@/Composables/useAppRoute'
 
 const props = defineProps({
     categories: {
@@ -27,165 +12,346 @@ const props = defineProps({
     },
 })
 
-const user = computed(() => page.props.auth?.user ?? null)
-const canRegister = computed(() => hasRoute('register') || hasRoute('register.store'))
+const inertiaPage = usePage()
 
-const search = ref('')
+const {
+    route,
+} = useAppRoute()
+
+const drawer = ref(false)
+const categoryMenu = ref(false)
+const accountMenu = ref(false)
 const isCompact = ref(false)
-const registerDialog = ref(false)
 
-const mainContacts = [
-    { label: '+7-965-016-00-01', href: 'tel:+79650160001' },
-    { label: 'office@180022.ru', href: 'mailto:office@180022.ru' },
+const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
+const siteSubtitle = 'Маркетплейс для пищевой промышленности'
+const logoUrl = '/images/logo/pischeprom-logo.png'
+
+const contacts = [
+    {
+        label: '+7-965-016-00-01',
+        href: 'tel:+79650160001',
+        icon: 'mdi-phone',
+    },
+    {
+        label: 'office@180022.ru',
+        href: 'mailto:office@180022.ru',
+        icon: 'mdi-email-outline',
+    },
 ]
 
-function submitSearch() {
-    router.get(route('goods.published'), {
-        search: search.value?.trim() || '',
-    }, {
-        preserveState: true,
-        preserveScroll: true,
-    })
+const quickLinks = computed(() => [
+    {
+        label: 'Рыба',
+        href: route('category.show', 25),
+    },
+    {
+        label: 'Овощи',
+        href: route('category.show', 30),
+    },
+    {
+        label: 'Бакалея',
+        href: route('category.show', 31),
+    },
+])
+
+const user = computed(() => {
+    return inertiaPage.props.auth?.user ?? null
+})
+
+const canLogin = computed(() => {
+    return Boolean(inertiaPage.props.canLogin)
+})
+
+const canRegister = computed(() => {
+    return Boolean(inertiaPage.props.canRegister)
+})
+
+const currentCity = computed(() => {
+    return inertiaPage.props.location?.city ?? null
+})
+
+const availableCategories = computed(() => {
+    return Array.isArray(props.categories)
+        ? props.categories.filter((category) => category?.id && category?.name)
+        : []
+})
+
+const visibleCategories = computed(() => {
+    return availableCategories.value.slice(0, 18)
+})
+
+const hasCategories = computed(() => {
+    return visibleCategories.value.length > 0
+})
+
+const homeUrl = computed(() => {
+    return route('home')
+})
+
+const goodsIndexUrl = computed(() => {
+    return route('public.goods.index')
+})
+
+const profileUrl = computed(() => {
+    if (hasRoute('customer.profile.edit')) {
+        return route('customer.profile.edit')
+    }
+
+    if (hasRoute('profile.show')) {
+        return route('profile.show')
+    }
+
+    if (hasRoute('dashboard')) {
+        return route('dashboard')
+    }
+
+    return '/dashboard'
+})
+
+const loginUrl = computed(() => {
+    return hasRoute('login')
+        ? route('login')
+        : '/login'
+})
+
+const registerUrl = computed(() => {
+    return hasRoute('register')
+        ? route('register')
+        : '/register'
+})
+
+function hasRoute(name) {
+    const ziggy = inertiaPage.props.ziggy || globalThis.Ziggy || {}
+
+    return Boolean(ziggy.routes?.[name])
+}
+
+function categoryUrl(category) {
+    return route('category.show', category.id)
 }
 
 function handleScroll() {
+    if (typeof window === 'undefined') {
+        return
+    }
+
     isCompact.value = window.scrollY > 24
+}
+
+function closeDrawer() {
+    drawer.value = false
+}
+
+function logout() {
+    if (!hasRoute('logout')) {
+        return
+    }
+
+    accountMenu.value = false
+    drawer.value = false
+
+    router.post(
+        route('logout'),
+        {},
+        {
+            preserveScroll: true,
+        },
+    )
 }
 
 onMounted(() => {
     handleScroll()
-    window.addEventListener('scroll', handleScroll, { passive: true })
+
+    window.addEventListener('scroll', handleScroll, {
+        passive: true,
+    })
 })
 
 onBeforeUnmount(() => {
+    if (typeof window === 'undefined') {
+        return
+    }
+
     window.removeEventListener('scroll', handleScroll)
 })
 </script>
 
 <template>
-    <header :class="['app-header', { 'app-header--compact': isCompact }]">
+    <header
+        class="app-header"
+        :class="{
+            'app-header--compact': isCompact,
+        }"
+    >
         <div class="app-header__top">
             <v-container class="py-0">
                 <div class="app-header__top-inner">
                     <div class="app-header__contacts">
                         <a
-                            v-for="contact in mainContacts"
+                            v-for="contact in contacts"
                             :key="contact.href"
                             :href="contact.href"
                             class="app-header__contact"
                         >
-                            {{ contact.label }}
+                            <v-icon
+                                :icon="contact.icon"
+                                size="15"
+                                class="app-header__contact-icon"
+                            />
+
+                            <span>
+                                {{ contact.label }}
+                            </span>
                         </a>
                     </div>
 
-                    <div class="app-header__contacts">
-                        <CitySelector />
+                    <CitySelector
+                        class="app-header__city"
+                        compact
+                    />
 
-                        <a
-                            v-for="contact in mainContacts"
-                            :key="contact.href"
-                            :href="contact.href"
-                            class="app-header__contact"
-                        >
-                            {{ contact.label }}
-                        </a>
-                    </div>
-
-                    <div class="app-header__auth">
+                    <div class="app-header__account">
                         <template v-if="user">
-                            <div class="app-header__user">
-                                <v-avatar color="white" size="30">
-                                    <v-img
-                                        v-if="user.profile_photo_url"
-                                        :src="user.profile_photo_url"
-                                        :alt="user.name || 'Пользователь'"
-                                        cover
-                                    />
-
-                                    <span
-                                        v-else
-                                        class="text-red-darken-4 font-weight-bold"
+                            <v-menu
+                                v-model="accountMenu"
+                                location="bottom end"
+                                transition="scale-transition"
+                            >
+                                <template #activator="{ props: menuProps }">
+                                    <button
+                                        v-bind="menuProps"
+                                        type="button"
+                                        class="app-header__user"
                                     >
-                                        {{ user.name?.[0] || 'U' }}
-                                    </span>
-                                </v-avatar>
+                                        <v-avatar size="30">
+                                            <v-img
+                                                v-if="user.profile_photo_url"
+                                                :src="user.profile_photo_url"
+                                                :alt="user.name"
+                                                cover
+                                            />
 
-                                <div class="app-header__user-meta">
-                                    <div class="app-header__user-name">
-                                        {{ user.name }}
-                                    </div>
-                                </div>
+                                            <v-icon
+                                                v-else
+                                                icon="mdi-account-circle"
+                                                size="30"
+                                            />
+                                        </v-avatar>
 
-                                <Link :href="route('dashboard')">
-                                    <v-btn
-                                        color="white"
-                                        variant="outlined"
-                                        rounded="xl"
-                                        size="small"
-                                    >
-                                        Кабинет
-                                    </v-btn>
-                                </Link>
-                            </div>
+                                        <span class="app-header__user-name">
+                                            {{ user.name }}
+                                        </span>
+
+                                        <v-icon
+                                            icon="mdi-chevron-down"
+                                            size="18"
+                                        />
+                                    </button>
+                                </template>
+
+                                <v-card
+                                    min-width="220"
+                                    rounded="lg"
+                                >
+                                    <v-list density="compact">
+                                        <v-list-item
+                                            :href="profileUrl"
+                                            prepend-icon="mdi-account-outline"
+                                            title="Кабинет"
+                                        />
+
+                                        <v-divider />
+
+                                        <v-list-item
+                                            prepend-icon="mdi-logout"
+                                            title="Выйти"
+                                            @click="logout"
+                                        />
+                                    </v-list>
+                                </v-card>
+                            </v-menu>
                         </template>
 
                         <template v-else>
-                            <div class="app-header__guest">
-                                <Link :href="route('login')">
-                                    <v-btn color="white" variant="text" size="small">
-                                        Войти
-                                    </v-btn>
-                                </Link>
+                            <Link
+                                v-if="canLogin"
+                                :href="loginUrl"
+                                class="app-header__login"
+                            >
+                                Войти
+                            </Link>
 
-                                <v-btn
-                                    v-if="canRegister"
-                                    color="white"
-                                    variant="flat"
-                                    rounded="xl"
-                                    size="small"
-                                    class="app-header__register-btn"
-                                    @click="registerDialog = true"
-                                >
-                                    Регистрация
-                                </v-btn>
-
-                            </div>
+                            <Link
+                                v-if="canRegister"
+                                :href="registerUrl"
+                                class="app-header__register"
+                            >
+                                Регистрация
+                            </Link>
                         </template>
                     </div>
+
+                    <v-btn
+                        class="app-header__burger"
+                        icon="mdi-menu"
+                        variant="text"
+                        color="white"
+                        aria-label="Открыть меню"
+                        @click="drawer = true"
+                    />
                 </div>
             </v-container>
         </div>
 
         <div class="app-header__main">
-            <v-container class="py-0">
+            <v-container>
                 <div class="app-header__main-inner">
-                    <div class="app-header__brand">
-                        <Link href="/" class="app-header__logo-link">
-                            <div class="app-header__logo-shell">
-                                <img
-                                    :src="logo"
-                                    alt="ПИЩЕПРОМ-СЕРВЕР"
-                                    class="app-header__logo"
-                                >
-                            </div>
-                        </Link>
+                    <Link
+                        :href="homeUrl"
+                        class="app-header__brand"
+                    >
+                        <div class="app-header__logo">
+                            <v-img
+                                :src="logoUrl"
+                                :alt="siteName"
+                                width="54"
+                                height="54"
+                                cover
+                            >
+                                <template #error>
+                                    <div class="app-header__logo-fallback">
+                                        ПС
+                                    </div>
+                                </template>
+                            </v-img>
+                        </div>
 
                         <div class="app-header__brand-text">
-                            <Link href="/" class="app-header__brand-title">
-                                ПИЩЕПРОМ-СЕРВЕР
-                            </Link>
+                            <div class="app-header__brand-title">
+                                {{ siteName }}
+                            </div>
+
                             <div class="app-header__brand-subtitle">
-                                Маркетплейс для пищевой промышленности
+                                {{ siteSubtitle }}
                             </div>
                         </div>
-                    </div>
+                    </Link>
 
-                    <div class="app-header__nav">
-                        <Link :href="route('public.goods.index')" class="app-header__catalog-link">
+                    <nav class="app-header__nav">
+                        <Link
+                            :href="goodsIndexUrl"
+                            class="app-header__nav-link app-header__nav-link--primary"
+                        >
                             Все товары
                         </Link>
 
-                        <v-menu>
+                        <v-menu
+                            v-model="categoryMenu"
+                            location="bottom"
+                            transition="scale-transition"
+                            :close-on-content-click="false"
+                        >
                             <template #activator="{ props: menuProps }">
                                 <v-btn
                                     v-bind="menuProps"
@@ -198,37 +364,193 @@ onBeforeUnmount(() => {
                                 </v-btn>
                             </template>
 
-                            <v-list min-width="260">
-                                <v-list-item
-                                    v-for="category in categories"
-                                    :key="category.id"
+                            <v-card
+                                min-width="280"
+                                max-width="420"
+                                rounded="xl"
+                            >
+                                <v-card-title class="text-subtitle-1 font-weight-bold">
+                                    Категории
+                                </v-card-title>
+
+                                <v-divider />
+
+                                <v-list
+                                    v-if="hasCategories"
+                                    density="compact"
+                                    nav
                                 >
                                     <Link
-                                        :href="route('category.show', category.id)"
-                                        class="text-decoration-none text-high-emphasis"
+                                        v-for="category in visibleCategories"
+                                        :key="category.id"
+                                        :href="categoryUrl(category)"
+                                        class="app-header__category-link"
+                                        @click="categoryMenu = false"
                                     >
-                                        {{ category.name }}
+                                        <v-list-item
+                                            :title="category.name"
+                                            prepend-icon="mdi-shape-outline"
+                                        />
                                     </Link>
-                                </v-list-item>
-                            </v-list>
+                                </v-list>
+
+                                <v-card-text
+                                    v-else
+                                    class="text-body-2 text-medium-emphasis"
+                                >
+                                    Категории скоро появятся.
+                                </v-card-text>
+                            </v-card>
                         </v-menu>
 
-                        <nav class="app-header__quick-links">
+                        <div class="app-header__quick-links">
                             <Link
-                                v-for="item in navLinks"
+                                v-for="item in quickLinks"
                                 :key="item.label"
                                 :href="item.href"
+                                class="app-header__quick-link"
                             >
                                 {{ item.label }}
                             </Link>
-                        </nav>
-                    </div>
-
+                        </div>
+                    </nav>
                 </div>
             </v-container>
         </div>
 
-        <RegisterDialog v-model="registerDialog" />
+        <v-navigation-drawer
+            v-model="drawer"
+            temporary
+            location="right"
+            width="320"
+        >
+            <div class="app-header__drawer">
+                <div class="app-header__drawer-head">
+                    <div>
+                        <div class="app-header__drawer-title">
+                            {{ siteName }}
+                        </div>
+
+                        <div class="app-header__drawer-subtitle">
+                            {{ currentCity?.name ? `Доставка в ${currentCity.name}` : siteSubtitle }}
+                        </div>
+                    </div>
+
+                    <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        aria-label="Закрыть меню"
+                        @click="closeDrawer"
+                    />
+                </div>
+
+                <v-divider />
+
+                <v-list nav>
+                    <Link
+                        :href="homeUrl"
+                        class="app-header__drawer-link"
+                        @click="closeDrawer"
+                    >
+                        <v-list-item
+                            prepend-icon="mdi-home-outline"
+                            title="Главная"
+                        />
+                    </Link>
+
+                    <Link
+                        :href="goodsIndexUrl"
+                        class="app-header__drawer-link"
+                        @click="closeDrawer"
+                    >
+                        <v-list-item
+                            prepend-icon="mdi-storefront-outline"
+                            title="Все товары"
+                        />
+                    </Link>
+                </v-list>
+
+                <v-divider />
+
+                <v-list
+                    v-if="hasCategories"
+                    nav
+                    density="compact"
+                >
+                    <v-list-subheader>
+                        Категории
+                    </v-list-subheader>
+
+                    <Link
+                        v-for="category in visibleCategories"
+                        :key="category.id"
+                        :href="categoryUrl(category)"
+                        class="app-header__drawer-link"
+                        @click="closeDrawer"
+                    >
+                        <v-list-item
+                            prepend-icon="mdi-shape-outline"
+                            :title="category.name"
+                        />
+                    </Link>
+                </v-list>
+
+                <v-divider />
+
+                <div class="app-header__drawer-block">
+                    <CitySelector />
+                </div>
+
+                <v-divider />
+
+                <v-list nav>
+                    <template v-if="user">
+                        <Link
+                            :href="profileUrl"
+                            class="app-header__drawer-link"
+                            @click="closeDrawer"
+                        >
+                            <v-list-item
+                                prepend-icon="mdi-account-outline"
+                                title="Кабинет"
+                            />
+                        </Link>
+
+                        <v-list-item
+                            prepend-icon="mdi-logout"
+                            title="Выйти"
+                            @click="logout"
+                        />
+                    </template>
+
+                    <template v-else>
+                        <Link
+                            v-if="canLogin"
+                            :href="loginUrl"
+                            class="app-header__drawer-link"
+                            @click="closeDrawer"
+                        >
+                            <v-list-item
+                                prepend-icon="mdi-login"
+                                title="Войти"
+                            />
+                        </Link>
+
+                        <Link
+                            v-if="canRegister"
+                            :href="registerUrl"
+                            class="app-header__drawer-link"
+                            @click="closeDrawer"
+                        >
+                            <v-list-item
+                                prepend-icon="mdi-account-plus-outline"
+                                title="Регистрация"
+                            />
+                        </Link>
+                    </template>
+                </v-list>
+            </div>
+        </v-navigation-drawer>
     </header>
 </template>
 
@@ -236,260 +558,284 @@ onBeforeUnmount(() => {
 .app-header {
     position: sticky;
     top: 0;
-    z-index: 100;
-    background: #fff;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
-    transition: box-shadow 0.2s ease;
+    z-index: 20;
+    background: #fffaf8;
+    box-shadow: 0 6px 24px rgba(31, 41, 55, 0.08);
 }
 
 .app-header__top {
-    background: linear-gradient(90deg, #6b0000 0%, #800000 50%, #6b0000 100%);
-    color: #fff7ed;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: #800000;
+    color: #fff;
 }
 
 .app-header__top-inner {
-    min-height: 38px;
-    display: flex;
+    min-height: 52px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 18px;
 }
 
 .app-header__contacts {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px 14px;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
 }
 
 .app-header__contact {
-    color: #ffedd5;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
     text-decoration: none;
-    font-size: 0.82rem;
-    line-height: 1.2;
+    font-size: 0.88rem;
+    white-space: nowrap;
     opacity: 0.95;
 }
 
 .app-header__contact:hover {
     opacity: 1;
+    text-decoration: underline;
 }
 
-.app-header__auth {
+.app-header__contact-icon {
+    opacity: 0.86;
+}
+
+.app-header__city {
+    justify-self: center;
+}
+
+.app-header__account {
     display: flex;
-    align-items: center;
     justify-content: flex-end;
-}
-
-.app-header__guest {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.app-header__register-btn {
-    color: #7f1d1d !important;
-    font-weight: 700;
-}
-
-.app-header__user {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.app-header__user-meta {
-    display: flex;
-    align-items: center;
-}
-
-.app-header__user-name {
-    font-size: 0.88rem;
-    font-weight: 600;
-    color: #fff;
-}
-
-.app-header__main {
-    background: #fffaf8;
-}
-
-.app-header__main-inner {
-    min-height: 72px;
-    display: grid;
-    grid-template-columns: auto 1fr minmax(280px, 420px);
-    align-items: center;
-    gap: 20px;
-    padding: 10px 0;
-}
-
-.app-header__brand {
-    display: flex;
     align-items: center;
     gap: 12px;
     min-width: 0;
 }
 
-.app-header__logo-link {
-    text-decoration: none;
-    flex-shrink: 0;
+.app-header__user {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 0;
 }
 
-.app-header__logo-shell {
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
-    background: #fff;
-    border: 1px solid rgba(128, 0, 0, 0.12);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+.app-header__user-name {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-header__login,
+.app-header__register {
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.app-header__register {
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    padding: 7px 14px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.75rem;
+}
+
+.app-header__burger {
+    display: none;
+    justify-self: end;
+}
+
+.app-header__main {
+    background: rgba(255, 250, 248, 0.96);
+    backdrop-filter: blur(10px);
+    transition: padding 0.2s ease;
+}
+
+.app-header__main-inner {
+    min-height: 84px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    justify-content: space-between;
+    gap: 28px;
+    transition: min-height 0.2s ease;
 }
 
-.app-header__logo {
-    width: 78%;
-    height: 78%;
-    object-fit: contain;
-    display: block;
+.app-header--compact .app-header__main-inner {
+    min-height: 70px;
 }
 
-.app-header__brand-text {
+.app-header__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
     min-width: 0;
 }
 
-.app-header__brand-title {
-    display: inline-block;
-    color: #7f1d1d;
-    text-decoration: none;
-    font-size: 1rem;
+.app-header__logo {
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 8px 20px rgba(128, 0, 0, 0.12);
+    flex: 0 0 auto;
+}
+
+.app-header__logo-fallback {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    background: #800000;
+    color: #fff;
     font-weight: 800;
-    line-height: 1.15;
+}
+
+.app-header__brand-title {
+    color: #8b1e1e;
+    font-weight: 900;
+    font-size: 1.02rem;
+    line-height: 1.2;
+    text-transform: uppercase;
 }
 
 .app-header__brand-subtitle {
-    font-size: 0.8rem;
-    color: #7c6f6a;
+    margin-top: 4px;
+    color: #756c67;
+    font-size: 0.88rem;
     line-height: 1.2;
-    margin-top: 2px;
 }
 
 .app-header__nav {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
-.app-header__catalog-link {
-    color: #7f1d1d;
+.app-header__nav-link,
+.app-header__quick-link {
+    color: #1f1f1f;
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
+}
+
+.app-header__nav-link--primary {
+    color: #7f1d1d;
+    font-weight: 800;
 }
 
 .app-header__quick-links {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
+    gap: 10px;
 }
 
-.app-header__quick-link {
-    color: #7f1d1d;
+.app-header__quick-link:hover,
+.app-header__nav-link:hover {
+    color: #800000;
+}
+
+.app-header__category-link,
+.app-header__drawer-link {
+    color: inherit;
     text-decoration: none;
-    font-weight: 600;
-    font-size: 0.84rem;
-    padding: 5px 10px;
-    border: 1px solid rgba(128, 0, 0, 0.14);
-    border-radius: 999px;
-    background: rgba(128, 0, 0, 0.04);
-    transition: all 0.2s ease;
+    display: block;
 }
 
-.app-header__quick-link:hover {
-    background: rgba(128, 0, 0, 0.08);
+.app-header__drawer {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
-/* compact */
-.app-header--compact {
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+.app-header__drawer-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 16px;
 }
 
-.app-header--compact .app-header__top-inner {
-    min-height: 34px;
+.app-header__drawer-title {
+    color: #8b1e1e;
+    font-weight: 900;
+    text-transform: uppercase;
 }
 
-.app-header--compact .app-header__main-inner {
-    min-height: 64px;
-    padding: 8px 0;
+.app-header__drawer-subtitle {
+    margin-top: 4px;
+    color: #6b625d;
+    font-size: 0.88rem;
 }
 
-.app-header--compact .app-header__logo-shell {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
-}
-
-.app-header--compact .app-header__brand-title {
-    font-size: 0.95rem;
-}
-
-.app-header--compact .app-header__brand-subtitle {
-    font-size: 0.76rem;
-}
-
-@media (max-width: 1264px) {
-    .app-header__main-inner {
-        grid-template-columns: auto 1fr;
-    }
+.app-header__drawer-block {
+    padding: 14px 16px;
 }
 
 @media (max-width: 960px) {
-    .app-header {
-        position: relative;
-    }
-
     .app-header__top-inner {
-        flex-direction: column;
-        justify-content: center;
-        padding: 8px 0;
+        grid-template-columns: 1fr auto;
     }
 
     .app-header__contacts,
-    .app-header__auth {
-        justify-content: center;
+    .app-header__account,
+    .app-header__nav {
+        display: none;
+    }
+
+    .app-header__city {
+        justify-self: start;
+    }
+
+    .app-header__burger {
+        display: inline-flex;
     }
 
     .app-header__main-inner {
-        grid-template-columns: 1fr;
-        gap: 14px;
-        padding: 12px 0;
+        min-height: 76px;
     }
 
-    .app-header__brand {
-        justify-content: center;
-        text-align: center;
-    }
-
-    .app-header__nav {
-        justify-content: center;
+    .app-header__brand-subtitle {
+        font-size: 0.8rem;
     }
 }
 
 @media (max-width: 600px) {
-    .app-header__contacts,
-    .app-header__quick-links,
-    .app-header__guest,
-    .app-header__user {
-        justify-content: center;
-        flex-wrap: wrap;
+    .app-header__top-inner {
+        min-height: 46px;
     }
 
-    .app-header__user {
-        flex-direction: column;
+    .app-header__main-inner {
+        min-height: 68px;
     }
 
-    .app-header__brand {
-        flex-direction: column;
+    .app-header__logo {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+    }
+
+    .app-header__brand-title {
+        font-size: 0.92rem;
+    }
+
+    .app-header__brand-subtitle {
+        display: none;
     }
 }
 </style>
