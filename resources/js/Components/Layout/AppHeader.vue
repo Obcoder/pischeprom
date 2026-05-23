@@ -25,7 +25,12 @@ const isCompact = ref(false)
 
 const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
 const siteSubtitle = 'Маркетплейс для пищевой промышленности'
-const logoUrl = '/images/logo/pischeprom-logo.png'
+
+// Сейчас отключено, чтобы не было 404:
+// GET /images/logo/pischeprom-logo.png 404
+// Когда положишь файл в public/images/logo/pischeprom-logo.png,
+// можно заменить на '/images/logo/pischeprom-logo.png'
+const logoUrl = ''
 
 const contacts = [
     {
@@ -313,18 +318,20 @@ onBeforeUnmount(() => {
                     >
                         <div class="app-header__logo">
                             <v-img
+                                v-if="logoUrl"
                                 :src="logoUrl"
                                 :alt="siteName"
                                 width="54"
                                 height="54"
                                 cover
+                            />
+
+                            <div
+                                v-else
+                                class="app-header__logo-fallback"
                             >
-                                <template #error>
-                                    <div class="app-header__logo-fallback">
-                                        ПС
-                                    </div>
-                                </template>
-                            </v-img>
+                                ПС
+                            </div>
                         </div>
 
                         <div class="app-header__brand-text">
@@ -418,139 +425,126 @@ onBeforeUnmount(() => {
             </v-container>
         </div>
 
-        <v-navigation-drawer
-            v-model="drawer"
-            temporary
-            location="right"
-            width="320"
-        >
-            <div class="app-header__drawer">
-                <div class="app-header__drawer-head">
-                    <div>
-                        <div class="app-header__drawer-title">
-                            {{ siteName }}
-                        </div>
-
-                        <div class="app-header__drawer-subtitle">
-                            {{ currentCity?.name ? `Доставка в ${currentCity.name}` : siteSubtitle }}
-                        </div>
-                    </div>
-
-                    <v-btn
-                        icon="mdi-close"
-                        variant="text"
-                        aria-label="Закрыть меню"
-                        @click="closeDrawer"
-                    />
-                </div>
-
-                <v-divider />
-
-                <v-list nav>
-                    <Link
-                        :href="homeUrl"
-                        class="app-header__drawer-link"
-                        @click="closeDrawer"
-                    >
-                        <v-list-item
-                            prepend-icon="mdi-home-outline"
-                            title="Главная"
-                        />
-                    </Link>
-
-                    <Link
-                        :href="goodsIndexUrl"
-                        class="app-header__drawer-link"
-                        @click="closeDrawer"
-                    >
-                        <v-list-item
-                            prepend-icon="mdi-storefront-outline"
-                            title="Все товары"
-                        />
-                    </Link>
-                </v-list>
-
-                <v-divider />
-
-                <v-list
-                    v-if="hasCategories"
-                    nav
-                    density="compact"
+        <Teleport to="body">
+            <Transition name="app-header-drawer">
+                <div
+                    v-if="drawer"
+                    class="app-header__drawer-overlay"
+                    @click.self="closeDrawer"
                 >
-                    <v-list-subheader>
-                        Категории
-                    </v-list-subheader>
+                    <aside class="app-header__drawer-panel">
+                        <div class="app-header__drawer-head">
+                            <div>
+                                <div class="app-header__drawer-title">
+                                    {{ siteName }}
+                                </div>
 
-                    <Link
-                        v-for="category in visibleCategories"
-                        :key="category.id"
-                        :href="categoryUrl(category)"
-                        class="app-header__drawer-link"
-                        @click="closeDrawer"
-                    >
-                        <v-list-item
-                            prepend-icon="mdi-shape-outline"
-                            :title="category.name"
-                        />
-                    </Link>
-                </v-list>
+                                <div class="app-header__drawer-subtitle">
+                                    {{ currentCity?.name ? `Доставка в ${currentCity.name}` : siteSubtitle }}
+                                </div>
+                            </div>
 
-                <v-divider />
+                            <v-btn
+                                icon="mdi-close"
+                                variant="text"
+                                aria-label="Закрыть меню"
+                                @click="closeDrawer"
+                            />
+                        </div>
 
-                <div class="app-header__drawer-block">
-                    <CitySelector />
+                        <v-divider />
+
+                        <div class="app-header__drawer-content">
+                            <Link
+                                :href="homeUrl"
+                                class="app-header__drawer-link"
+                                @click="closeDrawer"
+                            >
+                                <v-icon icon="mdi-home-outline" size="20" />
+                                <span>Главная</span>
+                            </Link>
+
+                            <Link
+                                :href="goodsIndexUrl"
+                                class="app-header__drawer-link"
+                                @click="closeDrawer"
+                            >
+                                <v-icon icon="mdi-storefront-outline" size="20" />
+                                <span>Все товары</span>
+                            </Link>
+
+                            <div
+                                v-if="hasCategories"
+                                class="app-header__drawer-section"
+                            >
+                                <div class="app-header__drawer-section-title">
+                                    Категории
+                                </div>
+
+                                <Link
+                                    v-for="category in visibleCategories"
+                                    :key="category.id"
+                                    :href="categoryUrl(category)"
+                                    class="app-header__drawer-link"
+                                    @click="closeDrawer"
+                                >
+                                    <v-icon icon="mdi-shape-outline" size="20" />
+                                    <span>{{ category.name }}</span>
+                                </Link>
+                            </div>
+
+                            <div class="app-header__drawer-section">
+                                <CitySelector />
+                            </div>
+
+                            <div class="app-header__drawer-section">
+                                <template v-if="user">
+                                    <Link
+                                        :href="profileUrl"
+                                        class="app-header__drawer-link"
+                                        @click="closeDrawer"
+                                    >
+                                        <v-icon icon="mdi-account-outline" size="20" />
+                                        <span>Кабинет</span>
+                                    </Link>
+
+                                    <button
+                                        type="button"
+                                        class="app-header__drawer-link app-header__drawer-button"
+                                        @click="logout"
+                                    >
+                                        <v-icon icon="mdi-logout" size="20" />
+                                        <span>Выйти</span>
+                                    </button>
+                                </template>
+
+                                <template v-else>
+                                    <Link
+                                        v-if="canLogin"
+                                        :href="loginUrl"
+                                        class="app-header__drawer-link"
+                                        @click="closeDrawer"
+                                    >
+                                        <v-icon icon="mdi-login" size="20" />
+                                        <span>Войти</span>
+                                    </Link>
+
+                                    <Link
+                                        v-if="canRegister"
+                                        :href="registerUrl"
+                                        class="app-header__drawer-link"
+                                        @click="closeDrawer"
+                                    >
+                                        <v-icon icon="mdi-account-plus-outline" size="20" />
+                                        <span>Регистрация</span>
+                                    </Link>
+                                </template>
+                            </div>
+                        </div>
+                    </aside>
                 </div>
-
-                <v-divider />
-
-                <v-list nav>
-                    <template v-if="user">
-                        <Link
-                            :href="profileUrl"
-                            class="app-header__drawer-link"
-                            @click="closeDrawer"
-                        >
-                            <v-list-item
-                                prepend-icon="mdi-account-outline"
-                                title="Кабинет"
-                            />
-                        </Link>
-
-                        <v-list-item
-                            prepend-icon="mdi-logout"
-                            title="Выйти"
-                            @click="logout"
-                        />
-                    </template>
-
-                    <template v-else>
-                        <Link
-                            v-if="canLogin"
-                            :href="loginUrl"
-                            class="app-header__drawer-link"
-                            @click="closeDrawer"
-                        >
-                            <v-list-item
-                                prepend-icon="mdi-login"
-                                title="Войти"
-                            />
-                        </Link>
-
-                        <Link
-                            v-if="canRegister"
-                            :href="registerUrl"
-                            class="app-header__drawer-link"
-                            @click="closeDrawer"
-                        >
-                            <v-list-item
-                                prepend-icon="mdi-account-plus-outline"
-                                title="Регистрация"
-                            />
-                        </Link>
-                    </template>
-                </v-list>
-            </div>
-        </v-navigation-drawer>
+            </Transition>
+        </Teleport>
     </header>
 </template>
 
@@ -750,17 +744,28 @@ onBeforeUnmount(() => {
     color: #800000;
 }
 
-.app-header__category-link,
-.app-header__drawer-link {
+.app-header__category-link {
     color: inherit;
     text-decoration: none;
     display: block;
 }
 
-.app-header__drawer {
-    min-height: 100%;
+.app-header__drawer-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
     display: flex;
-    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(17, 24, 39, 0.48);
+}
+
+.app-header__drawer-panel {
+    width: min(320px, 92vw);
+    min-height: 100vh;
+    background: #fff;
+    color: #1f2937;
+    box-shadow: -16px 0 40px rgba(17, 24, 39, 0.22);
+    overflow: auto;
 }
 
 .app-header__drawer-head {
@@ -783,8 +788,56 @@ onBeforeUnmount(() => {
     font-size: 0.88rem;
 }
 
-.app-header__drawer-block {
-    padding: 14px 16px;
+.app-header__drawer-content {
+    padding: 12px 0 22px;
+}
+
+.app-header__drawer-section {
+    padding: 12px 0;
+    border-top: 1px solid rgba(128, 0, 0, 0.08);
+}
+
+.app-header__drawer-section-title {
+    padding: 0 18px 8px;
+    color: #8b1e1e;
+    font-weight: 800;
+    font-size: 0.86rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.app-header__drawer-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 18px;
+    color: #1f2937;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.app-header__drawer-link:hover {
+    background: rgba(128, 0, 0, 0.06);
+    color: #800000;
+}
+
+.app-header__drawer-button {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+.app-header-drawer-enter-active,
+.app-header-drawer-leave-active {
+    transition: opacity 0.18s ease;
+}
+
+.app-header-drawer-enter-from,
+.app-header-drawer-leave-to {
+    opacity: 0;
 }
 
 @media (max-width: 960px) {
@@ -828,6 +881,11 @@ onBeforeUnmount(() => {
         width: 46px;
         height: 46px;
         border-radius: 14px;
+    }
+
+    .app-header__logo-fallback {
+        width: 46px;
+        height: 46px;
     }
 
     .app-header__brand-title {

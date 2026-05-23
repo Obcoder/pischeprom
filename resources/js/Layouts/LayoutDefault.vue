@@ -42,9 +42,9 @@ const currentYear = new Date().getFullYear()
         <div class="layout-shell">
             <AppHeader :categories="categories" />
 
-            <v-main class="layout-main">
+            <main class="layout-main">
                 <slot />
-            </v-main>
+            </main>
 
             <footer class="layout-footer">
                 <v-container>
