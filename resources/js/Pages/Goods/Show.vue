@@ -1,17 +1,23 @@
 <script setup>
-import { computed, ref, watch, onMounted } from "vue";
-import { Head, Link } from "@inertiajs/vue3";
-import { route as ziggyRoute } from "ziggy-js";
+import { computed, ref, watch, onMounted } from "vue"
+import { Head, Link } from "@inertiajs/vue3"
 
-import LayoutDefault from "@/Layouts/LayoutDefault.vue";
-import { useYandexMetrica } from "@/Composables/useYandexMetrica";
-import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl';
+import LayoutDefault from "@/Layouts/LayoutDefault.vue"
+import { useYandexMetrica } from "@/Composables/useYandexMetrica"
+import { usePublicGoodUrl } from "@/Composables/usePublicGoodUrl"
+import { useAppRoute } from "@/Composables/useAppRoute"
 
-const { goodPublicUrl } = usePublicGoodUrl()
+const {
+    route,
+} = useAppRoute()
+
+const {
+    goodPublicUrl,
+} = usePublicGoodUrl()
 
 defineOptions({
     layout: LayoutDefault,
-});
+})
 
 const props = defineProps({
     good: {
@@ -26,11 +32,7 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
-});
-
-const route = (name, params = {}, absolute = true) => {
-    return ziggyRoute(name, params, absolute, page.props.ziggy);
-};
+})
 
 const metricaCounterId = import.meta.env.VITE_YANDEX_METRICA_COUNTER_ID;
 
