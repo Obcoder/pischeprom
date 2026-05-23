@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, onMounted } from "vue";
-import { Head, Link, usePage } from "@inertiajs/vue3";
+import { Head, Link } from "@inertiajs/vue3";
 import { route as ziggyRoute } from "ziggy-js";
 
 import LayoutDefault from "@/Layouts/LayoutDefault.vue";
@@ -27,8 +27,6 @@ const props = defineProps({
         default: () => ({}),
     },
 });
-
-const page = usePage();
 
 const route = (name, params = {}, absolute = true) => {
     return ziggyRoute(name, params, absolute, page.props.ziggy);
@@ -311,6 +309,10 @@ function requestPrice() {
         good_id: props.good.id,
         good_name: props.good.name,
     });
+
+    if (typeof window === "undefined") {
+        return;
+    }
 
     window.location.href = `mailto:office@180022.ru?subject=${encodeURIComponent("Запрос цены: " + props.good.name)}`;
 }
