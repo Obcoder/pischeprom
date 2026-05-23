@@ -1,64 +1,102 @@
+@php
+    $appName = config('app.name', 'ПИЩЕПРОМ-СЕРВЕР');
+
+    $configuredMetricaCounterId = config('services.yandex_metrica.counter_id');
+
+    $metricaCounterId = is_numeric($configuredMetricaCounterId) && (int) $configuredMetricaCounterId > 0
+        ? (int) $configuredMetricaCounterId
+        : null;
+@endphp
+
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="yandex-verification" content="9eaa399be3fa6a51">
 
-    <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <meta
+        name="csrf-token"
+        content="{{ csrf_token() }}"
+    >
+
+    {{-- Inertia использует нестандартный атрибут "inertia".
+         Выводим тег через PHP, чтобы IDE не подсвечивала HTML-ошибку. --}}
+    <?php echo '<title inertia>' . e($appName) . '</title>'; ?>
+
+    <?php if ($metricaCounterId !== null): ?>
+    <script>
+        (function () {
+            const counterId = {{ $metricaCounterId }};
+            const metricaScriptUrl = 'https://mc.yandex.ru/metrika/tag.js';
+            const metricaFunctionName = 'ym';
+
+            window.dataLayer = window.dataLayer || [];
+
+            window[metricaFunctionName] = window[metricaFunctionName] || function () {
+                window[metricaFunctionName].a = window[metricaFunctionName].a || [];
+                window[metricaFunctionName].a.push(arguments);
+            };
+
+            window[metricaFunctionName].l = Date.now();
+
+            let scriptAlreadyAdded = false;
+
+            for (let index = 0; index < document.scripts.length; index += 1) {
+                if (document.scripts[index].src === metricaScriptUrl) {
+                    scriptAlreadyAdded = true;
+                    break;
+                }
+            }
+
+            if (!scriptAlreadyAdded) {
+                const metricaScript = document.createElement('script');
+                const firstScript = document.getElementsByTagName('script')[0];
+
+                metricaScript.async = true;
+                metricaScript.src = metricaScriptUrl;
+
+                firstScript.parentNode.insertBefore(metricaScript, firstScript);
+            }
+
+            window[metricaFunctionName](counterId, 'init', {
+                clickmap: true,
+                trackLinks: true,
+                accurateTrackBounce: true,
+                webvisor: true,
+                ecommerce: 'dataLayer'
+            });
+        })();
+    </script>
+    <?php endif; ?>
+
+    @routes
+
+    @vite([
+        'resources/js/app.js',
+        "resources/js/Pages/{$page['component']}.vue"
+    ])
 
     @inertiaHead
-
-    @php
-        /*
-        |--------------------------------------------------------------------------
-        | JSON-LD for crawlers
-        |--------------------------------------------------------------------------
-        | Важно:
-        | Vue/Inertia Head без рабочего SSR не попадает в исходный HTML.
-        | Поэтому выводим structured data прямо из Inertia props в Blade.
-        */
-
-        $jsonLd = data_get($page ?? [], 'props.seo.jsonLd');
-
-        if (is_string($jsonLd)) {
-            $decodedJsonLd = json_decode($jsonLd, true);
-            $jsonLd = json_last_error() === JSON_ERROR_NONE ? $decodedJsonLd : null;
-        }
-
-        $jsonLdItems = [];
-
-        if (is_array($jsonLd) && ! empty($jsonLd)) {
-            $jsonLdItems = array_is_list($jsonLd)
-                && isset($jsonLd[0])
-                && is_array($jsonLd[0])
-                    ? $jsonLd
-                    : [$jsonLd];
-        }
-
-        $jsonFlags = JSON_UNESCAPED_UNICODE
-            | JSON_UNESCAPED_SLASHES
-            | JSON_HEX_TAG
-            | JSON_HEX_AMP
-            | JSON_HEX_APOS
-            | JSON_HEX_QUOT;
-    @endphp
-
-    @foreach ($jsonLdItems as $jsonLdItem)
-        @if (is_array($jsonLdItem) && ! empty($jsonLdItem))
-            <script type="application/ld+json">{!! json_encode($jsonLdItem, $jsonFlags) !!}</script>
-        @endif
-    @endforeach
-
-    <!-- Scripts -->
-    @routes
-    @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
 </head>
-<body class="font-sans antialiased">
+
+<body>
+<?php if ($metricaCounterId !== null): ?>
+<noscript>
+    <div>
+        <img
+            src="https://mc.yandex.ru/watch/{{ $metricaCounterId }}"
+            style="position:absolute; left:-9999px;"
+            alt=""
+        >
+    </div>
+</noscript>
+<?php endif; ?>
+
 @inertia
 </body>
 </html>

@@ -2,9 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
-import { route } from 'ziggy-js'
+import { useAppRoute } from '@/Composables/useAppRoute'
 
-const page = usePage()
+const {
+    route,
+} = useAppRoute()
 
 const currentCity = computed(() => page.props.location?.city)
 

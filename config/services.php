@@ -81,7 +81,7 @@ return [
     ],
 
     'yandex_metrica' => [
-        'counter_id' => env('YANDEX_METRICA_COUNTER_ID'),
+        'counter_id' => env('YANDEX_METRICA_COUNTER_ID') ?: env('VITE_YANDEX_METRICA_COUNTER_ID'),
     ],
 
     'dadata' => [

@@ -1,6 +1,5 @@
 <script setup>
 import AppHeader from '@/Components/Layout/AppHeader.vue'
-import YandexMetricaCounter from "@/Components/Seo/YandexMetricaCounter.vue";
 
 const props = defineProps({
     categories: {
@@ -24,7 +23,6 @@ const footerLinks = [
 </script>
 
 <template>
-    <YandexMetricaCounter />
 
     <div class="layout-shell">
         <AppHeader :categories="categories" />
@@ -68,6 +66,7 @@ const footerLinks = [
             </v-container>
         </footer>
     </div>
+
 </template>
 
 <style scoped>
