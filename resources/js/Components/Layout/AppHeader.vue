@@ -26,11 +26,16 @@ const isCompact = ref(false)
 const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
 const siteSubtitle = 'Маркетплейс для пищевой промышленности'
 
-// Сейчас отключено, чтобы не было 404:
-// GET /images/logo/pischeprom-logo.png 404
-// Когда положишь файл в public/images/logo/pischeprom-logo.png,
-// можно заменить на '/images/logo/pischeprom-logo.png'
-const logoUrl = ''
+const logoUrl = '/images/logo/pischeprom-logo.png'
+const logoFailed = ref(false)
+
+const showLogoImage = computed(() => {
+    return Boolean(logoUrl) && !logoFailed.value
+})
+
+function markLogoFailed() {
+    logoFailed.value = true
+}
 
 const contacts = [
     {
@@ -317,14 +322,16 @@ onBeforeUnmount(() => {
                         class="app-header__brand"
                     >
                         <div class="app-header__logo">
-                            <v-img
-                                v-if="logoUrl"
+                            <img
+                                v-if="showLogoImage"
                                 :src="logoUrl"
                                 :alt="siteName"
                                 width="54"
                                 height="54"
-                                cover
-                            />
+                                class="app-header__logo-image"
+                                loading="eager"
+                                @error="markLogoFailed"
+                            >
 
                             <div
                                 v-else
@@ -685,6 +692,13 @@ onBeforeUnmount(() => {
     background: #fff;
     box-shadow: 0 8px 20px rgba(128, 0, 0, 0.12);
     flex: 0 0 auto;
+}
+
+.app-header__logo-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .app-header__logo-fallback {
