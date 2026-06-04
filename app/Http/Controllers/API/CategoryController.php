@@ -18,10 +18,22 @@ class CategoryController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $request->merge([
+                            'sortDesc' => $request->has('sortDesc')
+                                ? filter_var($request->input('sortDesc'), FILTER_VALIDATE_BOOLEAN)
+                                : null,
+                            'published' => $request->has('published')
+                                ? filter_var($request->input('published'), FILTER_VALIDATE_BOOLEAN)
+                                : null,
+                            'featured' => $request->has('featured')
+                                ? filter_var($request->input('featured'), FILTER_VALIDATE_BOOLEAN)
+                                : null,
+                        ]);
+
         $validated = $request->validate([
                                             'search' => ['nullable', 'string'],
-                                            'published' => ['nullable'],
-                                            'featured' => ['nullable'],
+                                            'published' => ['nullable', 'boolean'],
+                                            'featured' => ['nullable', 'boolean'],
                                             'sortBy' => ['nullable', 'string', 'in:id,name,slug,sort_order,updated_at,products_count,goods_count'],
                                             'sortDesc' => ['nullable', 'boolean'],
                                             'page' => ['nullable', 'integer', 'min:1'],
@@ -35,11 +47,11 @@ class CategoryController extends Controller
         $categories = Category::query()
             ->withCount(['products', 'goods'])
             ->search($validated['search'] ?? null)
-            ->when($request->filled('published'), function ($query) use ($request) {
-                $query->where('is_published', filter_var($request->input('published'), FILTER_VALIDATE_BOOLEAN));
+            ->when(array_key_exists('published', $validated) && $validated['published'] !== null, function ($query) use ($validated) {
+                $query->where('is_published', $validated['published']);
             })
-            ->when($request->filled('featured'), function ($query) use ($request) {
-                $query->where('is_featured', filter_var($request->input('featured'), FILTER_VALIDATE_BOOLEAN));
+            ->when(array_key_exists('featured', $validated) && $validated['featured'] !== null, function ($query) use ($validated) {
+                $query->where('is_featured', $validated['featured']);
             })
             ->orderBy($sortBy, $sortDirection)
             ->orderBy('name')
