@@ -35,12 +35,12 @@ const {
 
 const date = useDate()
 
-const tab = ref()
-const tabsContacts = ref()
-const tabsGeography = ref()
-const tabsProducts = ref()
-const tabsSegments = ref()
-const tabsUnits = ref()
+const tab = ref('products')
+const tabsContacts = ref('telephones')
+const tabsGeography = ref('cities')
+const tabsProducts = ref('categories')
+const tabsSegments = ref('industries')
+const tabsUnits = ref('units_sub')
 
 const brands = ref([])
 const buildings = ref([])
