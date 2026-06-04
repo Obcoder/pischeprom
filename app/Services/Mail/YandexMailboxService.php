@@ -9,13 +9,14 @@ use DateTimeInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 use Webklex\PHPIMAP\ClientManager;
 
 class YandexMailboxService
 {
     public function syncAll(int $limit = 1000): array
     {
-        $folders = config('services.yandex_mail.imap.folders', [
+        $folders = config('services.yandex_mail.folders', [
             config('services.yandex_mail.imap.inbox', 'INBOX'),
             config('services.yandex_mail.imap.sent', 'Sent'),
         ]);
@@ -23,11 +24,21 @@ class YandexMailboxService
         $result = [];
 
         foreach ($folders as $folder) {
-            $result[$folder] = $this->syncFolder(
-                folderName: $folder,
-                direction: null,
-                limit: $limit,
-            );
+            try {
+                $result[$folder] = $this->syncFolder(
+                    folderName: $folder,
+                    direction: null,
+                    limit: $limit,
+                );
+            } catch (Throwable $exception) {
+                logger()->error('Yandex mailbox folder sync failed', [
+                    'folder' => $folder,
+                    'limit' => $limit,
+                    'message' => $exception->getMessage(),
+                ]);
+
+                $result[$folder] = 0;
+            }
         }
 
         return $result;
@@ -36,9 +47,10 @@ class YandexMailboxService
     public function syncFolder(string $folderName, ?string $direction = null, int $limit = 1000): int
     {
         $client = $this->client();
-        $client->connect();
 
         try {
+            $client->connect();
+
             $folder = $this->resolveFolder($client, $folderName);
 
             if (!$folder) {
@@ -118,7 +130,10 @@ class YandexMailboxService
 
             return $stored;
         } finally {
-            $client->disconnect();
+            $this->safeDisconnect($client, [
+                'operation' => 'sync_folder',
+                'folder' => $folderName,
+            ]);
         }
     }
 
@@ -648,10 +663,15 @@ class YandexMailboxService
             return $mailMessage;
         }
 
+        if (!$mailMessage->imap_uid) {
+            return $mailMessage;
+        }
+
         $client = $this->client();
-        $client->connect();
 
         try {
+            $client->connect();
+
             $folder = $this->resolveFolder($client, $mailMessage->folder);
 
             if (!$folder) {
@@ -695,7 +715,7 @@ class YandexMailboxService
                                     ])->save();
 
             return $mailMessage->fresh();
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             logger()->error('Yandex load body failed', [
                 'mail_message_id' => $mailMessage->id,
                 'folder' => $mailMessage->folder,
@@ -705,7 +725,23 @@ class YandexMailboxService
 
             throw $exception;
         } finally {
+            $this->safeDisconnect($client, [
+                'operation' => 'load_body',
+                'mail_message_id' => $mailMessage->id,
+                'folder' => $mailMessage->folder,
+            ]);
+        }
+    }
+
+    protected function safeDisconnect($client, array $context = []): void
+    {
+        try {
             $client->disconnect();
+        } catch (Throwable $exception) {
+            logger()->warning('Yandex IMAP disconnect failed', [
+                ...$context,
+                'message' => $exception->getMessage(),
+            ]);
         }
     }
 

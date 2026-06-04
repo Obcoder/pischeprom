@@ -15,8 +15,9 @@ class SyncYandexMailboxCommand extends Command
     {
         $result = $service->syncAll((int) $this->option('limit'));
 
-        $this->info('Incoming: ' . $result['incoming']);
-        $this->info('Outgoing: ' . $result['outgoing']);
+        foreach ($result as $folder => $count) {
+            $this->info("{$folder}: {$count}");
+        }
 
         return self::SUCCESS;
     }

@@ -37,6 +37,7 @@ const {
 const readerDialog = ref(false)
 const composerDialog = ref(false)
 const templatesDialog = ref(false)
+const replyContext = ref(null)
 
 let autoRefreshTimer = null
 
@@ -69,7 +70,7 @@ const headers = [
         key: 'actions',
         sortable: false,
         align: 'end',
-        width: '70px',
+        width: '110px',
     },
 ]
 
@@ -123,6 +124,26 @@ async function openMessage(message) {
     await readMessage(message)
 }
 
+function openNewMessage() {
+    replyContext.value = null
+    composerDialog.value = true
+}
+
+async function replyToTableMessage(message) {
+    await readMessage(message)
+    replyToMessage(selectedMessage.value || message)
+}
+
+function replyToMessage(message) {
+    if (!message || message.direction !== 'incoming') {
+        return
+    }
+
+    replyContext.value = message
+    readerDialog.value = false
+    composerDialog.value = true
+}
+
 async function forceReloadMessage() {
     if (selectedMessage.value) {
         await readMessage(selectedMessage.value, true)
@@ -131,6 +152,7 @@ async function forceReloadMessage() {
 
 async function afterSent() {
     composerDialog.value = false
+    replyContext.value = null
     await fetchMessages()
 }
 
@@ -182,7 +204,7 @@ onUnmounted(() => {
                     size="small"
                     variant="text"
                     color="blue"
-                    @click="composerDialog = true"
+                    @click="openNewMessage"
                 />
             </div>
         </template>
@@ -316,6 +338,15 @@ onUnmounted(() => {
 
             <template #item.actions="{ item }">
                 <v-btn
+                    v-if="item.direction === 'incoming'"
+                    icon="mdi-reply"
+                    size="x-small"
+                    variant="text"
+                    color="teal"
+                    @click.stop="replyToTableMessage(item)"
+                />
+
+                <v-btn
                     icon="mdi-email-open-outline"
                     size="x-small"
                     variant="text"
@@ -330,6 +361,7 @@ onUnmounted(() => {
             :unit-id="unit.id"
             :recipients="relatedEmails"
             :unit-files="files"
+            :reply-context="replyContext"
             :sending="sending"
             @sent="afterSent"
             @open-templates="templatesDialog = true"
@@ -342,6 +374,7 @@ onUnmounted(() => {
             :message="selectedMessage"
             :loading="reading"
             @reload="forceReloadMessage"
+            @reply="replyToMessage"
         />
     </BaseSectionCard>
 </template>

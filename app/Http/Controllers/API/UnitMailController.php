@@ -156,11 +156,15 @@ class UnitMailController extends Controller
 
                                'storage_files' => ['nullable'],
                                'storage_files.*' => ['nullable'],
+
+                               'reply_to_mail_message_id' => ['nullable', 'integer', 'exists:mail_messages,id'],
                            ]);
 
         $to = $this->normalizeRecipients($request->input('to'));
         $cc = $this->normalizeRecipients($request->input('cc'));
         $bcc = $this->normalizeRecipients($request->input('bcc'));
+        $replyToMessage = $this->resolveReplyToMessage($request->input('reply_to_mail_message_id'), $unit);
+        $replyHeaders = $this->replyHeaders($replyToMessage);
 
         if (empty($to)) {
             return response()->json([
@@ -205,7 +209,8 @@ class UnitMailController extends Controller
                 $fromAddress,
                 $fromName,
                 $localAttachments,
-                $storageAttachments
+                $storageAttachments,
+                $replyHeaders
             ) {
                 $message->to($to);
 
@@ -222,6 +227,18 @@ class UnitMailController extends Controller
                 }
 
                 $message->subject($subject);
+
+                if (!empty($replyHeaders)) {
+                    $headers = $message->getHeaders();
+
+                    if (!empty($replyHeaders['in_reply_to'])) {
+                        $headers->addTextHeader('In-Reply-To', $replyHeaders['in_reply_to']);
+                    }
+
+                    if (!empty($replyHeaders['references'])) {
+                        $headers->addTextHeader('References', $replyHeaders['references']);
+                    }
+                }
 
                 foreach ($localAttachments as $file) {
                     $message->attach($file->getRealPath(), [
@@ -269,6 +286,8 @@ class UnitMailController extends Controller
                 subject: $subject,
                 body: $body,
                 bodyHtml: $bodyHtml,
+                replyToMessage: $replyToMessage,
+                replyHeaders: $replyHeaders,
             );
 
             $stored = (bool) $storedMessage;
@@ -291,6 +310,7 @@ class UnitMailController extends Controller
             'storage_files_count' => count($storageAttachments),
             'stored_locally' => $stored,
             'mail_message_id' => $storedMessage?->id,
+            'reply_to_mail_message_id' => $replyToMessage?->id,
         ]);
 
         return response()->json([
@@ -312,6 +332,8 @@ class UnitMailController extends Controller
         string $subject,
         string $body,
         string $bodyHtml,
+        ?MailMessage $replyToMessage = null,
+        array $replyHeaders = [],
     ): ?MailMessage {
         if (!Schema::hasTable('mail_messages')) {
             return null;
@@ -325,6 +347,9 @@ class UnitMailController extends Controller
             'direction' => 'outgoing',
             'imap_uid' => null,
             'message_id' => $this->generateLocalMessageId(),
+            'reply_to_mail_message_id' => $replyToMessage?->id,
+            'in_reply_to' => $replyHeaders['in_reply_to'] ?? null,
+            'references' => $replyHeaders['references'] ?? null,
 
             'subject' => $subject,
             'preview' => Str::limit(trim(strip_tags($body)), 250),
@@ -359,9 +384,11 @@ class UnitMailController extends Controller
             ->values()
             ->all();
 
-        $recipientEmailIds = Email::query()
-            ->whereIn('address', $recipientAddresses)
-            ->pluck('id')
+        $recipientEmailIds = collect($recipientAddresses)
+            ->map(fn ($address) => $this->findOrCreateEmailId($address))
+            ->filter()
+            ->unique()
+            ->values()
             ->all();
 
         $senderEmailId = null;
@@ -380,11 +407,109 @@ class UnitMailController extends Controller
             $this->attachEmailToMailMessage($mailMessage->id, (int) $emailId, 'to');
         }
 
-        foreach ($this->collectUnitEmailIds($unit) as $emailId) {
-            $this->attachEmailToMailMessage($mailMessage->id, (int) $emailId, 'related');
+        return $mailMessage;
+    }
+
+    private function resolveReplyToMessage(mixed $messageId, Unit $unit): ?MailMessage
+    {
+        if (!$messageId) {
+            return null;
         }
 
-        return $mailMessage;
+        $emailIds = $this->collectUnitEmailIds($unit);
+
+        if (empty($emailIds)) {
+            return null;
+        }
+
+        return MailMessage::query()
+            ->whereKey((int) $messageId)
+            ->whereIn('id', function ($subQuery) use ($emailIds) {
+                $subQuery
+                    ->select('mail_message_id')
+                    ->from('email_mail_message')
+                    ->whereIn('email_id', $emailIds);
+            })
+            ->first();
+    }
+
+    private function replyHeaders(?MailMessage $message): array
+    {
+        if (!$message?->message_id) {
+            return [];
+        }
+
+        $inReplyTo = $this->normalizeMessageId($message->message_id);
+        $references = collect([
+            ...$this->messageIdsFromReferences($message->references),
+            ...$this->messageIdsFromReferences($message->raw_headers),
+            $inReplyTo,
+        ])
+            ->filter()
+            ->unique()
+            ->implode(' ');
+
+        return [
+            'in_reply_to' => $inReplyTo,
+            'references' => $references ?: $inReplyTo,
+        ];
+    }
+
+    private function messageIdsFromReferences(?string $value): array
+    {
+        if (!$value) {
+            return [];
+        }
+
+        if (preg_match('/^References:\s*(.+)$/mi', $value, $matches)) {
+            $value = $matches[1];
+        }
+
+        preg_match_all('/<[^<>\s]+@[^<>\s]+>/', $value, $matches);
+
+        return $matches[0] ?? [];
+    }
+
+    private function normalizeMessageId(string $messageId): string
+    {
+        $messageId = trim($messageId);
+
+        if ($messageId === '') {
+            return $messageId;
+        }
+
+        return str_starts_with($messageId, '<')
+            ? $messageId
+            : "<{$messageId}>";
+    }
+
+    private function findOrCreateEmailId(string $address): ?int
+    {
+        $address = Str::lower(trim($address));
+
+        if (!filter_var($address, FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+
+        $email = Email::withTrashed()->firstOrCreate(
+            ['address' => $address],
+            [
+                'source' => 'unit_mail',
+                'is_active' => true,
+                'last_seen_at' => now(),
+            ]
+        );
+
+        if ($email->trashed()) {
+            $email->restore();
+        }
+
+        $email->forceFill([
+            'last_seen_at' => now(),
+            'source' => $email->source ?: 'unit_mail',
+        ])->save();
+
+        return $email->id;
     }
 
     private function collectUnitEmailIds(Unit $unit): array
@@ -412,7 +537,7 @@ class UnitMailController extends Controller
             ->all();
     }
 
-    private function attachEmailToMailMessage(int $mailMessageId, int $emailId, string $role = 'related'): void
+    private function attachEmailToMailMessage(int $mailMessageId, int $emailId, string $role = 'to'): void
     {
         if (!Schema::hasTable('email_mail_message')) {
             return;
@@ -677,6 +802,9 @@ class UnitMailController extends Controller
 
             'imap_uid' => $message->getAttribute('imap_uid'),
             'message_id' => $message->getAttribute('message_id'),
+            'reply_to_mail_message_id' => $message->getAttribute('reply_to_mail_message_id'),
+            'in_reply_to' => $message->getAttribute('in_reply_to'),
+            'references' => $message->getAttribute('references'),
 
             'subject' => $message->getAttribute('subject'),
             'preview' => $message->getAttribute('preview'),

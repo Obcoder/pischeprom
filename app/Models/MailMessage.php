@@ -17,6 +17,9 @@ class MailMessage extends Model
         'direction',
         'imap_uid',
         'message_id',
+        'reply_to_mail_message_id',
+        'in_reply_to',
+        'references',
         'subject',
         'message_date',
         'from_address',
@@ -44,6 +47,16 @@ class MailMessage extends Model
         return $this->belongsToMany(Email::class)
             ->withPivot('role')
             ->withTimestamps();
+    }
+
+    public function replyTo()
+    {
+        return $this->belongsTo(self::class, 'reply_to_mail_message_id');
+    }
+
+    public function replies()
+    {
+        return $this->hasMany(self::class, 'reply_to_mail_message_id');
     }
 
     public function scopeSearch(Builder $query, ?string $search): Builder

@@ -24,6 +24,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    replyContext: {
+        type: Object,
+        default: null,
+    },
     sending: Boolean,
 })
 
@@ -43,9 +47,33 @@ const selectedTemplateId = ref(null)
 const loadingTemplates = ref(false)
 const fileInput = ref(null)
 
+const isReply = computed(() => Boolean(props.replyContext?.id))
+
+const replyRecipient = computed(() => {
+    if (!props.replyContext?.from_address) {
+        return null
+    }
+
+    return {
+        id: props.replyContext.from_address,
+        address: props.replyContext.from_address,
+        name: props.replyContext.from_name || null,
+        source: 'reply',
+        source_label: 'Ответ',
+    }
+})
+
 const recipientItems = computed(() => {
-    return (props.recipients || [])
+    return [
+        ...(replyRecipient.value ? [replyRecipient.value] : []),
+        ...(props.recipients || []),
+    ]
         .filter((item) => item?.address)
+        .filter((item, index, array) => {
+            const address = String(item.address).toLowerCase()
+
+            return array.findIndex((candidate) => String(candidate.address).toLowerCase() === address) === index
+        })
         .map((item) => ({
             ...item,
             title: `${item.address}${item.source_label ? ` — ${item.source_label}` : ''}`,
@@ -92,6 +120,75 @@ function applyTemplate(templateId) {
     body.value = template.body || body.value
 }
 
+function replySubject(message) {
+    const value = (message?.subject || '').trim()
+
+    if (!value) {
+        return 'Re: Без темы'
+    }
+
+    return /^re:/i.test(value) ? value : `Re: ${value}`
+}
+
+function replyQuote(message) {
+    const source = (message?.text || stripHtml(message?.html) || message?.preview || '').trim()
+
+    if (!source) {
+        return ''
+    }
+
+    const date = message?.message_date
+        ? new Intl.DateTimeFormat('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(new Date(message.message_date))
+        : ''
+
+    const from = [message?.from_name, message?.from_address]
+        .filter(Boolean)
+        .join(' ')
+
+    const header = [date, from]
+        .filter(Boolean)
+        .join(', ')
+
+    const quoted = source
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n')
+
+    return `\n\n${header ? `${header} писал(а):\n` : ''}${quoted}`
+}
+
+function stripHtml(value) {
+    if (!value) {
+        return ''
+    }
+
+    return String(value)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+}
+
+function applyReplyContext() {
+    if (!props.replyContext) {
+        return
+    }
+
+    to.value = props.replyContext.from_address ? [props.replyContext.from_address] : []
+    cc.value = []
+    subject.value = replySubject(props.replyContext)
+    body.value = replyQuote(props.replyContext)
+}
+
 function onLocalFilesSelected(event) {
     localFiles.value = Array.from(event.target.files || [])
 }
@@ -120,6 +217,10 @@ async function submit() {
     localFiles.value.forEach((file) => {
         formData.append('attachments[]', file)
     })
+
+    if (props.replyContext?.id) {
+        formData.append('reply_to_mail_message_id', props.replyContext.id)
+    }
 
     await axios.post(`/api/units/${props.unitId}/mail/send`, formData, {
         headers: {
@@ -153,6 +254,10 @@ watch(model, async (value) => {
     if (value) {
         storageFiles.value = [...props.initialStorageFiles]
 
+        if (props.replyContext) {
+            applyReplyContext()
+        }
+
         if (!templates.value.length) {
             await fetchTemplates()
         }
@@ -171,13 +276,14 @@ watch(() => props.initialStorageFiles, (value) => {
     deep: true,
 })
 
-watch(() => props.recipients, (value) => {
-    console.log('UnitMailComposerDialog recipients:', value)
-    console.log('UnitMailComposerDialog recipientItems:', recipientItems.value)
+watch(() => props.replyContext, () => {
+    if (model.value) {
+        applyReplyContext()
+    }
 }, {
-    immediate: true,
     deep: true,
 })
+
 </script>
 
 <template>
@@ -186,11 +292,11 @@ watch(() => props.recipients, (value) => {
             <v-card-title class="d-flex justify-space-between align-center">
                 <div>
                     <div class="text-blue-lighten-3">
-                        Написать письмо
+                        {{ isReply ? 'Ответить на письмо' : 'Написать письмо' }}
                     </div>
 
                     <div class="text-[10px] text-grey">
-                        Можно использовать шаблон и приложить локальные/S3 файлы
+                        {{ isReply ? 'Ответ будет отправлен в той же почтовой ветке' : 'Можно использовать шаблон и приложить локальные/S3 файлы' }}
                     </div>
                 </div>
 
@@ -205,6 +311,26 @@ watch(() => props.recipients, (value) => {
 
             <v-card-text>
                 <v-row dense>
+                    <v-col
+                        v-if="isReply"
+                        cols="12"
+                    >
+                        <v-alert
+                            color="teal"
+                            variant="tonal"
+                            density="compact"
+                            icon="mdi-reply"
+                        >
+                            <div class="text-xs">
+                                Ответ на: {{ replyContext?.subject || 'Без темы' }}
+                            </div>
+
+                            <div class="text-[10px] text-grey-lighten-1">
+                                {{ replyContext?.from_address }}
+                            </div>
+                        </v-alert>
+                    </v-col>
+
                     <v-col cols="12" lg="8">
                         <v-autocomplete
                             v-model="to"
@@ -351,7 +477,7 @@ watch(() => props.recipients, (value) => {
                     :disabled="!to.length || !subject || !body"
                     @click="submit"
                 >
-                    Отправить
+                    {{ isReply ? 'Отправить ответ' : 'Отправить' }}
                 </v-btn>
             </v-card-actions>
         </v-card>

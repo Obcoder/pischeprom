@@ -16,6 +16,7 @@ const props = defineProps({
 
 const emit = defineEmits([
     'reload',
+    'reply',
 ])
 
 const bodyHtml = computed(() => {
@@ -80,6 +81,16 @@ function recipients(list) {
                         :loading="loading"
                         @click="emit('reload')"
                     />
+
+                    <v-btn
+                        v-if="message?.direction === 'incoming'"
+                        icon="mdi-reply"
+                        size="small"
+                        variant="text"
+                        color="teal"
+                        :disabled="loading"
+                        @click="emit('reply', message)"
+                    />
                 </div>
             </v-card-title>
 
@@ -135,6 +146,17 @@ function recipients(list) {
             </v-card-text>
 
             <v-card-actions>
+                <v-btn
+                    v-if="message?.direction === 'incoming'"
+                    color="teal"
+                    variant="tonal"
+                    prepend-icon="mdi-reply"
+                    :disabled="loading"
+                    @click="emit('reply', message)"
+                >
+                    Ответить
+                </v-btn>
+
                 <v-spacer />
 
                 <v-btn
