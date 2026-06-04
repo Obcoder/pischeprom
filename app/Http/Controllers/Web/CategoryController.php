@@ -85,8 +85,7 @@ class CategoryController extends Controller
             ->load(['products' => function ($query): void {
                 $query
                     ->withCount(['goods' => fn ($goodsQuery) => $goodsQuery->where('goods.is_published', true)])
-                    ->orderBy('rus')
-                    ->orderBy('name');
+                    ->orderBy('rus');
             }])
             ->loadCount(['products', 'goods']);
 
@@ -96,7 +95,7 @@ class CategoryController extends Controller
             ->with([
                 'seo',
                 'latestPrice.currency',
-                'products:id,rus,name,category_id',
+                'products:id,rus,category_id',
                 'publishedMedia' => function ($query): void {
                     $query
                         ->where('type', 'image')
