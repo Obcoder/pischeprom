@@ -683,9 +683,9 @@ const formatBuildingTitle = (building) => {
                                     </v-tabs>
                                     <v-tabs-window v-model="tabsProducts">
                                         <v-tabs-window-item value="categories">
-                                            <v-container>
-                                                <v-row>
-                                                    <v-col lg="4">
+                                            <v-container fluid class="pa-0">
+                                                <v-row no-gutters>
+                                                    <v-col cols="12">
                                                         <Categories />
                                                     </v-col>
                                                 </v-row>

@@ -501,7 +501,7 @@ onBeforeUnmount(() => {
 
 <template>
     <v-container fluid class="category-admin pa-4">
-        <v-card rounded="xl" elevation="1">
+        <v-card rounded="xl" elevation="1" class="category-admin__card">
             <v-card-title class="d-flex align-center ga-3 flex-wrap">
                 <div>
                     <div class="text-h6 font-weight-bold">Категории</div>
@@ -1092,6 +1092,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.category-admin {
+    width: 100%;
+    max-width: none;
+}
+
+.category-admin__card {
+    width: 100%;
+}
+
 .category-admin__table {
     border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
