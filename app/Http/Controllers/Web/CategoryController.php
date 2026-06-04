@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
+use App\Models\Good;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -59,12 +60,77 @@ class CategoryController extends Controller
             ->with('success', 'Категория успешно создана');
     }
 
-    public function show(Category $category): Response
+    public function show(string $category): Response|RedirectResponse
     {
-        $category->load('products')->loadCount('products');
+        $category = Category::query()
+            ->where('slug', $category)
+            ->orWhere(function ($query) use ($category): void {
+                if (ctype_digit($category)) {
+                    $query->whereKey((int) $category);
+                }
+            })
+            ->firstOrFail();
+
+        if (!$category->is_published) {
+            abort(404);
+        }
+
+        if ($category->slug && request()->route('category') !== $category->slug) {
+            return redirect()->route('category.show', [
+                'category' => $category->slug,
+            ], 301);
+        }
+
+        $category
+            ->load(['products' => function ($query): void {
+                $query
+                    ->withCount(['goods' => fn ($goodsQuery) => $goodsQuery->where('goods.is_published', true)])
+                    ->orderBy('rus')
+                    ->orderBy('name');
+            }])
+            ->loadCount(['products', 'goods']);
+
+        $goods = Good::query()
+            ->where('goods.is_published', true)
+            ->whereHas('products', fn ($query) => $query->where('products.category_id', $category->id))
+            ->with([
+                'seo',
+                'latestPrice.currency',
+                'products:id,rus,name,category_id',
+                'publishedMedia' => function ($query): void {
+                    $query
+                        ->where('type', 'image')
+                        ->where('is_published', true)
+                        ->orderByDesc('is_ava')
+                        ->orderBy('sort_order')
+                        ->orderBy('id');
+                },
+            ])
+            ->orderBy('goods.name')
+            ->get([
+                'goods.id',
+                'goods.name',
+                'goods.slug',
+                'goods.ava_image',
+                'goods.ava_thumb',
+                'goods.description',
+            ]);
+
+        $relatedCategories = Category::query()
+            ->published()
+            ->whereKeyNot($category->id)
+            ->withCount(['products', 'goods'])
+            ->orderByDesc('is_featured')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->limit(8)
+            ->get();
 
         return Inertia::render('Categories/Show', [
             'category' => (new CategoryResource($category))->resolve(),
+            'goods' => $goods,
+            'relatedCategories' => CategoryResource::collection($relatedCategories)->resolve(),
+            'seo' => $this->seoPayload($category),
         ]);
     }
 
@@ -91,5 +157,36 @@ class CategoryController extends Controller
         return redirect()
             ->route('categories.index')
             ->with('success', 'Категория удалена');
+    }
+
+    private function seoPayload(Category $category): array
+    {
+        $title = $category->meta_title
+            ?: "{$category->name} - товары и предложения пищевой промышленности";
+
+        $description = $category->meta_description
+            ?: $category->short_description
+                ?: "Категория {$category->name}: товары, поставщики, предложения и материалы для пищевой промышленности.";
+
+        $canonical = $category->canonical_url
+            ?: route('category.show', ['category' => $category->slug ?: $category->id]);
+
+        return [
+            'title' => $title,
+            'description' => $description,
+            'h1' => $category->h1 ?: $category->name,
+            'canonical' => $canonical,
+            'robots' => $category->robots ?: 'index,follow',
+            'image' => $category->og_image ?: $category->image,
+            'ogTitle' => $category->og_title ?: $title,
+            'ogDescription' => $category->og_description ?: $description,
+            'jsonLd' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'CollectionPage',
+                'name' => $category->h1 ?: $category->name,
+                'description' => $description,
+                'url' => $canonical,
+            ],
+        ];
     }
 }

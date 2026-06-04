@@ -39,9 +39,9 @@ function firstParam(params) {
 
     if (typeof params === 'object') {
         return params.slug
-            ?? params.id
-            ?? params.good
             ?? params.category
+            ?? params.good
+            ?? params.id
             ?? ''
     }
 

@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
@@ -17,20 +20,29 @@ class CategoryController extends Controller
     {
         $validated = $request->validate([
                                             'search' => ['nullable', 'string'],
-                                            'sortBy' => ['nullable', 'string', 'in:id,name'],
+                                            'published' => ['nullable'],
+                                            'featured' => ['nullable'],
+                                            'sortBy' => ['nullable', 'string', 'in:id,name,slug,sort_order,updated_at,products_count,goods_count'],
                                             'sortDesc' => ['nullable', 'boolean'],
                                             'page' => ['nullable', 'integer', 'min:1'],
-                                            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+                                            'per_page' => ['nullable', 'integer', 'min:1', 'max:500'],
                                         ]);
 
-        $perPage = $validated['per_page'] ?? 1115;
-        $sortBy = $validated['sortBy'] ?? 'name';
+        $perPage = $validated['per_page'] ?? 50;
+        $sortBy = $validated['sortBy'] ?? 'sort_order';
         $sortDirection = !empty($validated['sortDesc']) ? 'desc' : 'asc';
 
         $categories = Category::query()
-            ->withCount('products')
+            ->withCount(['products', 'goods'])
             ->search($validated['search'] ?? null)
-            ->ordered($sortBy, $sortDirection)
+            ->when($request->filled('published'), function ($query) use ($request) {
+                $query->where('is_published', filter_var($request->input('published'), FILTER_VALIDATE_BOOLEAN));
+            })
+            ->when($request->filled('featured'), function ($query) use ($request) {
+                $query->where('is_featured', filter_var($request->input('featured'), FILTER_VALIDATE_BOOLEAN));
+            })
+            ->orderBy($sortBy, $sortDirection)
+            ->orderBy('name')
             ->paginate($perPage)
             ->withQueryString();
 
@@ -40,15 +52,17 @@ class CategoryController extends Controller
     public function store(CategoryFormRequest $request): CategoryResource
     {
         $category = DB::transaction(function () use ($request) {
-            return Category::create($request->validated());
+            return Category::create($this->categoryPayload($request));
         });
 
-        return new CategoryResource($category->loadCount('products'));
+        return new CategoryResource($category->loadCount(['products', 'goods']));
     }
 
     public function show(Category $category): CategoryResource
     {
-        $category->load(['products'])->loadCount('products');
+        $category
+            ->load(['products' => fn ($query) => $query->withCount('goods')])
+            ->loadCount(['products', 'goods']);
 
         return new CategoryResource($category);
     }
@@ -56,18 +70,94 @@ class CategoryController extends Controller
     public function update(CategoryFormRequest $request, Category $category): CategoryResource
     {
         DB::transaction(function () use ($request, $category) {
-            $category->update($request->validated());
+            $category->update($this->categoryPayload($request, $category));
         });
 
-        return new CategoryResource($category->fresh()->loadCount('products'));
+        return new CategoryResource($category->fresh()->loadCount(['products', 'goods']));
     }
 
     public function destroy(Category $category): JsonResponse
     {
+        if (Product::query()->where('category_id', $category->id)->exists()) {
+            return response()->json([
+                                        'message' => 'Category has linked products and cannot be deleted safely.',
+                                    ], 409);
+        }
+
+        $this->deleteLocalAvatar($category->image);
+
         $category->delete();
 
         return response()->json([
                                     'message' => 'Category deleted',
                                 ]);
+    }
+
+    private function categoryPayload(CategoryFormRequest $request, ?Category $category = null): array
+    {
+        $data = collect($request->validated())
+            ->except(['avatar', 'remove_avatar'])
+            ->all();
+
+        foreach (['is_published', 'is_featured'] as $field) {
+            if ($request->has($field)) {
+                $data[$field] = $request->boolean($field);
+            }
+        }
+
+        if (array_key_exists('keywords', $data)) {
+            $data['keywords'] = collect($data['keywords'] ?? [])
+                ->map(fn ($keyword) => trim((string) $keyword))
+                ->filter()
+                ->unique(fn ($keyword) => Str::lower($keyword))
+                ->values()
+                ->all();
+        }
+
+        if ($request->hasFile('avatar')) {
+            if ($category) {
+                $this->deleteLocalAvatar($category->image);
+            }
+
+            $path = $request->file('avatar')->store('category-avatars', 'public');
+            $data['image'] = Storage::disk('public')->url($path);
+        } elseif ($request->boolean('remove_avatar') && $category) {
+            $this->deleteLocalAvatar($category->image);
+            $data['image'] = null;
+        }
+
+        if (empty($data['published_at']) && ($data['is_published'] ?? $category?->is_published ?? true)) {
+            $data['published_at'] = $category?->published_at ?? now();
+        }
+
+        if (empty($data['robots'])) {
+            $data['robots'] = 'index,follow';
+        }
+
+        if (empty($data['h1']) && !empty($data['name'])) {
+            $data['h1'] = $data['name'];
+        }
+
+        return $data;
+    }
+
+    private function deleteLocalAvatar(?string $url): void
+    {
+        if (!$url) {
+            return;
+        }
+
+        $storagePath = '/storage/';
+        $position = strpos($url, $storagePath);
+
+        if ($position === false) {
+            return;
+        }
+
+        $path = substr($url, $position + strlen($storagePath));
+
+        if ($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
     }
 }

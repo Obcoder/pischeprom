@@ -95,7 +95,7 @@ const badges = [
                         >
                             <Link
                                 v-if="category.id"
-                                :href="route('category.show', category.id)"
+                                :href="route('category.show', category.slug || category.id)"
                                 class="home-welcome-banner__category"
                             >
                                 {{ category.name }}

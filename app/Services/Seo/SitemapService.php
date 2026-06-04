@@ -25,14 +25,21 @@ class SitemapService
         $this->writeUrl($xml, route('home'), now()->toDateString(), 'daily', '1.0');
 
         Category::query()
+            ->where('is_published', true)
             ->orderBy('id')
             ->chunk(500, function ($categories) use ($xml): void {
                 /** @var Category $category */
                 foreach ($categories as $category) {
+                    $slug = trim((string) $category->getAttribute('slug'));
+
+                    if ($slug === '') {
+                        continue;
+                    }
+
                     $this->writeUrl(
                         $xml,
                         route('category.show', [
-                            'category' => $category->getKey(),
+                            'category' => $slug,
                         ]),
                         $this->lastmod($category),
                         'weekly',

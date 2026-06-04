@@ -16,7 +16,10 @@ class MainController extends Controller
     {
         $categories = Category::query()
             ->where('is_published', true)
-            ->inRandomOrder()
+            ->withCount(['products', 'goods'])
+            ->orderByDesc('is_featured')
+            ->orderBy('sort_order')
+            ->orderBy('name')
             ->limit(12)
             ->get();
 

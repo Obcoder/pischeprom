@@ -1,19 +1,24 @@
 <script setup>
+import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { useAppRoute } from "@/Composables/useAppRoute";
 
 const { route } = useAppRoute();
 
-defineProps({
+const props = defineProps({
     category: {
         type: Object,
         required: true,
     },
 })
+
+const categoryUrl = computed(() => {
+    return route('category.show', props.category.slug || props.category.id)
+})
 </script>
 
 <template>
-    <Link :href="route('category.show', category.id)" class="text-decoration-none">
+    <Link :href="categoryUrl" class="text-decoration-none">
         <v-card
             rounded="xl"
             elevation="2"
@@ -21,6 +26,7 @@ defineProps({
         >
             <v-img
                 :src="category.image || '/images/placeholders/category.jpg'"
+                :alt="category.image_alt || category.name"
                 height="180"
                 cover
             />

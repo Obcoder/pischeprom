@@ -115,7 +115,7 @@ class GoodStructuredDataService
                 'position' => 2,
                 'name' => $category->name,
                 'item' => route('category.show', [
-                    'category' => $category->id,
+                    'category' => $category->slug ?: $category->id,
                 ]),
             ];
         }

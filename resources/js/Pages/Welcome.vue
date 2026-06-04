@@ -111,7 +111,7 @@ function firstParam(params) {
     }
 
     if (typeof params === 'object') {
-        return params.id ?? params.category ?? params.good ?? ''
+        return params.slug ?? params.category ?? params.good ?? params.id ?? ''
     }
 
     return ''
@@ -414,7 +414,7 @@ onMounted(() => {
                                             <Link
                                                 v-for="category in topCategories"
                                                 :key="category.id"
-                                                :href="route('category.show', category.id)"
+                                                :href="route('category.show', category.slug || category.id)"
                                                 class="category-tag"
                                             >
                                                 {{ category.name }}

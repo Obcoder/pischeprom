@@ -55,20 +55,26 @@ const contacts = [
     },
 ]
 
-const quickLinks = computed(() => [
-    {
-        label: 'Рыба',
-        href: route('category.show', 25),
-    },
-    {
-        label: 'Овощи',
-        href: route('category.show', 30),
-    },
-    {
-        label: 'Бакалея',
-        href: route('category.show', 31),
-    },
-])
+const quickLinkFallbacks = [
+    { label: 'Рыба', id: 25 },
+    { label: 'Овощи', id: 30 },
+    { label: 'Бакалея', id: 31 },
+]
+
+const quickLinks = computed(() => {
+    return quickLinkFallbacks.map((item) => {
+        const category = availableCategories.value.find((candidate) => {
+            return String(candidate.name || '')
+                .toLowerCase()
+                .includes(item.label.toLowerCase())
+        })
+
+        return {
+            label: item.label,
+            href: route('category.show', category?.slug || category?.id || item.id),
+        }
+    })
+})
 
 const user = computed(() => {
     return inertiaPage.props.auth?.user ?? null
@@ -143,7 +149,7 @@ function hasRoute(name) {
 }
 
 function categoryUrl(category) {
-    return route('category.show', category.id)
+    return route('category.show', category.slug || category.id)
 }
 
 function handleScroll() {
