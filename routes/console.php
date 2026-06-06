@@ -22,3 +22,15 @@ Schedule::job(new SyncYandexMailboxJob(50), 'mail-sync')
     ->name('sync-yandex-mailbox')
     ->everyMinute()
     ->withoutOverlapping(10);
+
+Schedule::command('beeline:sync-calls --period=today --limit=500')
+    ->name('sync-beeline-calls')
+    ->everyFiveMinutes()
+    ->when(fn () => filled(config('services.beeline_pbx.history_url')))
+    ->withoutOverlapping(10);
+
+Schedule::command('beeline:subscribe --expires=3600')
+    ->name('subscribe-beeline-events')
+    ->everyThirtyMinutes()
+    ->when(fn () => filled(config('services.beeline_pbx.api_url')) && filled(config('services.beeline_pbx.api_token')))
+    ->withoutOverlapping(10);

@@ -9,13 +9,26 @@ use App\Models\Telephone;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class BeelinePbxService
 {
     public function handle(array $payload): array
     {
         $cmd = Str::lower((string) Arr::get($payload, 'cmd'));
+
+        if ($cmd === '' && $this->looksLikePortalEvent($payload)) {
+            $cmd = 'event';
+        }
+
+        if ($cmd === '') {
+            return [
+                'status' => 200,
+                'data' => ['ok' => true],
+            ];
+        }
 
         return match ($cmd) {
             'contact' => $this->handleContact($payload),
@@ -60,6 +73,7 @@ class BeelinePbxService
 
     public function registerCall(array $payload): PhoneCall
     {
+        $payload = $this->normalizeIncomingPayload($payload);
         $data = $this->normalizeCallPayload($payload);
 
         return DB::transaction(function () use ($data, $payload) {
@@ -143,6 +157,184 @@ class BeelinePbxService
         });
     }
 
+    public function syncHistory(array $filters = [], bool $dryRun = false): array
+    {
+        $csv = $this->fetchHistory($filters);
+        $rows = $this->parseHistoryCsv($csv);
+        $stored = 0;
+        $skipped = 0;
+        $sample = [];
+
+        foreach ($rows as $row) {
+            $payload = $this->historyRowToPayload($row);
+
+            if (!$payload['phone'] || !$payload['callid']) {
+                $skipped++;
+                continue;
+            }
+
+            if ($dryRun) {
+                $sample[] = $payload;
+                continue;
+            }
+
+            $this->registerCall($payload);
+            $stored++;
+        }
+
+        return [
+            'fetched' => count($rows),
+            'stored' => $dryRun ? 0 : $stored,
+            'skipped' => $skipped,
+            'sample' => array_slice($sample, 0, 5),
+        ];
+    }
+
+    public function fetchHistory(array $filters = []): string
+    {
+        $apiUrl = trim((string) ($filters['api_url'] ?: config('services.beeline_pbx.history_url')));
+        $token = trim((string) config('services.beeline_pbx.api_token'));
+
+        if ($apiUrl === '') {
+            throw new RuntimeException('BEELINE_PBX_HISTORY_URL is not configured for history polling.');
+        }
+
+        if ($token === '') {
+            throw new RuntimeException('BEELINE_PBX_API_TOKEN is not configured.');
+        }
+
+        $payload = array_filter([
+            'cmd' => 'history',
+            'token' => $token,
+            'period' => $filters['period'] ?? 'today',
+            'start' => $filters['start'] ?? null,
+            'end' => $filters['end'] ?? null,
+            'type' => $filters['type'] ?? 'all',
+            'limit' => $filters['limit'] ?? 500,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if (!empty($payload['start']) || !empty($payload['end'])) {
+            unset($payload['period']);
+        }
+
+        $response = Http::asForm()
+            ->accept('*/*')
+            ->timeout(30)
+            ->post($apiUrl, $payload);
+
+        $body = trim($response->body());
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Beeline PBX history request failed: HTTP ' . $response->status() . ' ' . Str::limit($body, 500)
+            );
+        }
+
+        if (Str::startsWith($body, ['{', '['])) {
+            $decoded = json_decode($body, true);
+
+            if (is_array($decoded) && isset($decoded['error'])) {
+                throw new RuntimeException('Beeline PBX history request failed: ' . $decoded['error']);
+            }
+
+            if (is_array($decoded) && isset($decoded['errorCode'])) {
+                throw new RuntimeException(
+                    'Beeline PBX history request failed: ' . $decoded['errorCode']
+                );
+            }
+        }
+
+        return $body;
+    }
+
+    public function subscribeEvents(array $options = [], bool $dryRun = false): array
+    {
+        $apiUrl = rtrim(trim((string) config('services.beeline_pbx.api_url')), '/');
+        $token = trim((string) config('services.beeline_pbx.api_token'));
+        $endpoint = $apiUrl . '/subscription';
+
+        if ($apiUrl === '') {
+            throw new RuntimeException('BEELINE_PBX_API_URL is not configured.');
+        }
+
+        if ($token === '') {
+            throw new RuntimeException('BEELINE_PBX_API_TOKEN is not configured.');
+        }
+
+        $callbackUrl = $this->subscriptionCallbackUrl($options['url'] ?? null);
+        $payload = array_filter([
+            'expires' => max((int) ($options['expires'] ?? 3600), 300),
+            'subscriptionType' => 'BASIC_CALL',
+            'url' => $callbackUrl,
+            'pattern' => $options['pattern'] ?: config('services.beeline_pbx.subscription_pattern'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if ($dryRun) {
+            return [
+                'endpoint' => $endpoint,
+                'payload' => $payload,
+            ];
+        }
+
+        $response = Http::withHeaders([
+            'X-MPBX-API-AUTH-TOKEN' => $token,
+        ])
+            ->acceptJson()
+            ->asJson()
+            ->timeout(30)
+            ->put($endpoint, $payload);
+
+        $body = trim($response->body());
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Beeline PBX subscription failed: HTTP ' . $response->status() . ' ' . Str::limit($body, 500)
+            );
+        }
+
+        return [
+            'endpoint' => $endpoint,
+            'payload' => $payload,
+            'response' => $response->json() ?: $body,
+        ];
+    }
+
+    public function parseHistoryCsv(string $csv): array
+    {
+        $csv = trim(preg_replace('/^\xEF\xBB\xBF/', '', $csv));
+
+        if ($csv === '') {
+            return [];
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $csv) ?: [];
+        $header = null;
+        $rows = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            $columns = str_getcsv($line, ',', '"', '\\');
+
+            if ($header === null) {
+                $header = array_map(fn ($value) => trim((string) $value), $columns);
+                continue;
+            }
+
+            if (count($columns) < count($header)) {
+                $columns = array_pad($columns, count($header), null);
+            }
+
+            $rows[] = array_combine($header, array_slice($columns, 0, count($header))) ?: [];
+        }
+
+        return $rows;
+    }
+
     public function normalizePhone(mixed $value): ?string
     {
         $digits = preg_replace('/\D+/', '', (string) $value);
@@ -169,7 +361,11 @@ class BeelinePbxService
             ? Str::lower((string) Arr::get($payload, 'type'))
             : 'history';
 
-        $status = $this->normalizeStatus(Arr::get($payload, 'status'), $eventType);
+        $status = $this->normalizeStatus(
+            Arr::get($payload, 'status'),
+            $eventType,
+            Arr::get($payload, 'direction', Arr::get($payload, 'type'))
+        );
         $direction = $this->normalizeDirection(
             Arr::get($payload, 'direction', Arr::get($payload, 'type')),
             $status,
@@ -265,6 +461,10 @@ class BeelinePbxService
     {
         $value = Str::lower((string) $value);
 
+        if ($value === 'missed') {
+            return PhoneCall::DIRECTION_MISSED;
+        }
+
         if (in_array($value, ['in', 'incoming'], true)) {
             return PhoneCall::DIRECTION_IN;
         }
@@ -284,11 +484,15 @@ class BeelinePbxService
         };
     }
 
-    protected function normalizeStatus(mixed $status, ?string $eventType): ?string
+    protected function normalizeStatus(mixed $status, ?string $eventType, mixed $direction = null): ?string
     {
         $status = Str::lower((string) $status);
 
         if ($status === '') {
+            if ($eventType === 'history') {
+                return Str::lower((string) $direction) === 'missed' ? 'missed' : 'success';
+            }
+
             return match ($eventType) {
                 'accepted', 'completed' => 'success',
                 'cancelled' => 'cancelled',
@@ -342,5 +546,102 @@ class BeelinePbxService
         }
 
         return max((int) $value, 0);
+    }
+
+    protected function historyRowToPayload(array $row): array
+    {
+        $type = Str::lower((string) Arr::get($row, 'type', 'all'));
+
+        return [
+            'cmd' => 'history',
+            'type' => $type,
+            'status' => $type === 'missed' ? 'Missed' : 'Success',
+            'phone' => Arr::get($row, 'client'),
+            'user' => Arr::get($row, 'account'),
+            'diversion' => Arr::get($row, 'via'),
+            'start' => Arr::get($row, 'start'),
+            'wait' => Arr::get($row, 'wait'),
+            'duration' => Arr::get($row, 'duration'),
+            'link' => Arr::get($row, 'record'),
+            'callid' => Arr::get($row, 'UID'),
+            'raw_history_row' => $row,
+        ];
+    }
+
+    protected function normalizeIncomingPayload(array $payload): array
+    {
+        $eventData = Arr::get($payload, 'eventData');
+
+        if (is_array($eventData)) {
+            $payload = array_merge($payload, $eventData);
+        }
+
+        $payload['cmd'] = Arr::get($payload, 'cmd')
+            ?: (Arr::has($payload, 'subscriptionId') || Arr::has($payload, 'eventType') ? 'event' : 'history');
+
+        $payload['callid'] = Arr::get($payload, 'callid')
+            ?: Arr::get($payload, 'callId')
+            ?: Arr::get($payload, 'call_id')
+            ?: Arr::get($payload, 'extTrackingId')
+            ?: Arr::get($payload, 'trackingId')
+            ?: Arr::get($payload, 'UID');
+
+        $payload['phone'] = Arr::get($payload, 'phone')
+            ?: Arr::get($payload, 'client')
+            ?: Arr::get($payload, 'remoteNumber')
+            ?: Arr::get($payload, 'remotePartyAddress')
+            ?: Arr::get($payload, 'callingNumber')
+            ?: Arr::get($payload, 'caller')
+            ?: Arr::get($payload, 'from');
+
+        $payload['user'] = Arr::get($payload, 'user')
+            ?: Arr::get($payload, 'account')
+            ?: Arr::get($payload, 'targetId')
+            ?: Arr::get($payload, 'abonent')
+            ?: Arr::get($payload, 'extension');
+
+        $payload['type'] = Arr::get($payload, 'type')
+            ?: Arr::get($payload, 'direction')
+            ?: Arr::get($payload, 'callDirection')
+            ?: Arr::get($payload, 'eventType');
+
+        $payload['status'] = Arr::get($payload, 'status')
+            ?: Arr::get($payload, 'callStatus')
+            ?: Arr::get($payload, 'state');
+
+        $payload['start'] = Arr::get($payload, 'start')
+            ?: Arr::get($payload, 'startedAt')
+            ?: Arr::get($payload, 'startTime')
+            ?: Arr::get($payload, 'timestamp')
+            ?: Arr::get($payload, 'time');
+
+        return $payload;
+    }
+
+    protected function subscriptionCallbackUrl(?string $override = null): string
+    {
+        $url = trim((string) ($override ?: config('services.beeline_pbx.webhook_url')));
+
+        if ($url === '') {
+            $url = rtrim((string) config('app.url'), '/') . '/api/telephony/beeline';
+        }
+
+        $token = trim((string) (config('services.beeline_pbx.crm_token') ?: config('services.beeline_pbx.api_token')));
+
+        if ($token === '') {
+            return $url;
+        }
+
+        return $url . (Str::contains($url, '?') ? '&' : '?') . 'crm_token=' . urlencode($token);
+    }
+
+    protected function looksLikePortalEvent(array $payload): bool
+    {
+        return Arr::has($payload, 'subscriptionId')
+            || Arr::has($payload, 'eventType')
+            || Arr::has($payload, 'eventData')
+            || Arr::has($payload, 'callId')
+            || Arr::has($payload, 'extTrackingId')
+            || Arr::has($payload, 'trackingId');
     }
 }

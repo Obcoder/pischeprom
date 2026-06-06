@@ -92,7 +92,10 @@ return [
     'beeline_pbx' => [
         'api_token' => env('BEELINE_PBX_API_TOKEN'),
         'crm_token' => env('BEELINE_PBX_CRM_TOKEN', env('BEELINE_PBX_API_TOKEN')),
-        'api_url' => env('BEELINE_PBX_API_URL'),
+        'api_url' => env('BEELINE_PBX_API_URL', 'https://cloudpbx.beeline.ru/apis/portal'),
+        'history_url' => env('BEELINE_PBX_HISTORY_URL'),
+        'webhook_url' => env('BEELINE_PBX_WEBHOOK_URL'),
+        'subscription_pattern' => env('BEELINE_PBX_SUBSCRIPTION_PATTERN'),
     ],
 
 ];
