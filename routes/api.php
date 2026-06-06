@@ -7,6 +7,7 @@ use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\BrandController;
+use App\Http\Controllers\API\BeelinePbxController;
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\CatalogController;
 use App\Http\Controllers\API\CategoryController;
@@ -36,10 +37,12 @@ use App\Http\Controllers\API\GoodMediaFolderController;
 use App\Http\Controllers\API\GoodSeoController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\LabelController;
+use App\Http\Controllers\API\LeadController;
 use App\Http\Controllers\API\MeasureController;
 use App\Http\Controllers\API\MessageController;
 use App\Http\Controllers\API\NoteController;
 use App\Http\Controllers\API\PlantController;
+use App\Http\Controllers\API\PhoneCallController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\ProductSearchController;
 use App\Http\Controllers\API\PurchaseController;
@@ -363,6 +366,24 @@ Route::apiResource('stages', StageController::class);
 Route::apiResource('uris', UriController::class);
 Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rates');
 Route::apiResource('yandex-requests', YandexRequestController::class);
+
+
+/*
+ * ------------------
+ *  T E L E P H O N Y
+ * __________________
+ */
+Route::post('/telephony/beeline', BeelinePbxController::class)
+    ->name('api.telephony.beeline');
+
+Route::apiResource('phone-calls', PhoneCallController::class)
+    ->only(['index', 'show', 'update']);
+Route::post('phone-calls/{phoneCall}/create-entity', [PhoneCallController::class, 'createEntity'])
+    ->name('api.phone-calls.create-entity');
+
+Route::apiResource('leads', LeadController::class)
+    ->only(['index', 'show', 'update']);
+//  E N D  T E L E P H O N Y
 
 
 /*

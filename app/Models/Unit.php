@@ -124,6 +124,16 @@ class Unit extends Model
             ->using(label_unit::class);
     }
 
+    public function leads(): HasMany
+    {
+        return $this->hasMany(Lead::class);
+    }
+
+    public function phoneCalls(): HasMany
+    {
+        return $this->hasMany(PhoneCall::class);
+    }
+
     public function manufactures(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'manufacturers', 'unit_id', 'product_id');

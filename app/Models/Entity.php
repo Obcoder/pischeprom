@@ -91,6 +91,16 @@ class Entity extends Model
             ->withTimestamps();
     }
 
+    public function leads(): HasMany
+    {
+        return $this->hasMany(Lead::class);
+    }
+
+    public function phoneCalls(): HasMany
+    {
+        return $this->hasMany(PhoneCall::class);
+    }
+
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class)->orderByDesc('date');

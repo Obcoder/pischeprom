@@ -89,4 +89,10 @@ return [
         'secret' => env('DADATA_SECRET'),
     ],
 
+    'beeline_pbx' => [
+        'api_token' => env('BEELINE_PBX_API_TOKEN'),
+        'crm_token' => env('BEELINE_PBX_CRM_TOKEN', env('BEELINE_PBX_API_TOKEN')),
+        'api_url' => env('BEELINE_PBX_API_URL'),
+    ],
+
 ];

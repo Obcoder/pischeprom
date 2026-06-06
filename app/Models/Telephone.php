@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Telephone extends Model
 {
@@ -27,6 +28,16 @@ class Telephone extends Model
     {
         return $this->belongsToMany(Unit::class, 'telephone_unit')
             ->withTimestamps();
+    }
+
+    public function leads(): HasMany
+    {
+        return $this->hasMany(Lead::class);
+    }
+
+    public function phoneCalls(): HasMany
+    {
+        return $this->hasMany(PhoneCall::class);
     }
 
     public function scopeWithRelations(Builder $query): Builder
