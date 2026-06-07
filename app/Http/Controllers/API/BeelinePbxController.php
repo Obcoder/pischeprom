@@ -32,7 +32,8 @@ class BeelinePbxController extends Controller
         $actual = $request->input('crm_token')
             ?: $request->input('token')
             ?: $request->bearerToken()
-            ?: $request->header('X-Beeline-Token');
+            ?: $request->header('X-Beeline-Token')
+            ?: $request->header('X-MPBX-API-AUTH-TOKEN');
 
         return is_string($actual) && hash_equals((string) $expected, $actual);
     }
