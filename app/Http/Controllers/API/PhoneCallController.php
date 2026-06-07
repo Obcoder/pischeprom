@@ -4,14 +4,84 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PhoneCallResource;
+use App\Models\Lead;
 use App\Models\PhoneCall;
+use App\Models\Telephone;
 use App\Services\Telephony\BeelinePbxService;
+use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PhoneCallController extends Controller
 {
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'source' => ['nullable', 'string', 'max:64'],
+            'client_phone' => ['nullable', 'string', 'max:32'],
+            'target_phone' => ['nullable', 'string', 'max:32'],
+            'good_id' => ['nullable', 'integer'],
+            'good_name' => ['nullable', 'string', 'max:255'],
+            'category_id' => ['nullable', 'integer'],
+            'category_name' => ['nullable', 'string', 'max:255'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'url' => ['nullable', 'string', 'max:2048'],
+            'referrer' => ['nullable', 'string', 'max:2048'],
+        ]);
+
+        $call = DB::transaction(function () use ($data, $request): PhoneCall {
+            $clientPhone = $this->normalizePhone($data['client_phone'] ?? null);
+            $targetPhone = $this->normalizePhone($data['target_phone'] ?? null) ?: '79650160001';
+            $telephone = $clientPhone
+                ? Telephone::query()->firstOrCreate(['number' => $clientPhone])
+                : null;
+            $source = $data['source'] ?? 'website';
+            $startedAt = now();
+            $description = $this->leadDescription($data, $targetPhone);
+
+            $lead = Lead::query()->create([
+                'source' => $source,
+                'status' => Lead::STATUS_OPEN,
+                'title' => $this->leadTitle($data),
+                'description' => $description,
+                'client_phone' => $clientPhone,
+                'telephone_id' => $telephone?->id,
+                'last_activity_at' => $startedAt,
+            ]);
+
+            $call = PhoneCall::query()->create([
+                'provider' => 'website',
+                'provider_call_id' => (string) Str::uuid(),
+                'event_type' => 'phone_click',
+                'direction' => PhoneCall::DIRECTION_IN,
+                'status' => 'clicked',
+                'client_phone' => $clientPhone,
+                'employee_phone' => $targetPhone,
+                'started_at' => $startedAt,
+                'telephone_id' => $telephone?->id,
+                'lead_id' => $lead->id,
+                'raw_payload' => [
+                    ...$data,
+                    'ip' => $request->ip(),
+                    'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
+                ],
+            ]);
+
+            $lead->forceFill([
+                'first_phone_call_id' => $call->id,
+                'last_phone_call_id' => $call->id,
+            ])->save();
+
+            return $call;
+        });
+
+        return (new PhoneCallResource($call->load(['telephone', 'entity', 'unit', 'lead'])))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $perPage = max((int) $request->integer('per_page', 25), 1);
@@ -67,5 +137,45 @@ class PhoneCallController extends Controller
         $service->createEntityForCall($phoneCall->load('lead'), $data['name'] ?? null);
 
         return new PhoneCallResource($phoneCall->refresh()->load(['telephone', 'entity', 'unit', 'lead']));
+    }
+
+    protected function leadTitle(array $data): string
+    {
+        if (!empty($data['good_name'])) {
+            return 'Клик по телефону: ' . $data['good_name'];
+        }
+
+        if (!empty($data['category_name'])) {
+            return 'Клик по телефону: ' . $data['category_name'];
+        }
+
+        return 'Клик по телефону с сайта';
+    }
+
+    protected function leadDescription(array $data, string $targetPhone): string
+    {
+        return collect([
+            'Целевой номер: +' . $targetPhone,
+            !empty($data['source']) ? 'Источник: ' . $data['source'] : null,
+            !empty($data['good_id']) ? 'Good ID: ' . $data['good_id'] : null,
+            !empty($data['category_id']) ? 'Category ID: ' . $data['category_id'] : null,
+            !empty($data['search']) ? 'Поиск: ' . $data['search'] : null,
+            !empty($data['url']) ? 'URL: ' . $data['url'] : null,
+        ])->filter()->implode("\n");
+    }
+
+    protected function normalizePhone(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phone);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (strlen($digits) === 11 && str_starts_with($digits, '8')) {
+            $digits = '7' . substr($digits, 1);
+        }
+
+        return Str::limit($digits, 16, '');
     }
 }

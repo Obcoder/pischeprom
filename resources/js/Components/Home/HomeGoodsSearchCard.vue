@@ -4,10 +4,12 @@ import { Link } from "@inertiajs/vue3";
 import { logo } from "@/Pages/Helpers/consts.js";
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl';
 import { useAppRoute } from "@/Composables/useAppRoute";
+import { usePhoneCallRegistration } from "@/Composables/usePhoneCallRegistration";
 
 const { route } = useAppRoute();
 
 const { goodPublicUrl } = usePublicGoodUrl()
+const { registerPhoneCallClick } = usePhoneCallRegistration()
 
 const props = defineProps({
     goods: {
@@ -184,6 +186,15 @@ function shortDescription(good) {
 
     return text.length > 96 ? `${text.slice(0, 96)}…` : text;
 }
+
+function clickHomePhone() {
+    registerPhoneCallClick({
+        source: "home_goods_search_card",
+        search: search.value.trim() || null,
+        good_id: visibleGoods.value[0]?.id || null,
+        good_name: visibleGoods.value[0]?.name || null,
+    });
+}
 </script>
 
 <template>
@@ -304,10 +315,10 @@ function shortDescription(good) {
             </v-alert>
         </v-card-text>
 
-        <v-card-actions class="px-4 pb-4">
+        <v-card-actions class="goods-search-card__actions px-4 pb-4">
             <Link
                 :href="route('public.goods.index')"
-                class="w-100"
+                class="goods-search-card__action-link"
             >
                 <v-btn
                     block
@@ -317,6 +328,18 @@ function shortDescription(good) {
                     Открыть весь каталог
                 </v-btn>
             </Link>
+
+            <v-btn
+                class="goods-search-card__phone"
+                href="tel:+79650160001"
+                variant="tonal"
+                color="#800000"
+                rounded="xl"
+                prepend-icon="mdi-phone"
+                @click="clickHomePhone"
+            >
+                Позвонить
+            </v-btn>
         </v-card-actions>
     </v-card>
 </template>
@@ -330,6 +353,20 @@ function shortDescription(good) {
 .goods-search-card__body {
     max-height: 520px;
     overflow-y: auto;
+}
+
+.goods-search-card__actions {
+    align-items: stretch;
+    gap: 10px;
+}
+
+.goods-search-card__action-link {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.goods-search-card__phone {
+    flex: 0 0 auto;
 }
 
 .product-group {
@@ -426,6 +463,14 @@ function shortDescription(good) {
 }
 
 @media (max-width: 600px) {
+    .goods-search-card__actions {
+        flex-direction: column;
+    }
+
+    .goods-search-card__phone {
+        width: 100%;
+    }
+
     .good-row {
         grid-template-columns: 48px minmax(0, 1fr);
     }

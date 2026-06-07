@@ -6,6 +6,7 @@ import LayoutDefault from "@/Layouts/LayoutDefault.vue"
 import { useYandexMetrica } from "@/Composables/useYandexMetrica"
 import { usePublicGoodUrl } from "@/Composables/usePublicGoodUrl"
 import { useAppRoute } from "@/Composables/useAppRoute"
+import { usePhoneCallRegistration } from "@/Composables/usePhoneCallRegistration"
 
 const {
     route,
@@ -40,6 +41,10 @@ const {
     reachGoal,
     ecommerceViewItem,
 } = useYandexMetrica(metricaCounterId);
+
+const {
+    registerPhoneCallClick,
+} = usePhoneCallRegistration();
 
 const activeImageId = ref(null);
 
@@ -321,6 +326,12 @@ function requestPrice() {
 
 function clickPhone() {
     reachGoal("phone_click", {
+        good_id: props.good.id,
+        good_name: props.good.name,
+    });
+
+    registerPhoneCallClick({
+        source: "good_show",
         good_id: props.good.id,
         good_name: props.good.name,
     });

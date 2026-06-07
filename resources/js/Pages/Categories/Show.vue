@@ -6,9 +6,11 @@ import { useHead } from '@vueuse/head'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
+import { usePhoneCallRegistration } from '@/Composables/usePhoneCallRegistration'
 
 const { route } = useAppRoute()
 const { goodPublicUrl } = usePublicGoodUrl()
+const { registerPhoneCallClick } = usePhoneCallRegistration()
 
 defineOptions({
     layout: LayoutDefault,
@@ -162,6 +164,14 @@ function requestCategoryPrice() {
     const subject = `Запрос по категории: ${category.value.name}`
     window.location.href = `mailto:office@180022.ru?subject=${encodeURIComponent(subject)}`
 }
+
+function clickCategoryPhone() {
+    registerPhoneCallClick({
+        source: 'category_show',
+        category_id: category.value.id,
+        category_name: category.value.name,
+    })
+}
 </script>
 
 <template>
@@ -221,7 +231,7 @@ function requestCategoryPrice() {
                             Запросить предложение
                         </v-btn>
 
-                        <a href="tel:+79650160001" class="text-decoration-none">
+                        <a href="tel:+79650160001" class="text-decoration-none" @click="clickCategoryPhone">
                             <v-btn variant="outlined" color="#8b1f12" rounded="xl" size="large">
                                 Позвонить менеджеру
                             </v-btn>

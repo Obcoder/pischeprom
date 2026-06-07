@@ -377,7 +377,7 @@ Route::post('/telephony/beeline', BeelinePbxController::class)
     ->name('api.telephony.beeline');
 
 Route::apiResource('phone-calls', PhoneCallController::class)
-    ->only(['index', 'show', 'update']);
+    ->only(['index', 'store', 'show', 'update']);
 Route::post('phone-calls/{phoneCall}/create-entity', [PhoneCallController::class, 'createEntity'])
     ->name('api.phone-calls.create-entity');
 

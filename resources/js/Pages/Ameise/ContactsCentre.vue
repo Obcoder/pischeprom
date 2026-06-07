@@ -83,6 +83,7 @@ const callStatusItems = [
     { title: "Все", value: null },
     { title: "Успешные", value: "success" },
     { title: "Пропущенные", value: "missed" },
+    { title: "Клики с сайта", value: "clicked" },
     { title: "Отменены", value: "cancelled" },
     { title: "Занято", value: "busy" },
 ];
@@ -218,6 +219,7 @@ function statusLabel(status) {
         missed: "Пропущен",
         cancelled: "Отменён",
         busy: "Занято",
+        clicked: "Клик",
         not_available: "Недоступен",
         not_allowed: "Запрещён",
         not_found: "Не найден",
@@ -235,6 +237,7 @@ function statusColor(status) {
         missed: "red",
         cancelled: "orange",
         busy: "orange",
+        clicked: "blue",
         open: "blue",
         in_progress: "amber",
         won: "green",
