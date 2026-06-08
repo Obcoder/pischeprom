@@ -95,6 +95,19 @@ class PhoneCallController extends Controller
             ->when($request->filled('lead_id'), fn ($q) => $q->where('lead_id', $request->integer('lead_id')))
             ->when($request->filled('date_from'), fn ($q) => $q->where('started_at', '>=', $request->date('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->where('started_at', '<=', $request->date('date_to')))
+            ->when($request->boolean('hide_unresolved', true), function ($q) {
+                $q->where(function ($sq) {
+                    $sq->whereNot(function ($hidden) {
+                        $hidden->where('provider', 'beeline')
+                            ->whereNull('client_phone')
+                            ->where(function ($unresolved) {
+                                $unresolved
+                                    ->whereNull('provider_call_id')
+                                    ->orWhere('provider_call_id', 'not like', 'portal:%');
+                            });
+                    });
+                });
+            })
             ->orderByDesc('started_at')
             ->orderByDesc('id');
 
@@ -126,6 +139,26 @@ class PhoneCallController extends Controller
         $phoneCall->update($data);
 
         return new PhoneCallResource($phoneCall->load(['telephone', 'entity', 'unit', 'lead']));
+    }
+
+    public function syncBeeline(Request $request, BeelinePbxService $service): JsonResponse
+    {
+        $data = $request->validate([
+            'period' => ['nullable', 'string', 'in:today,yesterday,this_week,last_week,this_month,last_month'],
+            'limit' => ['nullable', 'integer', 'min:10', 'max:500'],
+        ]);
+
+        $result = $service->syncHistory([
+            'period' => $data['period'] ?? 'today',
+            'limit' => $data['limit'] ?? 100,
+        ]);
+
+        $cleanup = $service->cleanupLikelyServiceClients();
+
+        return response()->json([
+            ...$result,
+            'cleanup' => $cleanup,
+        ]);
     }
 
     public function createEntity(Request $request, PhoneCall $phoneCall, BeelinePbxService $service): PhoneCallResource

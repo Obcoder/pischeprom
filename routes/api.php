@@ -382,6 +382,8 @@ Route::post('/telephony/beeline', BeelinePbxController::class)
 
 Route::apiResource('phone-calls', PhoneCallController::class)
     ->only(['index', 'store', 'show', 'update']);
+Route::post('phone-calls/sync-beeline', [PhoneCallController::class, 'syncBeeline'])
+    ->name('api.phone-calls.sync-beeline');
 
 /*
  * ----------------------------

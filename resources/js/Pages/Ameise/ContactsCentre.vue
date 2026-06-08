@@ -23,6 +23,8 @@ const loadingCalls = ref(false);
 const loadingLeads = ref(false);
 const savingLeadId = ref(null);
 const creatingEntityCallId = ref(null);
+const syncingBeeline = ref(false);
+const beelineSyncResult = ref(null);
 const tab = ref("calls");
 
 const callFilters = ref({
@@ -30,6 +32,7 @@ const callFilters = ref({
     direction: null,
     status: null,
     per_page: 25,
+    hide_unresolved: true,
 });
 
 const leadFilters = ref({
@@ -127,6 +130,25 @@ async function fetchPhoneCalls() {
         console.error(error);
     } finally {
         loadingCalls.value = false;
+    }
+}
+
+async function syncBeelineCalls() {
+    syncingBeeline.value = true;
+    beelineSyncResult.value = null;
+
+    try {
+        const { data } = await axios.post("/api/phone-calls/sync-beeline", {
+            period: "today",
+            limit: 100,
+        });
+
+        beelineSyncResult.value = data;
+        await Promise.all([fetchPhoneCalls(), fetchLeads()]);
+    } catch (error) {
+        console.error(error);
+    } finally {
+        syncingBeeline.value = false;
     }
 }
 
@@ -332,7 +354,7 @@ useHead({
                 <v-window-item value="calls">
                     <v-card-text>
                         <v-row align="center">
-                            <v-col cols="12" md="5">
+                            <v-col cols="12" md="4">
                                 <v-text-field
                                     v-model="callFilters.search"
                                     label="Поиск по номеру, сотруднику, Entity или Call ID"
@@ -367,12 +389,31 @@ useHead({
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3" class="d-flex ga-2 justify-end">
+                            <v-col cols="12" md="4" class="d-flex ga-2 justify-end flex-wrap">
+                                <v-btn
+                                    color="green"
+                                    rounded="xl"
+                                    variant="tonal"
+                                    :loading="syncingBeeline"
+                                    @click="syncBeelineCalls"
+                                >
+                                    Синхронизировать Билайн
+                                </v-btn>
                                 <v-btn color="#800000" rounded="xl" :loading="loadingCalls" @click="fetchPhoneCalls">
                                     Обновить
                                 </v-btn>
                             </v-col>
                         </v-row>
+
+                        <v-alert
+                            v-if="beelineSyncResult"
+                            class="mt-4"
+                            type="success"
+                            variant="tonal"
+                            density="compact"
+                        >
+                            Билайн: получено {{ beelineSyncResult.fetched }}, сохранено {{ beelineSyncResult.stored }}, пропущено {{ beelineSyncResult.skipped }}.
+                        </v-alert>
                     </v-card-text>
 
                     <v-data-table
