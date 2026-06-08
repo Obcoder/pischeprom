@@ -93,7 +93,7 @@ return [
         'api_token' => env('BEELINE_PBX_API_TOKEN'),
         'crm_token' => env('BEELINE_PBX_CRM_TOKEN', env('BEELINE_PBX_API_TOKEN')),
         'api_url' => env('BEELINE_PBX_API_URL', 'https://cloudpbx.beeline.ru/apis/portal'),
-        'history_url' => env('BEELINE_PBX_HISTORY_URL'),
+        'history_url' => env('BEELINE_PBX_HISTORY_URL') ?: 'https://cloudpbx.beeline.ru/crmapi/v1/history/json',
         'webhook_url' => env('BEELINE_PBX_WEBHOOK_URL'),
         'subscription_pattern' => env('BEELINE_PBX_SUBSCRIPTION_PATTERN'),
         'own_numbers' => array_filter(array_map('trim', explode(',', (string) env('BEELINE_PBX_OWN_NUMBERS', '79650160001')))),

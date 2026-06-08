@@ -78,6 +78,64 @@ class BeelinePbxServiceTest extends TestCase
         $this->assertSame('9650160001', $data['employee_user']);
     }
 
+    public function test_it_maps_json_history_row_to_call_payload(): void
+    {
+        $service = app(BeelinePbxService::class);
+        $row = [
+            'uid' => 'history-1',
+            'type' => 'out',
+            'status' => 'successful',
+            'client' => '79991234567',
+            'user' => '9650160001',
+            'diversion' => '79650160001',
+            'start' => '2026-06-08T10:00:00Z',
+            'wait' => 2,
+            'duration' => 31,
+            'record' => 'https://example.test/record.mp3',
+        ];
+
+        $payload = $this->invokeServiceMethod($service, 'historyRowToPayload', [$row]);
+        $data = $this->invokeServiceMethod($service, 'normalizeCallPayload', [$payload]);
+
+        $this->assertSame('history-1', $data['provider_call_id']);
+        $this->assertSame(PhoneCall::DIRECTION_OUT, $data['direction']);
+        $this->assertSame('success', $data['status']);
+        $this->assertSame('79991234567', $data['client_phone']);
+        $this->assertSame('9650160001', $data['employee_user']);
+        $this->assertSame('79650160001', $data['diversion_phone']);
+        $this->assertSame(31, $data['duration_seconds']);
+        $this->assertSame(2, $data['wait_seconds']);
+        $this->assertSame('https://example.test/record.mp3', $data['recording_url']);
+    }
+
+    public function test_it_maps_portal_statistics_row_to_call_payload(): void
+    {
+        $service = app(BeelinePbxService::class);
+        $row = [
+            'startDate' => 1780910569000,
+            'abonent' => [
+                'userId' => '9650160001@spb.ims.mnc099.mcc250.3gppnetwork.org',
+                'phone' => '+79212525844',
+                'lastName' => '"ПИЩЕПРОМ-СЕРВЕР"',
+                'extension' => '200',
+            ],
+            'direction' => 'OUTBOUND',
+            'phone_to' => '+79212525844',
+            'duration' => 31480,
+            'status' => 'PLACED',
+        ];
+
+        $payload = $this->invokeServiceMethod($service, 'historyRowToPayload', [$row]);
+        $data = $this->invokeServiceMethod($service, 'normalizeCallPayload', [$payload]);
+
+        $this->assertStringStartsWith('portal:', $data['provider_call_id']);
+        $this->assertSame(PhoneCall::DIRECTION_OUT, $data['direction']);
+        $this->assertSame('success', $data['status']);
+        $this->assertSame('79212525844', $data['client_phone']);
+        $this->assertSame('9650160001', $data['employee_user']);
+        $this->assertSame(31, $data['duration_seconds']);
+    }
+
     protected function invokeServiceMethod(BeelinePbxService $service, string $method, array $arguments): mixed
     {
         $reflection = new ReflectionClass($service);

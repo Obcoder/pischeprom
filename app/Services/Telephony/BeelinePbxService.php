@@ -256,8 +256,7 @@ class BeelinePbxService
 
     public function syncHistory(array $filters = [], bool $dryRun = false): array
     {
-        $csv = $this->fetchHistory($filters);
-        $rows = $this->parseHistoryCsv($csv);
+        $rows = $this->fetchHistoryRows($filters);
         $stored = 0;
         $skipped = 0;
         $sample = [];
@@ -289,7 +288,39 @@ class BeelinePbxService
 
     public function fetchHistory(array $filters = []): string
     {
-        $apiUrl = trim((string) ($filters['api_url'] ?: config('services.beeline_pbx.history_url')));
+        $response = $this->requestHistory($filters);
+
+        return trim($response->body());
+    }
+
+    public function fetchHistoryRows(array $filters = []): array
+    {
+        $response = $this->requestHistory($filters);
+        $body = trim($response->body());
+        $decoded = $response->json();
+
+        if ($this->looksLikeHtml($body)) {
+            return $this->fetchPortalStatisticsRows($filters);
+        }
+
+        if (is_array($decoded)) {
+            if (array_is_list($decoded)) {
+                return $decoded;
+            }
+
+            foreach (['data', 'items', 'history', 'calls', 'result'] as $key) {
+                if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                    return $decoded[$key];
+                }
+            }
+        }
+
+        return $this->parseHistoryCsv($body);
+    }
+
+    protected function requestHistory(array $filters = []): \Illuminate\Http\Client\Response
+    {
+        $apiUrl = trim((string) (($filters['api_url'] ?? null) ?: config('services.beeline_pbx.history_url')));
         $token = trim((string) config('services.beeline_pbx.api_token'));
 
         if ($apiUrl === '') {
@@ -308,16 +339,31 @@ class BeelinePbxService
             'end' => $filters['end'] ?? null,
             'type' => $filters['type'] ?? 'all',
             'limit' => $filters['limit'] ?? 500,
+            'user' => $filters['user'] ?? null,
+            'diversion' => $filters['diversion'] ?? null,
+            'client' => $filters['client'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
 
         if (!empty($payload['start']) || !empty($payload['end'])) {
             unset($payload['period']);
         }
 
-        $response = Http::asForm()
-            ->accept('*/*')
+        $response = Http::withHeaders([
+            'X-API-KEY' => $token,
+        ])
+            ->acceptJson()
             ->timeout(30)
-            ->post($apiUrl, $payload);
+            ->get($apiUrl, Arr::except($payload, ['cmd', 'token']));
+
+        if ($response->status() === 405) {
+            $response = Http::withHeaders([
+                'X-API-KEY' => $token,
+            ])
+                ->acceptJson()
+                ->asForm()
+                ->timeout(30)
+                ->post($apiUrl, $payload);
+        }
 
         $body = trim($response->body());
 
@@ -341,7 +387,116 @@ class BeelinePbxService
             }
         }
 
-        return $body;
+        return $response;
+    }
+
+    protected function fetchPortalStatisticsRows(array $filters = []): array
+    {
+        $apiUrl = rtrim(trim((string) config('services.beeline_pbx.api_url')), '/');
+        $token = trim((string) config('services.beeline_pbx.api_token'));
+
+        if ($apiUrl === '' || $token === '') {
+            return [];
+        }
+
+        $abonentsResponse = Http::withHeaders([
+            'X-MPBX-API-AUTH-TOKEN' => $token,
+        ])
+            ->acceptJson()
+            ->timeout(30)
+            ->get($apiUrl . '/abonents');
+
+        if ($abonentsResponse->failed() || !is_array($abonentsResponse->json())) {
+            return [];
+        }
+
+        [$dateFrom, $dateTo] = $this->portalStatisticsPeriod($filters);
+        $limit = max((int) ($filters['limit'] ?? 500), 1);
+        $pageSize = min(max($limit, 10), 100);
+        $rows = [];
+
+        foreach ($abonentsResponse->json() as $abonent) {
+            $userId = Arr::get($abonent, 'userId');
+
+            if (!$userId) {
+                continue;
+            }
+
+            for ($page = 0; count($rows) < $limit; $page++) {
+                $response = Http::withHeaders([
+                    'X-MPBX-API-AUTH-TOKEN' => $token,
+                ])
+                    ->acceptJson()
+                    ->timeout(30)
+                    ->get($apiUrl . '/v2/statistics', [
+                        'userId' => $userId,
+                        'dateFrom' => $dateFrom,
+                        'dateTo' => $dateTo,
+                        'page' => $page,
+                        'pageSize' => $pageSize,
+                    ]);
+
+                $pageRows = $response->json();
+
+                if ($response->failed() || !is_array($pageRows) || $pageRows === []) {
+                    break;
+                }
+
+                foreach ($pageRows as $row) {
+                    $rows[] = [
+                        ...$row,
+                        'abonent' => Arr::get($row, 'abonent', $abonent),
+                        'raw_portal_statistics_row' => $row,
+                    ];
+
+                    if (count($rows) >= $limit) {
+                        break 2;
+                    }
+                }
+
+                if (count($pageRows) < $pageSize) {
+                    break;
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    protected function portalStatisticsPeriod(array $filters = []): array
+    {
+        $timezone = config('app.timezone');
+        $now = CarbonImmutable::now($timezone);
+        $period = (string) ($filters['period'] ?? 'today');
+
+        $start = match ($period) {
+            'yesterday' => $now->subDay()->startOfDay(),
+            'this_week' => $now->startOfWeek(),
+            'last_week' => $now->subWeek()->startOfWeek(),
+            'this_month' => $now->startOfMonth(),
+            'last_month' => $now->subMonth()->startOfMonth(),
+            default => $now->startOfDay(),
+        };
+
+        $end = match ($period) {
+            'yesterday' => $now->subDay()->endOfDay(),
+            'last_week' => $now->subWeek()->endOfWeek(),
+            'last_month' => $now->subMonth()->endOfMonth(),
+            default => $now,
+        };
+
+        if (!empty($filters['start'])) {
+            $start = $this->parseBeelineDate($filters['start']) ?: $start;
+        }
+
+        if (!empty($filters['end'])) {
+            $end = $this->parseBeelineDate($filters['end']) ?: $end;
+        }
+
+        return [
+            $start->utc()->format('Y-m-d\TH:i:s\Z'),
+            $end->utc()->format('Y-m-d\TH:i:s\Z'),
+        ];
     }
 
     public function subscribeEvents(array $options = [], bool $dryRun = false): array
@@ -543,7 +698,7 @@ class BeelinePbxService
             'answered_at' => $this->parseBeelineDate(Arr::get($payload, 'answered_at')),
             'ended_at' => $this->parseBeelineDate(Arr::get($payload, 'end')),
             'event_at' => $this->parseBeelineDate(Arr::get($payload, 'event_time')),
-            'duration_seconds' => $this->nullableInt(Arr::get($payload, 'duration')),
+            'duration_seconds' => $this->normalizeDurationSeconds(Arr::get($payload, 'duration')),
             'wait_seconds' => $this->nullableInt(Arr::get($payload, 'wait')),
             'recording_url' => $this->nullableString(Arr::get($payload, 'link', Arr::get($payload, 'record'))),
         ];
@@ -804,12 +959,12 @@ class BeelinePbxService
         }
 
         return match ($status) {
-            'success', 'answered', 'connected', 'active' => 'success',
+            'success', 'successful', 'answered', 'connected', 'active', 'recieved', 'received', 'placed' => 'success',
             'completed' => 'completed',
             'released' => 'completed',
             'ringing', 'alerting', 'delivered' => 'ringing',
             'missed' => 'missed',
-            'cancel' => 'cancelled',
+            'cancel', 'failed' => 'cancelled',
             'busy' => 'busy',
             'notavailable' => 'not_available',
             'notallowed' => 'not_allowed',
@@ -854,6 +1009,16 @@ class BeelinePbxService
         }
 
         try {
+            if (preg_match('/^\d{13}$/', $value)) {
+                return CarbonImmutable::createFromTimestampMs((int) $value)
+                    ->setTimezone(config('app.timezone'));
+            }
+
+            if (preg_match('/^\d{10}$/', $value)) {
+                return CarbonImmutable::createFromTimestamp((int) $value)
+                    ->setTimezone(config('app.timezone'));
+            }
+
             if (preg_match('/^\d{8}T\d{6}Z$/', $value)) {
                 return CarbonImmutable::createFromFormat('Ymd\THis\Z', $value, 'UTC')
                     ->setTimezone(config('app.timezone'));
@@ -885,22 +1050,102 @@ class BeelinePbxService
         return max((int) $value, 0);
     }
 
+    protected function normalizeDurationSeconds(mixed $value): ?int
+    {
+        $duration = $this->nullableInt($value);
+
+        if ($duration === null) {
+            return null;
+        }
+
+        if ($duration > 86400) {
+            return (int) round($duration / 1000);
+        }
+
+        return $duration;
+    }
+
+    protected function portalDurationSeconds(mixed $value): ?int
+    {
+        $duration = $this->nullableInt($value);
+
+        if ($duration === null) {
+            return null;
+        }
+
+        return (int) round($duration / 1000);
+    }
+
     protected function historyRowToPayload(array $row): array
     {
+        if (Arr::has($row, 'startDate') && Arr::has($row, 'abonent')) {
+            return $this->portalStatisticsRowToPayload($row);
+        }
+
         $type = Str::lower((string) Arr::get($row, 'type', 'all'));
+        $status = Arr::get($row, 'status');
+        $client = Arr::get($row, 'client');
+        $account = Arr::get($row, 'account', Arr::get($row, 'user'));
+        $diversion = Arr::get($row, 'via', Arr::get($row, 'diversion'));
+        $callId = Arr::get($row, 'UID', Arr::get($row, 'uid'));
 
         return [
             'cmd' => 'history',
             'type' => $type,
-            'status' => $type === 'missed' ? 'Missed' : 'Success',
-            'phone' => Arr::get($row, 'client'),
-            'user' => Arr::get($row, 'account'),
-            'diversion' => Arr::get($row, 'via'),
+            'status' => $status ?: ($type === 'missed' ? 'Missed' : 'Success'),
+            'phone' => $client,
+            'user' => $account,
+            'user_name' => Arr::get($row, 'user_name'),
+            'destination' => Arr::get($row, 'destination'),
+            'groupRealName' => Arr::get($row, 'group_name', Arr::get($row, 'groupRealName')),
+            'diversion' => $diversion,
             'start' => Arr::get($row, 'start'),
             'wait' => Arr::get($row, 'wait'),
             'duration' => Arr::get($row, 'duration'),
             'link' => Arr::get($row, 'record'),
-            'callid' => Arr::get($row, 'UID'),
+            'callid' => $callId,
+            'raw_history_row' => $row,
+        ];
+    }
+
+    protected function portalStatisticsRowToPayload(array $row): array
+    {
+        $direction = Str::lower((string) Arr::get($row, 'direction'));
+        $type = Str::contains($direction, 'out') ? 'out' : (Str::contains($direction, 'in') ? 'in' : 'all');
+        $phoneFrom = $this->normalizeClientPhone(Arr::get($row, 'phone_from'));
+        $phoneTo = $this->normalizeClientPhone(Arr::get($row, 'phone_to'));
+        $legacyPhone = $this->normalizeClientPhone(Arr::get($row, 'phone'));
+        $clientPhone = $type === 'out'
+            ? ($phoneTo ?: $legacyPhone ?: $phoneFrom)
+            : ($phoneFrom ?: $legacyPhone ?: $phoneTo);
+        $callId = implode(':', [
+            'portal',
+            sha1(json_encode([
+                Arr::get($row, 'abonent.userId'),
+                Arr::get($row, 'startDate'),
+                Arr::get($row, 'direction'),
+                Arr::get($row, 'phone_from'),
+                Arr::get($row, 'phone_to'),
+                Arr::get($row, 'phone'),
+                Arr::get($row, 'duration'),
+                Arr::get($row, 'status'),
+            ])),
+        ]);
+
+        return [
+            'cmd' => 'history',
+            'type' => $type,
+            'status' => Arr::get($row, 'status'),
+            'phone' => $clientPhone,
+            'user' => Arr::get($row, 'abonent.userId'),
+            'user_name' => trim(implode(' ', array_filter([
+                Arr::get($row, 'abonent.firstName'),
+                Arr::get($row, 'abonent.lastName'),
+            ]))),
+            'diversion' => $type === 'out' ? Arr::get($row, 'phone_from') : Arr::get($row, 'phone_to'),
+            'start' => Arr::get($row, 'startDate'),
+            'duration' => $this->portalDurationSeconds(Arr::get($row, 'duration')),
+            'callid' => $callId,
             'raw_history_row' => $row,
         ];
     }
@@ -1040,6 +1285,13 @@ class BeelinePbxService
         }
 
         return null;
+    }
+
+    protected function looksLikeHtml(string $body): bool
+    {
+        $body = Str::lower(ltrim($body));
+
+        return Str::startsWith($body, ['<!doctype html', '<html']);
     }
 
     protected function phoneFromPayloadPaths(array $payload, array $paths): ?string
