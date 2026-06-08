@@ -59,6 +59,25 @@ class BeelinePbxServiceTest extends TestCase
         $this->assertSame('79991234567', $data['client_phone']);
     }
 
+    public function test_it_does_not_use_hook_status_sequence_number_as_client_phone(): void
+    {
+        $service = app(BeelinePbxService::class);
+        $payload = [
+            'cmd' => 'event',
+            'hookStatusEvent' => [
+                'hookStatus' => 'off-hook',
+            ],
+            'sequenceNumber' => '203641822570163',
+            'userId' => 'sip:9650160001@spb.ims.mnc099.mcc250.3gppnetwork.org',
+        ];
+
+        $normalized = $this->invokeServiceMethod($service, 'normalizeIncomingPayload', [$payload]);
+        $data = $this->invokeServiceMethod($service, 'normalizeCallPayload', [$normalized]);
+
+        $this->assertNull($data['client_phone']);
+        $this->assertSame('9650160001', $data['employee_user']);
+    }
+
     protected function invokeServiceMethod(BeelinePbxService $service, string $method, array $arguments): mixed
     {
         $reflection = new ReflectionClass($service);

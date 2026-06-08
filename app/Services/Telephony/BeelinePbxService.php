@@ -90,18 +90,97 @@ class BeelinePbxService
         $payload = $this->normalizeIncomingPayload($payload);
         $data = $this->normalizeCallPayload($payload);
 
-        return $this->persistCall($payload, $data, $call);
+        return $this->persistCall($payload, $data, $call, true);
     }
 
-    protected function persistCall(array $payload, array $data, ?PhoneCall $call = null): PhoneCall
+    public function cleanupLikelyServiceClients(): array
     {
-        return DB::transaction(function () use ($data, $payload, $call) {
+        return DB::transaction(function () {
+            $numbers = Telephone::query()
+                ->where('number', 'like', '20%')
+                ->get(['id', 'number'])
+                ->filter(fn (Telephone $telephone) => $this->isLikelyServiceNumber($telephone->number))
+                ->values();
+
+            if ($numbers->isEmpty()) {
+                return [
+                    'phone_calls_cleared' => 0,
+                    'leads_deleted' => 0,
+                    'telephones_deleted' => 0,
+                    'entities_deleted' => 0,
+                ];
+            }
+
+            $phoneNumbers = $numbers->pluck('number')->all();
+            $telephoneIds = $numbers->pluck('id')->all();
+            $entityNames = array_map(fn (string $phone) => 'Клиент +' . $phone, $phoneNumbers);
+
+            $phoneCallsCleared = PhoneCall::query()
+                ->where('provider', 'beeline')
+                ->whereIn('client_phone', $phoneNumbers)
+                ->update([
+                    'client_phone' => null,
+                    'telephone_id' => null,
+                    'entity_id' => null,
+                    'unit_id' => null,
+                    'lead_id' => null,
+                ]);
+
+            $leadsDeleted = Lead::query()
+                ->where('source', 'beeline')
+                ->whereIn('client_phone', $phoneNumbers)
+                ->delete();
+
+            $entitiesDeleted = 0;
+
+            Entity::query()
+                ->whereIn('name', $entityNames)
+                ->withCount(['phoneCalls', 'leads', 'units'])
+                ->get()
+                ->each(function (Entity $entity) use (&$entitiesDeleted) {
+                    if ($entity->phone_calls_count || $entity->leads_count || $entity->units_count) {
+                        return;
+                    }
+
+                    $entity->telephones()->detach();
+                    $entity->delete();
+                    $entitiesDeleted++;
+                });
+
+            $telephonesDeleted = 0;
+
+            Telephone::query()
+                ->whereIn('id', $telephoneIds)
+                ->withCount(['phoneCalls', 'leads', 'units'])
+                ->get()
+                ->each(function (Telephone $telephone) use (&$telephonesDeleted) {
+                    if ($telephone->phone_calls_count || $telephone->leads_count || $telephone->units_count) {
+                        return;
+                    }
+
+                    $telephone->entities()->detach();
+                    $telephone->delete();
+                    $telephonesDeleted++;
+                });
+
+            return [
+                'phone_calls_cleared' => $phoneCallsCleared,
+                'leads_deleted' => $leadsDeleted,
+                'telephones_deleted' => $telephonesDeleted,
+                'entities_deleted' => $entitiesDeleted,
+            ];
+        });
+    }
+
+    protected function persistCall(array $payload, array $data, ?PhoneCall $call = null, bool $replaceExisting = false): PhoneCall
+    {
+        return DB::transaction(function () use ($data, $payload, $call, $replaceExisting) {
             $attributes = $data['provider_call_id']
                 ? ['provider' => 'beeline', 'provider_call_id' => $data['provider_call_id']]
                 : [];
 
             $call = $call ?: ($attributes ? PhoneCall::query()->where($attributes)->first() : null);
-            $data = $this->mergeCallData($call, $data);
+            $data = $this->mergeCallData($call, $data, $replaceExisting);
             $data = $this->completeTiming($data);
             $context = $this->resolveCrmContext($data['client_phone'], true);
             $lead = $this->resolveLead($context['telephone'], $context['entity'], $context['unit'], $data);
@@ -410,6 +489,29 @@ class BeelinePbxService
         return $digits;
     }
 
+    protected function normalizeClientPhone(mixed $value): ?string
+    {
+        $phone = $this->normalizePhone($value);
+
+        if (!$phone || $this->isLikelyServiceNumber($phone)) {
+            return null;
+        }
+
+        // Beeline PBX integration is configured for the Russian phone network.
+        return preg_match('/^7\d{10}$/', $phone) ? $phone : null;
+    }
+
+    protected function isLikelyServiceNumber(mixed $phone): bool
+    {
+        $phone = $this->normalizePhone($phone);
+
+        if (!$phone) {
+            return false;
+        }
+
+        return strlen($phone) >= 13 && str_starts_with($phone, '20');
+    }
+
     protected function normalizeCallPayload(array $payload): array
     {
         $cmd = Str::lower((string) Arr::get($payload, 'cmd'));
@@ -431,7 +533,7 @@ class BeelinePbxService
             'event_type' => $eventType ?: null,
             'direction' => $direction,
             'status' => $status,
-            'client_phone' => $this->normalizePhone(Arr::get($payload, 'phone', Arr::get($payload, 'client'))),
+            'client_phone' => $this->normalizeClientPhone(Arr::get($payload, 'phone', Arr::get($payload, 'client'))),
             'employee_user' => $this->normalizeEmployeeUser(Arr::get($payload, 'user', Arr::get($payload, 'account'))),
             'employee_extension' => $this->nullableString(Arr::get($payload, 'ext')),
             'employee_phone' => $this->normalizePhone(Arr::get($payload, 'telnum') ?: Arr::get($payload, 'local_phone')),
@@ -514,9 +616,50 @@ class BeelinePbxService
         return Entity::query()->create(['name' => $name]);
     }
 
-    protected function mergeCallData(?PhoneCall $call, array $data): array
+    protected function mergeCallData(?PhoneCall $call, array $data, bool $replaceExisting = false): array
     {
         if (!$call) {
+            return $data;
+        }
+
+        if ($replaceExisting) {
+            $existingClientPhone = $this->normalizeClientPhone($call->client_phone);
+
+            if (!$data['client_phone'] && $existingClientPhone) {
+                $data['client_phone'] = $existingClientPhone;
+            }
+
+            foreach ([
+                'provider_call_id',
+                'employee_user',
+                'employee_extension',
+                'employee_phone',
+                'group_name',
+                'diversion_phone',
+                'started_at',
+                'answered_at',
+                'ended_at',
+                'duration_seconds',
+                'wait_seconds',
+                'recording_url',
+            ] as $field) {
+                if ($data[$field] === null || $data[$field] === '') {
+                    $data[$field] = $call->{$field};
+                }
+            }
+
+            if (($data['direction'] ?? PhoneCall::DIRECTION_UNKNOWN) === PhoneCall::DIRECTION_UNKNOWN) {
+                $data['direction'] = $call->direction ?: PhoneCall::DIRECTION_UNKNOWN;
+            }
+
+            if (($data['status'] ?? null) === null) {
+                $data['status'] = $call->status;
+            }
+
+            if (($data['event_type'] ?? null) === null) {
+                $data['event_type'] = $call->event_type;
+            }
+
             return $data;
         }
 
@@ -808,8 +951,8 @@ class BeelinePbxService
             'telnum',
         ]));
 
-        $payload['phone'] = Arr::get($payload, 'phone')
-            ?: Arr::get($payload, 'client')
+        $payload['phone'] = $this->normalizeClientPhone(Arr::get($payload, 'phone'))
+            ?: $this->normalizeClientPhone(Arr::get($payload, 'client'))
             ?: $this->clientPhoneFromPayload($payload, Arr::get($payload, 'direction'));
 
         $payload['user'] = Arr::get($payload, 'user')
@@ -902,7 +1045,7 @@ class BeelinePbxService
     protected function phoneFromPayloadPaths(array $payload, array $paths): ?string
     {
         foreach ($paths as $path) {
-            $phone = $this->normalizePhone(Arr::get($payload, $path));
+            $phone = $this->normalizeClientPhone(Arr::get($payload, $path));
 
             if ($phone !== null) {
                 return $phone;
@@ -958,40 +1101,6 @@ class BeelinePbxService
         };
 
         foreach ($preferred as $phone) {
-            if ($phone && $phone !== $localPhone && !$this->isOwnNumber($phone)) {
-                return $phone;
-            }
-        }
-
-        return $this->firstExternalPhone($payload, $localPhone);
-    }
-
-    protected function firstExternalPhone(array $payload, ?string $localPhone = null, string $path = ''): ?string
-    {
-        foreach ($payload as $key => $value) {
-            $currentPath = $path === '' ? (string) $key : $path . '.' . $key;
-            $normalizedPath = Str::lower($currentPath);
-
-            if (Str::contains($normalizedPath, ['local', 'endpoint', 'user', 'account', 'target', 'telnum', 'subscription'])) {
-                continue;
-            }
-
-            if (is_array($value)) {
-                $phone = $this->firstExternalPhone($value, $localPhone, $currentPath);
-
-                if ($phone !== null) {
-                    return $phone;
-                }
-
-                continue;
-            }
-
-            if (!Str::contains($normalizedPath, ['phone', 'number', 'address', 'caller', 'callee', 'from', 'to'])) {
-                continue;
-            }
-
-            $phone = $this->normalizePhone($value);
-
             if ($phone && $phone !== $localPhone && !$this->isOwnNumber($phone)) {
                 return $phone;
             }

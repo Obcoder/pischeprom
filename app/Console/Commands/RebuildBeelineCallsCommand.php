@@ -20,6 +20,12 @@ class RebuildBeelineCallsCommand extends Command
         $dryRun = (bool) $this->option('dry-run');
         $rebuilt = 0;
         $skipped = 0;
+        $cleanup = [
+            'phone_calls_cleared' => 0,
+            'leads_deleted' => 0,
+            'telephones_deleted' => 0,
+            'entities_deleted' => 0,
+        ];
 
         PhoneCall::query()
             ->where('provider', 'beeline')
@@ -40,8 +46,16 @@ class RebuildBeelineCallsCommand extends Command
                 $rebuilt++;
             });
 
+        if (!$dryRun) {
+            $cleanup = $service->cleanupLikelyServiceClients();
+        }
+
         $this->info('Rebuilt: ' . $rebuilt);
         $this->info('Skipped: ' . $skipped);
+        $this->info('Service phone calls cleared: ' . $cleanup['phone_calls_cleared']);
+        $this->info('Service leads deleted: ' . $cleanup['leads_deleted']);
+        $this->info('Service telephones deleted: ' . $cleanup['telephones_deleted']);
+        $this->info('Service entities deleted: ' . $cleanup['entities_deleted']);
 
         if ($dryRun) {
             $this->warn('Dry run: no calls were changed.');
