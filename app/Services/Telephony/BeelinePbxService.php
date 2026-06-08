@@ -76,16 +76,38 @@ class BeelinePbxService
         $payload = $this->normalizeIncomingPayload($payload);
         $data = $this->normalizeCallPayload($payload);
 
-        return DB::transaction(function () use ($data, $payload) {
+        return $this->persistCall($payload, $data);
+    }
+
+    public function rebuildStoredCall(PhoneCall $call): PhoneCall
+    {
+        $payload = $call->raw_payload ?: [];
+
+        if ($payload === []) {
+            return $call;
+        }
+
+        $payload = $this->normalizeIncomingPayload($payload);
+        $data = $this->normalizeCallPayload($payload);
+
+        return $this->persistCall($payload, $data, $call);
+    }
+
+    protected function persistCall(array $payload, array $data, ?PhoneCall $call = null): PhoneCall
+    {
+        return DB::transaction(function () use ($data, $payload, $call) {
+            $attributes = $data['provider_call_id']
+                ? ['provider' => 'beeline', 'provider_call_id' => $data['provider_call_id']]
+                : [];
+
+            $call = $call ?: ($attributes ? PhoneCall::query()->where($attributes)->first() : null);
+            $data = $this->mergeCallData($call, $data);
+            $data = $this->completeTiming($data);
             $context = $this->resolveCrmContext($data['client_phone'], true);
             $lead = $this->resolveLead($context['telephone'], $context['entity'], $context['unit'], $data);
 
-            $attributes = array_filter([
-                'provider' => 'beeline',
-                'provider_call_id' => $data['provider_call_id'],
-            ], fn ($value) => $value !== null && $value !== '');
-
             $values = [
+                'provider_call_id' => $data['provider_call_id'],
                 'event_type' => $data['event_type'],
                 'direction' => $data['direction'],
                 'status' => $data['status'],
@@ -96,6 +118,8 @@ class BeelinePbxService
                 'group_name' => $data['group_name'],
                 'diversion_phone' => $data['diversion_phone'],
                 'started_at' => $data['started_at'],
+                'answered_at' => $data['answered_at'],
+                'ended_at' => $data['ended_at'],
                 'duration_seconds' => $data['duration_seconds'],
                 'wait_seconds' => $data['wait_seconds'],
                 'recording_url' => $data['recording_url'],
@@ -106,17 +130,11 @@ class BeelinePbxService
                 'raw_payload' => $payload,
             ];
 
-            if ($data['event_type'] === 'accepted') {
-                $values['answered_at'] = now();
+            if ($call) {
+                $call->forceFill($values)->save();
+            } else {
+                $call = PhoneCall::query()->create(['provider' => 'beeline', ...$attributes, ...$values]);
             }
-
-            if (in_array($data['event_type'], ['completed', 'cancelled'], true)) {
-                $values['ended_at'] = now();
-            }
-
-            $call = $attributes
-                ? PhoneCall::query()->updateOrCreate($attributes, $values)
-                : PhoneCall::query()->create(['provider' => 'beeline', ...$values]);
 
             if ($lead) {
                 $lead->forceFill([
@@ -337,14 +355,52 @@ class BeelinePbxService
 
     public function normalizePhone(mixed $value): ?string
     {
-        $digits = preg_replace('/\D+/', '', (string) $value);
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                $phone = $this->normalizePhone($item);
+
+                if ($phone !== null) {
+                    return $phone;
+                }
+            }
+
+            return null;
+        }
+
+        if (!is_scalar($value)) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '' || Str::startsWith(Str::upper($value), 'MPBX_SYS_')) {
+            return null;
+        }
+
+        $candidate = $value;
+
+        if (preg_match('/(?:sip:|tel:)?\+?([78]?\d{9,15})(?=@|[;>\s]|$)/i', $value, $matches)) {
+            $candidate = $matches[1];
+        } elseif (Str::contains($value, '@')) {
+            $candidate = Str::before(Str::after($value, ':'), '@');
+        }
+
+        $digits = preg_replace('/\D+/', '', $candidate);
 
         if ($digits === '') {
             return null;
         }
 
+        if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
+            $digits = '7' . $digits;
+        }
+
         if (strlen($digits) === 11 && str_starts_with($digits, '8')) {
             $digits = '7' . substr($digits, 1);
+        }
+
+        if (strlen($digits) < 5) {
+            return null;
         }
 
         if (strlen($digits) > 16) {
@@ -357,9 +413,7 @@ class BeelinePbxService
     protected function normalizeCallPayload(array $payload): array
     {
         $cmd = Str::lower((string) Arr::get($payload, 'cmd'));
-        $eventType = $cmd === 'event'
-            ? Str::lower((string) Arr::get($payload, 'type'))
-            : 'history';
+        $eventType = $this->normalizeEventType($cmd, Arr::get($payload, 'type'), Arr::get($payload, 'status'));
 
         $status = $this->normalizeStatus(
             Arr::get($payload, 'status'),
@@ -378,12 +432,15 @@ class BeelinePbxService
             'direction' => $direction,
             'status' => $status,
             'client_phone' => $this->normalizePhone(Arr::get($payload, 'phone', Arr::get($payload, 'client'))),
-            'employee_user' => $this->nullableString(Arr::get($payload, 'user', Arr::get($payload, 'account'))),
+            'employee_user' => $this->normalizeEmployeeUser(Arr::get($payload, 'user', Arr::get($payload, 'account'))),
             'employee_extension' => $this->nullableString(Arr::get($payload, 'ext')),
-            'employee_phone' => $this->normalizePhone(Arr::get($payload, 'telnum')),
+            'employee_phone' => $this->normalizePhone(Arr::get($payload, 'telnum') ?: Arr::get($payload, 'local_phone')),
             'group_name' => $this->nullableString(Arr::get($payload, 'groupRealName')),
             'diversion_phone' => $this->normalizePhone(Arr::get($payload, 'diversion', Arr::get($payload, 'via'))),
             'started_at' => $this->parseBeelineDate(Arr::get($payload, 'start')),
+            'answered_at' => $this->parseBeelineDate(Arr::get($payload, 'answered_at')),
+            'ended_at' => $this->parseBeelineDate(Arr::get($payload, 'end')),
+            'event_at' => $this->parseBeelineDate(Arr::get($payload, 'event_time')),
             'duration_seconds' => $this->nullableInt(Arr::get($payload, 'duration')),
             'wait_seconds' => $this->nullableInt(Arr::get($payload, 'wait')),
             'recording_url' => $this->nullableString(Arr::get($payload, 'link', Arr::get($payload, 'record'))),
@@ -457,19 +514,117 @@ class BeelinePbxService
         return Entity::query()->create(['name' => $name]);
     }
 
+    protected function mergeCallData(?PhoneCall $call, array $data): array
+    {
+        if (!$call) {
+            return $data;
+        }
+
+        foreach ([
+            'provider_call_id',
+            'client_phone',
+            'employee_user',
+            'employee_extension',
+            'employee_phone',
+            'group_name',
+            'diversion_phone',
+            'started_at',
+            'answered_at',
+            'ended_at',
+            'duration_seconds',
+            'wait_seconds',
+            'recording_url',
+        ] as $field) {
+            if ($data[$field] === null || $data[$field] === '') {
+                $data[$field] = $call->{$field};
+            }
+        }
+
+        if (($data['direction'] ?? PhoneCall::DIRECTION_UNKNOWN) === PhoneCall::DIRECTION_UNKNOWN) {
+            $data['direction'] = $call->direction ?: PhoneCall::DIRECTION_UNKNOWN;
+        }
+
+        if (($data['status'] ?? null) === null) {
+            $data['status'] = $call->status;
+        }
+
+        if (($data['event_type'] ?? null) === null) {
+            $data['event_type'] = $call->event_type;
+        }
+
+        return $data;
+    }
+
+    protected function completeTiming(array $data): array
+    {
+        $eventAt = $data['event_at'] ?? null;
+
+        if (!$data['answered_at'] && $eventAt && in_array($data['event_type'], ['accepted', 'answered'], true)) {
+            $data['answered_at'] = $eventAt;
+        }
+
+        if (!$data['ended_at'] && $eventAt && in_array($data['event_type'], ['released', 'completed', 'cancelled'], true)) {
+            $data['ended_at'] = $eventAt;
+        }
+
+        if (!$data['duration_seconds'] && $data['started_at'] && $data['ended_at']) {
+            $seconds = $data['ended_at']->diffInSeconds($data['started_at'], true);
+            $data['duration_seconds'] = $seconds > 0 ? (int) round($seconds) : null;
+        }
+
+        return $data;
+    }
+
+    protected function normalizeEventType(string $cmd, mixed $type, mixed $status = null): ?string
+    {
+        if ($cmd === 'history') {
+            return 'history';
+        }
+
+        $value = $this->normalizeEventName($type) ?: $this->normalizeEventName($status);
+
+        if ($value === null) {
+            return $cmd === 'event' ? 'event' : null;
+        }
+
+        if (Str::contains($value, 'released')) {
+            return 'released';
+        }
+
+        if (Str::contains($value, ['answered', 'accepted', 'connected', 'active'])) {
+            return 'accepted';
+        }
+
+        if (Str::contains($value, ['cancel', 'failed', 'busy', 'notavailable', 'notfound'])) {
+            return 'cancelled';
+        }
+
+        if (Str::contains($value, ['originated', 'outgoing', 'placed'])) {
+            return 'outgoing';
+        }
+
+        if (Str::contains($value, ['received', 'incoming', 'delivered', 'alerting'])) {
+            return 'incoming';
+        }
+
+        return Str::limit($value, 32, '');
+    }
+
     protected function normalizeDirection(mixed $value, ?string $status, ?string $eventType): string
     {
-        $value = Str::lower((string) $value);
+        $value = $this->normalizeEventName($value) ?: '';
 
         if ($value === 'missed') {
             return PhoneCall::DIRECTION_MISSED;
         }
 
-        if (in_array($value, ['in', 'incoming'], true)) {
+        if (in_array($value, ['in', 'incoming', 'inbound', 'terminator'], true)
+            || Str::contains($value, ['received', 'incoming', 'terminator'])) {
             return PhoneCall::DIRECTION_IN;
         }
 
-        if (in_array($value, ['out', 'outgoing'], true)) {
+        if (in_array($value, ['out', 'outgoing', 'outbound', 'originator'], true)
+            || Str::contains($value, ['originated', 'outgoing', 'originator', 'placed'])) {
             return PhoneCall::DIRECTION_OUT;
         }
 
@@ -486,7 +641,7 @@ class BeelinePbxService
 
     protected function normalizeStatus(mixed $status, ?string $eventType, mixed $direction = null): ?string
     {
-        $status = Str::lower((string) $status);
+        $status = $this->normalizeEventName($status) ?: '';
 
         if ($status === '') {
             if ($eventType === 'history') {
@@ -494,14 +649,22 @@ class BeelinePbxService
             }
 
             return match ($eventType) {
-                'accepted', 'completed' => 'success',
+                'accepted' => 'success',
+                'released', 'completed' => 'completed',
                 'cancelled' => 'cancelled',
                 default => null,
             };
         }
 
+        if (Str::contains($status, 'released')) {
+            return 'completed';
+        }
+
         return match ($status) {
-            'success', 'completed', 'answered', 'connected', 'active' => 'success',
+            'success', 'answered', 'connected', 'active' => 'success',
+            'completed' => 'completed',
+            'released' => 'completed',
+            'ringing', 'alerting', 'delivered' => 'ringing',
             'missed' => 'missed',
             'cancel' => 'cancelled',
             'busy' => 'busy',
@@ -510,6 +673,33 @@ class BeelinePbxService
             'notfound' => 'not_found',
             default => $status,
         };
+    }
+
+    protected function normalizeEventName(mixed $value): ?string
+    {
+        $value = $this->nullableString($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $value = Str::lower(Str::afterLast($value, ':'));
+        $value = str_replace(['call', 'event', '_', '-', ' '], '', $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    protected function normalizeEmployeeUser(mixed $value): ?string
+    {
+        $value = $this->nullableString($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $value = preg_replace('/^(sip|tel):/i', '', $value);
+
+        return Str::contains($value, '@') ? Str::before($value, '@') : $value;
     }
 
     protected function parseBeelineDate(mixed $value): ?CarbonImmutable
@@ -534,6 +724,10 @@ class BeelinePbxService
 
     protected function nullableString(mixed $value): ?string
     {
+        if (!is_scalar($value)) {
+            return null;
+        }
+
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
@@ -576,6 +770,14 @@ class BeelinePbxService
             $payload = array_merge($payload, $eventData);
         }
 
+        $eventName = $this->payloadValue($payload, [
+            'type',
+            'eventType',
+            'event',
+            'eventData.type',
+            'eventData.eventType',
+        ]) ?: $this->findEventName($payload);
+
         $payload['cmd'] = Arr::get($payload, 'cmd')
             ?: (Arr::has($payload, 'subscriptionId') || Arr::has($payload, 'eventType') ? 'event' : 'history');
 
@@ -591,47 +793,243 @@ class BeelinePbxService
             ?: Arr::get($payload, 'trackingId')
             ?: Arr::get($payload, 'UID');
 
+        $payload['direction'] = Arr::get($payload, 'direction')
+            ?: $this->payloadValue($payload, [
+                'callDirection',
+                'direction',
+                'personality',
+                'call.personality',
+            ]);
+
+        $payload['local_phone'] = $this->normalizePhone($this->payloadValue($payload, [
+            'localParty.address',
+            'localParty.phoneNumber',
+            'endpoint.address',
+            'telnum',
+        ]));
+
         $payload['phone'] = Arr::get($payload, 'phone')
             ?: Arr::get($payload, 'client')
-            ?: Arr::get($payload, 'remoteNumber')
-            ?: Arr::get($payload, 'remotePartyAddress')
-            ?: Arr::get($payload, 'remoteParty.address')
-            ?: Arr::get($payload, 'remoteParty.phoneNumber')
-            ?: Arr::get($payload, 'callingParty.address')
-            ?: Arr::get($payload, 'callingParty.phoneNumber')
-            ?: Arr::get($payload, 'callingNumber')
-            ?: Arr::get($payload, 'caller')
-            ?: Arr::get($payload, 'from');
+            ?: $this->clientPhoneFromPayload($payload, Arr::get($payload, 'direction'));
 
         $payload['user'] = Arr::get($payload, 'user')
             ?: Arr::get($payload, 'account')
-            ?: Arr::get($payload, 'targetId')
-            ?: Arr::get($payload, 'userId')
-            ?: Arr::get($payload, 'localParty.address')
-            ?: Arr::get($payload, 'endpoint.address')
-            ?: Arr::get($payload, 'abonent')
-            ?: Arr::get($payload, 'extension');
+            ?: $this->payloadValue($payload, [
+                'targetId',
+                'userId',
+                'localParty.address',
+                'endpoint.address',
+                'abonent',
+                'extension',
+            ]);
 
         $payload['type'] = Arr::get($payload, 'type')
             ?: Arr::get($payload, 'direction')
             ?: Arr::get($payload, 'callDirection')
             ?: Arr::get($payload, 'eventType')
-            ?: Arr::get($payload, 'event');
+            ?: Arr::get($payload, 'event')
+            ?: $eventName;
 
         $payload['status'] = Arr::get($payload, 'status')
             ?: Arr::get($payload, 'callStatus')
             ?: Arr::get($payload, 'callState')
-            ?: Arr::get($payload, 'state');
+            ?: Arr::get($payload, 'state')
+            ?: $eventName;
 
         $payload['start'] = Arr::get($payload, 'start')
-            ?: Arr::get($payload, 'startedAt')
-            ?: Arr::get($payload, 'startTime')
-            ?: Arr::get($payload, 'eventTime')
-            ?: Arr::get($payload, 'timeStamp')
-            ?: Arr::get($payload, 'timestamp')
-            ?: Arr::get($payload, 'time');
+            ?: $this->payloadValue($payload, [
+                'startedAt',
+                'startTime',
+                'startDate',
+                'call.startTime',
+            ]);
+
+        $payload['answered_at'] = Arr::get($payload, 'answered_at')
+            ?: $this->payloadValue($payload, [
+                'answeredAt',
+                'answerTime',
+                'connectTime',
+                'call.answerTime',
+            ]);
+
+        $payload['event_time'] = Arr::get($payload, 'event_time')
+            ?: $this->payloadValue($payload, [
+                'eventTime',
+                'timeStamp',
+                'timestamp',
+                'time',
+                'dateTime',
+            ]);
+
+        $payload['end'] = Arr::get($payload, 'end')
+            ?: $this->payloadValue($payload, [
+                'endedAt',
+                'endTime',
+                'releaseTime',
+                'disconnectTime',
+                'call.releaseTime',
+            ]);
+
+        if (!$payload['end'] && in_array($this->normalizeEventType((string) $payload['cmd'], $payload['type'], $payload['status']), ['released', 'completed', 'cancelled'], true)) {
+            $payload['end'] = $payload['event_time'];
+        }
+
+        $payload['duration'] = Arr::get($payload, 'duration')
+            ?: $this->payloadValue($payload, [
+                'durationSeconds',
+                'durationSec',
+                'billsec',
+                'talkTime',
+                'conversationTime',
+            ]);
 
         return $payload;
+    }
+
+    protected function payloadValue(array $payload, array $paths): mixed
+    {
+        foreach ($paths as $path) {
+            $value = Arr::get($payload, $path);
+
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    protected function phoneFromPayloadPaths(array $payload, array $paths): ?string
+    {
+        foreach ($paths as $path) {
+            $phone = $this->normalizePhone(Arr::get($payload, $path));
+
+            if ($phone !== null) {
+                return $phone;
+            }
+        }
+
+        return null;
+    }
+
+    protected function clientPhoneFromPayload(array $payload, mixed $direction): ?string
+    {
+        $localPhone = $this->normalizePhone(Arr::get($payload, 'local_phone')) ?: $this->phoneFromPayloadPaths($payload, [
+            'localParty.address',
+            'endpoint.address',
+            'telnum',
+        ]);
+        $remote = $this->phoneFromPayloadPaths($payload, [
+            'remoteNumber',
+            'remotePartyAddress',
+            'remoteParty.address',
+            'remoteParty.phoneNumber',
+            'call.remoteParty.address',
+            'call.remoteParty.phoneNumber',
+        ]);
+        $calling = $this->phoneFromPayloadPaths($payload, [
+            'callingNumber',
+            'caller',
+            'from',
+            'callingParty.address',
+            'callingParty.phoneNumber',
+            'callingPartyInfo.address',
+            'callingPartyInfo.phoneNumber',
+            'call.callingParty.address',
+            'call.callingParty.phoneNumber',
+        ]);
+        $called = $this->phoneFromPayloadPaths($payload, [
+            'calledNumber',
+            'callee',
+            'to',
+            'calledParty.address',
+            'calledParty.phoneNumber',
+            'calledPartyInfo.address',
+            'calledPartyInfo.phoneNumber',
+            'call.calledParty.address',
+            'call.calledParty.phoneNumber',
+        ]);
+
+        $direction = $this->normalizeDirection($direction, null, null);
+        $preferred = match ($direction) {
+            PhoneCall::DIRECTION_IN, PhoneCall::DIRECTION_MISSED => [$calling, $remote, $called],
+            PhoneCall::DIRECTION_OUT => [$called, $remote, $calling],
+            default => [$remote, $calling, $called],
+        };
+
+        foreach ($preferred as $phone) {
+            if ($phone && $phone !== $localPhone && !$this->isOwnNumber($phone)) {
+                return $phone;
+            }
+        }
+
+        return $this->firstExternalPhone($payload, $localPhone);
+    }
+
+    protected function firstExternalPhone(array $payload, ?string $localPhone = null, string $path = ''): ?string
+    {
+        foreach ($payload as $key => $value) {
+            $currentPath = $path === '' ? (string) $key : $path . '.' . $key;
+            $normalizedPath = Str::lower($currentPath);
+
+            if (Str::contains($normalizedPath, ['local', 'endpoint', 'user', 'account', 'target', 'telnum', 'subscription'])) {
+                continue;
+            }
+
+            if (is_array($value)) {
+                $phone = $this->firstExternalPhone($value, $localPhone, $currentPath);
+
+                if ($phone !== null) {
+                    return $phone;
+                }
+
+                continue;
+            }
+
+            if (!Str::contains($normalizedPath, ['phone', 'number', 'address', 'caller', 'callee', 'from', 'to'])) {
+                continue;
+            }
+
+            $phone = $this->normalizePhone($value);
+
+            if ($phone && $phone !== $localPhone && !$this->isOwnNumber($phone)) {
+                return $phone;
+            }
+        }
+
+        return null;
+    }
+
+    protected function isOwnNumber(string $phone): bool
+    {
+        $ownNumbers = config('services.beeline_pbx.own_numbers', []);
+
+        if (!is_array($ownNumbers)) {
+            $ownNumbers = explode(',', (string) $ownNumbers);
+        }
+
+        $ownNumbers = array_filter(array_map(fn ($value) => $this->normalizePhone($value), $ownNumbers));
+
+        return in_array($phone, $ownNumbers, true);
+    }
+
+    protected function findEventName(array $payload): ?string
+    {
+        foreach ($payload as $key => $value) {
+            if (is_string($key) && preg_match('/Event$/', $key)) {
+                return $key;
+            }
+
+            if (is_array($value)) {
+                $eventName = $this->findEventName($value);
+
+                if ($eventName !== null) {
+                    return $eventName;
+                }
+            }
+        }
+
+        return null;
     }
 
     protected function subscriptionCallbackUrl(?string $override = null): string

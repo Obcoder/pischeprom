@@ -42,7 +42,7 @@ const callHeaders = [
     { title: "Дата", key: "started_at", sortable: false },
     { title: "Тип", key: "direction", sortable: false },
     { title: "Статус", key: "status", sortable: false },
-    { title: "Клиент", key: "client", sortable: false },
+    { title: "Номер клиента", key: "client", sortable: false },
     { title: "Сотрудник", key: "employee", sortable: false },
     { title: "Длительность", key: "duration_seconds", sortable: false },
     { title: "Лид", key: "lead", sortable: false },
@@ -82,6 +82,7 @@ const directionItems = [
 const callStatusItems = [
     { title: "Все", value: null },
     { title: "Успешные", value: "success" },
+    { title: "Завершённые", value: "completed" },
     { title: "Пропущенные", value: "missed" },
     { title: "Клики с сайта", value: "clicked" },
     { title: "Отменены", value: "cancelled" },
@@ -204,18 +205,41 @@ function formatSeconds(value) {
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+function formatPhone(value) {
+    if (!value) {
+        return "Номер не найден";
+    }
+
+    return `+${value}`;
+}
+
+function employeeTitle(call) {
+    return call.employee_extension || call.employee_phone || call.employee_user || call.group_name || "-";
+}
+
+function employeeSubtitle(call) {
+    const values = [call.employee_user, call.group_name]
+        .filter(Boolean)
+        .filter((value, index, list) => list.indexOf(value) === index && value !== employeeTitle(call));
+
+    return values.join(" · ");
+}
+
 function directionLabel(direction) {
     return {
         in: "Входящий",
         out: "Исходящий",
         missed: "Пропущенный",
-        unknown: "Неизвестно",
+        unknown: "Не определён",
     }[direction] || direction || "-";
 }
 
 function statusLabel(status) {
     return {
         success: "Успешно",
+        completed: "Завершён",
+        released: "Завершён",
+        ringing: "Звонит",
         missed: "Пропущен",
         cancelled: "Отменён",
         busy: "Занято",
@@ -234,6 +258,9 @@ function statusLabel(status) {
 function statusColor(status) {
     return {
         success: "green",
+        completed: "green",
+        released: "green",
+        ringing: "blue",
         missed: "red",
         cancelled: "orange",
         busy: "orange",
@@ -371,13 +398,14 @@ useHead({
                         </template>
 
                         <template #item.client="{ item }">
-                            <div class="font-weight-bold">+{{ item.client_phone || '-' }}</div>
+                            <div class="font-weight-bold">{{ formatPhone(item.client_phone) }}</div>
                             <div v-if="item.entity" class="text-caption text-medium-emphasis">{{ item.entity.name }}</div>
+                            <div v-else-if="!item.client_phone" class="text-caption text-error">Beeline не передал внешний номер в этом событии</div>
                         </template>
 
                         <template #item.employee="{ item }">
-                            <div>{{ item.employee_user || '-' }}</div>
-                            <div class="text-caption text-medium-emphasis">{{ item.employee_extension || item.employee_phone || item.group_name }}</div>
+                            <div>{{ employeeTitle(item) }}</div>
+                            <div class="text-caption text-medium-emphasis">{{ employeeSubtitle(item) }}</div>
                         </template>
 
                         <template #item.duration_seconds="{ item }">
@@ -473,7 +501,7 @@ useHead({
                         </template>
 
                         <template #item.client="{ item }">
-                            +{{ item.client_phone || item.telephone?.number || '-' }}
+                            {{ formatPhone(item.client_phone || item.telephone?.number) }}
                         </template>
 
                         <template #item.crm="{ item }">
