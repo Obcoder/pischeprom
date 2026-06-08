@@ -40,8 +40,21 @@ jobs:
 
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-            npm ci
-            npm run build
+            df -h /
+            free -m
+
+            rm -rf node_modules
+
+            if ! swapon --show=NAME --noheadings | grep -q '^/swapfile$' && [ "$(df --output=avail -m / | tail -1)" -gt 1400 ]; then
+              sudo fallocate -l 1G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=1024
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile
+              sudo swapon /swapfile
+            fi
+
+            npm ci --no-audit --no-fund
+            NODE_OPTIONS="--max-old-space-size=768" npm run build
+            rm -rf node_modules
 
             php artisan migrate --force
 
