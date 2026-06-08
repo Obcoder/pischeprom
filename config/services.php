@@ -96,7 +96,7 @@ return [
         'history_url' => env('BEELINE_PBX_HISTORY_URL'),
         'webhook_url' => env('BEELINE_PBX_WEBHOOK_URL'),
         'subscription_pattern' => env('BEELINE_PBX_SUBSCRIPTION_PATTERN'),
-        'own_numbers' => array_filter(array_map('trim', explode(',', (string) env('BEELINE_PBX_OWN_NUMBERS', '')))),
+        'own_numbers' => array_filter(array_map('trim', explode(',', (string) env('BEELINE_PBX_OWN_NUMBERS', '79650160001')))),
     ],
 
 ];

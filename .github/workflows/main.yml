@@ -59,6 +59,8 @@ jobs:
             php artisan migrate --force
 
             php artisan optimize:clear
+            php artisan beeline:rebuild-calls --limit=2000
+
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
