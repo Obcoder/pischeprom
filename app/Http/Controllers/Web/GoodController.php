@@ -7,11 +7,63 @@ use App\Models\Good;
 use App\Services\Seo\GoodSeoService;
 use App\Services\Seo\GoodStructuredDataService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class GoodController extends Controller
 {
+    public function index(Request $request): Response
+    {
+        $search = trim((string) $request->query('search', ''));
+
+        $goods = Good::query()
+            ->where('is_published', true)
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($searchQuery) use ($search): void {
+                    $searchQuery
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('slug', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhereHas('products', function ($productQuery) use ($search): void {
+                            $productQuery
+                                ->where('rus', 'like', "%{$search}%")
+                                ->orWhere('eng', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->with([
+                'products.category',
+                'latestPrice.currency',
+                'publishedMedia' => function ($query): void {
+                    $query
+                        ->where('type', 'image')
+                        ->where('is_published', true)
+                        ->orderByDesc('is_ava')
+                        ->orderBy('sort_order')
+                        ->orderBy('id');
+                },
+            ])
+            ->orderBy('name')
+            ->limit(96)
+            ->get([
+                'id',
+                'name',
+                'slug',
+                'ava_image',
+                'ava_thumb',
+                'description',
+                'created_at',
+            ]);
+
+        return Inertia::render('Goods', [
+            'goods' => $goods,
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
     public function show(
         string $good,
         GoodSeoService $seoService,
