@@ -28,6 +28,7 @@ const snackbar = reactive({
     color: 'success',
 })
 
+const pipelineManagerMenu = ref(false)
 const pipelineDialog = ref(false)
 const stageDialog = ref(false)
 const cardDialog = ref(false)
@@ -62,6 +63,7 @@ const stages = computed(() => currentPipeline.value?.stages || [])
 const pipelineItems = computed(() => board.pipelines || [])
 const hasPipeline = computed(() => Boolean(currentPipeline.value?.id))
 const totalCards = computed(() => stages.value.reduce((sum, stage) => sum + (stage.cards?.length || 0), 0))
+const currentPipelineLabel = computed(() => currentPipeline.value?.name || 'Воронка не выбрана')
 
 useHead({
     title: 'Supplier Work Board - Ameise',
@@ -493,31 +495,130 @@ onMounted(async () => {
         </div>
 
         <v-card rounded="xl" elevation="0" class="supplier-work__toolbar mb-4">
-            <v-row align="center" dense>
+            <v-row align="center" dense class="ga-2">
                 <v-col cols="12" lg="5">
-                    <v-select
-                        :model-value="selectedPipelineId"
-                        :items="pipelineItems"
-                        item-title="name"
-                        item-value="id"
-                        label="Воронка"
-                        density="compact"
-                        variant="outlined"
-                        hide-details
-                        :loading="loading"
-                        @update:model-value="onPipelineSelected"
-                    />
+                    <div class="supplier-work__toolbar-context">
+                        <span>Активная воронка</span>
+                        <strong>{{ currentPipelineLabel }}</strong>
+                    </div>
                 </v-col>
 
                 <v-col cols="12" lg="7" class="supplier-work__toolbar-actions">
-                    <v-btn
-                        color="#800000"
-                        prepend-icon="mdi-plus"
-                        rounded="lg"
-                        @click="openPipelineDialog()"
+                    <v-menu
+                        v-model="pipelineManagerMenu"
+                        :close-on-content-click="false"
+                        location="bottom end"
+                        max-width="760"
                     >
-                        Воронка
-                    </v-btn>
+                        <template #activator="{ props: menuProps }">
+                            <v-btn
+                                v-bind="menuProps"
+                                color="#800000"
+                                prepend-icon="mdi-source-branch"
+                                rounded="lg"
+                                :loading="loading"
+                            >
+                                Воронки
+                            </v-btn>
+                        </template>
+
+                        <v-card rounded="xl" elevation="10" class="supplier-pipeline-menu">
+                            <v-card-title class="supplier-pipeline-menu__title">
+                                <span>Управление воронками</span>
+                                <v-btn
+                                    icon="mdi-close"
+                                    size="small"
+                                    variant="text"
+                                    @click="pipelineManagerMenu = false"
+                                />
+                            </v-card-title>
+
+                            <v-card-text class="supplier-pipeline-menu__body">
+                                <v-select
+                                    :model-value="selectedPipelineId"
+                                    :items="pipelineItems"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Активная воронка"
+                                    density="compact"
+                                    variant="outlined"
+                                    hide-details
+                                    :loading="loading"
+                                    @update:model-value="onPipelineSelected"
+                                />
+
+                                <div class="supplier-pipeline-list">
+                                    <div
+                                        v-for="pipeline in pipelineItems"
+                                        :key="pipeline.id"
+                                        class="supplier-pipeline-list__item"
+                                        :class="{ 'supplier-pipeline-list__item--active': pipeline.id === selectedPipelineId }"
+                                    >
+                                        <div class="supplier-pipeline-list__content">
+                                            <strong>{{ pipeline.name }}</strong>
+                                            <span>{{ pipeline.description || 'Описание не заполнено' }}</span>
+                                        </div>
+
+                                        <div class="supplier-pipeline-list__actions">
+                                            <v-chip
+                                                v-if="pipeline.id === selectedPipelineId"
+                                                size="x-small"
+                                                color="#166534"
+                                                variant="tonal"
+                                            >
+                                                текущая
+                                            </v-chip>
+                                            <v-btn
+                                                v-else
+                                                size="small"
+                                                variant="tonal"
+                                                color="#800000"
+                                                @click="onPipelineSelected(pipeline.id)"
+                                            >
+                                                Открыть
+                                            </v-btn>
+                                            <v-btn
+                                                icon="mdi-pencil"
+                                                size="small"
+                                                variant="text"
+                                                @click="openPipelineDialog(pipeline)"
+                                            />
+                                            <v-btn
+                                                icon="mdi-delete"
+                                                size="small"
+                                                variant="text"
+                                                color="error"
+                                                @click="deletePipeline(pipeline)"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <v-alert
+                                        v-if="!pipelineItems.length"
+                                        type="info"
+                                        variant="tonal"
+                                        rounded="lg"
+                                    >
+                                        Воронок пока нет. Создайте первую воронку для поставщиков.
+                                    </v-alert>
+                                </div>
+                            </v-card-text>
+
+                            <v-card-actions>
+                                <v-btn
+                                    color="#800000"
+                                    prepend-icon="mdi-plus"
+                                    rounded="lg"
+                                    @click="openPipelineDialog()"
+                                >
+                                    Создать воронку
+                                </v-btn>
+                                <v-spacer />
+                                <v-btn variant="text" @click="pipelineManagerMenu = false">Закрыть</v-btn>
+                            </v-card-actions>
+                        </v-card>
+                    </v-menu>
+
                     <v-btn
                         color="#b45309"
                         variant="tonal"
@@ -706,42 +807,6 @@ onMounted(async () => {
             </v-col>
 
             <v-col cols="12" xl="3">
-                <v-card rounded="xl" elevation="0" class="supplier-side-card mb-4">
-                    <v-card-title class="text-subtitle-1 font-weight-bold">
-                        Управление воронкой
-                    </v-card-title>
-                    <v-card-subtitle>
-                        CRUD воронки и стадий
-                    </v-card-subtitle>
-                    <v-card-text>
-                        <div class="supplier-side-card__current">
-                            <strong>{{ currentPipeline.name }}</strong>
-                            <span>{{ currentPipeline.description || 'Описание не заполнено' }}</span>
-                        </div>
-
-                        <div class="supplier-side-card__actions">
-                            <v-btn
-                                block
-                                color="#800000"
-                                variant="tonal"
-                                prepend-icon="mdi-pencil"
-                                @click="openPipelineDialog(currentPipeline)"
-                            >
-                                Редактировать воронку
-                            </v-btn>
-                            <v-btn
-                                block
-                                color="error"
-                                variant="tonal"
-                                prepend-icon="mdi-delete"
-                                @click="deletePipeline(currentPipeline)"
-                            >
-                                Удалить воронку
-                            </v-btn>
-                        </div>
-                    </v-card-text>
-                </v-card>
-
                 <v-card rounded="xl" elevation="0" class="supplier-side-card">
                     <v-card-title class="text-subtitle-1 font-weight-bold">
                         Стадии
@@ -1026,11 +1091,104 @@ onMounted(async () => {
     padding: 14px;
 }
 
+.supplier-work__toolbar-context {
+    display: grid;
+    gap: 2px;
+    padding: 4px 8px;
+}
+
+.supplier-work__toolbar-context span {
+    color: #7c5b4b;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.supplier-work__toolbar-context strong {
+    color: #35160d;
+    font-size: 1rem;
+    font-weight: 950;
+}
+
 .supplier-work__toolbar-actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 10px;
+}
+
+.supplier-pipeline-menu {
+    width: min(760px, calc(100vw - 32px));
+    border: 1px solid rgba(92, 0, 0, 0.12);
+    background: rgba(255, 253, 248, 0.98);
+}
+
+.supplier-pipeline-menu__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #35160d;
+    font-weight: 950;
+}
+
+.supplier-pipeline-menu__body {
+    display: grid;
+    gap: 14px;
+}
+
+.supplier-pipeline-list {
+    display: grid;
+    gap: 8px;
+    max-height: 420px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.supplier-pipeline-list__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid rgba(128, 0, 0, 0.08);
+    border-radius: 18px;
+    background: #fffaf2;
+}
+
+.supplier-pipeline-list__item--active {
+    border-color: rgba(22, 101, 52, 0.3);
+    background: #f4fbf3;
+}
+
+.supplier-pipeline-list__content {
+    min-width: 0;
+}
+
+.supplier-pipeline-list__content strong,
+.supplier-pipeline-list__content span {
+    display: block;
+}
+
+.supplier-pipeline-list__content strong {
+    color: #35160d;
+    font-size: 0.94rem;
+    font-weight: 900;
+}
+
+.supplier-pipeline-list__content span {
+    overflow: hidden;
+    color: #7c5b4b;
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.supplier-pipeline-list__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .supplier-board {
@@ -1171,29 +1329,6 @@ onMounted(async () => {
     transform: rotate(-1deg);
 }
 
-.supplier-side-card__current {
-    display: grid;
-    gap: 4px;
-    padding: 14px;
-    border-radius: 18px;
-    background: #fff7ed;
-}
-
-.supplier-side-card__current strong {
-    color: #391509;
-}
-
-.supplier-side-card__current span {
-    color: #7c5b4b;
-    font-size: 0.85rem;
-}
-
-.supplier-side-card__actions {
-    display: grid;
-    gap: 8px;
-    margin-top: 12px;
-}
-
 .supplier-stage-list {
     display: grid;
     gap: 8px;
@@ -1234,6 +1369,14 @@ onMounted(async () => {
     }
 
     .supplier-work__toolbar-actions {
+        justify-content: flex-start;
+    }
+
+    .supplier-pipeline-list__item {
+        grid-template-columns: 1fr;
+    }
+
+    .supplier-pipeline-list__actions {
         justify-content: flex-start;
     }
 }
