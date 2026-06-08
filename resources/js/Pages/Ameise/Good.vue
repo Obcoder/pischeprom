@@ -58,12 +58,12 @@ const goodData = ref(null);
 const currencies = ref([]);
 const measures = ref([]);
 const units = ref([]);
-const entityClassifications = ref([]);
+const industries = ref([]);
 const savingRecommendationClassifications = ref(false);
 
 const showFormAddPrice = ref(false);
 const dialogFormQuotation = ref(false);
-const recommendationClassificationIds = ref([]);
+const recommendationIndustryIds = ref([]);
 
 // --------------------------------------------------
 // COMPUTED
@@ -80,8 +80,8 @@ const goodBoxWeight = computed(() => {
     return Number(goodData.value?.denominator || 1);
 });
 
-const currentRecommendationClassifications = computed(() => {
-    return goodData.value?.entity_classifications || goodData.value?.entityClassifications || [];
+const currentRecommendationIndustries = computed(() => {
+    return goodData.value?.industries || [];
 });
 
 // --------------------------------------------------
@@ -272,10 +272,18 @@ async function fetchUnits() {
         : response.data.data || [];
 }
 
-async function fetchEntityClassifications() {
-    const response = await axios.get("/api/entities-classification");
+function industryTitle(industry) {
+    return [industry.code, industry.title].filter(Boolean).join(" — ");
+}
 
-    entityClassifications.value = Array.isArray(response.data)
+async function fetchIndustries() {
+    const response = await axios.get("/api/industries", {
+        params: {
+            per_page: 1000,
+        },
+    });
+
+    industries.value = Array.isArray(response.data)
         ? response.data
         : response.data.data || [];
 }
@@ -290,7 +298,7 @@ async function loadPageData() {
             fetchCurrencies(),
             fetchMeasures(),
             fetchUnits(),
-            fetchEntityClassifications(),
+            fetchIndustries(),
         ]);
     } catch (error) {
         console.error(error);
@@ -305,7 +313,7 @@ async function loadPageData() {
 }
 
 function syncRecommendationClassificationForm() {
-    recommendationClassificationIds.value = currentRecommendationClassifications.value.map((classification) => classification.id);
+    recommendationIndustryIds.value = currentRecommendationIndustries.value.map((industry) => industry.id);
 }
 
 async function saveRecommendationClassifications() {
@@ -317,7 +325,7 @@ async function saveRecommendationClassifications() {
 
     try {
         const response = await axios.patch(`/api/goods/${goodData.value.id}`, {
-            entity_classification_ids: recommendationClassificationIds.value,
+            industry_ids: recommendationIndustryIds.value,
         });
 
         goodData.value = response.data;
@@ -1066,22 +1074,22 @@ onMounted(() => {
                             <span>ОКВЭДы для рекомендаций</span>
 
                             <v-chip size="small" color="#800000" variant="tonal">
-                                {{ currentRecommendationClassifications.length }}
+                                {{ currentRecommendationIndustries.length }}
                             </v-chip>
                         </v-card-title>
 
                         <v-card-text>
                             <v-alert type="info" variant="tonal" class="mb-4">
-                                Товар будет рекомендоваться пользователям, Entity и Unit, которым присвоены выбранные классификаторы.
+                                Товар будет рекомендоваться пользователям по ОКВЭДам из таблицы industries, связанным с их Unit.
                             </v-alert>
 
                             <v-autocomplete
-                                v-model="recommendationClassificationIds"
-                                :items="entityClassifications"
-                                item-title="name"
+                                v-model="recommendationIndustryIds"
+                                :items="industries"
+                                :item-title="industryTitle"
                                 item-value="id"
-                                label="ОКВЭДы / классификаторы"
-                                placeholder="Выберите классификаторы"
+                                label="ОКВЭДы / industries"
+                                placeholder="Выберите ОКВЭДы"
                                 variant="outlined"
                                 density="comfortable"
                                 multiple

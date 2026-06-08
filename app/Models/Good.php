@@ -93,6 +93,12 @@ class Good extends Model
             ->withTimestamps();
     }
 
+    public function industries(): BelongsToMany
+    {
+        return $this->belongsToMany(Industry::class)
+            ->withTimestamps();
+    }
+
     public function prices(): HasMany
     {
         return $this->hasMany(Price::class)->latest();

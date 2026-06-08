@@ -18,4 +18,10 @@ class Industry extends Model
             ->withPivot('is_primary')
             ->withTimestamps();
     }
+
+    public function goods(): BelongsToMany
+    {
+        return $this->belongsToMany(Good::class)
+            ->withTimestamps();
+    }
 }

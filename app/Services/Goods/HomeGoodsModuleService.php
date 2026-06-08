@@ -25,11 +25,11 @@ class HomeGoodsModuleService
             ];
         }
 
-        $classificationIds = $this->classificationIdsForUser($user);
+        $industryIds = $this->industryIdsForUser($user);
         $entityIds = $user->entities()->pluck('entities.id');
         $orderedGoods = $this->orderedGoods($entityIds);
         $orderedGoodIds = $orderedGoods->pluck('id')->all();
-        $recommendedGoods = $this->recommendedGoods($classificationIds, $orderedGoodIds);
+        $recommendedGoods = $this->recommendedGoods($industryIds, $orderedGoodIds);
 
         return [
             'authenticated' => true,
@@ -39,7 +39,7 @@ class HomeGoodsModuleService
             'table_of_contents' => [],
             'ordered_goods' => $orderedGoods->values(),
             'recommended_goods' => $recommendedGoods->values(),
-            'classifications' => $this->classificationPayload($user, $classificationIds),
+            'classifications' => $this->industryPayload($user, $industryIds),
         ];
     }
 
@@ -94,22 +94,15 @@ class HomeGoodsModuleService
             ->all();
     }
 
-    private function classificationIdsForUser(User $user): array
+    private function industryIdsForUser(User $user): array
     {
         $user->loadMissing([
-            'entityClassifications:id,name',
-            'entities:id,entity_classification_id',
-            'entities.classification:id,name',
-            'entities.additionalClassifications:id,name',
             'entities.units:id',
-            'entities.units.classifications:id,name',
+            'entities.units.industries:id,code,title',
         ]);
 
         return collect()
-            ->merge($user->entityClassifications->pluck('id'))
-            ->merge($user->entities->pluck('entity_classification_id'))
-            ->merge($user->entities->flatMap(fn ($entity) => $entity->additionalClassifications->pluck('id')))
-            ->merge($user->entities->flatMap(fn ($entity) => $entity->units->flatMap(fn ($unit) => $unit->classifications->pluck('id'))))
+            ->merge($user->entities->flatMap(fn ($entity) => $entity->units->flatMap(fn ($unit) => $unit->industries->pluck('id'))))
             ->filter()
             ->unique()
             ->values()
@@ -125,47 +118,46 @@ class HomeGoodsModuleService
         return Good::query()
             ->where('is_published', true)
             ->whereHas('sales', fn ($query) => $query->whereIn('sales.entity_id', $entityIds))
-            ->with(['products.category', 'latestPrice.currency', 'entityClassifications:id,name'])
+            ->with(['products.category', 'latestPrice.currency', 'industries:id,code,title'])
             ->withMax(['sales as last_ordered_at' => fn ($query) => $query->whereIn('sales.entity_id', $entityIds)], 'date')
             ->orderByDesc('last_ordered_at')
             ->limit(12)
             ->get();
     }
 
-    private function recommendedGoods(array $classificationIds, array $excludeGoodIds): EloquentCollection
+    private function recommendedGoods(array $industryIds, array $excludeGoodIds): EloquentCollection
     {
-        if (empty($classificationIds)) {
+        if (empty($industryIds)) {
             return new EloquentCollection();
         }
 
         return Good::query()
             ->where('is_published', true)
             ->when(! empty($excludeGoodIds), fn ($query) => $query->whereNotIn('id', $excludeGoodIds))
-            ->whereHas('entityClassifications', fn ($query) => $query->whereIn('entity_classifications.id', $classificationIds))
-            ->with(['products.category', 'latestPrice.currency', 'entityClassifications:id,name'])
-            ->withCount(['entityClassifications as recommendation_hits' => fn ($query) => $query->whereIn('entity_classifications.id', $classificationIds)])
+            ->whereHas('industries', fn ($query) => $query->whereIn('industries.id', $industryIds))
+            ->with(['products.category', 'latestPrice.currency', 'industries:id,code,title'])
+            ->withCount(['industries as recommendation_hits' => fn ($query) => $query->whereIn('industries.id', $industryIds)])
             ->orderByDesc('recommendation_hits')
             ->orderByDesc('created_at')
             ->limit(18)
             ->get();
     }
 
-    private function classificationPayload(User $user, array $classificationIds): array
+    private function industryPayload(User $user, array $industryIds): array
     {
-        if (empty($classificationIds)) {
+        if (empty($industryIds)) {
             return [];
         }
 
-        return collect()
-            ->merge($user->entityClassifications)
-            ->merge($user->entities->pluck('classification')->filter())
-            ->merge($user->entities->flatMap(fn ($entity) => $entity->additionalClassifications))
-            ->merge($user->entities->flatMap(fn ($entity) => $entity->units->flatMap(fn ($unit) => $unit->classifications)))
-            ->whereIn('id', $classificationIds)
+        return $user->entities
+            ->flatMap(fn ($entity) => $entity->units->flatMap(fn ($unit) => $unit->industries))
+            ->whereIn('id', $industryIds)
             ->unique('id')
-            ->map(fn ($classification) => [
-                'id' => $classification->id,
-                'name' => $classification->name,
+            ->map(fn ($industry) => [
+                'id' => $industry->id,
+                'name' => trim("{$industry->code} {$industry->title}"),
+                'code' => $industry->code,
+                'title' => $industry->title,
             ])
             ->values()
             ->all();

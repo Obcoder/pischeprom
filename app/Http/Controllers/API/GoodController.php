@@ -40,6 +40,7 @@ class GoodController extends Controller
                    'seo',
                    'media',
                    'entityClassifications',
+                   'industries',
                ]);
 
         if ($search !== '') {
@@ -80,6 +81,7 @@ class GoodController extends Controller
                        'vatRate',
                        'products.category',
                        'latestPrice.currency',
+                       'industries',
                    ])
             ->published(true)
             ->inRandomOrder()
@@ -99,6 +101,8 @@ class GoodController extends Controller
 
                                             'products' => ['nullable', 'array'],
                                             'products.*' => ['integer', 'exists:products,id'],
+                                            'industry_ids' => ['nullable', 'array'],
+                                            'industry_ids.*' => ['integer', 'exists:industries,id'],
                                             'entity_classification_ids' => ['nullable', 'array'],
                                             'entity_classification_ids.*' => ['integer', 'exists:entity_classifications,id'],
                                         ]);
@@ -113,6 +117,10 @@ class GoodController extends Controller
 
         if (array_key_exists('products', $validated)) {
             $good->products()->sync($validated['products'] ?? []);
+        }
+
+        if (array_key_exists('industry_ids', $validated)) {
+            $good->industries()->sync($validated['industry_ids'] ?? []);
         }
 
         if (array_key_exists('entity_classification_ids', $validated)) {
@@ -132,6 +140,7 @@ class GoodController extends Controller
                              'seo',
                              'media',
                              'entityClassifications',
+                             'industries',
                          ]),
             201
         );
@@ -169,6 +178,7 @@ class GoodController extends Controller
                                'priceTypeValues.priceType',
                                'priceTypeValues.currency',
                                'entityClassifications',
+                               'industries',
                            ])->findOrFail($id);
 
         $expectedSlug = Str::slug($good->name);
@@ -196,6 +206,8 @@ class GoodController extends Controller
 
                                             'products' => ['nullable', 'array'],
                                             'products.*' => ['integer', 'exists:products,id'],
+                                            'industry_ids' => ['nullable', 'array'],
+                                            'industry_ids.*' => ['integer', 'exists:industries,id'],
                                             'entity_classification_ids' => ['nullable', 'array'],
                                             'entity_classification_ids.*' => ['integer', 'exists:entity_classifications,id'],
 
@@ -206,6 +218,7 @@ class GoodController extends Controller
             ->except([
                          'ava_image',
                          'products',
+                         'industry_ids',
                          'entity_classification_ids',
                          'remove_ava',
                      ])
@@ -215,6 +228,10 @@ class GoodController extends Controller
 
         if (array_key_exists('products', $validated)) {
             $good->products()->sync($validated['products'] ?? []);
+        }
+
+        if (array_key_exists('industry_ids', $validated)) {
+            $good->industries()->sync($validated['industry_ids'] ?? []);
         }
 
         if (array_key_exists('entity_classification_ids', $validated)) {
@@ -244,6 +261,7 @@ class GoodController extends Controller
                              'seo',
                              'media',
                              'entityClassifications',
+                             'industries',
                          ])
         );
     }
@@ -351,6 +369,7 @@ class GoodController extends Controller
                              'priceTypeValues.priceType',
                              'priceTypeValues.currency',
                              'entityClassifications',
+                             'industries',
                          ])->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
     }

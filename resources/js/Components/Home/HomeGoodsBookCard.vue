@@ -138,8 +138,8 @@ function filterGoods(items) {
             ].filter(Boolean).join(' '))
             .join(' ')
 
-        const classificationText = (good.entity_classifications || good.entityClassifications || [])
-            .map((classification) => classification.name)
+        const classificationText = (good.industries || good.entity_classifications || good.entityClassifications || [])
+            .map((classification) => classification.name || [classification.code, classification.title].filter(Boolean).join(' '))
             .filter(Boolean)
             .join(' ')
 

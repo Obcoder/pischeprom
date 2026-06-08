@@ -15,14 +15,14 @@ const date = useDate()
 let goods = ref()
 const good = ref(null)
 let products = ref()
-const entityClassifications = ref([])
+const industries = ref([])
 
 let searchGoods = ref();
 const formGood = useForm({
     name: null,
     ava_image: null,
     products: null,
-    entity_classification_ids: [],
+    industry_ids: [],
 })
 function storeGood(){
     formGood.post(route('goods.store'), {
@@ -61,9 +61,17 @@ function indexProducts(){
         console.log(error)
     })
 }
-function indexEntityClassifications(){
-    axios.get('/api/entities-classification').then(function (response){
-        entityClassifications.value = Array.isArray(response.data) ? response.data : response.data.data || []
+function industryTitle(industry) {
+    return [industry.code, industry.title].filter(Boolean).join(' — ')
+}
+
+function indexIndustries(){
+    axios.get('/api/industries', {
+        params: {
+            per_page: 1000,
+        },
+    }).then(function (response){
+        industries.value = Array.isArray(response.data) ? response.data : response.data.data || []
     }).catch(function (error){
         console.log(error)
     })
@@ -83,7 +91,7 @@ const headersGoods = [
 onMounted(()=>{
     indexGoods()
     indexProducts()
-    indexEntityClassifications()
+    indexIndustries()
 })
 
 useHead({
@@ -151,12 +159,12 @@ const generateSlug = (name) => {
                                             </v-row>
                                             <v-row>
                                                 <v-col cols="12">
-                                                    <v-autocomplete :items="entityClassifications"
-                                                                    item-title="name"
+                                                    <v-autocomplete :items="industries"
+                                                                    :item-title="industryTitle"
                                                                     item-value="id"
-                                                                    v-model="formGood.entity_classification_ids"
+                                                                    v-model="formGood.industry_ids"
                                                                     label="ОКВЭДы для рекомендаций"
-                                                                    placeholder="Кому рекомендовать этот товар"
+                                                                    placeholder="Выберите ОКВЭДы из industries"
                                                                     density="compact"
                                                                     variant="outlined"
                                                                     color="red"
