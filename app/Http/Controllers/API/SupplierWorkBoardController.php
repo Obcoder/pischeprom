@@ -5,12 +5,13 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\SupplierPipeline;
 use App\Models\Unit;
+use App\Services\Mail\UnansweredOutgoingMailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SupplierWorkBoardController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, UnansweredOutgoingMailService $mailService): JsonResponse
     {
         $pipelines = SupplierPipeline::query()
             ->withCount('cards')
@@ -28,27 +29,23 @@ class SupplierWorkBoardController extends Controller
                             ->orderBy('id')
                             ->with([
                                 'cards' => function ($cardQuery) {
-                                    $cardQuery->with([
-                                        'unit:id,name,is_customer,is_supplier',
-                                        'unit.labels:id,name',
-                                        'unit.cities:id,name',
-                                    ])->orderBy('sort_order')->orderBy('id');
+                                    $cardQuery->with($this->cardRelations())
+                                        ->orderBy('sort_order')
+                                        ->orderBy('id');
                                 },
                             ]);
                     },
                     'cards' => function ($query) {
                         $query->whereNull('supplier_pipeline_stage_id')
-                            ->with([
-                                'unit:id,name,is_customer,is_supplier',
-                                'unit.labels:id,name',
-                                'unit.cities:id,name',
-                            ])
+                            ->with($this->cardRelations())
                             ->orderBy('sort_order')
                             ->orderBy('id');
                     },
                 ])
                 ->find($pipelineId)
             : null;
+
+        $this->attachMailFollowUps($pipeline, $mailService);
 
         return response()->json([
             'pipelines' => $pipelines,
@@ -73,5 +70,49 @@ class SupplierWorkBoardController extends Controller
             ->get();
 
         return response()->json($units);
+    }
+
+    private function cardRelations(): array
+    {
+        return [
+            'unit' => function ($query) {
+                $query
+                    ->select(['id', 'name', 'is_customer', 'is_supplier'])
+                    ->without(['fields', 'labels', 'telephones', 'uris'])
+                    ->with([
+                        'entities' => function ($entityQuery) {
+                            $entityQuery
+                                ->select(['entities.id', 'entities.name'])
+                                ->without(['buildings', 'classification', 'country'])
+                                ->orderBy('entities.name');
+                        },
+                    ]);
+            },
+        ];
+    }
+
+    private function attachMailFollowUps(?SupplierPipeline $pipeline, UnansweredOutgoingMailService $mailService): void
+    {
+        if (!$pipeline) {
+            return;
+        }
+
+        $cards = collect($pipeline->stages ?? [])
+            ->flatMap(fn ($stage) => $stage->cards ?? [])
+            ->merge($pipeline->cards ?? []);
+
+        $unitIds = $cards
+            ->pluck('unit_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $followUps = $mailService->summarizeForUnits($unitIds);
+
+        $cards->each(function ($card) use ($followUps) {
+            if ($card->unit) {
+                $card->unit->setAttribute('mail_follow_up', $followUps[$card->unit_id] ?? null);
+            }
+        });
     }
 }

@@ -36,7 +36,7 @@ class SupplierPipelineCardController extends Controller
         if ($existingCard) {
             return response()->json([
                 'message' => 'Этот Unit уже есть в выбранной воронке.',
-                'card' => $existingCard->load('unit:id,name,is_customer,is_supplier'),
+                'card' => $existingCard->load($this->cardRelations()),
             ], 422);
         }
 
@@ -60,11 +60,7 @@ class SupplierPipelineCardController extends Controller
             ]);
         });
 
-        return response()->json($card->load([
-            'unit:id,name,is_customer,is_supplier',
-            'unit.labels:id,name',
-            'unit.cities:id,name',
-        ]), 201);
+        return response()->json($card->load($this->cardRelations()), 201);
     }
 
     public function update(Request $request, SupplierPipelineCard $card): JsonResponse
@@ -83,11 +79,7 @@ class SupplierPipelineCardController extends Controller
 
         $card->update($data);
 
-        return response()->json($card->fresh()->load([
-            'unit:id,name,is_customer,is_supplier',
-            'unit.labels:id,name',
-            'unit.cities:id,name',
-        ]));
+        return response()->json($card->fresh()->load($this->cardRelations()));
     }
 
     public function move(Request $request, SupplierPipelineCard $card): JsonResponse
@@ -120,11 +112,7 @@ class SupplierPipelineCardController extends Controller
             }
         });
 
-        return response()->json($card->fresh()->load([
-            'unit:id,name,is_customer,is_supplier',
-            'unit.labels:id,name',
-            'unit.cities:id,name',
-        ]));
+        return response()->json($card->fresh()->load($this->cardRelations()));
     }
 
     public function destroy(SupplierPipelineCard $card): JsonResponse
@@ -132,5 +120,24 @@ class SupplierPipelineCardController extends Controller
         $card->delete();
 
         return response()->json(['message' => 'Card deleted']);
+    }
+
+    private function cardRelations(): array
+    {
+        return [
+            'unit' => function ($query) {
+                $query
+                    ->select(['id', 'name', 'is_customer', 'is_supplier'])
+                    ->without(['fields', 'labels', 'telephones', 'uris'])
+                    ->with([
+                        'entities' => function ($entityQuery) {
+                            $entityQuery
+                                ->select(['entities.id', 'entities.name'])
+                                ->without(['buildings', 'classification', 'country'])
+                                ->orderBy('entities.name');
+                        },
+                    ]);
+            },
+        ];
     }
 }

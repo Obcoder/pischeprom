@@ -432,8 +432,16 @@ function unitTitle(unit) {
     return unit.name || `Unit #${unit.id}`
 }
 
-function cardTitle(card) {
-    return card.title || unitTitle(card.unit)
+function unitEntities(card) {
+    return card.unit?.entities || []
+}
+
+function mailFollowUp(card) {
+    return card.unit?.mail_follow_up || null
+}
+
+function mailSubject(mail) {
+    return shortText(mail?.subject || '(без темы)', 54)
 }
 
 function shortText(text, limit = 90) {
@@ -455,6 +463,19 @@ function formatDate(value) {
         day: '2-digit',
         month: '2-digit',
         year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(value))
+}
+
+function formatMailDate(value) {
+    if (!value) {
+        return null
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
     }).format(new Date(value))
@@ -783,11 +804,22 @@ onMounted(async () => {
                                 v-for="card in stage.cards"
                                 :key="card.id"
                                 class="supplier-card"
+                                :class="{ 'supplier-card--mail-alert': mailFollowUp(card)?.is_overdue }"
                             >
-                                <div class="supplier-card__topline">
-                                    <v-chip size="x-small" color="#800000" variant="tonal">
-                                        Unit #{{ card.unit_id }}
-                                    </v-chip>
+                                <div class="supplier-card__identity">
+                                    <div class="supplier-card__unit-heading">
+                                        <Link
+                                            v-if="card.unit?.id"
+                                            :href="route('web.unit.show', card.unit.id)"
+                                            class="supplier-card__unit-name"
+                                        >
+                                            {{ unitTitle(card.unit) }}
+                                        </Link>
+                                        <strong v-else class="supplier-card__unit-name">
+                                            {{ unitTitle(card.unit) }}
+                                        </strong>
+                                        <span class="supplier-card__unit-id">#{{ card.unit_id }}</span>
+                                    </div>
                                     <v-btn
                                         icon="mdi-pencil"
                                         size="x-small"
@@ -796,38 +828,40 @@ onMounted(async () => {
                                     />
                                 </div>
 
-                                <h3>{{ cardTitle(card) }}</h3>
-
-                                <Link
-                                    v-if="card.unit?.id"
-                                    :href="route('web.unit.show', card.unit.id)"
-                                    class="supplier-card__unit-link"
+                                <div
+                                    v-if="unitEntities(card).length"
+                                    class="supplier-card__entities"
                                 >
-                                    {{ card.unit.name }}
-                                </Link>
+                                    <span
+                                        v-for="entity in unitEntities(card)"
+                                        :key="entity.id"
+                                    >
+                                        {{ entity.name }}
+                                    </span>
+                                </div>
+                                <div v-else class="supplier-card__entities supplier-card__entities--empty">
+                                    entities не связаны
+                                </div>
 
                                 <p v-if="card.notes" class="supplier-card__notes">
                                     {{ shortText(card.notes) }}
                                 </p>
 
-                                <div class="supplier-card__tags">
-                                    <v-chip
-                                        v-for="label in card.unit?.labels || []"
-                                        :key="label.id"
-                                        size="x-small"
-                                        variant="outlined"
-                                    >
-                                        {{ label.name }}
-                                    </v-chip>
-                                    <v-chip
-                                        v-for="city in card.unit?.cities || []"
-                                        :key="`city-${city.id}`"
-                                        size="x-small"
-                                        color="#0f766e"
-                                        variant="tonal"
-                                    >
-                                        {{ city.name }}
-                                    </v-chip>
+                                <div
+                                    v-if="mailFollowUp(card)"
+                                    class="supplier-card__mail"
+                                    :class="{ 'supplier-card__mail--alert': mailFollowUp(card).is_overdue }"
+                                >
+                                    <div class="supplier-card__mail-head">
+                                        <span>last mail</span>
+                                        <time>{{ formatMailDate(mailFollowUp(card).sent_at) }}</time>
+                                    </div>
+                                    <div class="supplier-card__mail-subject">
+                                        {{ mailSubject(mailFollowUp(card)) }}
+                                    </div>
+                                    <div v-if="mailFollowUp(card).preview" class="supplier-card__mail-preview">
+                                        {{ shortText(mailFollowUp(card).preview, 72) }}
+                                    </div>
                                 </div>
 
                                 <div v-if="card.next_contact_at" class="supplier-card__footer">
@@ -1333,40 +1367,82 @@ onMounted(async () => {
     background: #fffdf8;
     box-shadow: 0 10px 24px rgba(73, 32, 12, 0.08);
     cursor: grab;
+    transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.supplier-card--mail-alert {
+    border-color: rgba(185, 28, 28, 0.44);
+    background:
+        linear-gradient(135deg, rgba(254, 226, 226, 0.98), rgba(255, 241, 242, 0.94));
+    box-shadow: 0 14px 28px rgba(185, 28, 28, 0.16);
 }
 
 .supplier-card:active {
     cursor: grabbing;
 }
 
-.supplier-card__topline,
-.supplier-card__footer,
-.supplier-card__tags {
+.supplier-card__identity,
+.supplier-card__unit-heading,
+.supplier-card__footer {
     display: flex;
     align-items: center;
 }
 
-.supplier-card__topline {
+.supplier-card__identity {
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
-.supplier-card h3 {
-    margin: 0;
+.supplier-card__unit-heading {
+    min-width: 0;
+    gap: 6px;
+}
+
+.supplier-card__unit-name {
+    overflow: hidden;
     color: #321208;
-    font-size: 1rem;
-    font-weight: 900;
+    font-size: 1.13rem;
+    font-weight: 950;
+    line-height: 1.12;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.supplier-card__unit-id {
+    flex: 0 0 auto;
+    color: #9ca3af;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.supplier-card__entities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 7px;
+    color: #050505;
+    font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
     line-height: 1.2;
 }
 
-.supplier-card__unit-link {
-    display: inline-block;
-    margin-top: 4px;
-    color: #800000;
-    font-size: 0.82rem;
-    font-weight: 800;
-    text-decoration: none;
+.supplier-card__entities span {
+    min-width: 0;
+}
+
+.supplier-card__entities span:not(:last-child)::after {
+    content: " /";
+    color: #737373;
+}
+
+.supplier-card__entities--empty {
+    color: #8a8a8a;
+    font-style: italic;
+    font-weight: 600;
 }
 
 .supplier-card__notes {
@@ -1376,10 +1452,55 @@ onMounted(async () => {
     line-height: 1.35;
 }
 
-.supplier-card__tags {
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 10px;
+.supplier-card__mail {
+    display: grid;
+    gap: 3px;
+    margin-top: 11px;
+    padding: 8px 9px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.035), rgba(15, 23, 42, 0.015));
+    color: #1f2937;
+    font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.supplier-card__mail--alert {
+    border-color: rgba(153, 27, 27, 0.28);
+    background: rgba(127, 29, 29, 0.08);
+}
+
+.supplier-card__mail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: #64748b;
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.supplier-card__mail-subject {
+    overflow: hidden;
+    color: #111827;
+    font-size: 0.7rem;
+    font-weight: 900;
+    line-height: 1.18;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.supplier-card__mail-preview {
+    display: -webkit-box;
+    overflow: hidden;
+    color: #475569;
+    font-size: 0.66rem;
+    line-height: 1.22;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .supplier-card__footer {
