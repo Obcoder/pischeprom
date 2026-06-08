@@ -58,9 +58,12 @@ const goodData = ref(null);
 const currencies = ref([]);
 const measures = ref([]);
 const units = ref([]);
+const entityClassifications = ref([]);
+const savingRecommendationClassifications = ref(false);
 
 const showFormAddPrice = ref(false);
 const dialogFormQuotation = ref(false);
+const recommendationClassificationIds = ref([]);
 
 // --------------------------------------------------
 // COMPUTED
@@ -75,6 +78,10 @@ const defaultVatRate = computed(() => {
 
 const goodBoxWeight = computed(() => {
     return Number(goodData.value?.denominator || 1);
+});
+
+const currentRecommendationClassifications = computed(() => {
+    return goodData.value?.entity_classifications || goodData.value?.entityClassifications || [];
 });
 
 // --------------------------------------------------
@@ -238,6 +245,7 @@ async function fetchGood() {
     const response = await axios.get(route("good.fetch", props.good.id));
 
     goodData.value = response.data;
+    syncRecommendationClassificationForm();
 }
 
 async function fetchCurrencies() {
@@ -264,6 +272,14 @@ async function fetchUnits() {
         : response.data.data || [];
 }
 
+async function fetchEntityClassifications() {
+    const response = await axios.get("/api/entities-classification");
+
+    entityClassifications.value = Array.isArray(response.data)
+        ? response.data
+        : response.data.data || [];
+}
+
 async function loadPageData() {
     pageLoading.value = true;
     pageError.value = null;
@@ -274,6 +290,7 @@ async function loadPageData() {
             fetchCurrencies(),
             fetchMeasures(),
             fetchUnits(),
+            fetchEntityClassifications(),
         ]);
     } catch (error) {
         console.error(error);
@@ -284,6 +301,31 @@ async function loadPageData() {
             "Ошибка загрузки данных";
     } finally {
         pageLoading.value = false;
+    }
+}
+
+function syncRecommendationClassificationForm() {
+    recommendationClassificationIds.value = currentRecommendationClassifications.value.map((classification) => classification.id);
+}
+
+async function saveRecommendationClassifications() {
+    if (!goodData.value?.id) {
+        return;
+    }
+
+    savingRecommendationClassifications.value = true;
+
+    try {
+        const response = await axios.patch(`/api/goods/${goodData.value.id}`, {
+            entity_classification_ids: recommendationClassificationIds.value,
+        });
+
+        goodData.value = response.data;
+        syncRecommendationClassificationForm();
+    } catch (error) {
+        console.error(error);
+    } finally {
+        savingRecommendationClassifications.value = false;
     }
 }
 
@@ -642,6 +684,7 @@ onMounted(() => {
                     <v-tab value="calculations">Сохранённые расчёты</v-tab>
                     <v-tab value="price-types">Виды цен</v-tab>
                     <v-tab value="price-values">Цены товара</v-tab>
+                    <v-tab value="recommendations">ОКВЭД-рекомендации</v-tab>
                     <v-tab value="media">Media</v-tab>
                     <v-tab value="seo">SEO</v-tab>
                     <v-tab value="sales">Продажи</v-tab>
@@ -1015,6 +1058,49 @@ onMounted(() => {
                         :good-id="goodData.id"
                         :currencies="currencies"
                     />
+                </v-window-item>
+
+                <v-window-item value="recommendations">
+                    <v-card>
+                        <v-card-title class="d-flex align-center justify-space-between">
+                            <span>ОКВЭДы для рекомендаций</span>
+
+                            <v-chip size="small" color="#800000" variant="tonal">
+                                {{ currentRecommendationClassifications.length }}
+                            </v-chip>
+                        </v-card-title>
+
+                        <v-card-text>
+                            <v-alert type="info" variant="tonal" class="mb-4">
+                                Товар будет рекомендоваться пользователям, Entity и Unit, которым присвоены выбранные классификаторы.
+                            </v-alert>
+
+                            <v-autocomplete
+                                v-model="recommendationClassificationIds"
+                                :items="entityClassifications"
+                                item-title="name"
+                                item-value="id"
+                                label="ОКВЭДы / классификаторы"
+                                placeholder="Выберите классификаторы"
+                                variant="outlined"
+                                density="comfortable"
+                                multiple
+                                chips
+                                closable-chips
+                            />
+
+                            <div class="d-flex justify-end">
+                                <v-btn
+                                    color="#800000"
+                                    rounded="lg"
+                                    :loading="savingRecommendationClassifications"
+                                    @click="saveRecommendationClassifications"
+                                >
+                                    Сохранить ОКВЭДы
+                                </v-btn>
+                            </div>
+                        </v-card-text>
+                    </v-card>
                 </v-window-item>
 
                 <!-- MEDIA -->

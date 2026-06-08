@@ -15,12 +15,14 @@ const date = useDate()
 let goods = ref()
 const good = ref(null)
 let products = ref()
+const entityClassifications = ref([])
 
 let searchGoods = ref();
 const formGood = useForm({
     name: null,
     ava_image: null,
     products: null,
+    entity_classification_ids: [],
 })
 function storeGood(){
     formGood.post(route('goods.store'), {
@@ -43,7 +45,7 @@ function fetchGood(id){
 }
 function indexGoods(){
     axios.get(route('goods.index')).then(function (response){
-        goods.value = response.data;
+        goods.value = Array.isArray(response.data) ? response.data : response.data.data || [];
         // Проверяем, есть ли элементы в goods и берём первый
         if (goods.value && goods.value.length > 0) {
             fetchGood(goods.value[0].id);
@@ -55,6 +57,13 @@ function indexGoods(){
 function indexProducts(){
     axios.get(route('products.index')).then(function (response){
         products.value = response.data
+    }).catch(function (error){
+        console.log(error)
+    })
+}
+function indexEntityClassifications(){
+    axios.get('/api/entities-classification').then(function (response){
+        entityClassifications.value = Array.isArray(response.data) ? response.data : response.data.data || []
     }).catch(function (error){
         console.log(error)
     })
@@ -74,6 +83,7 @@ const headersGoods = [
 onMounted(()=>{
     indexGoods()
     indexProducts()
+    indexEntityClassifications()
 })
 
 useHead({
@@ -136,6 +146,23 @@ const generateSlug = (name) => {
                                                                     variant="outlined"
                                                                     color="red"
                                                                     multiple
+                                                    ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col cols="12">
+                                                    <v-autocomplete :items="entityClassifications"
+                                                                    item-title="name"
+                                                                    item-value="id"
+                                                                    v-model="formGood.entity_classification_ids"
+                                                                    label="ОКВЭДы для рекомендаций"
+                                                                    placeholder="Кому рекомендовать этот товар"
+                                                                    density="compact"
+                                                                    variant="outlined"
+                                                                    color="red"
+                                                                    multiple
+                                                                    chips
+                                                                    closable-chips
                                                     ></v-autocomplete>
                                                 </v-col>
                                             </v-row>

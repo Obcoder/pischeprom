@@ -36,10 +36,11 @@ class GoodController extends Controller
         $query = Good::query()
             ->with([
                        'products.category',
-                       'vatRate',
-                       'seo',
-                       'media',
-                   ]);
+                   'vatRate',
+                   'seo',
+                   'media',
+                   'entityClassifications',
+               ]);
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -98,6 +99,8 @@ class GoodController extends Controller
 
                                             'products' => ['nullable', 'array'],
                                             'products.*' => ['integer', 'exists:products,id'],
+                                            'entity_classification_ids' => ['nullable', 'array'],
+                                            'entity_classification_ids.*' => ['integer', 'exists:entity_classifications,id'],
                                         ]);
 
         $good = Good::create([
@@ -112,6 +115,10 @@ class GoodController extends Controller
             $good->products()->sync($validated['products'] ?? []);
         }
 
+        if (array_key_exists('entity_classification_ids', $validated)) {
+            $good->entityClassifications()->sync($validated['entity_classification_ids'] ?? []);
+        }
+
         if ($request->hasFile('ava_image')) {
             $this->storeAvatarFiles($good, $request->file('ava_image'));
         }
@@ -124,6 +131,7 @@ class GoodController extends Controller
                              'vatRate',
                              'seo',
                              'media',
+                             'entityClassifications',
                          ]),
             201
         );
@@ -160,6 +168,7 @@ class GoodController extends Controller
 
                                'priceTypeValues.priceType',
                                'priceTypeValues.currency',
+                               'entityClassifications',
                            ])->findOrFail($id);
 
         $expectedSlug = Str::slug($good->name);
@@ -187,6 +196,8 @@ class GoodController extends Controller
 
                                             'products' => ['nullable', 'array'],
                                             'products.*' => ['integer', 'exists:products,id'],
+                                            'entity_classification_ids' => ['nullable', 'array'],
+                                            'entity_classification_ids.*' => ['integer', 'exists:entity_classifications,id'],
 
                                             'remove_ava' => ['nullable', 'boolean'],
                                         ]);
@@ -195,6 +206,7 @@ class GoodController extends Controller
             ->except([
                          'ava_image',
                          'products',
+                         'entity_classification_ids',
                          'remove_ava',
                      ])
             ->toArray();
@@ -203,6 +215,10 @@ class GoodController extends Controller
 
         if (array_key_exists('products', $validated)) {
             $good->products()->sync($validated['products'] ?? []);
+        }
+
+        if (array_key_exists('entity_classification_ids', $validated)) {
+            $good->entityClassifications()->sync($validated['entity_classification_ids'] ?? []);
         }
 
         if (!empty($validated['remove_ava'])) {
@@ -227,6 +243,7 @@ class GoodController extends Controller
                              'vatRate',
                              'seo',
                              'media',
+                             'entityClassifications',
                          ])
         );
     }
@@ -333,6 +350,7 @@ class GoodController extends Controller
                              'publishedMedia',
                              'priceTypeValues.priceType',
                              'priceTypeValues.currency',
+                             'entityClassifications',
                          ])->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
     }

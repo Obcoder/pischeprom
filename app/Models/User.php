@@ -83,4 +83,10 @@ class User extends Authenticatable implements MustVerifyEmail
                         ])
             ->withTimestamps();
     }
+
+    public function entityClassifications(): BelongsToMany
+    {
+        return $this->belongsToMany(EntityClassification::class, 'entity_classification_user')
+            ->withTimestamps();
+    }
 }

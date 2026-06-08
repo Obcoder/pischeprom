@@ -117,6 +117,12 @@ class Unit extends Model
             ->withTimestamps();
     }
 
+    public function classifications(): BelongsToMany
+    {
+        return $this->belongsToMany(EntityClassification::class, 'entity_classification_unit')
+            ->withTimestamps();
+    }
+
     public function primaryIndustry()
     {
         return $this->belongsToMany(Industry::class)

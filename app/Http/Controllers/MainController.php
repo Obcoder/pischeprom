@@ -6,13 +6,15 @@ use App\Models\Category;
 use App\Models\Good;
 use App\Models\GoodOfTheDay;
 use App\Models\Product;
+use App\Services\Goods\HomeGoodsModuleService;
 use Illuminate\Support\Carbon;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class MainController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request, HomeGoodsModuleService $homeGoodsModuleService): Response
     {
         $categories = Category::query()
             ->where('is_published', true)
@@ -43,6 +45,7 @@ class MainController extends Controller
             'productsCount' => Product::query()->count(),
             'goodsCount' => Good::query()->count(),
             'heroGoods' => $heroGoods,
+            'homeGoodsModule' => $homeGoodsModuleService->build($request->user()),
         ]);
     }
 

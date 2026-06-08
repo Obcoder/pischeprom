@@ -73,6 +73,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    homeGoodsModule: {
+        type: Object,
+        default: null,
+    },
 })
 
 const page = usePage()
@@ -269,7 +273,9 @@ const organizationJsonLd = computed(() => JSON.stringify({
 }))
 
 onMounted(() => {
-    indexGoods()
+    if (!props.homeGoodsModule) {
+        indexGoods()
+    }
 })
 </script>
 
@@ -390,6 +396,7 @@ onMounted(() => {
                         <HomeGoodsSearchCard
                             :goods="goods"
                             :loading="goodsLoading"
+                            :module="homeGoodsModule"
                             :limit="24"
                         />
                     </v-col>

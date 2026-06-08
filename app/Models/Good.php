@@ -87,6 +87,12 @@ class Good extends Model
         return $this->belongsToMany(Product::class);
     }
 
+    public function entityClassifications(): BelongsToMany
+    {
+        return $this->belongsToMany(EntityClassification::class, 'entity_classification_good')
+            ->withTimestamps();
+    }
+
     public function prices(): HasMany
     {
         return $this->hasMany(Price::class)->latest();

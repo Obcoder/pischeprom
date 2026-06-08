@@ -60,6 +60,12 @@ class Entity extends Model
             ->withDefault();
     }
 
+    public function additionalClassifications(): BelongsToMany
+    {
+        return $this->belongsToMany(EntityClassification::class, 'entity_entity_classification')
+            ->withTimestamps();
+    }
+
     public function country(): BelongsTo
     {
         return $this->belongsTo(Country::class)->withDefault();

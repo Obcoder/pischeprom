@@ -1,13 +1,12 @@
 <script setup>
-import { computed, ref } from "vue";
-import { Link } from "@inertiajs/vue3";
-import { logo } from "@/Pages/Helpers/consts.js";
-import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl';
-import { useAppRoute } from "@/Composables/useAppRoute";
-import { usePhoneCallRegistration } from "@/Composables/usePhoneCallRegistration";
+import { computed, ref } from 'vue'
+import { Link } from '@inertiajs/vue3'
+import { logo } from '@/Pages/Helpers/consts.js'
+import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
+import { useAppRoute } from '@/Composables/useAppRoute'
+import { usePhoneCallRegistration } from '@/Composables/usePhoneCallRegistration'
 
-const { route } = useAppRoute();
-
+const { route } = useAppRoute()
 const { goodPublicUrl } = usePublicGoodUrl()
 const { registerPhoneCallClick } = usePhoneCallRegistration()
 
@@ -15,6 +14,10 @@ const props = defineProps({
     goods: {
         type: Array,
         default: () => [],
+    },
+    module: {
+        type: Object,
+        default: null,
     },
     loading: {
         type: Boolean,
@@ -24,192 +27,221 @@ const props = defineProps({
         type: Number,
         default: 18,
     },
-});
+})
 
-const search = ref("");
+const search = ref('')
+const activePersonalSection = ref('ordered')
 
-const filteredGoods = computed(() => {
-    const query = search.value.trim().toLowerCase();
+const isPersonal = computed(() => Boolean(props.module?.authenticated))
+const moduleTitle = computed(() => props.module?.title || (isPersonal.value ? 'Персональная витрина' : 'Оглавление товаров'))
+const moduleSubtitle = computed(() => props.module?.subtitle || '')
+const orderedGoods = computed(() => props.module?.ordered_goods || props.module?.orderedGoods || [])
+const recommendedGoods = computed(() => props.module?.recommended_goods || props.module?.recommendedGoods || [])
+const classifications = computed(() => props.module?.classifications || [])
+const tableOfContents = computed(() => props.module?.table_of_contents || props.module?.tableOfContents || [])
 
-    let items = [...props.goods];
+const personalSections = computed(() => [
+    {
+        key: 'ordered',
+        title: 'Ранее заказывали',
+        goods: orderedGoods.value,
+        empty: 'Истории заказов по вашим Entity пока нет.',
+    },
+    {
+        key: 'recommended',
+        title: 'Рекомендации по ОКВЭД',
+        goods: recommendedGoods.value,
+        empty: 'Назначьте ОКВЭД пользователю, Entity или Unit, чтобы получить рекомендации.',
+    },
+])
 
-    if (query) {
-        items = items.filter((good) => {
-            const productText = (good.products || [])
-                .map((product) => {
-                    return [
-                        product.rus,
-                        product.eng,
-                        product.name,
-                        product.title,
-                        product.category?.name,
-                    ]
-                        .filter(Boolean)
-                        .join(" ");
-                })
-                .join(" ");
+const activeSection = computed(() => personalSections.value.find((section) => section.key === activePersonalSection.value) || personalSections.value[0])
 
-            const haystack = [
-                good.name,
-                good.description,
-                good.slug,
-                productText,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return haystack.includes(query);
-        });
+const currentGoods = computed(() => {
+    if (isPersonal.value) {
+        return activeSection.value.goods || []
     }
 
-    return items.slice(0, props.limit);
-});
+    return props.goods || []
+})
 
-const hasSearch = computed(() => {
-    return search.value.trim().length > 0;
-});
-
-const newestGoods = computed(() => {
-    return [...props.goods]
-        .sort((a, b) => {
-            const dateA = new Date(a.created_at || 0).getTime();
-            const dateB = new Date(b.created_at || 0).getTime();
-
-            return dateB - dateA;
-        })
-        .slice(0, props.limit);
-});
+const hasSearch = computed(() => search.value.trim().length > 0)
 
 const visibleGoods = computed(() => {
-    const query = search.value.trim().toLowerCase();
+    const source = isPersonal.value
+        ? currentGoods.value
+        : [...currentGoods.value].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
 
-    if (!query) {
-        return newestGoods.value;
-    }
-
-    return props.goods
-        .filter((good) => {
-            const productText = (good.products || [])
-                .map((product) => {
-                    return [
-                        product.rus,
-                        product.eng,
-                        product.name,
-                        product.title,
-                        product.category?.name,
-                    ]
-                        .filter(Boolean)
-                        .join(" ");
-                })
-                .join(" ");
-
-            const haystack = [
-                good.name,
-                good.description,
-                good.slug,
-                productText,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return haystack.includes(query);
-        })
-        .slice(0, props.limit);
-});
+    return filterGoods(source).slice(0, props.limit)
+})
 
 const groupedGoods = computed(() => {
-    const groups = new Map();
+    const groups = new Map()
 
     visibleGoods.value.forEach((good) => {
-        const products = (good.products || []).length
-            ? good.products
-            : [null];
+        const products = (good.products || []).length ? good.products : [null]
 
         products.forEach((product) => {
-            const key = product?.id ? `product-${product.id}` : "no-product";
+            const key = product?.id ? `product-${product.id}` : 'no-product'
 
             if (!groups.has(key)) {
                 groups.set(key, {
                     id: product?.id || null,
-                    title: product?.rus || product?.name || product?.title || "Без Product",
+                    title: product?.rus || product?.name || product?.title || 'Без Product',
                     category: product?.category?.name || null,
                     goods: [],
-                });
+                })
             }
 
-            groups.get(key).goods.push(good);
-        });
-    });
+            groups.get(key).goods.push(good)
+        })
+    })
 
-    return [...groups.values()];
-});
+    return [...groups.values()]
+})
+
+const filteredTableOfContents = computed(() => {
+    const query = search.value.trim().toLowerCase()
+
+    if (!query) {
+        return tableOfContents.value
+    }
+
+    return tableOfContents.value
+        .map((section) => {
+            const sectionMatches = String(section.title || '').toLowerCase().includes(query)
+            const entries = (section.entries || []).filter((entry) => {
+                return sectionMatches || String(entry.title || '').toLowerCase().includes(query)
+            })
+
+            return {
+                ...section,
+                entries,
+            }
+        })
+        .filter((section) => section.entries.length)
+})
+
+function filterGoods(items) {
+    const query = search.value.trim().toLowerCase()
+
+    if (!query) {
+        return items
+    }
+
+    return items.filter((good) => {
+        const productText = (good.products || [])
+            .map((product) => [
+                product.rus,
+                product.eng,
+                product.name,
+                product.title,
+                product.category?.name,
+            ].filter(Boolean).join(' '))
+            .join(' ')
+
+        const classificationText = (good.entity_classifications || good.entityClassifications || [])
+            .map((classification) => classification.name)
+            .filter(Boolean)
+            .join(' ')
+
+        const haystack = [
+            good.name,
+            good.description,
+            good.slug,
+            productText,
+            classificationText,
+        ].filter(Boolean).join(' ').toLowerCase()
+
+        return haystack.includes(query)
+    })
+}
 
 function goodImage(good) {
-    return good.ava_thumb || good.ava_image || logo;
+    return good.ava_thumb || good.ava_image || logo
 }
 
 function latestPrice(good) {
-    return good.latest_price || good.latestPrice || good.prices?.[0] || null;
+    return good.latest_price || good.latestPrice || good.prices?.[0] || null
 }
 
 function formatMoney(value) {
-    if (value === null || value === undefined || value === "") {
-        return "—";
+    if (value === null || value === undefined || value === '') {
+        return '—'
     }
 
-    return new Intl.NumberFormat("ru-RU", {
+    return new Intl.NumberFormat('ru-RU', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    }).format(Number(value));
+    }).format(Number(value))
 }
 
 function priceText(good) {
-    const price = latestPrice(good);
+    const price = latestPrice(good)
 
     if (!price) {
-        return "Цена по запросу";
+        return 'Цена по запросу'
     }
 
-    const currency = price.currency?.code || "RUB";
+    const currency = price.currency?.code || 'RUB'
 
-    return `${formatMoney(price.price)} ${currency}`;
+    return `${formatMoney(price.price)} ${currency}`
 }
 
 function shortDescription(good) {
-    const text = String(good.description || "").trim();
+    const text = String(good.description || '').trim()
 
     if (!text) {
-        return "Описание пока не заполнено";
+        return isPersonal.value && activePersonalSection.value === 'recommended'
+            ? 'Рекомендовано по вашему ОКВЭД-профилю'
+            : 'Описание пока не заполнено'
     }
 
-    return text.length > 96 ? `${text.slice(0, 96)}…` : text;
+    return text.length > 96 ? `${text.slice(0, 96)}…` : text
+}
+
+function catalogueEntryHref(entry) {
+    const query = encodeURIComponent(entry.title || '')
+
+    return `${route('public.goods.index')}?search=${query}`
+}
+
+function catalogueSectionHref(section) {
+    return route('category.show', section.slug || section.id)
 }
 
 function clickHomePhone() {
     registerPhoneCallClick({
-        source: "home_goods_search_card",
+        source: 'home_goods_search_card',
         search: search.value.trim() || null,
         good_id: visibleGoods.value[0]?.id || null,
         good_name: visibleGoods.value[0]?.name || null,
-    });
+    })
 }
 </script>
 
 <template>
-    <v-card
-        rounded="xl"
-        elevation="2"
-        class="goods-search-card h-100"
-    >
+    <v-card rounded="xl" elevation="2" class="goods-search-card h-100">
         <v-card-text class="pb-3">
+            <div class="goods-search-card__kicker">
+                {{ isPersonal ? 'Ваш каталог' : 'Пищепром-книга' }}
+            </div>
+
+            <div class="goods-search-card__headline">
+                {{ moduleTitle }}
+            </div>
+
+            <div v-if="moduleSubtitle" class="goods-search-card__subtitle">
+                {{ moduleSubtitle }}
+            </div>
+
             <v-text-field
                 v-model="search"
+                class="mt-3"
                 variant="outlined"
                 density="comfortable"
-                label="Поиск по товарам"
-                placeholder="Например: лецитин, глицерин, какао-масло"
+                :label="isPersonal ? 'Поиск по персональной витрине' : 'Поиск по оглавлению'"
+                placeholder="Например: рыба, какао-масло, супы"
                 hide-details
                 clearable
                 prepend-inner-icon="mdi-magnify"
@@ -218,113 +250,131 @@ function clickHomePhone() {
 
         <v-divider />
 
-        <v-card-title class="text-subtitle-1 font-weight-bold">
-            {{ hasSearch ? "Найденные товары" : "Новинки каталога" }}
-        </v-card-title>
+        <template v-if="isPersonal">
+            <v-card-text class="pt-3 pb-2">
+                <div class="personal-switcher">
+                    <button
+                        v-for="section in personalSections"
+                        :key="section.key"
+                        type="button"
+                        class="personal-switcher__button"
+                        :class="{ 'personal-switcher__button--active': activePersonalSection === section.key }"
+                        @click="activePersonalSection = section.key"
+                    >
+                        <span>{{ section.title }}</span>
+                        <strong>{{ section.goods.length }}</strong>
+                    </button>
+                </div>
 
-        <v-card-subtitle>
-            {{
-                hasSearch
-                    ? "Поиск работает по названию, описанию и связанным продуктам"
-                    : "Последние добавленные опубликованные товары"
-            }}
-        </v-card-subtitle>
+                <div v-if="classifications.length" class="classification-strip">
+                    <span>ОКВЭД</span>
+                    <v-chip
+                        v-for="classification in classifications"
+                        :key="classification.id"
+                        size="x-small"
+                        color="#800000"
+                        variant="tonal"
+                    >
+                        {{ classification.name }}
+                    </v-chip>
+                </div>
+            </v-card-text>
 
-        <v-card-text class="goods-search-card__body">
-            <v-progress-linear
-                v-if="loading"
-                indeterminate
-                class="mb-3"
-            />
+            <v-card-title class="text-subtitle-1 font-weight-bold pt-0">
+                {{ hasSearch ? 'Найденные товары' : activeSection.title }}
+            </v-card-title>
 
-            <template v-if="groupedGoods.length">
-                <div
-                    v-for="group in groupedGoods"
-                    :key="group.id || 'no-product'"
-                    class="product-group"
-                >
-                    <div class="product-group__header">
-                        <div>
-                            <div class="product-group__title">
-                                {{ group.title }}
+            <v-card-text class="goods-search-card__body">
+                <v-progress-linear v-if="loading" indeterminate class="mb-3" />
+
+                <template v-if="groupedGoods.length">
+                    <div v-for="group in groupedGoods" :key="group.id || 'no-product'" class="product-group">
+                        <div class="product-group__header">
+                            <div>
+                                <div class="product-group__title">
+                                    {{ group.title }}
+                                </div>
+
+                                <div v-if="group.category" class="product-group__category">
+                                    {{ group.category }}
+                                </div>
                             </div>
 
-                            <div
-                                v-if="group.category"
-                                class="product-group__category"
-                            >
-                                {{ group.category }}
-                            </div>
+                            <v-chip size="x-small" color="#800000" variant="tonal">
+                                {{ group.goods.length }}
+                            </v-chip>
                         </div>
 
-                        <v-chip
-                            size="x-small"
-                            color="#800000"
-                            variant="tonal"
-                        >
-                            {{ group.goods.length }}
-                        </v-chip>
-                    </div>
-
-                    <div class="goods-list">
-                        <Link
-                            v-for="good in group.goods"
-                            :key="`${group.id || 'no-product'}-${good.id}`"
-                            :href="goodPublicUrl(good)"
-                            class="good-row"
-                        >
-                            <v-avatar
-                                size="52"
-                                rounded="lg"
-                                class="good-row__image"
+                        <div class="goods-list">
+                            <Link
+                                v-for="good in group.goods"
+                                :key="`${group.id || 'no-product'}-${good.id}`"
+                                :href="goodPublicUrl(good)"
+                                class="good-row"
                             >
-                                <v-img
-                                    :src="goodImage(good)"
-                                    cover
-                                />
-                            </v-avatar>
+                                <v-avatar size="52" rounded="lg" class="good-row__image">
+                                    <v-img :src="goodImage(good)" cover />
+                                </v-avatar>
 
-                            <div class="good-row__content">
-                                <div class="good-row__name">
-                                    {{ good.name }}
+                                <div class="good-row__content">
+                                    <div class="good-row__name">
+                                        {{ good.name }}
+                                    </div>
+
+                                    <div class="good-row__description">
+                                        {{ shortDescription(good) }}
+                                    </div>
                                 </div>
 
-                                <div class="good-row__description">
-                                    {{ shortDescription(good) }}
+                                <div class="good-row__price">
+                                    {{ priceText(good) }}
                                 </div>
-                            </div>
-
-                            <div class="good-row__price">
-                                {{ priceText(good) }}
-                            </div>
-                        </Link>
+                            </Link>
+                        </div>
                     </div>
-                </div>
-            </template>
+                </template>
 
-            <v-alert
-                v-else
-                type="info"
-                variant="tonal"
-            >
-                {{
-                    hasSearch
-                        ? "Ничего не найдено."
-                        : "Новинки каталога пока не найдены."
-                }}
-            </v-alert>
-        </v-card-text>
+                <v-alert v-else type="info" variant="tonal">
+                    {{ hasSearch ? 'Ничего не найдено.' : activeSection.empty }}
+                </v-alert>
+            </v-card-text>
+        </template>
+
+        <template v-else>
+            <v-card-text class="goods-search-card__body goods-search-card__body--book">
+                <v-progress-linear v-if="loading" indeterminate class="mb-3" />
+
+                <div v-if="filteredTableOfContents.length" class="book-toc">
+                    <div class="book-toc__ornament" />
+
+                    <section v-for="section in filteredTableOfContents" :key="section.id" class="book-toc__section">
+                        <Link :href="catalogueSectionHref(section)" class="book-toc__section-title">
+                            <span>{{ section.title }}</span>
+                            <b>{{ section.page }}</b>
+                        </Link>
+
+                        <Link
+                            v-for="entry in section.entries"
+                            :key="`${section.id}-${entry.id}`"
+                            :href="catalogueEntryHref(entry)"
+                            class="book-toc__entry"
+                        >
+                            <span>{{ entry.title }}</span>
+                            <i />
+                            <b>{{ entry.page }}</b>
+                        </Link>
+                    </section>
+                </div>
+
+                <v-alert v-else type="info" variant="tonal">
+                    {{ hasSearch ? 'В оглавлении ничего не найдено.' : 'Оглавление пока не собрано.' }}
+                </v-alert>
+            </v-card-text>
+        </template>
 
         <v-card-actions class="goods-search-card__actions px-4 pb-4">
-            <Link
-                :href="route('public.goods.index')"
-                class="goods-search-card__action-link"
-            >
-                <v-btn
-                    block
-                    color="#800000"
-                    rounded="xl"
-                >
+            <Link :href="route('public.goods.index')" class="goods-search-card__action-link">
+                <v-btn block color="#800000" rounded="xl">
                     Открыть весь каталог
                 </v-btn>
             </Link>
@@ -347,12 +397,43 @@ function clickHomePhone() {
 <style scoped>
 .goods-search-card {
     overflow: hidden;
-    background: #ffffff;
+    background:
+        radial-gradient(circle at 90% 0%, rgba(128, 0, 0, 0.08), transparent 26%),
+        #fffdf8;
+}
+
+.goods-search-card__kicker {
+    color: #800000;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.goods-search-card__headline {
+    margin-top: 4px;
+    color: #2f1b18;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.45rem;
+    font-weight: 900;
+    line-height: 1.05;
+}
+
+.goods-search-card__subtitle {
+    margin-top: 7px;
+    color: #6b625d;
+    font-size: 0.82rem;
+    line-height: 1.35;
 }
 
 .goods-search-card__body {
     max-height: 520px;
     overflow-y: auto;
+}
+
+.goods-search-card__body--book {
+    background: linear-gradient(90deg, rgba(79, 44, 25, 0.03), transparent 18%, rgba(79, 44, 25, 0.03));
 }
 
 .goods-search-card__actions {
@@ -367,6 +448,52 @@ function clickHomePhone() {
 
 .goods-search-card__phone {
     flex: 0 0 auto;
+}
+
+.personal-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.personal-switcher__button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid rgba(128, 0, 0, 0.12);
+    border-radius: 14px;
+    background: #ffffff;
+    color: #4a2525;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-align: left;
+}
+
+.personal-switcher__button--active {
+    background: #800000;
+    color: #ffffff;
+}
+
+.personal-switcher__button strong {
+    font-family: 'Courier New', monospace;
+}
+
+.classification-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.classification-strip > span {
+    color: #7b6d64;
+    font-family: 'Courier New', monospace;
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
 }
 
 .product-group {
@@ -387,9 +514,9 @@ function clickHomePhone() {
     gap: 12px;
     padding: 8px 10px;
     margin-bottom: 8px;
+    border: 1px solid rgba(128, 0, 0, 0.08);
     border-radius: 14px;
     background: #fff7ed;
-    border: 1px solid rgba(128, 0, 0, 0.08);
 }
 
 .product-group__title {
@@ -415,18 +542,18 @@ function clickHomePhone() {
     gap: 10px;
     align-items: center;
     padding: 8px;
-    border-radius: 16px;
-    text-decoration: none;
-    color: inherit;
-    background: #ffffff;
     border: 1px solid rgba(128, 0, 0, 0.08);
+    border-radius: 16px;
+    background: #ffffff;
+    color: inherit;
+    text-decoration: none;
     transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .good-row:hover {
     background: #fff8f0;
-    transform: translateY(-1px);
     box-shadow: 0 8px 22px rgba(92, 0, 0, 0.08);
+    transform: translateY(-1px);
 }
 
 .good-row__image {
@@ -452,18 +579,79 @@ function clickHomePhone() {
 }
 
 .good-row__price {
-    white-space: nowrap;
     align-self: start;
     padding: 5px 8px;
     border-radius: 999px;
-    color: #5c0000;
     background: #fff1df;
+    color: #5c0000;
     font-size: 0.78rem;
     font-weight: 800;
+    white-space: nowrap;
+}
+
+.book-toc {
+    position: relative;
+    padding: 6px 2px 2px;
+    color: #231f1b;
+    font-family: Georgia, 'Times New Roman', serif;
+}
+
+.book-toc__ornament {
+    height: 1px;
+    margin: 0 0 14px;
+    background: linear-gradient(90deg, transparent, rgba(155, 82, 36, 0.75), transparent);
+}
+
+.book-toc__section {
+    margin-bottom: 18px;
+}
+
+.book-toc__section-title,
+.book-toc__entry {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.book-toc__section-title {
+    margin-bottom: 7px;
+    font-size: 1.02rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.book-toc__section-title b,
+.book-toc__entry b {
+    flex: 0 0 auto;
+    color: #4f3f35;
+    font-weight: 900;
+}
+
+.book-toc__entry {
+    padding: 2px 0;
+    font-size: 0.86rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.book-toc__entry:hover span,
+.book-toc__section-title:hover span {
+    color: #800000;
+}
+
+.book-toc__entry i {
+    flex: 1 1 auto;
+    min-width: 16px;
+    border-bottom: 1px dotted rgba(65, 46, 32, 0.35);
 }
 
 @media (max-width: 600px) {
-    .goods-search-card__actions {
+    .goods-search-card__actions,
+    .personal-switcher {
+        grid-template-columns: 1fr;
         flex-direction: column;
     }
 
