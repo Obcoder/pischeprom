@@ -6,6 +6,8 @@ import { route } from 'ziggy-js'
 import axios from 'axios'
 import { VueDraggableNext as Draggable } from 'vue-draggable-next'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
+import UnitMailTemplatesDialog from '@/Components/Unit/Mail/UnitMailTemplatesDialog.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -33,6 +35,8 @@ const stageManagerMenu = ref(false)
 const pipelineDialog = ref(false)
 const stageDialog = ref(false)
 const cardDialog = ref(false)
+const mailDialog = ref(false)
+const mailTemplatesDialog = ref(false)
 const editingPipeline = ref(null)
 const editingStage = ref(null)
 const editingCard = ref(null)
@@ -57,6 +61,12 @@ const cardForm = reactive({
     title: '',
     notes: '',
     next_contact_at: '',
+})
+
+const mailForm = reactive({
+    unitId: null,
+    recipients: [],
+    initialTo: [],
 })
 
 const currentPipeline = computed(() => board.pipeline)
@@ -446,6 +456,41 @@ function entityEmails(entity) {
 
 function hasEntityContacts(entity) {
     return entityTelephones(entity).length || entityEmails(entity).length
+}
+
+function cardEmailRecipients(card) {
+    return unitEntities(card)
+        .flatMap((entity) => entityEmails(entity).map((email) => ({
+            id: email.id,
+            address: email.address,
+            name: email.name || null,
+            source: 'entity',
+            source_label: `Entity: ${entity.name}`,
+            entity_id: entity.id,
+            entity_name: entity.name,
+        })))
+        .filter((email) => email.address)
+        .filter((email, index, array) => {
+            const address = String(email.address).toLowerCase()
+
+            return array.findIndex((candidate) => String(candidate.address).toLowerCase() === address) === index
+        })
+}
+
+function openMailDialog(card, entity, email) {
+    if (!card?.unit_id || !email?.address) {
+        return
+    }
+
+    mailForm.unitId = card.unit_id
+    mailForm.recipients = cardEmailRecipients(card)
+    mailForm.initialTo = [email.address]
+    mailDialog.value = true
+}
+
+async function afterMailSent() {
+    notify('Письмо отправлено.')
+    await fetchBoard(selectedPipelineId.value)
 }
 
 function mailFollowUp(card) {
@@ -859,15 +904,19 @@ onMounted(async () => {
                                             <span
                                                 v-for="telephone in entityTelephones(entity)"
                                                 :key="`entity-${entity.id}-tel-${telephone.id}`"
+                                                class="supplier-card__entity-contact"
                                             >
                                                 tel: {{ telephone.number }}
                                             </span>
-                                            <span
+                                            <button
                                                 v-for="email in entityEmails(entity)"
                                                 :key="`entity-${entity.id}-email-${email.id}`"
+                                                type="button"
+                                                class="supplier-card__entity-contact supplier-card__entity-contact--email"
+                                                @click.stop="openMailDialog(card, entity, email)"
                                             >
                                                 mail: {{ email.address }}
-                                            </span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -1093,6 +1142,18 @@ onMounted(async () => {
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <UnitMailComposerDialog
+            v-if="mailForm.unitId"
+            v-model="mailDialog"
+            :unit-id="mailForm.unitId"
+            :recipients="mailForm.recipients"
+            :initial-to="mailForm.initialTo"
+            @sent="afterMailSent"
+            @open-templates="mailTemplatesDialog = true"
+        />
+
+        <UnitMailTemplatesDialog v-model="mailTemplatesDialog" />
 
         <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3500">
             {{ snackbar.text }}
@@ -1489,15 +1550,28 @@ onMounted(async () => {
     line-height: 1.15;
 }
 
-.supplier-card__entity-contacts span {
+.supplier-card__entity-contact {
     overflow: hidden;
     max-width: 100%;
     padding: 2px 5px;
     border: 1px solid rgba(51, 65, 85, 0.12);
     border-radius: 7px;
     background: rgba(15, 23, 42, 0.035);
+    color: inherit;
+    font: inherit;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.supplier-card__entity-contact--email {
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.supplier-card__entity-contact--email:hover {
+    border-color: rgba(37, 99, 235, 0.35);
+    background: rgba(37, 99, 235, 0.08);
+    color: #1d4ed8;
 }
 
 .supplier-card__entities--empty {

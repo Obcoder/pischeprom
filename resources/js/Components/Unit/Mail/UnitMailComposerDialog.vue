@@ -16,6 +16,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    initialTo: {
+        type: Array,
+        default: () => [],
+    },
     unitFiles: {
         type: Array,
         default: () => [],
@@ -189,6 +193,18 @@ function applyReplyContext() {
     body.value = replyQuote(props.replyContext)
 }
 
+function normalizeInitialTo() {
+    return (props.initialTo || [])
+        .map((item) => {
+            if (typeof item === 'string') {
+                return item
+            }
+
+            return item?.address || item?.email || null
+        })
+        .filter(Boolean)
+}
+
 function onLocalFilesSelected(event) {
     localFiles.value = Array.from(event.target.files || [])
 }
@@ -256,6 +272,8 @@ watch(model, async (value) => {
 
         if (props.replyContext) {
             applyReplyContext()
+        } else {
+            to.value = normalizeInitialTo()
         }
 
         if (!templates.value.length) {
@@ -279,6 +297,14 @@ watch(() => props.initialStorageFiles, (value) => {
 watch(() => props.replyContext, () => {
     if (model.value) {
         applyReplyContext()
+    }
+}, {
+    deep: true,
+})
+
+watch(() => props.initialTo, () => {
+    if (model.value && !props.replyContext) {
+        to.value = normalizeInitialTo()
     }
 }, {
     deep: true,
