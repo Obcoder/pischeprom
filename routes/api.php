@@ -380,6 +380,8 @@ Route::apiResource('yandex-requests', YandexRequestController::class);
 Route::post('/telephony/beeline', BeelinePbxController::class)
     ->name('api.telephony.beeline');
 
+Route::post('phone-calls/dial', [PhoneCallController::class, 'dial'])
+    ->name('api.phone-calls.dial');
 Route::apiResource('phone-calls', PhoneCallController::class)
     ->only(['index', 'store', 'show', 'update']);
 Route::post('phone-calls/sync-beeline', [PhoneCallController::class, 'syncBeeline'])

@@ -254,6 +254,57 @@ class BeelinePbxService
         });
     }
 
+    public function callFromAbonent(string $abonentPhone, string $clientPhone): array
+    {
+        $apiUrl = rtrim(trim((string) config('services.beeline_pbx.api_url')), '/');
+        $token = trim((string) config('services.beeline_pbx.api_token'));
+        $abonent = $this->normalizePhone($abonentPhone);
+        $client = $this->normalizePhone($clientPhone);
+
+        if ($apiUrl === '') {
+            throw new RuntimeException('BEELINE_PBX_API_URL is not configured.');
+        }
+
+        if ($token === '') {
+            throw new RuntimeException('BEELINE_PBX_API_TOKEN is not configured.');
+        }
+
+        if (!$abonent || !$client) {
+            throw new RuntimeException('Both abonent and client phone numbers are required.');
+        }
+
+        $response = $this->sendCallFromAbonentRequest($apiUrl, $token, 'v2/abonents/' . rawurlencode($abonent) . '/call', $client);
+
+        if (in_array($response->status(), [404, 405], true)) {
+            $response = $this->sendCallFromAbonentRequest($apiUrl, $token, 'abonents/' . rawurlencode($abonent) . '/call', $client);
+        }
+
+        $body = trim($response->body());
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Beeline PBX click-to-call failed: HTTP ' . $response->status() . ' ' . Str::limit($body, 500)
+            );
+        }
+
+        return [
+            'status' => $response->status(),
+            'response' => $response->json() ?: $body,
+        ];
+    }
+
+    protected function sendCallFromAbonentRequest(string $apiUrl, string $token, string $endpoint, string $clientPhone): \Illuminate\Http\Client\Response
+    {
+        return Http::withHeaders([
+            'X-MPBX-API-AUTH-TOKEN' => $token,
+        ])
+            ->acceptJson()
+            ->timeout(15)
+            ->post($apiUrl . '/' . ltrim($endpoint, '/') . '?' . http_build_query([
+                'phoneNumber' => '+' . $clientPhone,
+            ]));
+    }
+
     public function syncHistory(array $filters = [], bool $dryRun = false): array
     {
         $rows = $this->fetchHistoryRows($filters);

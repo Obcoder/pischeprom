@@ -29,6 +29,7 @@ const snackbar = reactive({
 })
 
 const pipelineManagerMenu = ref(false)
+const stageManagerMenu = ref(false)
 const pipelineDialog = ref(false)
 const stageDialog = ref(false)
 const cardDialog = ref(false)
@@ -619,6 +620,59 @@ onMounted(async () => {
                         </v-card>
                     </v-menu>
 
+                    <v-menu
+                        v-model="stageManagerMenu"
+                        :close-on-content-click="false"
+                        location="bottom end"
+                        max-width="680"
+                    >
+                        <template #activator="{ props: menuProps }">
+                            <v-btn
+                                v-bind="menuProps"
+                                color="#b45309"
+                                variant="tonal"
+                                prepend-icon="mdi-timeline-text"
+                                rounded="lg"
+                                :disabled="!hasPipeline"
+                            >
+                                Стадии
+                            </v-btn>
+                        </template>
+
+                        <v-card rounded="xl" elevation="10" class="supplier-stage-menu">
+                            <v-card-text>
+                                <div class="supplier-stage-manager">
+                                    <div
+                                        v-for="stage in stages"
+                                        :key="`manager-${stage.id}`"
+                                        class="supplier-stage-manager__item"
+                                    >
+                                        <span
+                                            class="supplier-board__stage-dot"
+                                            :style="{ backgroundColor: stage.color || '#800000' }"
+                                        />
+                                        <div class="supplier-stage-manager__content">
+                                            <strong>{{ stage.name }}</strong>
+                                            <span>{{ stage.description || `${stage.cards?.length || 0} карточек` }}</span>
+                                        </div>
+                                        <v-chip size="x-small" color="#b45309" variant="tonal">
+                                            {{ stage.cards?.length || 0 }}
+                                        </v-chip>
+                                    </div>
+
+                                    <v-alert
+                                        v-if="!stages.length"
+                                        type="warning"
+                                        variant="tonal"
+                                        rounded="lg"
+                                    >
+                                        В этой воронке пока нет стадий.
+                                    </v-alert>
+                                </div>
+                            </v-card-text>
+                        </v-card>
+                    </v-menu>
+
                     <v-btn
                         color="#b45309"
                         variant="tonal"
@@ -627,8 +681,9 @@ onMounted(async () => {
                         :disabled="!hasPipeline"
                         @click="openStageDialog()"
                     >
-                        Стадия
+                        Новая стадия
                     </v-btn>
+
                     <v-btn
                         color="#166534"
                         variant="tonal"
@@ -660,7 +715,7 @@ onMounted(async () => {
         </v-alert>
 
         <v-row v-else align="start">
-            <v-col cols="12" xl="9">
+            <v-col cols="12">
                 <v-progress-linear
                     v-if="loading"
                     indeterminate
@@ -804,38 +859,6 @@ onMounted(async () => {
                 >
                     В этой воронке нет стадий. Добавьте хотя бы одну стадию, чтобы начать работу с карточками поставщиков.
                 </v-alert>
-            </v-col>
-
-            <v-col cols="12" xl="3">
-                <v-card rounded="xl" elevation="0" class="supplier-side-card">
-                    <v-card-title class="text-subtitle-1 font-weight-bold">
-                        Стадии
-                    </v-card-title>
-                    <v-card-text>
-                        <div class="supplier-stage-list">
-                            <div
-                                v-for="stage in stages"
-                                :key="`side-${stage.id}`"
-                                class="supplier-stage-list__item"
-                            >
-                                <span
-                                    class="supplier-board__stage-dot"
-                                    :style="{ backgroundColor: stage.color || '#800000' }"
-                                />
-                                <div>
-                                    <strong>{{ stage.name }}</strong>
-                                    <small>{{ stage.cards?.length || 0 }} карточек</small>
-                                </div>
-                                <v-btn
-                                    icon="mdi-pencil"
-                                    size="x-small"
-                                    variant="text"
-                                    @click="openStageDialog(stage)"
-                                />
-                            </div>
-                        </div>
-                    </v-card-text>
-                </v-card>
             </v-col>
         </v-row>
 
@@ -1081,8 +1104,7 @@ onMounted(async () => {
     color: #f9d8b7;
 }
 
-.supplier-work__toolbar,
-.supplier-side-card {
+.supplier-work__toolbar {
     border: 1px solid rgba(92, 0, 0, 0.1);
     background: rgba(255, 255, 255, 0.82);
 }
@@ -1118,7 +1140,8 @@ onMounted(async () => {
     gap: 10px;
 }
 
-.supplier-pipeline-menu {
+.supplier-pipeline-menu,
+.supplier-stage-menu {
     width: min(760px, calc(100vw - 32px));
     border: 1px solid rgba(92, 0, 0, 0.12);
     background: rgba(255, 253, 248, 0.98);
@@ -1189,6 +1212,52 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.supplier-stage-menu {
+    width: min(680px, calc(100vw - 32px));
+}
+
+.supplier-stage-manager {
+    display: grid;
+    gap: 8px;
+    max-height: 430px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.supplier-stage-manager__item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid rgba(180, 83, 9, 0.12);
+    border-radius: 18px;
+    background: #fffaf2;
+}
+
+.supplier-stage-manager__content {
+    min-width: 0;
+}
+
+.supplier-stage-manager__content strong,
+.supplier-stage-manager__content span {
+    display: block;
+}
+
+.supplier-stage-manager__content strong {
+    color: #35160d;
+    font-size: 0.94rem;
+    font-weight: 900;
+}
+
+.supplier-stage-manager__content span {
+    overflow: hidden;
+    color: #7c5b4b;
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .supplier-board {
@@ -1329,36 +1398,6 @@ onMounted(async () => {
     transform: rotate(-1deg);
 }
 
-.supplier-stage-list {
-    display: grid;
-    gap: 8px;
-}
-
-.supplier-stage-list__item {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    border-radius: 16px;
-    background: #fffaf2;
-}
-
-.supplier-stage-list__item strong,
-.supplier-stage-list__item small {
-    display: block;
-}
-
-.supplier-stage-list__item strong {
-    color: #35160d;
-    font-size: 0.9rem;
-}
-
-.supplier-stage-list__item small {
-    color: #8a6250;
-    font-size: 0.74rem;
-}
-
 @media (max-width: 960px) {
     .supplier-work__hero {
         flex-direction: column;
@@ -1378,6 +1417,10 @@ onMounted(async () => {
 
     .supplier-pipeline-list__actions {
         justify-content: flex-start;
+    }
+
+    .supplier-stage-manager__item {
+        grid-template-columns: auto minmax(0, 1fr) auto;
     }
 }
 </style>

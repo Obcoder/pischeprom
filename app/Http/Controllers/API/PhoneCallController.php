@@ -161,6 +161,30 @@ class PhoneCallController extends Controller
         ]);
     }
 
+    public function dial(Request $request, BeelinePbxService $service): JsonResponse
+    {
+        $data = $request->validate([
+            'client_phone' => ['required', 'string', 'max:32'],
+            'employee_phone' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $clientPhone = $this->normalizePhone($data['client_phone']);
+        $employeePhone = $this->normalizePhone($data['employee_phone'] ?? null) ?: '79650160001';
+
+        if (!$clientPhone) {
+            return response()->json([
+                'message' => 'Client phone is required.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'client_phone' => $clientPhone,
+            'employee_phone' => $employeePhone,
+            'beeline' => $service->callFromAbonent($employeePhone, $clientPhone),
+        ]);
+    }
+
     public function createEntity(Request $request, PhoneCall $phoneCall, BeelinePbxService $service): PhoneCallResource
     {
         $data = $request->validate([

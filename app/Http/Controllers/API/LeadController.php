@@ -37,7 +37,7 @@ class LeadController extends Controller
 
     public function show(Lead $lead): LeadResource
     {
-        return new LeadResource($lead->load(['telephone', 'entity', 'unit'])->loadCount('phoneCalls'));
+        return new LeadResource($this->loadLeadDetails($lead));
     }
 
     public function update(Request $request, Lead $lead): LeadResource
@@ -70,6 +70,24 @@ class LeadController extends Controller
 
         $lead->update($data);
 
-        return new LeadResource($lead->load(['telephone', 'entity', 'unit'])->loadCount('phoneCalls'));
+        return new LeadResource($this->loadLeadDetails($lead));
+    }
+
+    protected function loadLeadDetails(Lead $lead): Lead
+    {
+        return $lead
+            ->load([
+                'telephone',
+                'entity',
+                'unit',
+                'assignedUser',
+                'firstPhoneCall',
+                'lastPhoneCall',
+                'phoneCalls' => fn ($query) => $query
+                    ->with(['telephone', 'entity', 'unit'])
+                    ->orderByDesc('started_at')
+                    ->orderByDesc('id'),
+            ])
+            ->loadCount('phoneCalls');
     }
 }

@@ -28,6 +28,12 @@ class PhoneCallResource extends JsonResource
             'duration_seconds' => $this->duration_seconds,
             'wait_seconds' => $this->wait_seconds,
             'recording_url' => $this->recording_url,
+            'portal' => $this->provider === 'beeline' ? [
+                'provider_call_id' => $this->provider_call_id,
+                'event_type' => $this->event_type,
+                'recording_url' => $this->recording_url,
+                'raw_portal_statistics_row' => data_get($this->raw_payload, 'raw_portal_statistics_row'),
+            ] : null,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
 

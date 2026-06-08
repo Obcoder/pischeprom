@@ -190,6 +190,12 @@ Route::get('/Ameise/ContactsCentre', function (){
 //
 
 //      E N T I T I E S
+Route::get('/Ameise/entity/{entity}', function (\App\Models\Entity $entity) {
+    return Inertia::render('Ameise/Entity', [
+        'entityId' => $entity->id,
+    ]);
+})->name('Ameise.entity.show');
+
 Route::prefix('web')->name('web.')->group(function () {
     Route::get('/entities', [EntityController::class, 'index'])
         ->name('entities.index');
