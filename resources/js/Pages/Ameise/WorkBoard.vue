@@ -885,6 +885,10 @@ onMounted(async () => {
                                     />
                                 </div>
 
+                                <div v-if="card.title" class="supplier-card__card-title">
+                                    {{ card.title }}
+                                </div>
+
                                 <div
                                     v-if="unitEntities(card).length"
                                     class="supplier-card__entities"
@@ -1509,6 +1513,17 @@ onMounted(async () => {
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0.04em;
+}
+
+.supplier-card__card-title {
+    overflow: hidden;
+    margin-top: -2px;
+    color: #7c5b4b;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.18;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .supplier-card__entities {
