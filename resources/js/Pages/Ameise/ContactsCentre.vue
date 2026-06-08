@@ -8,8 +8,6 @@ import { useDate } from 'vuetify'
 import { Link } from '@inertiajs/vue3'
 
 const MANAGER_PHONE = '79650160001'
-const CALL_ROW_HEIGHT = 54
-const CALL_TABLE_NON_ROW_HEIGHT = 112
 
 defineOptions({
     layout: VerwalterLayout,
@@ -56,7 +54,7 @@ const callFilters = ref({
     search: '',
     direction: null,
     status: null,
-    per_page: 10,
+    per_page: 100,
     hide_unresolved: true,
 })
 
@@ -575,7 +573,7 @@ function portalInfoText(call) {
     return JSON.stringify(info, null, 2)
 }
 
-function recalculateCallsTable(fetchAfterResize = false) {
+function recalculateCallsTable() {
     nextTick(() => {
         const element = callsTableFrame.value
 
@@ -585,20 +583,8 @@ function recalculateCallsTable(fetchAfterResize = false) {
 
         const rect = element.getBoundingClientRect()
         const nextHeight = Math.max(360, Math.floor(window.innerHeight - rect.top - 18))
-        const nextRows = Math.max(5, Math.floor((nextHeight - CALL_TABLE_NON_ROW_HEIGHT) / CALL_ROW_HEIGHT))
-        const heightChanged = nextHeight !== callsTableHeight.value
-        const rowsChanged = nextRows !== callFilters.value.per_page
 
         callsTableHeight.value = nextHeight
-
-        if (rowsChanged) {
-            callFilters.value.per_page = nextRows
-            callPage.value = 1
-        }
-
-        if (fetchAfterResize && (heightChanged || rowsChanged)) {
-            fetchPhoneCalls()
-        }
     })
 }
 
@@ -606,7 +592,7 @@ onMounted(async () => {
     indexEmails()
     indexSendings()
     await nextTick()
-    recalculateCallsTable(false)
+    recalculateCallsTable()
     await Promise.all([fetchPhoneCalls(), fetchLeads()])
 
     if (typeof window !== 'undefined') {
@@ -623,7 +609,7 @@ onBeforeUnmount(() => {
 let resizeTimer = null
 function handleResize() {
     clearTimeout(resizeTimer)
-    resizeTimer = setTimeout(() => recalculateCallsTable(true), 120)
+    resizeTimer = setTimeout(recalculateCallsTable, 120)
 }
 
 useHead({
