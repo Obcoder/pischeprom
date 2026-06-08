@@ -623,60 +623,62 @@ onMounted(async () => {
                             chosen-class="supplier-board__chosen"
                             @change="(event) => onCardChange(stage, event)"
                         >
-                            <template #item="{ element: card }">
-                                <article class="supplier-card">
-                                    <div class="supplier-card__topline">
-                                        <v-chip size="x-small" color="#800000" variant="tonal">
-                                            Unit #{{ card.unit_id }}
-                                        </v-chip>
-                                        <v-btn
-                                            icon="mdi-pencil"
-                                            size="x-small"
-                                            variant="text"
-                                            @click="openCardDialog(stage, card)"
-                                        />
-                                    </div>
+                            <article
+                                v-for="card in stage.cards"
+                                :key="card.id"
+                                class="supplier-card"
+                            >
+                                <div class="supplier-card__topline">
+                                    <v-chip size="x-small" color="#800000" variant="tonal">
+                                        Unit #{{ card.unit_id }}
+                                    </v-chip>
+                                    <v-btn
+                                        icon="mdi-pencil"
+                                        size="x-small"
+                                        variant="text"
+                                        @click="openCardDialog(stage, card)"
+                                    />
+                                </div>
 
-                                    <h3>{{ cardTitle(card) }}</h3>
+                                <h3>{{ cardTitle(card) }}</h3>
 
-                                    <Link
-                                        v-if="card.unit?.id"
-                                        :href="route('web.unit.show', card.unit.id)"
-                                        class="supplier-card__unit-link"
+                                <Link
+                                    v-if="card.unit?.id"
+                                    :href="route('web.unit.show', card.unit.id)"
+                                    class="supplier-card__unit-link"
+                                >
+                                    {{ card.unit.name }}
+                                </Link>
+
+                                <p v-if="card.notes" class="supplier-card__notes">
+                                    {{ shortText(card.notes) }}
+                                </p>
+
+                                <div class="supplier-card__tags">
+                                    <v-chip
+                                        v-for="label in card.unit?.labels || []"
+                                        :key="label.id"
+                                        size="x-small"
+                                        variant="outlined"
                                     >
-                                        {{ card.unit.name }}
-                                    </Link>
+                                        {{ label.name }}
+                                    </v-chip>
+                                    <v-chip
+                                        v-for="city in card.unit?.cities || []"
+                                        :key="`city-${city.id}`"
+                                        size="x-small"
+                                        color="#0f766e"
+                                        variant="tonal"
+                                    >
+                                        {{ city.name }}
+                                    </v-chip>
+                                </div>
 
-                                    <p v-if="card.notes" class="supplier-card__notes">
-                                        {{ shortText(card.notes) }}
-                                    </p>
-
-                                    <div class="supplier-card__tags">
-                                        <v-chip
-                                            v-for="label in card.unit?.labels || []"
-                                            :key="label.id"
-                                            size="x-small"
-                                            variant="outlined"
-                                        >
-                                            {{ label.name }}
-                                        </v-chip>
-                                        <v-chip
-                                            v-for="city in card.unit?.cities || []"
-                                            :key="`city-${city.id}`"
-                                            size="x-small"
-                                            color="#0f766e"
-                                            variant="tonal"
-                                        >
-                                            {{ city.name }}
-                                        </v-chip>
-                                    </div>
-
-                                    <div v-if="card.next_contact_at" class="supplier-card__footer">
-                                        <v-icon icon="mdi-calendar-clock" size="small" />
-                                        <span>{{ formatDate(card.next_contact_at) }}</span>
-                                    </div>
-                                </article>
-                            </template>
+                                <div v-if="card.next_contact_at" class="supplier-card__footer">
+                                    <v-icon icon="mdi-calendar-clock" size="small" />
+                                    <span>{{ formatDate(card.next_contact_at) }}</span>
+                                </div>
+                            </article>
                         </Draggable>
 
                         <v-btn
