@@ -501,7 +501,7 @@ class BeelinePbxService
         }
 
         return match ($status) {
-            'success' => 'success',
+            'success', 'completed', 'answered', 'connected', 'active' => 'success',
             'missed' => 'missed',
             'cancel' => 'cancelled',
             'busy' => 'busy',
@@ -582,7 +582,12 @@ class BeelinePbxService
         $payload['callid'] = Arr::get($payload, 'callid')
             ?: Arr::get($payload, 'callId')
             ?: Arr::get($payload, 'call_id')
+            ?: Arr::get($payload, 'call.callId')
+            ?: Arr::get($payload, 'eventData.call.callId')
+            ?: Arr::get($payload, 'eventID')
+            ?: Arr::get($payload, 'eventId')
             ?: Arr::get($payload, 'extTrackingId')
+            ?: Arr::get($payload, 'externalTrackingId')
             ?: Arr::get($payload, 'trackingId')
             ?: Arr::get($payload, 'UID');
 
@@ -590,6 +595,10 @@ class BeelinePbxService
             ?: Arr::get($payload, 'client')
             ?: Arr::get($payload, 'remoteNumber')
             ?: Arr::get($payload, 'remotePartyAddress')
+            ?: Arr::get($payload, 'remoteParty.address')
+            ?: Arr::get($payload, 'remoteParty.phoneNumber')
+            ?: Arr::get($payload, 'callingParty.address')
+            ?: Arr::get($payload, 'callingParty.phoneNumber')
             ?: Arr::get($payload, 'callingNumber')
             ?: Arr::get($payload, 'caller')
             ?: Arr::get($payload, 'from');
@@ -597,21 +606,28 @@ class BeelinePbxService
         $payload['user'] = Arr::get($payload, 'user')
             ?: Arr::get($payload, 'account')
             ?: Arr::get($payload, 'targetId')
+            ?: Arr::get($payload, 'userId')
+            ?: Arr::get($payload, 'localParty.address')
+            ?: Arr::get($payload, 'endpoint.address')
             ?: Arr::get($payload, 'abonent')
             ?: Arr::get($payload, 'extension');
 
         $payload['type'] = Arr::get($payload, 'type')
             ?: Arr::get($payload, 'direction')
             ?: Arr::get($payload, 'callDirection')
-            ?: Arr::get($payload, 'eventType');
+            ?: Arr::get($payload, 'eventType')
+            ?: Arr::get($payload, 'event');
 
         $payload['status'] = Arr::get($payload, 'status')
             ?: Arr::get($payload, 'callStatus')
+            ?: Arr::get($payload, 'callState')
             ?: Arr::get($payload, 'state');
 
         $payload['start'] = Arr::get($payload, 'start')
             ?: Arr::get($payload, 'startedAt')
             ?: Arr::get($payload, 'startTime')
+            ?: Arr::get($payload, 'eventTime')
+            ?: Arr::get($payload, 'timeStamp')
             ?: Arr::get($payload, 'timestamp')
             ?: Arr::get($payload, 'time');
 
