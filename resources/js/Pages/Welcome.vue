@@ -372,6 +372,8 @@ onMounted(() => {
     <div class="welcome-page">
         <section class="welcome-section welcome-section--soft welcome-section--top-search">
             <v-container>
+                <HomeWelcomeBanner :categories="categories" />
+
                 <v-row dense class="align-stretch">
                     <v-col cols="12" lg="4">
                         <HomeGoodsSearchCard
@@ -382,37 +384,27 @@ onMounted(() => {
                     </v-col>
 
                     <v-col cols="12" lg="8">
-                        <v-row dense class="align-stretch">
-                            <v-col cols="12" md="6">
-                                <HomeGoodsBookCard
-                                    :module="homeGoodsModule"
-                                    :limit="14"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <div class="home-side-stack">
-                                    <HomeWelcomeBanner :categories="categories" />
-
-                                    <v-card rounded="xl" elevation="2" class="for-whom-card">
-                                        <v-card-title class="text-h6 font-weight-bold">
-                                            Для кого
-                                        </v-card-title>
-
-                                        <v-card-text>
-                                            <ul class="mini-list">
-                                                <li>производства пищевой промышленности</li>
-                                                <li>переработчики и заготовители</li>
-                                                <li>HoReCa и общепит</li>
-                                                <li>оптовые и частные заказчики</li>
-                                            </ul>
-                                        </v-card-text>
-                                    </v-card>
-                                </div>
-                            </v-col>
-                        </v-row>
+                        <HomeGoodsBookCard
+                            :module="homeGoodsModule"
+                            :limit="24"
+                        />
                     </v-col>
                 </v-row>
+
+                <v-card rounded="xl" elevation="1" class="for-whom-card">
+                    <v-card-text class="for-whom-card__body">
+                        <div class="for-whom-card__title">
+                            Для кого
+                        </div>
+
+                        <ul class="for-whom-card__list">
+                            <li>производства пищевой промышленности</li>
+                            <li>переработчики и заготовители</li>
+                            <li>HoReCa и общепит</li>
+                            <li>оптовые и частные заказчики</li>
+                        </ul>
+                    </v-card-text>
+                </v-card>
             </v-container>
         </section>
 
@@ -704,14 +696,41 @@ onMounted(() => {
     padding-bottom: 24px;
 }
 
-.home-side-stack {
-    display: grid;
-    gap: 8px;
-    height: 100%;
+.for-whom-card {
+    margin-top: 8px;
+    background: #ffffff;
 }
 
-.for-whom-card {
-    background: #ffffff;
+.for-whom-card__body {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 12px 16px;
+}
+
+.for-whom-card__title {
+    color: #3f1d1d;
+    font-size: 1rem;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.for-whom-card__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.for-whom-card__list li {
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #6b2b1e;
+    font-size: 0.88rem;
+    font-weight: 700;
 }
 
 .welcome-section--soft {
