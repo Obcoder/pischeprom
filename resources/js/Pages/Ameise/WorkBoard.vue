@@ -436,6 +436,18 @@ function unitEntities(card) {
     return card.unit?.entities || []
 }
 
+function entityTelephones(entity) {
+    return entity?.telephones || []
+}
+
+function entityEmails(entity) {
+    return entity?.emails || []
+}
+
+function hasEntityContacts(entity) {
+    return entityTelephones(entity).length || entityEmails(entity).length
+}
+
 function mailFollowUp(card) {
     return card.unit?.mail_follow_up || null
 }
@@ -832,12 +844,32 @@ onMounted(async () => {
                                     v-if="unitEntities(card).length"
                                     class="supplier-card__entities"
                                 >
-                                    <span
+                                    <div
                                         v-for="entity in unitEntities(card)"
                                         :key="entity.id"
+                                        class="supplier-card__entity"
                                     >
-                                        {{ entity.name }}
-                                    </span>
+                                        <div class="supplier-card__entity-name">
+                                            {{ entity.name }}
+                                        </div>
+                                        <div
+                                            v-if="hasEntityContacts(entity)"
+                                            class="supplier-card__entity-contacts"
+                                        >
+                                            <span
+                                                v-for="telephone in entityTelephones(entity)"
+                                                :key="`entity-${entity.id}-tel-${telephone.id}`"
+                                            >
+                                                tel: {{ telephone.number }}
+                                            </span>
+                                            <span
+                                                v-for="email in entityEmails(entity)"
+                                                :key="`entity-${entity.id}-email-${email.id}`"
+                                            >
+                                                mail: {{ email.address }}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div v-else class="supplier-card__entities supplier-card__entities--empty">
                                     entities не связаны
@@ -1419,9 +1451,8 @@ onMounted(async () => {
 }
 
 .supplier-card__entities {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
+    display: grid;
+    gap: 6px;
     margin-top: 7px;
     color: #050505;
     font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -1430,13 +1461,43 @@ onMounted(async () => {
     line-height: 1.2;
 }
 
-.supplier-card__entities span {
+.supplier-card__entity {
     min-width: 0;
 }
 
-.supplier-card__entities span:not(:last-child)::after {
+.supplier-card__entity:not(:last-child) .supplier-card__entity-name::after {
     content: " /";
     color: #737373;
+}
+
+.supplier-card__entity-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.supplier-card__entity-contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 7px;
+    margin-top: 3px;
+    color: #334155;
+    font-family: "JetBrains Mono", "Fira Code", "IBM Plex Mono", monospace;
+    font-size: 0.59rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.15;
+}
+
+.supplier-card__entity-contacts span {
+    overflow: hidden;
+    max-width: 100%;
+    padding: 2px 5px;
+    border: 1px solid rgba(51, 65, 85, 0.12);
+    border-radius: 7px;
+    background: rgba(15, 23, 42, 0.035);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .supplier-card__entities--empty {

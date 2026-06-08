@@ -84,6 +84,10 @@ class SupplierWorkBoardController extends Controller
                             $entityQuery
                                 ->select(['entities.id', 'entities.name'])
                                 ->without(['buildings', 'classification', 'country'])
+                                ->with([
+                                    'telephones:id,number',
+                                    'emails:id,address,name',
+                                ])
                                 ->orderBy('entities.name');
                         },
                     ]);
