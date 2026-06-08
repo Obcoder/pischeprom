@@ -12,6 +12,7 @@ import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsS
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
 import HomeGoodsBookCard from '@/Components/Home/HomeGoodsBookCard.vue'
+import HomeWelcomeBanner from '@/Components/Home/HomeWelcomeBanner.vue'
 
 defineOptions({
     layout: LayoutDefault,
@@ -267,9 +268,7 @@ const organizationJsonLd = computed(() => JSON.stringify({
 }))
 
 onMounted(() => {
-    if (!props.homeGoodsModule) {
-        indexGoods()
-    }
+    indexGoods()
 })
 </script>
 
@@ -383,10 +382,35 @@ onMounted(() => {
                     </v-col>
 
                     <v-col cols="12" lg="8">
-                        <HomeGoodsBookCard
-                            :module="homeGoodsModule"
-                            :limit="28"
-                        />
+                        <v-row dense class="align-stretch">
+                            <v-col cols="12" md="6">
+                                <HomeGoodsBookCard
+                                    :module="homeGoodsModule"
+                                    :limit="14"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <div class="home-side-stack">
+                                    <HomeWelcomeBanner :categories="categories" />
+
+                                    <v-card rounded="xl" elevation="2" class="for-whom-card">
+                                        <v-card-title class="text-h6 font-weight-bold">
+                                            Для кого
+                                        </v-card-title>
+
+                                        <v-card-text>
+                                            <ul class="mini-list">
+                                                <li>производства пищевой промышленности</li>
+                                                <li>переработчики и заготовители</li>
+                                                <li>HoReCa и общепит</li>
+                                                <li>оптовые и частные заказчики</li>
+                                            </ul>
+                                        </v-card-text>
+                                    </v-card>
+                                </div>
+                            </v-col>
+                        </v-row>
                     </v-col>
                 </v-row>
             </v-container>
@@ -678,6 +702,16 @@ onMounted(() => {
 .welcome-section.welcome-section--top-search {
     padding-top: 4px;
     padding-bottom: 24px;
+}
+
+.home-side-stack {
+    display: grid;
+    gap: 8px;
+    height: 100%;
+}
+
+.for-whom-card {
+    background: #ffffff;
 }
 
 .welcome-section--soft {

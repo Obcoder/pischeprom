@@ -45,10 +45,6 @@ const badges = [
         <v-row dense class="align-center">
             <v-col cols="12" lg="7">
                 <div class="home-welcome-banner__content">
-                    <div class="home-welcome-banner__eyebrow">
-                        ПИЩЕПРОМ-СЕРВЕР
-                    </div>
-
                     <h1 class="home-welcome-banner__title">
                         Всё, что связано с пищевой промышленностью
                     </h1>
@@ -192,21 +188,9 @@ const badges = [
     z-index: 1;
 }
 
-.home-welcome-banner__eyebrow {
-    display: inline-flex;
-    align-items: center;
-    padding: 8px 14px;
-    border-radius: 999px;
-    background: rgba(128, 0, 0, 0.08);
-    color: #800000;
-    font-size: 0.86rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-}
-
 .home-welcome-banner__title {
     max-width: 720px;
-    margin: 16px 0 12px;
+    margin: 0 0 12px;
     color: #3f1d1d;
     font-size: clamp(2rem, 4vw, 3.4rem);
     line-height: 1.04;
