@@ -11,7 +11,7 @@ import HomeCategoriesSection from '@/Components/Home/HomeCategoriesSection.vue'
 import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
-import HomeWelcomeBanner from '@/Components/Home/HomeWelcomeBanner.vue'
+import HomeGoodsBookCard from '@/Components/Home/HomeGoodsBookCard.vue'
 
 defineOptions({
     layout: LayoutDefault,
@@ -206,12 +206,6 @@ const heroStats = computed(() => ({
     goodsCount: props.goodsCount ?? props.stats?.goodsCount ?? 0,
 }))
 
-const topCategories = computed(() => {
-    return Array.isArray(props.categories)
-        ? props.categories.slice(0, 6)
-        : []
-})
-
 function indexGoods() {
     goodsLoading.value = true
 
@@ -379,82 +373,20 @@ onMounted(() => {
     <div class="welcome-page">
         <section class="welcome-section welcome-section--soft welcome-section--top-search">
             <v-container>
-                <div class="section-heading">
-                    <div>
-                        <div class="welcome-eyebrow">
-                            Быстрый поиск
-                        </div>
-
-                        <h2 class="section-title">
-                            Найти товар по сайту
-                        </h2>
-                    </div>
-                </div>
-
                 <v-row dense class="align-stretch">
                     <v-col cols="12" lg="4">
                         <HomeGoodsSearchCard
                             :goods="goods"
                             :loading="goodsLoading"
-                            :module="homeGoodsModule"
                             :limit="24"
                         />
                     </v-col>
 
                     <v-col cols="12" lg="8">
-                        <v-row dense class="align-stretch">
-                            <v-col cols="12">
-                                <HomeWelcomeBanner :categories="categories" />
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
-                                    <v-card-title class="text-h6 font-weight-bold">
-                                        Основные категории
-                                    </v-card-title>
-
-                                    <v-card-text>
-                                        <div
-                                            v-if="topCategories.length"
-                                            class="category-tags"
-                                        >
-                                            <Link
-                                                v-for="category in topCategories"
-                                                :key="category.id"
-                                                :href="route('category.show', category.slug || category.id)"
-                                                class="category-tag"
-                                            >
-                                                {{ category.name }}
-                                            </Link>
-                                        </div>
-
-                                        <p
-                                            v-else
-                                            class="welcome-text mb-0"
-                                        >
-                                            Категории скоро появятся.
-                                        </p>
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-card rounded="xl" elevation="2" class="promo-mini-card h-100">
-                                    <v-card-title class="text-h6 font-weight-bold">
-                                        Для кого
-                                    </v-card-title>
-
-                                    <v-card-text>
-                                        <ul class="mini-list">
-                                            <li>производства пищевой промышленности</li>
-                                            <li>переработчики и заготовители</li>
-                                            <li>HoReCa и общепит</li>
-                                            <li>оптовые и частные заказчики</li>
-                                        </ul>
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-                        </v-row>
+                        <HomeGoodsBookCard
+                            :module="homeGoodsModule"
+                            :limit="28"
+                        />
                     </v-col>
                 </v-row>
             </v-container>
@@ -739,12 +671,13 @@ onMounted(() => {
     background: #f8fafc;
 }
 
-.welcome-section--top-search {
-    padding-top: 28px;
-}
-
 .welcome-section {
     padding: 32px 0;
+}
+
+.welcome-section.welcome-section--top-search {
+    padding-top: 4px;
+    padding-bottom: 24px;
 }
 
 .welcome-section--soft {
