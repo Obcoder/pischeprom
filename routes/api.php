@@ -52,6 +52,10 @@ use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\SegmentController;
 use App\Http\Controllers\API\SendingController;
 use App\Http\Controllers\API\StageController;
+use App\Http\Controllers\API\SupplierPipelineCardController;
+use App\Http\Controllers\API\SupplierPipelineController;
+use App\Http\Controllers\API\SupplierPipelineStageController;
+use App\Http\Controllers\API\SupplierWorkBoardController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
@@ -378,6 +382,32 @@ Route::post('/telephony/beeline', BeelinePbxController::class)
 
 Route::apiResource('phone-calls', PhoneCallController::class)
     ->only(['index', 'store', 'show', 'update']);
+
+/*
+ * ----------------------------
+ *  S U P P L I E R  W O R K
+ * ____________________________
+ */
+Route::prefix('supplier-work')
+    ->name('api.supplier-work.')
+    ->group(function () {
+        Route::get('/board', [SupplierWorkBoardController::class, 'index'])->name('board');
+        Route::get('/unit-options', [SupplierWorkBoardController::class, 'unitOptions'])->name('unit-options');
+
+        Route::post('/pipelines', [SupplierPipelineController::class, 'store'])->name('pipelines.store');
+        Route::patch('/pipelines/{pipeline}', [SupplierPipelineController::class, 'update'])->name('pipelines.update');
+        Route::delete('/pipelines/{pipeline}', [SupplierPipelineController::class, 'destroy'])->name('pipelines.destroy');
+
+        Route::post('/pipelines/{pipeline}/stages', [SupplierPipelineStageController::class, 'store'])->name('stages.store');
+        Route::patch('/pipelines/{pipeline}/stages/reorder', [SupplierPipelineStageController::class, 'reorder'])->name('stages.reorder');
+        Route::patch('/stages/{stage}', [SupplierPipelineStageController::class, 'update'])->name('stages.update');
+        Route::delete('/stages/{stage}', [SupplierPipelineStageController::class, 'destroy'])->name('stages.destroy');
+
+        Route::post('/pipelines/{pipeline}/cards', [SupplierPipelineCardController::class, 'store'])->name('cards.store');
+        Route::patch('/cards/{card}', [SupplierPipelineCardController::class, 'update'])->name('cards.update');
+        Route::patch('/cards/{card}/move', [SupplierPipelineCardController::class, 'move'])->name('cards.move');
+        Route::delete('/cards/{card}', [SupplierPipelineCardController::class, 'destroy'])->name('cards.destroy');
+    });
 Route::post('phone-calls/{phoneCall}/create-entity', [PhoneCallController::class, 'createEntity'])
     ->name('api.phone-calls.create-entity');
 

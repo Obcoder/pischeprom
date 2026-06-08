@@ -40,6 +40,13 @@ class Unit extends Model
 
     protected $fillable = [
         'name',
+        'is_customer',
+        'is_supplier',
+    ];
+
+    protected $casts = [
+        'is_customer' => 'boolean',
+        'is_supplier' => 'boolean',
     ];
 
     protected $with = [
@@ -157,6 +164,11 @@ class Unit extends Model
         return $this->belongsToMany(Stage::class)
             ->using(stage_unit::class)
             ->withPivot('startDate', 'endDate', 'isActive');
+    }
+
+    public function supplierPipelineCards(): HasMany
+    {
+        return $this->hasMany(SupplierPipelineCard::class);
     }
 
     public function telephones()
