@@ -12,8 +12,11 @@ class EntityResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'full_name' => $this->full_name,
             'INN' => $this->INN,
+            'KPP' => $this->KPP,
             'OGRN' => $this->OGRN,
+            'legal_address' => $this->legal_address,
             'entity_classification_id' => $this->entity_classification_id,
             'country_id' => $this->country_id,
 

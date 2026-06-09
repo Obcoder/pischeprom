@@ -190,6 +190,12 @@ Route::get('/Ameise/ContactsCentre', function (){
 //
 
 //      E N T I T I E S
+Route::get('/Ameise/entity', function () {
+    return Inertia::render('Ameise/Entity', [
+        'entityId' => null,
+    ]);
+})->name('Ameise.entity.create');
+
 Route::get('/Ameise/entity/{entity}', function (\App\Models\Entity $entity) {
     return Inertia::render('Ameise/Entity', [
         'entityId' => $entity->id,

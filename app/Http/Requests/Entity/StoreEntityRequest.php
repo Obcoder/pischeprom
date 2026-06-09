@@ -15,9 +15,12 @@ class StoreEntityRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'full_name' => ['nullable', 'string', 'max:1024'],
             'entity_classification_id' => ['nullable', 'exists:entity_classifications,id'],
             'INN' => ['nullable', 'string', 'max:32'],
+            'KPP' => ['nullable', 'string', 'max:32'],
             'OGRN' => ['nullable', 'string', 'max:32'],
+            'legal_address' => ['nullable', 'string', 'max:1024'],
             'country_id' => ['nullable', 'exists:countries,id'],
 
             'buildings' => ['array'],

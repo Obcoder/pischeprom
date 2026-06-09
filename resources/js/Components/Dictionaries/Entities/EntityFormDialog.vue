@@ -30,12 +30,30 @@ const save = () => emit('submit')
                         <v-text-field v-model="form.name" label="Название" variant="outlined"/>
                     </v-col>
 
-                    <v-col cols="12" md="3">
+                    <v-col cols="12" md="6">
+                        <v-text-field v-model="form.full_name" label="Полное название" variant="outlined"/>
+                    </v-col>
+
+                    <v-col cols="12" md="4">
                         <v-text-field v-model="form.INN" label="INN" />
                     </v-col>
 
-                    <v-col cols="12" md="3">
+                    <v-col cols="12" md="4">
+                        <v-text-field v-model="form.KPP" label="KPP" />
+                    </v-col>
+
+                    <v-col cols="12" md="4">
                         <v-text-field v-model="form.OGRN" label="OGRN" />
+                    </v-col>
+
+                    <v-col cols="12">
+                        <v-textarea
+                            v-model="form.legal_address"
+                            label="Юридический адрес"
+                            variant="outlined"
+                            rows="2"
+                            auto-grow
+                        />
                     </v-col>
 
                     <v-col cols="12" md="6">
@@ -142,7 +160,7 @@ const save = () => emit('submit')
                         <v-select
                             v-model="form.chats"
                             :items="meta.chats"
-                            item-title="name"
+                            item-title="numbers"
                             item-value="id"
                             label="Chats"
                             multiple
