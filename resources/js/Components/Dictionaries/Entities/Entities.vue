@@ -71,6 +71,25 @@ const loadMeta = async () => {
     }
 }
 
+const mergeBuildingMeta = (building) => {
+    if (!building?.id) {
+        return
+    }
+
+    meta.value.buildings = [
+        building,
+        ...meta.value.buildings.filter(item => Number(item.id) !== Number(building.id)),
+    ].sort((a, b) => {
+        const cityComparison = (a.city?.name || '').localeCompare(b.city?.name || '', 'ru')
+
+        if (cityComparison !== 0) {
+            return cityComparison
+        }
+
+        return (a.address || '').localeCompare(b.address || '', 'ru')
+    })
+}
+
 const loadItems = async () => {
     loading.value = true
 
@@ -271,6 +290,7 @@ onMounted(async () => {
             :form="form"
             :meta="meta"
             @submit="submit"
+            @building-created="mergeBuildingMeta"
         />
     </v-container>
 </template>

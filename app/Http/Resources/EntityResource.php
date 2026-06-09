@@ -37,7 +37,13 @@ class EntityResource extends JsonResource
 
             'buildings' => $this->whenLoaded('buildings', fn () => $this->buildings->map(fn ($item) => [
                 'id' => $item->id,
+                'city_id' => $item->city_id,
                 'address' => $item->address,
+                'postcode' => $item->postcode,
+                'city' => [
+                    'id' => $item->city?->id,
+                    'name' => $item->city?->name,
+                ],
             ])),
 
             'emails' => $this->whenLoaded('emails', fn () => $this->emails->map(fn ($item) => [

@@ -33,9 +33,21 @@ class EntityMetaController extends Controller
                                         ->get(),
 
                                     'buildings' => Building::query()
-                                        ->select('id', 'address')
+                                        ->with('city:id,name')
+                                        ->select('id', 'city_id', 'address', 'postcode')
                                         ->orderBy('address')
-                                        ->get(),
+                                        ->get()
+                                        ->map(fn ($item) => [
+                                            'id' => $item->id,
+                                            'city_id' => $item->city_id,
+                                            'address' => $item->address,
+                                            'postcode' => $item->postcode,
+                                            'city' => [
+                                                'id' => $item->city?->id,
+                                                'name' => $item->city?->name,
+                                            ],
+                                        ])
+                                        ->values(),
 
                                     'emails' => Email::query()
                                         ->select('id', 'address')

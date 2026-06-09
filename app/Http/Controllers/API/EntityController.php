@@ -12,6 +12,15 @@ use Illuminate\Support\Facades\DB;
 
 class EntityController extends Controller
 {
+    private const RELATION_KEYS = [
+        'buildings',
+        'cities',
+        'emails',
+        'telephones',
+        'units',
+        'chats',
+    ];
+
     public function index(Request $request)
     {
         $perPage = max((int) $request->integer('itemsPerPage', 1000), 1);
@@ -75,14 +84,9 @@ class EntityController extends Controller
     public function store(StoreEntityRequest $request)
     {
         $entity = DB::transaction(function () use ($request) {
-            $entity = Entity::create($request->validated());
+            $entity = Entity::create($this->entityAttributes($request));
 
-            $entity->buildings()->sync($request->input('buildings', []));
-            $entity->cities()->sync($request->input('cities', []));
-            $entity->emails()->sync($request->input('emails', []));
-            $entity->telephones()->sync($request->input('telephones', []));
-            $entity->units()->sync($request->input('units', []));
-            $entity->chats()->sync($request->input('chats', []));
+            $this->syncRelations($entity, $request);
 
             return $entity;
         });
@@ -107,14 +111,9 @@ class EntityController extends Controller
         $entity = Entity::findOrFail($id);
 
         DB::transaction(function () use ($request, $entity) {
-            $entity->update($request->validated());
+            $entity->update($this->entityAttributes($request));
 
-            $entity->buildings()->sync($request->input('buildings', []));
-            $entity->cities()->sync($request->input('cities', []));
-            $entity->emails()->sync($request->input('emails', []));
-            $entity->telephones()->sync($request->input('telephones', []));
-            $entity->units()->sync($request->input('units', []));
-            $entity->chats()->sync($request->input('chats', []));
+            $this->syncRelations($entity, $request);
         });
 
         return new EntityResource(
@@ -139,5 +138,31 @@ class EntityController extends Controller
         return response()->json([
                                     'message' => 'Entity deleted successfully',
                                 ]);
+    }
+
+    private function entityAttributes(StoreEntityRequest|UpdateEntityRequest $request): array
+    {
+        return collect($request->validated())
+            ->except(self::RELATION_KEYS)
+            ->toArray();
+    }
+
+    private function syncRelations(Entity $entity, Request $request): void
+    {
+        $entity->buildings()->sync($this->relationIds($request, 'buildings'));
+        $entity->cities()->sync($this->relationIds($request, 'cities'));
+        $entity->emails()->sync($this->relationIds($request, 'emails'));
+        $entity->telephones()->sync($this->relationIds($request, 'telephones'));
+        $entity->units()->sync($this->relationIds($request, 'units'));
+        $entity->chats()->sync($this->relationIds($request, 'chats'));
+    }
+
+    private function relationIds(Request $request, string $key): array
+    {
+        return collect($request->input($key, []))
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 }

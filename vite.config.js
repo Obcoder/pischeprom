@@ -38,6 +38,6 @@ export default defineConfig({
     },
 
     ssr: {
-        noExternal: ['vuetify'],
+        noExternal: true,
     },
 })
