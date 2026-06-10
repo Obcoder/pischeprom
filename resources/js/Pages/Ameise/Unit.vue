@@ -6,7 +6,6 @@ import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { useUnitPage } from '@/Composables/useUnitPage'
 
 import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
-import UnitEntitiesCard from '@/Components/Unit/UnitEntitiesCard.vue'
 import UnitConsumptionsCard from '@/Components/Unit/UnitConsumptionsCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
@@ -92,14 +91,6 @@ onMounted(async () => {
                     @refresh="refreshUnit"
                 />
             </div>
-
-            <div>
-                <UnitEntitiesCard
-                    :unit="unit"
-                    :dict="dict"
-                    @refresh="refreshUnit"
-                />
-            </div>
         </section>
 
         <section class="unit-page__band unit-page__band--communications">
@@ -146,7 +137,7 @@ onMounted(async () => {
 }
 
 .unit-page__band--overview {
-    grid-template-columns: minmax(340px, 0.92fr) minmax(460px, 1.08fr);
+    grid-template-columns: 1fr;
 }
 
 .unit-page__band--communications {

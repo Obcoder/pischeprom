@@ -10,6 +10,8 @@ import UnitUrisCard from '@/Components/Unit/UnitUrisCard.vue'
 import UnitRelationManagerDialog from '@/Components/Unit/UnitRelationManagerDialog.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
 
+const MANAGER_PHONE = '79650160001'
+
 const props = defineProps({
     unit: {
         type: Object,
@@ -300,6 +302,8 @@ async function syncCities(payload) {
 const quickMailDialog = ref(false)
 const quickMailFiles = ref([])
 const quickMailRecipients = ref([])
+const dialingPhone = ref(null)
+const dialFeedback = ref(null)
 
 function cloneRecipients(items = []) {
     return items.map((item) => ({ ...item }))
@@ -369,6 +373,8 @@ const unitFlags = computed(() => [
     props.unit?.is_customer ? 'Customer' : null,
 ].filter(Boolean))
 
+const unitEntities = computed(() => props.unit?.entities || [])
+
 function shortText(text, limit = 80) {
     const value = String(text || '').trim()
 
@@ -404,6 +410,76 @@ function stageLabel(card) {
 function stageStyle(card) {
     return {
         '--stage-color': card.stage?.color || '#800000',
+    }
+}
+
+function entityHref(entity) {
+    try {
+        return route('Ameise.entity.show', entity.id)
+    } catch (error) {
+        return `/Ameise/entity/${entity.id}`
+    }
+}
+
+function entityInitials(entity) {
+    const words = String(entity?.name || '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+
+    return words.map((word) => word.charAt(0).toUpperCase()).join('') || 'E'
+}
+
+function entityClassification(entity) {
+    return entity?.classification?.name || 'Entity'
+}
+
+function entityTelephones(entity) {
+    return entity?.telephones || []
+}
+
+function entityEmails(entity) {
+    return entity?.emails || []
+}
+
+function normalizePhone(value) {
+    return String(value || '').replace(/[^\d+]/g, '')
+}
+
+function formatPhone(value) {
+    const normalized = normalizePhone(value)
+
+    return normalized ? `+${normalized.replace(/^\+/, '')}` : 'нет номера'
+}
+
+async function dialEntityPhone(telephone, entity) {
+    const phone = normalizePhone(telephone?.number)
+
+    if (!phone) {
+        return
+    }
+
+    dialingPhone.value = phone
+    dialFeedback.value = null
+
+    try {
+        await axios.post('/api/phone-calls/dial', {
+            client_phone: phone,
+            employee_phone: MANAGER_PHONE,
+        })
+
+        dialFeedback.value = {
+            tone: 'success',
+            text: `Билайн: звонок ${formatPhone(phone)} для ${entity.name} запущен.`,
+        }
+    } catch (error) {
+        console.error(error)
+        dialFeedback.value = {
+            tone: 'error',
+            text: error.response?.data?.message || 'Не удалось запустить звонок через Билайн.',
+        }
+    } finally {
+        dialingPhone.value = null
     }
 }
 
@@ -560,6 +636,89 @@ function openQuickMail() {
                 </div>
             </div>
         </div>
+
+        <section class="unit-overview__entities">
+            <div class="unit-overview__subhead">
+                <span>Entities</span>
+                <strong>{{ unitEntities.length }}</strong>
+            </div>
+
+            <div
+                v-if="unitEntities.length"
+                class="unit-overview__entity-grid"
+            >
+                <article
+                    v-for="entity in unitEntities"
+                    :key="entity.id"
+                    class="unit-overview__entity"
+                >
+                    <div class="unit-overview__entity-mark">
+                        {{ entityInitials(entity) }}
+                    </div>
+
+                    <div class="unit-overview__entity-body">
+                        <a
+                            :href="entityHref(entity)"
+                            class="unit-overview__entity-name"
+                        >
+                            {{ entity.name }}
+                        </a>
+
+                        <div class="unit-overview__entity-kind">
+                            {{ entityClassification(entity) }}
+                        </div>
+
+                        <div
+                            v-if="entityTelephones(entity).length"
+                            class="unit-overview__entity-phones"
+                        >
+                            <button
+                                v-for="telephone in entityTelephones(entity)"
+                                :key="telephone.id"
+                                type="button"
+                                class="unit-overview__entity-phone"
+                                :disabled="dialingPhone === normalizePhone(telephone.number)"
+                                @click="dialEntityPhone(telephone, entity)"
+                            >
+                                <span class="unit-overview__entity-phone-icon">call</span>
+                                <span>{{ formatPhone(telephone.number) }}</span>
+                                <small v-if="dialingPhone === normalizePhone(telephone.number)">
+                                    dialing
+                                </small>
+                            </button>
+                        </div>
+
+                        <div
+                            v-if="entityEmails(entity).length"
+                            class="unit-overview__entity-emails"
+                        >
+                            <a
+                                v-for="email in entityEmails(entity)"
+                                :key="email.id"
+                                :href="`mailto:${email.address}`"
+                            >
+                                {{ email.address }}
+                            </a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <div
+                v-else
+                class="unit-overview__empty"
+            >
+                Entities не связаны
+            </div>
+
+            <div
+                v-if="dialFeedback"
+                class="unit-overview__dial-feedback"
+                :class="`unit-overview__dial-feedback--${dialFeedback.tone}`"
+            >
+                {{ dialFeedback.text }}
+            </div>
+        </section>
 
         <v-tabs v-model="activeTab" color="primary" density="compact">
             <v-tab value="info">Info</v-tab>
@@ -994,9 +1153,174 @@ function openQuickMail() {
     font-weight: 700;
 }
 
+.unit-overview__entities {
+    margin-bottom: 12px;
+}
+
+.unit-overview__subhead strong {
+    min-width: 24px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #5f0f24;
+    color: #fff;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.unit-overview__entity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px;
+}
+
+.unit-overview__entity {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 9px;
+    padding: 10px;
+    border: 1px solid rgba(95, 15, 36, 0.13);
+    border-radius: 16px;
+    background:
+        linear-gradient(135deg, rgba(95, 15, 36, 0.055), transparent 48%),
+        #fff;
+    box-shadow: 0 8px 22px rgba(58, 31, 38, 0.05);
+}
+
+.unit-overview__entity-mark {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.38), transparent 34%),
+        linear-gradient(145deg, #6f1026, #2c1d20);
+    color: #fff7ee;
+    font-family: 'OrelegaOne-Regular', Georgia, serif;
+    font-size: 1.02rem;
+    letter-spacing: 0.03em;
+}
+
+.unit-overview__entity-body {
+    min-width: 0;
+}
+
+.unit-overview__entity-name {
+    display: inline-block;
+    max-width: 100%;
+    color: #35171f;
+    font-family: 'OrelegaOne-Regular', Georgia, serif;
+    font-size: 1.13rem;
+    line-height: 1.05;
+    text-decoration: none;
+}
+
+.unit-overview__entity-name:hover {
+    color: #8a1631;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+.unit-overview__entity-kind {
+    margin-top: 2px;
+    color: #8a7880;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unit-overview__entity-phones,
+.unit-overview__entity-emails {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 7px;
+}
+
+.unit-overview__entity-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 4px 8px 4px 5px;
+    border: 1px solid rgba(13, 148, 136, 0.22);
+    border-radius: 999px;
+    background: rgba(13, 148, 136, 0.075);
+    color: #135e55;
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.unit-overview__entity-phone:hover:not(:disabled) {
+    border-color: rgba(13, 148, 136, 0.48);
+    background: rgba(13, 148, 136, 0.13);
+    transform: translateY(-1px);
+}
+
+.unit-overview__entity-phone:disabled {
+    cursor: wait;
+    opacity: 0.72;
+}
+
+.unit-overview__entity-phone-icon {
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #0f766e;
+    color: #fff;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unit-overview__entity-phone small {
+    color: #0f766e;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.unit-overview__entity-emails a {
+    color: #365486;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.unit-overview__entity-emails a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.unit-overview__dial-feedback {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.unit-overview__dial-feedback--success {
+    background: rgba(13, 148, 136, 0.1);
+    color: #0f766e;
+}
+
+.unit-overview__dial-feedback--error {
+    background: rgba(190, 18, 60, 0.1);
+    color: #9f1239;
+}
+
 @media (max-width: 700px) {
     .unit-overview__stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .unit-overview__entity-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>
