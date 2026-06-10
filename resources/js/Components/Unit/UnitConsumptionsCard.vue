@@ -8,6 +8,10 @@ import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 const props = defineProps({
     unit: Object,
     dict: Object,
+    title: {
+        type: String,
+        default: 'Consumptions',
+    },
 })
 
 const emit = defineEmits(['refresh'])
@@ -42,7 +46,7 @@ function storeConsumption() {
 </script>
 
 <template>
-    <BaseSectionCard title="Consumptions" icon="mdi-chart-timeline-variant">
+    <BaseSectionCard :title="title" icon="mdi-cart-arrow-down" compact>
         <template #actions>
             <v-btn
                 size="small"

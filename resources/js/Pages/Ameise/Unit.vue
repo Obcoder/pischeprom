@@ -7,12 +7,10 @@ import { useUnitPage } from '@/Composables/useUnitPage'
 
 import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
 import UnitEntitiesCard from '@/Components/Unit/UnitEntitiesCard.vue'
-import UnitQuotationsCard from '@/Components/Unit/UnitQuotationsCard.vue'
-import UnitManufacturesCard from '@/Components/Unit/UnitManufacturesCard.vue'
 import UnitConsumptionsCard from '@/Components/Unit/UnitConsumptionsCard.vue'
-import UnitStagesCard from '@/Components/Unit/UnitStagesCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
+import UnitCallsCard from '@/Components/Unit/UnitCallsCard.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -38,7 +36,6 @@ const {
     refreshUnit,
     loadFiles,
     loadDictionaries,
-    searchGoods,
 } = useUnitPage(props.unit, props.dictionaries, props.files)
 
 const pageTitle = computed(() => `Unit: ${unit.value?.name ?? ''}`)
@@ -84,9 +81,9 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid class="pa-4">
-        <v-row align="start" dense>
-            <v-col cols="12" lg="4">
+    <v-container fluid class="unit-page pa-3">
+        <section class="unit-page__band unit-page__band--overview">
+            <div>
                 <UnitOverviewCard
                     :unit="unit"
                     :files="files"
@@ -94,57 +91,81 @@ onMounted(async () => {
                     :loading="loading"
                     @refresh="refreshUnit"
                 />
-            </v-col>
+            </div>
 
-            <v-col cols="12" lg="5">
-                <UnitSendingsCard :unit="unit" />
-            </v-col>
-
-            <v-col cols="12" lg="3">
-                <UnitStagesCard :stages="unit.stages || []" />
-            </v-col>
-        </v-row>
-
-        <v-row>
-            <v-col cols="12" lg="4">
-                <UnitManufacturesCard
-                    :unit="unit"
-                    :dict="dict"
-                    @refresh="refreshUnit"
-                />
-            </v-col>
-
-            <v-col cols="12" lg="4">
-                <UnitQuotationsCard
-                    :unit="unit"
-                    :dict="dict"
-                    :goods-loading="loading.goods"
-                    :search-goods="searchGoods"
-                    @refresh="refreshUnit"
-                />
-            </v-col>
-
-            <v-col cols="12" lg="4">
-                <UnitConsumptionsCard
-                    :unit="unit"
-                    :dict="dict"
-                    @refresh="refreshUnit"
-                />
-            </v-col>
-        </v-row>
-
-        <v-row>
-            <v-col cols="12" lg="5">
+            <div>
                 <UnitEntitiesCard
                     :unit="unit"
                     :dict="dict"
                     @refresh="refreshUnit"
                 />
-            </v-col>
+            </div>
+        </section>
 
-            <v-col cols="12" lg="7">
+        <section class="unit-page__band unit-page__band--communications">
+            <div>
+                <UnitSendingsCard :unit="unit" />
+            </div>
+
+            <div>
+                <UnitCallsCard :unit="unit" />
+            </div>
+        </section>
+
+        <section class="unit-page__band unit-page__band--trade">
+            <div>
                 <UnitSalesCard :entities="unit.entities || []" />
-            </v-col>
-        </v-row>
+            </div>
+
+            <div>
+                <UnitConsumptionsCard
+                    :unit="unit"
+                    :dict="dict"
+                    title="Purchases"
+                    @refresh="refreshUnit"
+                />
+            </div>
+        </section>
+
     </v-container>
 </template>
+
+<style scoped>
+.unit-page {
+    --unit-gap: 10px;
+    background:
+        radial-gradient(circle at 12% 0%, rgba(128, 0, 32, 0.07), transparent 30%),
+        linear-gradient(180deg, #fff, #fbf7f4);
+}
+
+.unit-page__band {
+    display: grid;
+    gap: var(--unit-gap);
+    align-items: start;
+    margin-bottom: var(--unit-gap);
+}
+
+.unit-page__band--overview {
+    grid-template-columns: minmax(340px, 0.92fr) minmax(460px, 1.08fr);
+}
+
+.unit-page__band--communications {
+    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+}
+
+.unit-page__band--trade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.unit-page__band > div {
+    min-width: 0;
+}
+
+@media (max-width: 1180px) {
+    .unit-page__band--overview,
+    .unit-page__band--communications,
+    .unit-page__band--trade {
+        grid-template-columns: 1fr;
+    }
+}
+</style>

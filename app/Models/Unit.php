@@ -33,6 +33,8 @@ class Unit extends Model
         'emails.sendings',
 
         'stages',
+        'supplierPipelineCards.pipeline',
+        'supplierPipelineCards.stage',
         'quotations.good',
         'quotations.measure',
         'cities.region',

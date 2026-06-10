@@ -341,6 +341,72 @@ const unitMailRecipients = computed(() => {
     })
 })
 
+const workboardCards = computed(() => {
+    return props.unit?.supplier_pipeline_cards || props.unit?.supplierPipelineCards || []
+})
+
+const overviewStats = computed(() => [
+    {
+        label: 'Entities',
+        value: props.unit?.entities?.length || 0,
+    },
+    {
+        label: 'Emails',
+        value: props.unit?.emails?.length || 0,
+    },
+    {
+        label: 'Phones',
+        value: props.unit?.telephones?.length || 0,
+    },
+    {
+        label: 'Board',
+        value: workboardCards.value.length,
+    },
+])
+
+const unitFlags = computed(() => [
+    props.unit?.is_supplier ? 'Supplier' : null,
+    props.unit?.is_customer ? 'Customer' : null,
+].filter(Boolean))
+
+function shortText(text, limit = 80) {
+    const value = String(text || '').trim()
+
+    if (!value) {
+        return ''
+    }
+
+    return value.length > limit ? `${value.slice(0, limit)}...` : value
+}
+
+function formatCompactDate(value) {
+    if (!value) {
+        return null
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(value))
+}
+
+function pipelineLabel(card) {
+    return card.pipeline?.name || 'No pipeline'
+}
+
+function stageLabel(card) {
+    return card.stage?.name || 'Без стадии'
+}
+
+function stageStyle(card) {
+    return {
+        '--stage-color': card.stage?.color || '#800000',
+    }
+}
+
 function openFileMail(file) {
     quickMailFiles.value = file?.path ? [file.path] : []
     quickMailRecipients.value = cloneRecipients(unitMailRecipients.value)
@@ -390,6 +456,15 @@ function openQuickMail() {
         <div class="d-flex align-start justify-space-between mb-3">
             <div class="text-h4 font-weight-bold">
                 {{ unit.name }}
+
+                <div v-if="unitFlags.length" class="unit-overview__flags">
+                    <span
+                        v-for="flag in unitFlags"
+                        :key="flag"
+                    >
+                        {{ flag }}
+                    </span>
+                </div>
             </div>
 
             <div class="text-right">
@@ -402,7 +477,91 @@ function openQuickMail() {
             </div>
         </div>
 
-        <v-tabs v-model="activeTab" color="primary" density="comfortable">
+        <div class="unit-overview__stats">
+            <div
+                v-for="stat in overviewStats"
+                :key="stat.label"
+                class="unit-overview__stat"
+            >
+                <strong>{{ stat.value }}</strong>
+                <span>{{ stat.label }}</span>
+            </div>
+        </div>
+
+        <div class="unit-overview__workboard">
+            <div class="unit-overview__subhead">
+                <span>Workboard</span>
+                <v-chip
+                    v-if="unit.mail_follow_up"
+                    size="x-small"
+                    :color="unit.mail_follow_up.is_overdue ? 'red' : 'teal'"
+                    variant="tonal"
+                >
+                    {{ unit.mail_follow_up.is_overdue ? 'mail overdue' : 'mail tracked' }}
+                </v-chip>
+            </div>
+
+            <div
+                v-if="workboardCards.length"
+                class="unit-overview__board-list"
+            >
+                <article
+                    v-for="card in workboardCards"
+                    :key="card.id"
+                    class="unit-overview__board-card"
+                    :style="stageStyle(card)"
+                >
+                    <div class="unit-overview__board-main">
+                        <div>
+                            <div class="unit-overview__board-pipeline">
+                                {{ pipelineLabel(card) }}
+                            </div>
+                            <div class="unit-overview__board-stage">
+                                {{ stageLabel(card) }}
+                            </div>
+                        </div>
+
+                        <time v-if="card.next_contact_at">
+                            {{ formatCompactDate(card.next_contact_at) }}
+                        </time>
+                    </div>
+
+                    <div
+                        v-if="card.title"
+                        class="unit-overview__board-title"
+                    >
+                        {{ card.title }}
+                    </div>
+
+                    <p v-if="card.notes">
+                        {{ shortText(card.notes) }}
+                    </p>
+                </article>
+            </div>
+
+            <div
+                v-else
+                class="unit-overview__empty"
+            >
+                Unit не добавлен в supplier workboard
+            </div>
+
+            <div
+                v-if="unit.mail_follow_up"
+                class="unit-overview__mail"
+                :class="{ 'unit-overview__mail--alert': unit.mail_follow_up.is_overdue }"
+            >
+                <div class="unit-overview__mail-head">
+                    <span>last outgoing</span>
+                    <time>{{ formatCompactDate(unit.mail_follow_up.sent_at) }}</time>
+                </div>
+                <div class="unit-overview__mail-subject">
+                    {{ shortText(unit.mail_follow_up.subject || '(без темы)', 72) }}
+                </div>
+            </div>
+        </div>
+
+        <v-tabs v-model="activeTab" color="primary" density="compact">
             <v-tab value="info">Info</v-tab>
             <v-tab value="contacts">Contacts</v-tab>
             <v-tab value="files">Files</v-tab>
@@ -680,3 +839,164 @@ function openQuickMail() {
         />
     </BaseSectionCard>
 </template>
+
+<style scoped>
+.unit-overview__flags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.unit-overview__flags span {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(128, 0, 32, 0.08);
+    color: #6f1026;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.unit-overview__stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.unit-overview__stat {
+    padding: 7px 8px;
+    border: 1px solid rgba(128, 0, 32, 0.12);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fff, #fff8f8);
+}
+
+.unit-overview__stat strong,
+.unit-overview__stat span {
+    display: block;
+}
+
+.unit-overview__stat strong {
+    color: #5f0f24;
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.unit-overview__stat span {
+    margin-top: 2px;
+    color: #7a6770;
+    font-size: 0.68rem;
+}
+
+.unit-overview__workboard {
+    margin-bottom: 10px;
+}
+
+.unit-overview__subhead,
+.unit-overview__board-main,
+.unit-overview__mail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.unit-overview__subhead {
+    margin-bottom: 6px;
+    color: #6b5f64;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unit-overview__board-list {
+    display: grid;
+    gap: 6px;
+}
+
+.unit-overview__board-card {
+    padding: 8px 9px 8px 11px;
+    border: 1px solid rgba(34, 34, 34, 0.08);
+    border-left: 4px solid var(--stage-color);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.unit-overview__board-pipeline {
+    color: #2f2328;
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.unit-overview__board-stage {
+    margin-top: 2px;
+    color: var(--stage-color);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.unit-overview__board-main time,
+.unit-overview__mail time {
+    color: #7a6770;
+    font-size: 0.68rem;
+    white-space: nowrap;
+}
+
+.unit-overview__board-title {
+    margin-top: 6px;
+    color: #33272c;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.unit-overview__board-card p {
+    margin: 4px 0 0;
+    color: #6d6267;
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+
+.unit-overview__empty {
+    padding: 8px 10px;
+    border: 1px dashed rgba(128, 0, 32, 0.22);
+    border-radius: 12px;
+    color: #8d7f85;
+    font-size: 0.75rem;
+}
+
+.unit-overview__mail {
+    margin-top: 6px;
+    padding: 8px 9px;
+    border-radius: 12px;
+    background: rgba(13, 148, 136, 0.08);
+    color: #145c55;
+}
+
+.unit-overview__mail--alert {
+    background: rgba(190, 18, 60, 0.08);
+    color: #9f1239;
+}
+
+.unit-overview__mail-head span {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unit-overview__mail-subject {
+    margin-top: 3px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+@media (max-width: 700px) {
+    .unit-overview__stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+</style>

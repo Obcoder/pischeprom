@@ -176,7 +176,7 @@ onUnmounted(() => {
 
 <template>
     <BaseSectionCard
-        title="Mail"
+        title="Emails"
         icon="mdi-email-fast-outline"
         compact
     >

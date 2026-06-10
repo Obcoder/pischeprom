@@ -92,6 +92,7 @@ class PhoneCallController extends Controller
             ->when($request->filled('direction'), fn ($q) => $q->where('direction', $request->input('direction')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->filled('entity_id'), fn ($q) => $q->where('entity_id', $request->integer('entity_id')))
+            ->when($request->filled('unit_id'), fn ($q) => $q->where('unit_id', $request->integer('unit_id')))
             ->when($request->filled('lead_id'), fn ($q) => $q->where('lead_id', $request->integer('lead_id')))
             ->when($request->filled('date_from'), fn ($q) => $q->where('started_at', '>=', $request->date('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->where('started_at', '<=', $request->date('date_to')))

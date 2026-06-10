@@ -55,7 +55,7 @@ function storeEntity() {
 </script>
 
 <template>
-    <BaseSectionCard title="Entities" icon="mdi-domain">
+    <BaseSectionCard title="Entities" icon="mdi-domain" compact>
         <template #actions>
             <div class="d-flex ga-2">
                 <v-btn
@@ -80,7 +80,9 @@ function storeEntity() {
             :headers="headersEntities"
             density="compact"
             class="border rounded-lg"
-            items-per-page="5"
+            items-per-page="8"
+            fixed-header
+            height="360"
         >
             <template #item.name="{ item }">
                 <div class="font-weight-medium">

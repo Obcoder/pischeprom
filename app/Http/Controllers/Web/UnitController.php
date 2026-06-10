@@ -16,31 +16,16 @@ use App\Models\Product;
 use App\Models\Telephone;
 use App\Models\Unit;
 use App\Models\Uri;
+use App\Services\Mail\UnansweredOutgoingMailService;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class UnitController extends Controller
 {
-    public function show(Unit $unit)
+    public function show(Unit $unit, UnansweredOutgoingMailService $mailService)
     {
-        $unit->load([
-                        'fields',
-                        'labels',
-                        'telephones',
-                        'uris',
-                        'cities.region',
-                        'entities.classification',
-                        'entities.telephones',
-                        'entities.sales',
-                        'buildings.city',
-                        'consumptions.product',
-                        'consumptions.measure',
-                        'manufactures',
-                        'emails.sendings',
-                        'stages',
-                        'quotations.good',
-                        'quotations.measure',
-                    ]);
+        $unit->load(Unit::DETAIL_RELATIONS);
+        $this->attachMailFollowUp($unit, $mailService);
 
         return Inertia::render('Ameise/Unit', [
             'unit' => $unit,
@@ -79,5 +64,11 @@ class UnitController extends Controller
                 'url' => "{$baseUrl}/{$bucket}/{$file}",
             ];
         })->values()->all();
+    }
+
+    protected function attachMailFollowUp(Unit $unit, UnansweredOutgoingMailService $mailService): void
+    {
+        $followUps = $mailService->summarizeForUnits([$unit->id]);
+        $unit->setAttribute('mail_follow_up', $followUps[$unit->id] ?? null);
     }
 }

@@ -13,8 +13,8 @@ const date = useDate()
 </script>
 
 <template>
-    <BaseSectionCard title="Sales" icon="mdi-currency-usd">
-        <div class="d-flex flex-column ga-4">
+    <BaseSectionCard title="Sales" icon="mdi-currency-usd" compact>
+        <div class="unit-sales__list">
             <template
                 v-for="entity in entities"
                 :key="entity.id"
@@ -45,6 +45,32 @@ const date = useDate()
                     </v-list>
                 </v-sheet>
             </template>
+
+            <div
+                v-if="!entities.some((entity) => entity.sales?.length)"
+                class="unit-sales__empty"
+            >
+                Sales not found
+            </div>
         </div>
     </BaseSectionCard>
 </template>
+
+<style scoped>
+.unit-sales__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.unit-sales__empty {
+    padding: 20px 12px;
+    border: 1px dashed rgba(128, 0, 32, 0.18);
+    border-radius: 12px;
+    color: #887a80;
+    font-size: 0.78rem;
+    text-align: center;
+}
+</style>

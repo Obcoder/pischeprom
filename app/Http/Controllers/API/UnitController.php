@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Unit;
+use App\Services\Mail\UnansweredOutgoingMailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -47,36 +48,10 @@ class UnitController extends Controller
         Storage::disk('yandex')->put("units/{$unit->name}/placeholder.txt", '');
     }
 
-    public function show(Unit $unit)
+    public function show(Unit $unit, UnansweredOutgoingMailService $mailService)
     {
-        $unit->load([
-                        'fields',
-                        'labels',
-                        'telephones',
-                        'uris',
-
-                        'cities.region',
-
-                        'entities.classification',
-                        'entities.telephones',
-                        'entities.emails',
-                        'entities.sales',
-
-                        'buildings.city',
-
-                        'consumptions.product',
-                        'consumptions.measure',
-
-                        'manufactures',
-
-                        'emails',
-                        'emails.sendings',
-
-                        'stages',
-
-                        'quotations.good',
-                        'quotations.measure',
-                    ]);
+        $unit->load(Unit::DETAIL_RELATIONS);
+        $this->attachMailFollowUp($unit, $mailService);
 
         return response()->json([
                                     'data' => $unit,
@@ -123,5 +98,11 @@ class UnitController extends Controller
                 'url' => "{$baseUrl}/{$bucket}/{$file}",
             ];
         }, $files);
+    }
+
+    protected function attachMailFollowUp(Unit $unit, UnansweredOutgoingMailService $mailService): void
+    {
+        $followUps = $mailService->summarizeForUnits([$unit->id]);
+        $unit->setAttribute('mail_follow_up', $followUps[$unit->id] ?? null);
     }
 }
