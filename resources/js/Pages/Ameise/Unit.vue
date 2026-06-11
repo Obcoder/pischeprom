@@ -10,6 +10,7 @@ import UnitConsumptionsCard from '@/Components/Unit/UnitConsumptionsCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
 import UnitCallsCard from '@/Components/Unit/UnitCallsCard.vue'
+import UnitQuotationsCard from '@/Components/Unit/UnitQuotationsCard.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -35,6 +36,7 @@ const {
     refreshUnit,
     loadFiles,
     loadDictionaries,
+    searchGoods,
 } = useUnitPage(props.unit, props.dictionaries, props.files)
 
 const pageTitle = computed(() => `Unit: ${unit.value?.name ?? ''}`)
@@ -52,6 +54,7 @@ useHead(() => ({
 const requiredDictionaryKeys = [
     'buildings',
     'cities',
+    'currencies',
     'emails',
     'entities',
     'entityClassifications',
@@ -105,6 +108,16 @@ onMounted(async () => {
 
         <section class="unit-page__band unit-page__band--trade">
             <div>
+                <UnitQuotationsCard
+                    :unit="unit"
+                    :dict="dict"
+                    :goods-loading="loading.goods"
+                    :search-goods="searchGoods"
+                    @refresh="refreshUnit"
+                />
+            </div>
+
+            <div>
                 <UnitSalesCard :entities="unit.entities || []" />
             </div>
 
@@ -145,7 +158,7 @@ onMounted(async () => {
 }
 
 .unit-page__band--trade {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(360px, 1.15fr) minmax(300px, 0.85fr) minmax(320px, 1fr);
 }
 
 .unit-page__band > div {

@@ -36,6 +36,7 @@ class Unit extends Model
         'supplierPipelineCards.pipeline',
         'supplierPipelineCards.stage',
         'quotations.good',
+        'quotations.currency',
         'quotations.measure',
         'cities.region',
     ];

@@ -511,8 +511,8 @@ const overviewStats = computed(() => [
         value: props.unit?.telephones?.length || 0,
     },
     {
-        label: 'Board',
-        value: workboardCards.value.length,
+        label: 'Quotations',
+        value: props.unit?.quotations?.length || 0,
     },
 ])
 
@@ -523,42 +523,8 @@ const unitFlags = computed(() => [
 
 const unitEntities = computed(() => props.unit?.entities || [])
 
-function shortText(text, limit = 80) {
-    const value = String(text || '').trim()
-
-    if (!value) {
-        return ''
-    }
-
-    return value.length > limit ? `${value.slice(0, limit)}...` : value
-}
-
-function formatCompactDate(value) {
-    if (!value) {
-        return null
-    }
-
-    return new Intl.DateTimeFormat('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(new Date(value))
-}
-
-function pipelineLabel(card) {
-    return card.pipeline?.name || 'No pipeline'
-}
-
 function stageLabel(card) {
     return card.stage?.name || 'Без стадии'
-}
-
-function stageStyle(card) {
-    return {
-        '--stage-color': card.stage?.color || '#800000',
-    }
 }
 
 function entityHref(entity) {
@@ -1334,108 +1300,12 @@ function openQuickMail() {
     color: #9f1239;
 }
 
-.unit-overview__workboard {
-    margin-bottom: 10px;
-}
-
-.unit-overview__subhead,
-.unit-overview__board-main,
-.unit-overview__mail-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.unit-overview__subhead {
-    margin-bottom: 6px;
-    color: #6b5f64;
-    font-size: 0.74rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-overview__board-list {
-    display: grid;
-    gap: 6px;
-}
-
-.unit-overview__board-card {
-    padding: 8px 9px 8px 11px;
-    border: 1px solid rgba(34, 34, 34, 0.08);
-    border-left: 4px solid var(--stage-color);
-    border-radius: 12px;
-    background: #fff;
-}
-
-.unit-overview__board-pipeline {
-    color: #2f2328;
-    font-size: 0.82rem;
-    font-weight: 800;
-    line-height: 1.1;
-}
-
-.unit-overview__board-stage {
-    margin-top: 2px;
-    color: var(--stage-color);
-    font-size: 0.72rem;
-    font-weight: 700;
-}
-
-.unit-overview__board-main time,
-.unit-overview__mail time {
-    color: #7a6770;
-    font-size: 0.68rem;
-    white-space: nowrap;
-}
-
-.unit-overview__board-title {
-    margin-top: 6px;
-    color: #33272c;
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.unit-overview__board-card p {
-    margin: 4px 0 0;
-    color: #6d6267;
-    font-size: 0.72rem;
-    line-height: 1.25;
-}
-
 .unit-overview__empty {
     padding: 8px 10px;
     border: 1px dashed rgba(128, 0, 32, 0.22);
     border-radius: 12px;
     color: #8d7f85;
     font-size: 0.75rem;
-}
-
-.unit-overview__mail {
-    margin-top: 6px;
-    padding: 8px 9px;
-    border-radius: 12px;
-    background: rgba(13, 148, 136, 0.08);
-    color: #145c55;
-}
-
-.unit-overview__mail--alert {
-    background: rgba(190, 18, 60, 0.08);
-    color: #9f1239;
-}
-
-.unit-overview__mail-head span {
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-overview__mail-subject {
-    margin-top: 3px;
-    font-size: 0.75rem;
-    font-weight: 700;
 }
 
 .unit-overview__entities {
@@ -1449,7 +1319,7 @@ function openQuickMail() {
 
 .unit-overview__body-grid {
     display: grid;
-    grid-template-columns: minmax(280px, 0.32fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
     align-items: start;
 }
@@ -1475,17 +1345,6 @@ function openQuickMail() {
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-}
-
-.unit-overview__subhead strong {
-    min-width: 24px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: #5f0f24;
-    color: #fff;
-    font-size: 0.68rem;
-    line-height: 1.2;
-    text-align: center;
 }
 
 .unit-overview__entities-head strong {

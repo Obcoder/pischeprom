@@ -12,7 +12,7 @@ class QuotationController extends Controller
     public function index()
     {
         return Quotation::query()
-            ->with(['good', 'unit', 'measure'])
+            ->with(['good', 'unit', 'currency', 'measure'])
             ->orderByDesc('created_at')
             ->get();
     }
@@ -23,6 +23,7 @@ class QuotationController extends Controller
                                             'good_id' => ['required', 'integer', 'exists:goods,id'],
                                             'unit_id' => ['required', 'integer', 'exists:units,id'],
                                             'price' => ['required', 'numeric', 'min:0'],
+                                            'currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
                                             'measure_id' => ['nullable', 'integer', 'exists:measures,id'],
                                             'denominator' => ['nullable', 'numeric', 'min:0.0001'],
                                         ]);
@@ -33,14 +34,14 @@ class QuotationController extends Controller
                                        ]);
 
         return response()->json(
-            $quotation->fresh(['good', 'unit', 'measure']),
+            $quotation->fresh(['good', 'unit', 'currency', 'measure']),
             201
         );
     }
 
     public function show(Quotation $quotation)
     {
-        return $quotation->load(['good', 'unit', 'measure']);
+        return $quotation->load(['good', 'unit', 'currency', 'measure']);
     }
 
     public function update(Request $request, Quotation $quotation): JsonResponse
@@ -49,6 +50,7 @@ class QuotationController extends Controller
                                             'good_id' => ['sometimes', 'required', 'integer', 'exists:goods,id'],
                                             'unit_id' => ['sometimes', 'required', 'integer', 'exists:units,id'],
                                             'price' => ['sometimes', 'required', 'numeric', 'min:0'],
+                                            'currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
                                             'measure_id' => ['nullable', 'integer', 'exists:measures,id'],
                                             'denominator' => ['nullable', 'numeric', 'min:0.0001'],
                                         ]);
@@ -56,7 +58,7 @@ class QuotationController extends Controller
         $quotation->update($validated);
 
         return response()->json(
-            $quotation->fresh(['good', 'unit', 'measure'])
+            $quotation->fresh(['good', 'unit', 'currency', 'measure'])
         );
     }
 

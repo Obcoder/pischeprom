@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Building;
 use App\Models\City;
+use App\Models\Currency;
 use App\Models\Email;
 use App\Models\Entity;
 use App\Models\EntityClassification;
@@ -32,6 +33,7 @@ class UnitController extends Controller
             'dictionaries' => [
                 'buildings' => Building::with('city')->orderBy('address')->get(),
                 'cities' => City::orderBy('name')->get(['id', 'name']),
+                'currencies' => Currency::orderBy('code')->orderBy('name')->get(),
                 'emails' => Email::orderBy('address')->get(),
                 'entities' => Entity::orderBy('name')->get(),
                 'entityClassifications' => EntityClassification::orderBy('name')->get(),

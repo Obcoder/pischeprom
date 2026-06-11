@@ -16,6 +16,7 @@ class Quotation extends Model
         'good_id',
         'unit_id',
         'price',
+        'currency_id',
         'measure_id',
         'denominator',
     ];
@@ -23,6 +24,7 @@ class Quotation extends Model
     protected $with = [
         'good',
         'unit',
+        'currency',
         'measure',
     ];
 
@@ -34,6 +36,11 @@ class Quotation extends Model
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 
     public function measure(): BelongsTo

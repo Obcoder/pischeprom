@@ -26,6 +26,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
     const dict = ref({
         buildings: asArray(initialDictionaries.buildings),
         cities: asArray(initialDictionaries.cities),
+        currencies: asArray(initialDictionaries.currencies),
         emails: asArray(initialDictionaries.emails),
         entities: asArray(initialDictionaries.entities),
         entityClassifications: asArray(initialDictionaries.entityClassifications),
@@ -86,6 +87,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
             const [
                 buildingsRes,
                 citiesRes,
+                currenciesRes,
                 emailsRes,
                 entitiesRes,
                 classificationsRes,
@@ -99,6 +101,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
             ] = await Promise.all([
                 axios.get(route('buildings.index')),
                 axios.get(route('cities.index')),
+                axios.get(route('currencies.index')),
                 axios.get(route('emails.index')),
                 axios.get(route('entities.index')),
                 axios.get(route('entities-classification.index')),
@@ -114,6 +117,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
             dict.value = {
                 buildings: asArray(buildingsRes.data),
                 cities: sortByString(asArray(citiesRes.data), 'name'),
+                currencies: sortByString(asArray(currenciesRes.data), 'code'),
                 emails: sortByString(asArray(emailsRes.data), 'address'),
                 entities: asArray(entitiesRes.data),
                 entityClassifications: asArray(classificationsRes.data),
