@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class PhoneCallController extends Controller
 {
@@ -170,7 +171,8 @@ class PhoneCallController extends Controller
         ]);
 
         $clientPhone = $this->normalizePhone($data['client_phone']);
-        $employeePhone = $this->normalizePhone($data['employee_phone'] ?? null) ?: '79650160001';
+        $employeePhone = $this->normalizePhone($data['employee_phone'] ?? null)
+            ?: $this->defaultEmployeePhone();
 
         if (!$clientPhone) {
             return response()->json([
@@ -178,12 +180,53 @@ class PhoneCallController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        return response()->json([
-            'ok' => true,
-            'client_phone' => $clientPhone,
-            'employee_phone' => $employeePhone,
-            'beeline' => $service->callFromAbonent($employeePhone, $clientPhone),
-        ]);
+        try {
+            return response()->json([
+                'ok' => true,
+                'client_phone' => $clientPhone,
+                'employee_phone' => $employeePhone,
+                'beeline' => $service->callFromAbonent($employeePhone, $clientPhone),
+            ]);
+        } catch (RuntimeException $exception) {
+            report($exception);
+
+            return response()->json([
+                'ok' => false,
+                'message' => $this->beelineDialErrorMessage($exception),
+            ], str_contains($exception->getMessage(), 'AbonentNotFound')
+                ? Response::HTTP_UNPROCESSABLE_ENTITY
+                : Response::HTTP_BAD_GATEWAY);
+        }
+    }
+
+    protected function defaultEmployeePhone(): string
+    {
+        $configured = app(BeelinePbxService::class)->normalizePhone(
+            config('services.beeline_pbx.click_to_call_employee_phone')
+        );
+
+        if ($configured) {
+            return $configured;
+        }
+
+        foreach ((array) config('services.beeline_pbx.own_numbers', []) as $phone) {
+            $normalized = app(BeelinePbxService::class)->normalizePhone($phone);
+
+            if ($normalized) {
+                return $normalized;
+            }
+        }
+
+        return '79650160001';
+    }
+
+    protected function beelineDialErrorMessage(RuntimeException $exception): string
+    {
+        if (str_contains($exception->getMessage(), 'AbonentNotFound')) {
+            return 'Билайн не нашёл внутреннего абонента для click-to-call. Проверьте BEELINE_PBX_CLICK_TO_CALL_ABONENT или номер менеджера в настройках.';
+        }
+
+        return 'Не удалось запустить звонок через Билайн.';
     }
 
     public function createEntity(Request $request, PhoneCall $phoneCall, BeelinePbxService $service): PhoneCallResource

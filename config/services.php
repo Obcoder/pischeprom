@@ -97,6 +97,8 @@ return [
         'webhook_url' => env('BEELINE_PBX_WEBHOOK_URL'),
         'subscription_pattern' => env('BEELINE_PBX_SUBSCRIPTION_PATTERN'),
         'own_numbers' => array_filter(array_map('trim', explode(',', (string) env('BEELINE_PBX_OWN_NUMBERS', '79650160001')))),
+        'click_to_call_abonent' => env('BEELINE_PBX_CLICK_TO_CALL_ABONENT'),
+        'click_to_call_employee_phone' => env('BEELINE_PBX_CLICK_TO_CALL_EMPLOYEE_PHONE', '79650160001'),
     ],
 
 ];

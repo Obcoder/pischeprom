@@ -258,7 +258,6 @@ class BeelinePbxService
     {
         $apiUrl = rtrim(trim((string) config('services.beeline_pbx.api_url')), '/');
         $token = trim((string) config('services.beeline_pbx.api_token'));
-        $abonent = $this->normalizePhone($abonentPhone);
         $client = $this->normalizePhone($clientPhone);
 
         if ($apiUrl === '') {
@@ -269,28 +268,48 @@ class BeelinePbxService
             throw new RuntimeException('BEELINE_PBX_API_TOKEN is not configured.');
         }
 
-        if (!$abonent || !$client) {
+        if (!$client) {
             throw new RuntimeException('Both abonent and client phone numbers are required.');
         }
 
-        $response = $this->sendCallFromAbonentRequest($apiUrl, $token, 'v2/abonents/' . rawurlencode($abonent) . '/call', $client);
+        $candidates = $this->clickToCallAbonentCandidates($apiUrl, $token, $abonentPhone);
 
-        if (in_array($response->status(), [404, 405], true)) {
-            $response = $this->sendCallFromAbonentRequest($apiUrl, $token, 'abonents/' . rawurlencode($abonent) . '/call', $client);
+        if ($candidates === []) {
+            throw new RuntimeException('Both abonent and client phone numbers are required.');
         }
 
-        $body = trim($response->body());
+        $lastResponse = null;
+        $lastAbonentNotFoundResponse = null;
 
-        if ($response->failed()) {
-            throw new RuntimeException(
-                'Beeline PBX click-to-call failed: HTTP ' . $response->status() . ' ' . Str::limit($body, 500)
-            );
+        foreach ($candidates as $candidate) {
+            foreach ([
+                'v2/abonents/' . rawurlencode($candidate) . '/call',
+                'abonents/' . rawurlencode($candidate) . '/call',
+            ] as $endpoint) {
+                $response = $this->sendCallFromAbonentRequest($apiUrl, $token, $endpoint, $client);
+                $lastResponse = $response;
+
+                if ($response->successful()) {
+                    return [
+                        'status' => $response->status(),
+                        'abonent' => $candidate,
+                        'response' => $response->json() ?: trim($response->body()),
+                    ];
+                }
+
+                if (str_contains($response->body(), 'AbonentNotFound')) {
+                    $lastAbonentNotFoundResponse = $response;
+                }
+
+                if ($this->shouldTryNextClickToCallCandidate($response)) {
+                    continue;
+                }
+
+                $this->throwClickToCallException($response);
+            }
         }
 
-        return [
-            'status' => $response->status(),
-            'response' => $response->json() ?: $body,
-        ];
+        $this->throwClickToCallException($lastAbonentNotFoundResponse ?: $lastResponse);
     }
 
     protected function sendCallFromAbonentRequest(string $apiUrl, string $token, string $endpoint, string $clientPhone): \Illuminate\Http\Client\Response
@@ -303,6 +322,125 @@ class BeelinePbxService
             ->post($apiUrl . '/' . ltrim($endpoint, '/') . '?' . http_build_query([
                 'phoneNumber' => '+' . $clientPhone,
             ]));
+    }
+
+    protected function clickToCallAbonentCandidates(string $apiUrl, string $token, string $abonentPhone): array
+    {
+        $configured = trim((string) config('services.beeline_pbx.click_to_call_abonent'));
+        $normalizedPhone = $this->normalizePhone($abonentPhone);
+        $candidates = [
+            $configured !== '' ? $configured : null,
+        ];
+
+        $matchedAbonent = $normalizedPhone
+            ? $this->findBeelineAbonentByPhone($apiUrl, $token, $normalizedPhone)
+            : null;
+
+        if ($matchedAbonent) {
+            $candidates = [
+                ...$candidates,
+                ...$this->beelineAbonentIdentifiers($matchedAbonent),
+            ];
+        }
+
+        $candidates[] = $normalizedPhone;
+        $candidates[] = trim($abonentPhone);
+
+        return collect($candidates)
+            ->filter(fn ($value) => is_scalar($value) && trim((string) $value) !== '')
+            ->map(fn ($value) => trim((string) $value))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function findBeelineAbonentByPhone(string $apiUrl, string $token, string $phone): ?array
+    {
+        $response = Http::withHeaders([
+            'X-MPBX-API-AUTH-TOKEN' => $token,
+        ])
+            ->acceptJson()
+            ->timeout(15)
+            ->get($apiUrl . '/abonents');
+
+        $abonents = $response->json();
+
+        if ($response->failed() || !is_array($abonents)) {
+            return null;
+        }
+
+        foreach ($abonents as $abonent) {
+            if (!is_array($abonent)) {
+                continue;
+            }
+
+            foreach ($this->flattenScalarValues($abonent) as $value) {
+                $candidate = $this->normalizePhone($value);
+
+                if ($candidate && ($candidate === $phone || str_ends_with($candidate, substr($phone, -10)))) {
+                    return $abonent;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected function beelineAbonentIdentifiers(array $abonent): array
+    {
+        return collect([
+            Arr::get($abonent, 'userId'),
+            Arr::get($abonent, 'id'),
+            Arr::get($abonent, 'login'),
+            Arr::get($abonent, 'extension'),
+            Arr::get($abonent, 'shortNumber'),
+            Arr::get($abonent, 'number'),
+            Arr::get($abonent, 'phone'),
+            Arr::get($abonent, 'phoneNumber'),
+            Arr::get($abonent, 'localPhone'),
+            Arr::get($abonent, 'sipLogin'),
+            Arr::get($abonent, 'account'),
+        ])
+            ->filter(fn ($value) => is_scalar($value) && trim((string) $value) !== '')
+            ->map(fn ($value) => trim((string) $value))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function flattenScalarValues(array $payload): array
+    {
+        $values = [];
+
+        array_walk_recursive($payload, function ($value) use (&$values) {
+            if (is_scalar($value)) {
+                $values[] = $value;
+            }
+        });
+
+        return $values;
+    }
+
+    protected function shouldTryNextClickToCallCandidate(\Illuminate\Http\Client\Response $response): bool
+    {
+        if (in_array($response->status(), [400, 404, 405], true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    protected function throwClickToCallException(?\Illuminate\Http\Client\Response $response): never
+    {
+        if (!$response) {
+            throw new RuntimeException('Beeline PBX click-to-call failed: no abonent candidates.');
+        }
+
+        $body = trim($response->body());
+
+        throw new RuntimeException(
+            'Beeline PBX click-to-call failed: HTTP ' . $response->status() . ' ' . Str::limit($body, 500)
+        );
     }
 
     public function syncHistory(array $filters = [], bool $dryRun = false): array
