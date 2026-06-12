@@ -4,7 +4,9 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Consumption;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class ConsumptionController extends Controller
 {
@@ -19,9 +21,20 @@ class ConsumptionController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        $consumption = Consumption::create($request->all());
+        $data = $request->validate([
+            'unit_id' => ['required', 'integer', 'exists:units,id'],
+            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'quantity' => ['required', 'numeric', 'min:0'],
+            'measure_id' => ['nullable', 'integer', 'exists:measures,id'],
+        ]);
+
+        $consumption = Consumption::query()->create($data);
+
+        return response()->json([
+            'data' => $consumption->load(['product', 'measure']),
+        ], Response::HTTP_CREATED);
     }
 
     /**

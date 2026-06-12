@@ -6,11 +6,10 @@ import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { useUnitPage } from '@/Composables/useUnitPage'
 
 import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
-import UnitConsumptionsCard from '@/Components/Unit/UnitConsumptionsCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
 import UnitCallsCard from '@/Components/Unit/UnitCallsCard.vue'
-import UnitQuotationsCard from '@/Components/Unit/UnitQuotationsCard.vue'
+import UnitTradeTabsCard from '@/Components/Unit/UnitTradeTabsCard.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -96,6 +95,18 @@ onMounted(async () => {
             </div>
         </section>
 
+        <section class="unit-page__band unit-page__band--trade-tabs">
+            <div>
+                <UnitTradeTabsCard
+                    :unit="unit"
+                    :dict="dict"
+                    :goods-loading="loading.goods"
+                    :search-goods="searchGoods"
+                    @refresh="refreshUnit"
+                />
+            </div>
+        </section>
+
         <section class="unit-page__band unit-page__band--communications">
             <div>
                 <UnitSendingsCard :unit="unit" />
@@ -108,26 +119,7 @@ onMounted(async () => {
 
         <section class="unit-page__band unit-page__band--trade">
             <div>
-                <UnitQuotationsCard
-                    :unit="unit"
-                    :dict="dict"
-                    :goods-loading="loading.goods"
-                    :search-goods="searchGoods"
-                    @refresh="refreshUnit"
-                />
-            </div>
-
-            <div>
                 <UnitSalesCard :entities="unit.entities || []" />
-            </div>
-
-            <div>
-                <UnitConsumptionsCard
-                    :unit="unit"
-                    :dict="dict"
-                    title="Purchases"
-                    @refresh="refreshUnit"
-                />
             </div>
         </section>
 
@@ -153,12 +145,16 @@ onMounted(async () => {
     grid-template-columns: 1fr;
 }
 
+.unit-page__band--trade-tabs {
+    grid-template-columns: 1fr;
+}
+
 .unit-page__band--communications {
     grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
 }
 
 .unit-page__band--trade {
-    grid-template-columns: minmax(360px, 1.15fr) minmax(300px, 0.85fr) minmax(320px, 1fr);
+    grid-template-columns: minmax(300px, 1fr);
 }
 
 .unit-page__band > div {
@@ -167,6 +163,7 @@ onMounted(async () => {
 
 @media (max-width: 1180px) {
     .unit-page__band--overview,
+    .unit-page__band--trade-tabs,
     .unit-page__band--communications,
     .unit-page__band--trade {
         grid-template-columns: 1fr;

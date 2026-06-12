@@ -51,6 +51,7 @@ class UnitController extends Controller
     public function show(Unit $unit, UnansweredOutgoingMailService $mailService)
     {
         $unit->load(Unit::DETAIL_RELATIONS);
+        $this->attachConsumptionRequestCounts($unit);
         $this->attachMailFollowUp($unit, $mailService);
 
         return response()->json([
@@ -104,5 +105,12 @@ class UnitController extends Controller
     {
         $followUps = $mailService->summarizeForUnits([$unit->id]);
         $unit->setAttribute('mail_follow_up', $followUps[$unit->id] ?? null);
+    }
+
+    protected function attachConsumptionRequestCounts(Unit $unit): void
+    {
+        $unit->load([
+            'consumptions.product' => fn ($query) => $query->withCount('searchRequests'),
+        ]);
     }
 }
