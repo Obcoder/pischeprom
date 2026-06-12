@@ -1409,9 +1409,10 @@ useHead({
 
 .crm-link--entity {
     color: #5b170e;
-    font-family: Georgia, 'Times New Roman', serif;
+    font-family: 'Nunito', Arial, sans-serif;
     font-size: 0.88rem;
-    font-style: italic;
+    font-style: normal;
+    font-weight: 900;
     letter-spacing: 0;
 }
 

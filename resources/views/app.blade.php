@@ -24,6 +24,13 @@
         content="{{ csrf_token() }}"
     >
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap"
+        rel="stylesheet"
+    >
+
     {{-- Inertia использует нестандартный атрибут "inertia".
          Выводим тег через PHP, чтобы IDE не подсвечивала HTML-ошибку. --}}
     <?php echo '<title inertia>' . e($appName) . '</title>'; ?>
