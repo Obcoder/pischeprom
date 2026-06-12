@@ -78,7 +78,7 @@ class PhoneCallController extends Controller
             return $call;
         });
 
-        return (new PhoneCallResource($call->load(['telephone', 'entity', 'unit', 'lead'])))
+        return (new PhoneCallResource($call->load($this->phoneCallRelations())))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
@@ -88,7 +88,7 @@ class PhoneCallController extends Controller
         $perPage = max((int) $request->integer('per_page', 25), 1);
 
         $query = PhoneCall::query()
-            ->with(['telephone', 'entity', 'unit', 'lead'])
+            ->with($this->phoneCallRelations())
             ->search($request->input('search'))
             ->when($request->filled('direction'), fn ($q) => $q->where('direction', $request->input('direction')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
@@ -126,7 +126,7 @@ class PhoneCallController extends Controller
 
     public function show(PhoneCall $phoneCall): PhoneCallResource
     {
-        return new PhoneCallResource($phoneCall->load(['telephone', 'entity', 'unit', 'lead']));
+        return new PhoneCallResource($phoneCall->load($this->phoneCallRelations()));
     }
 
     public function update(Request $request, PhoneCall $phoneCall): PhoneCallResource
@@ -140,7 +140,7 @@ class PhoneCallController extends Controller
 
         $phoneCall->update($data);
 
-        return new PhoneCallResource($phoneCall->load(['telephone', 'entity', 'unit', 'lead']));
+        return new PhoneCallResource($phoneCall->load($this->phoneCallRelations()));
     }
 
     public function syncBeeline(Request $request, BeelinePbxService $service): JsonResponse
@@ -237,7 +237,18 @@ class PhoneCallController extends Controller
 
         $service->createEntityForCall($phoneCall->load('lead'), $data['name'] ?? null);
 
-        return new PhoneCallResource($phoneCall->refresh()->load(['telephone', 'entity', 'unit', 'lead']));
+        return new PhoneCallResource($phoneCall->refresh()->load($this->phoneCallRelations()));
+    }
+
+    protected function phoneCallRelations(): array
+    {
+        return [
+            'telephone',
+            'entity.units',
+            'entity.buildings.city.region',
+            'unit',
+            'lead',
+        ];
     }
 
     protected function leadTitle(array $data): string

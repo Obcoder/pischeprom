@@ -16,7 +16,7 @@ class LeadController extends Controller
         $perPage = max((int) $request->integer('per_page', 25), 1);
 
         $query = Lead::query()
-            ->with(['telephone', 'entity', 'unit'])
+            ->with($this->leadRelations())
             ->withCount('phoneCalls')
             ->search($request->input('search'))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
@@ -78,16 +78,32 @@ class LeadController extends Controller
         return $lead
             ->load([
                 'telephone',
-                'entity',
+                'entity.units',
+                'entity.buildings.city.region',
                 'unit',
                 'assignedUser',
                 'firstPhoneCall',
                 'lastPhoneCall',
                 'phoneCalls' => fn ($query) => $query
-                    ->with(['telephone', 'entity', 'unit'])
+                    ->with([
+                        'telephone',
+                        'entity.units',
+                        'entity.buildings.city.region',
+                        'unit',
+                    ])
                     ->orderByDesc('started_at')
                     ->orderByDesc('id'),
             ])
             ->loadCount('phoneCalls');
+    }
+
+    protected function leadRelations(): array
+    {
+        return [
+            'telephone',
+            'entity.units',
+            'entity.buildings.city.region',
+            'unit',
+        ];
     }
 }

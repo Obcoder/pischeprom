@@ -66,11 +66,11 @@ const leadFilters = ref({
 
 const callHeaders = [
     { title: 'Дата', key: 'started_at', sortable: false, width: 118 },
-    { title: 'CRM', key: 'crm', sortable: false, width: 210 },
+    { title: 'CRM', key: 'crm', sortable: false, width: 340 },
     { title: 'Номер', key: 'client', sortable: false, width: 150 },
     { title: 'Длительность', key: 'duration_seconds', sortable: false, width: 94, align: 'center' },
     { title: 'Лид', key: 'lead', sortable: false, width: 190 },
-    { title: 'Тип', key: 'direction', sortable: false, width: 118 },
+    { title: 'Тип', key: 'direction', sortable: false, width: 132 },
     { title: 'Статус', key: 'status', sortable: false, width: 128 },
     { title: 'Сотрудник', key: 'employee', sortable: false, width: 210 },
 ]
@@ -489,6 +489,40 @@ function employeeSubtitle(call) {
     return values.join(' · ')
 }
 
+function entityUnits(call) {
+    const units = [
+        call.unit,
+        ...(Array.isArray(call.entity?.units) ? call.entity.units : []),
+    ].filter((unit) => unit?.id)
+
+    return units.filter((unit, index, list) => list.findIndex((item) => item.id === unit.id) === index)
+}
+
+function entityBuildings(call) {
+    return Array.isArray(call.entity?.buildings) ? call.entity.buildings.filter((building) => building?.id) : []
+}
+
+function buildingLocation(building) {
+    return [
+        building.city?.name,
+        building.city?.region?.name,
+    ].filter(Boolean).join(', ')
+}
+
+function eventTypeLabel(eventType) {
+    return {
+        history: 'Журнал АТС',
+        event: 'Событие АТС',
+        incoming: 'Входящее событие',
+        outgoing: 'Исходящее событие',
+        accepted: 'Ответ принят',
+        released: 'Завершение',
+        completed: 'Завершение',
+        cancelled: 'Отмена',
+        phone_click: 'Клик с сайта',
+    }[eventType] || eventType || 'Событие не указано'
+}
+
 function directionLabel(direction) {
     return {
         in: 'Входящий',
@@ -496,6 +530,52 @@ function directionLabel(direction) {
         missed: 'Пропущенный',
         unknown: 'Не определён',
     }[direction] || direction || '-'
+}
+
+function callTypeLabel(call) {
+    if (call.direction === 'in') {
+        return 'Входящий'
+    }
+
+    if (call.direction === 'out') {
+        return 'Исходящий'
+    }
+
+    if (call.direction === 'missed') {
+        return 'Входящий'
+    }
+
+    return call.event_type ? eventTypeLabel(call.event_type) : ''
+}
+
+function callTypeMeta(call) {
+    if (call.direction === 'missed') {
+        return 'без ответа'
+    }
+
+    if (call.direction === 'unknown') {
+        return call.event_type ? 'направление не передано' : 'нет данных АТС'
+    }
+
+    return call.event_type ? eventTypeLabel(call.event_type) : ''
+}
+
+function callTypeIcon(call) {
+    return {
+        in: 'mdi-phone-incoming-outline',
+        out: 'mdi-phone-outgoing-outline',
+        missed: 'mdi-phone-missed-outline',
+        unknown: 'mdi-help-rhombus-outline',
+    }[call.direction] || 'mdi-phone-outline'
+}
+
+function callTypeColor(call) {
+    return {
+        in: 'green',
+        out: 'blue',
+        missed: 'red',
+        unknown: 'grey',
+    }[call.direction] || 'grey'
 }
 
 function statusLabel(status) {
@@ -761,17 +841,44 @@ useHead({
                             </template>
 
                             <template #item.crm="{ item }">
-                                <button
-                                    type="button"
-                                    class="crm-link"
-                                    :disabled="creatingEntityCallId === item.id"
-                                    @click="openOrCreateEntity(item)"
-                                >
-                                    <span v-if="item.entity">{{ item.entity.name }}</span>
-                                    <span v-else>{{ creatingEntityCallId === item.id ? 'Создаём...' : 'Создать Entity' }}</span>
-                                </button>
-                                <div v-if="item.unit" class="text-caption mt-1">
-                                    <Link :href="route('web.unit.show', item.unit.id)">{{ item.unit.name }}</Link>
+                                <div class="crm-cell">
+                                    <button
+                                        type="button"
+                                        class="crm-link crm-link--entity"
+                                        :disabled="creatingEntityCallId === item.id"
+                                        @click="openOrCreateEntity(item)"
+                                    >
+                                        <v-icon icon="mdi-domain" size="14" />
+                                        <span v-if="item.entity">{{ item.entity.name }}</span>
+                                        <span v-else>{{ creatingEntityCallId === item.id ? 'Создаём...' : 'Создать Entity' }}</span>
+                                    </button>
+
+                                    <div v-if="entityUnits(item).length" class="crm-cell__units">
+                                        <Link
+                                            v-for="unit in entityUnits(item)"
+                                            :key="unit.id"
+                                            :href="route('web.unit.show', unit.id)"
+                                            class="crm-unit-link"
+                                        >
+                                            <v-icon icon="mdi-factory" size="13" />
+                                            <span>{{ unit.name }}</span>
+                                        </Link>
+                                    </div>
+
+                                    <div v-if="entityBuildings(item).length" class="crm-cell__buildings">
+                                        <div
+                                            v-for="building in entityBuildings(item)"
+                                            :key="building.id"
+                                            class="crm-building"
+                                        >
+                                            <v-icon icon="mdi-office-building-marker-outline" size="13" />
+                                            <span class="crm-building__address">{{ building.address || 'Building #' + building.id }}</span>
+                                            <span v-if="buildingLocation(building)" class="crm-building__location">
+                                                <v-icon icon="mdi-map-marker-outline" size="12" />
+                                                {{ buildingLocation(building) }}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </template>
 
@@ -810,7 +917,13 @@ useHead({
                             </template>
 
                             <template #item.direction="{ item }">
-                                <v-chip size="small" variant="tonal">{{ directionLabel(item.direction) }}</v-chip>
+                                <div class="call-type-cell">
+                                    <v-chip size="small" variant="tonal" :color="callTypeColor(item)" class="call-type-cell__chip">
+                                        <v-icon start :icon="callTypeIcon(item)" size="14" />
+                                        {{ callTypeLabel(item) }}
+                                    </v-chip>
+                                    <span v-if="callTypeMeta(item)" class="call-type-cell__meta">{{ callTypeMeta(item) }}</span>
+                                </div>
                             </template>
 
                             <template #item.status="{ item }">
@@ -1169,7 +1282,7 @@ useHead({
 }
 
 .calls-table :deep(tbody tr) {
-    height: 54px;
+    min-height: 54px;
 }
 
 .calls-table :deep(th) {
@@ -1183,6 +1296,10 @@ useHead({
 
 .calls-table :deep(td) {
     vertical-align: middle;
+}
+
+.calls-table :deep(td:nth-child(2)) {
+    min-width: 320px;
 }
 
 .call-date-cell {
@@ -1279,11 +1396,107 @@ useHead({
 }
 
 .crm-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
     padding: 0;
     color: #800000;
-    font-weight: 900;
+    font-weight: 850;
+    line-height: 1.18;
+    text-decoration: none;
+}
+
+.crm-link--entity {
+    color: #5b170e;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.88rem;
+    font-style: italic;
+    letter-spacing: 0;
+}
+
+.crm-link--entity span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.crm-link:hover,
+.crm-unit-link:hover {
+    color: #b12020;
+}
+
+.crm-link:hover span,
+.crm-unit-link:hover span {
     text-decoration: underline;
-    text-underline-offset: 3px;
+    text-underline-offset: 2px;
+}
+
+.crm-cell {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    max-width: 330px;
+    padding: 4px 0;
+}
+
+.crm-cell__units,
+.crm-cell__buildings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.crm-unit-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 2px 7px;
+    border: 1px solid rgba(29, 78, 216, 0.14);
+    border-radius: 999px;
+    color: #1d4ed8;
+    background: #eff6ff;
+    font-size: 0.69rem;
+    font-weight: 850;
+    line-height: 1.15;
+    text-decoration: none;
+}
+
+.crm-unit-link span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crm-building {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 2px 7px;
+    border: 1px solid rgba(87, 83, 78, 0.14);
+    border-radius: 7px;
+    color: #57534e;
+    background: #fafaf9;
+    font-size: 0.66rem;
+    font-weight: 750;
+    line-height: 1.18;
+}
+
+.crm-building__address {
+    overflow: hidden;
+    max-width: 150px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crm-building__location {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: #78716c;
+    white-space: nowrap;
 }
 
 .crm-link:disabled,
@@ -1310,6 +1523,27 @@ useHead({
     color: #3f281d;
     font-size: 0.78rem;
     font-weight: 900;
+}
+
+.call-type-cell {
+    display: grid;
+    justify-items: start;
+    gap: 2px;
+}
+
+.call-type-cell__chip {
+    font-weight: 850;
+}
+
+.call-type-cell__meta {
+    max-width: 112px;
+    overflow: hidden;
+    color: #7c6f64;
+    font-size: 0.64rem;
+    font-weight: 700;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .lead-link {

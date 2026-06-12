@@ -45,6 +45,27 @@ class PhoneCallResource extends JsonResource
             'entity' => $this->whenLoaded('entity', fn () => $this->entity ? [
                 'id' => $this->entity->id,
                 'name' => $this->entity->name,
+                'units' => $this->entity->relationLoaded('units')
+                    ? $this->entity->units->map(fn ($unit) => [
+                        'id' => $unit->id,
+                        'name' => $unit->name,
+                    ])->values()
+                    : [],
+                'buildings' => $this->entity->relationLoaded('buildings')
+                    ? $this->entity->buildings->map(fn ($building) => [
+                        'id' => $building->id,
+                        'address' => $building->address,
+                        'postcode' => $building->postcode,
+                        'city' => $building->city ? [
+                            'id' => $building->city->id,
+                            'name' => $building->city->name,
+                            'region' => $building->city->region ? [
+                                'id' => $building->city->region->id,
+                                'name' => $building->city->region->name,
+                            ] : null,
+                        ] : null,
+                    ])->values()
+                    : [],
             ] : null),
 
             'unit' => $this->whenLoaded('unit', fn () => $this->unit ? [
