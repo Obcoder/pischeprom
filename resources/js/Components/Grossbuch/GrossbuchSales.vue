@@ -653,8 +653,7 @@ onMounted(async () => {
                                 <template #selection="{ item }">
                                     <div class="sale-entity-selection">
                                         <strong>{{ item.raw.name }}</strong>
-                                        <span v-if="entityUnitsText(item.raw)">{{ entityUnitsText(item.raw, 1) }}</span>
-                                        <span v-if="entityBuildingsText(item.raw)">{{ entityBuildingsText(item.raw, 1) }}</span>
+                                        <span>#{{ item.raw.id }}</span>
                                     </div>
                                 </template>
 
@@ -687,13 +686,15 @@ onMounted(async () => {
                                 </template>
                             </v-autocomplete>
 
-                            <div v-if="selectedEntityOption" class="sale-entity-selected">
-                                <strong>{{ selectedEntityOption.name }}</strong>
-                                <span v-if="entityUnitsText(selectedEntityOption)">
-                                    Units: {{ entityUnitsText(selectedEntityOption) }}
+                            <div v-if="selectedEntityOption" class="sale-entity-context">
+                                <span v-if="entityUnitsText(selectedEntityOption)" class="sale-entity-context__unit">
+                                    {{ entityUnitsText(selectedEntityOption) }}
                                 </span>
-                                <span v-if="entityBuildingsText(selectedEntityOption)">
-                                    Buildings: {{ entityBuildingsText(selectedEntityOption) }}
+                                <span v-if="entityBuildingsText(selectedEntityOption)" class="sale-entity-context__building">
+                                    {{ entityBuildingsText(selectedEntityOption) }}
+                                </span>
+                                <span v-if="!entityUnitsText(selectedEntityOption) && !entityBuildingsText(selectedEntityOption)">
+                                    Нет units/buildings
                                 </span>
                             </div>
                         </v-col>
@@ -1215,42 +1216,61 @@ onMounted(async () => {
 }
 
 .sale-entity-selection {
-    display: grid;
-    gap: 1px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     min-width: 0;
-    line-height: 1.05;
+    max-width: 100%;
+    line-height: 1;
 }
 
 .sale-entity-selection strong {
     overflow: hidden;
     color: #fff5f5;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 800;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .sale-entity-selection span {
+    flex: 0 0 auto;
     overflow: hidden;
-    color: rgba(255, 220, 220, 0.68);
+    color: rgba(255, 220, 220, 0.46);
+    font-family: 'Courier New', monospace;
     font-size: 9px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.sale-entity-selected {
+.sale-entity-context {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px 6px;
-    margin-top: -16px;
-    padding: 0 10px 4px;
-    color: rgba(255, 220, 220, 0.72);
+    gap: 3px;
+    margin-top: 4px;
+    min-height: 18px;
+    color: rgba(255, 220, 220, 0.64);
     font-size: 9px;
-    line-height: 1.15;
+    line-height: 1.1;
 }
 
-.sale-entity-selected strong {
-    color: #ffe8e8;
+.sale-entity-context span {
+    overflow: hidden;
+    max-width: 100%;
+    padding: 2px 5px;
+    border: 1px solid rgba(255, 120, 120, 0.16);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.04);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sale-entity-context__unit {
+    color: rgba(255, 232, 232, 0.76);
+}
+
+.sale-entity-context__building {
+    color: rgba(255, 205, 205, 0.62);
 }
 
 .sale-entity-option {
