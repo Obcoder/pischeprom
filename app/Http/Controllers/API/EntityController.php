@@ -9,6 +9,7 @@ use App\Http\Resources\EntityResource;
 use App\Models\Entity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class EntityController extends Controller
@@ -20,6 +21,15 @@ class EntityController extends Controller
         'telephones',
         'units',
         'chats',
+    ];
+
+    private const RELATION_PIVOT_TABLES = [
+        'buildings' => 'building_entities',
+        'cities' => 'city_entity',
+        'emails' => 'email_entity',
+        'telephones' => 'entity_telephone',
+        'units' => 'entity_unit',
+        'chats' => 'chat_entity',
     ];
 
     public function index(Request $request)
@@ -165,20 +175,57 @@ class EntityController extends Controller
 
     private function syncRelations(Entity $entity, Request $request): void
     {
-        $entity->buildings()->sync($this->relationIds($request, 'buildings'));
-        $entity->cities()->sync($this->relationIds($request, 'cities'));
-        $entity->emails()->sync($this->relationIds($request, 'emails'));
-        $entity->telephones()->sync($this->relationIds($request, 'telephones'));
-        $entity->units()->sync($this->relationIds($request, 'units'));
-        $entity->chats()->sync($this->relationIds($request, 'chats'));
+        foreach (self::RELATION_KEYS as $relation) {
+            if (! $request->has($relation)) {
+                continue;
+            }
+
+            if (! $this->relationPivotExists($relation)) {
+                Log::warning('Entity relation sync skipped because pivot table is missing.', [
+                    'entity_id' => $entity->id,
+                    'relation' => $relation,
+                    'pivot_table' => self::RELATION_PIVOT_TABLES[$relation] ?? null,
+                ]);
+
+                continue;
+            }
+
+            $entity->{$relation}()->sync($this->relationIds($request, $relation));
+        }
     }
 
     private function relationIds(Request $request, string $key): array
     {
         return collect($request->input($key, []))
+            ->map(function ($value) {
+                if (is_array($value)) {
+                    return $value['id'] ?? null;
+                }
+
+                if (is_object($value)) {
+                    return $value->id ?? null;
+                }
+
+                return $value;
+            })
             ->filter(fn ($id) => $id !== null && $id !== '')
             ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
             ->values()
             ->all();
+    }
+
+    private function relationPivotExists(string $relation): bool
+    {
+        static $cache = [];
+
+        $table = self::RELATION_PIVOT_TABLES[$relation] ?? null;
+
+        if (! $table) {
+            return true;
+        }
+
+        return $cache[$table] ??= Schema::hasTable($table);
     }
 }
