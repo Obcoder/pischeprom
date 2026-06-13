@@ -93,10 +93,8 @@ class GoodSeoService
             ->sortByDesc('updated_at')
             ->first();
 
-        $value = $priceTypeValue?->price
-            ?? $priceTypeValue?->value
-            ?? $priceTypeValue?->amount
-            ?? $good->latestPrice?->price;
+        $value = $priceTypeValue?->price_gross
+            ?? $priceTypeValue?->price_net;
 
         return is_numeric($value) && (float) $value > 0
             ? (float) $value
@@ -112,8 +110,7 @@ class GoodSeoService
 
         return $priceTypeValue?->currency?->code
             ?: $priceTypeValue?->priceType?->currency?->code
-                ?: $good->latestPrice?->currency?->code
-                    ?: 'RUB';
+                ?: 'RUB';
     }
 
     public function availability(Good $good): string

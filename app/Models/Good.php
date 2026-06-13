@@ -34,23 +34,34 @@ class Good extends Model
     protected static function booted()
     {
         static::saving(function (Good $good) {
-            if (!$good->isDirty('name')) return;
-
-            $base = Str::slug($good->name);
-            $slug = $base;
-            $i = 2;
-
-            while (
-            Good::where('slug', $slug)
-                ->when($good->exists, fn($q) => $q->where('id', '!=', $good->id))
-                ->exists()
-            ) {
-                $slug = "{$base}-{$i}";
-                $i++;
+            if (!$good->isDirty('name') && !$good->isDirty('slug') && filled($good->slug)) {
+                return;
             }
 
-            $good->slug = $slug;
+            $source = $good->isDirty('slug') && filled($good->slug)
+                ? $good->slug
+                : $good->name;
+
+            $good->slug = static::uniqueSlug((string) $source, $good->exists ? $good->id : null);
         });
+    }
+
+    private static function uniqueSlug(string $source, ?int $exceptId = null): string
+    {
+        $base = Str::slug($source) ?: Str::random(8);
+        $slug = $base;
+        $i = 2;
+
+        while (
+            Good::where('slug', $slug)
+                ->when($exceptId, fn($q) => $q->where('id', '!=', $exceptId))
+                ->exists()
+        ) {
+            $slug = "{$base}-{$i}";
+            $i++;
+        }
+
+        return $slug;
     }
 
     /*
@@ -97,16 +108,6 @@ class Good extends Model
     {
         return $this->belongsToMany(Industry::class)
             ->withTimestamps();
-    }
-
-    public function prices(): HasMany
-    {
-        return $this->hasMany(Price::class)->latest();
-    }
-
-    public function latestPrice(): HasOne
-    {
-        return $this->hasOne(Price::class)->latestOfMany();
     }
 
     public function purchases(): BelongsToMany

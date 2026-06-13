@@ -160,7 +160,9 @@ function goodImage(good) {
 }
 
 function latestPrice(good) {
-    return good.latest_price || good.latestPrice || good.prices?.[0] || null
+    const values = good.price_type_values || good.priceTypeValues || []
+
+    return values.find((item) => item.is_published) || null
 }
 
 function formatMoney(value) {
@@ -181,9 +183,10 @@ function priceText(good) {
         return 'Цена по запросу'
     }
 
-    const currency = price.currency?.code || 'RUB'
+    const value = price.price_gross ?? price.price_net ?? price.price
+    const currency = price.currency?.code || price.price_type?.currency?.code || price.priceType?.currency?.code || 'RUB'
 
-    return `${formatMoney(price.price)} ${currency}`
+    return `${formatMoney(value)} ${currency}`
 }
 
 function shortDescription(good) {

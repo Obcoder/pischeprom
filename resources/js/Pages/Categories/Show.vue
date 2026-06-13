@@ -100,11 +100,11 @@ const filteredGoods = computed(() => {
         })
         .sort((a, b) => {
             if (sortMode.value === 'price') {
-                return Number(latestPrice(a)?.price || 0) - Number(latestPrice(b)?.price || 0)
+                return priceAmount(a) - priceAmount(b)
             }
 
             if (sortMode.value === 'price_desc') {
-                return Number(latestPrice(b)?.price || 0) - Number(latestPrice(a)?.price || 0)
+                return priceAmount(b) - priceAmount(a)
             }
 
             return String(a.name || '').localeCompare(String(b.name || ''), 'ru')
@@ -128,7 +128,15 @@ function goodImage(item) {
 }
 
 function latestPrice(good) {
-    return good.latest_price || good.latestPrice || null
+    const values = good.price_type_values || good.priceTypeValues || []
+
+    return values.find((item) => item.is_published) || null
+}
+
+function priceAmount(good) {
+    const price = latestPrice(good)
+
+    return Number(price?.price_gross ?? price?.price_net ?? price?.price ?? 0)
 }
 
 function formatMoney(value) {
@@ -149,7 +157,10 @@ function priceText(good) {
         return 'Цена по запросу'
     }
 
-    return `${formatMoney(price.price)} ${price.currency?.code || 'RUB'}`
+    const value = price.price_gross ?? price.price_net ?? price.price
+    const currency = price.currency?.code || price.price_type?.currency?.code || price.priceType?.currency?.code || 'RUB'
+
+    return `${formatMoney(value)} ${currency}`
 }
 
 function productTitle(product) {

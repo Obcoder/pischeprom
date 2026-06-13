@@ -34,7 +34,8 @@ class GoodController extends Controller
             })
             ->with([
                 'products.category',
-                'latestPrice.currency',
+                'priceTypeValues.priceType.currency',
+                'priceTypeValues.currency',
                 'publishedMedia' => function ($query): void {
                     $query
                         ->where('type', 'image')
@@ -98,8 +99,6 @@ class GoodController extends Controller
                         'products.category',
                         'vatRate:id,title,rate',
                         'seo',
-                        'latestPrice.currency',
-
                         'publishedMedia' => function ($query) {
                             $query
                                 ->where('is_published', true)
@@ -124,7 +123,8 @@ class GoodController extends Controller
             ->where('is_published', true)
             ->with([
                        'seo',
-                       'latestPrice.currency',
+                       'priceTypeValues.priceType.currency',
+                       'priceTypeValues.currency',
                        'publishedMedia' => function ($query) {
                            $query
                                ->where('type', 'image')

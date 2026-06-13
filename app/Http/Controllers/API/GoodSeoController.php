@@ -108,7 +108,6 @@ class GoodSeoController extends Controller
                         'seo',
                         'products.category',
                         'vatRate',
-                        'latestPrice.currency',
                         'publishedMedia',
                         'priceTypeValues.priceType.currency',
                         'priceTypeValues.currency',

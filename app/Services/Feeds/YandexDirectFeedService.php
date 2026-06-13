@@ -56,7 +56,6 @@ class YandexDirectFeedService
                        'seo',
                        'products.category',
                        'publishedMedia',
-                       'latestPrice.currency',
                        'priceTypeValues.priceType.currency',
                        'priceTypeValues.currency',
                        'vatRate',

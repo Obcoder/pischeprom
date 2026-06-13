@@ -94,7 +94,8 @@ class CategoryController extends Controller
             ->whereHas('products', fn ($query) => $query->where('products.category_id', $category->id))
             ->with([
                 'seo',
-                'latestPrice.currency',
+                'priceTypeValues.priceType.currency',
+                'priceTypeValues.currency',
                 'products:id,rus,category_id',
                 'publishedMedia' => function ($query): void {
                     $query

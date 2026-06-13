@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Good;
 use App\Models\VatRate;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
@@ -41,6 +42,8 @@ class GoodController extends Controller
                    'media',
                    'entityClassifications',
                    'industries',
+                   'priceTypeValues.priceType.currency',
+                   'priceTypeValues.currency',
                ]);
 
         if ($search !== '') {
@@ -80,7 +83,8 @@ class GoodController extends Controller
             ->with([
                        'vatRate',
                        'products.category',
-                       'latestPrice.currency',
+                       'priceTypeValues.priceType.currency',
+                       'priceTypeValues.currency',
                        'industries',
                    ])
             ->published(true)
@@ -92,6 +96,7 @@ class GoodController extends Controller
     {
         $validated = $request->validate([
                                             'name' => ['required', 'string', 'max:255'],
+                                            'slug' => ['nullable', 'string', 'max:255', 'unique:goods,slug'],
                                             'denominator' => ['nullable', 'numeric'],
                                             'description' => ['nullable', 'string'],
                                             'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
@@ -109,6 +114,7 @@ class GoodController extends Controller
 
         $good = Good::create([
                                  'name' => $validated['name'],
+                                 'slug' => $validated['slug'] ?? null,
                                  'denominator' => $validated['denominator'] ?? null,
                                  'description' => $validated['description'] ?? null,
                                  'vat_rate_id' => $validated['vat_rate_id'] ?? null,
@@ -151,8 +157,6 @@ class GoodController extends Controller
         $good = Good::with([
                                'products.category',
 
-                               'prices.currency',
-
                                'quotations.unit',
                                'quotations.measure',
 
@@ -181,7 +185,7 @@ class GoodController extends Controller
                                'industries',
                            ])->findOrFail($id);
 
-        $expectedSlug = Str::slug($good->name);
+        $expectedSlug = $good->slug ?: Str::slug($good->name);
 
         if ($slug && $slug !== $expectedSlug) {
             return redirect()->route('good.fetch', [
@@ -197,6 +201,12 @@ class GoodController extends Controller
     {
         $validated = $request->validate([
                                             'name' => ['sometimes', 'required', 'string', 'max:255'],
+                                            'slug' => [
+                                                'nullable',
+                                                'string',
+                                                'max:255',
+                                                Rule::unique('goods', 'slug')->ignore($good->id),
+                                            ],
                                             'denominator' => ['nullable', 'numeric'],
                                             'description' => ['nullable', 'string'],
                                             'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],

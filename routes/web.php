@@ -33,7 +33,6 @@ use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\ManufacturerController;
 use App\Http\Controllers\API\NoteController;
-use App\Http\Controllers\API\PriceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
@@ -236,7 +235,7 @@ Route::get('/Ameise/Goods/', function (){
 
 Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
     $data = [
-        'good' => Good::with('prices')->findOrFail($id),
+        'good' => Good::findOrFail($id),
     ];
     return Inertia::render('Ameise/Good', $data);
 })->name('Ameise.good.show');
@@ -433,9 +432,6 @@ Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
 //      N O T E
 Route::post('/web/note/store', [NoteController::class, 'store'])
     ->name('web.note.store');
-//      P R I C E
-Route::post('/api/price/store', [PriceController::class, 'store'])
-    ->name('web.price.store');
 //      P R O D U C T
 Route::post('/api/product/store', [ProductController::class, 'store'])
     ->name('web.product.store');

@@ -118,7 +118,12 @@ class HomeGoodsModuleService
         return Good::query()
             ->where('is_published', true)
             ->whereHas('sales', fn ($query) => $query->whereIn('sales.entity_id', $entityIds))
-            ->with(['products.category', 'latestPrice.currency', 'industries:id,code,title'])
+            ->with([
+                'products.category',
+                'priceTypeValues.priceType.currency',
+                'priceTypeValues.currency',
+                'industries:id,code,title',
+            ])
             ->withMax(['sales as last_ordered_at' => fn ($query) => $query->whereIn('sales.entity_id', $entityIds)], 'date')
             ->orderByDesc('last_ordered_at')
             ->limit(12)
@@ -135,7 +140,12 @@ class HomeGoodsModuleService
             ->where('is_published', true)
             ->when(! empty($excludeGoodIds), fn ($query) => $query->whereNotIn('id', $excludeGoodIds))
             ->whereHas('industries', fn ($query) => $query->whereIn('industries.id', $industryIds))
-            ->with(['products.category', 'latestPrice.currency', 'industries:id,code,title'])
+            ->with([
+                'products.category',
+                'priceTypeValues.priceType.currency',
+                'priceTypeValues.currency',
+                'industries:id,code,title',
+            ])
             ->withCount(['industries as recommendation_hits' => fn ($query) => $query->whereIn('industries.id', $industryIds)])
             ->orderByDesc('recommendation_hits')
             ->orderByDesc('created_at')
