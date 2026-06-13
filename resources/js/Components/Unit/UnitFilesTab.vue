@@ -27,6 +27,7 @@ const {
     renamingFilePath,
     movingPath,
     creatingFolder,
+    fileManagerError,
     loadFiles,
     openFolder,
     uploadFile,
@@ -123,9 +124,13 @@ watch(() => props.unitId, (value, oldValue) => {
             <div class="unit-files-manager__actions">
                 <input ref="fileInput" type="file" class="d-none" @change="onFileSelected" />
                 <v-text-field v-model="folderName" label="Folder" variant="solo-filled" density="compact" hide-details class="unit-files-manager__folder-input" />
-                <button type="button" :disabled="!folderName || creatingFolder" @click="submitFolder">New folder</button>
+                <button type="button" :disabled="!folderName.trim() || creatingFolder" @click="submitFolder">New folder</button>
                 <button type="button" :disabled="uploadingFile" @click="fileInput?.click()">Upload</button>
             </div>
+        </div>
+
+        <div v-if="fileManagerError" class="unit-files-manager__error">
+            {{ fileManagerError }}
         </div>
 
         <v-progress-linear v-if="loadingFiles" indeterminate color="teal" />
@@ -311,6 +316,16 @@ button.unit-file-item__main {
     border-radius: 10px;
     color: #607d8b;
     font-size: 0.74rem;
+}
+
+.unit-files-manager__error {
+    padding: 6px 8px;
+    border: 1px solid rgba(149, 19, 61, 0.24);
+    border-radius: 9px;
+    background: #fff1f4;
+    color: #95133d;
+    font-size: 0.72rem;
+    font-weight: 800;
 }
 
 @media (max-width: 980px) {

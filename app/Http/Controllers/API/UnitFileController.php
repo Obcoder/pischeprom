@@ -71,7 +71,15 @@ class UnitFileController extends Controller
         $folder = trim($parent ? "{$parent}/{$name}" : $name, '/');
         $path = "{$root}/{$folder}";
 
-        $disk->put("{$path}/.keep", '');
+        if ($name === '' || in_array($name, ['placeholder.txt', '.keep'], true)) {
+            return response()->json(['message' => 'Invalid folder name'], 422);
+        }
+
+        if ($this->pathHasObjects($disk, $path)) {
+            return response()->json(['message' => 'Folder already exists'], 422);
+        }
+
+        $disk->put("{$path}/.keep", 'created: ' . now()->toIso8601String());
 
         return response()->json([
             'message' => 'Folder created',
@@ -196,11 +204,19 @@ class UnitFileController extends Controller
         $root = $this->rootPath($unit);
         $legacy = $this->legacyRootPath($unit);
 
-        if ($disk->exists($root) || ! $disk->exists($legacy)) {
+        if ($this->pathHasObjects($disk, $root) || ! $this->pathHasObjects($disk, $legacy)) {
             return $root;
         }
 
         return $legacy;
+    }
+
+    protected function pathHasObjects($disk, string $path): bool
+    {
+        return $disk->exists($path)
+            || (method_exists($disk, 'directoryExists') && $disk->directoryExists($path))
+            || count($disk->files($path)) > 0
+            || count($disk->directories($path)) > 0;
     }
 
     protected function abortUnlessUnitPath(Unit $unit, string $path): void

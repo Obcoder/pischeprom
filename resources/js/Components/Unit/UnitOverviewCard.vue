@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
@@ -7,6 +7,7 @@ import axios from 'axios'
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import UnitFilesTab from '@/Components/Unit/UnitFilesTab.vue'
 import UnitBuildingsTab from '@/Components/Unit/UnitBuildingsTab.vue'
+import UnitAdminTab from '@/Components/Unit/UnitAdminTab.vue'
 import UnitUrisCard from '@/Components/Unit/UnitUrisCard.vue'
 import UnitRelationManagerDialog from '@/Components/Unit/UnitRelationManagerDialog.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
@@ -29,6 +30,10 @@ const props = defineProps({
     loading: {
         type: Object,
         default: () => ({}),
+    },
+    adminAction: {
+        type: Object,
+        default: null,
     },
 })
 
@@ -55,6 +60,12 @@ function formatUnitIdToEmoji(id) {
 }
 
 const activeTab = ref('info')
+
+watch(() => props.adminAction, (value) => {
+    if (value?.action) {
+        activeTab.value = 'management'
+    }
+}, { deep: true })
 
 const dialogAttachEmail = ref(false)
 const dialogAddEmail = ref(false)
@@ -697,6 +708,7 @@ function openQuickMail() {
             <section class="unit-overview__tabs-panel">
                 <v-tabs v-model="activeTab" color="primary" density="compact">
                     <v-tab value="info">Info</v-tab>
+                    <v-tab value="management">Управление</v-tab>
                     <v-tab value="contacts">Contacts</v-tab>
                     <v-tab value="files">Files</v-tab>
                     <v-tab value="buildings">Buildings</v-tab>
@@ -789,6 +801,15 @@ function openQuickMail() {
                                 No cities
                             </div>
                         </div>
+                    </v-window-item>
+
+                    <v-window-item value="management">
+                        <UnitAdminTab
+                            :unit="unit"
+                            :dict="dict"
+                            :action="adminAction"
+                            @refresh="emit('refresh')"
+                        />
                     </v-window-item>
 
                     <v-window-item value="contacts">

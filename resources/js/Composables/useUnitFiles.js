@@ -13,6 +13,7 @@ export function useUnitFiles(unitId) {
     const renamingFilePath = ref(null)
     const movingPath = ref(null)
     const creatingFolder = ref(false)
+    const fileManagerError = ref('')
 
     function getUnitId() {
         const value = unref(unitId)
@@ -35,6 +36,7 @@ export function useUnitFiles(unitId) {
         }
 
         loadingFiles.value = true
+        fileManagerError.value = ''
 
         try {
             const { data } = await axios.get(url, { params: { folder: folder || undefined } })
@@ -44,6 +46,7 @@ export function useUnitFiles(unitId) {
             root.value = data.root ?? root.value
         } catch (error) {
             console.error('Ошибка загрузки файлов:', error.response?.data || error)
+            fileManagerError.value = error.response?.data?.message || 'Не удалось загрузить файлы'
             files.value = []
             folders.value = []
         } finally {
@@ -61,6 +64,7 @@ export function useUnitFiles(unitId) {
         if (!file || !url) return
 
         uploadingFile.value = true
+        fileManagerError.value = ''
 
         const formData = new FormData()
         formData.append('file', file)
@@ -69,6 +73,9 @@ export function useUnitFiles(unitId) {
         try {
             await axios.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
             await loadFiles()
+        } catch (error) {
+            fileManagerError.value = error.response?.data?.message || 'Не удалось загрузить файл'
+            console.error('Ошибка загрузки файла:', error.response?.data || error)
         } finally {
             uploadingFile.value = false
         }
@@ -79,10 +86,14 @@ export function useUnitFiles(unitId) {
         if (!name || !url) return
 
         creatingFolder.value = true
+        fileManagerError.value = ''
 
         try {
             await axios.post(`${url}/folders`, { name, parent: currentFolder.value || null })
             await loadFiles()
+        } catch (error) {
+            fileManagerError.value = error.response?.data?.message || 'Не удалось создать папку'
+            console.error('Ошибка создания папки:', error.response?.data || error)
         } finally {
             creatingFolder.value = false
         }
@@ -93,10 +104,13 @@ export function useUnitFiles(unitId) {
         if (!path || !url) return
 
         deletingFilePath.value = path
+        fileManagerError.value = ''
 
         try {
             await axios.delete(url, { data: { path, type } })
             await loadFiles()
+        } catch (error) {
+            fileManagerError.value = error.response?.data?.message || 'Не удалось удалить объект'
         } finally {
             deletingFilePath.value = null
         }
@@ -107,10 +121,13 @@ export function useUnitFiles(unitId) {
         if (!path || !name || !url) return
 
         renamingFilePath.value = path
+        fileManagerError.value = ''
 
         try {
             await axios.patch(`${url}/rename`, { path, name, type })
             await loadFiles()
+        } catch (error) {
+            fileManagerError.value = error.response?.data?.message || 'Не удалось переименовать объект'
         } finally {
             renamingFilePath.value = null
         }
@@ -121,10 +138,13 @@ export function useUnitFiles(unitId) {
         if (!path || !url) return
 
         movingPath.value = path
+        fileManagerError.value = ''
 
         try {
             await axios.patch(`${url}/move`, { path, target_folder: targetFolder || null, type })
             await loadFiles()
+        } catch (error) {
+            fileManagerError.value = error.response?.data?.message || 'Не удалось переместить объект'
         } finally {
             movingPath.value = null
         }
@@ -141,6 +161,7 @@ export function useUnitFiles(unitId) {
         renamingFilePath,
         movingPath,
         creatingFolder,
+        fileManagerError,
         loadFiles,
         openFolder,
         uploadFile,

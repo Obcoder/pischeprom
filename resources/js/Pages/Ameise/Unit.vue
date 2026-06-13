@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useHead } from '@vueuse/head'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 
@@ -40,6 +40,7 @@ const {
 } = useUnitPage(props.unit, props.dictionaries, props.files)
 
 const pageTitle = computed(() => `Unit: ${unit.value?.name ?? ''}`)
+const adminAction = ref(null)
 
 useHead(() => ({
     title: pageTitle.value,
@@ -80,6 +81,13 @@ async function refreshAll() {
     ])
 }
 
+function openUnitAdmin(action) {
+    adminAction.value = {
+        action,
+        at: Date.now(),
+    }
+}
+
 onMounted(async () => {
     if (!props.files?.length) {
         await loadFiles()
@@ -96,8 +104,7 @@ onMounted(async () => {
         <UnitToolbar
             v-if="unit"
             :unit="unit"
-            :dict="dict"
-            @refresh="refreshAll"
+            @manage="openUnitAdmin"
         />
 
         <section class="unit-page__band unit-page__band--overview">
@@ -107,7 +114,8 @@ onMounted(async () => {
                     :files="files"
                     :dict="dict"
                     :loading="loading"
-                    @refresh="refreshUnit"
+                    :admin-action="adminAction"
+                    @refresh="refreshAll"
                 />
             </div>
         </section>
