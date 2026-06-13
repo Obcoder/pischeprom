@@ -48,7 +48,9 @@ class SaleController extends Controller
                 'last_page' => $paginator->lastPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
-                'months' => $this->saleMonths(),
+                'total_amount' => $this->salesTotal($request),
+                'months' => $this->saleMonths($request),
+                'goods_summary' => $request->boolean('goods_summary') ? $this->goodsSummary($request) : [],
             ],
         ]);
     }
@@ -149,7 +151,12 @@ class SaleController extends Controller
 
     private function applyFilters($query, Request $request): void
     {
-        if ($request->filled('month')) {
+        $this->applyContextFilters($query, $request);
+    }
+
+    private function applyContextFilters($query, Request $request, bool $includeMonth = true): void
+    {
+        if ($includeMonth && $request->filled('month')) {
             [$year, $month] = explode('-', (string) $request->input('month'));
             $query->whereYear('date', (int) $year)->whereMonth('date', (int) $month);
         }
@@ -245,11 +252,15 @@ class SaleController extends Controller
         });
     }
 
-    private function saleMonths(): array
+    private function saleMonths(Request $request): array
     {
-        return Sale::query()
+        $query = Sale::query()
             ->selectRaw("DATE_FORMAT(date, '%Y-%m') as value, DATE_FORMAT(date, '%m.%Y') as label, COUNT(*) as count, SUM(total) as total")
-            ->groupBy('value', 'label')
+            ->groupBy('value', 'label');
+
+        $this->applyContextFilters($query, $request, includeMonth: false);
+
+        return $query
             ->orderByDesc('value')
             ->limit(36)
             ->get()
@@ -258,6 +269,79 @@ class SaleController extends Controller
                 'label' => $row->label,
                 'count' => (int) $row->count,
                 'total' => (float) $row->total,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function salesTotal(Request $request): float
+    {
+        $query = Sale::query();
+
+        $this->applyContextFilters($query, $request);
+
+        return (float) $query->sum('total');
+    }
+
+    private function goodsSummary(Request $request): array
+    {
+        $query = DB::table('good_sale')
+            ->join('sales', 'sales.id', '=', 'good_sale.sale_id')
+            ->join('goods', 'goods.id', '=', 'good_sale.good_id')
+            ->leftJoin('measures', 'measures.id', '=', 'good_sale.measure_id')
+            ->leftJoin('vat_rates', 'vat_rates.id', '=', 'goods.vat_rate_id')
+            ->select([
+                'goods.id',
+                'goods.name',
+                'goods.slug',
+                'goods.denominator',
+                'good_sale.measure_id',
+                'measures.name as measure_name',
+                'vat_rates.id as vat_rate_id',
+                'vat_rates.title as vat_rate_title',
+                'vat_rates.rate as vat_rate_rate',
+            ])
+            ->selectRaw('COUNT(DISTINCT sales.id) as sales_count')
+            ->selectRaw('SUM(good_sale.quantity) as quantity')
+            ->selectRaw('AVG(good_sale.price) as average_price')
+            ->selectRaw('SUM(good_sale.total) as total')
+            ->selectRaw('MAX(sales.date) as last_sale_date')
+            ->groupBy([
+                'goods.id',
+                'goods.name',
+                'goods.slug',
+                'goods.denominator',
+                'good_sale.measure_id',
+                'measures.name',
+                'vat_rates.id',
+                'vat_rates.title',
+                'vat_rates.rate',
+            ]);
+
+        $this->applyContextFilters($query, $request);
+
+        return $query
+            ->orderByDesc('total')
+            ->orderBy('goods.name')
+            ->limit(300)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'name' => $row->name,
+                'slug' => $row->slug,
+                'denominator' => $row->denominator !== null ? (float) $row->denominator : null,
+                'measure_id' => $row->measure_id !== null ? (int) $row->measure_id : null,
+                'measure_name' => $row->measure_name,
+                'sales_count' => (int) $row->sales_count,
+                'quantity' => (float) $row->quantity,
+                'average_price' => (float) $row->average_price,
+                'total' => (float) $row->total,
+                'last_sale_date' => $row->last_sale_date,
+                'vat_rate' => $row->vat_rate_id ? [
+                    'id' => (int) $row->vat_rate_id,
+                    'title' => $row->vat_rate_title,
+                    'rate' => (float) $row->vat_rate_rate,
+                ] : null,
             ])
             ->values()
             ->all();

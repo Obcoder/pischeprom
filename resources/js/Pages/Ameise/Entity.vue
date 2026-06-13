@@ -7,6 +7,7 @@ import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import EntityDetailCard from '@/Components/Dictionaries/Entities/EntityDetailCard.vue'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
+import EntitySalesCard from '@/Components/Dictionaries/Entities/EntitySalesCard.vue'
 import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
 import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 
@@ -220,6 +221,8 @@ useHead({
         </v-alert>
 
         <EntityDetailCard :entity="entity" />
+
+        <EntitySalesCard :entity="entity" class="mt-4" />
 
         <EntityFormDialog
             v-model="dialog"
