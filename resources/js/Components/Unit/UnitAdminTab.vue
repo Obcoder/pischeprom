@@ -54,15 +54,6 @@ function fillUnitForm() {
     unitForm.is_supplier = Boolean(props.unit?.is_supplier)
 }
 
-function setMode(nextMode) {
-    mode.value = nextMode
-    feedback.value = ''
-
-    if (nextMode === 'industry') {
-        resetIndustryForm()
-    }
-}
-
 async function saveUnit() {
     savingUnit.value = true
     unitErrors.value = {}
@@ -194,9 +185,8 @@ async function detachIndustry(industry) {
 <template>
     <div class="unit-admin-tab">
         <div class="unit-admin-tab__switcher">
-            <button type="button" :class="{ active: mode === 'unit' }" @click="setMode('unit')">Unit CRUD</button>
-            <button type="button" :class="{ active: mode === 'industry' }" @click="setMode('industry')">ОКВЭД CRUD</button>
-            <button type="button" :class="{ active: mode === 'attach' }" @click="setMode('attach')">Привязка ОКВЭД</button>
+            <strong>{{ mode === 'unit' ? 'Unit CRUD' : mode === 'industry' ? 'ОКВЭД CRUD' : 'Привязка ОКВЭД' }}</strong>
+            <small>Команды находятся в teal toolbar шапки Unit Overview</small>
             <span v-if="feedback">{{ feedback }}</span>
         </div>
 
@@ -329,6 +319,19 @@ async function detachIndustry(industry) {
     color: #00796b;
     font-size: 0.68rem;
     font-weight: 800;
+}
+
+.unit-admin-tab__switcher strong {
+    color: #00524b;
+    font-size: 0.72rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unit-admin-tab__switcher small {
+    color: #678784;
+    font-size: 0.66rem;
 }
 
 .unit-admin-tab__layout {

@@ -1,11 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useHead } from '@vueuse/head'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 
 import { useUnitPage } from '@/Composables/useUnitPage'
 
-import UnitToolbar from '@/Components/Unit/UnitToolbar.vue'
 import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
@@ -40,7 +39,6 @@ const {
 } = useUnitPage(props.unit, props.dictionaries, props.files)
 
 const pageTitle = computed(() => `Unit: ${unit.value?.name ?? ''}`)
-const adminAction = ref(null)
 
 useHead(() => ({
     title: pageTitle.value,
@@ -81,13 +79,6 @@ async function refreshAll() {
     ])
 }
 
-function openUnitAdmin(action) {
-    adminAction.value = {
-        action,
-        at: Date.now(),
-    }
-}
-
 onMounted(async () => {
     if (!props.files?.length) {
         await loadFiles()
@@ -101,12 +92,6 @@ onMounted(async () => {
 
 <template>
     <v-container fluid class="unit-page pa-3">
-        <UnitToolbar
-            v-if="unit"
-            :unit="unit"
-            @manage="openUnitAdmin"
-        />
-
         <section class="unit-page__band unit-page__band--overview">
             <div>
                 <UnitOverviewCard
@@ -114,7 +99,6 @@ onMounted(async () => {
                     :files="files"
                     :dict="dict"
                     :loading="loading"
-                    :admin-action="adminAction"
                     @refresh="refreshAll"
                 />
             </div>

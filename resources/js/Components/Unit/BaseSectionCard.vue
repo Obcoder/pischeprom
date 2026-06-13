@@ -126,6 +126,14 @@ const bodyClasses = computed(() => [
         );
 }
 
+.base-section-card__header--teal {
+    color: #eafffb;
+    border-bottom-color: rgba(0, 80, 75, 0.22);
+    background:
+        radial-gradient(circle at 88% 10%, rgba(255, 255, 255, 0.16), transparent 24%),
+        linear-gradient(135deg, #00524d, #008b83);
+}
+
 .base-section-card__icon {
     opacity: 0.9;
 }
@@ -139,6 +147,7 @@ const bodyClasses = computed(() => [
 .base-section-card__actions {
     display: flex;
     align-items: center;
+    gap: 8px;
     flex-shrink: 0;
 }
 

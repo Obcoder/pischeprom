@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
@@ -31,10 +31,6 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
-    adminAction: {
-        type: Object,
-        default: null,
-    },
 })
 
 const emit = defineEmits(['refresh'])
@@ -60,12 +56,15 @@ function formatUnitIdToEmoji(id) {
 }
 
 const activeTab = ref('info')
+const localAdminAction = ref(null)
 
-watch(() => props.adminAction, (value) => {
-    if (value?.action) {
-        activeTab.value = 'management'
+function openAdmin(action) {
+    localAdminAction.value = {
+        action,
+        at: Date.now(),
     }
-}, { deep: true })
+    activeTab.value = 'management'
+}
 
 const dialogAttachEmail = ref(false)
 const dialogAddEmail = ref(false)
@@ -626,9 +625,16 @@ function openQuickMail() {
     <BaseSectionCard
         title="Unit Overview"
         icon="mdi-factory"
+        header-color="teal"
         compact
     >
         <template #actions>
+            <div class="unit-overview__header-actions">
+                <button type="button" @click="openAdmin('unit')">Unit CRUD</button>
+                <button type="button" @click="openAdmin('industry-create')">ОКВЭД CRUD</button>
+                <button type="button" @click="openAdmin('attach')">Привязка ОКВЭД</button>
+            </div>
+
             <v-menu>
                 <template #activator="{ props: menuProps }">
                     <v-btn
@@ -636,6 +642,7 @@ function openQuickMail() {
                         icon="mdi-dots-vertical"
                         variant="text"
                         size="small"
+                        color="white"
                     />
                 </template>
 
@@ -807,7 +814,7 @@ function openQuickMail() {
                         <UnitAdminTab
                             :unit="unit"
                             :dict="dict"
-                            :action="adminAction"
+                            :action="localAdminAction"
                             @refresh="emit('refresh')"
                         />
                     </v-window-item>
@@ -1234,22 +1241,51 @@ function openQuickMail() {
     text-transform: uppercase;
 }
 
+.unit-overview__header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.unit-overview__header-actions button {
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    color: #f1fffc;
+    cursor: pointer;
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    padding: 6px 10px;
+    text-transform: uppercase;
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.unit-overview__header-actions button:hover {
+    background: rgba(255, 255, 255, 0.23);
+    transform: translateY(-1px);
+}
+
 .unit-overview__stats {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
+    align-items: start;
 }
 
 .unit-overview__top-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 104px;
+    grid-template-columns: minmax(0, 1fr) 88px;
     gap: 6px;
-    align-items: stretch;
-    margin-bottom: 8px;
+    align-items: start;
+    margin-bottom: 6px;
 }
 
 .unit-overview__stat {
-    padding: 4px 6px;
+    min-height: 34px;
+    padding: 4px 7px;
     border: 1px solid rgba(128, 0, 32, 0.12);
     border-radius: 9px;
     background: linear-gradient(180deg, #fff, #fff8f8);
@@ -1279,11 +1315,11 @@ function openQuickMail() {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: 72px;
+    min-height: 64px;
     aspect-ratio: 1 / 1;
-    padding: 8px;
+    padding: 7px;
     border: 1px solid rgba(95, 15, 36, 0.16);
-    border-radius: 18px;
+    border-radius: 15px;
     background:
         radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.54), transparent 30%),
         linear-gradient(145deg, #6f1026, #2a151b);
@@ -1292,7 +1328,7 @@ function openQuickMail() {
 }
 
 .unit-overview__workboard-label {
-    font-size: 0.62rem;
+    font-size: 0.56rem;
     font-weight: 900;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -1300,13 +1336,13 @@ function openQuickMail() {
 }
 
 .unit-overview__workboard-tile strong {
-    font-size: 1.28rem;
+    font-size: 1.12rem;
     line-height: 0.95;
 }
 
 .unit-overview__workboard-tile span,
 .unit-overview__workboard-tile small {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     font-weight: 800;
     line-height: 1.15;
 }
