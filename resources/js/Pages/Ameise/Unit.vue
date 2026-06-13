@@ -5,6 +5,7 @@ import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 
 import { useUnitPage } from '@/Composables/useUnitPage'
 
+import UnitToolbar from '@/Components/Unit/UnitToolbar.vue'
 import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
@@ -52,6 +53,7 @@ useHead(() => ({
 
 const requiredDictionaryKeys = [
     'buildings',
+    'buildingTypes',
     'cities',
     'currencies',
     'emails',
@@ -59,6 +61,7 @@ const requiredDictionaryKeys = [
     'entityClassifications',
     'fields',
     'goods',
+    'industries',
     'labels',
     'measures',
     'products',
@@ -68,6 +71,13 @@ const requiredDictionaryKeys = [
 
 function hasAllDictionaries(source = {}) {
     return requiredDictionaryKeys.every((key) => Array.isArray(source?.[key]))
+}
+
+async function refreshAll() {
+    await Promise.all([
+        refreshUnit(),
+        loadDictionaries(),
+    ])
 }
 
 onMounted(async () => {
@@ -83,6 +93,13 @@ onMounted(async () => {
 
 <template>
     <v-container fluid class="unit-page pa-3">
+        <UnitToolbar
+            v-if="unit"
+            :unit="unit"
+            :dict="dict"
+            @refresh="refreshAll"
+        />
+
         <section class="unit-page__band unit-page__band--overview">
             <div>
                 <UnitOverviewCard

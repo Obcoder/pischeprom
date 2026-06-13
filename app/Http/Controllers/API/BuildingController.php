@@ -16,6 +16,7 @@ class BuildingController extends Controller
         $query = Building::query()
             ->with([
                        'city.region.country',
+                       'buildingType',
                        'units',
                    ])
             ->orderBy('address');
@@ -33,6 +34,7 @@ class BuildingController extends Controller
 
         $building->load([
                             'city.region.country',
+                            'buildingType',
                             'units',
                         ]);
 
@@ -43,6 +45,7 @@ class BuildingController extends Controller
     {
         $building->load([
                             'city.region.country',
+                            'buildingType',
                             'units',
                         ]);
 
@@ -55,6 +58,7 @@ class BuildingController extends Controller
 
         $building->refresh()->load([
                                        'city.region.country',
+                                       'buildingType',
                                        'units',
                                    ]);
 

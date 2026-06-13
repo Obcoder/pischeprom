@@ -7,6 +7,7 @@ use App\Models\Building;
 use App\Models\City;
 use App\Models\Entity;
 use App\Models\Field;
+use App\Models\Industry;
 use App\Models\Label;
 use App\Models\Telephone;
 use App\Models\Unit;
@@ -121,6 +122,46 @@ class UnitRelationController extends Controller
         return response()->json([
                                     'message' => 'Building detached.',
                                 ]);
+    }
+
+    public function attachIndustry(Request $request, Unit $unit): JsonResponse
+    {
+        $data = $request->validate([
+            'industry_id' => ['required', 'integer', 'exists:industries,id'],
+            'is_primary' => ['nullable', 'boolean'],
+        ]);
+
+        $industry = Industry::findOrFail($data['industry_id']);
+        $isPrimary = (bool) ($data['is_primary'] ?? false);
+
+        if ($isPrimary) {
+            $unit->industries()
+                ->newPivotStatement()
+                ->where('unit_id', $unit->id)
+                ->update(['is_primary' => false]);
+        }
+
+        $unit->industries()->syncWithoutDetaching([
+            $industry->id => ['is_primary' => $isPrimary],
+        ]);
+
+        $unit->industries()->updateExistingPivot($industry->id, [
+            'is_primary' => $isPrimary,
+        ]);
+
+        return response()->json([
+            'message' => 'Industry attached.',
+            'data' => $industry,
+        ]);
+    }
+
+    public function detachIndustry(Unit $unit, Industry $industry): JsonResponse
+    {
+        $unit->industries()->detach($industry->id);
+
+        return response()->json([
+            'message' => 'Industry detached.',
+        ]);
     }
 
     public function attachLabel(Request $request, Unit $unit): JsonResponse

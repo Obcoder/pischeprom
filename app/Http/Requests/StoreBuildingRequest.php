@@ -15,6 +15,7 @@ class StoreBuildingRequest extends FormRequest
     {
         return [
             'city_id' => ['required', 'integer', 'exists:cities,id'],
+            'building_type_id' => ['nullable', 'integer', 'exists:building_types,id'],
             'address' => ['required', 'string', 'max:255'],
             'postcode' => ['nullable', 'string', 'max:32'],
         ];

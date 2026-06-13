@@ -13,16 +13,19 @@ class Building extends Model
 
     protected $fillable = [
         'city_id',
+        'building_type_id',
         'address',
         'postcode',
     ];
 
     protected $casts = [
         'city_id' => 'integer',
+        'building_type_id' => 'integer',
     ];
 
     protected $with = [
         'city',
+        'buildingType',
     ];
 
     public function city(): BelongsTo
@@ -30,6 +33,13 @@ class Building extends Model
         return $this->belongsTo(City::class)
             ->withDefault();
     }
+
+    public function buildingType(): BelongsTo
+    {
+        return $this->belongsTo(BuildingType::class)
+            ->withDefault();
+    }
+
     public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);

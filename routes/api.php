@@ -9,6 +9,7 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BeelinePbxController;
 use App\Http\Controllers\API\BuildingController;
+use App\Http\Controllers\API\BuildingTypeController;
 use App\Http\Controllers\API\CatalogController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CheckController;
@@ -305,6 +306,9 @@ Route::prefix('units/{unit}')->group(function () {
     Route::post('/buildings', [UnitRelationController::class, 'attachBuilding'])->name('api.units.buildings.attach');
     Route::delete('/buildings/{building}', [UnitRelationController::class, 'detachBuilding'])->name('api.units.buildings.detach');
 
+    Route::post('/industries', [UnitRelationController::class, 'attachIndustry'])->name('api.units.industries.attach');
+    Route::delete('/industries/{industry}', [UnitRelationController::class, 'detachIndustry'])->name('api.units.industries.detach');
+
     Route::post('/labels', [UnitRelationController::class, 'attachLabel'])->name('api.units.labels.attach');
     Route::delete('/labels/{label}', [UnitRelationController::class, 'detachLabel'])->name('api.units.labels.detach');
 
@@ -322,6 +326,8 @@ Route::prefix('units/{unit}')->group(function () {
 
     Route::get('/files', [UnitFileController::class, 'index'])->name('api.units.files.index');
     Route::post('/files', [UnitFileController::class, 'store'])->name('api.units.files.store');
+    Route::post('/files/folders', [UnitFileController::class, 'storeFolder'])->name('api.units.files.folders.store');
+    Route::patch('/files/move', [UnitFileController::class, 'move'])->name('api.units.files.move');
     Route::delete('/files', [UnitFileController::class, 'destroy'])->name('api.units.files.destroy');
     Route::patch('/files/rename', [UnitFileController::class, 'rename'])->name('api.units.files.rename');
 
@@ -339,6 +345,8 @@ Route::apiResource('units', UnitController::class)->except(['show']);
 
 Route::apiResource('brands', BrandController::class);
 Route::apiResource('buildings', BuildingController::class);
+Route::apiResource('building-types', BuildingTypeController::class)
+    ->parameters(['building-types' => 'buildingType']);
 Route::apiResource('catalogs', CatalogController::class);
 Route::apiResource('categories', CategoryController::class);
 Route::apiResource('checks', CheckController::class);

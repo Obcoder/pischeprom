@@ -11,136 +11,253 @@ use Illuminate\Support\Str;
 
 class UnitFileController extends Controller
 {
-    public function index(Unit $unit): JsonResponse
+    public function index(Request $request, Unit $unit): JsonResponse
     {
-        $path = "units/{$unit->name}";
         $disk = Storage::disk('yandex');
+        $folder = $this->safeRelativeFolder((string) $request->query('folder', ''));
+        $basePath = $this->existingRootPath($unit, $disk);
+        $path = $folder ? "{$basePath}/{$folder}" : $basePath;
 
-        $files = collect($disk->files($path))
-            ->filter(fn ($file) => !Str::endsWith($file, 'placeholder.txt'))
-            ->map(function ($file) use ($disk) {
-                return [
-                    'name' => basename($file),
-                    'path' => $file,
-                    'url' => $disk->url($file),
-                    'size' => $disk->size($file),
-                    'last_modified' => $disk->lastModified($file),
-                ];
-            })
+        $folders = collect($disk->directories($path))
+            ->map(fn ($directory) => $this->folderPayload($directory))
             ->values();
 
-        return response()->json($files);
+        $files = collect($disk->files($path))
+            ->filter(fn ($file) => !Str::endsWith($file, ['placeholder.txt', '.keep']))
+            ->map(fn ($file) => $this->filePayload($disk, $file))
+            ->values();
+
+        return response()->json([
+            'root' => $basePath,
+            'folder' => $folder,
+            'folders' => $folders,
+            'files' => $files,
+        ]);
     }
 
     public function store(Request $request, Unit $unit): JsonResponse
     {
         $validated = $request->validate([
-                                            'file' => ['required', 'file', 'max:20480'],
-                                        ]);
+            'file' => ['required', 'file', 'max:20480'],
+            'folder' => ['nullable', 'string', 'max:255'],
+        ]);
 
         $disk = Storage::disk('yandex');
-        $folder = "units/{$unit->name}";
+        $folder = $this->safeRelativeFolder($validated['folder'] ?? '');
+        $basePath = $this->rootPath($unit);
+        $targetFolder = $folder ? "{$basePath}/{$folder}" : $basePath;
         $file = $validated['file'];
 
-        $originalName = $file->getClientOriginalName();
-        $safeName = $this->sanitizeFileName($originalName);
-
-        $path = $disk->putFileAs($folder, $file, $safeName);
+        $safeName = $this->sanitizeFileName($file->getClientOriginalName());
+        $path = $disk->putFileAs($targetFolder, $file, $safeName);
 
         return response()->json([
-                                    'message' => 'File uploaded',
-                                    'file' => [
-                                        'name' => basename($path),
-                                        'path' => $path,
-                                        'url' => $disk->url($path),
-                                        'size' => $disk->size($path),
-                                        'last_modified' => $disk->lastModified($path),
-                                    ],
-                                ], 201);
+            'message' => 'File uploaded',
+            'file' => $this->filePayload($disk, $path),
+        ], 201);
+    }
+
+    public function storeFolder(Request $request, Unit $unit): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'parent' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $disk = Storage::disk('yandex');
+        $parent = $this->safeRelativeFolder($data['parent'] ?? '');
+        $name = $this->sanitizeFileName($data['name']);
+        $root = $this->rootPath($unit);
+        $folder = trim($parent ? "{$parent}/{$name}" : $name, '/');
+        $path = "{$root}/{$folder}";
+
+        $disk->put("{$path}/.keep", '');
+
+        return response()->json([
+            'message' => 'Folder created',
+            'folder' => $this->folderPayload($path),
+        ], 201);
     }
 
     public function destroy(Request $request, Unit $unit): JsonResponse
     {
         $validated = $request->validate([
-                                            'path' => ['required', 'string'],
-                                        ]);
+            'path' => ['required', 'string'],
+            'type' => ['nullable', 'in:file,folder'],
+        ]);
 
         $disk = Storage::disk('yandex');
         $path = $validated['path'];
+        $this->abortUnlessUnitPath($unit, $path);
 
-        $expectedPrefix = "units/{$unit->name}/";
-
-        abort_unless(Str::startsWith($path, $expectedPrefix), 403, 'Invalid file path');
-
-        if ($disk->exists($path)) {
+        if (($validated['type'] ?? 'file') === 'folder') {
+            $disk->deleteDirectory($path);
+        } elseif ($disk->exists($path)) {
             $disk->delete($path);
         }
 
         return response()->json([
-                                    'message' => 'File deleted',
-                                ]);
+            'message' => 'Deleted',
+        ]);
     }
 
     public function rename(Request $request, Unit $unit): JsonResponse
     {
         $validated = $request->validate([
-                                            'path' => ['required', 'string'],
-                                            'new_name' => ['required', 'string', 'max:255'],
-                                        ]);
+            'path' => ['required', 'string'],
+            'new_name' => ['nullable', 'string', 'max:255'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'type' => ['nullable', 'in:file,folder'],
+        ]);
 
         $disk = Storage::disk('yandex');
         $oldPath = $validated['path'];
-        $newName = $this->sanitizeFileName($validated['new_name']);
+        $newName = $this->sanitizeFileName($validated['new_name'] ?? $validated['name'] ?? '');
+        $type = $validated['type'] ?? 'file';
 
-        $expectedPrefix = "units/{$unit->name}/";
-        abort_unless(Str::startsWith($oldPath, $expectedPrefix), 403, 'Invalid file path');
+        $this->abortUnlessUnitPath($unit, $oldPath);
 
-        if (! $disk->exists($oldPath)) {
-            return response()->json([
-                                        'message' => 'File not found',
-                                    ], 404);
+        if ($newName === '' || $newName === 'placeholder.txt' || $newName === '.keep') {
+            return response()->json(['message' => 'Invalid name'], 422);
         }
 
-        if ($newName === 'placeholder.txt') {
-            return response()->json([
-                                        'message' => 'Invalid file name',
-                                    ], 422);
-        }
-
-        $newPath = $expectedPrefix . $newName;
+        $parent = Str::beforeLast($oldPath, '/');
+        $newPath = "{$parent}/{$newName}";
 
         if ($oldPath === $newPath) {
+            return response()->json(['message' => 'Name is the same']);
+        }
+
+        if ($type === 'folder') {
+            $this->moveDirectory($disk, $oldPath, $newPath);
+
             return response()->json([
-                                        'message' => 'File name is the same',
-                                    ]);
+                'message' => 'Folder renamed',
+                'folder' => $this->folderPayload($newPath),
+            ]);
+        }
+
+        if (! $disk->exists($oldPath)) {
+            return response()->json(['message' => 'File not found'], 404);
         }
 
         if ($disk->exists($newPath)) {
-            return response()->json([
-                                        'message' => 'A file with this name already exists',
-                                    ], 422);
+            return response()->json(['message' => 'A file with this name already exists'], 422);
         }
 
-        $copied = $disk->copy($oldPath, $newPath);
-
-        if (! $copied) {
-            return response()->json([
-                                        'message' => 'Failed to rename file',
-                                    ], 500);
-        }
-
+        $disk->copy($oldPath, $newPath);
         $disk->delete($oldPath);
 
         return response()->json([
-                                    'message' => 'File renamed',
-                                    'file' => [
-                                        'name' => basename($newPath),
-                                        'path' => $newPath,
-                                        'url' => $disk->url($newPath),
-                                        'size' => $disk->size($newPath),
-                                        'last_modified' => $disk->lastModified($newPath),
-                                    ],
-                                ]);
+            'message' => 'File renamed',
+            'file' => $this->filePayload($disk, $newPath),
+        ]);
+    }
+
+    public function move(Request $request, Unit $unit): JsonResponse
+    {
+        $data = $request->validate([
+            'path' => ['required', 'string'],
+            'target_folder' => ['nullable', 'string', 'max:255'],
+            'type' => ['nullable', 'in:file,folder'],
+        ]);
+
+        $disk = Storage::disk('yandex');
+        $path = $data['path'];
+        $targetFolder = $this->safeRelativeFolder($data['target_folder'] ?? '');
+        $targetBase = $targetFolder ? $this->rootPath($unit) . '/' . $targetFolder : $this->rootPath($unit);
+        $targetPath = $targetBase . '/' . basename($path);
+
+        $this->abortUnlessUnitPath($unit, $path);
+        $this->abortUnlessUnitPath($unit, $targetBase);
+
+        if (($data['type'] ?? 'file') === 'folder') {
+            $this->moveDirectory($disk, $path, $targetPath);
+        } else {
+            $disk->copy($path, $targetPath);
+            $disk->delete($path);
+        }
+
+        return response()->json(['message' => 'Moved']);
+    }
+
+    protected function rootPath(Unit $unit): string
+    {
+        return "units/{$unit->id}";
+    }
+
+    protected function legacyRootPath(Unit $unit): string
+    {
+        return "units/{$unit->name}";
+    }
+
+    protected function existingRootPath(Unit $unit, $disk): string
+    {
+        $root = $this->rootPath($unit);
+        $legacy = $this->legacyRootPath($unit);
+
+        if ($disk->exists($root) || ! $disk->exists($legacy)) {
+            return $root;
+        }
+
+        return $legacy;
+    }
+
+    protected function abortUnlessUnitPath(Unit $unit, string $path): void
+    {
+        $allowed = [
+            $this->rootPath($unit) . '/',
+            $this->rootPath($unit),
+            $this->legacyRootPath($unit) . '/',
+            $this->legacyRootPath($unit),
+        ];
+
+        abort_unless(
+            collect($allowed)->contains(fn ($prefix) => $path === $prefix || Str::startsWith($path, $prefix)),
+            403,
+            'Invalid path'
+        );
+    }
+
+    protected function safeRelativeFolder(string $folder): string
+    {
+        $folder = trim(str_replace('\\', '/', $folder), '/');
+
+        abort_if(Str::contains($folder, ['..', '//']), 422, 'Invalid folder');
+
+        return $folder;
+    }
+
+    protected function folderPayload(string $path): array
+    {
+        return [
+            'name' => basename($path),
+            'path' => $path,
+            'type' => 'folder',
+        ];
+    }
+
+    protected function filePayload($disk, string $path): array
+    {
+        return [
+            'name' => basename($path),
+            'path' => $path,
+            'url' => $disk->url($path),
+            'size' => $disk->size($path),
+            'last_modified' => $disk->lastModified($path),
+            'type' => 'file',
+            'extension' => pathinfo($path, PATHINFO_EXTENSION),
+        ];
+    }
+
+    protected function moveDirectory($disk, string $oldPath, string $newPath): void
+    {
+        foreach ($disk->allFiles($oldPath) as $file) {
+            $relative = Str::after($file, rtrim($oldPath, '/') . '/');
+            $disk->copy($file, rtrim($newPath, '/') . '/' . $relative);
+        }
+
+        $disk->deleteDirectory($oldPath);
     }
 
     protected function sanitizeFileName(string $name): string

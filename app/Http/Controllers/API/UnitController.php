@@ -45,7 +45,9 @@ class UnitController extends Controller
         $unit->cities()->sync($request->input('cities', []));
         $unit->telephones()->sync($request->input('telephones', []));
 
-        Storage::disk('yandex')->put("units/{$unit->name}/placeholder.txt", '');
+        Storage::disk('yandex')->put("units/{$unit->id}/placeholder.txt", '');
+
+        return response()->json($unit->fresh(), 201);
     }
 
     public function show(Unit $unit, UnansweredOutgoingMailService $mailService)
@@ -71,12 +73,33 @@ class UnitController extends Controller
 
     public function update(Request $request, string $id)
     {
-        //
+        $unit = Unit::findOrFail($id);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'is_customer' => ['nullable', 'boolean'],
+            'is_supplier' => ['nullable', 'boolean'],
+        ]);
+
+        $unit->update([
+            'name' => $data['name'],
+            'is_customer' => (bool) ($data['is_customer'] ?? false),
+            'is_supplier' => (bool) ($data['is_supplier'] ?? false),
+        ]);
+
+        $unit->load(Unit::DETAIL_RELATIONS);
+
+        return response()->json([
+            'data' => $unit,
+        ]);
     }
 
     public function destroy(string $id)
     {
-        //
+        $unit = Unit::findOrFail($id);
+        $unit->delete();
+
+        return response()->json(null, 204);
     }
 
     public function getUnitFiles($name): array

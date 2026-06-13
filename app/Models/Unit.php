@@ -25,6 +25,7 @@ class Unit extends Model
         'entities.sales',
 
         'buildings.city',
+        'buildings.buildingType',
         'consumptions.product',
         'consumptions.measure',
         'manufactures',
@@ -38,6 +39,7 @@ class Unit extends Model
         'quotations.good',
         'quotations.currency',
         'quotations.measure',
+        'industries',
         'cities.region',
     ];
 

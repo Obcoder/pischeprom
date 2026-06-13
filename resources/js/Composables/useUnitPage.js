@@ -25,6 +25,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
 
     const dict = ref({
         buildings: asArray(initialDictionaries.buildings),
+        buildingTypes: asArray(initialDictionaries.buildingTypes),
         cities: asArray(initialDictionaries.cities),
         currencies: asArray(initialDictionaries.currencies),
         emails: asArray(initialDictionaries.emails),
@@ -32,6 +33,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
         entityClassifications: asArray(initialDictionaries.entityClassifications),
         fields: asArray(initialDictionaries.fields),
         goods: asArray(initialDictionaries.goods),
+        industries: asArray(initialDictionaries.industries),
         labels: asArray(initialDictionaries.labels),
         measures: asArray(initialDictionaries.measures),
         products: asArray(initialDictionaries.products),
@@ -86,6 +88,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
         try {
             const [
                 buildingsRes,
+                buildingTypesRes,
                 citiesRes,
                 currenciesRes,
                 emailsRes,
@@ -93,6 +96,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
                 classificationsRes,
                 fieldsRes,
                 goodsRes,
+                industriesRes,
                 labelsRes,
                 measuresRes,
                 productsRes,
@@ -100,6 +104,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
                 urisRes,
             ] = await Promise.all([
                 axios.get(route('buildings.index')),
+                axios.get('/api/building-types'),
                 axios.get(route('cities.index')),
                 axios.get(route('currencies.index')),
                 axios.get(route('emails.index')),
@@ -107,6 +112,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
                 axios.get(route('entities-classification.index')),
                 axios.get(route('fields.index')),
                 axios.get(route('goods.index')),
+                axios.get('/api/industries', { params: { per_page: 500 } }),
                 axios.get(route('labels.index')),
                 axios.get(route('measures.index')),
                 axios.get(route('products.index')),
@@ -116,6 +122,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
 
             dict.value = {
                 buildings: asArray(buildingsRes.data),
+                buildingTypes: sortByString(asArray(buildingTypesRes.data), 'name'),
                 cities: sortByString(asArray(citiesRes.data), 'name'),
                 currencies: sortByString(asArray(currenciesRes.data), 'code'),
                 emails: sortByString(asArray(emailsRes.data), 'address'),
@@ -123,6 +130,7 @@ export function useUnitPage(initialUnit, initialDictionaries = {}, initialFiles 
                 entityClassifications: asArray(classificationsRes.data),
                 fields: sortByString(asArray(fieldsRes.data), 'name'),
                 goods: asArray(goodsRes.data),
+                industries: asArray(industriesRes.data),
                 labels: sortByString(asArray(labelsRes.data), 'name'),
                 measures: asArray(measuresRes.data),
                 products: sortByString(asArray(productsRes.data), 'rus'),

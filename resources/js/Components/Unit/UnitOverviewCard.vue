@@ -6,6 +6,7 @@ import axios from 'axios'
 
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import UnitFilesTab from '@/Components/Unit/UnitFilesTab.vue'
+import UnitBuildingsTab from '@/Components/Unit/UnitBuildingsTab.vue'
 import UnitUrisCard from '@/Components/Unit/UnitUrisCard.vue'
 import UnitRelationManagerDialog from '@/Components/Unit/UnitRelationManagerDialog.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
@@ -693,115 +694,6 @@ function openQuickMail() {
         </div>
 
         <div class="unit-overview__body-grid">
-            <section class="unit-overview__entities">
-                <div class="unit-overview__entities-head">
-                    <div>
-                        <span>Entities</span>
-                        <strong>{{ unitEntities.length }}</strong>
-                    </div>
-
-                    <div class="unit-overview__entity-toolbar">
-                        <button type="button" @click="dialogAttachEntity = true">Attach</button>
-                        <button type="button" @click="openCreateEntity">Create</button>
-                    </div>
-                </div>
-
-                <div
-                    v-if="unitEntities.length"
-                    class="unit-overview__entity-grid"
-                >
-                    <article
-                        v-for="entity in unitEntities"
-                        :key="entity.id"
-                        class="unit-overview__entity"
-                    >
-                        <div class="unit-overview__entity-mark">
-                            {{ entityInitials(entity) }}
-                        </div>
-
-                        <div class="unit-overview__entity-body">
-                            <a
-                                :href="entityHref(entity)"
-                                class="unit-overview__entity-name"
-                            >
-                                {{ entity.name }}
-                            </a>
-
-                            <div class="unit-overview__entity-kind">
-                                {{ entityClassification(entity) }}
-                            </div>
-
-                            <div
-                                v-if="entityTelephones(entity).length"
-                                class="unit-overview__entity-phones"
-                            >
-                                <button
-                                    v-for="telephone in entityTelephones(entity)"
-                                    :key="telephone.id"
-                                    type="button"
-                                    class="unit-overview__entity-phone"
-                                    :disabled="dialingPhone === normalizePhone(telephone.number)"
-                                    @click="dialEntityPhone(telephone, entity)"
-                                >
-                                    <span class="unit-overview__entity-phone-icon">call</span>
-                                    <span>{{ formatPhone(telephone.number) }}</span>
-                                    <small v-if="dialingPhone === normalizePhone(telephone.number)">
-                                        dialing
-                                    </small>
-                                </button>
-                            </div>
-
-                            <div
-                                v-if="entityEmails(entity).length"
-                                class="unit-overview__entity-emails"
-                            >
-                                <a
-                                    v-for="email in entityEmails(entity)"
-                                    :key="email.id"
-                                    :href="`mailto:${email.address}`"
-                                >
-                                    {{ email.address }}
-                                </a>
-                            </div>
-
-                            <div class="unit-overview__entity-actions">
-                                <button type="button" @click="openEditEntity(entity)">Edit</button>
-                                <button
-                                    type="button"
-                                    :disabled="savingEntityRelation"
-                                    @click="detachEntityFromUnit(entity)"
-                                >
-                                    Detach
-                                </button>
-                                <button
-                                    type="button"
-                                    class="is-danger"
-                                    :disabled="savingEntityRelation"
-                                    @click="deleteEntity(entity)"
-                                >
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-
-                <div
-                    v-else
-                    class="unit-overview__empty"
-                >
-                    Entities не связаны
-                </div>
-
-                <div
-                    v-if="dialFeedback"
-                    class="unit-overview__dial-feedback"
-                    :class="`unit-overview__dial-feedback--${dialFeedback.tone}`"
-                >
-                    {{ dialFeedback.text }}
-                </div>
-            </section>
-
             <section class="unit-overview__tabs-panel">
                 <v-tabs v-model="activeTab" color="primary" density="compact">
                     <v-tab value="info">Info</v-tab>
@@ -948,17 +840,124 @@ function openQuickMail() {
                     </v-window-item>
 
                     <v-window-item value="buildings">
-                        <v-list density="compact">
-                            <v-list-item
-                                v-for="building in (unit.buildings || [])"
-                                :key="building.id"
-                                :title="building.address"
-                                :subtitle="building.city?.name"
-                            />
-                        </v-list>
+                        <UnitBuildingsTab
+                            :unit="unit"
+                            :dict="dict"
+                            @refresh="emit('refresh')"
+                        />
                     </v-window-item>
                 </v-window>
             </section>
+
+            <section class="unit-overview__entities">
+                <div class="unit-overview__entities-head">
+                    <div>
+                        <span>Entities</span>
+                        <strong>{{ unitEntities.length }}</strong>
+                    </div>
+
+                    <div class="unit-overview__entity-toolbar">
+                        <button type="button" @click="dialogAttachEntity = true">Attach</button>
+                        <button type="button" @click="openCreateEntity">Create</button>
+                    </div>
+                </div>
+
+                <div
+                    v-if="unitEntities.length"
+                    class="unit-overview__entity-grid"
+                >
+                    <article
+                        v-for="entity in unitEntities"
+                        :key="entity.id"
+                        class="unit-overview__entity"
+                    >
+                        <div class="unit-overview__entity-mark">
+                            {{ entityInitials(entity) }}
+                        </div>
+
+                        <div class="unit-overview__entity-body">
+                            <a
+                                :href="entityHref(entity)"
+                                class="unit-overview__entity-name"
+                            >
+                                {{ entity.name }}
+                            </a>
+
+                            <div class="unit-overview__entity-kind">
+                                {{ entityClassification(entity) }}
+                            </div>
+
+                            <div
+                                v-if="entityTelephones(entity).length"
+                                class="unit-overview__entity-phones"
+                            >
+                                <button
+                                    v-for="telephone in entityTelephones(entity)"
+                                    :key="telephone.id"
+                                    type="button"
+                                    class="unit-overview__entity-phone"
+                                    :disabled="dialingPhone === normalizePhone(telephone.number)"
+                                    @click="dialEntityPhone(telephone, entity)"
+                                >
+                                    <span class="unit-overview__entity-phone-icon">call</span>
+                                    <span>{{ formatPhone(telephone.number) }}</span>
+                                    <small v-if="dialingPhone === normalizePhone(telephone.number)">
+                                        dialing
+                                    </small>
+                                </button>
+                            </div>
+
+                            <div
+                                v-if="entityEmails(entity).length"
+                                class="unit-overview__entity-emails"
+                            >
+                                <a
+                                    v-for="email in entityEmails(entity)"
+                                    :key="email.id"
+                                    :href="`mailto:${email.address}`"
+                                >
+                                    {{ email.address }}
+                                </a>
+                            </div>
+
+                            <div class="unit-overview__entity-actions">
+                                <button type="button" @click="openEditEntity(entity)">Edit</button>
+                                <button
+                                    type="button"
+                                    :disabled="savingEntityRelation"
+                                    @click="detachEntityFromUnit(entity)"
+                                >
+                                    Detach
+                                </button>
+                                <button
+                                    type="button"
+                                    class="is-danger"
+                                    :disabled="savingEntityRelation"
+                                    @click="deleteEntity(entity)"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div
+                    v-else
+                    class="unit-overview__empty"
+                >
+                    Entities не связаны
+                </div>
+
+                <div
+                    v-if="dialFeedback"
+                    class="unit-overview__dial-feedback"
+                    :class="`unit-overview__dial-feedback--${dialFeedback.tone}`"
+                >
+                    {{ dialFeedback.text }}
+                </div>
+            </section>
+
         </div>
 
         <v-dialog v-model="dialogAttachEmail" max-width="720">
@@ -1217,21 +1216,21 @@ function openQuickMail() {
 .unit-overview__stats {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    gap: 4px;
 }
 
 .unit-overview__top-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 148px;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    gap: 6px;
     align-items: stretch;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
 .unit-overview__stat {
-    padding: 7px 8px;
+    padding: 4px 6px;
     border: 1px solid rgba(128, 0, 32, 0.12);
-    border-radius: 12px;
+    border-radius: 9px;
     background: linear-gradient(180deg, #fff, #fff8f8);
 }
 
@@ -1242,23 +1241,26 @@ function openQuickMail() {
 
 .unit-overview__stat strong {
     color: #5f0f24;
-    font-size: 1.05rem;
+    font-size: 0.82rem;
     line-height: 1;
 }
 
 .unit-overview__stat span {
-    margin-top: 2px;
+    margin-top: 1px;
     color: #7a6770;
-    font-size: 0.68rem;
+    font-size: 0.56rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .unit-overview__workboard-tile {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: 118px;
+    min-height: 72px;
     aspect-ratio: 1 / 1;
-    padding: 12px;
+    padding: 8px;
     border: 1px solid rgba(95, 15, 36, 0.16);
     border-radius: 18px;
     background:
@@ -1277,7 +1279,7 @@ function openQuickMail() {
 }
 
 .unit-overview__workboard-tile strong {
-    font-size: 2.15rem;
+    font-size: 1.28rem;
     line-height: 0.95;
 }
 
@@ -1319,7 +1321,7 @@ function openQuickMail() {
 
 .unit-overview__body-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
     gap: 12px;
     align-items: start;
 }
@@ -1441,9 +1443,9 @@ function openQuickMail() {
     display: inline-block;
     max-width: 100%;
     color: #35171f;
-    font-family: 'OrelegaOne-Regular', Georgia, serif;
-    font-size: 1.13rem;
-    line-height: 1.05;
+    font-family: 'Rubik-Medium', 'Comfortaa-VariableFont_wght', sans-serif;
+    font-size: 0.92rem;
+    line-height: 1.15;
     text-decoration: none;
 }
 
