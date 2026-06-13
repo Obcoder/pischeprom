@@ -18,6 +18,7 @@ import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue';
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
+import GrossbuchSales from '@/Components/Grossbuch/GrossbuchSales.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
 import MailMessagesPage from '@/Components/Contacts/Emails/MailMessagesPage.vue';
 import Products from '@/Components/Dictionaries/Products.vue';
@@ -441,8 +442,7 @@ function storeSale(){
         preserveScroll: false,
         onSuccess: ()=> {
             formSale.reset()
-            indexSales()
-        },
+                },
     })
 }
 const dialogFormAttachGood = ref(false)
@@ -476,8 +476,7 @@ function attachGood(){
             };
             dialogFormAttachGood.value = false; // Закрыть диалог
             formAttachGood.reset()
-            indexSales()
-        },
+                },
     })
 }
 
@@ -561,7 +560,6 @@ onMounted(()=>{
     indexProducts()
     indexPurchases()
     indexRegions()
-    indexSales()
     indexSegments()
     indexUnits()
 
@@ -739,239 +737,8 @@ const formatBuildingTitle = (building) => {
 
 
                                 <!--           S A L E S           -->
-                                <v-tabs-window-item value="sales">
-                                    <v-container>
-                                        <v-row>
-                                            <v-col cols="1">
-                                                <v-btn text="Продать"
-                                                       @click="dialogFormSale = !dialogFormSale"
-                                                       variant="elevated"
-                                                       density="comfortable"
-                                                       color="indigo"
-                                                ></v-btn>
-                                                <v-dialog v-model="dialogFormSale"
-                                                          width="808"
-                                                >
-                                                    <v-card>
-                                                        <v-card-title>Form Sale</v-card-title>
-                                                        <v-card-text>
-                                                            <v-form @submit.prevent>
-                                                                <v-row>
-                                                                    <v-col>
-                                                                        <v-autocomplete :items="entities"
-                                                                                        :item-value="'id'"
-                                                                                        :item-title="'name'"
-                                                                                        v-model="formSale.entity_id"
-                                                                                        density="compact"
-                                                                                        variant="outlined"
-                                                                                        chips
-                                                                        ></v-autocomplete>
-                                                                    </v-col>
-                                                                </v-row>
-                                                                <v-row>
-                                                                    <v-col>
-                                                                        <v-date-picker v-model="formSale.date"></v-date-picker>
-                                                                    </v-col>
-                                                                    <v-col>
-                                                                        <v-text-field v-model="formSale.total"
-                                                                                      label="Total"
-                                                                                      placeholder="Сумма продажи"
-                                                                                      density="comfortable"
-                                                                                      variant="solo"
-                                                                        ></v-text-field>
-                                                                    </v-col>
-                                                                </v-row>
-                                                            </v-form>
-                                                        </v-card-text>
-                                                        <v-card-actions>
-                                                            <v-btn text="store"
-                                                                   @click="storeSale"
-                                                                   variant="elevated"
-                                                                   density="comfortable"
-                                                                   color="purple"
-                                                            ></v-btn>
-                                                        </v-card-actions>
-                                                    </v-card>
-                                                </v-dialog>
-                                            </v-col>
-                                        </v-row>
-                                        <v-row>
-                                            <v-col cols="9">
-                                                <v-data-table :items="sales"
-                                                              items-per-page="365"
-                                                              :headers="headerSales"
-                                                              fixed-header
-                                                              height="700px"
-                                                              density="compact"
-                                                              hover
-                                                >
-                                                    <template v-slot:item.good="{item}">
-                                                        <v-btn text="+"
-                                                               @click="openAttachDialog(item)"
-                                                               variant="elevated"
-                                                               color="grey"
-                                                               density="compact"
-                                                               size="20"
-                                                        ></v-btn>
-                                                    </template>
-                                                    <template v-slot:item.date="{item}">
-                                                        <span class="text-xs font-BadScript">{{date.format(item.date, 'fullDateWithWeekday')}}</span>
-                                                    </template>
-                                                    <template v-slot:item.entity.name="{item}">
-                                                        <span class="text-sm font-RobotoRegular">{{item.entity.name}}</span>
-                                                    </template>
-                                                    <template v-slot:item.total="{item}">
-                                                        <span @click="showSale(item.id)"
-                                                              class="cursor-pointer"
-                                                        >
-                                                            {{item.total}}</span>
-                                                    </template>
-                                                </v-data-table>
-                                                <v-dialog v-model="dialogFormAttachGood"
-                                                          transition="dialog-bottom-transition"
-                                                          width="1000"
-                                                >
-                                                    <template v-slot:default="{isActive}">
-                                                        <v-card theme="dark">
-                                                            <v-card-title>Form Attach Good</v-card-title>
-                                                            <v-card-text class="text-red-700">
-                                                                <v-row>
-                                                                    <v-col cols="7">
-                                                                        <v-form @submit.prevent>
-                                                                            <v-row>
-                                                                                <v-col>
-                                                                                    <v-autocomplete :items="goods"
-                                                                                                    :item-value="'id'"
-                                                                                                    :item-title="'name'"
-                                                                                                    v-model="formAttachGood.good_id"
-                                                                                                    label="Good"
-                                                                                                    variant="outlined"
-                                                                                                    @change="fetchGood(formAttachGood.good_id)"
-                                                                                    ></v-autocomplete>
-                                                                                </v-col>
-                                                                            </v-row>
-                                                                            <v-row>
-                                                                                <v-col cols="3">
-                                                                                    <v-text-field v-model="formAttachGood.quantity"
-                                                                                                  label="Количество"
-                                                                                                  variant="outlined"
-                                                                                                  density="compact"
-                                                                                                  theme="dark"
-                                                                                                  hide-details
-                                                                                    ></v-text-field>
-                                                                                </v-col>
-                                                                                <v-col cols="3">
-                                                                                    <v-select :items="measures"
-                                                                                              :item-value="'id'"
-                                                                                              :item-title="'name'"
-                                                                                              v-model="formAttachGood.measure_id"
-                                                                                              label="Measures"
-                                                                                              variant="outlined"
-                                                                                              density="compact"
-                                                                                              hide-details
-                                                                                    ></v-select>
-                                                                                </v-col>
-                                                                                <v-col cols="6">
-                                                                                    <v-text-field v-model="formAttachGood.price"
-                                                                                                  label="Price"
-                                                                                                  variant="outlined"
-                                                                                                  density="compact"
-                                                                                                  hide-details
-                                                                                    ></v-text-field>
-                                                                                </v-col>
-                                                                            </v-row>
-                                                                        </v-form>
-                                                                        <v-row>
-                                                                            <v-col>
-                                                                                <label>Denominator</label><span>{{good.denominator}}</span>
-                                                                            </v-col>
-                                                                            <v-col>
-                                                                                <v-text-field v-model="totalInKg"
-                                                                                              label="total in kg"
-                                                                                              variant="solo"
-                                                                                              density="compact"
-                                                                                              hide-details
-                                                                                ></v-text-field>
-                                                                            </v-col>
-                                                                            <v-col>
-                                                                                <label class="text-sm font-sans">Кол-во шт</label>
-                                                                                <span>{{quantity = totalInKg / good.denominator}}</span>
-                                                                            </v-col>
-                                                                            <v-col>
-                                                                                <label>Цена шт</label>
-                                                                                <span>{{sale.total / quantity}}</span>
-                                                                            </v-col>
-                                                                        </v-row>
-                                                                    </v-col>
-                                                                    <v-col cols="5">
-                                                                        <v-sheet>
-                                                                            <v-row>
-                                                                                <v-col>
-                                                                                    <div><label>Total</label>{{sale.total}}</div>
-                                                                                </v-col>
-                                                                                <v-col>
-                                                                                    <label>Position Sum</label><span>{{formAttachGood.quantity * formAttachGood.price}}</span>
-                                                                                </v-col>
-                                                                            </v-row>
-                                                                            <v-row>
-                                                                                <v-col>
-                                                                                    <div class="text-[9px]">{{good.name}}</div>
-                                                                                </v-col>
-                                                                            </v-row>
-                                                                        </v-sheet>
-                                                                    </v-col>
-                                                                </v-row>
-                                                            </v-card-text>
-                                                            <v-card-actions>
-                                                                <v-spacer />
-                                                                <v-btn text="attach"
-                                                                       @click="attachGood"
-                                                                       variant="text"
-                                                                       density="compact"
-                                                                       color="teal-lighten-2"
-                                                                ></v-btn>
-                                                            </v-card-actions>
-                                                        </v-card>
-                                                    </template>
-                                                </v-dialog>
-                                                <!-- ✅ Уведомление об успехе -->
-                                                <v-snackbar v-model="snackbar.show" :timeout="2000" color="green">
-                                                    {{ snackbar.text }}
-                                                </v-snackbar>
-                                            </v-col>
-                                            <v-col cols="3">
-                                                <v-list v-if="good"
-                                                        density="compact"
-                                                        class="rounded bg-slate-700"
-                                                >
-                                                    <v-list-item v-for="good in sale?.goods ?? []">
-                                                        <v-container>
-                                                            <v-row>
-                                                                <v-col>
-                                                                    <span class="cursor-pointer text-sm font-ComfortaaVariableFont">
-                                                                        <Link :href="route('Ameise.good.show', good.id)">
-                                                                            {{good.name}}
-                                                                        </Link>
-                                                                    </span>
-                                                                </v-col>
-                                                            </v-row>
-                                                            <v-row>
-                                                                <v-col>
-                                                                    <span class="text-lg font-sans">{{good.pivot.price}}</span>
-                                                                </v-col>
-                                                                <v-col cols="2">
-                                                                    <span class="text-[10px] font-serif">{{good.pivot.quantity}}</span>
-                                                                </v-col>
-                                                                <v-col>
-                                                                    <span class="text-sm">{{good.pivot.total}}</span>
-                                                                </v-col>
-                                                            </v-row>
-                                                        </v-container>
-                                                    </v-list-item>
-                                                </v-list>
-                                            </v-col>
-                                        </v-row>
-                                    </v-container>
+                                <v-tabs-window-item value="sales" class="grossbuch-sales-tab">
+                                    <GrossbuchSales />
                                 </v-tabs-window-item>
                                 <!--      E N D  S A L E S      -->
 
