@@ -10,11 +10,13 @@ const emit = defineEmits(['send-file'])
 const unitIdRef = toRef(props, 'unitId')
 const fileInput = ref(null)
 const folderName = ref('')
+const folderDialog = ref(false)
 const renameDialog = ref(false)
 const moveDialog = ref(false)
 const selectedItem = ref(null)
 const newName = ref('')
 const targetFolder = ref('')
+const fallbackRoot = computed(() => `units/${props.unitId}`)
 
 const {
     files,
@@ -60,6 +62,12 @@ async function submitFolder() {
     if (!name) return
     await createFolder(name)
     folderName.value = ''
+    folderDialog.value = false
+}
+
+function openFolderDialog() {
+    folderName.value = ''
+    folderDialog.value = true
 }
 
 function itemName(item) {
@@ -119,12 +127,12 @@ watch(() => props.unitId, (value, oldValue) => {
                 >
                     {{ crumb.label }}
                 </button>
+                <span v-if="root" class="unit-files-manager__root">{{ root }}</span>
             </div>
 
             <div class="unit-files-manager__actions">
                 <input ref="fileInput" type="file" class="d-none" @change="onFileSelected" />
-                <v-text-field v-model="folderName" label="Folder" variant="solo-filled" density="compact" hide-details class="unit-files-manager__folder-input" />
-                <button type="button" :disabled="!folderName.trim() || creatingFolder" @click="submitFolder">New folder</button>
+                <button type="button" :disabled="creatingFolder" @click="openFolderDialog">New folder</button>
                 <button type="button" :disabled="uploadingFile" @click="fileInput?.click()">Upload</button>
             </div>
         </div>
@@ -174,6 +182,32 @@ watch(() => props.unitId, (value, oldValue) => {
                 В этой папке пока нет файлов.
             </div>
         </div>
+
+        <v-dialog v-model="folderDialog" max-width="520">
+            <v-card rounded="xl">
+                <v-card-title>New folder</v-card-title>
+                <v-card-text>
+                    <v-text-field
+                        v-model="folderName"
+                        label="Folder name"
+                        variant="solo-filled"
+                        density="compact"
+                        autofocus
+                        @keyup.enter="submitFolder"
+                    />
+                    <div class="text-caption text-medium-emphasis">
+                        Root: {{ root || fallbackRoot }}
+                        <template v-if="currentFolder">
+                            / {{ currentFolder }}
+                        </template>
+                    </div>
+                </v-card-text>
+                <v-card-actions class="justify-end">
+                    <v-btn variant="text" @click="folderDialog = false">Cancel</v-btn>
+                    <v-btn color="teal-darken-3" :disabled="!folderName.trim() || creatingFolder" :loading="creatingFolder" @click="submitFolder">Create</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
 
         <v-dialog v-model="renameDialog" max-width="560">
             <v-card rounded="xl">
@@ -246,15 +280,21 @@ watch(() => props.unitId, (value, oldValue) => {
     opacity: 0.5;
 }
 
-.unit-files-manager__folder-input {
-    width: 148px;
-}
-
 .unit-files-manager__grid {
     display: grid;
     gap: 5px;
     max-height: 380px;
     overflow: auto;
+}
+
+.unit-files-manager__root {
+    max-width: 220px;
+    overflow: hidden;
+    color: #607d8b;
+    font-size: 0.62rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .unit-file-item {

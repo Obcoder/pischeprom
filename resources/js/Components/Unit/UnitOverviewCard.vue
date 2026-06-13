@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import { router, useForm } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
 
@@ -57,13 +57,69 @@ function formatUnitIdToEmoji(id) {
 
 const activeTab = ref('info')
 const localAdminAction = ref(null)
+const unitDialog = ref(false)
+const savingUnit = ref(false)
+const deletingUnit = ref(false)
+const unitErrors = ref({})
+
+const unitForm = reactive({
+    name: '',
+    is_customer: false,
+    is_supplier: false,
+})
 
 function openAdmin(action) {
+    if (action === 'unit') {
+        openUnitDialog()
+        return
+    }
+
     localAdminAction.value = {
         action,
         at: Date.now(),
     }
-    activeTab.value = 'management'
+    activeTab.value = 'okved'
+}
+
+function fillUnitForm() {
+    unitForm.name = props.unit?.name || ''
+    unitForm.is_customer = Boolean(props.unit?.is_customer)
+    unitForm.is_supplier = Boolean(props.unit?.is_supplier)
+}
+
+function openUnitDialog() {
+    unitErrors.value = {}
+    fillUnitForm()
+    unitDialog.value = true
+}
+
+async function saveUnit() {
+    savingUnit.value = true
+    unitErrors.value = {}
+
+    try {
+        await axios.put(`/api/units/${props.unit.id}`, unitForm)
+        unitDialog.value = false
+        emit('refresh')
+    } catch (error) {
+        unitErrors.value = error.response?.data?.errors || {}
+        console.error('unit save error:', error.response?.data || error)
+    } finally {
+        savingUnit.value = false
+    }
+}
+
+async function deleteUnit() {
+    if (!window.confirm(`Удалить Unit "${props.unit.name}"?`)) return
+
+    deletingUnit.value = true
+
+    try {
+        await axios.delete(`/api/units/${props.unit.id}`)
+        router.visit('/Ameise/units')
+    } finally {
+        deletingUnit.value = false
+    }
 }
 
 const dialogAttachEmail = ref(false)
@@ -715,7 +771,7 @@ function openQuickMail() {
             <section class="unit-overview__tabs-panel">
                 <v-tabs v-model="activeTab" color="primary" density="compact">
                     <v-tab value="info">Info</v-tab>
-                    <v-tab value="management">Управление</v-tab>
+                    <v-tab value="okved">ОКВЭД</v-tab>
                     <v-tab value="contacts">Contacts</v-tab>
                     <v-tab value="files">Files</v-tab>
                     <v-tab value="buildings">Buildings</v-tab>
@@ -810,7 +866,7 @@ function openQuickMail() {
                         </div>
                     </v-window-item>
 
-                    <v-window-item value="management">
+                    <v-window-item value="okved">
                         <UnitAdminTab
                             :unit="unit"
                             :dict="dict"
@@ -987,6 +1043,66 @@ function openQuickMail() {
             </section>
 
         </div>
+
+        <v-dialog v-model="unitDialog" max-width="640">
+            <v-card rounded="xl">
+                <v-card-title class="unit-overview__unit-dialog-title">
+                    Unit CRUD
+                </v-card-title>
+
+                <v-card-text>
+                    <v-text-field
+                        v-model="unitForm.name"
+                        label="Name"
+                        variant="solo-filled"
+                        density="compact"
+                        :error-messages="unitErrors.name || []"
+                        autofocus
+                    />
+
+                    <div class="unit-overview__unit-switches">
+                        <v-switch
+                            v-model="unitForm.is_customer"
+                            label="Customer"
+                            color="teal"
+                            hide-details
+                            density="compact"
+                        />
+                        <v-switch
+                            v-model="unitForm.is_supplier"
+                            label="Supplier"
+                            color="teal"
+                            hide-details
+                            density="compact"
+                        />
+                    </div>
+                </v-card-text>
+
+                <v-card-actions class="justify-space-between">
+                    <v-btn
+                        variant="text"
+                        color="error"
+                        :loading="deletingUnit"
+                        @click="deleteUnit"
+                    >
+                        Delete Unit
+                    </v-btn>
+                    <div>
+                        <v-btn variant="text" @click="unitDialog = false">
+                            Cancel
+                        </v-btn>
+                        <v-btn
+                            color="teal-darken-3"
+                            :disabled="!unitForm.name"
+                            :loading="savingUnit"
+                            @click="saveUnit"
+                        >
+                            Save Unit
+                        </v-btn>
+                    </div>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
 
         <v-dialog v-model="dialogAttachEmail" max-width="720">
             <v-card rounded="xl">
@@ -1239,6 +1355,19 @@ function openQuickMail() {
     font-weight: 700;
     letter-spacing: 0.03em;
     text-transform: uppercase;
+}
+
+.unit-overview__unit-dialog-title {
+    color: #00524d;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unit-overview__unit-switches {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .unit-overview__header-actions {

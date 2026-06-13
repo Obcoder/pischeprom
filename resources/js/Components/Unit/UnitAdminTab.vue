@@ -1,7 +1,6 @@
 <script setup>
 import axios from 'axios'
 import { computed, reactive, ref, watch } from 'vue'
-import { router } from '@inertiajs/vue3'
 
 const props = defineProps({
     unit: { type: Object, required: true },
@@ -11,22 +10,13 @@ const props = defineProps({
 
 const emit = defineEmits(['refresh'])
 
-const mode = ref('unit')
-const savingUnit = ref(false)
-const deletingUnit = ref(false)
+const mode = ref('industry')
 const savingIndustry = ref(false)
 const deletingIndustryId = ref(null)
 const attachingIndustry = ref(false)
 const selectedIndustryId = ref(null)
 const industryErrors = ref({})
-const unitErrors = ref({})
 const feedback = ref('')
-
-const unitForm = reactive({
-    name: '',
-    is_customer: false,
-    is_supplier: false,
-})
 
 const industryForm = reactive({
     id: null,
@@ -37,53 +27,15 @@ const industryForm = reactive({
 const industries = computed(() => props.unit.industries || [])
 const availableIndustries = computed(() => props.dict.industries || [])
 
-watch(() => props.unit, fillUnitForm, { immediate: true })
 watch(() => props.action, (value) => {
     if (!value?.action) return
 
-    mode.value = value.action === 'industry-create' ? 'industry' : value.action
+    mode.value = value.action === 'attach' ? 'attach' : 'industry'
 
     if (value.action === 'industry-create') {
         resetIndustryForm()
     }
 }, { deep: true })
-
-function fillUnitForm() {
-    unitForm.name = props.unit?.name || ''
-    unitForm.is_customer = Boolean(props.unit?.is_customer)
-    unitForm.is_supplier = Boolean(props.unit?.is_supplier)
-}
-
-async function saveUnit() {
-    savingUnit.value = true
-    unitErrors.value = {}
-    feedback.value = ''
-
-    try {
-        await axios.put(`/api/units/${props.unit.id}`, unitForm)
-        feedback.value = 'Unit сохранён'
-        emit('refresh')
-    } catch (error) {
-        unitErrors.value = error.response?.data?.errors || {}
-        feedback.value = error.response?.data?.message || 'Не удалось сохранить Unit'
-        console.error('unit save error:', error.response?.data || error)
-    } finally {
-        savingUnit.value = false
-    }
-}
-
-async function deleteUnit() {
-    if (!window.confirm(`Удалить Unit "${props.unit.name}"?`)) return
-
-    deletingUnit.value = true
-
-    try {
-        await axios.delete(`/api/units/${props.unit.id}`)
-        router.visit('/Ameise/units')
-    } finally {
-        deletingUnit.value = false
-    }
-}
 
 function resetIndustryForm(industry = null) {
     industryErrors.value = {}
@@ -185,8 +137,8 @@ async function detachIndustry(industry) {
 <template>
     <div class="unit-admin-tab">
         <div class="unit-admin-tab__switcher">
-            <strong>{{ mode === 'unit' ? 'Unit CRUD' : mode === 'industry' ? 'ОКВЭД CRUD' : 'Привязка ОКВЭД' }}</strong>
-            <small>Команды находятся в teal toolbar шапки Unit Overview</small>
+            <button type="button" :class="{ active: mode === 'industry' }" @click="mode = 'industry'">ОКВЭД CRUD</button>
+            <button type="button" :class="{ active: mode === 'attach' }" @click="mode = 'attach'">Привязка ОКВЭД</button>
             <span v-if="feedback">{{ feedback }}</span>
         </div>
 
@@ -220,20 +172,7 @@ async function detachIndustry(industry) {
             </section>
 
             <section class="unit-admin-tab__editor">
-                <template v-if="mode === 'unit'">
-                    <div class="unit-admin-tab__title">Редактировать Unit</div>
-                    <v-text-field v-model="unitForm.name" label="Name" variant="solo-filled" density="compact" :error-messages="unitErrors.name || []" />
-                    <div class="unit-admin-tab__checks">
-                        <v-switch v-model="unitForm.is_customer" label="Customer" color="teal" hide-details density="compact" />
-                        <v-switch v-model="unitForm.is_supplier" label="Supplier" color="teal" hide-details density="compact" />
-                    </div>
-                    <div class="unit-admin-tab__buttons">
-                        <button type="button" :disabled="!unitForm.name || savingUnit" @click="saveUnit">Save Unit</button>
-                        <button type="button" class="danger" :disabled="deletingUnit" @click="deleteUnit">Delete Unit</button>
-                    </div>
-                </template>
-
-                <template v-else-if="mode === 'industry'">
+                <template v-if="mode === 'industry'">
                     <div class="unit-admin-tab__title">{{ industryForm.id ? 'Редактировать ОКВЭД' : 'Создать ОКВЭД' }}</div>
                     <div class="unit-admin-tab__fields-2">
                         <v-text-field v-model="industryForm.code" label="Code" variant="solo-filled" density="compact" :error-messages="industryErrors.code || []" />
@@ -319,19 +258,6 @@ async function detachIndustry(industry) {
     color: #00796b;
     font-size: 0.68rem;
     font-weight: 800;
-}
-
-.unit-admin-tab__switcher strong {
-    color: #00524b;
-    font-size: 0.72rem;
-    font-weight: 950;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-admin-tab__switcher small {
-    color: #678784;
-    font-size: 0.66rem;
 }
 
 .unit-admin-tab__layout {
@@ -422,16 +348,14 @@ async function detachIndustry(industry) {
     text-transform: uppercase;
 }
 
-.unit-admin-tab__checks,
 .unit-admin-tab__fields-2 {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 96px minmax(0, 1fr);
     gap: 7px;
 }
 
 @media (max-width: 980px) {
     .unit-admin-tab__layout,
-    .unit-admin-tab__checks,
     .unit-admin-tab__fields-2 {
         grid-template-columns: 1fr;
     }
