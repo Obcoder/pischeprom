@@ -48,6 +48,18 @@ const groupBy = [{ key: 'month', order: 'desc' }]
 
 const goodsById = computed(() => new Map(goods.value.map((good) => [Number(good.id), good])))
 const measuresById = computed(() => new Map(measures.value.map((measure) => [Number(measure.id), measure])))
+const entityOptions = computed(() => entities.value.map((entity) => ({
+    ...entity,
+    search_text: [
+        entity?.name,
+        entity?.full_name,
+        entityUnitsText(entity),
+        entityBuildingsText(entity),
+    ].filter(Boolean).join(' '),
+})))
+const selectedEntityOption = computed(() => {
+    return entityOptions.value.find((entity) => Number(entity.id) === Number(saleForm.entity_id)) || null
+})
 
 const saleLinesTotal = computed(() => {
     return saleForm.goods.reduce((sum, line) => sum + toNumber(line.total), 0)
@@ -112,6 +124,41 @@ function entityUnits(entity) {
 
 function entityBuildings(entity) {
     return entity?.buildings || []
+}
+
+function entityUnitsText(entity, limit = 3) {
+    const units = entityUnits(entity)
+        .map((unit) => unit?.name)
+        .filter(Boolean)
+
+    if (!units.length) return ''
+
+    const visible = units.slice(0, limit).join(' · ')
+    const extra = units.length > limit ? ` +${units.length - limit}` : ''
+
+    return `${visible}${extra}`
+}
+
+function entityBuildingsText(entity, limit = 2) {
+    const buildings = entityBuildings(entity)
+        .map((building) => {
+            const city = building?.city?.name
+            const address = building?.address
+
+            return [city, address].filter(Boolean).join(', ')
+        })
+        .filter(Boolean)
+
+    if (!buildings.length) return ''
+
+    const visible = buildings.slice(0, limit).join(' · ')
+    const extra = buildings.length > limit ? ` +${buildings.length - limit}` : ''
+
+    return `${visible}${extra}`
+}
+
+function entityOptionTitle(entity) {
+    return entity?.search_text || entity?.name || `Entity #${entity?.id}`
 }
 
 function saleGoods(item) {
@@ -593,14 +640,62 @@ onMounted(async () => {
                         <v-col cols="12" md="6">
                             <v-autocomplete
                                 v-model="saleForm.entity_id"
-                                :items="entities"
-                                item-title="name"
+                                :items="entityOptions"
+                                :item-title="entityOptionTitle"
                                 item-value="id"
                                 label="Entity"
                                 variant="solo-filled"
                                 density="compact"
                                 clearable
-                            />
+                                hide-details="auto"
+                                :menu-props="{ contentClass: 'sale-entity-menu' }"
+                            >
+                                <template #selection="{ item }">
+                                    <div class="sale-entity-selection">
+                                        <strong>{{ item.raw.name }}</strong>
+                                        <span v-if="entityUnitsText(item.raw)">{{ entityUnitsText(item.raw, 1) }}</span>
+                                        <span v-if="entityBuildingsText(item.raw)">{{ entityBuildingsText(item.raw, 1) }}</span>
+                                    </div>
+                                </template>
+
+                                <template #item="{ props, item }">
+                                    <v-list-item
+                                        v-bind="props"
+                                        class="sale-entity-option"
+                                    >
+                                        <template #title>
+                                            <div class="sale-entity-option__title">
+                                                <strong>{{ item.raw.name }}</strong>
+                                                <span>#{{ item.raw.id }}</span>
+                                            </div>
+                                        </template>
+
+                                        <template #subtitle>
+                                            <div class="sale-entity-option__meta">
+                                                <span v-if="entityUnitsText(item.raw)">
+                                                    Units: {{ entityUnitsText(item.raw) }}
+                                                </span>
+                                                <span v-if="entityBuildingsText(item.raw)">
+                                                    Buildings: {{ entityBuildingsText(item.raw) }}
+                                                </span>
+                                                <span v-if="!entityUnitsText(item.raw) && !entityBuildingsText(item.raw)">
+                                                    Нет привязанных units/buildings
+                                                </span>
+                                            </div>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+                            </v-autocomplete>
+
+                            <div v-if="selectedEntityOption" class="sale-entity-selected">
+                                <strong>{{ selectedEntityOption.name }}</strong>
+                                <span v-if="entityUnitsText(selectedEntityOption)">
+                                    Units: {{ entityUnitsText(selectedEntityOption) }}
+                                </span>
+                                <span v-if="entityBuildingsText(selectedEntityOption)">
+                                    Buildings: {{ entityBuildingsText(selectedEntityOption) }}
+                                </span>
+                            </div>
                         </v-col>
 
                         <v-col cols="12" md="3">
@@ -1117,6 +1212,106 @@ onMounted(async () => {
 .sale-dialog__title strong {
     color: #ff9090;
     font-family: 'Courier New', monospace;
+}
+
+.sale-entity-selection {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+    line-height: 1.05;
+}
+
+.sale-entity-selection strong {
+    overflow: hidden;
+    color: #fff5f5;
+    font-size: 13px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sale-entity-selection span {
+    overflow: hidden;
+    color: rgba(255, 220, 220, 0.68);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sale-entity-selected {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 6px;
+    margin-top: -16px;
+    padding: 0 10px 4px;
+    color: rgba(255, 220, 220, 0.72);
+    font-size: 9px;
+    line-height: 1.15;
+}
+
+.sale-entity-selected strong {
+    color: #ffe8e8;
+}
+
+.sale-entity-option {
+    min-height: 42px !important;
+}
+
+.sale-entity-option__title {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+    line-height: 1.08;
+}
+
+.sale-entity-option__title strong {
+    overflow: hidden;
+    color: #f8eeee;
+    font-size: 13px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sale-entity-option__title span {
+    color: rgba(255, 210, 210, 0.5);
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+}
+
+.sale-entity-option__meta {
+    display: grid;
+    gap: 1px;
+    color: rgba(255, 218, 218, 0.62);
+    font-size: 9px;
+    line-height: 1.12;
+}
+
+.sale-entity-option__meta span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:global(.sale-entity-menu) {
+    border: 1px solid rgba(255, 120, 120, 0.22);
+    background: #1f1f1f !important;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42) !important;
+}
+
+:global(.sale-entity-menu .v-list) {
+    padding: 3px;
+    background: #1f1f1f !important;
+}
+
+:global(.sale-entity-menu .v-list-item) {
+    border-radius: 4px;
+}
+
+:global(.sale-entity-menu .v-list-item:hover),
+:global(.sale-entity-menu .v-list-item--active) {
+    background: rgba(107, 24, 34, 0.78) !important;
 }
 
 .sale-lines {
