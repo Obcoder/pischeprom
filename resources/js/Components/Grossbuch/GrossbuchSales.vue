@@ -9,6 +9,8 @@ const months = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const dialog = ref(false)
+const detailsDialog = ref(false)
+const selectedSale = ref(null)
 const errorMessage = ref('')
 
 const entities = ref([])
@@ -37,9 +39,8 @@ const saleForm = reactive({
 
 const headers = [
     { title: 'Дата', key: 'date', sortable: true, width: '92px' },
-    { title: 'Entity / Unit / адрес', key: 'entity', sortable: true, width: '330px' },
-    { title: 'Сумма', key: 'total', sortable: true, width: '118px', align: 'end' },
-    { title: 'Товары', key: 'goods', sortable: false },
+    { title: 'Entity / Unit / адрес', key: 'entity', sortable: true },
+    { title: 'Сумма', key: 'total', sortable: true, width: '132px', align: 'end' },
     { title: 'Предыдущая', key: 'previous_sale', sortable: false, width: '150px' },
 ]
 
@@ -238,6 +239,11 @@ function openCreate() {
     dialog.value = true
 }
 
+function openSaleDetails(item) {
+    selectedSale.value = item
+    detailsDialog.value = true
+}
+
 function makeLine() {
     return {
         good_id: null,
@@ -424,22 +430,10 @@ onMounted(async () => {
                 </template>
 
                 <template #item.total="{ item }">
-                    <strong class="sales-money">{{ formatMoney(item.total) }}</strong>
-                </template>
-
-                <template #item.goods="{ item }">
-                    <div class="sales-goods-list">
-                        <a
-                            v-for="good in saleGoods(item).slice(0, 3)"
-                            :key="good.id"
-                            :href="goodHref(good)"
-                            class="sales-good-chip"
-                        >
-                            <span>{{ good.name }}</span>
-                            <b>{{ formatMoney(good.pivot.total) }}</b>
-                        </a>
-                        <span v-if="saleGoods(item).length > 3" class="sales-good-more">+{{ saleGoods(item).length - 3 }}</span>
-                    </div>
+                    <button type="button" class="sales-money-button" @click="openSaleDetails(item)">
+                        <strong>{{ formatMoney(item.total) }}</strong>
+                        <span>{{ saleGoods(item).length }} поз.</span>
+                    </button>
                 </template>
 
                 <template #item.previous_sale="{ item }">
@@ -495,6 +489,84 @@ onMounted(async () => {
                 </button>
             </div>
         </aside>
+
+        <v-dialog v-model="detailsDialog" max-width="980" scrollable class="sale-details-dialog">
+            <v-card class="sale-details">
+                <v-card-title class="sale-details__title">
+                    <div>
+                        <span>Детали продажи</span>
+                        <strong>{{ formatMoney(selectedSale?.total) }}</strong>
+                    </div>
+                    <v-btn icon="mdi-close" variant="text" @click="detailsDialog = false" />
+                </v-card-title>
+
+                <v-card-text v-if="selectedSale" class="sale-details__body">
+                    <div class="sale-details__summary">
+                        <div>
+                            <small>Дата</small>
+                            <strong>{{ formatDate(selectedSale.date) }}</strong>
+                        </div>
+                        <div>
+                            <small>Entity</small>
+                            <a v-if="entityHref(selectedSale.entity)" :href="entityHref(selectedSale.entity)">
+                                {{ selectedSale.entity?.name }}
+                            </a>
+                            <strong v-else>—</strong>
+                        </div>
+                        <div>
+                            <small>Предыдущая</small>
+                            <strong v-if="selectedSale.previous_sale">
+                                {{ formatMoney(selectedSale.previous_sale.total) }} / {{ selectedSale.previous_sale.days }} дн.
+                            </strong>
+                            <strong v-else>Первая продажа</strong>
+                        </div>
+                    </div>
+
+                    <div class="sale-details__units">
+                        <a
+                            v-for="unit in entityUnits(selectedSale.entity)"
+                            :key="unit.id"
+                            :href="unitHref(unit)"
+                        >
+                            {{ unit.name }}
+                        </a>
+                        <span v-for="building in entityBuildings(selectedSale.entity)" :key="building.id">
+                            {{ building.city?.name ? `${building.city.name}, ` : '' }}{{ building.address }}
+                        </span>
+                    </div>
+
+                    <div class="sale-details__grid">
+                        <div class="sale-details__head">
+                            <span>Good</span>
+                            <span>НДС</span>
+                            <span>Тарность</span>
+                            <span>Кол-во</span>
+                            <span>Ед.</span>
+                            <span>Цена</span>
+                            <span>Сумма</span>
+                        </div>
+
+                        <div
+                            v-for="good in saleGoods(selectedSale)"
+                            :key="good.id"
+                            class="sale-details__row"
+                        >
+                            <a :href="goodHref(good)">{{ good.name }}</a>
+                            <span>{{ goodVatText(good) }}</span>
+                            <span>{{ good.denominator || '—' }}</span>
+                            <strong>{{ formatMoney(good.pivot.quantity) }}</strong>
+                            <span>{{ measureTitle(good.pivot.measure_id) }}</span>
+                            <strong>{{ formatMoney(good.pivot.price) }}</strong>
+                            <strong>{{ formatMoney(good.pivot.total) }}</strong>
+                        </div>
+
+                        <div v-if="!saleGoods(selectedSale).length" class="sale-details__empty">
+                            Товары не прикреплены к продаже
+                        </div>
+                    </div>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
 
         <v-dialog v-model="dialog" max-width="1260" scrollable>
             <v-card class="sale-dialog">
@@ -751,10 +823,33 @@ onMounted(async () => {
     font-weight: 900;
 }
 
-.sales-money {
+.sales-money-button {
+    display: grid;
+    justify-items: end;
+    gap: 1px;
+    width: 100%;
+    padding: 1px 5px;
+    border: 1px solid rgba(91, 59, 176, 0.24);
+    border-radius: 3px;
+    background: #f8f5ff;
+    line-height: 1.05;
+    text-align: right;
+}
+
+.sales-money-button:hover {
+    background: #ebe3ff;
+    border-color: rgba(91, 59, 176, 0.46);
+}
+
+.sales-money-button strong {
     color: #2f1678;
     font-family: 'Courier New', monospace;
     font-size: 12px;
+}
+
+.sales-money-button span {
+    color: #806fa5;
+    font-size: 9px;
 }
 
 .sales-party {
@@ -783,36 +878,6 @@ onMounted(async () => {
     text-decoration: none;
 }
 
-.sales-goods-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-}
-
-.sales-good-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    max-width: 220px;
-    padding: 1px 5px;
-    border: 1px solid #d7ccf6;
-    background: #faf8ff;
-    color: #2e2058;
-    text-decoration: none;
-}
-
-.sales-good-chip span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sales-good-chip b {
-    color: #5b3bb0;
-    font-family: 'Courier New', monospace;
-}
-
-.sales-good-more,
 .sales-first {
     color: #7c6b9c;
     font-size: 10px;
@@ -886,6 +951,149 @@ onMounted(async () => {
     color: inherit;
     opacity: 0.72;
     font-family: 'Courier New', monospace;
+}
+
+.sale-details {
+    border: 1px solid rgba(91, 59, 176, 0.45);
+    background: #f7f4ff;
+    color: #2e2058;
+}
+
+.sale-details__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    background: linear-gradient(90deg, #4b2f9b 0%, #6f49c9 100%);
+    color: #fff;
+}
+
+.sale-details__title div {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+}
+
+.sale-details__title span {
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.sale-details__title strong {
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+}
+
+.sale-details__body {
+    display: grid;
+    gap: 8px;
+    padding: 10px !important;
+}
+
+.sale-details__summary {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr) 190px;
+    gap: 6px;
+}
+
+.sale-details__summary > div {
+    display: grid;
+    gap: 1px;
+    padding: 5px 7px;
+    border: 1px solid #d9cff8;
+    background: #fff;
+}
+
+.sale-details__summary small {
+    color: #7c6b9c;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.sale-details__summary strong,
+.sale-details__summary a {
+    color: #2f1678;
+    font-size: 12px;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.sale-details__units {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.sale-details__units a,
+.sale-details__units span {
+    padding: 2px 6px;
+    border: 1px solid #d9cff8;
+    background: #fff;
+    color: #5b3bb0;
+    font-size: 10px;
+    text-decoration: none;
+}
+
+.sale-details__grid {
+    border: 1px solid #cfc2f3;
+    background: #fff;
+}
+
+.sale-details__head,
+.sale-details__row {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) 88px 70px 82px 68px 92px 102px;
+    align-items: center;
+}
+
+.sale-details__head {
+    min-height: 26px;
+    background: #5b3bb0;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.sale-details__head span,
+.sale-details__row > * {
+    min-width: 0;
+    padding: 3px 6px;
+    border-right: 1px solid #ddd5f5;
+}
+
+.sale-details__row {
+    min-height: 28px;
+    border-top: 1px solid #ddd5f5;
+    font-size: 11px;
+}
+
+.sale-details__row a {
+    overflow: hidden;
+    color: #2f1678;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.sale-details__row span {
+    color: #6c5b93;
+}
+
+.sale-details__row strong {
+    color: #2f1678;
+    font-family: 'Courier New', monospace;
+    text-align: right;
+}
+
+.sale-details__empty {
+    padding: 12px;
+    color: #7c6b9c;
+    font-size: 12px;
 }
 
 .sale-dialog {
@@ -974,6 +1182,12 @@ onMounted(async () => {
     .sale-line {
         grid-template-columns: 1fr 80px 66px 80px 82px 82px 92px 32px;
         overflow-x: auto;
+    }
+
+    .sale-details__summary,
+    .sale-details__head,
+    .sale-details__row {
+        grid-template-columns: 1fr;
     }
 }
 </style>
