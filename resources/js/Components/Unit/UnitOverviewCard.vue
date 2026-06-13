@@ -56,7 +56,6 @@ function formatUnitIdToEmoji(id) {
 }
 
 const activeTab = ref('info')
-const localAdminAction = ref(null)
 const unitDialog = ref(false)
 const savingUnit = ref(false)
 const deletingUnit = ref(false)
@@ -71,14 +70,7 @@ const unitForm = reactive({
 function openAdmin(action) {
     if (action === 'unit') {
         openUnitDialog()
-        return
     }
-
-    localAdminAction.value = {
-        action,
-        at: Date.now(),
-    }
-    activeTab.value = 'okved'
 }
 
 function fillUnitForm() {
@@ -687,8 +679,6 @@ function openQuickMail() {
         <template #actions>
             <div class="unit-overview__header-actions">
                 <button type="button" @click="openAdmin('unit')">Unit CRUD</button>
-                <button type="button" @click="openAdmin('industry-create')">ОКВЭД CRUD</button>
-                <button type="button" @click="openAdmin('attach')">Привязка ОКВЭД</button>
             </div>
 
             <v-menu>
@@ -870,7 +860,6 @@ function openQuickMail() {
                         <UnitAdminTab
                             :unit="unit"
                             :dict="dict"
-                            :action="localAdminAction"
                             @refresh="emit('refresh')"
                         />
                     </v-window-item>

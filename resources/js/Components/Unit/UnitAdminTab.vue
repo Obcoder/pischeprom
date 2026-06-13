@@ -1,16 +1,16 @@
 <script setup>
 import axios from 'axios'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
 const props = defineProps({
     unit: { type: Object, required: true },
     dict: { type: Object, default: () => ({}) },
-    action: { type: Object, default: null },
 })
 
 const emit = defineEmits(['refresh'])
 
-const mode = ref('industry')
+const industryDialog = ref(false)
+const attachDialog = ref(false)
 const savingIndustry = ref(false)
 const deletingIndustryId = ref(null)
 const attachingIndustry = ref(false)
@@ -27,16 +27,6 @@ const industryForm = reactive({
 const industries = computed(() => props.unit.industries || [])
 const availableIndustries = computed(() => props.dict.industries || [])
 
-watch(() => props.action, (value) => {
-    if (!value?.action) return
-
-    mode.value = value.action === 'attach' ? 'attach' : 'industry'
-
-    if (value.action === 'industry-create') {
-        resetIndustryForm()
-    }
-}, { deep: true })
-
 function resetIndustryForm(industry = null) {
     industryErrors.value = {}
     industryForm.id = industry?.id || null
@@ -44,9 +34,16 @@ function resetIndustryForm(industry = null) {
     industryForm.title = industry?.title || ''
 }
 
-function editIndustry(industry) {
+function openIndustryDialog(industry = null) {
+    feedback.value = ''
     resetIndustryForm(industry)
-    mode.value = 'industry'
+    industryDialog.value = true
+}
+
+function openAttachDialog() {
+    feedback.value = ''
+    selectedIndustryId.value = null
+    attachDialog.value = true
 }
 
 async function saveIndustry() {
@@ -70,6 +67,7 @@ async function saveIndustry() {
             feedback.value = 'ОКВЭД создан'
         }
 
+        industryDialog.value = false
         emit('refresh')
     } catch (error) {
         industryErrors.value = error.response?.data?.errors || {}
@@ -88,6 +86,7 @@ async function deleteIndustry(industry) {
 
     try {
         await axios.delete(`/api/industries/${industry.id}`)
+        industryDialog.value = false
         resetIndustryForm()
         feedback.value = 'ОКВЭД удалён'
         emit('refresh')
@@ -110,6 +109,7 @@ async function attachIndustry(isPrimary = false) {
             is_primary: isPrimary,
         })
         selectedIndustryId.value = null
+        attachDialog.value = false
         feedback.value = 'ОКВЭД привязан к Unit'
         emit('refresh')
     } catch (error) {
@@ -135,58 +135,78 @@ async function detachIndustry(industry) {
 </script>
 
 <template>
-    <div class="unit-admin-tab">
-        <div class="unit-admin-tab__switcher">
-            <button type="button" :class="{ active: mode === 'industry' }" @click="mode = 'industry'">ОКВЭД CRUD</button>
-            <button type="button" :class="{ active: mode === 'attach' }" @click="mode = 'attach'">Привязка ОКВЭД</button>
-            <span v-if="feedback">{{ feedback }}</span>
+    <div class="unit-okved-tab">
+        <div class="unit-okved-tab__toolbar">
+            <div class="unit-okved-tab__title">
+                <span>Присоединённые ОКВЭД</span>
+                <strong>{{ industries.length }}</strong>
+            </div>
+
+            <div class="unit-okved-tab__actions">
+                <button type="button" @click="openIndustryDialog()">ОКВЭД CRUD</button>
+                <button type="button" @click="openAttachDialog">Привязка ОКВЭД</button>
+            </div>
         </div>
 
-        <div class="unit-admin-tab__layout">
-            <section class="unit-admin-tab__sheet">
-                <div class="unit-admin-tab__sheet-head">
-                    <span>Присоединённые ОКВЭД</span>
-                    <strong>{{ industries.length }}</strong>
+        <div v-if="feedback" class="unit-okved-tab__feedback">
+            {{ feedback }}
+        </div>
+
+        <section class="unit-okved-tab__sheet">
+            <div class="unit-okved-table">
+                <div class="unit-okved-table__row unit-okved-table__row--head">
+                    <span>Код</span>
+                    <span>Название</span>
+                    <span>Статус</span>
+                    <span>Действия</span>
                 </div>
 
-                <div class="unit-admin-table">
-                    <div class="unit-admin-table__row unit-admin-table__row--head">
-                        <span>Код</span>
-                        <span>Название</span>
-                        <span>Статус</span>
-                        <span>Действия</span>
-                    </div>
-
-                    <div v-for="industry in industries" :key="industry.id" class="unit-admin-table__row">
-                        <span class="unit-admin-table__code">{{ industry.code }}</span>
-                        <span>{{ industry.title }}</span>
-                        <span>{{ industry.pivot?.is_primary ? 'primary' : 'linked' }}</span>
-                        <span class="unit-admin-table__actions">
-                            <button type="button" @click="editIndustry(industry)">Edit</button>
-                            <button type="button" class="danger" @click="detachIndustry(industry)">Detach</button>
-                        </span>
-                    </div>
-
-                    <div v-if="!industries.length" class="unit-admin-table__empty">Нет привязанных ОКВЭД</div>
+                <div v-for="industry in industries" :key="industry.id" class="unit-okved-table__row">
+                    <span class="unit-okved-table__code">{{ industry.code }}</span>
+                    <span>{{ industry.title }}</span>
+                    <span>{{ industry.pivot?.is_primary ? 'primary' : 'linked' }}</span>
+                    <span class="unit-okved-table__actions">
+                        <button type="button" @click="openIndustryDialog(industry)">Edit</button>
+                        <button type="button" class="danger" @click="detachIndustry(industry)">Detach</button>
+                    </span>
                 </div>
-            </section>
 
-            <section class="unit-admin-tab__editor">
-                <template v-if="mode === 'industry'">
-                    <div class="unit-admin-tab__title">{{ industryForm.id ? 'Редактировать ОКВЭД' : 'Создать ОКВЭД' }}</div>
-                    <div class="unit-admin-tab__fields-2">
-                        <v-text-field v-model="industryForm.code" label="Code" variant="solo-filled" density="compact" :error-messages="industryErrors.code || []" />
+                <div v-if="!industries.length" class="unit-okved-table__empty">
+                    Нет привязанных ОКВЭД
+                </div>
+            </div>
+        </section>
+
+        <v-dialog v-model="industryDialog" max-width="680">
+            <v-card rounded="xl">
+                <v-card-title>{{ industryForm.id ? 'Редактировать ОКВЭД' : 'Создать ОКВЭД' }}</v-card-title>
+                <v-card-text>
+                    <div class="unit-okved-tab__fields-2">
+                        <v-text-field v-model="industryForm.code" label="Code" variant="solo-filled" density="compact" :error-messages="industryErrors.code || []" autofocus />
                         <v-text-field v-model="industryForm.title" label="Title" variant="solo-filled" density="compact" :error-messages="industryErrors.title || []" />
                     </div>
-                    <div class="unit-admin-tab__buttons">
-                        <button type="button" :disabled="!industryForm.code || !industryForm.title || savingIndustry" @click="saveIndustry">Save ОКВЭД</button>
-                        <button type="button" @click="resetIndustryForm()">New</button>
-                        <button v-if="industryForm.id" type="button" class="danger" :disabled="deletingIndustryId === industryForm.id" @click="deleteIndustry({ id: industryForm.id, code: industryForm.code })">Delete</button>
-                    </div>
-                </template>
+                </v-card-text>
+                <v-card-actions class="justify-space-between">
+                    <v-btn
+                        v-if="industryForm.id"
+                        variant="text"
+                        color="error"
+                        :loading="deletingIndustryId === industryForm.id"
+                        @click="deleteIndustry({ id: industryForm.id, code: industryForm.code })"
+                    >
+                        Delete
+                    </v-btn>
+                    <v-spacer />
+                    <v-btn variant="text" @click="industryDialog = false">Cancel</v-btn>
+                    <v-btn color="teal-darken-3" :disabled="!industryForm.code || !industryForm.title" :loading="savingIndustry" @click="saveIndustry">Save</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
 
-                <template v-else>
-                    <div class="unit-admin-tab__title">Привязать ОКВЭД к Unit</div>
+        <v-dialog v-model="attachDialog" max-width="680">
+            <v-card rounded="xl">
+                <v-card-title>Привязка ОКВЭД</v-card-title>
+                <v-card-text>
                     <v-autocomplete
                         v-model="selectedIndustryId"
                         :items="availableIndustries"
@@ -196,38 +216,66 @@ async function detachIndustry(industry) {
                         variant="solo-filled"
                         density="compact"
                         hide-details
+                        autofocus
                     >
                         <template #item="{ props: itemProps, item }">
                             <v-list-item v-bind="itemProps" :subtitle="item.raw.title" />
                         </template>
                     </v-autocomplete>
-                    <div class="unit-admin-tab__buttons">
-                        <button type="button" :disabled="!selectedIndustryId || attachingIndustry" @click="attachIndustry(false)">Attach</button>
-                        <button type="button" :disabled="!selectedIndustryId || attachingIndustry" @click="attachIndustry(true)">Attach primary</button>
-                    </div>
-                </template>
-            </section>
-        </div>
+                </v-card-text>
+                <v-card-actions class="justify-end">
+                    <v-btn variant="text" @click="attachDialog = false">Cancel</v-btn>
+                    <v-btn color="teal-darken-3" :disabled="!selectedIndustryId || attachingIndustry" :loading="attachingIndustry" @click="attachIndustry(false)">Attach</v-btn>
+                    <v-btn color="teal-darken-4" :disabled="!selectedIndustryId || attachingIndustry" :loading="attachingIndustry" @click="attachIndustry(true)">Attach primary</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </div>
 </template>
 
 <style scoped>
-.unit-admin-tab {
+.unit-okved-tab {
     display: grid;
     gap: 8px;
     color: #153b3a;
 }
 
-.unit-admin-tab__switcher,
-.unit-admin-tab__buttons,
-.unit-admin-table__actions {
+.unit-okved-tab__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.unit-okved-tab__title,
+.unit-okved-tab__actions,
+.unit-okved-table__actions {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
     align-items: center;
 }
 
-.unit-admin-tab button {
+.unit-okved-tab__title span {
+    color: #00524b;
+    font-size: 0.72rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unit-okved-tab__title strong {
+    min-width: 24px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #00695c;
+    color: #ecfffb;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.unit-okved-tab button {
     border: 1px solid rgba(0, 128, 128, 0.24);
     border-radius: 8px;
     background: #00796b;
@@ -240,82 +288,58 @@ async function detachIndustry(industry) {
     text-transform: uppercase;
 }
 
-.unit-admin-tab button.active {
-    background: #003f3c;
-}
-
-.unit-admin-tab button.danger,
-.unit-admin-table__actions button.danger {
+.unit-okved-tab button.danger,
+.unit-okved-table__actions button.danger {
     background: #95133d;
 }
 
-.unit-admin-tab button:disabled {
+.unit-okved-tab button:disabled {
     cursor: wait;
     opacity: 0.5;
 }
 
-.unit-admin-tab__switcher span {
-    color: #00796b;
+.unit-okved-tab__feedback {
+    padding: 6px 8px;
+    border: 1px solid rgba(0, 128, 128, 0.18);
+    border-radius: 8px;
+    background: #f0fdfa;
+    color: #00695c;
     font-size: 0.68rem;
     font-weight: 800;
 }
 
-.unit-admin-tab__layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
-    gap: 8px;
-}
-
-.unit-admin-tab__sheet,
-.unit-admin-tab__editor {
+.unit-okved-tab__sheet {
+    width: 100%;
     border: 1px solid rgba(0, 128, 128, 0.18);
     border-radius: 12px;
     background: #f7fffd;
     overflow: hidden;
 }
 
-.unit-admin-tab__editor {
+.unit-okved-table {
     display: grid;
-    gap: 7px;
-    align-content: start;
-    padding: 8px;
-}
-
-.unit-admin-tab__sheet-head {
-    display: flex;
-    justify-content: space-between;
-    padding: 5px 7px;
-    background: #00695c;
-    color: #ecfffb;
-    font-size: 0.68rem;
-    font-weight: 950;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-admin-table {
-    display: grid;
-    max-height: 260px;
+    width: 100%;
+    max-height: 320px;
     overflow: auto;
 }
 
-.unit-admin-table__row {
+.unit-okved-table__row {
     display: grid;
-    grid-template-columns: 74px minmax(0, 1fr) 62px 112px;
+    grid-template-columns: 92px minmax(0, 1fr) 86px 142px;
     min-height: 30px;
     border-bottom: 1px solid rgba(0, 128, 128, 0.14);
 }
 
-.unit-admin-table__row > span {
+.unit-okved-table__row > span {
     overflow: hidden;
-    padding: 5px 6px;
+    padding: 5px 7px;
     border-right: 1px solid rgba(0, 128, 128, 0.12);
     font-size: 0.68rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.unit-admin-table__row--head > span {
+.unit-okved-table__row--head > span {
     background: #d9f5ef;
     color: #00524b;
     font-weight: 950;
@@ -323,41 +347,39 @@ async function detachIndustry(industry) {
     text-transform: uppercase;
 }
 
-.unit-admin-table__code {
+.unit-okved-table__code {
     color: #004d46;
     font-weight: 950;
 }
 
-.unit-admin-table__actions button {
+.unit-okved-table__actions button {
     border-radius: 6px;
     font-size: 0.54rem;
     padding: 3px 5px;
 }
 
-.unit-admin-table__empty {
-    padding: 10px;
+.unit-okved-table__empty {
+    padding: 12px;
     color: #607d7a;
     font-size: 0.72rem;
 }
 
-.unit-admin-tab__title {
-    color: #004d46;
-    font-size: 0.72rem;
-    font-weight: 950;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-admin-tab__fields-2 {
+.unit-okved-tab__fields-2 {
     display: grid;
-    grid-template-columns: 96px minmax(0, 1fr);
-    gap: 7px;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 8px;
 }
 
 @media (max-width: 980px) {
-    .unit-admin-tab__layout,
-    .unit-admin-tab__fields-2 {
+    .unit-okved-tab__toolbar,
+    .unit-okved-tab__fields-2 {
+        align-items: stretch;
+        flex-direction: column;
         grid-template-columns: 1fr;
+    }
+
+    .unit-okved-table__row {
+        grid-template-columns: 74px minmax(0, 1fr) 74px 112px;
     }
 }
 </style>
