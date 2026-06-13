@@ -750,15 +750,6 @@ onBeforeUnmount(() => {
                 {{ errorMessage }}
             </v-alert>
 
-            <v-alert
-                type="info"
-                variant="tonal"
-                class="mb-4"
-            >
-                Фото сразу создают thumbnail. Видео пока загружается как original со статусом
-                <strong>pending</strong>. Обработку видео через FFmpeg подключим следующим шагом.
-            </v-alert>
-
             <!-- FILTERS -->
             <v-row class="mb-2">
                 <v-col cols="12" md="4">
@@ -815,68 +806,69 @@ onBeforeUnmount(() => {
                 </v-col>
             </v-row>
 
-            <v-row>
-                <!-- FOLDERS -->
-                <v-col cols="12" lg="3">
-                    <v-card variant="tonal">
-                        <v-card-title class="text-subtitle-1">
-                            Папки
-                        </v-card-title>
+            <!-- FOLDERS -->
+            <v-card variant="tonal" class="media-folders mb-3">
+                <v-card-text class="py-2">
+                    <div class="d-flex align-center justify-space-between ga-3 flex-wrap">
+                        <div class="d-flex align-center ga-2">
+                            <v-icon icon="mdi-folder-multiple" size="18" />
 
-                        <v-card-text>
-                            <v-list
-                                density="compact"
-                                lines="two"
+                            <span class="text-subtitle-2">Папки</span>
+
+                            <v-chip size="x-small" variant="flat">
+                                {{ folders.length }}
+                            </v-chip>
+                        </div>
+
+                        <div class="media-folders__list">
+                            <v-chip
+                                v-for="folder in folders"
+                                :key="folder.id"
+                                size="small"
+                                :color="folder.is_archive ? 'brown' : 'blue-grey'"
+                                variant="tonal"
+                                class="media-folder-chip"
                             >
-                                <v-list-item
-                                    v-for="folder in folders"
-                                    :key="folder.id"
-                                >
-                                    <template #prepend>
-                                        <v-icon
-                                            :icon="folder.is_archive ? 'mdi-archive' : 'mdi-folder'"
-                                        />
-                                    </template>
+                                <v-icon
+                                    :icon="folder.is_archive ? 'mdi-archive' : 'mdi-folder'"
+                                    size="15"
+                                    class="mr-1"
+                                />
 
-                                    <v-list-item-title>
-                                        {{ folder.name }}
-                                    </v-list-item-title>
+                                <span class="text-truncate">{{ folder.name }}</span>
 
-                                    <v-list-item-subtitle>
-                                        {{ folder.path }}
-                                    </v-list-item-subtitle>
+                                <v-btn
+                                    icon="mdi-pencil"
+                                    size="x-small"
+                                    variant="text"
+                                    class="ml-1"
+                                    @click.stop="openEditFolder(folder)"
+                                />
 
-                                    <template #append>
-                                        <v-btn
-                                            icon="mdi-pencil"
-                                            size="x-small"
-                                            variant="text"
-                                            @click="openEditFolder(folder)"
-                                        />
+                                <v-btn
+                                    icon="mdi-delete"
+                                    size="x-small"
+                                    variant="text"
+                                    color="red"
+                                    :loading="!!deleting[`folder-${folder.id}`]"
+                                    @click.stop="askDeleteFolder(folder)"
+                                />
+                            </v-chip>
 
-                                        <v-btn
-                                            icon="mdi-delete"
-                                            size="x-small"
-                                            variant="text"
-                                            color="red"
-                                            :loading="!!deleting[`folder-${folder.id}`]"
-                                            @click="askDeleteFolder(folder)"
-                                        />
-                                    </template>
-                                </v-list-item>
+                            <span
+                                v-if="!folders.length"
+                                class="text-caption text-medium-emphasis"
+                            >
+                                Папок пока нет.
+                            </span>
+                        </div>
+                    </div>
+                </v-card-text>
+            </v-card>
 
-                                <v-list-item v-if="!folders.length">
-                                    <v-list-item-title class="text-medium-emphasis">
-                                        Папок пока нет.
-                                    </v-list-item-title>
-                                </v-list-item>
-                            </v-list>
-                        </v-card-text>
-                    </v-card>
-                </v-col>
-
+            <v-row>
                 <!-- MEDIA GRID -->
-                <v-col cols="12" lg="9">
+                <v-col cols="12">
                     <v-progress-linear
                         v-if="loading"
                         indeterminate
@@ -1490,6 +1482,24 @@ onBeforeUnmount(() => {
 
 .media-card--ava {
     border-color: rgb(var(--v-theme-warning));
+}
+
+.media-folders {
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.media-folders__list {
+    display: flex;
+    flex: 1 1 420px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    max-height: 82px;
+    overflow: auto;
+}
+
+.media-folder-chip {
+    max-width: 260px;
 }
 
 .media-preview {

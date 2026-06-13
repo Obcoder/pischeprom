@@ -74,6 +74,7 @@ const savingProducts = ref(false);
 const productIds = ref([]);
 const goodFormErrors = ref({});
 const goodFormMessage = ref("");
+const clipboardMessage = ref("");
 const avatarFile = ref(null);
 const priceCalculationsRefreshKey = ref(0);
 const priceValuesRefreshKey = ref(0);
@@ -105,6 +106,23 @@ const goodBoxWeight = computed(() => {
 
 const currentRecommendationIndustries = computed(() => {
     return goodData.value?.industries || [];
+});
+
+const recommendationCards = computed(() => {
+    return currentRecommendationIndustries.value.map((industry) => {
+        const units = Array.isArray(industry.units) ? industry.units : [];
+        const entities = units
+            .flatMap((unit) => Array.isArray(unit.entities) ? unit.entities : [])
+            .filter((entity, index, list) => {
+                return entity?.id && list.findIndex((item) => item?.id === entity.id) === index;
+            });
+
+        return {
+            ...industry,
+            units,
+            entities,
+        };
+    });
 });
 
 // --------------------------------------------------
@@ -267,6 +285,29 @@ function vatRateTitle(item) {
 
 function productTitle(product) {
     return product?.rus || product?.name || product?.eng || `Product #${product?.id}`;
+}
+
+function entityTitle(entity) {
+    return entity?.name || entity?.full_name || entity?.short_name || `Entity #${entity?.id}`;
+}
+
+function copyToClipboard(value, label = "Значение") {
+    if (!value || typeof navigator === "undefined" || !navigator.clipboard) {
+        clipboardMessage.value = "Clipboard недоступен";
+        return;
+    }
+
+    navigator.clipboard
+        .writeText(String(value))
+        .then(() => {
+            clipboardMessage.value = `${label} скопирован`;
+            window.setTimeout(() => {
+                clipboardMessage.value = "";
+            }, 1800);
+        })
+        .catch(() => {
+            clipboardMessage.value = "Не удалось скопировать";
+        });
 }
 
 // --------------------------------------------------
@@ -1161,6 +1202,62 @@ onMounted(() => {
                                             НДС: {{ currentVatRate.rate }}%
                                         </v-chip>
                                     </div>
+
+                                    <v-divider class="my-3" />
+
+                                    <div class="system-fields-grid">
+                                        <div class="system-field">
+                                            <span>ID</span>
+                                            <strong>{{ goodData.id }}</strong>
+                                        </div>
+
+                                        <div class="system-field">
+                                            <span>created_at</span>
+                                            <strong>{{ formatDateTime(goodData.created_at) }}</strong>
+                                        </div>
+
+                                        <div class="system-field">
+                                            <span>updated_at</span>
+                                            <strong>{{ formatDateTime(goodData.updated_at) }}</strong>
+                                        </div>
+
+                                        <div class="system-field system-field--wide">
+                                            <span>ava_image</span>
+                                            <strong class="text-truncate">{{ goodData.ava_image || "—" }}</strong>
+                                        </div>
+
+                                        <div class="system-field system-field--wide system-field--copy">
+                                            <span>ava_thumb</span>
+
+                                            <div class="d-flex align-center ga-1 min-width-0">
+                                                <v-icon
+                                                    :icon="goodData.ava_thumb ? 'mdi-image-size-select-small' : 'mdi-image-off-outline'"
+                                                    size="16"
+                                                    class="flex-0-0"
+                                                />
+
+                                                <strong class="text-truncate">{{ goodData.ava_thumb || "—" }}</strong>
+
+                                                <v-btn
+                                                    icon="mdi-content-copy"
+                                                    size="x-small"
+                                                    variant="text"
+                                                    :disabled="!goodData.ava_thumb"
+                                                    @click.stop="copyToClipboard(goodData.ava_thumb, 'ava_thumb')"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <v-alert
+                                        v-if="clipboardMessage"
+                                        type="success"
+                                        variant="tonal"
+                                        density="compact"
+                                        class="mt-2 mb-0"
+                                    >
+                                        {{ clipboardMessage }}
+                                    </v-alert>
                                 </v-card-text>
                             </v-card>
 
@@ -1211,21 +1308,6 @@ onMounted(() => {
                         </v-col>
 
                         <v-col cols="12" lg="4">
-                            <v-card class="mb-4">
-                                <v-card-title>Системные поля</v-card-title>
-
-                                <v-card-text>
-                                    <v-list density="compact">
-                                        <v-list-item title="ID" :subtitle="String(goodData.id)" />
-                                        <v-list-item title="Slug сейчас" :subtitle="goodData.slug || '—'" />
-                                        <v-list-item title="created_at" :subtitle="formatDateTime(goodData.created_at)" />
-                                        <v-list-item title="updated_at" :subtitle="formatDateTime(goodData.updated_at)" />
-                                        <v-list-item title="ava_image" :subtitle="goodData.ava_image || '—'" />
-                                        <v-list-item title="ava_thumb" :subtitle="goodData.ava_thumb || '—'" />
-                                    </v-list>
-                                </v-card-text>
-                            </v-card>
-
                             <v-card>
                                 <v-card-title>Быстрая статистика</v-card-title>
 
@@ -1444,34 +1526,129 @@ onMounted(() => {
                         </v-card-title>
 
                         <v-card-text>
-                            <v-alert type="info" variant="tonal" class="mb-4">
-                                Товар будет рекомендоваться пользователям по ОКВЭДам из таблицы industries, связанным с их Unit.
-                            </v-alert>
+                            <v-card variant="tonal" class="mb-4">
+                                <v-card-text class="py-3">
+                                    <v-row dense class="align-center">
+                                        <v-col cols="12" md="9">
+                                            <v-autocomplete
+                                                v-model="recommendationIndustryIds"
+                                                :items="industries"
+                                                :item-title="industryTitle"
+                                                item-value="id"
+                                                label="ОКВЭДы / industries"
+                                                placeholder="Выберите ОКВЭДы"
+                                                variant="outlined"
+                                                density="compact"
+                                                multiple
+                                                chips
+                                                closable-chips
+                                                hide-details
+                                            />
+                                        </v-col>
 
-                            <v-autocomplete
-                                v-model="recommendationIndustryIds"
-                                :items="industries"
-                                :item-title="industryTitle"
-                                item-value="id"
-                                label="ОКВЭДы / industries"
-                                placeholder="Выберите ОКВЭДы"
-                                variant="outlined"
-                                density="comfortable"
-                                multiple
-                                chips
-                                closable-chips
-                            />
+                                        <v-col cols="12" md="3">
+                                            <v-btn
+                                                color="#800000"
+                                                rounded="lg"
+                                                block
+                                                :loading="savingRecommendationClassifications"
+                                                @click="saveRecommendationClassifications"
+                                            >
+                                                Сохранить ОКВЭДы
+                                            </v-btn>
+                                        </v-col>
+                                    </v-row>
+                                </v-card-text>
+                            </v-card>
 
-                            <div class="d-flex justify-end">
-                                <v-btn
-                                    color="#800000"
-                                    rounded="lg"
-                                    :loading="savingRecommendationClassifications"
-                                    @click="saveRecommendationClassifications"
+                            <v-row dense>
+                                <v-col
+                                    v-for="industry in recommendationCards"
+                                    :key="industry.id"
+                                    cols="12"
+                                    md="6"
+                                    xl="4"
                                 >
-                                    Сохранить ОКВЭДы
-                                </v-btn>
-                            </div>
+                                    <v-card class="okved-card h-100">
+                                        <v-card-text>
+                                            <div class="d-flex align-start justify-space-between ga-3">
+                                                <div class="min-width-0">
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        ОКВЭД
+                                                    </div>
+
+                                                    <div class="text-h6 font-weight-bold">
+                                                        {{ industry.code || "—" }}
+                                                    </div>
+
+                                                    <div class="text-body-2 text-medium-emphasis">
+                                                        {{ industry.title || "Без названия" }}
+                                                    </div>
+                                                </div>
+
+                                                <v-chip size="small" variant="tonal" color="#800000">
+                                                    {{ industry.units.length + industry.entities.length }}
+                                                </v-chip>
+                                            </div>
+
+                                            <v-divider class="my-3" />
+
+                                            <div class="text-caption text-medium-emphasis mb-2">
+                                                Кому будет рекомендоваться
+                                            </div>
+
+                                            <div
+                                                v-if="industry.units.length || industry.entities.length"
+                                                class="recommendation-targets"
+                                            >
+                                                <v-btn
+                                                    v-for="unit in industry.units"
+                                                    :key="`unit-${industry.id}-${unit.id}`"
+                                                    :href="route('web.unit.show', unit.id)"
+                                                    size="x-small"
+                                                    variant="tonal"
+                                                    color="blue-grey"
+                                                    prepend-icon="mdi-domain"
+                                                >
+                                                    {{ unit.name || `Unit #${unit.id}` }}
+                                                </v-btn>
+
+                                                <v-btn
+                                                    v-for="entity in industry.entities"
+                                                    :key="`entity-${industry.id}-${entity.id}`"
+                                                    :href="route('Ameise.entity.show', entity.id)"
+                                                    size="x-small"
+                                                    variant="text"
+                                                    color="teal-darken-2"
+                                                    prepend-icon="mdi-office-building"
+                                                >
+                                                    {{ entityTitle(entity) }}
+                                                </v-btn>
+                                            </div>
+
+                                            <v-alert
+                                                v-else
+                                                type="info"
+                                                variant="tonal"
+                                                density="compact"
+                                                class="mb-0"
+                                            >
+                                                Получатели по этому ОКВЭД пока не найдены.
+                                            </v-alert>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+
+                            <v-alert
+                                v-if="!recommendationCards.length"
+                                type="info"
+                                variant="tonal"
+                                density="compact"
+                                class="mb-0"
+                            >
+                                ОКВЭДы для рекомендаций пока не присоединены.
+                            </v-alert>
                         </v-card-text>
                     </v-card>
                 </v-window-item>
@@ -1560,6 +1737,58 @@ onMounted(() => {
     flex-wrap: wrap;
     gap: 6px;
     max-height: 82px;
+    overflow: auto;
+}
+
+.system-fields-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.system-field {
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    border-radius: 10px;
+    background: rgba(var(--v-theme-surface-variant), 0.32);
+}
+
+.system-field span {
+    display: block;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    color: rgba(var(--v-theme-on-surface), 0.58);
+}
+
+.system-field strong {
+    display: block;
+    min-width: 0;
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+
+.system-field--wide {
+    grid-column: 1 / -1;
+}
+
+.system-field--copy .v-btn {
+    flex: 0 0 auto;
+}
+
+.flex-0-0 {
+    flex: 0 0 auto;
+}
+
+.okved-card {
+    border: 1px solid rgba(128, 0, 0, 0.16);
+}
+
+.recommendation-targets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 118px;
     overflow: auto;
 }
 

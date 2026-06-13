@@ -183,6 +183,14 @@ class GoodController extends Controller
                                'priceTypeValues.currency',
                                'entityClassifications',
                                'industries',
+                               'industries.units' => function ($query): void {
+                                   $query
+                                       ->without(['fields', 'labels', 'telephones', 'uris'])
+                                       ->select('units.id', 'units.name');
+                               },
+                               'industries.units.entities' => function ($query): void {
+                                   $query->select('entities.id', 'entities.name', 'entities.full_name');
+                               },
                            ])->findOrFail($id);
 
         $expectedSlug = $good->slug ?: Str::slug($good->name);

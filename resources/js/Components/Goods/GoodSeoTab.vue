@@ -10,6 +10,7 @@ const props = defineProps({
 })
 
 const goodId = computed(() => props.good.id)
+const seoImageFallback = computed(() => props.good?.ava_thumb || '')
 
 const {
     seo,
@@ -87,11 +88,11 @@ function fillForm(data) {
 
     form.og_title = data?.og_title || ''
     form.og_description = data?.og_description || ''
-    form.og_image = data?.og_image || ''
+    form.og_image = seoImageFallback.value || data?.og_image || ''
 
     form.twitter_title = data?.twitter_title || ''
     form.twitter_description = data?.twitter_description || ''
-    form.twitter_image = data?.twitter_image || ''
+    form.twitter_image = seoImageFallback.value || data?.twitter_image || ''
 
     form.short_seo_text = data?.short_seo_text || ''
     form.seo_text = data?.seo_text || ''
@@ -145,11 +146,11 @@ function payload() {
 
         og_title: form.og_title,
         og_description: form.og_description,
-        og_image: form.og_image,
+        og_image: seoImageFallback.value || form.og_image,
 
         twitter_title: form.twitter_title,
         twitter_description: form.twitter_description,
-        twitter_image: form.twitter_image,
+        twitter_image: seoImageFallback.value || form.twitter_image,
 
         short_seo_text: form.short_seo_text,
         seo_text: form.seo_text,
@@ -208,6 +209,13 @@ async function submit() {
 
 watch(seo, (value) => {
     if (value) fillForm(value)
+})
+
+watch(seoImageFallback, (value) => {
+    if (!value) return
+
+    form.og_image = value
+    form.twitter_image = value
 })
 
 onMounted(async () => {
