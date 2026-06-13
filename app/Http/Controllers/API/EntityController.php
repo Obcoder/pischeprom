@@ -9,6 +9,7 @@ use App\Http\Resources\EntityResource;
 use App\Models\Entity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class EntityController extends Controller
 {
@@ -150,7 +151,16 @@ class EntityController extends Controller
             $attributes['dadata_loaded_at'] = now();
         }
 
-        return $attributes;
+        return $this->onlyExistingEntityColumns($attributes);
+    }
+
+    private function onlyExistingEntityColumns(array $attributes): array
+    {
+        $columns = Schema::getColumnListing('entities');
+
+        return collect($attributes)
+            ->only($columns)
+            ->toArray();
     }
 
     private function syncRelations(Entity $entity, Request $request): void
