@@ -21,6 +21,7 @@ const isEdit = ref(false)
 const selectedEntity = ref(null)
 const groupByCities = ref(false)
 const filtersOpened = ref(false)
+const detailDrawerOpened = ref(false)
 
 const meta = ref({
     classifications: [],
@@ -178,6 +179,7 @@ const removeItem = async (item) => {
 
         if (selectedEntity.value?.id === item.id) {
             selectedEntity.value = null
+            detailDrawerOpened.value = false
         }
 
         await loadItems()
@@ -189,6 +191,7 @@ const removeItem = async (item) => {
 const showEntity = async (item) => {
     try {
         selectedEntity.value = await getOne(item.id)
+        detailDrawerOpened.value = true
     } catch (error) {
         console.error('showEntity error:', error?.response?.data || error)
     }
@@ -245,7 +248,7 @@ onMounted(async () => {
 <template>
     <v-container fluid class="pa-2 w-100" style="max-width: 100%">
         <v-row class="w-100 ma-0">
-            <v-col cols="12" md="9" class="pa-1 d-flex">
+            <v-col cols="12" class="pa-1 d-flex">
                 <EntityTable
                     class="w-100"
                     :items="tableItems"
@@ -272,16 +275,34 @@ onMounted(async () => {
                     @reload="loadItems"
                 />
             </v-col>
-
-            <v-col cols="12" md="3" class="pa-1 d-flex">
-                <slot name="details" :entity="selectedEntity">
-                    <EntityDetailCard
-                        class="w-100"
-                        :entity="selectedEntity"
-                    />
-                </slot>
-            </v-col>
         </v-row>
+
+        <transition name="entity-drawer-backdrop">
+            <div
+                v-if="detailDrawerOpened"
+                class="entity-detail-overlay"
+                @click.self="detailDrawerOpened = false"
+            >
+                <transition name="entity-drawer" appear>
+                    <aside class="entity-detail-drawer">
+                        <div class="entity-detail-drawer__toolbar">
+                            <v-btn
+                                icon="mdi-close"
+                                variant="text"
+                                @click="detailDrawerOpened = false"
+                            />
+                        </div>
+
+                        <slot name="details" :entity="selectedEntity">
+                            <EntityDetailCard
+                                class="w-100"
+                                :entity="selectedEntity"
+                            />
+                        </slot>
+                    </aside>
+                </transition>
+            </div>
+        </transition>
 
         <EntityFormDialog
             v-model="dialog"
@@ -299,5 +320,53 @@ onMounted(async () => {
 .w-100 {
     width: 100%;
     max-width: 100%;
+}
+
+.entity-detail-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2400;
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(20, 18, 15, 0.28);
+    backdrop-filter: blur(2px);
+}
+
+.entity-detail-drawer {
+    width: min(620px, 94vw);
+    height: 100%;
+    padding: 18px;
+    overflow: auto;
+    background:
+        radial-gradient(circle at 10% 0%, rgba(128, 0, 0, 0.12), transparent 34%),
+        linear-gradient(180deg, #fffdf8 0%, #f7efe2 100%);
+    box-shadow: -28px 0 70px rgba(23, 16, 10, 0.26);
+}
+
+.entity-detail-drawer__toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+}
+
+.entity-drawer-enter-active,
+.entity-drawer-leave-active {
+    transition: transform 0.58s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.42s ease;
+}
+
+.entity-drawer-enter-from,
+.entity-drawer-leave-to {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+.entity-drawer-backdrop-enter-active,
+.entity-drawer-backdrop-leave-active {
+    transition: opacity 0.42s ease;
+}
+
+.entity-drawer-backdrop-enter-from,
+.entity-drawer-backdrop-leave-to {
+    opacity: 0;
 }
 </style>

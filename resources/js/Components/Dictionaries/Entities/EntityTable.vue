@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { route } from 'ziggy-js'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
 
 const props = defineProps({
@@ -41,12 +42,26 @@ const headers = [
     { title: 'Продаж', key: 'sales_count', sortable: true },
     { title: 'Последний purchase', key: 'last_purchase_date', sortable: true },
     { title: 'Страна', key: 'country_name', sortable: false },
-    { title: '', key: 'actions', sortable: false, width: 120 },
+    { title: '', key: 'actions', sortable: false, width: 170 },
 ]
 
-const localPanels = computed({
-    get: () => (props.filtersOpened ? 0 : null),
-    set: value => emit('update:filtersOpened', value === 0),
+const filterMenu = computed({
+    get: () => props.filtersOpened,
+    set: value => emit('update:filtersOpened', !!value),
+})
+
+const activeFiltersCount = computed(() => {
+    return [
+        props.filters.search,
+        ...(props.filters.entity_classification_ids || []),
+        ...(props.filters.country_ids || []),
+        ...(props.filters.city_ids || []),
+        ...(props.filters.building_ids || []),
+        ...(props.filters.email_ids || []),
+        ...(props.filters.telephone_ids || []),
+        ...(props.filters.unit_ids || []),
+        ...(props.filters.chat_ids || []),
+    ].filter(Boolean).length
 })
 
 const onOptionsUpdate = (options) => {
@@ -59,52 +74,81 @@ const goToPage = (p) => {
     emit('update:page', p)
     emit('reload')
 }
+
+const buildingTitle = (building) => {
+    return [
+        building.city?.name,
+        building.address,
+        building.postcode,
+    ].filter(Boolean).join(' · ')
+}
 </script>
 
 <template>
-    <v-card class="w-100">
+    <v-card class="w-100 entities-table-card">
         <v-card-title class="d-flex align-center flex-wrap ga-2">
             <span>Entities</span>
 
+            <v-chip size="small" variant="tonal" color="blue-grey-lighten-2">
+                {{ totalItems }}
+            </v-chip>
+
             <v-spacer />
 
-            <v-btn color="primary" @click="emit('create')">
-                Добавить
-            </v-btn>
-
-            <v-btn
-                :variant="groupByCities ? 'flat' : 'outlined'"
-                color="secondary"
-                @click="emit('update:groupByCities', !groupByCities)"
+            <v-menu
+                v-model="filterMenu"
+                :close-on-content-click="false"
+                location="bottom end"
+                offset="12"
+                content-class="entity-filter-menu"
             >
-                {{ groupByCities ? 'Без группировки' : 'По городам' }}
-            </v-btn>
-        </v-card-title>
-
-        <v-card-text>
-            <v-expansion-panels
-                v-model="localPanels"
-                variant="accordion"
-                class="mb-3"
-            >
-                <v-expansion-panel>
-                    <v-expansion-panel-title>
+                <template #activator="{ props: menuProps }">
+                    <v-btn
+                        v-bind="menuProps"
+                        :variant="activeFiltersCount ? 'flat' : 'tonal'"
+                        color="blue-grey-lighten-2"
+                        prepend-icon="mdi-filter-variant"
+                    >
                         Фильтры
-                    </v-expansion-panel-title>
 
-                    <v-expansion-panel-text>
+                        <v-chip
+                            v-if="activeFiltersCount"
+                            size="x-small"
+                            color="#800000"
+                            variant="flat"
+                            class="ml-2"
+                        >
+                            {{ activeFiltersCount }}
+                        </v-chip>
+                    </v-btn>
+                </template>
+
+                <v-card class="entity-filter-card">
+                    <v-card-title class="entity-filter-card__title">
+                        <span>Фильтры Entities</span>
+
+                        <v-btn
+                            icon="mdi-close"
+                            size="small"
+                            variant="text"
+                            @click="filterMenu = false"
+                        />
+                    </v-card-title>
+
+                    <v-card-text>
                         <v-row dense>
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-text-field
                                     v-model="filters.search"
                                     label="Поиск"
                                     density="compact"
                                     clearable
                                     hide-details
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.entity_classification_ids"
                                     :items="meta.classifications"
@@ -116,10 +160,11 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.country_ids"
                                     :items="meta.countries"
@@ -131,10 +176,11 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.city_ids"
                                     :items="meta.cities"
@@ -146,14 +192,15 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.building_ids"
                                     :items="meta.buildings"
-                                    item-title="name"
+                                    :item-title="buildingTitle"
                                     item-value="id"
                                     label="Здания"
                                     multiple
@@ -161,10 +208,11 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.email_ids"
                                     :items="meta.emails"
@@ -176,10 +224,11 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-autocomplete
                                     v-model="filters.telephone_ids"
                                     :items="meta.telephones"
@@ -191,11 +240,11 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
-                                    variant="solo"
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.unit_ids"
                                     :items="meta.units"
@@ -207,14 +256,15 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo-filled"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.chat_ids"
                                     :items="meta.chats"
-                                    item-title="name"
+                                    item-title="numbers"
                                     item-value="id"
                                     label="Chats"
                                     multiple
@@ -222,25 +272,46 @@ const goToPage = (p) => {
                                     closable-chips
                                     density="compact"
                                     clearable
+                                    variant="solo-filled"
                                 />
                             </v-col>
-
-                            <v-col cols="12" class="pt-1">
-                                <div class="d-flex ga-2">
-                                    <v-btn variant="text" @click="emit('resetFilters')">
-                                        Сбросить
-                                    </v-btn>
-                                    <v-btn variant="text" @click="emit('reload')">
-                                        Обновить
-                                    </v-btn>
-                                </div>
-                            </v-col>
                         </v-row>
-                    </v-expansion-panel-text>
-                </v-expansion-panel>
-            </v-expansion-panels>
+                    </v-card-text>
 
-            <v-data-table-server class="text-caption"
+                    <v-card-actions>
+                        <v-btn variant="text" @click="emit('resetFilters')">
+                            Сбросить
+                        </v-btn>
+
+                        <v-btn variant="text" @click="emit('reload')">
+                            Обновить
+                        </v-btn>
+
+                        <v-spacer />
+
+                        <v-btn color="blue-grey-darken-1" variant="flat" @click="filterMenu = false">
+                            Закрыть
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-menu>
+
+            <v-btn color="primary" @click="emit('create')">
+                Добавить
+            </v-btn>
+
+            <v-btn
+                :variant="groupByCities ? 'flat' : 'tonal'"
+                color="secondary"
+                @click="emit('update:groupByCities', !groupByCities)"
+            >
+                {{ groupByCities ? 'Без группировки' : 'По городам' }}
+            </v-btn>
+        </v-card-title>
+
+        <v-card-text>
+            <v-data-table-server
+                class="text-caption"
                 :headers="headers"
                 :items="items"
                 :items-length="totalItems"
@@ -252,13 +323,13 @@ const goToPage = (p) => {
                 hide-default-footer
                 item-value="id"
                 height="770"
-                @update:options="onOptionsUpdate"
                 hover
+                @update:options="onOptionsUpdate"
             >
                 <template #item.name="{ item }">
                     <a
                         href="#"
-                        class="text-decoration-none font-weight-medium"
+                        class="entity-name-link"
                         @click.prevent="emit('show', item)"
                     >
                         {{ item.name }}
@@ -273,10 +344,15 @@ const goToPage = (p) => {
                     <span v-else>{{ item.city_names || '—' }}</span>
                 </template>
 
-                <template #item.buildings="{item}">
-                    <span v-for="building in item.buildings"
-                          style="font-size: 8px; font-weight: bold;"
-                    >{{building.address}}</span>
+                <template #item.buildings="{ item }">
+                    <div class="entity-building-list">
+                        <span
+                            v-for="building in item.buildings"
+                            :key="building.id"
+                        >
+                            {{ building.address }}
+                        </span>
+                    </div>
                 </template>
 
                 <template #item.telephones_display="{ item }">
@@ -289,8 +365,38 @@ const goToPage = (p) => {
 
                 <template #item.actions="{ item }">
                     <div class="d-flex ga-1 justify-end">
-                        <v-btn size="small" variant="text" @click="emit('edit', item)">edit</v-btn>
-                        <v-btn size="small" variant="text" color="error" @click="emit('delete', item)">del</v-btn>
+                        <v-btn
+                            icon="mdi-eye-outline"
+                            size="small"
+                            variant="text"
+                            title="Открыть панель"
+                            @click="emit('show', item)"
+                        />
+
+                        <v-btn
+                            icon="mdi-open-in-new"
+                            size="small"
+                            variant="text"
+                            title="Перейти в карточку"
+                            :href="route('Ameise.entity.show', item.id)"
+                        />
+
+                        <v-btn
+                            icon="mdi-pencil"
+                            size="small"
+                            variant="text"
+                            title="Редактировать"
+                            @click="emit('edit', item)"
+                        />
+
+                        <v-btn
+                            icon="mdi-delete-outline"
+                            size="small"
+                            variant="text"
+                            color="error"
+                            title="Удалить"
+                            @click="emit('delete', item)"
+                        />
                     </div>
                 </template>
             </v-data-table-server>
@@ -315,6 +421,53 @@ const goToPage = (p) => {
 </template>
 
 <style scoped>
+.entities-table-card {
+    border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.entity-name-link {
+    color: #eaf4ff;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.entity-name-link:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+.entity-building-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 240px;
+}
+
+.entity-building-list span {
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.entity-filter-card {
+    width: min(920px, calc(100vw - 32px));
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.12), transparent 34%),
+        linear-gradient(135deg, #4d5354 0%, #626867 100%);
+    color: #f5f1e9;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.38);
+}
+
+.entity-filter-card__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 .entity-page-chip {
     min-width: 48px;
 }

@@ -19,6 +19,8 @@ class EntityResource extends JsonResource
             'legal_address' => $this->legal_address,
             'entity_classification_id' => $this->entity_classification_id,
             'country_id' => $this->country_id,
+            'dadata_raw' => $this->dadata_raw,
+            'dadata_loaded_at' => $this->dadata_loaded_at,
 
             'cities' => $this->whenLoaded('cities', fn () => $this->cities->map(fn ($item) => [
                 'id' => $item->id,

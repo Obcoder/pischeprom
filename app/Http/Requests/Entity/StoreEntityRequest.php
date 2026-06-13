@@ -22,6 +22,7 @@ class StoreEntityRequest extends FormRequest
             'OGRN' => ['nullable', 'string', 'max:32'],
             'legal_address' => ['nullable', 'string', 'max:1024'],
             'country_id' => ['nullable', 'exists:countries,id'],
+            'dadata_raw' => ['nullable', 'array'],
 
             'buildings' => ['array'],
             'buildings.*' => ['integer', 'exists:buildings,id'],

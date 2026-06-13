@@ -208,6 +208,10 @@ Route::prefix('web')->name('web.')->group(function () {
     Route::get('/entities/lookup-by-inn', [EntityLookupController::class, 'lookupByInn'])
         ->middleware('throttle:30,1')
         ->name('entities.lookup-by-inn');
+
+    Route::get('/entities/lookup', [EntityLookupController::class, 'lookup'])
+        ->middleware('throttle:30,1')
+        ->name('entities.lookup');
 });
 //  E N D  E N T I T I E S
 

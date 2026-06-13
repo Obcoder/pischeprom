@@ -1,6 +1,7 @@
 <script setup>
 import axios from 'axios'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { route } from 'ziggy-js'
 
 const props = defineProps({
     modelValue: Boolean,
@@ -16,6 +17,12 @@ const buildingFormOpen = ref(false)
 const buildingCreating = ref(false)
 const buildingError = ref('')
 const createdBuildings = ref([])
+const dadataSearch = ref('')
+const dadataSelected = ref(null)
+const dadataSuggestions = ref([])
+const dadataLoading = ref(false)
+const dadataMessage = ref('')
+let dadataTimer = null
 const buildingForm = reactive({
     city_id: null,
     address: '',
@@ -116,6 +123,74 @@ const mergeCreatedBuilding = (building) => {
     emit('building-created', building)
 }
 
+const countryIdByName = (countryName) => {
+    const normalized = String(countryName || '').trim().toLowerCase()
+
+    if (!normalized) {
+        return null
+    }
+
+    return props.meta.countries?.find((country) => {
+        return String(country.name || '').trim().toLowerCase() === normalized
+    })?.id ?? null
+}
+
+const searchDaData = async () => {
+    const query = dadataSearch.value.trim()
+
+    if (query.length < 2) {
+        dadataSuggestions.value = []
+        dadataMessage.value = ''
+        return
+    }
+
+    dadataLoading.value = true
+    dadataMessage.value = 'Ищем организацию в DaData...'
+
+    try {
+        const { data } = await axios.get(route('web.entities.lookup'), {
+            params: { query },
+        })
+
+        dadataSuggestions.value = data.data || []
+        dadataMessage.value = dadataSuggestions.value.length
+            ? 'Выберите организацию из справочника DaData.'
+            : 'DaData не вернул подсказок. Можно заполнить вручную.'
+    } catch (error) {
+        dadataMessage.value = error?.response?.data?.message || 'Не удалось получить подсказки DaData.'
+        dadataSuggestions.value = []
+    } finally {
+        dadataLoading.value = false
+    }
+}
+
+const scheduleDaDataSearch = (value) => {
+    dadataSearch.value = value || ''
+    clearTimeout(dadataTimer)
+
+    dadataTimer = setTimeout(searchDaData, 450)
+}
+
+const applyDaDataSuggestion = (suggestion) => {
+    if (!suggestion?.entity) {
+        return
+    }
+
+    const entity = suggestion.entity
+
+    props.form.name = entity.name || props.form.name
+    props.form.full_name = entity.full_name || props.form.full_name
+    props.form.entity_classification_id = entity.entity_classification_id || props.form.entity_classification_id
+    props.form.INN = entity.INN || props.form.INN
+    props.form.KPP = entity.KPP || props.form.KPP
+    props.form.OGRN = entity.OGRN || props.form.OGRN
+    props.form.legal_address = entity.legal_address || props.form.legal_address
+    props.form.country_id = countryIdByName(entity.country_name) || props.form.country_id
+    props.form.dadata_raw = suggestion.raw || null
+
+    dadataMessage.value = 'Реквизиты заполнены из DaData.'
+}
+
 const createBuilding = async () => {
     buildingError.value = ''
 
@@ -153,6 +228,23 @@ const createBuilding = async () => {
         buildingCreating.value = false
     }
 }
+
+watch(dadataSelected, (value) => {
+    applyDaDataSuggestion(value)
+})
+
+watch(
+    () => props.modelValue,
+    (isOpen) => {
+        if (!isOpen) {
+            clearTimeout(dadataTimer)
+            dadataSearch.value = ''
+            dadataSelected.value = null
+            dadataSuggestions.value = []
+            dadataMessage.value = ''
+        }
+    }
+)
 </script>
 
 <template>
@@ -168,31 +260,98 @@ const createBuilding = async () => {
 
             <v-card-text>
                 <v-row dense>
-                    <v-col cols="12" md="6">
-                        <v-text-field v-model="form.name" label="Название" variant="outlined"/>
+                    <v-col cols="12">
+                        <div class="dadata-panel">
+                            <div class="dadata-panel__header">
+                                <div>
+                                    <span class="dadata-panel__eyebrow">DaData</span>
+                                    <strong>Поиск по ИНН или названию</strong>
+                                </div>
+
+                                <v-chip
+                                    v-if="form.dadata_raw"
+                                    size="small"
+                                    color="teal"
+                                    variant="flat"
+                                >
+                                    данные выбраны
+                                </v-chip>
+                            </div>
+
+                            <v-autocomplete
+                                v-model="dadataSelected"
+                                :items="dadataSuggestions"
+                                :loading="dadataLoading"
+                                :search="dadataSearch"
+                                item-title="entity.name"
+                                return-object
+                                label="ИНН или название организации"
+                                placeholder="Например: 7707083893 или Ромашка"
+                                variant="solo-filled"
+                                density="comfortable"
+                                clearable
+                                hide-details="auto"
+                                no-filter
+                                menu-icon="mdi-database-search"
+                                :menu-props="{ contentClass: 'entity-dadata-menu' }"
+                                @update:search="scheduleDaDataSearch"
+                            >
+                                <template #item="{ props, item }">
+                                    <v-list-item
+                                        v-bind="props"
+                                        class="dadata-suggestion"
+                                        prepend-icon="mdi-domain"
+                                    >
+                                        <template #title>
+                                            <span>{{ item.raw.entity.name }}</span>
+                                        </template>
+
+                                        <template #subtitle>
+                                            <span>{{ item.raw.entity.INN || 'ИНН не указан' }}</span>
+                                            <span v-if="item.raw.entity.KPP"> · КПП {{ item.raw.entity.KPP }}</span>
+                                            <span v-if="item.raw.entity.legal_address"> · {{ item.raw.entity.legal_address }}</span>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+                            </v-autocomplete>
+
+                            <v-alert
+                                v-if="dadataMessage"
+                                :type="dadataMessage.includes('заполнены') ? 'success' : 'info'"
+                                variant="tonal"
+                                density="compact"
+                                class="mt-2 mb-0"
+                            >
+                                {{ dadataMessage }}
+                            </v-alert>
+                        </div>
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-text-field v-model="form.full_name" label="Полное название" variant="outlined"/>
+                        <v-text-field v-model="form.name" label="Название" variant="solo-filled"/>
+                    </v-col>
+
+                    <v-col cols="12" md="6">
+                        <v-text-field v-model="form.full_name" label="Полное название" variant="solo-filled"/>
                     </v-col>
 
                     <v-col cols="12" md="4">
-                        <v-text-field v-model="form.INN" label="INN" />
+                        <v-text-field v-model="form.INN" label="INN" variant="solo-filled" />
                     </v-col>
 
                     <v-col cols="12" md="4">
-                        <v-text-field v-model="form.KPP" label="KPP" />
+                        <v-text-field v-model="form.KPP" label="KPP" variant="solo-filled" />
                     </v-col>
 
                     <v-col cols="12" md="4">
-                        <v-text-field v-model="form.OGRN" label="OGRN" />
+                        <v-text-field v-model="form.OGRN" label="OGRN" variant="solo-filled" />
                     </v-col>
 
                     <v-col cols="12">
                         <v-textarea
                             v-model="form.legal_address"
                             label="Юридический адрес"
-                            variant="outlined"
+                            variant="solo-filled"
                             rows="2"
                             auto-grow
                         />
@@ -205,6 +364,7 @@ const createBuilding = async () => {
                             item-title="name"
                             item-value="id"
                             label="Классификация"
+                            variant="solo-filled"
                             clearable
                         />
                     </v-col>
@@ -216,6 +376,7 @@ const createBuilding = async () => {
                             item-title="name"
                             item-value="id"
                             label="Страна"
+                            variant="solo-filled"
                             clearable
                         />
                     </v-col>
@@ -277,6 +438,7 @@ const createBuilding = async () => {
                                 density="comfortable"
                                 class="buildings-autocomplete"
                                 menu-icon="mdi-map-marker-radius"
+                                :menu-props="{ contentClass: 'entity-buildings-menu' }"
                             >
                                 <template #chip="{ props, item }">
                                     <v-chip
@@ -330,7 +492,7 @@ const createBuilding = async () => {
                                                 item-value="id"
                                                 label="City"
                                                 placeholder="Выберите город"
-                                                variant="outlined"
+                                                variant="solo-filled"
                                                 density="compact"
                                                 hide-details="auto"
                                             />
@@ -341,7 +503,7 @@ const createBuilding = async () => {
                                                 v-model="buildingForm.address"
                                                 label="Адрес"
                                                 placeholder="Улица, дом, корпус"
-                                                variant="outlined"
+                                                variant="solo-filled"
                                                 density="compact"
                                                 hide-details="auto"
                                             />
@@ -351,7 +513,7 @@ const createBuilding = async () => {
                                             <v-text-field
                                                 v-model="buildingForm.postcode"
                                                 label="Индекс"
-                                                variant="outlined"
+                                                variant="solo-filled"
                                                 density="compact"
                                                 hide-details="auto"
                                             />
@@ -394,6 +556,7 @@ const createBuilding = async () => {
                             multiple
                             chips
                             closable-chips
+                            variant="solo-filled"
                         />
                     </v-col>
 
@@ -407,6 +570,7 @@ const createBuilding = async () => {
                             multiple
                             chips
                             closable-chips
+                            variant="solo-filled"
                         />
                     </v-col>
 
@@ -439,6 +603,7 @@ const createBuilding = async () => {
                                 density="comfortable"
                                 class="units-autocomplete"
                                 menu-icon="mdi-magnify"
+                                :menu-props="{ contentClass: 'entity-units-menu' }"
                             >
                                 <template #chip="{ props, item }">
                                     <v-chip
@@ -476,6 +641,7 @@ const createBuilding = async () => {
                             multiple
                             chips
                             closable-chips
+                            variant="solo-filled"
                         />
                     </v-col>
                 </v-row>
@@ -491,6 +657,51 @@ const createBuilding = async () => {
 </template>
 
 <style scoped>
+.dadata-panel {
+    padding: 14px;
+    border: 1px solid rgba(24, 93, 99, 0.18);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 0% 0%, rgba(54, 151, 159, 0.20), transparent 34%),
+        linear-gradient(135deg, #effbfb 0%, #ffffff 60%, #edf6f3 100%);
+    box-shadow: 0 16px 32px rgba(17, 79, 82, 0.09);
+}
+
+.dadata-panel__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 10px;
+    color: #123f42;
+}
+
+.dadata-panel__header strong {
+    display: block;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 19px;
+    line-height: 1.05;
+}
+
+.dadata-panel__eyebrow {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(18, 63, 66, 0.58);
+}
+
+.dadata-suggestion :deep(.v-list-item-title) {
+    color: #123f42;
+    font-weight: 800;
+}
+
+.dadata-suggestion :deep(.v-list-item-subtitle) {
+    color: rgba(18, 63, 66, 0.68);
+}
+
 .units-autocomplete-panel {
     padding: 14px;
     border: 1px solid rgba(64, 44, 22, 0.14);
@@ -690,5 +901,40 @@ const createBuilding = async () => {
     .buildings-panel__actions {
         justify-content: flex-start;
     }
+}
+</style>
+
+<style>
+.entity-units-menu .v-list,
+.entity-buildings-menu .v-list,
+.entity-dadata-menu .v-list {
+    background: #fffaf0 !important;
+    color: #2f2114 !important;
+    border: 1px solid rgba(64, 44, 22, 0.16);
+    box-shadow: 0 24px 64px rgba(26, 18, 10, 0.24);
+}
+
+.entity-units-menu .v-list-item,
+.entity-buildings-menu .v-list-item,
+.entity-dadata-menu .v-list-item {
+    color: #2f2114 !important;
+}
+
+.entity-units-menu .v-list-item-title,
+.entity-buildings-menu .v-list-item-title,
+.entity-dadata-menu .v-list-item-title {
+    color: #2f2114 !important;
+}
+
+.entity-units-menu .v-list-item-subtitle,
+.entity-buildings-menu .v-list-item-subtitle,
+.entity-dadata-menu .v-list-item-subtitle {
+    color: rgba(47, 33, 20, 0.68) !important;
+}
+
+.entity-units-menu .v-list-item:hover,
+.entity-buildings-menu .v-list-item:hover,
+.entity-dadata-menu .v-list-item:hover {
+    background: rgba(121, 84, 35, 0.12) !important;
 }
 </style>

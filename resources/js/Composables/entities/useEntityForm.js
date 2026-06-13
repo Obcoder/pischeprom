@@ -11,6 +11,7 @@ export function useEntityForm() {
         OGRN: '',
         legal_address: '',
         country_id: null,
+        dadata_raw: null,
         buildings: [],
         cities: [],
         emails: [],
@@ -35,6 +36,7 @@ export function useEntityForm() {
         form.OGRN = entity.OGRN ?? ''
         form.legal_address = entity.legal_address ?? ''
         form.country_id = entity.country_id ?? null
+        form.dadata_raw = entity.dadata_raw ?? null
         form.buildings = entity.buildings?.map(x => x.id) ?? []
         form.cities = entity.cities?.map(x => x.id) ?? []
         form.emails = entity.emails?.map(x => x.id) ?? []
@@ -52,6 +54,7 @@ export function useEntityForm() {
         OGRN: form.OGRN,
         legal_address: form.legal_address,
         country_id: form.country_id,
+        dadata_raw: form.dadata_raw,
         buildings: form.buildings,
         cities: form.cities,
         emails: form.emails,

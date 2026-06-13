@@ -9,12 +9,45 @@ use Illuminate\Support\Facades\Http;
 
 class EntityLookupController extends Controller
 {
+    public function lookup(Request $request)
+    {
+        $validated = $request->validate([
+                                            'query' => ['required', 'string', 'min:2', 'max:255'],
+                                        ]);
+
+        $query = trim($validated['query']);
+        $digits = preg_replace('/\D+/', '', $query);
+
+        if (in_array(strlen($digits), [10, 12], true)) {
+            return $this->lookupDaData(
+                endpoint: 'findById/party',
+                query: $digits,
+                count: 8,
+            );
+        }
+
+        return $this->lookupDaData(
+            endpoint: 'suggest/party',
+            query: $query,
+            count: 10,
+        );
+    }
+
     public function lookupByInn(Request $request)
     {
         $validated = $request->validate([
                                             'inn' => ['required', 'string', 'regex:/^(?:\d{10}|\d{12})$/'],
                                         ]);
 
+        return $this->lookupDaData(
+            endpoint: 'findById/party',
+            query: $validated['inn'],
+            count: 5,
+        );
+    }
+
+    protected function lookupDaData(string $endpoint, string $query, int $count)
+    {
         $token = config('services.dadata.token');
 
         abort_unless($token, 503, 'DaData token is not configured.');
@@ -25,9 +58,9 @@ class EntityLookupController extends Controller
                               'Content-Type' => 'application/json',
                               'Accept' => 'application/json',
                           ])
-            ->post('https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party', [
-                'query' => $validated['inn'],
-                'count' => 5,
+            ->post("https://suggestions.dadata.ru/suggestions/api/4_1/rs/{$endpoint}", [
+                'query' => $query,
+                'count' => $count,
             ])
             ->throw()
             ->json();
@@ -47,6 +80,7 @@ class EntityLookupController extends Controller
         $name = $data['name'] ?? [];
         $opf = $data['opf'] ?? [];
         $address = $data['address'] ?? [];
+        $addressData = $address['data'] ?? [];
         $management = $data['management'] ?? [];
         $state = $data['state'] ?? [];
 
@@ -79,6 +113,7 @@ class EntityLookupController extends Controller
                 'OGRN' => $data['ogrn'] ?? null,
 
                 'legal_address' => $address['unrestricted_value'] ?? null,
+                'country_name' => $addressData['country'] ?? 'Россия',
 
                 'opf' => $opfShort,
                 'okved' => $data['okved'] ?? null,

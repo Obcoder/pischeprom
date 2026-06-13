@@ -142,9 +142,15 @@ class EntityController extends Controller
 
     private function entityAttributes(StoreEntityRequest|UpdateEntityRequest $request): array
     {
-        return collect($request->validated())
+        $attributes = collect($request->validated())
             ->except(self::RELATION_KEYS)
             ->toArray();
+
+        if (!empty($attributes['dadata_raw'])) {
+            $attributes['dadata_loaded_at'] = now();
+        }
+
+        return $attributes;
     }
 
     private function syncRelations(Entity $entity, Request $request): void
