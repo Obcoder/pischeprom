@@ -60,6 +60,7 @@ const measures = ref([]);
 const units = ref([]);
 const industries = ref([]);
 const vatRates = ref([]);
+const products = ref([]);
 const savingRecommendationClassifications = ref(false);
 
 const dialogFormQuotation = ref(false);
@@ -67,6 +68,10 @@ const recommendationIndustryIds = ref([]);
 const savingGood = ref(false);
 const deletingGood = ref(false);
 const deleteGoodDialog = ref(false);
+const editGoodDialog = ref(false);
+const productsDialog = ref(false);
+const savingProducts = ref(false);
+const productIds = ref([]);
 const goodFormErrors = ref({});
 const goodFormMessage = ref("");
 const avatarFile = ref(null);
@@ -260,6 +265,10 @@ function vatRateTitle(item) {
     return item ? `${item.title} / ${item.rate}%` : "";
 }
 
+function productTitle(product) {
+    return product?.rus || product?.name || product?.eng || `Product #${product?.id}`;
+}
+
 // --------------------------------------------------
 // API
 // --------------------------------------------------
@@ -269,6 +278,7 @@ async function fetchGood() {
     goodData.value = response.data;
     syncRecommendationClassificationForm();
     syncGoodForm();
+    syncProductsForm();
 }
 
 async function fetchCurrencies() {
@@ -319,6 +329,15 @@ async function fetchVatRates() {
         : response.data.data || [];
 }
 
+async function fetchProducts() {
+    const response = await axios.get(route("products.index"));
+
+    products.value = (Array.isArray(response.data)
+        ? response.data
+        : response.data.data || [])
+        .sort((a, b) => productTitle(a).localeCompare(productTitle(b), "ru"));
+}
+
 async function loadPageData() {
     pageLoading.value = true;
     pageError.value = null;
@@ -331,6 +350,7 @@ async function loadPageData() {
             fetchUnits(),
             fetchIndustries(),
             fetchVatRates(),
+            fetchProducts(),
         ]);
     } catch (error) {
         console.error(error);
@@ -365,6 +385,20 @@ function syncGoodForm() {
     avatarFile.value = null;
     goodFormErrors.value = {};
     goodFormMessage.value = "";
+}
+
+function syncProductsForm() {
+    productIds.value = (goodData.value?.products || []).map((product) => product.id);
+}
+
+function openGoodEditDialog() {
+    syncGoodForm();
+    editGoodDialog.value = true;
+}
+
+function openProductsDialog() {
+    syncProductsForm();
+    productsDialog.value = true;
 }
 
 async function saveGood() {
@@ -403,11 +437,33 @@ async function saveGood() {
 
         await fetchGood();
         goodFormMessage.value = "Товар сохранён";
+        editGoodDialog.value = false;
     } catch (error) {
         goodFormErrors.value = error?.response?.data?.errors || {};
         goodFormMessage.value = error?.response?.data?.message || "Ошибка сохранения товара";
     } finally {
         savingGood.value = false;
+    }
+}
+
+async function saveGoodProducts() {
+    if (!goodData.value?.id) {
+        return;
+    }
+
+    savingProducts.value = true;
+
+    try {
+        await axios.patch(`/api/goods/${goodData.value.id}`, {
+            products: productIds.value,
+        });
+
+        await fetchGood();
+        productsDialog.value = false;
+    } catch (error) {
+        console.error(error);
+    } finally {
+        savingProducts.value = false;
     }
 }
 
@@ -716,6 +772,213 @@ onMounted(() => {
             </v-card>
         </v-dialog>
 
+        <v-dialog
+            v-model="editGoodDialog"
+            width="980"
+            scrollable
+        >
+            <v-card>
+                <v-card-title class="d-flex align-center justify-space-between">
+                    <span>Редактировать good</span>
+
+                    <v-chip
+                        size="small"
+                        variant="tonal"
+                        :color="goodForm.is_published ? 'green' : 'grey'"
+                    >
+                        {{ goodForm.is_published ? "published" : "hidden" }}
+                    </v-chip>
+                </v-card-title>
+
+                <v-card-text>
+                    <v-alert
+                        v-if="goodFormMessage"
+                        :type="Object.keys(goodFormErrors).length ? 'error' : 'success'"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                    >
+                        {{ goodFormMessage }}
+                    </v-alert>
+
+                    <v-form @submit.prevent="saveGood">
+                        <v-row dense>
+                            <v-col cols="12">
+                                <v-text-field
+                                    v-model="goodForm.name"
+                                    label="Название"
+                                    variant="outlined"
+                                    density="compact"
+                                    :error-messages="goodFormErrors.name"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="7">
+                                <v-text-field
+                                    v-model="goodForm.slug"
+                                    label="Slug"
+                                    variant="outlined"
+                                    density="compact"
+                                    hint="Если пусто, будет сгенерирован из названия"
+                                    persistent-hint
+                                    :error-messages="goodFormErrors.slug"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="5">
+                                <v-text-field
+                                    v-model="goodForm.denominator"
+                                    label="Denominator / упаковка"
+                                    type="number"
+                                    step="0.001"
+                                    variant="outlined"
+                                    density="compact"
+                                    :error-messages="goodFormErrors.denominator"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="7">
+                                <v-select
+                                    v-model="goodForm.vat_rate_id"
+                                    :items="vatRates"
+                                    :item-title="vatRateTitle"
+                                    item-value="id"
+                                    label="НДС"
+                                    variant="outlined"
+                                    density="compact"
+                                    clearable
+                                    :error-messages="goodFormErrors.vat_rate_id"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="5">
+                                <v-switch
+                                    v-model="goodForm.is_published"
+                                    label="Публиковать"
+                                    color="green"
+                                    inset
+                                    hide-details
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-textarea
+                                    v-model="goodForm.description"
+                                    label="Описание"
+                                    rows="5"
+                                    variant="outlined"
+                                    density="compact"
+                                    :error-messages="goodFormErrors.description"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="8">
+                                <v-file-input
+                                    v-model="avatarFile"
+                                    label="Заменить ava_image"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    variant="outlined"
+                                    density="compact"
+                                    prepend-icon="mdi-image"
+                                    :error-messages="goodFormErrors.ava_image"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-checkbox
+                                    v-model="goodForm.remove_ava"
+                                    label="Удалить аватар"
+                                    color="red"
+                                    density="compact"
+                                    hide-details
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-form>
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-btn
+                        color="red"
+                        variant="text"
+                        @click="deleteGoodDialog = true"
+                    >
+                        Удалить
+                    </v-btn>
+
+                    <v-spacer />
+
+                    <v-btn
+                        variant="text"
+                        @click="editGoodDialog = false"
+                    >
+                        Закрыть
+                    </v-btn>
+
+                    <v-btn
+                        variant="text"
+                        @click="syncGoodForm"
+                    >
+                        Сбросить
+                    </v-btn>
+
+                    <v-btn
+                        color="#47765a"
+                        variant="flat"
+                        :loading="savingGood"
+                        @click="saveGood"
+                    >
+                        Сохранить
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog
+            v-model="productsDialog"
+            width="760"
+        >
+            <v-card>
+                <v-card-title>Редактировать Products</v-card-title>
+
+                <v-card-text>
+                    <v-autocomplete
+                        v-model="productIds"
+                        :items="products"
+                        :item-title="productTitle"
+                        item-value="id"
+                        label="Products товара"
+                        variant="outlined"
+                        density="compact"
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                    />
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+
+                    <v-btn
+                        variant="text"
+                        @click="productsDialog = false"
+                    >
+                        Закрыть
+                    </v-btn>
+
+                    <v-btn
+                        color="#47765a"
+                        variant="flat"
+                        :loading="savingProducts"
+                        @click="saveGoodProducts"
+                    >
+                        Сохранить
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
         <!-- LOADING -->
         <v-row v-if="pageLoading">
             <v-col cols="12" class="text-center py-10">
@@ -844,175 +1107,102 @@ onMounted(() => {
                         </v-col>
 
                         <v-col cols="12" lg="5">
-                            <v-card class="mb-4">
-                                <v-card-title class="d-flex align-center justify-space-between">
-                                    <span>Редактировать good</span>
+                            <v-card
+                                class="mb-3 overview-action-card"
+                                role="button"
+                                tabindex="0"
+                                @click="openGoodEditDialog"
+                                @keydown.enter="openGoodEditDialog"
+                            >
+                                <v-card-title class="compact-title">
+                                    <span>Основные данные</span>
 
-                                    <v-chip
+                                    <v-btn
+                                        icon="mdi-pencil"
                                         size="small"
-                                        variant="tonal"
-                                        :color="goodForm.is_published ? 'green' : 'grey'"
-                                    >
-                                        {{ goodForm.is_published ? "published" : "hidden" }}
-                                    </v-chip>
+                                        variant="text"
+                                        @click.stop="openGoodEditDialog"
+                                    />
                                 </v-card-title>
 
-                                <v-card-text>
+                                <v-card-text class="py-2">
                                     <v-alert
                                         v-if="goodFormMessage"
                                         :type="Object.keys(goodFormErrors).length ? 'error' : 'success'"
                                         variant="tonal"
-                                        class="mb-4"
+                                        density="compact"
+                                        class="mb-2"
                                     >
                                         {{ goodFormMessage }}
                                     </v-alert>
 
-                                    <v-form @submit.prevent="saveGood">
-                                        <v-row dense>
-                                            <v-col cols="12">
-                                                <v-text-field
-                                                    v-model="goodForm.name"
-                                                    label="Название"
-                                                    variant="outlined"
-                                                    density="compact"
-                                                    :error-messages="goodFormErrors.name"
-                                                />
-                                            </v-col>
+                                    <div class="text-subtitle-2 font-weight-bold text-truncate">
+                                        {{ goodData.name }}
+                                    </div>
 
-                                            <v-col cols="12" md="7">
-                                                <v-text-field
-                                                    v-model="goodForm.slug"
-                                                    label="Slug"
-                                                    variant="outlined"
-                                                    density="compact"
-                                                    hint="Если пусто, будет сгенерирован из названия"
-                                                    persistent-hint
-                                                    :error-messages="goodFormErrors.slug"
-                                                />
-                                            </v-col>
+                                    <div class="text-caption text-medium-emphasis text-truncate">
+                                        slug: {{ goodData.slug || "—" }}
+                                    </div>
 
-                                            <v-col cols="12" md="5">
-                                                <v-text-field
-                                                    v-model="goodForm.denominator"
-                                                    label="Denominator / упаковка"
-                                                    type="number"
-                                                    step="0.001"
-                                                    variant="outlined"
-                                                    density="compact"
-                                                    :error-messages="goodFormErrors.denominator"
-                                                />
-                                            </v-col>
+                                    <div class="d-flex flex-wrap ga-2 mt-2">
+                                        <v-chip size="x-small" variant="tonal" color="blue-grey">
+                                            denominator: {{ goodData.denominator || "—" }}
+                                        </v-chip>
 
-                                            <v-col cols="12" md="7">
-                                                <v-select
-                                                    v-model="goodForm.vat_rate_id"
-                                                    :items="vatRates"
-                                                    :item-title="vatRateTitle"
-                                                    item-value="id"
-                                                    label="НДС"
-                                                    variant="outlined"
-                                                    density="compact"
-                                                    clearable
-                                                    :error-messages="goodFormErrors.vat_rate_id"
-                                                />
-                                            </v-col>
+                                        <v-chip
+                                            size="x-small"
+                                            variant="tonal"
+                                            :color="goodData.is_published ? 'green' : 'grey'"
+                                        >
+                                            {{ goodData.is_published ? "published" : "hidden" }}
+                                        </v-chip>
 
-                                            <v-col cols="12" md="5">
-                                                <v-switch
-                                                    v-model="goodForm.is_published"
-                                                    label="Публиковать"
-                                                    color="green"
-                                                    inset
-                                                    hide-details
-                                                />
-                                            </v-col>
-
-                                            <v-col cols="12">
-                                                <v-textarea
-                                                    v-model="goodForm.description"
-                                                    label="Описание"
-                                                    rows="5"
-                                                    variant="outlined"
-                                                    density="compact"
-                                                    :error-messages="goodFormErrors.description"
-                                                />
-                                            </v-col>
-
-                                            <v-col cols="12" md="8">
-                                                <v-file-input
-                                                    v-model="avatarFile"
-                                                    label="Заменить ava_image"
-                                                    accept="image/png,image/jpeg,image/webp"
-                                                    variant="outlined"
-                                                    density="compact"
-                                                    prepend-icon="mdi-image"
-                                                    :error-messages="goodFormErrors.ava_image"
-                                                />
-                                            </v-col>
-
-                                            <v-col cols="12" md="4">
-                                                <v-checkbox
-                                                    v-model="goodForm.remove_ava"
-                                                    label="Удалить аватар"
-                                                    color="red"
-                                                    density="compact"
-                                                    hide-details
-                                                />
-                                            </v-col>
-                                        </v-row>
-                                    </v-form>
+                                        <v-chip v-if="currentVatRate" size="x-small" variant="tonal">
+                                            НДС: {{ currentVatRate.rate }}%
+                                        </v-chip>
+                                    </div>
                                 </v-card-text>
-
-                                <v-card-actions>
-                                    <v-btn
-                                        color="red"
-                                        variant="text"
-                                        @click="deleteGoodDialog = true"
-                                    >
-                                        Удалить
-                                    </v-btn>
-
-                                    <v-spacer />
-
-                                    <v-btn
-                                        variant="text"
-                                        @click="syncGoodForm"
-                                    >
-                                        Сбросить
-                                    </v-btn>
-
-                                    <v-btn
-                                        color="#47765a"
-                                        variant="flat"
-                                        :loading="savingGood"
-                                        @click="saveGood"
-                                    >
-                                        Сохранить
-                                    </v-btn>
-                                </v-card-actions>
                             </v-card>
 
-                            <v-card>
-                                <v-card-title>Products</v-card-title>
+                            <v-card class="overview-action-card">
+                                <v-card-title class="compact-title">
+                                    <span>Products</span>
 
-                                <v-card-text>
-                                    <template v-if="(goodData.products || []).length">
+                                    <div class="d-flex align-center ga-1">
+                                        <v-chip size="x-small" variant="tonal" color="teal">
+                                            {{ (goodData.products || []).length }}
+                                        </v-chip>
+
+                                        <v-btn
+                                            icon="mdi-pencil"
+                                            size="small"
+                                            variant="text"
+                                            @click="openProductsDialog"
+                                        />
+                                    </div>
+                                </v-card-title>
+
+                                <v-card-text class="py-2">
+                                    <div
+                                        v-if="(goodData.products || []).length"
+                                        class="product-chip-strip"
+                                    >
                                         <v-chip
                                             v-for="product in goodData.products || []"
                                             :key="product.id"
-                                            class="ma-1"
                                             size="small"
                                             variant="tonal"
                                             color="teal"
                                         >
-                                            {{ product.rus || product.name || product.id }}
+                                            {{ productTitle(product) }}
                                         </v-chip>
-                                    </template>
+                                    </div>
 
                                     <v-alert
                                         v-else
                                         type="info"
                                         variant="tonal"
+                                        density="compact"
                                     >
                                         Products пока не привязаны.
                                     </v-alert>
@@ -1201,6 +1391,18 @@ onMounted(() => {
                 <v-window-item value="prices">
                     <v-row dense class="prices-workspace">
                         <v-col cols="12" xl="5">
+                            <GoodPriceTypeValuesTab
+                                :key="priceValuesRefreshKey"
+                                class="prices-workspace__card"
+                                :good-id="goodData.id"
+                                :currencies="currencies"
+                                :table-height="260"
+                                :items-per-page="5"
+                                :show-intro="false"
+                            />
+                        </v-col>
+
+                        <v-col cols="12" xl="7">
                             <GoodQuotationCalculator
                                 class="prices-workspace__card"
                                 :good-id="goodData.id"
@@ -1208,25 +1410,19 @@ onMounted(() => {
                                 :default-vat-rate="defaultVatRate"
                                 :default-box-weight-kg="goodBoxWeight"
                                 currency-code="RUB"
+                                compact
                                 @saved="handleCalculationSaved"
                             />
                         </v-col>
 
-                        <v-col cols="12" xl="7">
+                        <v-col cols="12">
                             <GoodPriceCalculationsTab
                                 :key="priceCalculationsRefreshKey"
                                 class="prices-workspace__card"
                                 :good-id="goodData.id"
+                                :table-height="360"
+                                :show-intro="false"
                                 @applied="handleCalculationApplied"
-                            />
-                        </v-col>
-
-                        <v-col cols="12">
-                            <GoodPriceTypeValuesTab
-                                :key="priceValuesRefreshKey"
-                                class="prices-workspace__card"
-                                :good-id="goodData.id"
-                                :currencies="currencies"
                             />
                         </v-col>
                     </v-row>
@@ -1339,11 +1535,40 @@ onMounted(() => {
     border-radius: 8px;
 }
 
+.overview-action-card {
+    cursor: pointer;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.overview-action-card:hover {
+    border-color: rgba(71, 118, 90, 0.45);
+    box-shadow: 0 8px 24px rgba(35, 55, 42, 0.08);
+    transform: translateY(-1px);
+}
+
+.compact-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 42px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+.product-chip-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 82px;
+    overflow: auto;
+}
+
 .prices-workspace {
     --price-header: #dc7a51;
     --price-body: #47765a;
     --price-text: #f7ecd7;
     --price-grid: rgba(255, 255, 255, 0.9);
+    align-items: stretch;
 }
 
 .prices-workspace__card {
@@ -1352,13 +1577,14 @@ onMounted(() => {
 }
 
 .prices-workspace :deep(.v-card-title) {
-    min-height: 48px;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    min-height: 42px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    font-size: 0.98rem;
 }
 
 .prices-workspace :deep(.v-card-text) {
-    padding: 12px;
+    padding: 10px;
 }
 
 .prices-workspace :deep(.v-table) {
@@ -1378,6 +1604,7 @@ onMounted(() => {
     background: var(--price-body);
     color: var(--price-text);
     border: 3px solid var(--price-grid);
+    height: 30px !important;
 }
 
 .prices-workspace :deep(.v-table tbody tr:hover td) {

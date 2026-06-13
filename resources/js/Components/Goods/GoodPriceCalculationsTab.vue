@@ -9,6 +9,14 @@ const props = defineProps({
         type: Number,
         required: true,
     },
+    tableHeight: {
+        type: [Number, String],
+        default: 520,
+    },
+    showIntro: {
+        type: Boolean,
+        default: true,
+    },
 })
 
 const {
@@ -180,6 +188,7 @@ onMounted(() => {
 
         <v-card-text>
             <v-alert
+                v-if="showIntro"
                 type="info"
                 variant="tonal"
                 class="mb-4"
@@ -193,7 +202,7 @@ onMounted(() => {
                 :loading="loading"
                 items-per-page="50"
                 fixed-header
-                height="520"
+                :height="tableHeight"
                 density="compact"
                 class="border rounded"
                 hover

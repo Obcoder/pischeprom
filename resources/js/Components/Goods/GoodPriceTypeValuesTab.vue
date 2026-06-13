@@ -11,6 +11,18 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    tableHeight: {
+        type: [Number, String],
+        default: 560,
+    },
+    itemsPerPage: {
+        type: Number,
+        default: 50,
+    },
+    showIntro: {
+        type: Boolean,
+        default: true,
+    },
 });
 
 const {
@@ -99,8 +111,9 @@ onMounted(() => {
             />
         </v-card-title>
 
-        <v-card-text>
+        <v-card-text class="price-values-body">
             <v-alert
+                v-if="showIntro"
                 type="info"
                 variant="tonal"
                 class="mb-4"
@@ -113,9 +126,9 @@ onMounted(() => {
                 :items="values"
                 :headers="headers"
                 :loading="loading"
-                items-per-page="50"
+                :items-per-page="itemsPerPage"
                 fixed-header
-                height="560px"
+                :height="tableHeight"
                 density="compact"
                 class="border rounded"
                 hover
