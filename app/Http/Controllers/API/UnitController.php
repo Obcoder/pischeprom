@@ -18,6 +18,13 @@ class UnitController extends Controller
                            ]);
 
         return Unit::query()
+            ->select('units.*')
+            ->selectSub(function ($query): void {
+                $query->from('sales')
+                    ->join('entity_unit', 'entity_unit.entity_id', '=', 'sales.entity_id')
+                    ->whereColumn('entity_unit.unit_id', 'units.id')
+                    ->selectRaw('COUNT(DISTINCT sales.id)');
+            }, 'sales_count')
             ->search($request->search)
             ->when(
                 $request->filled('good_id'),
@@ -28,6 +35,7 @@ class UnitController extends Controller
                        'labels',
                        'fields',
                        'cities',
+                       'industries',
                    ])
             ->latest()
             ->get();
@@ -44,6 +52,7 @@ class UnitController extends Controller
         $unit->labels()->sync($request->input('labels', []));
         $unit->cities()->sync($request->input('cities', []));
         $unit->telephones()->sync($request->input('telephones', []));
+        $unit->industries()->sync($request->input('industries', []));
 
         Storage::disk('yandex')->put("units/{$unit->id}/placeholder.txt", '');
 
