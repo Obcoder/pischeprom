@@ -426,9 +426,13 @@ async function sendAd(ad) {
     sendingAdId.value = ad.id
     try {
         const { data } = await axios.post(`/api/marketing/direct/ads/${ad.id}/send`)
-        await Promise.all([loadAds(), loadLogs()])
+        previewDialog.value = false
+        adDialog.value = false
+        tab.value = 'logs'
+        await Promise.all([loadAds(), loadGoods(), loadLogs()])
         setNotice(data.message || 'Отправка обработана.')
     } catch (e) {
+        tab.value = 'logs'
         setError(e.response?.data?.message || 'Не удалось отправить объявление.')
         await Promise.all([loadAds(), loadLogs()])
     } finally {
@@ -810,6 +814,9 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
             <v-card class="yd-dialog">
                 <v-card-title>Предпросмотр объявления</v-card-title>
                 <v-card-text>
+                    <v-alert type="info" density="compact" variant="tonal" class="mb-3">
+                        После отправки откроется вкладка «Логи» с результатом. Если реальная отправка отключена, запись будет со статусом dry_run.
+                    </v-alert>
                     <div class="yd-preview">
                         <img v-if="selectedAd?.image_url" :src="selectedAd.image_url" alt="" />
                         <div>
