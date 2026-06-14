@@ -15,6 +15,7 @@ defineOptions({
 import CommoditiesPage from '@/Components/Dictionaries/Commodities/CommoditiesPage.vue';
 import Categories from '@/Components/Dictionaries/Categories.vue';
 import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue';
+import RegionsPage from '@/Components/Geography/Regions/RegionsPage.vue';
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
@@ -100,7 +101,6 @@ const labels = ref([])
 const measures = ref([])
 const products = ref([])
 const purchases = ref([])
-const regions = ref([])
 const sale = ref()
 const sales = ref([])
 const segments = ref([])
@@ -139,20 +139,6 @@ const headerCountries = [
     },
 ]
 
-const headerRegions = ref([
-    {
-        title: 'Регион',
-        key: 'name',
-    },
-    {
-        title: 'Страна',
-        key: 'country',
-    },
-    {
-        title: 'Площадь',
-        key: 'area',
-    },
-])
 const headerTelephones = ref([
     {
         title: 'Number',
@@ -411,14 +397,6 @@ function indexPurchases(){
         console.error(error)
     })
 }
-//   R E G I O N S
-function indexRegions(){
-    axios.get(route('regions.index')).then(function (response) {
-        regions.value = response.data
-    }).catch(function (error) {
-        console.log(error);
-    })
-}
 //     S A L E S
 function indexSales(){
     axios.get(route('sales.index')).then(function (response){
@@ -599,7 +577,6 @@ onMounted(()=>{
     indexMeasures()
     indexProducts()
     indexPurchases()
-    indexRegions()
     indexSegments()
     indexUnits()
 
@@ -908,20 +885,7 @@ const formatBuildingTitle = (building) => {
                                             </v-row>
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="regions">
-                                            <v-row>
-                                                <v-col>
-                                                    <v-data-table :items="regions"
-                                                                  :headers="headerRegions"
-                                                                  items-per-page="100"
-                                                                  density="compact"
-                                                                  hover="hover"
-                                                    >
-                                                        <template v-slot:item.country="{item}">
-                                                            {{item.country.name}}
-                                                        </template>
-                                                    </v-data-table>
-                                                </v-col>
-                                            </v-row>
+                                            <RegionsPage />
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="countries">
                                             <v-row>

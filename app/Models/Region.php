@@ -11,6 +11,20 @@ class Region extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'name',
+        'country_id',
+        'area',
+        'yandex_direct_region_ids',
+        'use_for_yandex_direct',
+    ];
+
+    protected $casts = [
+        'area' => 'float',
+        'yandex_direct_region_ids' => 'array',
+        'use_for_yandex_direct' => 'boolean',
+    ];
+
     protected $with = [
         'country',
     ];

@@ -58,4 +58,9 @@ class YandexAccount extends Model
     {
         return $this->hasMany(YandexSyncLog::class);
     }
+
+    public function directLaunchSessions(): HasMany
+    {
+        return $this->hasMany(DirectLaunchSession::class);
+    }
 }

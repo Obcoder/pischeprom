@@ -55,7 +55,7 @@ class YandexAccountController extends Controller
                     'found' => (bool) config('yandex.direct.enable_real_send'),
                     'can_use_for_direct' => (bool) config('yandex.direct.enable_real_send'),
                     'note' => config('yandex.direct.enable_real_send')
-                        ? 'Реальная отправка в Директ включена. Нужен существующий external AdGroupId.'
+                        ? 'Реальная отправка в Директ включена. Ручной send использует existing AdGroupId, FULL AUTO создаёт кампанию/группы/объявления сам.'
                         : 'Реальная отправка отключена через YANDEX_DIRECT_ENABLE_REAL_SEND=false.',
                 ],
             ],

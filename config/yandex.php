@@ -7,6 +7,13 @@ return [
         'sandbox_api_url' => env('YANDEX_DIRECT_SANDBOX_API_URL'),
         'enable_real_send' => (bool) env('YANDEX_DIRECT_ENABLE_REAL_SEND', false),
         'timeout' => (int) env('YANDEX_DIRECT_TIMEOUT', 20),
+        'auto_launch' => [
+            'enabled' => (bool) env('YANDEX_DIRECT_AUTO_LAUNCH_ENABLED', true),
+            'dry_run' => (bool) env('YANDEX_DIRECT_AUTO_LAUNCH_DRY_RUN', true),
+            'daily_budget' => (float) env('YANDEX_DIRECT_AUTO_DAILY_BUDGET', 300),
+            'max_daily_budget' => (float) env('YANDEX_DIRECT_AUTO_MAX_DAILY_BUDGET', 500),
+            'region_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('YANDEX_DIRECT_AUTO_REGION_IDS', ''))))),
+        ],
     ],
 
     'oauth' => [

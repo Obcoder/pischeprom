@@ -68,6 +68,7 @@ use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\API\Marketing\YandexAccountController;
 use App\Http\Controllers\API\Marketing\YandexDirectAdController;
 use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
+use App\Http\Controllers\API\Marketing\YandexDirectLaunchController;
 use App\Http\Controllers\API\Marketing\YandexDirectStatsController;
 use App\Http\Controllers\API\Marketing\YandexOAuthController;
 use App\Http\Controllers\API\Marketing\YandexSyncLogController;
@@ -403,6 +404,12 @@ Route::prefix('marketing')
             ->name('direct.goods.index');
         Route::post('/direct/goods/{good}/generate-draft', [YandexDirectGoodController::class, 'generateDraft'])
             ->name('direct.goods.generate-draft');
+        Route::get('/direct/launch-dashboard', [YandexDirectLaunchController::class, 'dashboard'])
+            ->name('direct.launch.dashboard');
+        Route::get('/direct/launch-sessions', [YandexDirectLaunchController::class, 'sessions'])
+            ->name('direct.launch.sessions');
+        Route::post('/direct/launch/{good}', [YandexDirectLaunchController::class, 'launch'])
+            ->name('direct.launch');
 
         Route::get('/direct/ads', [YandexDirectAdController::class, 'index'])
             ->name('direct.ads.index');

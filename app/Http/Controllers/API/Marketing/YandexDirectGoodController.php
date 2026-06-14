@@ -25,6 +25,7 @@ class YandexDirectGoodController extends Controller
                 'seo',
                 'products.category',
                 'yandexDirectAds' => fn ($q) => $q->latest()->limit(1),
+                'directLaunchSessions' => fn ($q) => $q->latest()->limit(1),
                 'yandexDirectDailyStats',
             ])
             ->withCount([
@@ -62,6 +63,7 @@ class YandexDirectGoodController extends Controller
         $items = collect($paginator->items())->map(function (Good $good) {
             $stats = $good->yandexDirectDailyStats;
             $ad = $good->yandexDirectAds->first();
+            $launch = $good->directLaunchSessions->first();
 
             return [
                 'id' => $good->id,
@@ -73,6 +75,8 @@ class YandexDirectGoodController extends Controller
                 'seo' => $good->seo,
                 'direct_status' => $ad?->status,
                 'direct_ad_id' => $ad?->id,
+                'direct_launch_status' => $launch?->status,
+                'direct_launch_session_id' => $launch?->id,
                 'direct_keywords_count' => $good->direct_keywords_count,
                 'stats' => [
                     'impressions' => (int) $stats->sum('impressions'),

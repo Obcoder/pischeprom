@@ -69,6 +69,7 @@ const form = reactive({
 
 const directLoading = ref(false)
 const directActionLoading = ref(false)
+const fullLaunchLoading = ref(false)
 const directMessage = ref('')
 const directError = ref('')
 const directAdId = ref(null)
@@ -380,6 +381,25 @@ async function sendDirectDraft() {
         setDirectError(error.response?.data?.message || 'Не удалось отправить черновик в Директ.')
     } finally {
         directActionLoading.value = false
+    }
+}
+
+async function fullAutoLaunch() {
+    fullLaunchLoading.value = true
+
+    try {
+        await submit()
+        const { data } = await axios.post(`/api/marketing/direct/launch/${props.good.id}`, {
+            dry_run: true,
+        })
+        directStatus.value = data.status || directStatus.value
+        setDirectMessage(data.message || 'FULL AUTO LAUNCH dry-run выполнен.')
+        await loadDirectInfo()
+    } catch (error) {
+        const errors = error.response?.data?.errors || []
+        setDirectError(errors.length ? errors.join('; ') : (error.response?.data?.message || 'Не удалось выполнить FULL AUTO LAUNCH.'))
+    } finally {
+        fullLaunchLoading.value = false
     }
 }
 
@@ -711,6 +731,16 @@ onMounted(async () => {
                                 @click="sendDirectDraft"
                             >
                                 Отправить в Директ
+                            </v-btn>
+                            <v-btn
+                                size="small"
+                                color="deep-purple-darken-4"
+                                variant="flat"
+                                :loading="fullLaunchLoading"
+                                :disabled="hasDirectLimitErrors"
+                                @click="fullAutoLaunch"
+                            >
+                                FULL AUTO LAUNCH
                             </v-btn>
                             <a
                                 v-if="directAdId"

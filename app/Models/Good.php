@@ -211,4 +211,9 @@ class Good extends Model
     {
         return $this->hasMany(YandexDirectDailyStat::class);
     }
+
+    public function directLaunchSessions(): HasMany
+    {
+        return $this->hasMany(DirectLaunchSession::class);
+    }
 }

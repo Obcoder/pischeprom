@@ -70,6 +70,8 @@ const savingAd = ref(false)
 const sendingAdId = ref(null)
 const validatingAdId = ref(null)
 const generatingGoodId = ref(null)
+const launchingGoodId = ref(null)
+const launchDashboard = ref({ summary: {}, last_launches: [] })
 
 const adForm = reactive({
     title_1: '',
@@ -104,6 +106,7 @@ const goodsHeaders = [
     { title: 'Slug', key: 'slug', minWidth: 160 },
     { title: 'SEO', key: 'seo_status', width: 92 },
     { title: 'Direct', key: 'direct_status', width: 108 },
+    { title: 'Launch', key: 'direct_launch_status', width: 108 },
     { title: 'Ключей', key: 'direct_keywords_count', align: 'end', width: 82 },
     { title: 'Title 1', key: 'seo.yandex_direct_title_1', minWidth: 160 },
     { title: 'Title 2', key: 'seo.yandex_direct_title_2', minWidth: 140 },
@@ -114,7 +117,7 @@ const goodsHeaders = [
     { title: 'Расход', key: 'stats.cost', align: 'end', width: 96 },
     { title: 'Заявки', key: 'stats.conversions', align: 'end', width: 84 },
     { title: 'CPL', key: 'stats.cost_per_conversion', align: 'end', width: 90 },
-    { title: '', key: 'actions', sortable: false, width: 156 },
+    { title: '', key: 'actions', sortable: false, width: 188 },
 ]
 
 const adsHeaders = [
@@ -208,6 +211,12 @@ function statusColor(status) {
         error: 'red',
         dry_run: 'purple',
         success: 'green',
+        failed: 'red',
+        partial: 'orange',
+        pending: 'grey',
+        validating: 'blue',
+        building: 'indigo',
+        sending: 'deep-purple',
     }[status] || 'grey'
 }
 
@@ -350,6 +359,15 @@ async function loadLogs(options = logsOptions.value) {
     }
 }
 
+async function loadLaunchDashboard() {
+    try {
+        const { data } = await axios.get('/api/marketing/direct/launch-dashboard')
+        launchDashboard.value = data || { summary: {}, last_launches: [] }
+    } catch (e) {
+        // Dashboard не должен блокировать основную таблицу товаров.
+    }
+}
+
 async function generateDraft(good) {
     generatingGoodId.value = good.id
     try {
@@ -362,6 +380,23 @@ async function generateDraft(good) {
         setError(e.response?.data?.message || 'Не удалось создать черновик.')
     } finally {
         generatingGoodId.value = null
+    }
+}
+
+async function fullAutoLaunch(good) {
+    launchingGoodId.value = good.id
+    try {
+        const { data } = await axios.post(`/api/marketing/direct/launch/${good.id}`, {
+            dry_run: true,
+        })
+        await Promise.all([loadGoods(), loadAds(), loadLogs(), loadLaunchDashboard()])
+        setNotice(data.message || 'FULL AUTO LAUNCH dry-run выполнен.')
+    } catch (e) {
+        const errors = e.response?.data?.errors || []
+        setError(errors.length ? errors.join('; ') : (e.response?.data?.message || 'Не удалось выполнить FULL AUTO LAUNCH.'))
+        await Promise.all([loadLogs(), loadLaunchDashboard()])
+    } finally {
+        launchingGoodId.value = null
     }
 }
 
@@ -477,14 +512,14 @@ function openPayload(log) {
 
 function refreshCurrentTab() {
     if (tab.value === 'connection') loadAccounts()
-    if (tab.value === 'goods') loadGoods()
+    if (tab.value === 'goods') Promise.all([loadGoods(), loadLaunchDashboard()])
     if (tab.value === 'ads') loadAds()
     if (tab.value === 'stats') loadStats()
     if (tab.value === 'logs') loadLogs()
 }
 
 onMounted(async () => {
-    await Promise.all([loadAccounts(), loadCategories(), loadGoods(), loadAds(), loadStats(), loadLogs()])
+    await Promise.all([loadAccounts(), loadCategories(), loadGoods(), loadAds(), loadStats(), loadLogs(), loadLaunchDashboard()])
 })
 
 useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
@@ -607,6 +642,37 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
 
             <v-window-item value="goods">
                 <section class="yd-panel yd-panel--table">
+                    <div class="yd-auto-summary">
+                        <div>
+                            <span>FULL AUTO</span>
+                            <strong>{{ number(launchDashboard.summary?.total) }}</strong>
+                        </div>
+                        <div>
+                            <span>Dry-run</span>
+                            <strong>{{ number(launchDashboard.summary?.dry_run) }}</strong>
+                        </div>
+                        <div>
+                            <span>Success</span>
+                            <strong>{{ number(launchDashboard.summary?.success) }}</strong>
+                        </div>
+                        <div>
+                            <span>Failed</span>
+                            <strong>{{ number(launchDashboard.summary?.failed) }}</strong>
+                        </div>
+                        <div>
+                            <span>Rollback</span>
+                            <strong>{{ number(launchDashboard.summary?.rollback_count) }}</strong>
+                        </div>
+                        <div>
+                            <span>Success rate</span>
+                            <strong>{{ launchDashboard.summary?.success_rate ?? '-' }}%</strong>
+                        </div>
+                        <div>
+                            <span>Spend</span>
+                            <strong>{{ money(launchDashboard.summary?.spend) }}</strong>
+                        </div>
+                    </div>
+
                     <div class="yd-filters">
                         <v-text-field v-model="goodsFilters.search" label="Поиск" density="compact" hide-details clearable @keyup.enter="loadGoods({ ...goodsOptions, page: 1 })" />
                         <v-select v-model="goodsFilters.category_id" :items="categories" item-title="name" item-value="id" label="Категория" density="compact" hide-details clearable />
@@ -625,7 +691,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                         :loading="goodsLoading"
                         density="compact"
                         fixed-header
-                        height="calc(100vh - 238px)"
+                        height="calc(100vh - 286px)"
                         class="yd-table yd-table--sticky"
                         @update:options="loadGoods"
                     >
@@ -644,6 +710,10 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                             <v-chip v-if="item.direct_status" size="x-small" :color="statusColor(item.direct_status)" variant="flat">{{ item.direct_status }}</v-chip>
                             <span v-else class="yd-muted">нет</span>
                         </template>
+                        <template #item.direct_launch_status="{ item }">
+                            <v-chip v-if="item.direct_launch_status" size="x-small" :color="statusColor(item.direct_launch_status)" variant="tonal">{{ item.direct_launch_status }}</v-chip>
+                            <span v-else class="yd-muted">нет</span>
+                        </template>
                         <template #item.stats.ctr="{ item }">{{ item.stats.ctr ?? '-' }}</template>
                         <template #item.stats.cost="{ item }">{{ money(item.stats.cost) }}</template>
                         <template #item.stats.cost_per_conversion="{ item }">{{ item.stats.cost_per_conversion ? money(item.stats.cost_per_conversion) : '-' }}</template>
@@ -651,6 +721,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                         <template #item.actions="{ item }">
                             <div class="yd-actions">
                                 <v-btn icon="mdi-file-plus-outline" size="x-small" variant="text" :loading="generatingGoodId === item.id" title="Сгенерировать черновик" @click="generateDraft(item)" />
+                                <v-btn icon="mdi-rocket-launch-outline" size="x-small" variant="text" color="deep-purple-darken-2" :loading="launchingGoodId === item.id" title="FULL AUTO LAUNCH dry-run" @click="fullAutoLaunch(item)" />
                                 <Link :href="route('Ameise.good.show', item.id)" title="Открыть SEO"><v-icon size="17" icon="mdi-open-in-new" /></Link>
                                 <v-btn icon="mdi-eye-outline" size="x-small" variant="text" :disabled="!item.direct_ad_id" title="Предпросмотр" @click="openAd(item.direct_ad_id, 'preview')" />
                                 <v-btn icon="mdi-send-outline" size="x-small" variant="text" :disabled="!item.direct_ad_id" :loading="sendingAdId === item.direct_ad_id" title="Отправить" @click="sendAd({ id: item.direct_ad_id })" />
@@ -751,7 +822,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                 <section class="yd-panel yd-panel--table">
                     <div class="yd-filters">
                         <v-text-field v-model="logFilters.action" label="Action" density="compact" hide-details clearable @keyup.enter="loadLogs({ ...logsOptions, page: 1 })" />
-                        <v-select v-model="logFilters.status" :items="['request', 'success', 'error', 'dry_run', 'prepared']" label="Статус" density="compact" hide-details clearable />
+                        <v-select v-model="logFilters.status" :items="['request', 'success', 'error', 'dry_run', 'prepared', 'failed', 'partial']" label="Статус" density="compact" hide-details clearable />
                         <v-btn color="deep-purple-darken-2" size="small" variant="flat" @click="loadLogs({ ...logsOptions, page: 1 })">Фильтр</v-btn>
                     </div>
 
@@ -1106,6 +1177,40 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
 .yd-summary strong {
     color: #2e1065;
     font-size: 16px;
+    font-weight: 900;
+    text-align: right;
+}
+
+.yd-auto-summary {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(82px, 1fr));
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.yd-auto-summary div {
+    padding: 5px 7px;
+    border: 1px solid rgba(91, 33, 182, 0.14);
+    border-radius: 8px;
+    background: #f6f0ff;
+}
+
+.yd-auto-summary span,
+.yd-auto-summary strong {
+    display: block;
+}
+
+.yd-auto-summary span {
+    color: rgba(46, 16, 101, 0.62);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.yd-auto-summary strong {
+    color: #2e1065;
+    font-size: 14px;
     font-weight: 900;
     text-align: right;
 }
