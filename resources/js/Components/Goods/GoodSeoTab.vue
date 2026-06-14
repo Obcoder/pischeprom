@@ -266,6 +266,20 @@ function setDirectError(message) {
     directMessage.value = ''
 }
 
+function responseErrorMessages(error) {
+    const errors = error.response?.data?.errors
+
+    if (Array.isArray(errors)) {
+        return errors
+    }
+
+    if (errors && typeof errors === 'object') {
+        return Object.values(errors).flat().filter(Boolean)
+    }
+
+    return []
+}
+
 function generateDirectFields() {
     if (!form.yandex_direct_title_1) {
         form.yandex_direct_title_1 = compactText(props.good.name, directLimits.title_1)
@@ -405,7 +419,7 @@ async function fullAutoLaunch(dryRun = true) {
         setDirectMessage(data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.'))
         await loadDirectInfo()
     } catch (error) {
-        const errors = error.response?.data?.errors || []
+        const errors = responseErrorMessages(error)
         setDirectError(errors.length ? errors.join('; ') : (error.response?.data?.message || 'Не удалось выполнить FULL AUTO LAUNCH.'))
     } finally {
         fullLaunchLoading.value = false
@@ -749,7 +763,7 @@ onMounted(async () => {
                                 :loading="fullLaunchLoading"
                                 :disabled="hasDirectLimitErrors"
                                 title="Dry-run: построить структуру без отправки в Яндекс"
-                                @click="fullAutoLaunch"
+                                @click="fullAutoLaunch()"
                             >
                                 FULL AUTO DRY RUN
                             </v-btn>

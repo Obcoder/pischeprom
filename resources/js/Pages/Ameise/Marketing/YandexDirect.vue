@@ -200,6 +200,20 @@ function short(value, length = 80) {
     return text.length > length ? `${text.slice(0, length)}...` : text
 }
 
+function responseErrorMessages(error) {
+    const errors = error.response?.data?.errors
+
+    if (Array.isArray(errors)) {
+        return errors
+    }
+
+    if (errors && typeof errors === 'object') {
+        return Object.values(errors).flat().filter(Boolean)
+    }
+
+    return []
+}
+
 function statusColor(status) {
     return {
         draft: 'grey',
@@ -404,7 +418,7 @@ async function fullAutoLaunch(good, dryRun = true) {
         await Promise.all([loadGoods(), loadAds(), loadLogs(), loadLaunchDashboard()])
         setNotice(data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.'))
     } catch (e) {
-        const errors = e.response?.data?.errors || []
+        const errors = responseErrorMessages(e)
         setError(errors.length ? errors.join('; ') : (e.response?.data?.message || 'Не удалось выполнить FULL AUTO LAUNCH.'))
         await Promise.all([loadLogs(), loadLaunchDashboard()])
     } finally {

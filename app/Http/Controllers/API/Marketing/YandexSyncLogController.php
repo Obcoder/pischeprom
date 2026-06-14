@@ -23,10 +23,10 @@ class YandexSyncLogController extends Controller
                 'entity_id',
                 'action',
                 'status',
-                'error_message',
                 'created_at',
                 'updated_at',
             ])
+            ->selectRaw('LEFT(error_message, 600) as error_message')
             ->with('account:id,name,yandex_login,direct_client_login')
             ->when($request->input('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->input('action'), fn ($q, $action) => $q->where('action', 'like', "%{$action}%"))
@@ -43,8 +43,24 @@ class YandexSyncLogController extends Controller
         ]);
     }
 
-    public function show(YandexSyncLog $log): JsonResponse
+    public function show(int $log): JsonResponse
     {
+        $log = YandexSyncLog::query()
+            ->select([
+                'id',
+                'yandex_account_id',
+                'entity_type',
+                'entity_id',
+                'action',
+                'status',
+                'request_payload',
+                'response_payload',
+                'created_at',
+                'updated_at',
+            ])
+            ->selectRaw('LEFT(error_message, 120000) as error_message')
+            ->findOrFail($log);
+
         $log->load('account:id,name,yandex_login,direct_client_login');
 
         return response()->json([
