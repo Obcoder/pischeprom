@@ -314,6 +314,15 @@ onMounted(fetchWorkingLeads)
                     <v-icon icon="mdi-phone-in-talk" size="21" />
                 </Link>
 
+                <Link
+                    :href="route('Ameise.settings')"
+                    class="ameise-header-icon"
+                    title="Настройки Ameise"
+                    aria-label="Настройки Ameise"
+                >
+                    <v-icon icon="mdi-cog-outline" size="21" />
+                </Link>
+
                 <v-btn icon="mdi-heart" />
 
                 <v-btn icon="mdi-magnify" />

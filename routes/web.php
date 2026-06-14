@@ -259,6 +259,11 @@ Route::post('/api/good/store', [GoodController::class, 'store'])
 Route::get('/Ameise/grossbuch/', function (){
     return Inertia::render('Ameise/Grossbuch');
 })->name('Ameise.großbuch');
+
+Route::get('/Ameise/settings', function () {
+    return Inertia::render('Ameise/Settings');
+})->name('Ameise.settings');
+
 //   P E R F U M E
 Route::get('/Ameise/perfume/', function (){
     return Inertia::render('Ameise/Perfume');

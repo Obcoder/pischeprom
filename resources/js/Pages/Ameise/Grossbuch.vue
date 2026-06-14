@@ -1,6 +1,6 @@
 <script setup>
 import {useHead} from "@vueuse/head";
-import {computed, onMounted, ref} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
 import {useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
 import {route} from "ziggy-js";
@@ -36,7 +36,46 @@ const {
 
 const date = useDate()
 
-const tab = ref('products')
+const GROSSBUCH_TAB_KEY = 'ameise:grossbuch:tab'
+const GROSSBUCH_CONTACTS_TAB_KEY = 'ameise:grossbuch:contacts-tab'
+const GROSSBUCH_GEOGRAPHY_TAB_KEY = 'ameise:grossbuch:geography-tab'
+const GROSSBUCH_PRODUCTS_TAB_KEY = 'ameise:grossbuch:products-tab'
+const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
+const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
+const allowedTabs = ['units', 'contacts', 'products', 'segments', 'geography', 'purchases', 'sales']
+
+function storedTab(key, fallback, allowed = null) {
+    if (typeof window === 'undefined') {
+        return fallback
+    }
+
+    const value = window.localStorage.getItem(key)
+
+    if (!value) {
+        return fallback
+    }
+
+    return allowed && !allowed.includes(value) ? fallback : value
+}
+
+function rememberTab(key, value) {
+    if (typeof window === 'undefined' || !value) {
+        return
+    }
+
+    window.localStorage.setItem(key, value)
+}
+
+function loadStoredTabs() {
+    tab.value = storedTab(GROSSBUCH_TAB_KEY, 'units', allowedTabs)
+    tabsContacts.value = storedTab(GROSSBUCH_CONTACTS_TAB_KEY, 'telephones')
+    tabsGeography.value = storedTab(GROSSBUCH_GEOGRAPHY_TAB_KEY, 'cities')
+    tabsProducts.value = storedTab(GROSSBUCH_PRODUCTS_TAB_KEY, 'categories')
+    tabsSegments.value = storedTab(GROSSBUCH_SEGMENTS_TAB_KEY, 'industries')
+    tabsUnits.value = storedTab(GROSSBUCH_UNITS_TAB_KEY, 'units_sub')
+}
+
+const tab = ref('units')
 const tabsContacts = ref('telephones')
 const tabsGeography = ref('cities')
 const tabsProducts = ref('categories')
@@ -546,6 +585,7 @@ async function sendMail() {
 }
 
 onMounted(()=>{
+    loadStoredTabs()
     indexBrands()
     indexBuildings()
     indexCatalogs()
@@ -565,6 +605,13 @@ onMounted(()=>{
 
     getManufacturers();
 })
+
+watch(tab, (value) => rememberTab(GROSSBUCH_TAB_KEY, value))
+watch(tabsContacts, (value) => rememberTab(GROSSBUCH_CONTACTS_TAB_KEY, value))
+watch(tabsGeography, (value) => rememberTab(GROSSBUCH_GEOGRAPHY_TAB_KEY, value))
+watch(tabsProducts, (value) => rememberTab(GROSSBUCH_PRODUCTS_TAB_KEY, value))
+watch(tabsSegments, (value) => rememberTab(GROSSBUCH_SEGMENTS_TAB_KEY, value))
+watch(tabsUnits, (value) => rememberTab(GROSSBUCH_UNITS_TAB_KEY, value))
 
 useHead({
     title: `Управление торговлей`,
