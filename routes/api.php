@@ -69,7 +69,6 @@ use App\Http\Controllers\API\Marketing\YandexAccountController;
 use App\Http\Controllers\API\Marketing\YandexDirectAdController;
 use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
 use App\Http\Controllers\API\Marketing\YandexDirectStatsController;
-use App\Http\Controllers\API\Marketing\YandexOAuthController;
 use App\Http\Controllers\API\Marketing\YandexSyncLogController;
 use App\Services\YandexSearchService;
 
@@ -395,10 +394,6 @@ Route::middleware('auth:sanctum')
             ->name('yandex.accounts.update');
         Route::delete('/yandex/accounts/{account}', [YandexAccountController::class, 'destroy'])
             ->name('yandex.accounts.destroy');
-        Route::get('/yandex/oauth/redirect', [YandexOAuthController::class, 'redirect'])
-            ->name('yandex.oauth.redirect');
-        Route::get('/yandex/oauth/callback', [YandexOAuthController::class, 'callback'])
-            ->name('yandex.oauth.callback');
         Route::post('/yandex/accounts/{account}/check', [YandexAccountController::class, 'check'])
             ->name('yandex.accounts.check');
 

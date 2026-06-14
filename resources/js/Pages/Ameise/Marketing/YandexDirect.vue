@@ -262,7 +262,7 @@ async function disconnectAccount(account) {
 }
 
 function connectYandex() {
-    window.location.href = '/api/marketing/yandex/oauth/redirect'
+    window.location.href = route('api.marketing.yandex.oauth.redirect')
 }
 
 async function loadGoods(options = goodsOptions.value) {

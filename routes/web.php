@@ -362,6 +362,17 @@ Route::get('/Ameise/marketing/yandex-direct', function () {
     return Inertia::render('Ameise/Marketing/YandexDirect');
 })->name('Ameise.marketing.yandex-direct');
 
+Route::middleware([
+                      'auth:sanctum',
+                      config('jetstream.auth_session'),
+                  ])->group(function () {
+    Route::get('/api/marketing/yandex/oauth/redirect', [\App\Http\Controllers\API\Marketing\YandexOAuthController::class, 'redirect'])
+        ->name('api.marketing.yandex.oauth.redirect');
+
+    Route::get('/api/marketing/yandex/oauth/callback', [\App\Http\Controllers\API\Marketing\YandexOAuthController::class, 'callback'])
+        ->name('api.marketing.yandex.oauth.callback');
+});
+
 //   A V I T O
 Route::get('/Ameise/Avito', function () {
     return Inertia::render('Ameise/Avito');
