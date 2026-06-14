@@ -15,20 +15,71 @@ class YandexDirectGeoRegionService
 {
     private const UPSERT_CHUNK_SIZE = 500;
 
+    private const KNOWN_GEO_REGIONS = [
+        2 => [
+            'GeoRegionId' => 2,
+            'GeoRegionName' => 'Санкт-Петербург',
+            'GeoRegionType' => 'City',
+            'ParentId' => 10174,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Северо-Запад'],
+            ],
+        ],
+        213 => [
+            'GeoRegionId' => 213,
+            'GeoRegionName' => 'Москва',
+            'GeoRegionType' => 'City',
+            'ParentId' => 1,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Центр', 'Москва и область'],
+            ],
+        ],
+        225 => [
+            'GeoRegionId' => 225,
+            'GeoRegionName' => 'Россия',
+            'GeoRegionType' => 'Country',
+            'ParentId' => 0,
+            'ParentGeoRegionNames' => [
+                'Items' => [],
+            ],
+        ],
+    ];
+
+    private const KNOWN_GEO_ALIASES = [
+        'санктпетербург' => [2],
+        'спб' => [2],
+        'питер' => [2],
+        'saintpetersburg' => [2],
+        'stpetersburg' => [2],
+        'sanktpeterburg' => [2],
+        'москва' => [213],
+        'россия' => [225],
+    ];
+
     public function __construct(private readonly YandexDirectApiClient $client) {}
 
     public function search(string $search = '', int $limit = 40, bool $remote = true, ?YandexAccount $account = null): array
     {
         $limit = max(1, min($limit, 100));
         $search = trim($search);
+        $knownIds = $this->knownRegionIdsForSearch($search);
         $source = 'cache';
         $warning = null;
+
+        if ($knownIds) {
+            $this->storeKnownRegions($knownIds);
+        }
 
         if ($remote && $search !== '') {
             try {
                 $items = ctype_digit($search)
                     ? $this->fetchByIds([(int) $search], $account)
                     : $this->fetchBySearch($search, $limit, $account);
+
+                if ($knownIds) {
+                    $items = array_merge($items, $this->fetchByIds($knownIds, $account));
+                }
+
                 $this->storeMany($items);
                 $source = 'api';
             } catch (Throwable $e) {
@@ -36,8 +87,14 @@ class YandexDirectGeoRegionService
             }
         }
 
+        $items = $this->cachedSearch($search, $limit);
+
+        if ($items->isEmpty() && $knownIds) {
+            $items = $this->cachedByIds($knownIds)->values();
+        }
+
         return [
-            'items' => $this->cachedSearch($search, $limit)->map(fn (YandexDirectGeoRegion $region) => $this->serialize($region))->values()->all(),
+            'items' => $items->map(fn (YandexDirectGeoRegion $region) => $this->serialize($region))->values()->all(),
             'source' => $source,
             'warning' => $warning,
         ];
@@ -59,7 +116,19 @@ class YandexDirectGeoRegionService
         $missing = $ids->diff($cached->pluck('external_region_id'));
 
         if ($remote && $missing->isNotEmpty()) {
-            $this->storeMany($this->fetchByIds($missing->all(), $account));
+            try {
+                $this->storeMany($this->fetchByIds($missing->all(), $account));
+                $cached = $this->cachedByIds($ids->all());
+            } catch (Throwable) {
+                // Known Direct regions are enough to keep the admin mapping usable
+                // when the remote dictionary endpoint is temporarily unavailable.
+            }
+        }
+
+        $stillMissing = $ids->diff($cached->pluck('external_region_id'));
+
+        if ($stillMissing->isNotEmpty()) {
+            $this->storeKnownRegions($stillMissing->all());
             $cached = $this->cachedByIds($ids->all());
         }
 
@@ -218,12 +287,15 @@ class YandexDirectGeoRegionService
     {
         $normalized = preg_replace('/\s+/u', ' ', trim($search)) ?: $search;
         $withoutYo = str_replace(['ё', 'Ё'], ['е', 'Е'], $normalized);
+        $withoutPunctuation = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $withoutYo) ?: $withoutYo;
 
         return collect([
             $normalized,
             $withoutYo,
             str_replace('-', ' ', $normalized),
             str_replace(' ', '-', $normalized),
+            $withoutPunctuation,
+            str_replace(' ', '-', preg_replace('/\s+/u', ' ', trim($withoutPunctuation)) ?: $withoutPunctuation),
         ])
             ->map(fn (string $item) => trim($item))
             ->filter()
@@ -240,6 +312,42 @@ class YandexDirectGeoRegionService
             ->whereIn('external_region_id', $ids)
             ->get()
             ->keyBy('external_region_id');
+    }
+
+    private function knownRegionIdsForSearch(string $search): array
+    {
+        if ($search === '') {
+            return [];
+        }
+
+        if (ctype_digit($search)) {
+            $id = (int) $search;
+
+            return array_key_exists($id, self::KNOWN_GEO_REGIONS) ? [$id] : [];
+        }
+
+        return self::KNOWN_GEO_ALIASES[$this->searchKey($search)] ?? [];
+    }
+
+    private function storeKnownRegions(array $ids): void
+    {
+        $items = collect($ids)
+            ->map(fn ($id) => self::KNOWN_GEO_REGIONS[(int) $id] ?? null)
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($items) {
+            $this->storeMany($items);
+        }
+    }
+
+    private function searchKey(string $search): string
+    {
+        $search = str_replace(['ё', 'Ё'], ['е', 'Е'], trim($search));
+        $search = mb_strtolower($search, 'UTF-8');
+
+        return preg_replace('/[^a-zа-я0-9]+/u', '', $search) ?: '';
     }
 
     private function normalize(array $item, mixed $now): ?array
