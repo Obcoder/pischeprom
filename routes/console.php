@@ -49,3 +49,8 @@ Schedule::command('yandex:direct:check-accounts')
     ->name('check-yandex-direct-accounts')
     ->dailyAt('05:10')
     ->withoutOverlapping(30);
+
+Schedule::command('yandex:direct:sync-geo-regions')
+    ->name('sync-yandex-direct-geo-regions')
+    ->weeklyOn(1, '05:40')
+    ->withoutOverlapping(30);

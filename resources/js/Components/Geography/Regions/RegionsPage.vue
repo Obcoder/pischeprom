@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 
@@ -12,6 +12,13 @@ const notice = ref('')
 const error = ref('')
 const selectedRegion = ref(null)
 
+const geoItems = ref([])
+const geoLoading = ref(false)
+const geoSyncing = ref(false)
+const geoSearch = ref('')
+const geoWarning = ref('')
+let geoSearchTimer = null
+
 const filters = reactive({
     search: '',
     country_id: null,
@@ -19,7 +26,7 @@ const filters = reactive({
 })
 
 const form = reactive({
-    yandex_direct_region_ids_text: '',
+    yandex_direct_region_ids: [],
     use_for_yandex_direct: false,
 })
 
@@ -36,7 +43,7 @@ const headers = [
     { title: 'Города', key: 'cities_count', align: 'end', width: 84 },
     { title: 'Площадь', key: 'area', align: 'end', width: 100 },
     { title: 'Direct', key: 'use_for_yandex_direct', width: 96 },
-    { title: 'Yandex RegionIds', key: 'yandex_direct_region_ids', minWidth: 210 },
+    { title: 'Yandex GeoRegions', key: 'yandex_direct_region_ids', minWidth: 300 },
     { title: 'Статус', key: 'mapping_status', width: 112 },
     { title: '', key: 'actions', sortable: false, width: 72 },
 ]
@@ -54,22 +61,88 @@ const summary = computed(() => {
     }
 })
 
+const availableGeoItems = computed(() => {
+    const selectedIds = Array.isArray(form.yandex_direct_region_ids) ? form.yandex_direct_region_ids : []
+    const selectedItems = [
+        ...regionGeoRegions(selectedRegion.value),
+        ...selectedIds.map((id) => ({ external_region_id: Number(id), name: null, parent_names: [] })),
+    ]
+
+    return mergeGeoItems([...selectedItems, ...geoItems.value])
+})
+
 function regionIds(region) {
     return Array.isArray(region?.yandex_direct_region_ids)
         ? region.yandex_direct_region_ids.map((id) => Number(id)).filter(Boolean)
         : []
 }
 
-function idsToText(ids) {
-    return (ids || []).join('\n')
+function regionGeoRegions(region) {
+    return Array.isArray(region?.yandex_direct_geo_regions)
+        ? region.yandex_direct_geo_regions.map((item) => normalizeGeoRegion(item)).filter(Boolean)
+        : []
 }
 
-function textToIds(text) {
-    return String(text || '')
-        .split(/[\s,;]+/)
-        .map((item) => Number(item.trim()))
-        .filter((item) => Number.isInteger(item) && item > 0)
-        .filter((item, index, list) => list.indexOf(item) === index)
+function regionGeoChips(region) {
+    const geoMap = new Map(regionGeoRegions(region).map((item) => [item.external_region_id, item]))
+
+    return regionIds(region).map((id) => geoMap.get(id) || normalizeGeoRegion({ external_region_id: id }))
+}
+
+function normalizeGeoRegion(item) {
+    const externalId = Number(item?.external_region_id ?? item?.GeoRegionId)
+
+    if (!Number.isInteger(externalId) || externalId <= 0) {
+        return null
+    }
+
+    const parentNames = Array.isArray(item?.parent_names)
+        ? item.parent_names
+        : Array.isArray(item?.ParentGeoRegionNames?.Items)
+            ? item.ParentGeoRegionNames.Items
+            : []
+    const name = item?.name ?? item?.GeoRegionName ?? null
+    const path = item?.path || [...parentNames, name].filter(Boolean).join(' / ')
+
+    return {
+        ...item,
+        external_region_id: externalId,
+        parent_id: Number(item?.parent_id ?? item?.ParentId) || null,
+        name,
+        parent_names: parentNames,
+        path,
+        title: geoTitle({ external_region_id: externalId, name, parent_names: parentNames }),
+    }
+}
+
+function geoTitle(item) {
+    const id = Number(item?.external_region_id ?? item?.GeoRegionId)
+    const name = item?.name ?? item?.GeoRegionName ?? `GeoRegion ${id}`
+    const parentNames = Array.isArray(item?.parent_names) ? item.parent_names : []
+    const parent = parentNames.length ? ` · ${parentNames.join(' / ')}` : ''
+
+    return `${name || 'GeoRegion'}${parent} · #${id}`
+}
+
+function mergeGeoItems(items) {
+    const map = new Map()
+
+    items.map((item) => normalizeGeoRegion(item)).filter(Boolean).forEach((item) => {
+        const existing = map.get(item.external_region_id)
+        map.set(item.external_region_id, {
+            ...existing,
+            ...item,
+            name: item.name || existing?.name || null,
+            parent_names: item.parent_names?.length ? item.parent_names : existing?.parent_names || [],
+            title: geoTitle({
+                external_region_id: item.external_region_id,
+                name: item.name || existing?.name,
+                parent_names: item.parent_names?.length ? item.parent_names : existing?.parent_names || [],
+            }),
+        })
+    })
+
+    return [...map.values()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'))
 }
 
 function setNotice(message) {
@@ -102,20 +175,93 @@ async function loadRegions() {
     }
 }
 
-function openEdit(region) {
+async function loadYandexGeoRegions(search = geoSearch.value, remote = true) {
+    const query = String(search || '').trim()
+
+    if (remote && query.length > 0 && query.length < 2 && !/^\d+$/.test(query)) {
+        return
+    }
+
+    geoLoading.value = true
+    geoWarning.value = ''
+    try {
+        const { data } = await axios.get('/api/marketing/direct/geo-regions', {
+            params: {
+                search: query,
+                limit: 50,
+                remote: remote ? 1 : 0,
+            },
+        })
+        geoItems.value = mergeGeoItems([...(data.items || []), ...geoItems.value])
+        if (data.warning) {
+            geoWarning.value = data.warning
+        }
+    } catch (e) {
+        geoWarning.value = e.response?.data?.message || 'Не удалось получить справочник GeoRegions.'
+    } finally {
+        geoLoading.value = false
+    }
+}
+
+async function resolveYandexGeoRegions(ids) {
+    const normalizedIds = [...new Set((ids || []).map((id) => Number(id)).filter(Boolean))]
+
+    if (!normalizedIds.length) {
+        return
+    }
+
+    try {
+        const { data } = await axios.post('/api/marketing/direct/geo-regions/resolve', {
+            ids: normalizedIds,
+            remote: 1,
+        })
+        geoItems.value = mergeGeoItems([...(data.items || []), ...geoItems.value])
+    } catch (e) {
+        geoWarning.value = e.response?.data?.message || 'Не удалось уточнить названия выбранных GeoRegions.'
+    }
+}
+
+async function syncYandexGeoRegions() {
+    geoSyncing.value = true
+    geoWarning.value = ''
+    try {
+        const { data } = await axios.post('/api/marketing/direct/geo-regions/sync')
+        await loadYandexGeoRegions(geoSearch.value, false)
+        setNotice(`Справочник GeoRegions обновлён: ${data.stored} записей, всего в кэше ${data.total}.`)
+    } catch (e) {
+        setError(e.response?.data?.message || 'Не удалось синхронизировать справочник GeoRegions.')
+    } finally {
+        geoSyncing.value = false
+    }
+}
+
+async function openEdit(region) {
     selectedRegion.value = region
-    form.yandex_direct_region_ids_text = idsToText(regionIds(region))
+    form.yandex_direct_region_ids = regionIds(region)
     form.use_for_yandex_direct = Boolean(region.use_for_yandex_direct)
+    geoItems.value = mergeGeoItems([...geoItems.value, ...regionGeoRegions(region)])
+    geoSearch.value = region.name || ''
     dialog.value = true
+
+    await resolveYandexGeoRegions(form.yandex_direct_region_ids)
+    await loadYandexGeoRegions(region.name || '', true)
 }
 
 async function saveRegion() {
     if (!selectedRegion.value) return
 
+    const selectedIds = Array.isArray(form.yandex_direct_region_ids) ? form.yandex_direct_region_ids : []
+    const ids = [...new Set(selectedIds.map((id) => Number(id)).filter(Boolean))]
+
+    if (form.use_for_yandex_direct && !ids.length) {
+        setError('Для active-региона нужно выбрать хотя бы один GeoRegion Яндекса.')
+        return
+    }
+
     saving.value = true
     try {
         await axios.put(route('regions.update', selectedRegion.value.id), {
-            yandex_direct_region_ids: textToIds(form.yandex_direct_region_ids_text),
+            yandex_direct_region_ids: ids,
             use_for_yandex_direct: form.use_for_yandex_direct,
         })
         dialog.value = false
@@ -131,8 +277,8 @@ async function saveRegion() {
 async function toggleDirect(region) {
     const ids = regionIds(region)
     if (!ids.length && !region.use_for_yandex_direct) {
-        openEdit(region)
-        setError('Сначала укажите Yandex RegionIds.')
+        await openEdit(region)
+        setError('Сначала выберите GeoRegion из справочника Яндекса.')
         return
     }
 
@@ -147,8 +293,17 @@ async function toggleDirect(region) {
     }
 }
 
+watch(geoSearch, (value) => {
+    if (!dialog.value) {
+        return
+    }
+
+    window.clearTimeout(geoSearchTimer)
+    geoSearchTimer = window.setTimeout(() => loadYandexGeoRegions(value, true), 320)
+})
+
 onMounted(async () => {
-    await Promise.all([loadCountries(), loadRegions()])
+    await Promise.all([loadCountries(), loadRegions(), loadYandexGeoRegions('', false)])
 })
 </script>
 
@@ -198,6 +353,16 @@ onMounted(async () => {
                 clearable
             />
             <v-btn color="teal-darken-4" size="small" variant="flat" @click="loadRegions">Filter</v-btn>
+            <v-btn
+                color="teal-darken-3"
+                size="small"
+                variant="tonal"
+                :loading="geoSyncing"
+                prepend-icon="mdi-cloud-sync"
+                @click="syncYandexGeoRegions"
+            >
+                Sync Yandex Geo
+            </v-btn>
         </div>
 
         <v-data-table
@@ -230,13 +395,15 @@ onMounted(async () => {
             <template #item.yandex_direct_region_ids="{ item }">
                 <div class="region-ids">
                     <v-chip
-                        v-for="id in regionIds(item)"
-                        :key="id"
+                        v-for="geo in regionGeoChips(item)"
+                        :key="geo.external_region_id"
                         size="x-small"
                         color="teal-darken-3"
                         variant="tonal"
+                        class="geo-chip"
                     >
-                        {{ id }}
+                        <strong>#{{ geo.external_region_id }}</strong>
+                        <span>{{ geo.name || 'not cached' }}</span>
                     </v-chip>
                     <span v-if="!regionIds(item).length" class="muted">not mapped</span>
                 </div>
@@ -255,14 +422,17 @@ onMounted(async () => {
             </template>
         </v-data-table>
 
-        <v-dialog v-model="dialog" max-width="620">
+        <v-dialog v-model="dialog" max-width="820">
             <v-card class="region-dialog">
                 <v-card-title>
-                    Yandex Direct mapping: {{ selectedRegion?.name }}
+                    Yandex Direct GeoRegions: {{ selectedRegion?.name }}
                 </v-card-title>
                 <v-card-text>
                     <v-alert type="info" density="compact" variant="tonal" class="mb-3">
-                        Вводите именно Yandex Direct RegionIds, не внутренние ID из таблицы regions. Можно несколько ID через пробел, запятую или с новой строки.
+                        Ищите регион по названию или ID в справочнике Яндекс.Директа. В БД сохраняются именно GeoRegionId Яндекса, не внутренние ID таблицы regions.
+                    </v-alert>
+                    <v-alert v-if="geoWarning" type="warning" density="compact" variant="tonal" class="mb-3">
+                        {{ geoWarning }}
                     </v-alert>
                     <v-switch
                         v-model="form.use_for_yandex_direct"
@@ -273,15 +443,51 @@ onMounted(async () => {
                         inset
                         class="mb-3"
                     />
-                    <v-textarea
-                        v-model="form.yandex_direct_region_ids_text"
-                        label="Yandex RegionIds"
+                    <v-autocomplete
+                        v-model="form.yandex_direct_region_ids"
+                        v-model:search="geoSearch"
+                        :items="availableGeoItems"
+                        :loading="geoLoading"
+                        item-title="title"
+                        item-value="external_region_id"
+                        label="Поиск GeoRegions Яндекс.Директа"
                         density="compact"
                         variant="outlined"
-                        rows="6"
-                        hint="Например: 2 для Санкт-Петербурга, 213 для Москвы, если эти ID соответствуют справочнику Яндекса."
-                        persistent-hint
-                    />
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                        no-filter
+                        hide-details
+                        class="geo-autocomplete"
+                    >
+                        <template #item="{ props, item }">
+                            <v-list-item v-bind="props">
+                                <template #title>
+                                    <div class="geo-option-title">
+                                        <strong>#{{ item.raw.external_region_id }}</strong>
+                                        <span>{{ item.raw.name || 'GeoRegion' }}</span>
+                                    </div>
+                                </template>
+                                <template #subtitle>
+                                    {{ item.raw.parent_names?.length ? item.raw.parent_names.join(' / ') : 'Yandex Direct GeoRegion' }}
+                                </template>
+                            </v-list-item>
+                        </template>
+                    </v-autocomplete>
+                    <div class="geo-dialog-actions">
+                        <v-btn
+                            color="teal-darken-3"
+                            size="small"
+                            variant="tonal"
+                            :loading="geoSyncing"
+                            prepend-icon="mdi-cloud-sync"
+                            @click="syncYandexGeoRegions"
+                        >
+                            Полная синхронизация справочника
+                        </v-btn>
+                        <span class="muted">Для обычной работы достаточно поиска: найденные регионы кэшируются автоматически.</span>
+                    </div>
                 </v-card-text>
                 <v-card-actions>
                     <v-spacer />
@@ -305,7 +511,9 @@ onMounted(async () => {
 
 .regions-topline,
 .regions-toolbar,
-.region-ids {
+.region-ids,
+.geo-dialog-actions,
+.geo-option-title {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -411,7 +619,40 @@ onMounted(async () => {
 
 .region-ids {
     flex-wrap: wrap;
-    max-width: 260px;
+    max-width: 420px;
+}
+
+.geo-chip {
+    max-width: 190px;
+}
+
+.geo-chip :deep(.v-chip__content) {
+    gap: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.geo-option-title {
+    min-width: 0;
+    color: #004d40;
+}
+
+.geo-option-title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.geo-autocomplete :deep(.v-field__input) {
+    min-height: 36px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.geo-dialog-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-top: 10px;
 }
 
 .muted {

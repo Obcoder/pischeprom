@@ -67,6 +67,7 @@ use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\API\Marketing\YandexAccountController;
 use App\Http\Controllers\API\Marketing\YandexDirectAdController;
+use App\Http\Controllers\API\Marketing\YandexDirectGeoRegionController;
 use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
 use App\Http\Controllers\API\Marketing\YandexDirectLaunchController;
 use App\Http\Controllers\API\Marketing\YandexDirectStatsController;
@@ -410,6 +411,13 @@ Route::prefix('marketing')
             ->name('direct.launch.sessions');
         Route::post('/direct/launch/{good}', [YandexDirectLaunchController::class, 'launch'])
             ->name('direct.launch');
+
+        Route::get('/direct/geo-regions', [YandexDirectGeoRegionController::class, 'index'])
+            ->name('direct.geo-regions.index');
+        Route::post('/direct/geo-regions/resolve', [YandexDirectGeoRegionController::class, 'show'])
+            ->name('direct.geo-regions.resolve');
+        Route::post('/direct/geo-regions/sync', [YandexDirectGeoRegionController::class, 'sync'])
+            ->name('direct.geo-regions.sync');
 
         Route::get('/direct/ads', [YandexDirectAdController::class, 'index'])
             ->name('direct.ads.index');

@@ -4,8 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Region;
+use App\Models\YandexDirectGeoRegion;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class RegionController extends Controller
 {
@@ -35,7 +38,7 @@ class RegionController extends Controller
             ->orderBy('name')
             ->get();
 
-        return response()->json($regions);
+        return response()->json($this->attachYandexGeoRegions($regions));
     }
 
     /**
@@ -79,7 +82,9 @@ class RegionController extends Controller
 
         $region->update($validated);
 
-        return response()->json($region->fresh(['country'])->loadCount('cities'));
+        return response()->json($this->attachYandexGeoRegions(
+            new Collection([$region->fresh(['country'])->loadCount('cities')])
+        )->first());
     }
 
     /**
@@ -88,5 +93,54 @@ class RegionController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+
+    private function attachYandexGeoRegions(Collection $regions): Collection
+    {
+        if (!Schema::hasTable('yandex_direct_geo_regions')) {
+            return $regions;
+        }
+
+        $ids = $regions
+            ->flatMap(fn (Region $region) => $region->yandex_direct_region_ids ?: [])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return $regions;
+        }
+
+        $geoRegions = YandexDirectGeoRegion::query()
+            ->whereIn('external_region_id', $ids->all())
+            ->get()
+            ->keyBy('external_region_id');
+
+        return $regions->each(function (Region $region) use ($geoRegions) {
+            $region->setAttribute('yandex_direct_geo_regions', collect($region->yandex_direct_region_ids ?: [])
+                ->map(function ($id) use ($geoRegions) {
+                    $id = (int) $id;
+                    $geoRegion = $geoRegions->get($id);
+
+                    return $geoRegion ? [
+                        'id' => $geoRegion->id,
+                        'external_region_id' => $geoRegion->external_region_id,
+                        'parent_id' => $geoRegion->parent_id,
+                        'name' => $geoRegion->name,
+                        'type' => $geoRegion->type,
+                        'parent_names' => $geoRegion->parent_names ?: [],
+                        'path' => collect($geoRegion->parent_names ?: [])->push($geoRegion->name)->filter()->implode(' / '),
+                        'synced_at' => $geoRegion->synced_at,
+                    ] : [
+                        'external_region_id' => $id,
+                        'name' => null,
+                        'parent_names' => [],
+                        'path' => null,
+                    ];
+                })
+                ->values()
+                ->all());
+        });
     }
 }
