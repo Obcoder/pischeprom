@@ -54,8 +54,8 @@ class YandexDirectStatsController extends Controller
     public function sync(SyncYandexStatsRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $from = $validated['from'] ?? now()->subDay()->toDateString();
-        $to = $validated['to'] ?? $from;
+        $from = $validated['from'] ?? now()->subDays(7)->toDateString();
+        $to = $validated['to'] ?? now()->toDateString();
         $accountId = $validated['yandex_account_id'] ?? null;
 
         $account = $accountId ? YandexAccount::query()->findOrFail($accountId) : null;

@@ -45,7 +45,7 @@ class YandexDirectReportService
                 'DateFrom' => $from,
                 'DateTo' => $to,
             ],
-            'FieldNames' => ['Date', 'CampaignId', 'AdGroupId', 'AdId', 'CriteriaId', 'Impressions', 'Clicks', 'Cost', 'Ctr', 'AvgCpc', 'Conversions'],
+            'FieldNames' => ['Date', 'CampaignId', 'AdGroupId', 'AdId', 'CriterionId', 'Impressions', 'Clicks', 'Cost', 'Ctr', 'AvgCpc', 'Conversions'],
             'ReportName' => 'pischeprom-goods-daily-' . now()->format('YmdHis'),
             'ReportType' => 'CUSTOM_REPORT',
             'DateRangeType' => 'CUSTOM_DATE',
@@ -155,12 +155,14 @@ class YandexDirectReportService
             $headers['Client-Login'] = $account->direct_client_login;
         }
 
+        $body = ['params' => $payload];
+
         $log = YandexSyncLog::query()->create([
             'yandex_account_id' => $account->id,
             'entity_type' => 'direct_report',
             'action' => 'direct.stats.fetch',
             'status' => 'request',
-            'request_payload' => $payload,
+            'request_payload' => $body,
         ]);
 
         $url = config('yandex.direct.reports_url');
@@ -168,7 +170,7 @@ class YandexDirectReportService
         for ($attempt = 1; $attempt <= self::REPORT_MAX_ATTEMPTS; $attempt++) {
             $response = Http::withHeaders($headers)
                 ->timeout((int) config('yandex.direct.timeout', 20))
-                ->post($url, $payload);
+                ->post($url, $body);
 
             if ($response->status() === 200) {
                 $body = (string) $response->body();
@@ -260,7 +262,7 @@ class YandexDirectReportService
                 'external_campaign_id' => $this->nullableInt($raw['CampaignId'] ?? null),
                 'external_ad_group_id' => $this->nullableInt($raw['AdGroupId'] ?? null),
                 'external_ad_id' => $this->nullableInt($raw['AdId'] ?? null),
-                'external_keyword_id' => $this->nullableInt($raw['CriteriaId'] ?? null),
+                'external_keyword_id' => $this->nullableInt($raw['CriterionId'] ?? $raw['CriteriaId'] ?? null),
                 'impressions' => $this->intMetric($raw['Impressions'] ?? null),
                 'clicks' => $this->intMetric($raw['Clicks'] ?? null),
                 'cost' => $this->decimalMetric($raw['Cost'] ?? null),
