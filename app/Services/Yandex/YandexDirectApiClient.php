@@ -11,6 +11,10 @@ use RuntimeException;
 
 class YandexDirectApiClient
 {
+    private const MAX_LOG_LIST_ITEMS = 50;
+    private const MAX_LOG_STRING_CHARS = 12000;
+    private const MAX_LOG_DEPTH = 8;
+
     public function __construct(private readonly YandexOAuthService $oauthService) {}
 
     /**
@@ -46,7 +50,7 @@ class YandexDirectApiClient
             'entity_type' => 'direct_api',
             'action' => "{$service}.{$method}",
             'status' => 'request',
-            'request_payload' => $body,
+            'request_payload' => $this->payloadForLog($body),
         ]);
 
         $response = Http::withHeaders($headers)
@@ -61,7 +65,7 @@ class YandexDirectApiClient
         if (!$response->successful() || Arr::has($json, 'error')) {
             $log->update([
                 'status' => 'error',
-                'response_payload' => $json,
+                'response_payload' => $this->payloadForLog($json),
                 'error_message' => $error ?: 'Yandex Direct API request failed.',
             ]);
 
@@ -70,9 +74,56 @@ class YandexDirectApiClient
 
         $log->update([
             'status' => 'success',
-            'response_payload' => $json,
+            'response_payload' => $this->payloadForLog($json),
         ]);
 
         return $json;
+    }
+
+    private function payloadForLog(mixed $payload, int $depth = 0): mixed
+    {
+        if (is_string($payload)) {
+            return mb_strlen($payload) > self::MAX_LOG_STRING_CHARS
+                ? mb_substr($payload, 0, self::MAX_LOG_STRING_CHARS) . '... [truncated]'
+                : $payload;
+        }
+
+        if (!is_array($payload)) {
+            return $payload;
+        }
+
+        if ($depth >= self::MAX_LOG_DEPTH) {
+            return [
+                '__truncated_depth' => true,
+                '__message' => 'Payload nesting is deeper than log limit.',
+            ];
+        }
+
+        if (array_is_list($payload) && count($payload) > self::MAX_LOG_LIST_ITEMS) {
+            return [
+                '__truncated_list' => true,
+                '__count' => count($payload),
+                '__sample' => array_map(
+                    fn ($item) => $this->payloadForLog($item, $depth + 1),
+                    array_slice($payload, 0, self::MAX_LOG_LIST_ITEMS)
+                ),
+            ];
+        }
+
+        $result = [];
+        $index = 0;
+
+        foreach ($payload as $key => $value) {
+            if ($index >= self::MAX_LOG_LIST_ITEMS * 4) {
+                $result['__truncated_keys'] = true;
+                $result['__count'] = count($payload);
+                break;
+            }
+
+            $result[$key] = $this->payloadForLog($value, $depth + 1);
+            $index++;
+        }
+
+        return $result;
     }
 }

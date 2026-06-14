@@ -441,6 +441,8 @@ Route::prefix('marketing')
 
         Route::get('/direct/logs', [YandexSyncLogController::class, 'index'])
             ->name('direct.logs.index');
+        Route::get('/direct/logs/{log}', [YandexSyncLogController::class, 'show'])
+            ->name('direct.logs.show');
     });
 
 

@@ -66,6 +66,7 @@ const previewDialog = ref(false)
 const payloadDialog = ref(false)
 const selectedAd = ref(null)
 const selectedPayload = ref(null)
+const payloadLoading = ref(false)
 const savingAd = ref(false)
 const sendingAdId = ref(null)
 const validatingAdId = ref(null)
@@ -345,7 +346,7 @@ async function loadStats(options = statsOptions.value) {
     }
 }
 
-async function loadLogs(options = logsOptions.value) {
+async function loadLogs(options = logsOptions.value, silent = false) {
     logsOptions.value = options
     logsLoading.value = true
     try {
@@ -353,7 +354,9 @@ async function loadLogs(options = logsOptions.value) {
         logs.value = data.data || []
         logsTotal.value = data.total || 0
     } catch (e) {
-        setError(e.response?.data?.message || 'Не удалось загрузить логи.')
+        if (!silent) {
+            setError(e.response?.data?.message || 'Не удалось загрузить логи.')
+        }
     } finally {
         logsLoading.value = false
     }
@@ -475,7 +478,7 @@ async function sendAd(ad) {
     } catch (e) {
         tab.value = 'logs'
         setError(e.response?.data?.message || 'Не удалось отправить объявление.')
-        await Promise.all([loadAds(), loadLogs()])
+        await Promise.all([loadAds(), loadLogs(logsOptions.value, true)])
     } finally {
         sendingAdId.value = null
     }
@@ -501,13 +504,25 @@ async function syncStats() {
     }
 }
 
-function openPayload(log) {
-    selectedPayload.value = {
-        request: log.request_payload,
-        response: log.response_payload,
-        error: log.error_message,
-    }
+async function openPayload(log) {
     payloadDialog.value = true
+    payloadLoading.value = true
+    selectedPayload.value = { loading: true }
+
+    try {
+        const { data } = await axios.get(`/api/marketing/direct/logs/${log.id}`)
+        selectedPayload.value = {
+            request: data.request_payload,
+            response: data.response_payload,
+            error: data.error_message,
+        }
+    } catch (e) {
+        selectedPayload.value = {
+            error: e.response?.data?.message || 'Не удалось загрузить payload лога.',
+        }
+    } finally {
+        payloadLoading.value = false
+    }
 }
 
 function refreshCurrentTab() {
@@ -721,10 +736,10 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                         <template #item.actions="{ item }">
                             <div class="yd-actions">
                                 <v-btn icon="mdi-file-plus-outline" size="x-small" variant="text" :loading="generatingGoodId === item.id" title="Сгенерировать черновик" @click="generateDraft(item)" />
-                                <v-btn icon="mdi-rocket-launch-outline" size="x-small" variant="text" color="deep-purple-darken-2" :loading="launchingGoodId === item.id" title="FULL AUTO LAUNCH dry-run" @click="fullAutoLaunch(item)" />
+                                <v-btn icon="mdi-rocket-launch-outline" size="x-small" variant="text" color="deep-purple-darken-2" :loading="launchingGoodId === item.id" title="FULL AUTO dry-run: построить структуру без отправки в Яндекс" @click="fullAutoLaunch(item)" />
                                 <Link :href="route('Ameise.good.show', item.id)" title="Открыть SEO"><v-icon size="17" icon="mdi-open-in-new" /></Link>
                                 <v-btn icon="mdi-eye-outline" size="x-small" variant="text" :disabled="!item.direct_ad_id" title="Предпросмотр" @click="openAd(item.direct_ad_id, 'preview')" />
-                                <v-btn icon="mdi-send-outline" size="x-small" variant="text" :disabled="!item.direct_ad_id" :loading="sendingAdId === item.direct_ad_id" title="Отправить" @click="sendAd({ id: item.direct_ad_id })" />
+                                <v-btn icon="mdi-send-outline" size="x-small" variant="text" :disabled="!item.direct_ad_id" :loading="sendingAdId === item.direct_ad_id" title="Отправить в existing Direct AdGroup" @click="sendAd({ id: item.direct_ad_id })" />
                             </div>
                         </template>
                     </v-data-table-server>
@@ -767,7 +782,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                             <div class="yd-actions">
                                 <v-btn icon="mdi-pencil" size="x-small" variant="text" @click="openAd(item.id)" />
                                 <v-btn icon="mdi-check-circle-outline" size="x-small" variant="text" :loading="validatingAdId === item.id" @click="validateAd(item)" />
-                                <v-btn icon="mdi-send-outline" size="x-small" variant="text" :loading="sendingAdId === item.id" @click="sendAd(item)" />
+                                <v-btn icon="mdi-send-outline" size="x-small" variant="text" title="Отправить в existing Direct AdGroup" :loading="sendingAdId === item.id" @click="sendAd(item)" />
                                 <v-btn v-if="item.status !== 'suspended'" icon="mdi-pause" size="x-small" variant="text" @click="suspendAd(item)" />
                                 <v-btn v-else icon="mdi-play" size="x-small" variant="text" @click="resumeAd(item)" />
                             </div>
@@ -922,6 +937,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
         <v-dialog v-model="payloadDialog" max-width="900">
             <v-card class="yd-dialog">
                 <v-card-title>Payload</v-card-title>
+                <v-progress-linear v-if="payloadLoading" indeterminate color="deep-purple-darken-2" />
                 <v-card-text><pre class="yd-json">{{ JSON.stringify(selectedPayload, null, 2) }}</pre></v-card-text>
                 <v-card-actions><v-spacer /><v-btn variant="text" @click="payloadDialog = false">Закрыть</v-btn></v-card-actions>
             </v-card>

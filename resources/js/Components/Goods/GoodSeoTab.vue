@@ -728,9 +728,10 @@ onMounted(async () => {
                                 variant="tonal"
                                 :loading="directActionLoading"
                                 :disabled="hasDirectLimitErrors"
+                                title="Отправить только в уже существующую группу Яндекс.Директа. Для автосоздания кампании используйте FULL AUTO."
                                 @click="sendDirectDraft"
                             >
-                                Отправить в Директ
+                                Отправить в existing AdGroup
                             </v-btn>
                             <v-btn
                                 size="small"
@@ -738,9 +739,10 @@ onMounted(async () => {
                                 variant="flat"
                                 :loading="fullLaunchLoading"
                                 :disabled="hasDirectLimitErrors"
+                                title="Dry-run: построить структуру без отправки в Яндекс"
                                 @click="fullAutoLaunch"
                             >
-                                FULL AUTO LAUNCH
+                                FULL AUTO DRY RUN
                             </v-btn>
                             <a
                                 v-if="directAdId"

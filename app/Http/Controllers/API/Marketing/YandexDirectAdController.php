@@ -118,8 +118,12 @@ class YandexDirectAdController extends Controller
         try {
             return response()->json($service->sendAd($ad));
         } catch (Throwable $e) {
+            $freshAd = $ad->fresh(['adGroup.campaign.account', 'adGroup.keywords']);
+
             return response()->json([
                 'message' => $e->getMessage(),
+                'ad' => $freshAd,
+                'validation_errors' => $freshAd?->validation_errors ?: [],
             ], 422);
         }
     }

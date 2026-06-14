@@ -104,7 +104,7 @@ class YandexDirectCampaignService
         }
 
         if (blank($ad->adGroup->external_ad_group_id)) {
-            $message = 'Для реальной отправки нужен existing external AdGroupId из Яндекс.Директа. Автосоздание кампаний в MVP отключено.';
+            $message = 'Эта кнопка отправляет объявление только в уже существующую группу Яндекс.Директа. Укажите Direct AdGroup ID в объявлении или используйте FULL AUTO LAUNCH, который сам создаёт кампанию, группы, объявления и ключи.';
 
             $ad->update([
                 'status' => YandexDirectAd::STATUS_ERROR,
