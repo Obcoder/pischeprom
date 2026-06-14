@@ -78,6 +78,8 @@ const adForm = reactive({
     href: '',
     utm_template: '',
     image_url: '',
+    external_campaign_id: '',
+    external_ad_group_id: '',
     keyword_text: '',
     minus_keyword_text: '',
 })
@@ -379,6 +381,8 @@ async function openAd(id, mode = 'edit') {
     adForm.href = data.href || ''
     adForm.utm_template = data.utm_template || ''
     adForm.image_url = data.image_url || ''
+    adForm.external_campaign_id = data.ad_group?.campaign?.external_campaign_id || data.adGroup?.campaign?.external_campaign_id || ''
+    adForm.external_ad_group_id = data.ad_group?.external_ad_group_id || data.adGroup?.external_ad_group_id || ''
     adForm.keyword_text = keywordLines(data, false)
     adForm.minus_keyword_text = keywordLines(data, true)
     adDialog.value = true
@@ -395,6 +399,8 @@ async function saveAd() {
             href: adForm.href,
             utm_template: adForm.utm_template,
             image_url: adForm.image_url,
+            external_campaign_id: adForm.external_campaign_id,
+            external_ad_group_id: adForm.external_ad_group_id,
             keywords: formKeywords(),
         })
         selectedAd.value = data
@@ -788,6 +794,12 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                             <v-text-field v-model="adForm.href" label="URL" density="compact" />
                         </v-col>
                         <v-col cols="12" md="6">
+                            <v-text-field v-model="adForm.external_campaign_id" label="Direct Campaign ID" density="compact" hint="Необязательно. Для связи с существующей кампанией в Яндекс.Директе." persistent-hint />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="adForm.external_ad_group_id" label="Direct AdGroup ID" density="compact" hint="Обязательно для реальной отправки ads.add в MVP." persistent-hint />
+                        </v-col>
+                        <v-col cols="12" md="6">
                             <v-textarea v-model="adForm.utm_template" label="UTM-шаблон" density="compact" rows="3" />
                         </v-col>
                         <v-col cols="12" md="6">
@@ -815,7 +827,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                 <v-card-title>Предпросмотр объявления</v-card-title>
                 <v-card-text>
                     <v-alert type="info" density="compact" variant="tonal" class="mb-3">
-                        После отправки откроется вкладка «Логи» с результатом. Если реальная отправка отключена, запись будет со статусом dry_run.
+                        После отправки откроется вкладка «Логи» с результатом. Для реальной отправки нужен YANDEX_DIRECT_ENABLE_REAL_SEND=true и Direct AdGroup ID в объявлении.
                     </v-alert>
                     <div class="yd-preview">
                         <img v-if="selectedAd?.image_url" :src="selectedAd.image_url" alt="" />

@@ -20,6 +20,8 @@ class UpdateYandexDirectAdRequest extends FormRequest
             'href' => ['required', 'url'],
             'utm_template' => ['nullable', 'string'],
             'image_url' => ['nullable', 'url'],
+            'external_campaign_id' => ['nullable', 'string', 'max:255'],
+            'external_ad_group_id' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'in:draft,ready,syncing,sent,moderation,active,suspended,error'],
             'keywords' => ['nullable', 'array'],
             'keywords.*.id' => ['nullable', 'integer', 'exists:yandex_direct_keywords,id'],

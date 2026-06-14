@@ -69,8 +69,21 @@ class YandexDirectAdController extends Controller
                 'status',
             ])->toArray());
 
+            $ad->loadMissing('adGroup.campaign');
+
+            if (array_key_exists('external_ad_group_id', $validated)) {
+                $ad->adGroup->update([
+                    'external_ad_group_id' => $validated['external_ad_group_id'],
+                ]);
+            }
+
+            if (array_key_exists('external_campaign_id', $validated)) {
+                $ad->adGroup->campaign->update([
+                    'external_campaign_id' => $validated['external_campaign_id'],
+                ]);
+            }
+
             if (array_key_exists('keywords', $validated)) {
-                $ad->loadMissing('adGroup');
                 $ad->adGroup->keywords()->delete();
 
                 foreach ($validated['keywords'] ?? [] as $keyword) {

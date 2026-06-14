@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API\Marketing;
 
 use App\Http\Controllers\Controller;
 use App\Models\YandexAccount;
+use App\Services\Yandex\YandexDirectApiClient;
 use App\Services\Yandex\YandexOAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -50,14 +51,24 @@ class YandexAccountController extends Controller
                     'source' => 'yandex_accounts',
                     'note' => 'Отдельное OAuth-подключение для Директа/Метрики.',
                 ],
+                'direct_real_send' => [
+                    'found' => (bool) config('yandex.direct.enable_real_send'),
+                    'can_use_for_direct' => (bool) config('yandex.direct.enable_real_send'),
+                    'note' => config('yandex.direct.enable_real_send')
+                        ? 'Реальная отправка в Директ включена. Нужен существующий external AdGroupId.'
+                        : 'Реальная отправка отключена через YANDEX_DIRECT_ENABLE_REAL_SEND=false.',
+                ],
             ],
         ]);
     }
 
-    public function check(YandexAccount $account, YandexOAuthService $service): JsonResponse
+    public function check(YandexAccount $account, YandexOAuthService $service, YandexDirectApiClient $directClient): JsonResponse
     {
         try {
             $check = $service->check($account);
+            $direct = $directClient->request($account, 'clients', 'get', [
+                'FieldNames' => ['Login', 'ClientId', 'ClientInfo'],
+            ]);
         } catch (Throwable $e) {
             return response()->json([
                 'message' => $e->getMessage(),
@@ -66,7 +77,11 @@ class YandexAccountController extends Controller
 
         return response()->json([
             'account' => $this->serialize($account->fresh()),
-            'check' => $check,
+            'check' => [
+                ...$check,
+                'direct_api' => 'ok',
+                'direct_response' => $direct,
+            ],
         ]);
     }
 

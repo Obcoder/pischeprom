@@ -94,9 +94,44 @@ class YandexDirectCampaignService
             ];
         }
 
+        if (filled($ad->external_ad_id)) {
+            return [
+                'sent' => true,
+                'dry_run' => false,
+                'message' => 'Объявление уже было отправлено в Директ. Повторная отправка в MVP заблокирована, чтобы не создать дубль.',
+                'ad' => $ad->fresh(),
+            ];
+        }
+
+        if (blank($ad->adGroup->external_ad_group_id)) {
+            $message = 'Для реальной отправки нужен existing external AdGroupId из Яндекс.Директа. Автосоздание кампаний в MVP отключено.';
+
+            $ad->update([
+                'status' => YandexDirectAd::STATUS_ERROR,
+                'error_message' => $message,
+            ]);
+
+            YandexSyncLog::query()->create([
+                'yandex_account_id' => $account->id,
+                'entity_type' => YandexDirectAd::class,
+                'entity_id' => $ad->id,
+                'action' => 'direct.ads.send',
+                'status' => 'error',
+                'request_payload' => $payload,
+                'error_message' => $message,
+            ]);
+
+            throw new RuntimeException($message);
+        }
+
         $ad->update(['status' => YandexDirectAd::STATUS_SYNCING]);
 
-        $response = $this->client->request($account, 'ads', 'add', ['Ads' => [$payload['ad']]]);
+        $response = $this->client->request(
+            $account,
+            'ads',
+            'add',
+            ['Ads' => [$payload['ad']]]
+        );
 
         $externalAdId = data_get($response, 'result.AddResults.0.Id');
 
@@ -167,7 +202,7 @@ class YandexDirectCampaignService
             ],
             'keywords' => $keywords,
             'ad' => [
-                'AdGroupId' => $ad->adGroup->external_ad_group_id,
+                'AdGroupId' => (int) $ad->adGroup->external_ad_group_id,
                 'TextAd' => [
                     'Title' => $ad->title_1,
                     'Title2' => $ad->title_2,
