@@ -13,6 +13,8 @@ use Throwable;
 
 class YandexDirectGeoRegionService
 {
+    private const UPSERT_CHUNK_SIZE = 500;
+
     public function __construct(private readonly YandexDirectApiClient $client) {}
 
     public function search(string $search = '', int $limit = 40, bool $remote = true, ?YandexAccount $account = null): array
@@ -105,11 +107,15 @@ class YandexDirectGeoRegionService
             return 0;
         }
 
-        YandexDirectGeoRegion::query()->upsert(
-            $rows->all(),
-            ['external_region_id'],
-            ['parent_id', 'name', 'type', 'parent_names', 'raw', 'synced_at', 'updated_at']
-        );
+        $rows
+            ->chunk(self::UPSERT_CHUNK_SIZE)
+            ->each(function (Collection $chunk) {
+                YandexDirectGeoRegion::query()->upsert(
+                    $chunk->all(),
+                    ['external_region_id'],
+                    ['parent_id', 'name', 'type', 'parent_names', 'raw', 'synced_at', 'updated_at']
+                );
+            });
 
         return $rows->count();
     }
