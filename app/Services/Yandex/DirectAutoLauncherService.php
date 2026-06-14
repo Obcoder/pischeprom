@@ -6,6 +6,10 @@ use App\Jobs\SyncYandexDirectStatusesJob;
 use App\Models\DirectLaunchSession;
 use App\Models\Good;
 use App\Models\YandexAccount;
+use App\Models\YandexDirectAd;
+use App\Models\YandexDirectAdGroup;
+use App\Models\YandexDirectCampaign;
+use App\Models\YandexDirectKeyword;
 use App\Models\YandexSyncLog;
 use Throwable;
 
@@ -106,6 +110,8 @@ class DirectAutoLauncherService
                 $rollback = $this->rollbackOnError($account, $session, $externalIds);
             }
 
+            $this->markLocalStructureFailed($session, $e->getMessage());
+
             $status = $externalIds ? DirectLaunchSession::STATUS_PARTIAL : DirectLaunchSession::STATUS_FAILED;
 
             return $this->fail($session, $e->getMessage(), [
@@ -170,6 +176,48 @@ class DirectAutoLauncherService
             'warnings' => data_get($payload, 'safety_gate.warnings', []),
             'rollback' => data_get($payload, 'rollback', []),
         ];
+    }
+
+    private function markLocalStructureFailed(DirectLaunchSession $session, string $message): void
+    {
+        $campaignIds = YandexDirectCampaign::query()
+            ->where('settings->launch_session_id', $session->id)
+            ->pluck('id');
+
+        $groupIds = YandexDirectAdGroup::query()
+            ->whereIn('yandex_direct_campaign_id', $campaignIds)
+            ->orWhere('settings->launch_session_id', $session->id)
+            ->pluck('id');
+
+        if ($groupIds->isNotEmpty()) {
+            YandexDirectKeyword::query()
+                ->whereIn('yandex_direct_ad_group_id', $groupIds)
+                ->whereNull('external_keyword_id')
+                ->update(['status' => YandexDirectAd::STATUS_ERROR]);
+
+            YandexDirectAd::query()
+                ->whereIn('yandex_direct_ad_group_id', $groupIds)
+                ->update([
+                    'status' => YandexDirectAd::STATUS_ERROR,
+                    'error_message' => $message,
+                ]);
+
+            YandexDirectAdGroup::query()
+                ->whereIn('id', $groupIds)
+                ->update([
+                    'status' => YandexDirectAd::STATUS_ERROR,
+                    'error_message' => $message,
+                ]);
+        }
+
+        if ($campaignIds->isNotEmpty()) {
+            YandexDirectCampaign::query()
+                ->whereIn('id', $campaignIds)
+                ->update([
+                    'status' => YandexDirectAd::STATUS_ERROR,
+                    'error_message' => $message,
+                ]);
+        }
     }
 
     private function log(DirectLaunchSession $session, ?YandexAccount $account, string $action, string $status, ?array $request = null, ?array $response = null, ?string $error = null): void

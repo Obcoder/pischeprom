@@ -15,6 +15,8 @@ use RuntimeException;
 
 class GoodDirectDraftService
 {
+    public function __construct(private readonly YandexDirectKeywordSanitizer $keywordSanitizer) {}
+
     public function generateForGood(Good $good, ?YandexAccount $account = null): YandexDirectAd
     {
         $account ??= YandexAccount::query()->where('is_active', true)->latest('last_checked_at')->latest()->first();
@@ -92,6 +94,7 @@ class GoodDirectDraftService
             ->merge($this->normalizePhraseList($seo->keywords))
             ->merge($this->normalizePhraseList($seo->semantic_core))
             ->map(fn (string $phrase) => trim(mb_strtolower($phrase)))
+            ->map(fn (string $phrase) => $this->keywordSanitizer->plain($phrase))
             ->filter()
             ->unique()
             ->values()
@@ -101,7 +104,7 @@ class GoodDirectDraftService
     public function generateMinusKeywords(Good $good): array
     {
         return collect(config('yandex.default_minus_keywords', []))
-            ->map(fn ($phrase) => trim((string) $phrase))
+            ->map(fn ($phrase) => $this->keywordSanitizer->negative((string) $phrase))
             ->filter()
             ->unique()
             ->values()

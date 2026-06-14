@@ -19,6 +19,7 @@ class DirectCampaignBuilderService
         private readonly DirectStructurePlannerService $planner,
         private readonly YandexDirectApiClient $client,
         private readonly GoodDirectDraftService $draftService,
+        private readonly YandexDirectKeywordSanitizer $keywordSanitizer,
     ) {}
 
     public function build(Good $good, YandexAccount $account, DirectLaunchSession $session, array $options = []): array
@@ -143,6 +144,14 @@ class DirectCampaignBuilderService
             if ($keywords->isNotEmpty()) {
                 $session->update(['step' => 'create_keywords']);
                 $keywordsPayload = $this->keywordsPayload($keywords->all(), $adGroupExternalId);
+
+                if (empty($keywordsPayload['Keywords'])) {
+                    continue;
+                }
+
+                $localKeywordIds = $keywordsPayload['_local_keyword_ids'];
+                unset($keywordsPayload['_local_keyword_ids']);
+
                 $keywordsResponse = $this->client->request($account, 'keywords', 'add', $keywordsPayload);
                 try {
                     $keywordExternalIds = $this->extractAddIds($keywordsResponse, 'Keywords.add', count($keywordsPayload['Keywords']));
@@ -153,8 +162,8 @@ class DirectCampaignBuilderService
                 }
                 $externalIds['keyword_ids'] = array_values(array_merge($externalIds['keyword_ids'], $keywordExternalIds));
 
-                foreach ($keywords->values() as $index => $keyword) {
-                    $keyword->update([
+                foreach ($localKeywordIds as $index => $localKeywordId) {
+                    YandexDirectKeyword::query()->whereKey($localKeywordId)->update([
                         'external_keyword_id' => isset($keywordExternalIds[$index]) ? (string) $keywordExternalIds[$index] : null,
                         'status' => YandexDirectAd::STATUS_SENT,
                     ]);
@@ -342,8 +351,15 @@ class DirectCampaignBuilderService
             'TextCampaign' => $textCampaign,
         ];
 
-        if (filled($plan['campaign']['minus_keywords'])) {
-            $campaign['NegativeKeywords'] = ['Items' => array_values($plan['campaign']['minus_keywords'])];
+        $minusKeywords = collect($plan['campaign']['minus_keywords'] ?? [])
+            ->map(fn ($phrase) => $this->keywordSanitizer->negative((string) $phrase))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($minusKeywords) {
+            $campaign['NegativeKeywords'] = ['Items' => $minusKeywords];
         }
 
         return ['Campaigns' => [$campaign]];
@@ -357,8 +373,12 @@ class DirectCampaignBuilderService
             'RegionIds' => array_values(array_map('intval', $group->region_ids ?: [])),
         ];
 
-        $minusKeywords = preg_split('/[\r\n]+/u', (string) $group->minus_keywords) ?: [];
-        $minusKeywords = array_values(array_filter(array_map('trim', $minusKeywords)));
+        $minusKeywords = collect(preg_split('/[\r\n]+/u', (string) $group->minus_keywords) ?: [])
+            ->map(fn ($phrase) => $this->keywordSanitizer->negative((string) $phrase))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
         if ($minusKeywords) {
             $item['NegativeKeywords'] = ['Items' => $minusKeywords];
         }
@@ -387,14 +407,47 @@ class DirectCampaignBuilderService
 
     private function keywordsPayload(array $keywords, int|string $externalAdGroupId): array
     {
-        return [
-            'Keywords' => collect($keywords)
-                ->map(fn (YandexDirectKeyword $keyword) => [
+        $payload = collect($keywords)
+            ->map(function (YandexDirectKeyword $keyword) use ($externalAdGroupId) {
+                $phrase = $this->keywordSanitizer->directPhrase((string) $keyword->phrase);
+
+                if ($phrase === '') {
+                    $keyword->update([
+                        'status' => YandexDirectAd::STATUS_ERROR,
+                    ]);
+
+                    return null;
+                }
+
+                if ($phrase !== $keyword->phrase) {
+                    $keyword->update(['phrase' => $phrase]);
+                }
+
+                return [
+                    '_local_keyword_id' => $keyword->id,
                     'AdGroupId' => (int) $externalAdGroupId,
-                    'Keyword' => $keyword->phrase,
+                    'Keyword' => $phrase,
+                ];
+            })
+            ->filter()
+            ->unique('Keyword')
+            ->values()
+            ->all();
+
+        $localKeywordIds = collect($payload)
+            ->pluck('_local_keyword_id')
+            ->values()
+            ->all();
+
+        return [
+            'Keywords' => collect($payload)
+                ->map(fn (array $item) => [
+                    'AdGroupId' => $item['AdGroupId'],
+                    'Keyword' => $item['Keyword'],
                 ])
                 ->values()
                 ->all(),
+            '_local_keyword_ids' => $localKeywordIds,
         ];
     }
 

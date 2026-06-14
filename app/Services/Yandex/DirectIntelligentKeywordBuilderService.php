@@ -7,6 +7,8 @@ use App\Models\GoodSeo;
 
 class DirectIntelligentKeywordBuilderService
 {
+    public function __construct(private readonly YandexDirectKeywordSanitizer $sanitizer) {}
+
     public function build(Good $good): array
     {
         $good->loadMissing(['seo', 'products.category']);
@@ -18,6 +20,7 @@ class DirectIntelligentKeywordBuilderService
             ->merge($this->phrases($seo?->keywords))
             ->merge($this->categorySignals($good))
             ->map(fn (string $phrase) => $this->normalize($phrase))
+            ->map(fn (string $phrase) => $this->sanitizer->plain($phrase))
             ->filter(fn (string $phrase) => $phrase !== '')
             ->unique()
             ->values();
@@ -48,12 +51,17 @@ class DirectIntelligentKeywordBuilderService
 
     public function hasKeywords(?GoodSeo $seo): bool
     {
-        return filled($this->phrases($seo?->search_queries)) || filled($this->phrases($seo?->keywords));
+        return collect()
+            ->merge($this->phrases($seo?->search_queries))
+            ->merge($this->phrases($seo?->keywords))
+            ->map(fn (string $phrase) => $this->sanitizer->plain($this->normalize($phrase)))
+            ->filter()
+            ->isNotEmpty();
     }
 
     private function variants(string $phrase): array
     {
-        $phrase = $this->keywordCandidate($phrase);
+        $phrase = $this->sanitizer->plain($phrase);
         if ($phrase === '') {
             return [];
         }
@@ -69,15 +77,19 @@ class DirectIntelligentKeywordBuilderService
         ];
 
         if (count($withoutTinyWords) > 1 && count($withoutTinyWords) <= 7) {
-            $variants[] = [
-                'phrase' => implode(' ', array_map(fn (string $word) => '!' . $word, $withoutTinyWords)),
-                'match' => 'exact',
-            ];
+            $exact = $this->sanitizer->exact($phrase);
+
+            if ($exact !== '') {
+                $variants[] = [
+                    'phrase' => $exact,
+                    'match' => 'exact',
+                ];
+            }
         }
 
         if (count($withoutTinyWords) >= 2) {
             $variants[] = [
-                'phrase' => implode(' ', array_slice($withoutTinyWords, 0, 7)),
+                'phrase' => $this->sanitizer->plain(implode(' ', array_slice($withoutTinyWords, 0, 7))),
                 'match' => 'broad',
             ];
         }
@@ -88,7 +100,7 @@ class DirectIntelligentKeywordBuilderService
     private function negative(Good $good): array
     {
         return collect(config('yandex.default_minus_keywords', []))
-            ->map(fn ($phrase) => $this->normalize((string) $phrase))
+            ->map(fn ($phrase) => $this->sanitizer->negative($this->normalize((string) $phrase)))
             ->filter()
             ->unique()
             ->values()
@@ -141,16 +153,5 @@ class DirectIntelligentKeywordBuilderService
         $phrase = preg_replace('/\s+/u', ' ', $phrase) ?: '';
 
         return trim($phrase);
-    }
-
-    private function keywordCandidate(string $phrase): string
-    {
-        $words = preg_split('/\s+/u', $phrase) ?: [];
-
-        return collect($words)
-            ->map(fn (string $word) => trim($word))
-            ->filter(fn (string $word) => $word !== '' && mb_strlen(ltrim($word, '-!+')) <= 35)
-            ->take(7)
-            ->implode(' ');
     }
 }

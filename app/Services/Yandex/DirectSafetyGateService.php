@@ -93,14 +93,28 @@ class DirectSafetyGateService
         $hasSuccessfulLaunch = DirectLaunchSession::query()
             ->where('good_id', $good->id)
             ->where('yandex_account_id', $account->id)
-            ->whereIn('status', [DirectLaunchSession::STATUS_SUCCESS, DirectLaunchSession::STATUS_PARTIAL])
+            ->where('status', DirectLaunchSession::STATUS_SUCCESS)
             ->exists();
+
+        $rolledBackSessionIds = DirectLaunchSession::query()
+            ->where('good_id', $good->id)
+            ->where('yandex_account_id', $account->id)
+            ->whereIn('status', [DirectLaunchSession::STATUS_FAILED, DirectLaunchSession::STATUS_PARTIAL])
+            ->whereNotNull('rollback_payload')
+            ->pluck('id')
+            ->all();
 
         $hasExternalCampaign = YandexDirectCampaign::query()
             ->where('good_id', $good->id)
             ->where('yandex_account_id', $account->id)
             ->whereNotNull('external_campaign_id')
             ->whereNotIn('status', ['error', 'suspended'])
+            ->when($rolledBackSessionIds, function ($query) use ($rolledBackSessionIds) {
+                $query->where(function ($query) use ($rolledBackSessionIds) {
+                    $query->whereNull('settings->launch_session_id')
+                        ->orWhereNotIn('settings->launch_session_id', $rolledBackSessionIds);
+                });
+            })
             ->exists();
 
         if ($hasSuccessfulLaunch || $hasExternalCampaign) {
