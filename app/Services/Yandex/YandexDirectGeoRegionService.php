@@ -14,8 +14,18 @@ use Throwable;
 class YandexDirectGeoRegionService
 {
     private const UPSERT_CHUNK_SIZE = 500;
+    private const COMPLETE_CACHE_MIN_ROWS = 1000;
 
     private const KNOWN_GEO_REGIONS = [
+        1 => [
+            'GeoRegionId' => 1,
+            'GeoRegionName' => 'Москва и область',
+            'GeoRegionType' => 'Federation subject',
+            'ParentId' => 3,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Центр'],
+            ],
+        ],
         2 => [
             'GeoRegionId' => 2,
             'GeoRegionName' => 'Санкт-Петербург',
@@ -32,6 +42,51 @@ class YandexDirectGeoRegionService
             'ParentId' => 1,
             'ParentGeoRegionNames' => [
                 'Items' => ['Россия', 'Центр', 'Москва и область'],
+            ],
+        ],
+        24 => [
+            'GeoRegionId' => 24,
+            'GeoRegionName' => 'Великий Новгород',
+            'GeoRegionType' => 'City',
+            'ParentId' => 10904,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Северо-Запад', 'Новгородская область'],
+            ],
+        ],
+        65 => [
+            'GeoRegionId' => 65,
+            'GeoRegionName' => 'Новосибирск',
+            'GeoRegionType' => 'City',
+            'ParentId' => 11316,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Сибирь', 'Новосибирская область'],
+            ],
+        ],
+        10174 => [
+            'GeoRegionId' => 10174,
+            'GeoRegionName' => 'Ленинградская область',
+            'GeoRegionType' => 'Federation subject',
+            'ParentId' => 17,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Северо-Запад'],
+            ],
+        ],
+        10904 => [
+            'GeoRegionId' => 10904,
+            'GeoRegionName' => 'Новгородская область',
+            'GeoRegionType' => 'Federation subject',
+            'ParentId' => 17,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Северо-Запад'],
+            ],
+        ],
+        11316 => [
+            'GeoRegionId' => 11316,
+            'GeoRegionName' => 'Новосибирская область',
+            'GeoRegionType' => 'Federation subject',
+            'ParentId' => 59,
+            'ParentGeoRegionNames' => [
+                'Items' => ['Россия', 'Сибирь'],
             ],
         ],
         225 => [
@@ -54,6 +109,15 @@ class YandexDirectGeoRegionService
         'sanktpeterburg' => [2],
         'москва' => [213],
         'россия' => [225],
+        'московскаяобласть' => [1],
+        'москваиобласть' => [1],
+        'ленинградскаяобласть' => [10174],
+        'ленобласть' => [10174],
+        'новгород' => [10904, 24],
+        'новгородскаяобласть' => [10904],
+        'великийновгород' => [24],
+        'новосибирск' => [11316, 65],
+        'новосибирскаяобласть' => [11316],
     ];
 
     public function __construct(private readonly YandexDirectApiClient $client) {}
@@ -70,24 +134,35 @@ class YandexDirectGeoRegionService
             $this->storeKnownRegions($knownIds);
         }
 
-        if ($remote && $search !== '') {
+        $items = $this->cachedSearch($search, $limit);
+
+        if ($remote && $search !== '' && ($items->isEmpty() || $this->geoRegionCacheNeedsWarmup())) {
             try {
-                $items = ctype_digit($search)
+                $this->syncAll($account);
+                $items = $this->cachedSearch($search, $limit);
+                $source = 'sync';
+            } catch (Throwable $e) {
+                $warning = $this->appendWarning($warning, $e->getMessage());
+            }
+        }
+
+        if ($remote && $search !== '' && $items->isEmpty()) {
+            try {
+                $remoteItems = ctype_digit($search)
                     ? $this->fetchByIds([(int) $search], $account)
                     : $this->fetchBySearch($search, $limit, $account);
 
                 if ($knownIds) {
-                    $items = array_merge($items, $this->fetchByIds($knownIds, $account));
+                    $remoteItems = array_merge($remoteItems, $this->fetchByIds($knownIds, $account));
                 }
 
-                $this->storeMany($items);
+                $this->storeMany($remoteItems);
+                $items = $this->cachedSearch($search, $limit);
                 $source = 'api';
             } catch (Throwable $e) {
-                $warning = $e->getMessage();
+                $warning = $this->appendWarning($warning, $e->getMessage());
             }
         }
-
-        $items = $this->cachedSearch($search, $limit);
 
         if ($items->isEmpty() && $knownIds) {
             $items = $this->cachedByIds($knownIds)->values();
@@ -314,6 +389,13 @@ class YandexDirectGeoRegionService
             ->keyBy('external_region_id');
     }
 
+    private function geoRegionCacheNeedsWarmup(): bool
+    {
+        $this->ensureTableExists();
+
+        return YandexDirectGeoRegion::query()->count() < self::COMPLETE_CACHE_MIN_ROWS;
+    }
+
     private function knownRegionIdsForSearch(string $search): array
     {
         if ($search === '') {
@@ -348,6 +430,21 @@ class YandexDirectGeoRegionService
         $search = mb_strtolower($search, 'UTF-8');
 
         return preg_replace('/[^a-zа-я0-9]+/u', '', $search) ?: '';
+    }
+
+    private function appendWarning(?string $warning, string $message): string
+    {
+        $message = trim($message);
+
+        if ($warning === null || $warning === '') {
+            return $message;
+        }
+
+        if ($message === '') {
+            return $warning;
+        }
+
+        return $warning . ' ' . $message;
     }
 
     private function normalize(array $item, mixed $now): ?array
