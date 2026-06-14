@@ -9,7 +9,7 @@ class DirectCampaignNamingService
 {
     public function campaign(Good $good, string $segment = 'B2B', ?array $regions = null): string
     {
-        $region = filled($regions) ? 'REG' : 'SPB';
+        $region = filled($regions) ? 'REG' : 'NO_REG';
 
         return $this->limit("Pischeprom | {$this->productAlias($good)} | {$segment} | {$region}");
     }

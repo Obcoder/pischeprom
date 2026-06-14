@@ -280,6 +280,13 @@ function responseErrorMessages(error) {
     return []
 }
 
+function launchMessage(data, dryRun) {
+    const warnings = Array.isArray(data.warnings) ? data.warnings.filter(Boolean) : []
+    const message = data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.')
+
+    return warnings.length ? `${message} Предупреждения: ${warnings.join('; ')}` : message
+}
+
 function generateDirectFields() {
     if (!form.yandex_direct_title_1) {
         form.yandex_direct_title_1 = compactText(props.good.name, directLimits.title_1)
@@ -416,7 +423,7 @@ async function fullAutoLaunch(dryRun = true) {
             budget_approved: !dryRun,
         })
         directStatus.value = data.status || directStatus.value
-        setDirectMessage(data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.'))
+        setDirectMessage(launchMessage(data, dryRun))
         await loadDirectInfo()
     } catch (error) {
         const errors = responseErrorMessages(error)

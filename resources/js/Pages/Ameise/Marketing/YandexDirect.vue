@@ -214,6 +214,13 @@ function responseErrorMessages(error) {
     return []
 }
 
+function launchMessage(data, dryRun) {
+    const warnings = Array.isArray(data.warnings) ? data.warnings.filter(Boolean) : []
+    const message = data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.')
+
+    return warnings.length ? `${message} Предупреждения: ${warnings.join('; ')}` : message
+}
+
 function statusColor(status) {
     return {
         draft: 'grey',
@@ -416,7 +423,7 @@ async function fullAutoLaunch(good, dryRun = true) {
             budget_approved: !dryRun,
         })
         await Promise.all([loadGoods(), loadAds(), loadLogs(), loadLaunchDashboard()])
-        setNotice(data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.'))
+        setNotice(launchMessage(data, dryRun))
     } catch (e) {
         const errors = responseErrorMessages(e)
         setError(errors.length ? errors.join('; ') : (e.response?.data?.message || 'Не удалось выполнить FULL AUTO LAUNCH.'))

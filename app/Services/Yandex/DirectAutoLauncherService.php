@@ -95,6 +95,7 @@ class DirectAutoLauncherService
                 'message' => $dryRun
                     ? 'FULL AUTO LAUNCH dry-run выполнен. Структура создана локально, в Яндекс ничего не отправлено.'
                     : 'FULL AUTO LAUNCH выполнен. Структура отправлена в Яндекс.Директ.',
+                'warnings' => $validation['warnings'] ?? [],
                 'result' => $result,
             ];
         } catch (Throwable $e) {
