@@ -19,6 +19,8 @@ const integrations = ref({})
 const categories = ref([])
 const accountsLoading = ref(false)
 const checkingAccountId = ref(null)
+const yandexVerificationCode = ref('')
+const exchangingVerificationCode = ref(false)
 
 const goods = ref([])
 const goodsTotal = ref(0)
@@ -265,6 +267,30 @@ function connectYandex() {
     window.location.href = route('api.marketing.yandex.oauth.redirect')
 }
 
+function connectYandexByVerificationCode() {
+    window.open(route('api.marketing.yandex.oauth.verification-code'), '_blank', 'noopener')
+}
+
+async function exchangeVerificationCode() {
+    const code = yandexVerificationCode.value.trim()
+    if (!code) {
+        setError('Вставьте код подтверждения Яндекса.')
+        return
+    }
+
+    exchangingVerificationCode.value = true
+    try {
+        const { data } = await axios.post('/api/marketing/yandex/oauth/exchange-code', { code })
+        yandexVerificationCode.value = ''
+        await loadAccounts()
+        setNotice(data.message || 'OAuth-токен Яндекса сохранён.')
+    } catch (e) {
+        setError(e.response?.data?.message || 'Не удалось обменять код на OAuth-токен.')
+    } finally {
+        exchangingVerificationCode.value = false
+    }
+}
+
 async function loadGoods(options = goodsOptions.value) {
     goodsOptions.value = options
     goodsLoading.value = true
@@ -486,9 +512,40 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                     <section class="yd-panel">
                         <div class="yd-panel__head">
                             <strong>Подключение Яндекса</strong>
-                            <v-btn color="deep-purple-darken-2" size="small" variant="flat" @click="connectYandex">
-                                Подключить Яндекс
-                            </v-btn>
+                            <div class="yd-panel__actions">
+                                <v-btn color="deep-purple-darken-2" size="small" variant="flat" @click="connectYandexByVerificationCode">
+                                    Получить код Яндекса
+                                </v-btn>
+                                <v-btn color="deep-purple-darken-2" size="small" variant="text" @click="connectYandex">
+                                    Callback
+                                </v-btn>
+                            </div>
+                        </div>
+
+                        <div class="yd-code-flow">
+                            <div>
+                                <strong>Для приложения «Для доступа к API»</strong>
+                                <span>Яндекс не показывает «Платформы» и выдаёт код на странице verification_code. Откройте Яндекс, разрешите доступ, скопируйте код и вставьте его сюда.</span>
+                            </div>
+                            <div class="yd-code-flow__controls">
+                                <v-text-field
+                                    v-model="yandexVerificationCode"
+                                    label="Код подтверждения Яндекса"
+                                    density="compact"
+                                    hide-details
+                                    clearable
+                                    @keyup.enter="exchangeVerificationCode"
+                                />
+                                <v-btn
+                                    color="teal-darken-3"
+                                    size="small"
+                                    variant="flat"
+                                    :loading="exchangingVerificationCode"
+                                    @click="exchangeVerificationCode"
+                                >
+                                    Сохранить токен
+                                </v-btn>
+                            </div>
                         </div>
 
                         <v-data-table
@@ -821,6 +878,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
 
 .yd-topline__actions,
 .yd-actions,
+.yd-panel__actions,
 .yd-filters {
     display: flex;
     align-items: center;
@@ -880,6 +938,43 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
     border-bottom: 1px solid rgba(91, 33, 182, 0.12);
     background: #ede9fe;
     color: #2e1065;
+}
+
+.yd-panel__actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.yd-code-flow {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(91, 33, 182, 0.12);
+    background: #fbfaff;
+}
+
+.yd-code-flow strong,
+.yd-code-flow span {
+    display: block;
+}
+
+.yd-code-flow strong {
+    color: #2e1065;
+    font-size: 12px;
+}
+
+.yd-code-flow span {
+    color: rgba(46, 16, 101, 0.66);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.yd-code-flow__controls {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    gap: 6px;
+    align-items: center;
 }
 
 .yd-filters {
@@ -1034,7 +1129,12 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
 
 @media (max-width: 1100px) {
     .yd-grid--connection,
+    .yd-code-flow,
     .yd-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .yd-code-flow__controls {
         grid-template-columns: 1fr;
     }
 }

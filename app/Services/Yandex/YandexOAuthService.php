@@ -12,7 +12,7 @@ use RuntimeException;
 
 class YandexOAuthService
 {
-    public function authorizationUrl(?string $state = null): string
+    public function authorizationUrl(?string $state = null, ?string $redirectUri = null): string
     {
         $clientId = config('yandex.oauth.client_id');
 
@@ -23,7 +23,7 @@ class YandexOAuthService
         $query = array_filter([
             'response_type' => 'code',
             'client_id' => $clientId,
-            'redirect_uri' => config('yandex.oauth.redirect_uri'),
+            'redirect_uri' => $redirectUri ?: config('yandex.oauth.redirect_uri'),
             'scope' => implode(' ', config('yandex.oauth.scopes', [])),
             'state' => $state,
             'force_confirm' => 'yes',
@@ -32,20 +32,30 @@ class YandexOAuthService
         return rtrim(config('yandex.oauth.authorize_url'), '?') . '?' . http_build_query($query);
     }
 
+    public function verificationCodeAuthorizationUrl(): string
+    {
+        return $this->authorizationUrl(null, config('yandex.oauth.verification_redirect_uri'));
+    }
+
     /**
      * @throws ConnectionException
      */
-    public function exchangeCode(string $code, ?int $userId = null): YandexAccount
+    public function exchangeCode(string $code, ?int $userId = null, ?string $redirectUri = null): YandexAccount
     {
+        $payload = [
+            'grant_type' => 'authorization_code',
+            'code' => $code,
+            'client_id' => config('yandex.oauth.client_id'),
+            'client_secret' => config('yandex.oauth.client_secret'),
+        ];
+
+        if (filled($redirectUri)) {
+            $payload['redirect_uri'] = $redirectUri;
+        }
+
         $response = Http::asForm()
             ->timeout(20)
-            ->post(config('yandex.oauth.token_url'), [
-                'grant_type' => 'authorization_code',
-                'code' => $code,
-                'client_id' => config('yandex.oauth.client_id'),
-                'client_secret' => config('yandex.oauth.client_secret'),
-                'redirect_uri' => config('yandex.oauth.redirect_uri'),
-            ]);
+            ->post(config('yandex.oauth.token_url'), $payload);
 
         $payload = $response->json() ?: [];
 

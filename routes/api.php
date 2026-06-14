@@ -69,6 +69,7 @@ use App\Http\Controllers\API\Marketing\YandexAccountController;
 use App\Http\Controllers\API\Marketing\YandexDirectAdController;
 use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
 use App\Http\Controllers\API\Marketing\YandexDirectStatsController;
+use App\Http\Controllers\API\Marketing\YandexOAuthController;
 use App\Http\Controllers\API\Marketing\YandexSyncLogController;
 use App\Services\YandexSearchService;
 
@@ -384,8 +385,7 @@ Route::apiResource('uris', UriController::class);
 Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rates');
 Route::apiResource('yandex-requests', YandexRequestController::class);
 
-Route::middleware('auth:sanctum')
-    ->prefix('marketing')
+Route::prefix('marketing')
     ->name('api.marketing.')
     ->group(function () {
         Route::get('/yandex/accounts', [YandexAccountController::class, 'index'])
@@ -396,6 +396,8 @@ Route::middleware('auth:sanctum')
             ->name('yandex.accounts.destroy');
         Route::post('/yandex/accounts/{account}/check', [YandexAccountController::class, 'check'])
             ->name('yandex.accounts.check');
+        Route::post('/yandex/oauth/exchange-code', [YandexOAuthController::class, 'exchangeVerificationCode'])
+            ->name('yandex.oauth.exchange-code');
 
         Route::get('/direct/goods', [YandexDirectGoodController::class, 'index'])
             ->name('direct.goods.index');

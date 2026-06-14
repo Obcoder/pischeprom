@@ -13,6 +13,7 @@ return [
         'client_id' => env('YANDEX_OAUTH_CLIENT_ID'),
         'client_secret' => env('YANDEX_OAUTH_CLIENT_SECRET'),
         'redirect_uri' => env('YANDEX_OAUTH_REDIRECT_URI'),
+        'verification_redirect_uri' => env('YANDEX_OAUTH_VERIFICATION_REDIRECT_URI', 'https://oauth.yandex.ru/verification_code'),
         'authorize_url' => env('YANDEX_OAUTH_AUTHORIZE_URL', 'https://oauth.yandex.ru/authorize'),
         'token_url' => env('YANDEX_OAUTH_TOKEN_URL', 'https://oauth.yandex.ru/token'),
         'scopes' => array_values(array_filter(array_map('trim', explode(',', (string) env('YANDEX_OAUTH_SCOPES', ''))))),
