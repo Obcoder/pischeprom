@@ -3,14 +3,24 @@
 namespace App\Services\Yandex;
 
 use App\Models\YandexAccount;
+use App\Models\YandexDirectAd;
+use App\Models\YandexDirectAdGroup;
+use App\Models\YandexDirectCampaign;
 use App\Models\YandexDirectDailyStat;
+use App\Models\YandexDirectKeyword;
 use App\Models\YandexSyncLog;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class YandexDirectReportService
 {
-    public function __construct(private readonly YandexDirectApiClient $client) {}
+    private const REPORT_MAX_ATTEMPTS = 5;
+
+    public function __construct(
+        private readonly YandexOAuthService $oauthService,
+    ) {}
 
     public function fetchDailyStats(YandexAccount $account, Carbon|string $from, Carbon|string $to): array
     {
@@ -30,9 +40,7 @@ class YandexDirectReportService
             return [];
         }
 
-        // Reports API can return generated reports asynchronously. The exact report shape
-        // depends on the account and goals setup, so MVP keeps the client boundary here.
-        return $this->client->request($account, 'reports', 'get', [
+        $payload = [
             'SelectionCriteria' => [
                 'DateFrom' => $from,
                 'DateTo' => $to,
@@ -44,7 +52,11 @@ class YandexDirectReportService
             'Format' => 'TSV',
             'IncludeVAT' => 'YES',
             'IncludeDiscount' => 'NO',
-        ]);
+        ];
+
+        $text = $this->requestReport($account, $payload);
+
+        return $this->parseDailyStatsTsv($account, $text);
     }
 
     public function fetchSearchQueryStats(YandexAccount $account, Carbon|string $from, Carbon|string $to): array
@@ -66,6 +78,7 @@ class YandexDirectReportService
 
     public function storeStats(YandexAccount $account, array $rows): int
     {
+        $rows = $this->attachLocalIds($account, $rows);
         $stored = 0;
 
         DB::transaction(function () use ($account, $rows, &$stored) {
@@ -117,5 +130,240 @@ class YandexDirectReportService
         }
 
         return $result;
+    }
+
+    private function requestReport(YandexAccount $account, array $payload): string
+    {
+        $account = $this->oauthService->ensureFreshToken($account);
+
+        if (blank($account->access_token)) {
+            throw new RuntimeException('Не подключён OAuth-токен Яндекса.');
+        }
+
+        $headers = [
+            'Authorization' => 'Bearer ' . $account->access_token,
+            'Accept-Language' => 'ru',
+            'Content-Type' => 'application/json; charset=utf-8',
+            'processingMode' => 'auto',
+            'returnMoneyInMicros' => 'false',
+            'skipReportHeader' => 'true',
+            'skipColumnHeader' => 'false',
+            'skipReportSummary' => 'true',
+        ];
+
+        if (filled($account->direct_client_login)) {
+            $headers['Client-Login'] = $account->direct_client_login;
+        }
+
+        $log = YandexSyncLog::query()->create([
+            'yandex_account_id' => $account->id,
+            'entity_type' => 'direct_report',
+            'action' => 'direct.stats.fetch',
+            'status' => 'request',
+            'request_payload' => $payload,
+        ]);
+
+        $url = config('yandex.direct.reports_url');
+
+        for ($attempt = 1; $attempt <= self::REPORT_MAX_ATTEMPTS; $attempt++) {
+            $response = Http::withHeaders($headers)
+                ->timeout((int) config('yandex.direct.timeout', 20))
+                ->post($url, $payload);
+
+            if ($response->status() === 200) {
+                $body = (string) $response->body();
+                $log->update([
+                    'status' => 'success',
+                    'response_payload' => [
+                        'attempt' => $attempt,
+                        'bytes' => strlen($body),
+                        'sample' => mb_substr($body, 0, 2000),
+                    ],
+                ]);
+
+                return $body;
+            }
+
+            if (in_array($response->status(), [201, 202], true)) {
+                $retryIn = max(1, min(10, (int) ($response->header('retryIn') ?: 3)));
+                $log->update([
+                    'status' => 'pending',
+                    'response_payload' => [
+                        'attempt' => $attempt,
+                        'http_status' => $response->status(),
+                        'retry_in' => $retryIn,
+                    ],
+                ]);
+                sleep($retryIn);
+                continue;
+            }
+
+            $body = (string) $response->body();
+            $message = $this->reportErrorMessage($body) ?: 'Ошибка Direct Reports API: HTTP ' . $response->status();
+
+            $log->update([
+                'status' => 'error',
+                'response_payload' => [
+                    'http_status' => $response->status(),
+                    'body' => mb_substr($body, 0, 12000),
+                ],
+                'error_message' => $message,
+            ]);
+
+            throw new RuntimeException($message);
+        }
+
+        $message = 'Отчёт Яндекс.Директа ещё формируется. Повторите синхронизацию позже.';
+        $log->update([
+            'status' => 'pending',
+            'error_message' => $message,
+        ]);
+
+        return '';
+    }
+
+    private function parseDailyStatsTsv(YandexAccount $account, string $text): array
+    {
+        $text = trim($text);
+
+        if ($text === '') {
+            return [];
+        }
+
+        $lines = preg_split('/\r\n|\n|\r/u', $text) ?: [];
+        $headers = null;
+        $rows = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            $columns = str_getcsv($line, "\t");
+
+            if ($headers === null) {
+                $headers = $columns;
+                continue;
+            }
+
+            $values = array_slice(array_pad($columns, count($headers), null), 0, count($headers));
+            $raw = array_combine($headers, $values);
+
+            if (!is_array($raw) || blank($raw['Date'] ?? null)) {
+                continue;
+            }
+
+            $rows[] = [
+                'date' => $raw['Date'],
+                'external_campaign_id' => $this->nullableInt($raw['CampaignId'] ?? null),
+                'external_ad_group_id' => $this->nullableInt($raw['AdGroupId'] ?? null),
+                'external_ad_id' => $this->nullableInt($raw['AdId'] ?? null),
+                'external_keyword_id' => $this->nullableInt($raw['CriteriaId'] ?? null),
+                'impressions' => $this->intMetric($raw['Impressions'] ?? null),
+                'clicks' => $this->intMetric($raw['Clicks'] ?? null),
+                'cost' => $this->decimalMetric($raw['Cost'] ?? null),
+                'avg_cpc' => $this->nullableDecimalMetric($raw['AvgCpc'] ?? null),
+                'ctr' => $this->nullableDecimalMetric($raw['Ctr'] ?? null),
+                'conversions' => $this->intMetric($raw['Conversions'] ?? null),
+                'raw' => $raw,
+            ];
+        }
+
+        YandexSyncLog::query()->create([
+            'yandex_account_id' => $account->id,
+            'entity_type' => 'direct_report',
+            'action' => 'direct.stats.parse',
+            'status' => 'success',
+            'response_payload' => ['rows' => count($rows)],
+        ]);
+
+        return $rows;
+    }
+
+    private function attachLocalIds(YandexAccount $account, array $rows): array
+    {
+        $campaigns = YandexDirectCampaign::query()
+            ->where('yandex_account_id', $account->id)
+            ->whereNotNull('external_campaign_id')
+            ->get()
+            ->keyBy(fn (YandexDirectCampaign $campaign) => (string) $campaign->external_campaign_id);
+
+        $adGroups = YandexDirectAdGroup::query()
+            ->whereNotNull('external_ad_group_id')
+            ->get()
+            ->keyBy(fn (YandexDirectAdGroup $group) => (string) $group->external_ad_group_id);
+
+        $ads = YandexDirectAd::query()
+            ->whereNotNull('external_ad_id')
+            ->get()
+            ->keyBy(fn (YandexDirectAd $ad) => (string) $ad->external_ad_id);
+
+        $keywords = YandexDirectKeyword::query()
+            ->whereNotNull('external_keyword_id')
+            ->get()
+            ->keyBy(fn (YandexDirectKeyword $keyword) => (string) $keyword->external_keyword_id);
+
+        return collect($rows)
+            ->map(function (array $row) use ($campaigns, $adGroups, $ads, $keywords) {
+                $campaign = $campaigns->get((string) ($row['external_campaign_id'] ?? ''));
+                $adGroup = $adGroups->get((string) ($row['external_ad_group_id'] ?? ''));
+                $ad = $ads->get((string) ($row['external_ad_id'] ?? ''));
+                $keyword = $keywords->get((string) ($row['external_keyword_id'] ?? ''));
+
+                return [
+                    ...$row,
+                    'good_id' => $ad?->good_id ?: $adGroup?->good_id ?: $campaign?->good_id ?: $keyword?->good_id,
+                    'campaign_id' => $campaign?->id,
+                    'ad_group_id' => $adGroup?->id,
+                    'ad_id' => $ad?->id,
+                    'keyword_id' => $keyword?->id,
+                ];
+            })
+            ->all();
+    }
+
+    private function reportErrorMessage(string $body): ?string
+    {
+        $json = json_decode($body, true);
+
+        if (!is_array($json)) {
+            return null;
+        }
+
+        return data_get($json, 'error.error_detail')
+            ?: data_get($json, 'error.error_string')
+            ?: data_get($json, 'error.message');
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        $value = trim((string) $value);
+
+        return $value === '' || $value === '--' ? null : (int) $value;
+    }
+
+    private function intMetric(mixed $value): int
+    {
+        return (int) str_replace(' ', '', (string) ($value ?: 0));
+    }
+
+    private function nullableDecimalMetric(mixed $value): ?float
+    {
+        $value = trim((string) $value);
+
+        if ($value === '' || $value === '--') {
+            return null;
+        }
+
+        return $this->decimalMetric($value);
+    }
+
+    private function decimalMetric(mixed $value): float
+    {
+        $value = str_replace([' ', ','], ['', '.'], (string) ($value ?: 0));
+
+        return (float) $value;
     }
 }
