@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
-import { useForm, Link } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
 
 const units = ref([])
 const fields = ref([])
@@ -21,6 +21,8 @@ const selectedCityIDs = ref([])
 const selectedIndustryIDs = ref([])
 const showFormUnit = ref(false)
 const showFilters = ref(false)
+const unitSaving = ref(false)
+const unitError = ref('')
 
 const formUri = reactive({ address: '' })
 const dialogFormUri = ref(false)
@@ -35,7 +37,7 @@ const headerUnits = [
     { key: 'fields', title: 'Fields', align: 'start', sortable: true, width: '16%' },
 ]
 
-const formUnit = useForm({
+const defaultUnitForm = () => ({
     name: null,
     is_customer: false,
     is_supplier: false,
@@ -48,6 +50,8 @@ const formUnit = useForm({
     telephones: [],
     uris: [],
 })
+
+const formUnit = reactive(defaultUnitForm())
 
 const activeFilterCount = computed(() => (
     selectedFieldIDs.value.length
@@ -131,19 +135,51 @@ async function loadDictionaries() {
     ])
 }
 
-function storeUnit() {
-    formUnit.post(route('web.unit.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: () => {
-            formUnit.reset()
-            formUnit.is_customer = false
-            formUnit.is_supplier = false
-            showFormUnit.value = false
-            indexUnits()
-        },
-    })
+function resetUnitForm() {
+    Object.assign(formUnit, defaultUnitForm())
+}
+
+function openUnitForm() {
+    unitError.value = ''
+    showFormUnit.value = true
+}
+
+async function storeUnit() {
+    unitError.value = ''
+
+    if (!String(formUnit.name || '').trim()) {
+        unitError.value = 'Укажите название Unit.'
+        return
+    }
+
+    unitSaving.value = true
+
+    try {
+        await axios.post('/api/units', {
+            name: formUnit.name,
+            is_customer: formUnit.is_customer,
+            is_supplier: formUnit.is_supplier,
+            buildings: formUnit.buildings,
+            cities: formUnit.cities,
+            emails: formUnit.emails,
+            fields: formUnit.fields,
+            industries: formUnit.industries,
+            labels: formUnit.labels,
+            telephones: formUnit.telephones,
+            uris: formUnit.uris,
+        })
+
+        resetUnitForm()
+        showFormUnit.value = false
+        await indexUnits()
+    } catch (e) {
+        unitError.value = e?.response?.data?.message
+            || Object.values(e?.response?.data?.errors || {})?.flat()?.[0]
+            || 'Не удалось сохранить Unit.'
+        console.error('store unit error:', e?.response?.data || e)
+    } finally {
+        unitSaving.value = false
+    }
 }
 
 async function storeUri() {
@@ -206,7 +242,7 @@ watch(searchUnits, () => indexUnits())
                 variant="tonal"
                 density="comfortable"
                 color="deep-purple-darken-1"
-                @click="showFormUnit = true"
+                @click="openUnitForm"
             />
 
             <v-btn
@@ -377,6 +413,16 @@ watch(searchUnits, () => indexUnits())
             <v-card>
                 <v-card-title>Form Unit</v-card-title>
                 <v-card-text>
+                    <v-alert
+                        v-if="unitError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-3"
+                    >
+                        {{ unitError }}
+                    </v-alert>
+
                     <v-form @submit.prevent>
                         <v-container>
                             <v-row>
@@ -556,8 +602,14 @@ watch(searchUnits, () => indexUnits())
                     </v-form>
                 </v-card-text>
                 <v-card-actions class="justify-start">
-                    <v-btn text="Close" @click="showFormUnit = false" />
-                    <v-btn text="Сохранить" @click="storeUnit" />
+                    <v-btn text="Close" :disabled="unitSaving" @click="showFormUnit = false" />
+                    <v-btn
+                        text="Сохранить"
+                        color="teal-darken-3"
+                        :loading="unitSaving"
+                        :disabled="unitSaving || !formUnit.name"
+                        @click="storeUnit"
+                    />
                 </v-card-actions>
             </v-card>
         </v-dialog>
