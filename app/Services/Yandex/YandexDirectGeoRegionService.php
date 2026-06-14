@@ -26,7 +26,7 @@ class YandexDirectGeoRegionService
             try {
                 $items = ctype_digit($search)
                     ? $this->fetchByIds([(int) $search], $account)
-                    : $this->fetchByName($search, $limit, $account);
+                    : $this->fetchBySearch($search, $limit, $account);
                 $this->storeMany($items);
                 $source = 'api';
             } catch (Throwable $e) {
@@ -146,6 +146,35 @@ class YandexDirectGeoRegionService
         return Arr::get($payload, 'result.GeoRegions', []);
     }
 
+    private function fetchBySearch(string $search, int $limit, ?YandexAccount $account = null): array
+    {
+        $variants = $this->searchVariants($search);
+        $items = [];
+
+        foreach ($variants as $variant) {
+            $items = array_merge($items, $this->fetchByExactName($variant, $account));
+        }
+
+        $items = array_merge($items, $this->fetchByName($search, $limit, $account));
+
+        return collect($items)
+            ->unique(fn (array $item) => (int) Arr::get($item, 'GeoRegionId'))
+            ->values()
+            ->all();
+    }
+
+    private function fetchByExactName(string $name, ?YandexAccount $account = null): array
+    {
+        $payload = $this->client->request($account ?: $this->activeAccount(), 'dictionaries', 'getGeoRegions', [
+            'SelectionCriteria' => [
+                'ExactNames' => [$name],
+            ],
+            'FieldNames' => ['GeoRegionId', 'GeoRegionName', 'ParentGeoRegionNames'],
+        ]);
+
+        return Arr::get($payload, 'result.GeoRegions', []);
+    }
+
     private function fetchByIds(array $ids, ?YandexAccount $account = null): array
     {
         $payload = $this->client->request($account ?: $this->activeAccount(), 'dictionaries', 'getGeoRegions', [
@@ -161,18 +190,40 @@ class YandexDirectGeoRegionService
     private function cachedSearch(string $search, int $limit): EloquentCollection
     {
         $this->ensureTableExists();
+        $variants = $this->searchVariants($search);
 
         return YandexDirectGeoRegion::query()
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($query) use ($search) {
-                    $query->where('name', 'like', "%{$search}%")
-                        ->orWhere('external_region_id', (int) $search);
+            ->when($search !== '', function ($query) use ($search, $variants) {
+                $query->where(function ($query) use ($search, $variants) {
+                    foreach ($variants as $variant) {
+                        $query->orWhere('name', 'like', "%{$variant}%");
+                    }
+
+                    $query->orWhere('external_region_id', (int) $search);
                 });
             })
             ->orderByRaw('CASE WHEN name = ? THEN 0 WHEN name LIKE ? THEN 1 ELSE 2 END', [$search, $search . '%'])
             ->orderBy('name')
             ->limit($limit)
             ->get();
+    }
+
+    private function searchVariants(string $search): array
+    {
+        $normalized = preg_replace('/\s+/u', ' ', trim($search)) ?: $search;
+        $withoutYo = str_replace(['ё', 'Ё'], ['е', 'Е'], $normalized);
+
+        return collect([
+            $normalized,
+            $withoutYo,
+            str_replace('-', ' ', $normalized),
+            str_replace(' ', '-', $normalized),
+        ])
+            ->map(fn (string $item) => trim($item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function cachedByIds(array $ids): Collection

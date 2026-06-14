@@ -17,6 +17,7 @@ const geoLoading = ref(false)
 const geoSyncing = ref(false)
 const geoSearch = ref('')
 const geoWarning = ref('')
+const selectedGeoItems = ref([])
 let geoSearchTimer = null
 
 const filters = reactive({
@@ -64,7 +65,7 @@ const summary = computed(() => {
 const availableGeoItems = computed(() => {
     const selectedIds = Array.isArray(form.yandex_direct_region_ids) ? form.yandex_direct_region_ids : []
     const selectedItems = [
-        ...regionGeoRegions(selectedRegion.value),
+        ...selectedGeoItems.value,
         ...selectedIds.map((id) => ({ external_region_id: Number(id), name: null, parent_names: [] })),
     ]
 
@@ -142,7 +143,7 @@ function mergeGeoItems(items) {
         })
     })
 
-    return [...map.values()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'))
+    return [...map.values()]
 }
 
 function setNotice(message) {
@@ -178,6 +179,11 @@ async function loadRegions() {
 async function loadYandexGeoRegions(search = geoSearch.value, remote = true) {
     const query = String(search || '').trim()
 
+    if (query === '') {
+        geoItems.value = []
+        return
+    }
+
     if (remote && query.length > 0 && query.length < 2 && !/^\d+$/.test(query)) {
         return
     }
@@ -192,7 +198,7 @@ async function loadYandexGeoRegions(search = geoSearch.value, remote = true) {
                 remote: remote ? 1 : 0,
             },
         })
-        geoItems.value = mergeGeoItems([...(data.items || []), ...geoItems.value])
+        geoItems.value = mergeGeoItems(data.items || [])
         if (data.warning) {
             geoWarning.value = data.warning
         }
@@ -215,7 +221,7 @@ async function resolveYandexGeoRegions(ids) {
             ids: normalizedIds,
             remote: 1,
         })
-        geoItems.value = mergeGeoItems([...(data.items || []), ...geoItems.value])
+        selectedGeoItems.value = mergeGeoItems([...selectedGeoItems.value, ...(data.items || [])])
     } catch (e) {
         geoWarning.value = e.response?.data?.message || 'Не удалось уточнить названия выбранных GeoRegions.'
     }
@@ -226,7 +232,9 @@ async function syncYandexGeoRegions() {
     geoWarning.value = ''
     try {
         const { data } = await axios.post('/api/marketing/direct/geo-regions/sync')
-        await loadYandexGeoRegions(geoSearch.value, false)
+        if (String(geoSearch.value || '').trim()) {
+            await loadYandexGeoRegions(geoSearch.value, false)
+        }
         setNotice(`Справочник GeoRegions обновлён: ${data.stored} записей, всего в кэше ${data.total}.`)
     } catch (e) {
         setError(e.response?.data?.message || 'Не удалось синхронизировать справочник GeoRegions.')
@@ -239,7 +247,8 @@ async function openEdit(region) {
     selectedRegion.value = region
     form.yandex_direct_region_ids = regionIds(region)
     form.use_for_yandex_direct = Boolean(region.use_for_yandex_direct)
-    geoItems.value = mergeGeoItems([...geoItems.value, ...regionGeoRegions(region)])
+    selectedGeoItems.value = regionGeoRegions(region)
+    geoItems.value = []
     geoSearch.value = region.name || ''
     dialog.value = true
 
@@ -303,7 +312,7 @@ watch(geoSearch, (value) => {
 })
 
 onMounted(async () => {
-    await Promise.all([loadCountries(), loadRegions(), loadYandexGeoRegions('', false)])
+    await Promise.all([loadCountries(), loadRegions()])
 })
 </script>
 
