@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import axios from 'axios'
 import { useGoodSeo } from '@/Composables/useGoodSeo'
 
 const props = defineProps({
@@ -65,6 +66,47 @@ const form = reactive({
     payment_note: '',
     faq_text: '',
 })
+
+const directLoading = ref(false)
+const directActionLoading = ref(false)
+const directMessage = ref('')
+const directError = ref('')
+const directAdId = ref(null)
+const directStatus = ref(null)
+const directStats = ref({
+    impressions: 0,
+    clicks: 0,
+    cost: 0,
+    conversions: 0,
+    ctr: null,
+    cost_per_conversion: null,
+})
+
+const directLimits = {
+    title_1: 56,
+    title_2: 30,
+    text: 81,
+}
+
+const directLimitErrors = computed(() => {
+    const errors = []
+
+    if (form.yandex_direct_title_1.length > directLimits.title_1) {
+        errors.push(`Заголовок 1: ${form.yandex_direct_title_1.length}/${directLimits.title_1}`)
+    }
+
+    if (form.yandex_direct_title_2.length > directLimits.title_2) {
+        errors.push(`Заголовок 2: ${form.yandex_direct_title_2.length}/${directLimits.title_2}`)
+    }
+
+    if (form.yandex_direct_text.length > directLimits.text) {
+        errors.push(`Текст: ${form.yandex_direct_text.length}/${directLimits.text}`)
+    }
+
+    return errors
+})
+
+const hasDirectLimitErrors = computed(() => directLimitErrors.value.length > 0)
 
 function linesToArray(value) {
     return String(value || '')
@@ -207,6 +249,140 @@ async function submit() {
     fillForm(data)
 }
 
+function compactText(value, limit) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim()
+
+    return text.length > limit ? text.slice(0, limit).trim() : text
+}
+
+function setDirectMessage(message) {
+    directMessage.value = message
+    directError.value = ''
+}
+
+function setDirectError(message) {
+    directError.value = message
+    directMessage.value = ''
+}
+
+function generateDirectFields() {
+    if (!form.yandex_direct_title_1) {
+        form.yandex_direct_title_1 = compactText(props.good.name, directLimits.title_1)
+    }
+
+    if (!form.yandex_direct_title_2) {
+        form.yandex_direct_title_2 = 'Опт и розница'
+    }
+
+    if (!form.yandex_direct_text) {
+        form.yandex_direct_text = compactText(
+            form.short_seo_text || props.good.description || 'Поставки для пищевой промышленности. Опт и розница.',
+            directLimits.text,
+        )
+    }
+
+    if (!form.utm_template) {
+        form.utm_template = 'utm_source=yandex&utm_medium=cpc&utm_campaign=direct_goods&utm_content={ad_id}&utm_term={keyword}&utm_campaign_id={campaign_id}&utm_device={device_type}'
+    }
+
+    setDirectMessage('Поля объявления заполнены локально. Сохрани SEO и создай черновик.')
+}
+
+function checkDirectLimits() {
+    if (hasDirectLimitErrors.value) {
+        setDirectError(`Превышены лимиты: ${directLimitErrors.value.join('; ')}`)
+        return
+    }
+
+    setDirectMessage('Лимиты символов соблюдены.')
+}
+
+async function loadDirectInfo() {
+    if (!props.good?.id) return
+
+    directLoading.value = true
+
+    try {
+        const { data } = await axios.get('/api/marketing/direct/goods', {
+            params: {
+                search: props.good.name,
+                per_page: 10,
+            },
+        })
+        const item = (data.data || []).find((row) => Number(row.id) === Number(props.good.id))
+
+        directAdId.value = item?.direct_ad_id || null
+        directStatus.value = item?.direct_status || null
+        directStats.value = item?.stats || directStats.value
+    } catch (error) {
+        // Блок не должен ломать SEO-вкладку, если маркетинговые таблицы еще не мигрированы.
+        directError.value = error.response?.data?.message || ''
+    } finally {
+        directLoading.value = false
+    }
+}
+
+async function createDirectDraft() {
+    directActionLoading.value = true
+
+    try {
+        await submit()
+        const { data } = await axios.post(`/api/marketing/direct/goods/${props.good.id}/generate-draft`)
+        directAdId.value = data.id
+        directStatus.value = data.status
+        setDirectMessage('Рекламный черновик создан.')
+        await loadDirectInfo()
+    } catch (error) {
+        setDirectError(error.response?.data?.message || 'Не удалось создать рекламный черновик.')
+    } finally {
+        directActionLoading.value = false
+    }
+}
+
+async function validateDirectDraft() {
+    if (!directAdId.value) {
+        checkDirectLimits()
+        return
+    }
+
+    directActionLoading.value = true
+
+    try {
+        const { data } = await axios.post(`/api/marketing/direct/ads/${directAdId.value}/validate`)
+        directStatus.value = data.ad?.status || directStatus.value
+        const errors = data.errors || {}
+        if (Object.keys(errors).length) {
+            setDirectError('Черновик содержит ошибки валидации.')
+        } else {
+            setDirectMessage('Черновик прошёл проверку лимитов.')
+        }
+    } catch (error) {
+        setDirectError(error.response?.data?.message || 'Не удалось проверить черновик.')
+    } finally {
+        directActionLoading.value = false
+    }
+}
+
+async function sendDirectDraft() {
+    if (!directAdId.value) {
+        await createDirectDraft()
+    }
+
+    if (!directAdId.value) return
+
+    directActionLoading.value = true
+
+    try {
+        const { data } = await axios.post(`/api/marketing/direct/ads/${directAdId.value}/send`)
+        setDirectMessage(data.message || 'Отправка обработана.')
+        await loadDirectInfo()
+    } catch (error) {
+        setDirectError(error.response?.data?.message || 'Не удалось отправить черновик в Директ.')
+    } finally {
+        directActionLoading.value = false
+    }
+}
+
 watch(seo, (value) => {
     if (value) fillForm(value)
 })
@@ -221,6 +397,7 @@ watch(seoImageFallback, (value) => {
 onMounted(async () => {
     const data = await fetchSeo()
     fillForm(data)
+    await loadDirectInfo()
 })
 </script>
 
@@ -461,6 +638,98 @@ onMounted(async () => {
                         placeholder="utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}&utm_term={keyword}"
                     />
                 </v-col>
+
+                <v-col cols="12">
+                    <div class="good-direct-panel">
+                        <div class="good-direct-panel__top">
+                            <div>
+                                <strong>Яндекс.Директ</strong>
+                                <span>Черновик, лимиты, отправка и последние показатели товара</span>
+                            </div>
+                            <v-chip
+                                size="small"
+                                :color="directStatus === 'error' ? 'red' : directStatus ? 'deep-purple' : 'grey'"
+                                variant="tonal"
+                            >
+                                {{ directStatus || 'нет черновика' }}
+                            </v-chip>
+                        </div>
+
+                        <div class="good-direct-panel__metrics">
+                            <div><span>Показы</span><strong>{{ directStats.impressions || 0 }}</strong></div>
+                            <div><span>Клики</span><strong>{{ directStats.clicks || 0 }}</strong></div>
+                            <div><span>CTR</span><strong>{{ directStats.ctr ?? '-' }}</strong></div>
+                            <div><span>Расход</span><strong>{{ directStats.cost || 0 }}</strong></div>
+                            <div><span>Заявки</span><strong>{{ directStats.conversions || 0 }}</strong></div>
+                            <div><span>CPL</span><strong>{{ directStats.cost_per_conversion ?? '-' }}</strong></div>
+                        </div>
+
+                        <div class="good-direct-panel__limits">
+                            <span :class="{ 'is-error': form.yandex_direct_title_1.length > directLimits.title_1 }">
+                                T1 {{ form.yandex_direct_title_1.length }}/{{ directLimits.title_1 }}
+                            </span>
+                            <span :class="{ 'is-error': form.yandex_direct_title_2.length > directLimits.title_2 }">
+                                T2 {{ form.yandex_direct_title_2.length }}/{{ directLimits.title_2 }}
+                            </span>
+                            <span :class="{ 'is-error': form.yandex_direct_text.length > directLimits.text }">
+                                Text {{ form.yandex_direct_text.length }}/{{ directLimits.text }}
+                            </span>
+                        </div>
+
+                        <div class="good-direct-panel__actions">
+                            <v-btn size="small" color="deep-purple" variant="tonal" @click="generateDirectFields">
+                                Сгенерировать объявление
+                            </v-btn>
+                            <v-btn size="small" color="teal" variant="tonal" @click="checkDirectLimits">
+                                Проверить лимиты
+                            </v-btn>
+                            <v-btn
+                                size="small"
+                                color="deep-purple-darken-2"
+                                variant="flat"
+                                :loading="directActionLoading"
+                                :disabled="hasDirectLimitErrors"
+                                @click="createDirectDraft"
+                            >
+                                Создать рекламный черновик
+                            </v-btn>
+                            <v-btn
+                                size="small"
+                                color="orange-darken-3"
+                                variant="tonal"
+                                :loading="directActionLoading"
+                                @click="validateDirectDraft"
+                            >
+                                Проверить черновик
+                            </v-btn>
+                            <v-btn
+                                size="small"
+                                color="red-darken-2"
+                                variant="tonal"
+                                :loading="directActionLoading"
+                                :disabled="hasDirectLimitErrors"
+                                @click="sendDirectDraft"
+                            >
+                                Отправить в Директ
+                            </v-btn>
+                            <a
+                                v-if="directAdId"
+                                class="good-direct-panel__link"
+                                :href="`/Ameise/marketing/yandex-direct`"
+                            >
+                                Статистика товара
+                            </a>
+                        </div>
+
+                        <v-progress-linear v-if="directLoading" indeterminate height="2" class="mt-2" />
+                        <v-alert v-if="directMessage" type="success" density="compact" variant="tonal" class="mt-2">
+                            {{ directMessage }}
+                        </v-alert>
+                        <v-alert v-if="directError" type="error" density="compact" variant="tonal" class="mt-2">
+                            {{ directError }}
+                        </v-alert>
+                    </div>
+                </v-col>
             </v-row>
 
             <v-divider class="my-4" />
@@ -637,3 +906,97 @@ onMounted(async () => {
         </v-card-actions>
     </v-card>
 </template>
+
+<style scoped>
+.good-direct-panel {
+    padding: 10px;
+    border: 1px solid rgba(91, 33, 182, 0.18);
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f5f0ff 0%, #ffffff 100%);
+}
+
+.good-direct-panel__top,
+.good-direct-panel__actions,
+.good-direct-panel__limits {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.good-direct-panel__top {
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.good-direct-panel__top strong,
+.good-direct-panel__top span {
+    display: block;
+}
+
+.good-direct-panel__top strong {
+    color: #3b0764;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.good-direct-panel__top span,
+.good-direct-panel__limits span {
+    color: rgba(59, 7, 100, 0.62);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.good-direct-panel__metrics {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(72px, 1fr));
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.good-direct-panel__metrics div {
+    padding: 5px 7px;
+    border: 1px solid rgba(91, 33, 182, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.78);
+}
+
+.good-direct-panel__metrics span,
+.good-direct-panel__metrics strong {
+    display: block;
+}
+
+.good-direct-panel__metrics span {
+    color: rgba(59, 7, 100, 0.56);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.good-direct-panel__metrics strong {
+    color: #3b0764;
+    font-size: 13px;
+    font-weight: 900;
+    text-align: right;
+}
+
+.good-direct-panel__limits {
+    margin-bottom: 8px;
+}
+
+.good-direct-panel__limits .is-error {
+    color: #b91c1c;
+}
+
+.good-direct-panel__link {
+    color: #4c1d95;
+    font-size: 12px;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+@media (max-width: 900px) {
+    .good-direct-panel__metrics {
+        grid-template-columns: repeat(2, minmax(72px, 1fr));
+    }
+}
+</style>

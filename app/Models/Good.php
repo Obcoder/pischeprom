@@ -196,4 +196,19 @@ class Good extends Model
     {
         return $this->hasMany(GoodPriceTypeValue::class);
     }
+
+    public function yandexDirectAds(): HasMany
+    {
+        return $this->hasMany(YandexDirectAd::class);
+    }
+
+    public function yandexDirectKeywords(): HasMany
+    {
+        return $this->hasMany(YandexDirectKeyword::class);
+    }
+
+    public function yandexDirectDailyStats(): HasMany
+    {
+        return $this->hasMany(YandexDirectDailyStat::class);
+    }
 }

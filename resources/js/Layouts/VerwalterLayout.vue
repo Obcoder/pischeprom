@@ -292,6 +292,12 @@ onMounted(fetchWorkingLeads)
                     <span>Perfume</span>
                 </Link>
             </v-app-bar-title>
+            <v-app-bar-title>
+                <Link :href="route('Ameise.marketing.yandex-direct')">
+                    <v-icon icon="mdi-bullhorn-variant-outline" size="small" class="mx-1" />
+                    <span>Маркетинг</span>
+                </Link>
+            </v-app-bar-title>
 
             <template v-slot:append>
                 <a

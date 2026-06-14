@@ -34,3 +34,18 @@ Schedule::command('beeline:subscribe --expires=3600')
     ->everyThirtyMinutes()
     ->when(fn () => filled(config('services.beeline_pbx.api_url')) && filled(config('services.beeline_pbx.api_token')))
     ->withoutOverlapping(10);
+
+Schedule::command('yandex:direct:sync-stats')
+    ->name('sync-yandex-direct-stats')
+    ->dailyAt('04:20')
+    ->withoutOverlapping(30);
+
+Schedule::command('yandex:direct:sync-statuses')
+    ->name('sync-yandex-direct-statuses')
+    ->everyFourHours()
+    ->withoutOverlapping(30);
+
+Schedule::command('yandex:direct:check-accounts')
+    ->name('check-yandex-direct-accounts')
+    ->dailyAt('05:10')
+    ->withoutOverlapping(30);

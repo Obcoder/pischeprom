@@ -358,6 +358,10 @@ Route::get('/Ameise/yandex', function (){
     return Inertia::render('Ameise/Yandex');
 })->name('Ameise.yandex');
 
+Route::get('/Ameise/marketing/yandex-direct', function () {
+    return Inertia::render('Ameise/Marketing/YandexDirect');
+})->name('Ameise.marketing.yandex-direct');
+
 //   A V I T O
 Route::get('/Ameise/Avito', function () {
     return Inertia::render('Ameise/Avito');

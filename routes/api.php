@@ -65,6 +65,12 @@ use App\Http\Controllers\API\UnitFileController;
 use App\Http\Controllers\API\UnitMailController;
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
+use App\Http\Controllers\API\Marketing\YandexAccountController;
+use App\Http\Controllers\API\Marketing\YandexDirectAdController;
+use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
+use App\Http\Controllers\API\Marketing\YandexDirectStatsController;
+use App\Http\Controllers\API\Marketing\YandexOAuthController;
+use App\Http\Controllers\API\Marketing\YandexSyncLogController;
 use App\Services\YandexSearchService;
 
 Route::get('/user', function (Request $request) {
@@ -378,6 +384,52 @@ Route::apiResource('stages', StageController::class);
 Route::apiResource('uris', UriController::class);
 Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rates');
 Route::apiResource('yandex-requests', YandexRequestController::class);
+
+Route::middleware('auth:sanctum')
+    ->prefix('marketing')
+    ->name('api.marketing.')
+    ->group(function () {
+        Route::get('/yandex/accounts', [YandexAccountController::class, 'index'])
+            ->name('yandex.accounts.index');
+        Route::patch('/yandex/accounts/{account}', [YandexAccountController::class, 'update'])
+            ->name('yandex.accounts.update');
+        Route::delete('/yandex/accounts/{account}', [YandexAccountController::class, 'destroy'])
+            ->name('yandex.accounts.destroy');
+        Route::get('/yandex/oauth/redirect', [YandexOAuthController::class, 'redirect'])
+            ->name('yandex.oauth.redirect');
+        Route::get('/yandex/oauth/callback', [YandexOAuthController::class, 'callback'])
+            ->name('yandex.oauth.callback');
+        Route::post('/yandex/accounts/{account}/check', [YandexAccountController::class, 'check'])
+            ->name('yandex.accounts.check');
+
+        Route::get('/direct/goods', [YandexDirectGoodController::class, 'index'])
+            ->name('direct.goods.index');
+        Route::post('/direct/goods/{good}/generate-draft', [YandexDirectGoodController::class, 'generateDraft'])
+            ->name('direct.goods.generate-draft');
+
+        Route::get('/direct/ads', [YandexDirectAdController::class, 'index'])
+            ->name('direct.ads.index');
+        Route::get('/direct/ads/{ad}', [YandexDirectAdController::class, 'show'])
+            ->name('direct.ads.show');
+        Route::put('/direct/ads/{ad}', [YandexDirectAdController::class, 'update'])
+            ->name('direct.ads.update');
+        Route::post('/direct/ads/{ad}/validate', [YandexDirectAdController::class, 'validateAd'])
+            ->name('direct.ads.validate');
+        Route::post('/direct/ads/{ad}/send', [YandexDirectAdController::class, 'send'])
+            ->name('direct.ads.send');
+        Route::post('/direct/ads/{ad}/suspend', [YandexDirectAdController::class, 'suspend'])
+            ->name('direct.ads.suspend');
+        Route::post('/direct/ads/{ad}/resume', [YandexDirectAdController::class, 'resume'])
+            ->name('direct.ads.resume');
+
+        Route::get('/direct/stats', [YandexDirectStatsController::class, 'index'])
+            ->name('direct.stats.index');
+        Route::post('/direct/stats/sync', [YandexDirectStatsController::class, 'sync'])
+            ->name('direct.stats.sync');
+
+        Route::get('/direct/logs', [YandexSyncLogController::class, 'index'])
+            ->name('direct.logs.index');
+    });
 
 
 /*
