@@ -118,7 +118,7 @@ const goodsHeaders = [
     { title: 'Расход', key: 'stats.cost', align: 'end', width: 96 },
     { title: 'Заявки', key: 'stats.conversions', align: 'end', width: 84 },
     { title: 'CPL', key: 'stats.cost_per_conversion', align: 'end', width: 90 },
-    { title: '', key: 'actions', sortable: false, width: 188 },
+    { title: '', key: 'actions', sortable: false, width: 214 },
 ]
 
 const adsHeaders = [
@@ -386,14 +386,23 @@ async function generateDraft(good) {
     }
 }
 
-async function fullAutoLaunch(good) {
+async function fullAutoLaunch(good, dryRun = true) {
+    if (!dryRun) {
+        const confirmed = window.confirm('Запустить реальную отправку в Яндекс.Директ? Будут созданы кампания, группы, объявления и ключи. Бюджет будет взят из guard-настроек Direct.')
+
+        if (!confirmed) {
+            return
+        }
+    }
+
     launchingGoodId.value = good.id
     try {
         const { data } = await axios.post(`/api/marketing/direct/launch/${good.id}`, {
-            dry_run: true,
+            dry_run: dryRun,
+            budget_approved: !dryRun,
         })
         await Promise.all([loadGoods(), loadAds(), loadLogs(), loadLaunchDashboard()])
-        setNotice(data.message || 'FULL AUTO LAUNCH dry-run выполнен.')
+        setNotice(data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.'))
     } catch (e) {
         const errors = e.response?.data?.errors || []
         setError(errors.length ? errors.join('; ') : (e.response?.data?.message || 'Не удалось выполнить FULL AUTO LAUNCH.'))
@@ -737,6 +746,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                             <div class="yd-actions">
                                 <v-btn icon="mdi-file-plus-outline" size="x-small" variant="text" :loading="generatingGoodId === item.id" title="Сгенерировать черновик" @click="generateDraft(item)" />
                                 <v-btn icon="mdi-rocket-launch-outline" size="x-small" variant="text" color="deep-purple-darken-2" :loading="launchingGoodId === item.id" title="FULL AUTO dry-run: построить структуру без отправки в Яндекс" @click="fullAutoLaunch(item)" />
+                                <v-btn icon="mdi-rocket" size="x-small" variant="text" color="red-darken-2" :loading="launchingGoodId === item.id" title="FULL AUTO REAL: создать кампанию в Яндекс.Директе после подтверждения" @click="fullAutoLaunch(item, false)" />
                                 <Link :href="route('Ameise.good.show', item.id)" title="Открыть SEO"><v-icon size="17" icon="mdi-open-in-new" /></Link>
                                 <v-btn icon="mdi-eye-outline" size="x-small" variant="text" :disabled="!item.direct_ad_id" title="Предпросмотр" @click="openAd(item.direct_ad_id, 'preview')" />
                                 <v-btn icon="mdi-send-outline" size="x-small" variant="text" :disabled="!item.direct_ad_id" :loading="sendingAdId === item.direct_ad_id" title="Отправить в existing Direct AdGroup" @click="sendAd({ id: item.direct_ad_id })" />

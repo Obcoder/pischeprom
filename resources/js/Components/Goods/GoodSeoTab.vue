@@ -384,16 +384,25 @@ async function sendDirectDraft() {
     }
 }
 
-async function fullAutoLaunch() {
+async function fullAutoLaunch(dryRun = true) {
+    if (!dryRun) {
+        const confirmed = window.confirm('Запустить реальную отправку в Яндекс.Директ? Будут созданы кампания, группы, объявления и ключи. Бюджет будет взят из guard-настроек Direct.')
+
+        if (!confirmed) {
+            return
+        }
+    }
+
     fullLaunchLoading.value = true
 
     try {
         await submit()
         const { data } = await axios.post(`/api/marketing/direct/launch/${props.good.id}`, {
-            dry_run: true,
+            dry_run: dryRun,
+            budget_approved: !dryRun,
         })
         directStatus.value = data.status || directStatus.value
-        setDirectMessage(data.message || 'FULL AUTO LAUNCH dry-run выполнен.')
+        setDirectMessage(data.message || (dryRun ? 'FULL AUTO LAUNCH dry-run выполнен.' : 'FULL AUTO LAUNCH отправлен в Яндекс.'))
         await loadDirectInfo()
     } catch (error) {
         const errors = error.response?.data?.errors || []
@@ -743,6 +752,17 @@ onMounted(async () => {
                                 @click="fullAutoLaunch"
                             >
                                 FULL AUTO DRY RUN
+                            </v-btn>
+                            <v-btn
+                                size="small"
+                                color="red-darken-3"
+                                variant="flat"
+                                :loading="fullLaunchLoading"
+                                :disabled="hasDirectLimitErrors"
+                                title="Реально создать кампанию, группы, объявления и ключи в Яндекс.Директе после подтверждения"
+                                @click="fullAutoLaunch(false)"
+                            >
+                                FULL AUTO REAL
                             </v-btn>
                             <a
                                 v-if="directAdId"
