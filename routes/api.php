@@ -66,6 +66,7 @@ use App\Http\Controllers\API\UnitMailController;
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\API\Marketing\YandexAccountController;
+use App\Http\Controllers\API\Marketing\YandexDirectAiAutopilotController;
 use App\Http\Controllers\API\Marketing\YandexDirectAdController;
 use App\Http\Controllers\API\Marketing\YandexDirectGeoRegionController;
 use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
@@ -411,6 +412,15 @@ Route::prefix('marketing')
             ->name('direct.launch.sessions');
         Route::post('/direct/launch/{good}', [YandexDirectLaunchController::class, 'launch'])
             ->name('direct.launch');
+
+        Route::get('/direct/ai-autopilot', [YandexDirectAiAutopilotController::class, 'dashboard'])
+            ->name('direct.ai-autopilot.dashboard');
+        Route::post('/direct/ai-autopilot/run', [YandexDirectAiAutopilotController::class, 'run'])
+            ->name('direct.ai-autopilot.run');
+        Route::post('/direct/ai-autopilot/decisions/{decision}/approve', [YandexDirectAiAutopilotController::class, 'approve'])
+            ->name('direct.ai-autopilot.decisions.approve');
+        Route::post('/direct/ai-autopilot/decisions/{decision}/reject', [YandexDirectAiAutopilotController::class, 'reject'])
+            ->name('direct.ai-autopilot.decisions.reject');
 
         Route::get('/direct/geo-regions', [YandexDirectGeoRegionController::class, 'index'])
             ->name('direct.geo-regions.index');

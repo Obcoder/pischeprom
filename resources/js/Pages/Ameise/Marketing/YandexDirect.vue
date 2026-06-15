@@ -61,6 +61,23 @@ const logsLoading = ref(false)
 const logsOptions = ref({ page: 1, itemsPerPage: 50 })
 const logFilters = reactive({ status: null, action: '' })
 
+const autopilot = ref({
+    mode: 'monitor',
+    guards: {},
+    summary: {},
+    live_decisions: { data: [], total: 0 },
+    active_campaigns_health: [],
+    waste_detector: [],
+    winners: [],
+    underperforming_ads: [],
+    action_queue: [],
+})
+const autopilotLoading = ref(false)
+const autopilotRunning = ref(false)
+const autopilotActionId = ref(null)
+const autopilotOptions = ref({ page: 1, itemsPerPage: 50 })
+const autopilotFilters = reactive({ status: null, type: null })
+
 const adDialog = ref(false)
 const previewDialog = ref(false)
 const payloadDialog = ref(false)
@@ -161,6 +178,40 @@ const logsHeaders = [
     { title: '', key: 'actions', sortable: false, width: 74 },
 ]
 
+const aiDecisionHeaders = [
+    { title: 'Дата', key: 'created_at', width: 132 },
+    { title: 'Товар', key: 'good.name', minWidth: 220 },
+    { title: 'Тип', key: 'type', width: 136 },
+    { title: 'Confidence', key: 'confidence_score', align: 'end', width: 104 },
+    { title: 'Risk', key: 'risk_level', width: 86 },
+    { title: 'Status', key: 'status', width: 96 },
+    { title: 'WHY', key: 'reason', minWidth: 260 },
+    { title: 'Impact', key: 'expected_impact', minWidth: 220 },
+    { title: '', key: 'actions', sortable: false, width: 106 },
+]
+
+const aiHealthHeaders = [
+    { title: 'Товар', key: 'good.name', minWidth: 220 },
+    { title: 'Показы', key: 'impressions', align: 'end', width: 90 },
+    { title: 'Клики', key: 'clicks', align: 'end', width: 80 },
+    { title: 'CTR', key: 'ctr', align: 'end', width: 76 },
+    { title: 'CPC', key: 'avg_cpc', align: 'end', width: 86 },
+    { title: 'Расход', key: 'cost', align: 'end', width: 96 },
+    { title: 'Заявки', key: 'conversions', align: 'end', width: 84 },
+    { title: 'CPL', key: 'cpl', align: 'end', width: 90 },
+]
+
+const aiWinnerHeaders = [
+    { title: 'Товар', key: 'good.name', minWidth: 220 },
+    { title: 'Объявление', key: 'ad.title_1', minWidth: 180 },
+    { title: 'Клики', key: 'clicks', align: 'end', width: 80 },
+    { title: 'CTR', key: 'ctr', align: 'end', width: 76 },
+    { title: 'CPC', key: 'avg_cpc', align: 'end', width: 86 },
+    { title: 'Расход', key: 'cost', align: 'end', width: 96 },
+    { title: 'Заявки', key: 'conversions', align: 'end', width: 84 },
+    { title: 'CPL', key: 'cpl', align: 'end', width: 90 },
+]
+
 const selectedAdErrors = computed(() => selectedAd.value?.validation_errors || {})
 const title1Count = computed(() => adForm.title_1.length)
 const title2Count = computed(() => adForm.title_2.length)
@@ -236,10 +287,41 @@ function statusColor(status) {
         failed: 'red',
         partial: 'orange',
         pending: 'grey',
+        approved: 'teal',
+        rejected: 'red',
+        executed: 'green',
         validating: 'blue',
         building: 'indigo',
         sending: 'deep-purple',
     }[status] || 'grey'
+}
+
+function riskColor(risk) {
+    return {
+        low: 'green',
+        medium: 'orange',
+        high: 'red',
+    }[risk] || 'grey'
+}
+
+function decisionTypeColor(type) {
+    return {
+        launch: 'deep-purple',
+        pause: 'orange',
+        scale: 'teal',
+        optimize: 'blue',
+        keyword_expansion: 'indigo',
+        negative_keywords: 'brown',
+        ignore: 'grey',
+    }[type] || 'grey'
+}
+
+function decisionWhy(item) {
+    return short(item?.reason?.why || item?.reason?.safety?.errors?.join('; ') || item?.reason?.manual_rejection?.comment || '-', 150)
+}
+
+function decisionImpact(item) {
+    return short(item?.expected_impact?.expected || item?.expected_impact?.suggested_action || '-', 130)
 }
 
 function seoFilled(good) {
@@ -389,6 +471,63 @@ async function loadLaunchDashboard() {
         launchDashboard.value = data || { summary: {}, last_launches: [] }
     } catch (e) {
         // Dashboard не должен блокировать основную таблицу товаров.
+    }
+}
+
+async function loadAutopilot(options = autopilotOptions.value) {
+    autopilotOptions.value = options
+    autopilotLoading.value = true
+    try {
+        const { data } = await axios.get('/api/marketing/direct/ai-autopilot', {
+            params: paramsFrom(options, autopilotFilters),
+        })
+        autopilot.value = data || autopilot.value
+    } catch (e) {
+        setError(e.response?.data?.message || 'Не удалось загрузить AI Autopilot.')
+    } finally {
+        autopilotLoading.value = false
+    }
+}
+
+async function runAutopilot(queue = false) {
+    autopilotRunning.value = true
+    try {
+        const { data } = await axios.post('/api/marketing/direct/ai-autopilot/run', { queue })
+        await Promise.all([loadAutopilot(), loadLogs(logsOptions.value, true)])
+        setNotice(queue ? 'AI Autopilot поставлен в очередь.' : `AI Autopilot завершил цикл. Decisions: ${data.decisions_created ?? 0}`)
+    } catch (e) {
+        setError(e.response?.data?.message || 'Не удалось запустить AI Autopilot.')
+    } finally {
+        autopilotRunning.value = false
+    }
+}
+
+async function approveAiDecision(decision) {
+    autopilotActionId.value = decision.id
+    try {
+        await axios.post(`/api/marketing/direct/ai-autopilot/decisions/${decision.id}/approve`)
+        await loadAutopilot()
+        setNotice('AI decision approved.')
+    } catch (e) {
+        const safety = e.response?.data?.safety?.errors || []
+        setError(safety.length ? safety.join('; ') : (e.response?.data?.message || 'Safety gate blocked approval.'))
+    } finally {
+        autopilotActionId.value = null
+    }
+}
+
+async function rejectAiDecision(decision) {
+    autopilotActionId.value = decision.id
+    try {
+        await axios.post(`/api/marketing/direct/ai-autopilot/decisions/${decision.id}/reject`, {
+            comment: 'Rejected from Autopilot dashboard',
+        })
+        await loadAutopilot()
+        setNotice('AI decision rejected.')
+    } catch (e) {
+        setError(e.response?.data?.message || 'Не удалось отклонить AI decision.')
+    } finally {
+        autopilotActionId.value = null
     }
 }
 
@@ -561,10 +700,11 @@ function refreshCurrentTab() {
     if (tab.value === 'ads') loadAds()
     if (tab.value === 'stats') loadStats()
     if (tab.value === 'logs') loadLogs()
+    if (tab.value === 'autopilot') loadAutopilot()
 }
 
 onMounted(async () => {
-    await Promise.all([loadAccounts(), loadCategories(), loadGoods(), loadAds(), loadStats(), loadLogs(), loadLaunchDashboard()])
+    await Promise.all([loadAccounts(), loadCategories(), loadGoods(), loadAds(), loadStats(), loadLogs(), loadLaunchDashboard(), loadAutopilot()])
 })
 
 useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
@@ -591,6 +731,7 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
         <v-tabs v-model="tab" class="yd-tabs" density="compact">
             <v-tab value="connection">Подключение</v-tab>
             <v-tab value="goods">Товары</v-tab>
+            <v-tab value="autopilot">AUTOPILOT</v-tab>
             <v-tab value="ads">Объявления</v-tab>
             <v-tab value="stats">Статистика</v-tab>
             <v-tab value="logs">Логи</v-tab>
@@ -774,6 +915,168 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
                             </div>
                         </template>
                     </v-data-table-server>
+                </section>
+            </v-window-item>
+
+            <v-window-item value="autopilot">
+                <section class="yd-panel yd-panel--table">
+                    <div class="yd-autopilot-hero">
+                        <div>
+                            <div class="yd-eyebrow">Level 4 AI Autopilot</div>
+                            <h2>Safety-first рекламный менеджер</h2>
+                            <p>
+                                Loop: Collect Data → Analyze → Score → Decide → Propose Actions → Approve → Execute → Measure → Learn.
+                            </p>
+                        </div>
+                        <div class="yd-autopilot-hero__actions">
+                            <v-chip size="small" :color="autopilot.mode === 'autopilot' ? 'teal' : 'grey'" variant="flat">
+                                mode: {{ autopilot.mode }}
+                            </v-chip>
+                            <v-btn color="deep-purple-darken-2" size="small" variant="flat" :loading="autopilotRunning" @click="runAutopilot(false)">
+                                Run cycle
+                            </v-btn>
+                            <v-btn color="teal-darken-3" size="small" variant="tonal" :loading="autopilotRunning" @click="runAutopilot(true)">
+                                Queue
+                            </v-btn>
+                        </div>
+                    </div>
+
+                    <div class="yd-auto-summary yd-auto-summary--ai">
+                        <div><span>Total</span><strong>{{ number(autopilot.summary?.total) }}</strong></div>
+                        <div><span>Pending</span><strong>{{ number(autopilot.summary?.pending) }}</strong></div>
+                        <div><span>Approved</span><strong>{{ number(autopilot.summary?.approved) }}</strong></div>
+                        <div><span>Executed</span><strong>{{ number(autopilot.summary?.executed) }}</strong></div>
+                        <div><span>Rejected</span><strong>{{ number(autopilot.summary?.rejected) }}</strong></div>
+                        <div><span>Failed</span><strong>{{ number(autopilot.summary?.failed) }}</strong></div>
+                        <div><span>Min clicks</span><strong>{{ autopilot.guards?.min_clicks_threshold ?? 30 }}</strong></div>
+                        <div><span>Cooldown</span><strong>{{ autopilot.guards?.cooldown_hours ?? 24 }}h</strong></div>
+                    </div>
+
+                    <div class="yd-filters">
+                        <v-select v-model="autopilotFilters.status" :items="['pending', 'approved', 'rejected', 'executed', 'failed']" label="AI status" density="compact" hide-details clearable />
+                        <v-select v-model="autopilotFilters.type" :items="['launch', 'pause', 'scale', 'optimize', 'keyword_expansion', 'negative_keywords', 'ignore']" label="Decision type" density="compact" hide-details clearable />
+                        <v-btn color="deep-purple-darken-2" size="small" variant="flat" @click="loadAutopilot({ ...autopilotOptions, page: 1 })">Фильтр</v-btn>
+                    </div>
+
+                    <div class="yd-autopilot-grid">
+                        <article class="yd-autopilot-card yd-autopilot-card--wide">
+                            <div class="yd-panel__head">
+                                <strong>Live Decisions</strong>
+                                <span>{{ number(autopilot.live_decisions?.total) }}</span>
+                            </div>
+                            <v-data-table-server
+                                v-model:items-per-page="autopilotOptions.itemsPerPage"
+                                :headers="aiDecisionHeaders"
+                                :items="autopilot.live_decisions?.data || []"
+                                :items-length="autopilot.live_decisions?.total || 0"
+                                :items-per-page-options="pageSizes"
+                                :loading="autopilotLoading"
+                                density="compact"
+                                fixed-header
+                                height="310"
+                                class="yd-table yd-table--sticky"
+                                @update:options="loadAutopilot"
+                            >
+                                <template #item.good.name="{ item }">
+                                    <Link v-if="item.good" :href="route('Ameise.good.show', item.good.id)" class="yd-name">{{ item.good.name }}</Link>
+                                    <span v-else class="yd-muted">-</span>
+                                </template>
+                                <template #item.type="{ item }">
+                                    <v-chip size="x-small" :color="decisionTypeColor(item.type)" variant="flat">{{ item.type }}</v-chip>
+                                </template>
+                                <template #item.confidence_score="{ item }">{{ item.confidence_score }}%</template>
+                                <template #item.risk_level="{ item }">
+                                    <v-chip size="x-small" :color="riskColor(item.risk_level)" variant="tonal">{{ item.risk_level }}</v-chip>
+                                </template>
+                                <template #item.status="{ item }">
+                                    <v-chip size="x-small" :color="statusColor(item.status)" variant="flat">{{ item.status }}</v-chip>
+                                </template>
+                                <template #item.reason="{ item }">{{ decisionWhy(item) }}</template>
+                                <template #item.expected_impact="{ item }">{{ decisionImpact(item) }}</template>
+                                <template #item.actions="{ item }">
+                                    <div class="yd-actions">
+                                        <v-btn icon="mdi-check" size="x-small" variant="text" color="teal" :disabled="item.status !== 'pending'" :loading="autopilotActionId === item.id" title="Approve" @click="approveAiDecision(item)" />
+                                        <v-btn icon="mdi-close" size="x-small" variant="text" color="red" :disabled="['rejected', 'executed', 'failed'].includes(item.status)" :loading="autopilotActionId === item.id" title="Reject" @click="rejectAiDecision(item)" />
+                                    </div>
+                                </template>
+                            </v-data-table-server>
+                        </article>
+
+                        <article class="yd-autopilot-card">
+                            <div class="yd-panel__head"><strong>Active Campaigns Health</strong></div>
+                            <v-data-table
+                                :headers="aiHealthHeaders"
+                                :items="autopilot.active_campaigns_health || []"
+                                :loading="autopilotLoading"
+                                density="compact"
+                                fixed-header
+                                height="270"
+                                class="yd-table"
+                            >
+                                <template #item.good.name="{ item }">{{ item.good?.name || '-' }}</template>
+                                <template #item.cost="{ item }">{{ money(item.cost) }}</template>
+                                <template #item.avg_cpc="{ item }">{{ item.avg_cpc ? money(item.avg_cpc) : '-' }}</template>
+                                <template #item.cpl="{ item }">{{ item.cpl ? money(item.cpl) : '-' }}</template>
+                            </v-data-table>
+                        </article>
+
+                        <article class="yd-autopilot-card">
+                            <div class="yd-panel__head"><strong>Waste Detector</strong></div>
+                            <v-data-table
+                                :headers="aiHealthHeaders"
+                                :items="autopilot.waste_detector || []"
+                                :loading="autopilotLoading"
+                                density="compact"
+                                fixed-header
+                                height="270"
+                                class="yd-table"
+                            >
+                                <template #item.good.name="{ item }">{{ item.good?.name || '-' }}</template>
+                                <template #item.cost="{ item }">{{ money(item.cost) }}</template>
+                                <template #item.avg_cpc="{ item }">{{ item.avg_cpc ? money(item.avg_cpc) : '-' }}</template>
+                                <template #item.cpl="{ item }">{{ item.cpl ? money(item.cpl) : '-' }}</template>
+                            </v-data-table>
+                        </article>
+
+                        <article class="yd-autopilot-card">
+                            <div class="yd-panel__head"><strong>Winners</strong></div>
+                            <v-data-table
+                                :headers="aiWinnerHeaders"
+                                :items="autopilot.winners || []"
+                                :loading="autopilotLoading"
+                                density="compact"
+                                fixed-header
+                                height="270"
+                                class="yd-table"
+                            >
+                                <template #item.good.name="{ item }">{{ item.good?.name || '-' }}</template>
+                                <template #item.ad.title_1="{ item }">{{ item.ad?.title_1 || '-' }}</template>
+                                <template #item.cost="{ item }">{{ money(item.cost) }}</template>
+                                <template #item.avg_cpc="{ item }">{{ item.avg_cpc ? money(item.avg_cpc) : '-' }}</template>
+                                <template #item.cpl="{ item }">{{ item.cpl ? money(item.cpl) : '-' }}</template>
+                            </v-data-table>
+                        </article>
+
+                        <article class="yd-autopilot-card">
+                            <div class="yd-panel__head"><strong>Action Queue</strong></div>
+                            <v-data-table
+                                :headers="aiDecisionHeaders.slice(1, 7)"
+                                :items="autopilot.action_queue || []"
+                                :loading="autopilotLoading"
+                                density="compact"
+                                fixed-header
+                                height="270"
+                                class="yd-table"
+                            >
+                                <template #item.good.name="{ item }">{{ item.good?.name || '-' }}</template>
+                                <template #item.type="{ item }"><v-chip size="x-small" :color="decisionTypeColor(item.type)" variant="flat">{{ item.type }}</v-chip></template>
+                                <template #item.confidence_score="{ item }">{{ item.confidence_score }}%</template>
+                                <template #item.risk_level="{ item }"><v-chip size="x-small" :color="riskColor(item.risk_level)" variant="tonal">{{ item.risk_level }}</v-chip></template>
+                                <template #item.status="{ item }"><v-chip size="x-small" :color="statusColor(item.status)" variant="flat">{{ item.status }}</v-chip></template>
+                                <template #item.reason="{ item }">{{ decisionWhy(item) }}</template>
+                            </v-data-table>
+                        </article>
+                    </div>
                 </section>
             </v-window-item>
 
@@ -1262,6 +1565,64 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
     text-align: right;
 }
 
+.yd-auto-summary--ai {
+    grid-template-columns: repeat(8, minmax(82px, 1fr));
+}
+
+.yd-autopilot-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    border: 1px solid rgba(91, 33, 182, 0.14);
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at 10% 0%, rgba(20, 184, 166, 0.16), transparent 30%),
+        linear-gradient(135deg, #f8f5ff 0%, #eefdf9 100%);
+}
+
+.yd-autopilot-hero h2 {
+    margin: 0;
+    color: #2e1065;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.yd-autopilot-hero p {
+    margin: 3px 0 0;
+    color: rgba(46, 16, 101, 0.66);
+    font-size: 11px;
+}
+
+.yd-autopilot-hero__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.yd-autopilot-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.yd-autopilot-card {
+    min-width: 0;
+    border: 1px solid rgba(91, 33, 182, 0.12);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.92);
+}
+
+.yd-autopilot-card--wide {
+    grid-column: 1 / -1;
+}
+
 .yd-dialog {
     border-radius: 12px;
 }
@@ -1301,12 +1662,19 @@ useHead({ title: 'Яндекс.Директ - Маркетинг Ameise' })
 @media (max-width: 1100px) {
     .yd-grid--connection,
     .yd-code-flow,
-    .yd-summary {
+    .yd-summary,
+    .yd-auto-summary--ai,
+    .yd-autopilot-grid {
         grid-template-columns: 1fr;
     }
 
     .yd-code-flow__controls {
         grid-template-columns: 1fr;
+    }
+
+    .yd-autopilot-hero {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
 </style>

@@ -54,3 +54,9 @@ Schedule::command('yandex:direct:sync-geo-regions')
     ->name('sync-yandex-direct-geo-regions')
     ->weeklyOn(1, '05:40')
     ->withoutOverlapping(30);
+
+Schedule::command('yandex:direct:ai:autopilot')
+    ->name('yandex-direct-ai-autopilot')
+    ->hourly()
+    ->when(fn () => (bool) config('yandex.direct.ai_autopilot.enabled', true))
+    ->withoutOverlapping(60);

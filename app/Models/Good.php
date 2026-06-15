@@ -216,4 +216,9 @@ class Good extends Model
     {
         return $this->hasMany(DirectLaunchSession::class);
     }
+
+    public function yandexDirectAiDecisions(): HasMany
+    {
+        return $this->hasMany(YandexDirectAiDecision::class);
+    }
 }

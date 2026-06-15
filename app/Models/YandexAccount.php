@@ -63,4 +63,9 @@ class YandexAccount extends Model
     {
         return $this->hasMany(DirectLaunchSession::class);
     }
+
+    public function directAiDecisions(): HasMany
+    {
+        return $this->hasMany(YandexDirectAiDecision::class);
+    }
 }
