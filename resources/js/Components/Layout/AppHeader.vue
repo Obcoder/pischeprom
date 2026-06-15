@@ -326,7 +326,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="app-header__main">
-            <v-container>
+            <v-container class="app-header__main-container">
                 <div class="app-header__main-inner">
                     <Link
                         :href="homeUrl"
@@ -337,8 +337,8 @@ onBeforeUnmount(() => {
                                 v-if="showLogoImage"
                                 :src="logoUrl"
                                 :alt="siteName"
-                                width="54"
-                                height="54"
+                                width="46"
+                                height="46"
                                 class="app-header__logo-image"
                                 loading="eager"
                                 decoding="async"
@@ -582,11 +582,11 @@ onBeforeUnmount(() => {
 }
 
 .app-header__top-inner {
-    min-height: 52px;
+    min-height: 42px;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    gap: 18px;
+    gap: 14px;
 }
 
 .app-header__contacts {
@@ -657,7 +657,7 @@ onBeforeUnmount(() => {
 
 .app-header__register {
     border: 1px solid rgba(255, 255, 255, 0.75);
-    padding: 7px 14px;
+    padding: 5px 12px;
     border-radius: 8px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -675,34 +675,39 @@ onBeforeUnmount(() => {
     transition: padding 0.2s ease;
 }
 
+.app-header__main-container {
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
 .app-header__main-inner {
-    min-height: 84px;
+    min-height: 64px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 28px;
+    gap: 22px;
     transition: min-height 0.2s ease;
 }
 
 .app-header--compact .app-header__main-inner {
-    min-height: 70px;
+    min-height: 56px;
 }
 
 .app-header__brand {
     display: inline-flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     text-decoration: none;
     min-width: 0;
 }
 
 .app-header__logo {
-    width: 54px;
-    height: 54px;
-    border-radius: 16px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
     overflow: hidden;
     background: #fff;
-    box-shadow: 0 8px 20px rgba(128, 0, 0, 0.12);
+    box-shadow: 0 6px 16px rgba(128, 0, 0, 0.12);
     flex: 0 0 auto;
 }
 
@@ -714,8 +719,8 @@ onBeforeUnmount(() => {
 }
 
 .app-header__logo-fallback {
-    width: 54px;
-    height: 54px;
+    width: 46px;
+    height: 46px;
     display: grid;
     place-items: center;
     background: #800000;
@@ -726,15 +731,15 @@ onBeforeUnmount(() => {
 .app-header__brand-title {
     color: #8b1e1e;
     font-weight: 900;
-    font-size: 1.02rem;
+    font-size: 0.96rem;
     line-height: 1.2;
     text-transform: uppercase;
 }
 
 .app-header__brand-subtitle {
-    margin-top: 4px;
+    margin-top: 2px;
     color: #756c67;
-    font-size: 0.88rem;
+    font-size: 0.82rem;
     line-height: 1.2;
 }
 
@@ -886,7 +891,7 @@ onBeforeUnmount(() => {
     }
 
     .app-header__main-inner {
-        min-height: 76px;
+        min-height: 64px;
     }
 
     .app-header__brand-subtitle {
@@ -896,26 +901,26 @@ onBeforeUnmount(() => {
 
 @media (max-width: 600px) {
     .app-header__top-inner {
-        min-height: 46px;
+        min-height: 40px;
     }
 
     .app-header__main-inner {
-        min-height: 68px;
+        min-height: 58px;
     }
 
     .app-header__logo {
-        width: 46px;
-        height: 46px;
-        border-radius: 14px;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
     }
 
     .app-header__logo-fallback {
-        width: 46px;
-        height: 46px;
+        width: 40px;
+        height: 40px;
     }
 
     .app-header__brand-title {
-        font-size: 0.92rem;
+        font-size: 0.88rem;
     }
 
     .app-header__brand-subtitle {
