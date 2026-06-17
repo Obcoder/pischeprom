@@ -32,6 +32,46 @@ const buildingForm = reactive({
 const close = () => emit('update:modelValue', false)
 const save = () => emit('submit')
 
+const normalizeSearchText = (value) => String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const searchText = (...values) => normalizeSearchText(values.filter(Boolean).join(' '))
+
+const autocompleteTextFilter = (value, query) => {
+    const normalizedValue = normalizeSearchText(value)
+    const tokens = normalizeSearchText(query).split(' ').filter(Boolean)
+
+    if (!tokens.length) {
+        return 0
+    }
+
+    return tokens.every((token) => normalizedValue.includes(token)) ? 0 : -1
+}
+
+const emailOptions = computed(() => {
+    return (props.meta.emails ?? []).map((email) => {
+        const address = email.address ?? ''
+        const domain = address.includes('@') ? address.split('@').pop() : ''
+
+        return {
+            ...email,
+            domain,
+            search_text: searchText(address, domain, email.name, email.comment),
+        }
+    })
+})
+
+const unitOptions = computed(() => {
+    return (props.meta.units ?? []).map((unit) => ({
+        ...unit,
+        search_text: searchText(unit.name, unit.full_name, unit.short_name),
+    }))
+})
+
 const cityNameById = computed(() => new Map(
     (props.meta.cities ?? []).map(city => [Number(city.id), city.name])
 ))
@@ -547,17 +587,44 @@ watch(
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-select
+                        <v-autocomplete
                             v-model="form.emails"
-                            :items="meta.emails"
+                            :items="emailOptions"
+                            :custom-filter="autocompleteTextFilter"
+                            :filter-keys="['raw.search_text']"
                             item-title="address"
                             item-value="id"
                             label="Emails"
+                            placeholder="Адрес, домен или часть email"
                             multiple
                             chips
                             closable-chips
+                            clearable
+                            hide-details="auto"
                             variant="solo-filled"
-                        />
+                            class="emails-autocomplete"
+                            menu-icon="mdi-email-search-outline"
+                            :menu-props="{ contentClass: 'entity-emails-menu' }"
+                        >
+                            <template #item="{ props, item }">
+                                <v-list-item
+                                    v-bind="props"
+                                    class="emails-autocomplete__item"
+                                    prepend-icon="mdi-email-outline"
+                                >
+                                    <template #title>
+                                        <span>{{ item.raw.address }}</span>
+                                    </template>
+
+                                    <template
+                                        v-if="item.raw.domain"
+                                        #subtitle
+                                    >
+                                        <span>{{ item.raw.domain }}</span>
+                                    </template>
+                                </v-list-item>
+                            </template>
+                        </v-autocomplete>
                     </v-col>
 
                     <v-col cols="12" md="6">
@@ -589,11 +656,13 @@ watch(
 
                             <v-autocomplete
                                 v-model="form.units"
-                                :items="meta.units"
+                                :items="unitOptions"
+                                :custom-filter="autocompleteTextFilter"
+                                :filter-keys="['raw.search_text']"
                                 item-title="name"
                                 item-value="id"
                                 label="Поиск и привязка Units"
-                                placeholder="Начните вводить название Unit"
+                                placeholder="Любая часть названия Unit"
                                 multiple
                                 chips
                                 closable-chips
@@ -751,17 +820,37 @@ watch(
 
 .units-autocomplete :deep(.v-field) {
     border-radius: 14px;
-    background: rgba(255, 253, 247, 0.94);
-    box-shadow: 0 10px 24px rgba(84, 58, 24, 0.1);
+    border: 1px solid rgba(255, 231, 190, 0.22);
+    background: linear-gradient(135deg, #2f2114 0%, #4a2f18 100%);
+    box-shadow: 0 10px 24px rgba(84, 58, 24, 0.18);
+    color: #fff7e8;
 }
 
 .units-autocomplete :deep(.v-label) {
-    color: rgba(58, 38, 19, 0.62);
+    color: rgba(255, 247, 232, 0.74);
+}
+
+.units-autocomplete :deep(.v-field__input),
+.units-autocomplete :deep(.v-field__input input),
+.units-autocomplete :deep(.v-select__selection-text) {
+    color: #fff7e8 !important;
+    opacity: 1;
+}
+
+.units-autocomplete :deep(.v-field__input input::placeholder) {
+    color: rgba(255, 247, 232, 0.56) !important;
+    opacity: 1;
+}
+
+.units-autocomplete :deep(.v-icon),
+.units-autocomplete :deep(.v-field__clearable) {
+    color: rgba(255, 247, 232, 0.78);
 }
 
 .units-autocomplete__chip {
-    background: #3a2613;
-    color: #fff7e8;
+    border: 1px solid rgba(255, 247, 232, 0.22);
+    background: #fff7e8;
+    color: #2f2114;
     font-family: 'Courier New', monospace;
     font-weight: 700;
 }
@@ -905,6 +994,7 @@ watch(
 </style>
 
 <style>
+.entity-emails-menu .v-list,
 .entity-units-menu .v-list,
 .entity-buildings-menu .v-list,
 .entity-dadata-menu .v-list {
@@ -914,24 +1004,28 @@ watch(
     box-shadow: 0 24px 64px rgba(26, 18, 10, 0.24);
 }
 
+.entity-emails-menu .v-list-item,
 .entity-units-menu .v-list-item,
 .entity-buildings-menu .v-list-item,
 .entity-dadata-menu .v-list-item {
     color: #2f2114 !important;
 }
 
+.entity-emails-menu .v-list-item-title,
 .entity-units-menu .v-list-item-title,
 .entity-buildings-menu .v-list-item-title,
 .entity-dadata-menu .v-list-item-title {
     color: #2f2114 !important;
 }
 
+.entity-emails-menu .v-list-item-subtitle,
 .entity-units-menu .v-list-item-subtitle,
 .entity-buildings-menu .v-list-item-subtitle,
 .entity-dadata-menu .v-list-item-subtitle {
     color: rgba(47, 33, 20, 0.68) !important;
 }
 
+.entity-emails-menu .v-list-item:hover,
 .entity-units-menu .v-list-item:hover,
 .entity-buildings-menu .v-list-item:hover,
 .entity-dadata-menu .v-list-item:hover {
