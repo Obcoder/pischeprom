@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('mail_message_attachments')) {
+            return;
+        }
+
         Schema::create('mail_message_attachments', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
@@ -18,7 +22,7 @@ return new class extends Migration
                 ->cascadeOnUpdate();
 
             $table->string('disk')->default('yandex')->index();
-            $table->string('path', 1024)->index();
+            $table->string('path', 1024);
             $table->string('original_name')->nullable();
             $table->string('file_name')->nullable();
             $table->string('mime_type')->nullable();
