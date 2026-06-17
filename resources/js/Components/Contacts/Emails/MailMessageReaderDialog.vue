@@ -85,16 +85,33 @@ const selectedImageAttachment = computed(() => {
 const notes = computed(() => currentMessage.value?.notes || [])
 const leads = computed(() => currentMessage.value?.leads || [])
 const hasAttachmentSignal = computed(() => Boolean(currentMessage.value?.has_attachments || attachmentRows.value.length || attachments.value.length))
-const folderOptions = computed(() => storageFolders.value.map((folder) => ({
+const quickFolderTargets = computed(() => {
+    const targets = []
+
+    if (props.defaultUnitId) {
+        targets.push(folderFromPath(`units/${props.defaultUnitId}`))
+    }
+
+    if (currentMessage.value?.id) {
+        targets.push(folderFromPath(defaultFolderPath()))
+    }
+
+    return targets
+})
+const allStorageFolders = computed(() => mergeFolders([
+    ...quickFolderTargets.value,
+    ...storageFolders.value,
+]))
+const folderOptions = computed(() => allStorageFolders.value.map((folder) => ({
     title: folder.relative_path || folder.path,
     value: folder.path,
 })))
 const targetFolderPath = computed(() => {
     return selectedFolderPath.value
-        || storageFolders.value.find((folder) => folder.path === defaultFolderPath())?.path
+        || allStorageFolders.value.find((folder) => folder.path === defaultFolderPath())?.path
         || defaultFolderPath()
 })
-const targetFolder = computed(() => storageFolders.value.find((folder) => folder.path === targetFolderPath.value) || null)
+const targetFolder = computed(() => allStorageFolders.value.find((folder) => folder.path === targetFolderPath.value) || null)
 
 function formatDate(value) {
     if (!value) {
@@ -209,11 +226,26 @@ function folderFromPath(path, url = null) {
     return {
         name: parts[parts.length - 1] || 'attachments',
         path: normalized,
-        relative_path: normalized.startsWith('mail/attachments/')
-            ? normalized.replace('mail/attachments/', '')
-            : normalized,
+        relative_path: normalized,
         url,
     }
+}
+
+function mergeFolders(folders) {
+    const byPath = new Map()
+
+    folders
+        .filter((folder) => folder?.path)
+        .forEach((folder) => {
+            const path = normalizePath(folder.path)
+            byPath.set(path, {
+                ...folder,
+                path,
+                relative_path: folder.relative_path || path,
+            })
+        })
+
+    return Array.from(byPath.values()).sort((a, b) => String(a.path).localeCompare(String(b.path)))
 }
 
 function upsertStorageFolder(folder) {
@@ -236,6 +268,21 @@ function upsertStorageFolder(folder) {
     }
 }
 
+function folderCreatePath() {
+    const selected = normalizePath(selectedFolderPath.value)
+    const typed = normalizePath(newFolderPath.value)
+
+    if (!typed) {
+        return selected
+    }
+
+    if (selected && !typed.includes('/')) {
+        return `${selected}/${typed}`
+    }
+
+    return typed
+}
+
 async function loadAttachmentFolders() {
     if (!currentMessage.value?.id) {
         return
@@ -245,11 +292,11 @@ async function loadAttachmentFolders() {
 
     try {
         const { data } = await axios.get(`/api/mail-messages/${currentMessage.value.id}/attachment-folders`)
-        storageFolders.value = data.folders || []
+        storageFolders.value = mergeFolders(data.folders || [])
 
         if (!selectedFolderPath.value) {
-            selectedFolderPath.value = storageFolders.value.find((folder) => folder.path === defaultFolderPath())?.path
-                || storageFolders.value[0]?.path
+            selectedFolderPath.value = allStorageFolders.value.find((folder) => folder.path === defaultFolderPath())?.path
+                || allStorageFolders.value[0]?.path
                 || defaultFolderPath()
         }
     } catch (error) {
@@ -263,7 +310,7 @@ async function loadAttachmentFolders() {
 }
 
 async function createAttachmentFolder() {
-    const folder = normalizePath(newFolderPath.value || selectedFolderPath.value)
+    const folder = folderCreatePath()
 
     if (!currentMessage.value?.id || !folder) {
         return
@@ -277,7 +324,7 @@ async function createAttachmentFolder() {
             folder,
         })
 
-        storageFolders.value = data.folders || storageFolders.value
+        storageFolders.value = mergeFolders(data.folders || storageFolders.value)
         upsertStorageFolder(data.folder)
         selectedFolderPath.value = data.folder?.path || folder
         newFolderPath.value = ''
@@ -536,7 +583,7 @@ watch(model, async (isOpen) => {
                                         :items="folderOptions"
                                         item-title="title"
                                         item-value="value"
-                                        label="Папка S3"
+                                        label="Папка S3 / bucket"
                                         density="compact"
                                         variant="outlined"
                                         hide-details
@@ -547,7 +594,7 @@ watch(model, async (isOpen) => {
 
                                     <v-text-field
                                         v-model="newFolderPath"
-                                        label="Новая папка"
+                                        label="Новая папка или полный path"
                                         density="compact"
                                         variant="outlined"
                                         hide-details
@@ -560,10 +607,25 @@ watch(model, async (isOpen) => {
                                         variant="tonal"
                                         prepend-icon="mdi-folder-plus-outline"
                                         :loading="creatingFolder"
-                                        :disabled="!normalizePath(newFolderPath || selectedFolderPath)"
+                                        :disabled="!folderCreatePath()"
                                         @click="createAttachmentFolder"
                                     >
                                         Создать
+                                    </v-btn>
+                                </div>
+
+                                <div v-if="quickFolderTargets.length" class="mail-attachments-quick-folders">
+                                    <span>Quick:</span>
+                                    <v-btn
+                                        v-for="folder in quickFolderTargets"
+                                        :key="folder.path"
+                                        size="x-small"
+                                        density="compact"
+                                        variant="tonal"
+                                        color="blue"
+                                        @click="selectedFolderPath = folder.path"
+                                    >
+                                        {{ folder.path.startsWith('units/') ? 'Unit' : 'Mail' }}
                                     </v-btn>
                                 </div>
 
@@ -928,6 +990,16 @@ watch(model, async (isOpen) => {
     grid-template-columns: minmax(190px, 1fr) minmax(150px, 0.8fr) auto;
     gap: 6px;
     margin-bottom: 6px;
+}
+
+.mail-attachments-quick-folders {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 6px;
+    color: #93c5fd;
+    font-size: 10px;
 }
 
 .mail-attachments-target,
