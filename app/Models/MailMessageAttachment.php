@@ -33,6 +33,8 @@ class MailMessageAttachment extends Model
     ];
 
     protected $appends = [
+        'folder_path',
+        'folder_url',
         'url',
     ];
 
@@ -49,6 +51,28 @@ class MailMessageAttachment extends Model
 
         try {
             return Storage::disk($this->disk)->url($this->path);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function getFolderPathAttribute(): ?string
+    {
+        if (! $this->path || ! str_contains($this->path, '/')) {
+            return null;
+        }
+
+        return trim(dirname($this->path), '/.');
+    }
+
+    public function getFolderUrlAttribute(): ?string
+    {
+        if (! $this->disk || ! $this->folder_path) {
+            return null;
+        }
+
+        try {
+            return Storage::disk($this->disk)->url(rtrim($this->folder_path, '/') . '/');
         } catch (Throwable) {
             return null;
         }

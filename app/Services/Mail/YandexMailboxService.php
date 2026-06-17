@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use ReflectionObject;
+use RuntimeException;
 use Throwable;
 use Webklex\PHPIMAP\ClientManager;
 
@@ -788,7 +789,48 @@ class YandexMailboxService
         );
     }
 
-    public function saveAttachment(MailMessage $mailMessage, int $index): MailMessage
+    public function attachmentFolders(?MailMessage $mailMessage = null): array
+    {
+        $diskName = $this->attachmentsDiskName();
+        $disk = Storage::disk($diskName);
+        $root = $this->attachmentRootPath();
+
+        $paths = collect([
+            $root,
+            $mailMessage ? $this->defaultAttachmentFolder($mailMessage) : null,
+        ])
+            ->merge($this->storedAttachmentFolders($diskName))
+            ->merge($this->storageAttachmentFolders($disk, $root))
+            ->filter()
+            ->map(fn ($path) => trim((string) $path, '/'))
+            ->filter(fn ($path) => $path !== '' && ($path === $root || Str::startsWith($path, $root . '/')))
+            ->unique()
+            ->sort()
+            ->values();
+
+        return $paths
+            ->map(fn ($path) => $this->attachmentFolderPayload($path, $diskName))
+            ->all();
+    }
+
+    public function createAttachmentFolder(string $folder, ?MailMessage $mailMessage = null): array
+    {
+        $diskName = $this->attachmentsDiskName();
+        $disk = Storage::disk($diskName);
+        $path = $this->normalizeAttachmentFolder($folder, $mailMessage);
+
+        abort_if($path === $this->attachmentRootPath(), 422, 'Укажите папку внутри mail/attachments.');
+
+        $created = $disk->put("{$path}/.keep", 'created: ' . now()->toIso8601String());
+
+        if ($created === false) {
+            throw new RuntimeException('Папка не создана в Yandex S3.');
+        }
+
+        return $this->attachmentFolderPayload($path, $diskName);
+    }
+
+    public function saveAttachment(MailMessage $mailMessage, int $index, ?string $folder = null): MailMessage
     {
         if (!$mailMessage->imap_uid) {
             return $this->withAvailableAttachments(
@@ -797,6 +839,8 @@ class YandexMailboxService
         }
 
         $client = $this->client();
+        $diskName = $this->attachmentsDiskName();
+        $targetFolder = $this->normalizeAttachmentFolder($folder, $mailMessage);
 
         try {
             $client->connect();
@@ -832,11 +876,22 @@ class YandexMailboxService
                 );
             }
 
-            $this->storeAttachment($mailMessage, $attachment, $index);
+            $savedAttachment = $this->storeAttachment(
+                mailMessage: $mailMessage,
+                attachment: $attachment,
+                index: $index,
+                diskName: $diskName,
+                disk: Storage::disk($diskName),
+                folderPath: $targetFolder,
+            );
             $mailMessage->forceFill(['has_attachments' => true])->save();
 
             $fresh = $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads']);
             $fresh->setAttribute('available_attachments', $this->attachmentPayloads($fresh, $message));
+            $fresh->setAttribute('saved_attachment', $savedAttachment
+                ? $this->savedAttachmentPayload($savedAttachment->fresh(), $index)
+                : null);
+            $fresh->setAttribute('saved_folder', $this->attachmentFolderPayload($targetFolder, $diskName));
 
             return $fresh;
         } finally {
@@ -857,23 +912,35 @@ class YandexMailboxService
             return 0;
         }
 
-        $diskName = config('services.yandex_mail.attachments_disk', 'yandex') ?: 'yandex';
+        $diskName = $this->attachmentsDiskName();
         $disk = Storage::disk($diskName);
         $stored = 0;
 
         foreach ($attachments as $index => $attachment) {
-            if ($this->storeAttachment($mailMessage, $attachment, $index, $diskName, $disk)) {
-                $stored++;
+            try {
+                if ($this->storeAttachment($mailMessage, $attachment, $index, $diskName, $disk)) {
+                    $stored++;
+                }
+            } catch (Throwable) {
+                continue;
             }
         }
 
         return $stored;
     }
 
-    protected function storeAttachment(MailMessage $mailMessage, $attachment, int $index, ?string $diskName = null, $disk = null): bool
+    protected function storeAttachment(
+        MailMessage $mailMessage,
+        $attachment,
+        int $index,
+        ?string $diskName = null,
+        $disk = null,
+        ?string $folderPath = null,
+    ): ?MailMessageAttachment
     {
-        $diskName = $diskName ?: (config('services.yandex_mail.attachments_disk', 'yandex') ?: 'yandex');
+        $diskName = $diskName ?: $this->attachmentsDiskName();
         $disk = $disk ?: Storage::disk($diskName);
+        $folderPath = $folderPath ?: $this->defaultAttachmentFolder($mailMessage);
         $originalName = $this->attachmentName($attachment, $index);
         $content = $this->attachmentContent($attachment);
 
@@ -883,7 +950,7 @@ class YandexMailboxService
                 'original_name' => $originalName,
             ]);
 
-            return false;
+            return null;
         }
 
         $size = strlen($content);
@@ -894,24 +961,33 @@ class YandexMailboxService
             ->where('size', $size)
             ->first();
 
-        if ($existing && $existing->path && $disk->exists($existing->path)) {
-            return true;
+        if (
+            $existing
+            && $existing->path
+            && dirname($existing->path) === $folderPath
+            && $disk->exists($existing->path)
+        ) {
+            return $existing;
         }
 
         $safeName = $this->safeAttachmentName($originalName);
         $path = sprintf(
-            'mail/attachments/%d/%s-%s',
-            $mailMessage->id,
+            '%s/%s-%s',
+            $folderPath,
             Str::uuid()->toString(),
             $safeName
         );
 
         try {
-            $disk->put($path, $content, [
+            $stored = $disk->put($path, $content, [
                 'ContentType' => $mimeType,
             ]);
 
-            MailMessageAttachment::query()->updateOrCreate(
+            if ($stored === false) {
+                throw new RuntimeException('S3 put returned false.');
+            }
+
+            $saved = MailMessageAttachment::query()->updateOrCreate(
                 [
                     'mail_message_id' => $mailMessage->id,
                     'original_name' => $originalName,
@@ -928,7 +1004,11 @@ class YandexMailboxService
                 ]
             );
 
-            return true;
+            if ($existing && $existing->path && $existing->path !== $path && $disk->exists($existing->path)) {
+                $disk->delete($existing->path);
+            }
+
+            return $saved;
         } catch (Throwable $exception) {
             logger()->error('Yandex mail attachment save failed', [
                 'mail_message_id' => $mailMessage->id,
@@ -938,7 +1018,7 @@ class YandexMailboxService
                 'message' => $exception->getMessage(),
             ]);
 
-            return false;
+            throw $exception;
         }
     }
 
@@ -964,6 +1044,8 @@ class YandexMailboxService
                 'is_saved' => true,
                 'disk' => $attachment->disk,
                 'path' => $attachment->path,
+                'folder_path' => $attachment->folder_path,
+                'folder_url' => $attachment->folder_url,
                 'url' => $attachment->url,
                 'preview_url' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name)
                     ? $attachment->url
@@ -1001,6 +1083,8 @@ class YandexMailboxService
                     'is_saved' => (bool) $saved,
                     'disk' => $saved?->disk,
                     'path' => $saved?->path,
+                    'folder_path' => $saved?->folder_path,
+                    'folder_url' => $saved?->folder_url,
                     'url' => $saved?->url,
                     'preview_url' => $this->attachmentPreviewUrl($content, $mimeType, $isImage, $saved),
                     'saved_to_disk_at' => $saved?->saved_to_disk_at,
@@ -1008,6 +1092,142 @@ class YandexMailboxService
             })
             ->values()
             ->all();
+    }
+
+    protected function savedAttachmentPayload(?MailMessageAttachment $attachment, int $index): ?array
+    {
+        if (!$attachment) {
+            return null;
+        }
+
+        return [
+            'id' => $attachment->id,
+            'index' => $index,
+            'original_name' => $attachment->original_name,
+            'file_name' => $attachment->file_name,
+            'mime_type' => $attachment->mime_type,
+            'size' => $attachment->size,
+            'content_id' => $attachment->content_id,
+            'disposition' => $attachment->disposition,
+            'is_image' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name),
+            'is_saved' => true,
+            'disk' => $attachment->disk,
+            'path' => $attachment->path,
+            'folder_path' => $attachment->folder_path,
+            'folder_url' => $attachment->folder_url,
+            'url' => $attachment->url,
+            'preview_url' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name)
+                ? $attachment->url
+                : null,
+            'saved_to_disk_at' => $attachment->saved_to_disk_at,
+        ];
+    }
+
+    protected function attachmentsDiskName(): string
+    {
+        return config('services.yandex_mail.attachments_disk', 'yandex') ?: 'yandex';
+    }
+
+    protected function attachmentRootPath(): string
+    {
+        return 'mail/attachments';
+    }
+
+    protected function defaultAttachmentFolder(MailMessage $mailMessage): string
+    {
+        return $this->attachmentRootPath() . '/' . $mailMessage->id;
+    }
+
+    protected function normalizeAttachmentFolder(?string $folder, ?MailMessage $mailMessage = null): string
+    {
+        $folder = trim(str_replace('\\', '/', (string) $folder), '/');
+
+        if ($folder === '') {
+            return $mailMessage ? $this->defaultAttachmentFolder($mailMessage) : $this->attachmentRootPath();
+        }
+
+        abort_if(Str::contains($folder, ['..', '//']), 422, 'Invalid attachment folder.');
+        abort_if((bool) preg_match('/[\x00-\x1F\x7F]/', $folder), 422, 'Invalid attachment folder.');
+
+        $root = $this->attachmentRootPath();
+
+        if ($folder !== $root && !Str::startsWith($folder, $root . '/')) {
+            $folder = $root . '/' . $folder;
+        }
+
+        return trim($folder, '/');
+    }
+
+    protected function storedAttachmentFolders(string $diskName): array
+    {
+        return MailMessageAttachment::query()
+            ->where('disk', $diskName)
+            ->whereNotNull('path')
+            ->pluck('path')
+            ->map(fn ($path) => trim(dirname((string) $path), '/.'))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    protected function storageAttachmentFolders($disk, string $root): array
+    {
+        try {
+            if (method_exists($disk, 'allDirectories')) {
+                return $disk->allDirectories($root);
+            }
+
+            return $this->collectStorageDirectories($disk, $root);
+        } catch (Throwable $exception) {
+            logger()->warning('Yandex attachment folders list failed', [
+                'root' => $root,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    protected function collectStorageDirectories($disk, string $path, int $depth = 0): array
+    {
+        if ($depth > 6) {
+            return [];
+        }
+
+        $directories = $disk->directories($path);
+
+        return collect($directories)
+            ->flatMap(fn ($directory) => [
+                $directory,
+                ...$this->collectStorageDirectories($disk, $directory, $depth + 1),
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function attachmentFolderPayload(string $path, string $diskName): array
+    {
+        $path = trim($path, '/');
+        $root = $this->attachmentRootPath();
+        $relative = Str::startsWith($path, $root . '/')
+            ? Str::after($path, $root . '/')
+            : ($path === $root ? '' : $path);
+
+        return [
+            'name' => $relative !== '' ? basename($path) : 'attachments',
+            'path' => $path,
+            'relative_path' => $relative,
+            'url' => $this->attachmentFolderUrl($path, $diskName),
+        ];
+    }
+
+    protected function attachmentFolderUrl(string $path, string $diskName): ?string
+    {
+        try {
+            return Storage::disk($diskName)->url(rtrim($path, '/') . '/');
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     protected function matchingSavedAttachment(MailMessage $mailMessage, string $name, ?int $size): ?MailMessageAttachment

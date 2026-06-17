@@ -171,6 +171,10 @@ Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show']
     ->name('mail-messages.show');
 Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
     ->name('mail-messages.attachments.sync');
+Route::get('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'attachmentFolders'])
+    ->name('mail-messages.attachment-folders.index');
+Route::post('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'storeAttachmentFolder'])
+    ->name('mail-messages.attachment-folders.store');
 Route::post('mail-messages/{mailMessage}/attachments/{index}/save', [MailMessageActionController::class, 'saveAttachment'])
     ->whereNumber('index')
     ->name('mail-messages.attachments.save');

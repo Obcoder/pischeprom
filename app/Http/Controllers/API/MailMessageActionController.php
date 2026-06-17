@@ -165,13 +165,46 @@ class MailMessageActionController extends Controller
     }
 
     public function saveAttachment(
+        Request $request,
         MailMessage $mailMessage,
         int $index,
         YandexMailboxService $service,
     ): JsonResponse {
-        $mailMessage = $service->saveAttachment($mailMessage, $index);
+        $data = $request->validate([
+            'folder' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $mailMessage = $service->saveAttachment(
+            mailMessage: $mailMessage,
+            index: $index,
+            folder: $data['folder'] ?? null,
+        );
 
         return response()->json($this->messagePayload($mailMessage));
+    }
+
+    public function attachmentFolders(
+        MailMessage $mailMessage,
+        YandexMailboxService $service,
+    ): JsonResponse {
+        return response()->json([
+            'folders' => $service->attachmentFolders($mailMessage),
+        ]);
+    }
+
+    public function storeAttachmentFolder(
+        Request $request,
+        MailMessage $mailMessage,
+        YandexMailboxService $service,
+    ): JsonResponse {
+        $data = $request->validate([
+            'folder' => ['required', 'string', 'max:500'],
+        ]);
+
+        return response()->json([
+            'folder' => $service->createAttachmentFolder($data['folder'], $mailMessage),
+            'folders' => $service->attachmentFolders($mailMessage),
+        ], 201);
     }
 
     public function storeNote(Request $request, MailMessage $mailMessage): JsonResponse

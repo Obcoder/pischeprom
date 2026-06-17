@@ -36,19 +36,28 @@ const noteImportance = ref('important')
 const leadTitle = ref('')
 const leadDescription = ref('')
 const feedback = ref(null)
+const localMessage = ref(null)
 const savingAttachmentIndex = ref(null)
 const selectedAttachmentIndex = ref(null)
+const storageFolders = ref([])
+const foldersLoading = ref(false)
+const creatingFolder = ref(false)
+const selectedFolderPath = ref(null)
+const newFolderPath = ref('')
+const lastSavedAttachment = ref(null)
+
+const currentMessage = computed(() => localMessage.value || props.message)
 
 const bodyHtml = computed(() => {
-    return props.message?.html || null
+    return currentMessage.value?.html || null
 })
 
 const bodyText = computed(() => {
-    return props.message?.text || 'Тело письма не загружено или письмо пустое.'
+    return currentMessage.value?.text || 'Тело письма не загружено или письмо пустое.'
 })
 
-const attachments = computed(() => props.message?.attachments || [])
-const availableAttachments = computed(() => props.message?.available_attachments || [])
+const attachments = computed(() => currentMessage.value?.attachments || [])
+const availableAttachments = computed(() => currentMessage.value?.available_attachments || [])
 const attachmentRows = computed(() => {
     if (availableAttachments.value.length) {
         return availableAttachments.value
@@ -70,13 +79,21 @@ const selectedAttachment = computed(() => {
         || null
 })
 const selectedImageAttachment = computed(() => {
-    return selectedAttachment.value && isAttachmentImage(selectedAttachment.value)
-        ? selectedAttachment.value
-        : imageAttachments.value[0] || null
+    return selectedAttachment.value && isAttachmentImage(selectedAttachment.value) ? selectedAttachment.value : null
 })
-const notes = computed(() => props.message?.notes || [])
-const leads = computed(() => props.message?.leads || [])
-const hasAttachmentSignal = computed(() => Boolean(props.message?.has_attachments || attachmentRows.value.length || attachments.value.length))
+const notes = computed(() => currentMessage.value?.notes || [])
+const leads = computed(() => currentMessage.value?.leads || [])
+const hasAttachmentSignal = computed(() => Boolean(currentMessage.value?.has_attachments || attachmentRows.value.length || attachments.value.length))
+const folderOptions = computed(() => storageFolders.value.map((folder) => ({
+    title: folder.relative_path || folder.path,
+    value: folder.path,
+})))
+const targetFolderPath = computed(() => {
+    return selectedFolderPath.value
+        || storageFolders.value.find((folder) => folder.path === defaultFolderPath())?.path
+        || defaultFolderPath()
+})
+const targetFolder = computed(() => storageFolders.value.find((folder) => folder.path === targetFolderPath.value) || null)
 
 function formatDate(value) {
     if (!value) {
@@ -118,6 +135,38 @@ function attachmentMime(attachment) {
     return attachment?.mime_type || attachment?.mime || 'file'
 }
 
+function attachmentPath(attachment) {
+    return attachment?.path || null
+}
+
+function attachmentFolderPath(attachment) {
+    return attachment?.folder_path || (attachmentPath(attachment) ? String(attachmentPath(attachment)).split('/').slice(0, -1).join('/') : null)
+}
+
+function normalizePath(path) {
+    return String(path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+}
+
+function defaultFolderPath() {
+    return currentMessage.value?.id ? `mail/attachments/${currentMessage.value.id}` : 'mail/attachments'
+}
+
+function isAttachmentSaved(attachment) {
+    return Boolean(attachment?.is_saved && (attachment?.path || attachment?.url || attachment?.id))
+}
+
+function canSaveAttachment(attachment) {
+    if (!currentMessage.value?.id || attachment?.index === null || attachment?.index === undefined) {
+        return false
+    }
+
+    if (!isAttachmentSaved(attachment)) {
+        return true
+    }
+
+    return normalizePath(attachmentFolderPath(attachment)) !== normalizePath(targetFolderPath.value)
+}
+
 function isAttachmentImage(attachment) {
     const mime = String(attachment?.mime_type || attachment?.mime || '').toLowerCase()
     const name = attachmentName(attachment)
@@ -132,26 +181,129 @@ function selectAttachment(attachment) {
 }
 
 function plainBody() {
-    return (props.message?.text || String(props.message?.html || '').replace(/<[^>]+>/g, ' ') || props.message?.preview || '').trim()
+    return (currentMessage.value?.text || String(currentMessage.value?.html || '').replace(/<[^>]+>/g, ' ') || currentMessage.value?.preview || '').trim()
 }
 
 function resetForms() {
     noteTitle.value = ''
     noteBody.value = ''
     noteImportance.value = 'important'
-    leadTitle.value = props.message?.subject || 'Лид из письма'
+    leadTitle.value = currentMessage.value?.subject || 'Лид из письма'
     leadDescription.value = [
-        `From: ${[props.message?.from_name, props.message?.from_address].filter(Boolean).join(' ')}`,
-        `Subject: ${props.message?.subject || 'Без темы'}`,
+        `From: ${[currentMessage.value?.from_name, currentMessage.value?.from_address].filter(Boolean).join(' ')}`,
+        `Subject: ${currentMessage.value?.subject || 'Без темы'}`,
         plainBody().slice(0, 1800),
     ].filter(Boolean).join('\n\n')
     feedback.value = null
     savingAttachmentIndex.value = null
     selectedAttachmentIndex.value = imageAttachments.value[0]?.index ?? attachmentRows.value[0]?.index ?? null
+    lastSavedAttachment.value = null
+}
+
+function applyMessageUpdate(message) {
+    if (!message) {
+        return
+    }
+
+    localMessage.value = message
+    emit('updated', message)
+}
+
+function folderFromPath(path, url = null) {
+    const normalized = normalizePath(path)
+    const parts = normalized.split('/').filter(Boolean)
+
+    return {
+        name: parts[parts.length - 1] || 'attachments',
+        path: normalized,
+        relative_path: normalized.startsWith('mail/attachments/')
+            ? normalized.replace('mail/attachments/', '')
+            : normalized,
+        url,
+    }
+}
+
+function upsertStorageFolder(folder) {
+    if (!folder?.path) {
+        return
+    }
+
+    const path = normalizePath(folder.path)
+    const existingIndex = storageFolders.value.findIndex((item) => normalizePath(item.path) === path)
+    const payload = {
+        ...folder,
+        path,
+    }
+
+    if (existingIndex >= 0) {
+        storageFolders.value.splice(existingIndex, 1, payload)
+    } else {
+        storageFolders.value.push(payload)
+        storageFolders.value.sort((a, b) => String(a.path).localeCompare(String(b.path)))
+    }
+}
+
+async function loadAttachmentFolders() {
+    if (!currentMessage.value?.id) {
+        return
+    }
+
+    foldersLoading.value = true
+
+    try {
+        const { data } = await axios.get(`/api/mail-messages/${currentMessage.value.id}/attachment-folders`)
+        storageFolders.value = data.folders || []
+
+        if (!selectedFolderPath.value) {
+            selectedFolderPath.value = storageFolders.value.find((folder) => folder.path === defaultFolderPath())?.path
+                || storageFolders.value[0]?.path
+                || defaultFolderPath()
+        }
+    } catch (error) {
+        feedback.value = {
+            type: 'error',
+            text: error?.response?.data?.message || 'Не удалось загрузить папки S3.',
+        }
+    } finally {
+        foldersLoading.value = false
+    }
+}
+
+async function createAttachmentFolder() {
+    const folder = normalizePath(newFolderPath.value || selectedFolderPath.value)
+
+    if (!currentMessage.value?.id || !folder) {
+        return
+    }
+
+    creatingFolder.value = true
+    feedback.value = null
+
+    try {
+        const { data } = await axios.post(`/api/mail-messages/${currentMessage.value.id}/attachment-folders`, {
+            folder,
+        })
+
+        storageFolders.value = data.folders || storageFolders.value
+        upsertStorageFolder(data.folder)
+        selectedFolderPath.value = data.folder?.path || folder
+        newFolderPath.value = ''
+        feedback.value = {
+            type: 'success',
+            text: `Папка S3 создана: ${selectedFolderPath.value}`,
+        }
+    } catch (error) {
+        feedback.value = {
+            type: 'error',
+            text: error?.response?.data?.message || 'Не удалось создать папку S3.',
+        }
+    } finally {
+        creatingFolder.value = false
+    }
 }
 
 async function saveAttachment(attachment) {
-    if (!props.message?.id || attachment?.index === null || attachment?.index === undefined || attachment?.is_saved) {
+    if (!currentMessage.value?.id || attachment?.index === null || attachment?.index === undefined) {
         return
     }
 
@@ -159,13 +311,31 @@ async function saveAttachment(attachment) {
     feedback.value = null
 
     try {
-        const { data } = await axios.post(`/api/mail-messages/${props.message.id}/attachments/${attachment.index}/save`)
+        const { data } = await axios.post(`/api/mail-messages/${currentMessage.value.id}/attachments/${attachment.index}/save`, {
+            folder: targetFolderPath.value,
+        })
 
-        emit('updated', data)
+        const nextMessage = data.mail_message || data
+        const savedAttachment = data.saved_attachment
+            || nextMessage.saved_attachment
+            || nextMessage.available_attachments?.find((item) => Number(item.index) === Number(attachment.index))
+
+        if (savedAttachment?.folder_path) {
+            upsertStorageFolder(folderFromPath(savedAttachment.folder_path, savedAttachment.folder_url))
+        } else if (targetFolderPath.value) {
+            upsertStorageFolder(folderFromPath(targetFolderPath.value, targetFolder.value?.url))
+        }
+
+        applyMessageUpdate(nextMessage)
         selectedAttachmentIndex.value = attachment.index
+        lastSavedAttachment.value = savedAttachment || {
+            ...attachment,
+            is_saved: true,
+            folder_path: targetFolderPath.value,
+        }
         feedback.value = {
             type: 'success',
-            text: `Файл "${attachmentName(attachment)}" сохранён в Yandex S3.`,
+            text: `Файл "${attachmentName(attachment)}" сохранён: ${savedAttachment?.path || targetFolderPath.value}`,
         }
     } catch (error) {
         feedback.value = {
@@ -178,7 +348,7 @@ async function saveAttachment(attachment) {
 }
 
 async function saveNote() {
-    if (!props.message?.id || !noteBody.value.trim()) {
+    if (!currentMessage.value?.id || !noteBody.value.trim()) {
         return
     }
 
@@ -186,13 +356,13 @@ async function saveNote() {
     feedback.value = null
 
     try {
-        const { data } = await axios.post(`/api/mail-messages/${props.message.id}/notes`, {
+        const { data } = await axios.post(`/api/mail-messages/${currentMessage.value.id}/notes`, {
             title: noteTitle.value,
             body: noteBody.value,
             importance: noteImportance.value,
         })
 
-        emit('updated', data)
+        applyMessageUpdate(data)
         noteTitle.value = ''
         noteBody.value = ''
         feedback.value = {
@@ -210,7 +380,7 @@ async function saveNote() {
 }
 
 async function createLead() {
-    if (!props.message?.id || !leadTitle.value.trim()) {
+    if (!currentMessage.value?.id || !leadTitle.value.trim()) {
         return
     }
 
@@ -218,14 +388,14 @@ async function createLead() {
     feedback.value = null
 
     try {
-        const { data } = await axios.post(`/api/mail-messages/${props.message.id}/lead`, {
+        const { data } = await axios.post(`/api/mail-messages/${currentMessage.value.id}/lead`, {
             title: leadTitle.value,
             description: leadDescription.value,
             entity_id: props.defaultEntityId,
             unit_id: props.defaultUnitId,
         })
 
-        emit('updated', data.mail_message)
+        applyMessageUpdate(data.mail_message)
         feedback.value = {
             type: 'success',
             text: `Лид #${data.lead?.id} создан.`,
@@ -240,7 +410,22 @@ async function createLead() {
     }
 }
 
-watch(() => props.message?.id, resetForms)
+watch(() => props.message?.id, async () => {
+    localMessage.value = null
+    selectedFolderPath.value = null
+    newFolderPath.value = ''
+    resetForms()
+
+    if (model.value && currentMessage.value?.id) {
+        await loadAttachmentFolders()
+    }
+})
+
+watch(model, async (isOpen) => {
+    if (isOpen && currentMessage.value?.id) {
+        await loadAttachmentFolders()
+    }
+})
 </script>
 
 <template>
@@ -253,21 +438,21 @@ watch(() => props.message?.id, resetForms)
             <v-card-title class="d-flex justify-space-between align-start">
                 <div>
                     <div class="text-blue-lighten-3 text-base">
-                        {{ message?.subject || 'Без темы' }}
+                        {{ currentMessage?.subject || 'Без темы' }}
                     </div>
 
                     <div class="text-[11px] text-grey mt-1">
-                        {{ formatDate(message?.message_date) }}
+                        {{ formatDate(currentMessage?.message_date) }}
                     </div>
                 </div>
 
                 <div class="d-flex ga-1">
                     <v-chip
                         size="small"
-                        :color="message?.direction === 'incoming' ? 'purple' : 'blue'"
+                        :color="currentMessage?.direction === 'incoming' ? 'purple' : 'blue'"
                         variant="tonal"
                     >
-                        {{ message?.direction === 'incoming' ? 'Входящее' : 'Исходящее' }}
+                        {{ currentMessage?.direction === 'incoming' ? 'Входящее' : 'Исходящее' }}
                     </v-chip>
 
                     <v-btn
@@ -280,13 +465,13 @@ watch(() => props.message?.id, resetForms)
                     />
 
                     <v-btn
-                        v-if="message?.direction === 'incoming'"
+                        v-if="currentMessage?.direction === 'incoming'"
                         icon="mdi-reply"
                         size="small"
                         variant="text"
                         color="teal"
                         :disabled="loading"
-                        @click="emit('reply', message)"
+                        @click="emit('reply', currentMessage)"
                     />
                 </div>
             </v-card-title>
@@ -298,24 +483,24 @@ watch(() => props.message?.id, resetForms)
                     <v-col cols="12" lg="6">
                         <div class="text-[11px] text-grey">From</div>
                         <div class="text-sm text-purple-lighten-3">
-                            {{ message?.from_name || '' }}
-                            {{ message?.from_address || '—' }}
+                            {{ currentMessage?.from_name || '' }}
+                            {{ currentMessage?.from_address || '—' }}
                         </div>
                     </v-col>
 
                     <v-col cols="12" lg="6">
                         <div class="text-[11px] text-grey">To</div>
                         <div class="text-sm text-blue-lighten-3">
-                            {{ recipients(message?.to) }}
+                            {{ recipients(currentMessage?.to) }}
                         </div>
 
                         <div
-                            v-if="message?.cc?.length"
+                            v-if="currentMessage?.cc?.length"
                             class="mt-1"
                         >
                             <div class="text-[11px] text-grey">CC</div>
                             <div class="text-sm text-blue-lighten-3">
-                                {{ recipients(message?.cc) }}
+                                {{ recipients(currentMessage?.cc) }}
                             </div>
                         </div>
                     </v-col>
@@ -342,6 +527,74 @@ watch(() => props.message?.id, resetForms)
                             </v-card-title>
 
                             <v-card-text class="pt-0">
+                                <div v-if="attachmentRows.length" class="mail-attachments-controls">
+                                    <v-combobox
+                                        v-model="selectedFolderPath"
+                                        :items="folderOptions"
+                                        item-title="title"
+                                        item-value="value"
+                                        label="Папка S3"
+                                        density="compact"
+                                        variant="outlined"
+                                        hide-details
+                                        clearable
+                                        :return-object="false"
+                                        :loading="foldersLoading"
+                                    />
+
+                                    <v-text-field
+                                        v-model="newFolderPath"
+                                        label="Новая папка"
+                                        density="compact"
+                                        variant="outlined"
+                                        hide-details
+                                        @keydown.enter.prevent="createAttachmentFolder"
+                                    />
+
+                                    <v-btn
+                                        size="small"
+                                        color="blue"
+                                        variant="tonal"
+                                        prepend-icon="mdi-folder-plus-outline"
+                                        :loading="creatingFolder"
+                                        :disabled="!normalizePath(newFolderPath || selectedFolderPath)"
+                                        @click="createAttachmentFolder"
+                                    >
+                                        Создать
+                                    </v-btn>
+                                </div>
+
+                                <div v-if="attachmentRows.length" class="mail-attachments-target">
+                                    <span>S3 target:</span>
+                                    <code>{{ targetFolderPath }}</code>
+                                    <a
+                                        v-if="targetFolder?.url"
+                                        :href="targetFolder.url"
+                                        target="_blank"
+                                    >
+                                        folder
+                                    </a>
+                                </div>
+
+                                <div v-if="lastSavedAttachment" class="mail-attachments-saved">
+                                    <strong>Saved:</strong>
+                                    <code>{{ lastSavedAttachment.path || lastSavedAttachment.folder_path }}</code>
+                                    <a
+                                        v-if="lastSavedAttachment.url"
+                                        :href="lastSavedAttachment.url"
+                                        target="_blank"
+                                    >
+                                        file
+                                    </a>
+                                    <a
+                                        v-if="lastSavedAttachment.folder_url"
+                                        :href="lastSavedAttachment.folder_url"
+                                        target="_blank"
+                                    >
+                                        folder
+                                    </a>
+                                </div>
+
                                 <div v-if="attachmentRows.length" class="mail-attachments-workspace">
                                     <div class="mail-attachments-sheet">
                                         <div class="mail-attachments-sheet__row is-head">
@@ -377,17 +630,28 @@ watch(() => props.message?.id, resetForms)
                                             <span>{{ attachmentMime(attachment) }}</span>
                                             <span>{{ formatSize(attachment.size) }}</span>
                                             <span class="mail-attachments-sheet__s3">
-                                                <a
-                                                    v-if="attachment.is_saved && attachment.url"
-                                                    :href="attachment.url"
-                                                    target="_blank"
-                                                    @click.stop
-                                                >
-                                                    open
-                                                </a>
+                                                <template v-if="isAttachmentSaved(attachment)">
+                                                    <span class="mail-attachments-sheet__saved">saved</span>
+                                                    <a
+                                                        v-if="attachment.url"
+                                                        :href="attachment.url"
+                                                        target="_blank"
+                                                        @click.stop
+                                                    >
+                                                        file
+                                                    </a>
+                                                    <a
+                                                        v-if="attachment.folder_url"
+                                                        :href="attachment.folder_url"
+                                                        target="_blank"
+                                                        @click.stop
+                                                    >
+                                                        dir
+                                                    </a>
+                                                </template>
 
                                                 <v-btn
-                                                    v-else
+                                                    v-if="canSaveAttachment(attachment)"
                                                     size="x-small"
                                                     density="compact"
                                                     variant="tonal"
@@ -395,32 +659,54 @@ watch(() => props.message?.id, resetForms)
                                                     :loading="savingAttachmentIndex === attachment.index"
                                                     @click.stop="saveAttachment(attachment)"
                                                 >
-                                                    save
+                                                    {{ isAttachmentSaved(attachment) ? 'move' : 'save' }}
                                                 </v-btn>
                                             </span>
                                         </div>
                                     </div>
 
                                     <div class="mail-attachment-preview">
-                                        <template v-if="selectedImageAttachment">
+                                        <template v-if="selectedAttachment">
                                             <div class="mail-attachment-preview__meta">
-                                                <strong>{{ attachmentName(selectedImageAttachment) }}</strong>
-                                                <span>{{ formatSize(selectedImageAttachment.size) }}</span>
+                                                <strong>{{ attachmentName(selectedAttachment) }}</strong>
+                                                <span>{{ formatSize(selectedAttachment.size) }}</span>
                                             </div>
 
                                             <img
-                                                v-if="selectedImageAttachment.preview_url || selectedImageAttachment.url"
+                                                v-if="selectedImageAttachment && (selectedImageAttachment.preview_url || selectedImageAttachment.url)"
                                                 :src="selectedImageAttachment.preview_url || selectedImageAttachment.url"
                                                 :alt="attachmentName(selectedImageAttachment)"
                                             >
 
                                             <div v-else class="mail-attachment-preview__empty">
-                                                Preview недоступен. Сохраните файл в S3 и откройте ссылку.
+                                                {{ isAttachmentImage(selectedAttachment) ? 'Preview недоступен. Сохраните файл в S3 и откройте ссылку.' : 'Файл не является image, preview не выводится.' }}
+                                            </div>
+
+                                            <div v-if="isAttachmentSaved(selectedAttachment)" class="mail-attachment-preview__storage">
+                                                <span>Path</span>
+                                                <code>{{ selectedAttachment.path }}</code>
+
+                                                <div>
+                                                    <a
+                                                        v-if="selectedAttachment.url"
+                                                        :href="selectedAttachment.url"
+                                                        target="_blank"
+                                                    >
+                                                        открыть файл
+                                                    </a>
+                                                    <a
+                                                        v-if="selectedAttachment.folder_url"
+                                                        :href="selectedAttachment.folder_url"
+                                                        target="_blank"
+                                                    >
+                                                        открыть папку
+                                                    </a>
+                                                </div>
                                             </div>
                                         </template>
 
                                         <div v-else class="mail-attachment-preview__empty">
-                                            В письме нет изображений для предпросмотра.
+                                            Выберите вложение.
                                         </div>
                                     </div>
                                 </div>
@@ -563,12 +849,12 @@ watch(() => props.message?.id, resetForms)
 
             <v-card-actions>
                 <v-btn
-                    v-if="message?.direction === 'incoming'"
+                    v-if="currentMessage?.direction === 'incoming'"
                     color="teal"
                     variant="tonal"
                     prepend-icon="mdi-reply"
                     :disabled="loading"
-                    @click="emit('reply', message)"
+                    @click="emit('reply', currentMessage)"
                 >
                     Ответить
                 </v-btn>
@@ -629,9 +915,63 @@ watch(() => props.message?.id, resetForms)
 
 .mail-attachments-workspace {
     display: grid;
-    grid-template-columns: minmax(310px, 0.92fr) minmax(260px, 1fr);
+    grid-template-columns: minmax(390px, 1.08fr) minmax(260px, 0.92fr);
     gap: 10px;
     min-height: 260px;
+}
+
+.mail-attachments-controls {
+    display: grid;
+    grid-template-columns: minmax(190px, 1fr) minmax(150px, 0.8fr) auto;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.mail-attachments-target,
+.mail-attachments-saved {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid rgba(147, 197, 253, 0.18);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.58);
+    color: #bfdbfe;
+    font-size: 10px;
+    margin-bottom: 6px;
+    padding: 4px 6px;
+}
+
+.mail-attachments-saved {
+    border-color: rgba(134, 239, 172, 0.28);
+    color: #bbf7d0;
+}
+
+.mail-attachments-target code,
+.mail-attachments-saved code,
+.mail-attachment-preview__storage code {
+    min-width: 0;
+    overflow: hidden;
+    color: #e0f2fe;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-attachments-target a,
+.mail-attachments-saved a,
+.mail-attachment-preview__storage a {
+    color: #86efac;
+    font-size: 10px;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.mail-attachments-target a:hover,
+.mail-attachments-saved a:hover,
+.mail-attachment-preview__storage a:hover {
+    text-decoration: underline;
 }
 
 .mail-attachments-sheet {
@@ -644,7 +984,7 @@ watch(() => props.message?.id, resetForms)
 .mail-attachments-sheet__row {
     display: grid;
     width: 100%;
-    grid-template-columns: 30px minmax(140px, 1fr) 88px 62px 58px;
+    grid-template-columns: 30px minmax(130px, 1fr) 78px 58px 124px;
     align-items: center;
     gap: 0;
     border: 0;
@@ -723,14 +1063,21 @@ watch(() => props.message?.id, resetForms)
 .mail-attachments-sheet__s3 {
     align-items: center;
     display: inline-flex;
+    gap: 4px;
     justify-content: center;
 }
 
-.mail-attachments-sheet__s3 a {
+.mail-attachments-sheet__s3 a,
+.mail-attachments-sheet__saved {
     color: #86efac;
     font-size: 10px;
     font-weight: 900;
     text-decoration: none;
+}
+
+.mail-attachments-sheet__saved {
+    color: #bbf7d0;
+    text-transform: uppercase;
 }
 
 .mail-attachments-sheet__s3 a:hover {
@@ -794,13 +1141,32 @@ watch(() => props.message?.id, resetForms)
     text-align: center;
 }
 
+.mail-attachment-preview__storage {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    border-top: 1px solid rgba(147, 197, 253, 0.18);
+    color: #bfdbfe;
+    font-size: 10px;
+    padding-top: 8px;
+}
+
+.mail-attachment-preview__storage div {
+    display: flex;
+    gap: 8px;
+}
+
 @media (max-width: 960px) {
     .mail-attachments-workspace {
         grid-template-columns: 1fr;
     }
 
+    .mail-attachments-controls {
+        grid-template-columns: 1fr;
+    }
+
     .mail-attachments-sheet__row {
-        grid-template-columns: 30px minmax(140px, 1fr) 74px 58px 54px;
+        grid-template-columns: 30px minmax(120px, 1fr) 68px 54px 112px;
     }
 }
 </style>
