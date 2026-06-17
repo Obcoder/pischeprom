@@ -732,6 +732,12 @@ class YandexMailboxService
 
             $html = $this->messageBody($message, 'html');
             $text = $this->messageBody($message, 'text');
+            $availableAttachments = null;
+
+            if ($includeAttachmentList || ($html && str_contains($html, 'cid:'))) {
+                $availableAttachments = $this->attachmentPayloads($mailMessage->loadMissing('attachments'), $message);
+                $html = $this->replaceCidImageSources($html, $availableAttachments);
+            }
 
             if (!$text && $html) {
                 $text = trim(strip_tags($html));
@@ -752,7 +758,7 @@ class YandexMailboxService
             $fresh = $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads']);
 
             if ($includeAttachmentList) {
-                $fresh->setAttribute('available_attachments', $this->attachmentPayloads($fresh, $message));
+                $fresh->setAttribute('available_attachments', $availableAttachments ?? $this->attachmentPayloads($fresh, $message));
             }
 
             return $this->withAvailableAttachments($fresh);
@@ -787,21 +793,45 @@ class YandexMailboxService
     public function attachmentFolders(?MailMessage $mailMessage = null): array
     {
         $diskName = $this->attachmentsDiskName();
-        $disk = Storage::disk($diskName);
         $root = $this->attachmentRootPath();
 
-        $paths = collect([
-            $root,
-            $mailMessage ? $this->defaultAttachmentFolder($mailMessage) : null,
-        ])
-            ->merge($this->storedAttachmentFolders($diskName))
-            ->merge($this->storageAttachmentFolders($disk, $root))
-            ->filter()
-            ->map(fn ($path) => trim((string) $path, '/'))
-            ->filter(fn ($path) => $path !== '' && ($path === $root || Str::startsWith($path, $root . '/')))
-            ->unique()
-            ->sort()
-            ->values();
+        try {
+            $storageFolders = [];
+
+            try {
+                $storageFolders = $this->storageAttachmentFolders(Storage::disk($diskName), $root);
+            } catch (Throwable $exception) {
+                logger()->warning('Yandex attachment folders disk unavailable', [
+                    'disk' => $diskName,
+                    'root' => $root,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+
+            $paths = collect([
+                $root,
+                $mailMessage ? $this->defaultAttachmentFolder($mailMessage) : null,
+            ])
+                ->merge($this->storedAttachmentFolders($diskName))
+                ->merge($storageFolders)
+                ->filter()
+                ->map(fn ($path) => trim((string) $path, '/'))
+                ->filter(fn ($path) => $path !== '' && ($path === $root || Str::startsWith($path, $root . '/')))
+                ->unique()
+                ->sort()
+                ->values();
+        } catch (Throwable $exception) {
+            logger()->error('Yandex attachment folders payload failed', [
+                'disk' => $diskName,
+                'mail_message_id' => $mailMessage?->id,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $paths = collect([
+                $root,
+                $mailMessage ? $this->defaultAttachmentFolder($mailMessage) : null,
+            ])->filter()->values();
+        }
 
         return $paths
             ->map(fn ($path) => $this->attachmentFolderPayload($path, $diskName))
@@ -862,7 +892,7 @@ class YandexMailboxService
             }
 
             $message = $query->getMessageByUid((int) $mailMessage->imap_uid);
-            $attachments = $message ? $this->messageAttachments($message) : [];
+            $attachments = $message ? array_values($this->messageAttachments($message)) : [];
             $attachment = $attachments[$index] ?? null;
 
             if (!$attachment) {
@@ -901,7 +931,7 @@ class YandexMailboxService
 
     protected function storeAttachments(MailMessage $mailMessage, $message): int
     {
-        $attachments = $this->messageAttachments($message);
+        $attachments = array_values($this->messageAttachments($message));
 
         if (empty($attachments)) {
             return 0;
@@ -1057,33 +1087,62 @@ class YandexMailboxService
         $mailMessage->loadMissing('attachments');
 
         return collect($this->messageAttachments($message))
+            ->values()
             ->map(function ($attachment, int $index) use ($mailMessage) {
-                $name = $this->attachmentName($attachment, $index);
-                $content = $this->attachmentContent($attachment);
-                $size = is_string($content) ? strlen($content) : null;
-                $mimeType = $this->attachmentMimeType($attachment);
-                $saved = $this->matchingSavedAttachment($mailMessage, $name, $size);
-                $isImage = $this->isImageAttachment($mimeType, $name);
+                try {
+                    $name = $this->attachmentName($attachment, $index);
+                    $content = $this->attachmentContent($attachment);
+                    $size = is_string($content) ? strlen($content) : null;
+                    $mimeType = $this->attachmentMimeType($attachment);
+                    $saved = $this->matchingSavedAttachment($mailMessage, $name, $size);
+                    $isImage = $this->isImageAttachment($mimeType, $name);
 
-                return [
-                    'id' => $saved?->id,
-                    'index' => $index,
-                    'original_name' => $name,
-                    'file_name' => $saved?->file_name ?: $name,
-                    'mime_type' => $mimeType,
-                    'size' => $size ?? $saved?->size,
-                    'content_id' => $this->attachmentContentId($attachment),
-                    'disposition' => $this->attachmentDisposition($attachment),
-                    'is_image' => $isImage,
-                    'is_saved' => (bool) $saved,
-                    'disk' => $saved?->disk,
-                    'path' => $saved?->path,
-                    'folder_path' => $saved?->folder_path,
-                    'folder_url' => $saved?->folder_url,
-                    'url' => $saved?->url,
-                    'preview_url' => $this->attachmentPreviewUrl($content, $mimeType, $isImage, $saved),
-                    'saved_to_disk_at' => $saved?->saved_to_disk_at,
-                ];
+                    return [
+                        'id' => $saved?->id,
+                        'index' => $index,
+                        'original_name' => $name,
+                        'file_name' => $saved?->file_name ?: $name,
+                        'mime_type' => $mimeType,
+                        'size' => $size ?? $saved?->size,
+                        'content_id' => $this->attachmentContentId($attachment),
+                        'disposition' => $this->attachmentDisposition($attachment),
+                        'is_image' => $isImage,
+                        'is_saved' => (bool) $saved,
+                        'disk' => $saved?->disk,
+                        'path' => $saved?->path,
+                        'folder_path' => $saved?->folder_path,
+                        'folder_url' => $saved?->folder_url,
+                        'url' => $saved?->url,
+                        'preview_url' => $this->attachmentPreviewUrl($content, $mimeType, $isImage, $saved),
+                        'saved_to_disk_at' => $saved?->saved_to_disk_at,
+                    ];
+                } catch (Throwable $exception) {
+                    logger()->warning('Yandex attachment payload failed', [
+                        'mail_message_id' => $mailMessage->id,
+                        'attachment_index' => $index,
+                        'message' => $exception->getMessage(),
+                    ]);
+
+                    return [
+                        'id' => null,
+                        'index' => $index,
+                        'original_name' => 'attachment-' . ($index + 1) . '.bin',
+                        'file_name' => 'attachment-' . ($index + 1) . '.bin',
+                        'mime_type' => 'application/octet-stream',
+                        'size' => null,
+                        'content_id' => null,
+                        'disposition' => null,
+                        'is_image' => false,
+                        'is_saved' => false,
+                        'disk' => null,
+                        'path' => null,
+                        'folder_path' => null,
+                        'folder_url' => null,
+                        'url' => null,
+                        'preview_url' => null,
+                        'saved_to_disk_at' => null,
+                    ];
+                }
             })
             ->values()
             ->all();
@@ -1116,6 +1175,44 @@ class YandexMailboxService
                 : null,
             'saved_to_disk_at' => $attachment->saved_to_disk_at,
         ];
+    }
+
+    protected function replaceCidImageSources(?string $html, array $attachments): ?string
+    {
+        if (!$html || !str_contains($html, 'cid:')) {
+            return $html;
+        }
+
+        $cidMap = collect($attachments)
+            ->filter(fn (array $attachment) => !empty($attachment['content_id']))
+            ->mapWithKeys(function (array $attachment) {
+                $cid = $this->normalizeCid((string) $attachment['content_id']);
+                $url = $attachment['preview_url'] ?? $attachment['url'] ?? null;
+
+                return $cid && $url ? [$cid => $url] : [];
+            })
+            ->all();
+
+        $emptyImage = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+
+        return preg_replace_callback(
+            '/(<img\b[^>]*\bsrc=["\'])cid:([^"\']+)(["\'][^>]*>)/i',
+            function (array $matches) use ($cidMap, $emptyImage) {
+                $cid = $this->normalizeCid($matches[2]);
+                $url = $cidMap[$cid] ?? $emptyImage;
+
+                return $matches[1] . htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[3];
+            },
+            $html
+        );
+    }
+
+    protected function normalizeCid(?string $cid): ?string
+    {
+        $cid = trim(rawurldecode((string) $cid));
+        $cid = trim($cid, '<> ');
+
+        return $cid !== '' ? strtolower($cid) : null;
     }
 
     protected function attachmentsDiskName(): string
@@ -1273,17 +1370,17 @@ class YandexMailboxService
                 }
 
                 if ($value instanceof \Traversable) {
-                    return iterator_to_array($value);
+                    return array_values(iterator_to_array($value));
                 }
 
                 if (is_array($value)) {
-                    return $value;
+                    return array_values($value);
                 }
 
                 if (is_object($value) && method_exists($value, 'all')) {
                     $all = $value->all();
 
-                    return is_array($all) ? $all : [];
+                    return is_array($all) ? array_values($all) : [];
                 }
             } catch (Throwable) {
                 continue;
