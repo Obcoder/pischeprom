@@ -909,6 +909,11 @@ class YandexMailboxService
                 disk: Storage::disk($diskName),
                 folderPath: $targetFolder,
             );
+
+            if (!$savedAttachment) {
+                throw new RuntimeException('Не удалось прочитать содержимое вложения.');
+            }
+
             $mailMessage->forceFill(['has_attachments' => true])->save();
 
             $fresh = $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads']);
@@ -1004,12 +1009,16 @@ class YandexMailboxService
         );
 
         try {
-            $stored = $disk->put($path, $content, [
-                'ContentType' => $mimeType,
-            ]);
+            $stored = $this->putAttachmentContent($disk, $path, $content, $mimeType);
 
             if ($stored === false) {
-                throw new RuntimeException('S3 put returned false.');
+                throw new RuntimeException(sprintf(
+                    'Yandex S3 rejected attachment upload: disk=%s path=%s mime=%s size=%d',
+                    $diskName,
+                    $path,
+                    $mimeType,
+                    $size
+                ));
             }
 
             $saved = MailMessageAttachment::query()->updateOrCreate(
@@ -1044,6 +1053,36 @@ class YandexMailboxService
             ]);
 
             throw $exception;
+        }
+    }
+
+    protected function putAttachmentContent($disk, string $path, string $content, string $mimeType): bool
+    {
+        $stream = fopen('php://temp', 'w+b');
+
+        if ($stream === false) {
+            return $disk->put($path, $content) !== false;
+        }
+
+        try {
+            fwrite($stream, $content);
+            rewind($stream);
+
+            $stored = $disk->put($path, $stream, [
+                'ContentType' => $mimeType,
+            ]);
+
+            if ($stored !== false) {
+                return true;
+            }
+
+            rewind($stream);
+
+            return $disk->put($path, $stream) !== false;
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
         }
     }
 

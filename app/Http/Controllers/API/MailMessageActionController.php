@@ -174,11 +174,19 @@ class MailMessageActionController extends Controller
             'folder' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $mailMessage = $service->saveAttachment(
-            mailMessage: $mailMessage,
-            index: $index,
-            folder: $data['folder'] ?? null,
-        );
+        try {
+            $mailMessage = $service->saveAttachment(
+                mailMessage: $mailMessage,
+                index: $index,
+                folder: $data['folder'] ?? null,
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'Не удалось сохранить вложение в Yandex S3: ' . $exception->getMessage(),
+            ], 500);
+        }
 
         return response()->json($this->messagePayload($mailMessage));
     }
