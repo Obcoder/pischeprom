@@ -164,6 +164,16 @@ class MailMessageActionController extends Controller
         return response()->json($this->messagePayload($mailMessage));
     }
 
+    public function saveAttachment(
+        MailMessage $mailMessage,
+        int $index,
+        YandexMailboxService $service,
+    ): JsonResponse {
+        $mailMessage = $service->saveAttachment($mailMessage, $index);
+
+        return response()->json($this->messagePayload($mailMessage));
+    }
+
     public function storeNote(Request $request, MailMessage $mailMessage): JsonResponse
     {
         $data = $request->validate([

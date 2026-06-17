@@ -660,22 +660,30 @@ class YandexMailboxService
         return null;
     }
 
-    public function loadBody(MailMessage $mailMessage, bool $force = false, bool $withAttachments = true): MailMessage
+    public function loadBody(
+        MailMessage $mailMessage,
+        bool $force = false,
+        bool $withAttachments = false,
+        bool $includeAttachmentList = true,
+    ): MailMessage
     {
+        $needsAttachmentList = $includeAttachmentList && ($mailMessage->has_attachments || $mailMessage->attachments()->exists());
+
         if (
             !$force
             && $mailMessage->body_loaded_at
-            && (
-                !$withAttachments
-                || !$mailMessage->has_attachments
-                || $mailMessage->attachments()->exists()
-            )
+            && !$withAttachments
+            && !$needsAttachmentList
         ) {
-            return $mailMessage->loadMissing(['attachments', 'notes.user', 'leads']);
+            return $this->withAvailableAttachments(
+                $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
+            );
         }
 
         if (!$mailMessage->imap_uid) {
-            return $mailMessage->loadMissing(['attachments', 'notes.user', 'leads']);
+            return $this->withAvailableAttachments(
+                $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
+            );
         }
 
         $client = $this->client();
@@ -692,7 +700,9 @@ class YandexMailboxService
                     'imap_uid' => $mailMessage->imap_uid,
                 ]);
 
-                return $mailMessage;
+                return $this->withAvailableAttachments(
+                    $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
+                );
             }
 
             $query = $folder
@@ -700,7 +710,7 @@ class YandexMailboxService
                 ->leaveUnread()
                 ->setFetchBody(true);
 
-            if ($withAttachments && method_exists($query, 'setFetchAttachment')) {
+            if (($withAttachments || $includeAttachmentList) && method_exists($query, 'setFetchAttachment')) {
                 $query->setFetchAttachment(true);
             }
 
@@ -714,7 +724,9 @@ class YandexMailboxService
                     'subject' => $mailMessage->subject,
                 ]);
 
-                return $mailMessage;
+                return $this->withAvailableAttachments(
+                    $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
+                );
             }
 
             $html = $this->messageBody($message, 'html');
@@ -736,11 +748,19 @@ class YandexMailboxService
                 if ($storedAttachments > 0 || $this->messageHasAttachments($message)) {
                     $payload['has_attachments'] = true;
                 }
+            } elseif ($includeAttachmentList && $this->messageHasAttachments($message)) {
+                $payload['has_attachments'] = true;
             }
 
             $mailMessage->forceFill($payload)->save();
 
-            return $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads']);
+            $fresh = $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads']);
+
+            if ($includeAttachmentList) {
+                $fresh->setAttribute('available_attachments', $this->attachmentPayloads($fresh, $message));
+            }
+
+            return $this->withAvailableAttachments($fresh);
         } catch (Throwable $exception) {
             logger()->error('Yandex load body failed', [
                 'mail_message_id' => $mailMessage->id,
@@ -768,6 +788,67 @@ class YandexMailboxService
         );
     }
 
+    public function saveAttachment(MailMessage $mailMessage, int $index): MailMessage
+    {
+        if (!$mailMessage->imap_uid) {
+            return $this->withAvailableAttachments(
+                $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
+            );
+        }
+
+        $client = $this->client();
+
+        try {
+            $client->connect();
+
+            $folder = $this->resolveFolder($client, $mailMessage->folder);
+
+            if (!$folder) {
+                logger()->warning('Yandex save attachment folder not found', [
+                    'mail_message_id' => $mailMessage->id,
+                    'folder' => $mailMessage->folder,
+                    'imap_uid' => $mailMessage->imap_uid,
+                ]);
+
+                return $mailMessage;
+            }
+
+            $query = $folder
+                ->query()
+                ->leaveUnread()
+                ->setFetchBody(true);
+
+            if (method_exists($query, 'setFetchAttachment')) {
+                $query->setFetchAttachment(true);
+            }
+
+            $message = $query->getMessageByUid((int) $mailMessage->imap_uid);
+            $attachments = $message ? $this->messageAttachments($message) : [];
+            $attachment = $attachments[$index] ?? null;
+
+            if (!$attachment) {
+                return $this->withAvailableAttachments(
+                    $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads'])
+                );
+            }
+
+            $this->storeAttachment($mailMessage, $attachment, $index);
+            $mailMessage->forceFill(['has_attachments' => true])->save();
+
+            $fresh = $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads']);
+            $fresh->setAttribute('available_attachments', $this->attachmentPayloads($fresh, $message));
+
+            return $fresh;
+        } finally {
+            $this->safeDisconnect($client, [
+                'operation' => 'save_attachment',
+                'mail_message_id' => $mailMessage->id,
+                'folder' => $mailMessage->folder,
+                'attachment_index' => $index,
+            ]);
+        }
+    }
+
     protected function storeAttachments(MailMessage $mailMessage, $message): int
     {
         $attachments = $this->messageAttachments($message);
@@ -781,73 +862,187 @@ class YandexMailboxService
         $stored = 0;
 
         foreach ($attachments as $index => $attachment) {
-            $originalName = $this->attachmentName($attachment, $index);
-            $content = $this->attachmentContent($attachment);
-
-            if ($content === null || $content === '') {
-                logger()->warning('Yandex mail attachment skipped: empty content', [
-                    'mail_message_id' => $mailMessage->id,
-                    'original_name' => $originalName,
-                ]);
-
-                continue;
-            }
-
-            $size = strlen($content);
-            $existing = MailMessageAttachment::query()
-                ->where('mail_message_id', $mailMessage->id)
-                ->where('original_name', $originalName)
-                ->where('size', $size)
-                ->first();
-
-            if ($existing && $existing->path && $disk->exists($existing->path)) {
+            if ($this->storeAttachment($mailMessage, $attachment, $index, $diskName, $disk)) {
                 $stored++;
-                continue;
-            }
-
-            $safeName = $this->safeAttachmentName($originalName);
-            $path = sprintf(
-                'mail/attachments/%d/%s-%s',
-                $mailMessage->id,
-                Str::uuid()->toString(),
-                $safeName
-            );
-
-            try {
-                $disk->put($path, $content, [
-                    'ContentType' => $this->attachmentMimeType($attachment),
-                ]);
-
-                MailMessageAttachment::query()->updateOrCreate(
-                    [
-                        'mail_message_id' => $mailMessage->id,
-                        'original_name' => $originalName,
-                        'size' => $size,
-                    ],
-                    [
-                        'disk' => $diskName,
-                        'path' => $path,
-                        'file_name' => basename($path),
-                        'mime_type' => $this->attachmentMimeType($attachment),
-                        'content_id' => $this->attachmentContentId($attachment),
-                        'disposition' => $this->attachmentDisposition($attachment),
-                        'saved_to_disk_at' => now(),
-                    ]
-                );
-
-                $stored++;
-            } catch (Throwable $exception) {
-                logger()->error('Yandex mail attachment save failed', [
-                    'mail_message_id' => $mailMessage->id,
-                    'original_name' => $originalName,
-                    'path' => $path,
-                    'disk' => $diskName,
-                    'message' => $exception->getMessage(),
-                ]);
             }
         }
 
         return $stored;
+    }
+
+    protected function storeAttachment(MailMessage $mailMessage, $attachment, int $index, ?string $diskName = null, $disk = null): bool
+    {
+        $diskName = $diskName ?: (config('services.yandex_mail.attachments_disk', 'yandex') ?: 'yandex');
+        $disk = $disk ?: Storage::disk($diskName);
+        $originalName = $this->attachmentName($attachment, $index);
+        $content = $this->attachmentContent($attachment);
+
+        if ($content === null || $content === '') {
+            logger()->warning('Yandex mail attachment skipped: empty content', [
+                'mail_message_id' => $mailMessage->id,
+                'original_name' => $originalName,
+            ]);
+
+            return false;
+        }
+
+        $size = strlen($content);
+        $mimeType = $this->attachmentMimeType($attachment);
+        $existing = MailMessageAttachment::query()
+            ->where('mail_message_id', $mailMessage->id)
+            ->where('original_name', $originalName)
+            ->where('size', $size)
+            ->first();
+
+        if ($existing && $existing->path && $disk->exists($existing->path)) {
+            return true;
+        }
+
+        $safeName = $this->safeAttachmentName($originalName);
+        $path = sprintf(
+            'mail/attachments/%d/%s-%s',
+            $mailMessage->id,
+            Str::uuid()->toString(),
+            $safeName
+        );
+
+        try {
+            $disk->put($path, $content, [
+                'ContentType' => $mimeType,
+            ]);
+
+            MailMessageAttachment::query()->updateOrCreate(
+                [
+                    'mail_message_id' => $mailMessage->id,
+                    'original_name' => $originalName,
+                    'size' => $size,
+                ],
+                [
+                    'disk' => $diskName,
+                    'path' => $path,
+                    'file_name' => basename($path),
+                    'mime_type' => $mimeType,
+                    'content_id' => $this->attachmentContentId($attachment),
+                    'disposition' => $this->attachmentDisposition($attachment),
+                    'saved_to_disk_at' => now(),
+                ]
+            );
+
+            return true;
+        } catch (Throwable $exception) {
+            logger()->error('Yandex mail attachment save failed', [
+                'mail_message_id' => $mailMessage->id,
+                'original_name' => $originalName,
+                'path' => $path,
+                'disk' => $diskName,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    protected function withAvailableAttachments(MailMessage $mailMessage): MailMessage
+    {
+        if ($mailMessage->getAttribute('available_attachments') !== null) {
+            return $mailMessage;
+        }
+
+        $mailMessage->loadMissing('attachments');
+        $mailMessage->setAttribute(
+            'available_attachments',
+            $mailMessage->attachments->map(fn (MailMessageAttachment $attachment, int $index) => [
+                'id' => $attachment->id,
+                'index' => $index,
+                'original_name' => $attachment->original_name,
+                'file_name' => $attachment->file_name,
+                'mime_type' => $attachment->mime_type,
+                'size' => $attachment->size,
+                'content_id' => $attachment->content_id,
+                'disposition' => $attachment->disposition,
+                'is_image' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name),
+                'is_saved' => true,
+                'disk' => $attachment->disk,
+                'path' => $attachment->path,
+                'url' => $attachment->url,
+                'preview_url' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name)
+                    ? $attachment->url
+                    : null,
+                'saved_to_disk_at' => $attachment->saved_to_disk_at,
+            ])->values()->all()
+        );
+
+        return $mailMessage;
+    }
+
+    protected function attachmentPayloads(MailMessage $mailMessage, $message): array
+    {
+        $mailMessage->loadMissing('attachments');
+
+        return collect($this->messageAttachments($message))
+            ->map(function ($attachment, int $index) use ($mailMessage) {
+                $name = $this->attachmentName($attachment, $index);
+                $content = $this->attachmentContent($attachment);
+                $size = is_string($content) ? strlen($content) : null;
+                $mimeType = $this->attachmentMimeType($attachment);
+                $saved = $this->matchingSavedAttachment($mailMessage, $name, $size);
+                $isImage = $this->isImageAttachment($mimeType, $name);
+
+                return [
+                    'id' => $saved?->id,
+                    'index' => $index,
+                    'original_name' => $name,
+                    'file_name' => $saved?->file_name ?: $name,
+                    'mime_type' => $mimeType,
+                    'size' => $size ?? $saved?->size,
+                    'content_id' => $this->attachmentContentId($attachment),
+                    'disposition' => $this->attachmentDisposition($attachment),
+                    'is_image' => $isImage,
+                    'is_saved' => (bool) $saved,
+                    'disk' => $saved?->disk,
+                    'path' => $saved?->path,
+                    'url' => $saved?->url,
+                    'preview_url' => $this->attachmentPreviewUrl($content, $mimeType, $isImage, $saved),
+                    'saved_to_disk_at' => $saved?->saved_to_disk_at,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function matchingSavedAttachment(MailMessage $mailMessage, string $name, ?int $size): ?MailMessageAttachment
+    {
+        return $mailMessage->attachments
+            ->first(function (MailMessageAttachment $attachment) use ($name, $size) {
+                return $attachment->original_name === $name
+                    && ($size === null || (int) $attachment->size === $size);
+            });
+    }
+
+    protected function attachmentPreviewUrl(?string $content, string $mimeType, bool $isImage, ?MailMessageAttachment $saved): ?string
+    {
+        if ($saved?->url && $isImage) {
+            return $saved->url;
+        }
+
+        if (!$isImage || !is_string($content) || $content === '') {
+            return null;
+        }
+
+        if (strlen($content) > 5 * 1024 * 1024) {
+            return null;
+        }
+
+        return sprintf('data:%s;base64,%s', $mimeType, base64_encode($content));
+    }
+
+    protected function isImageAttachment(?string $mimeType, ?string $name = null): bool
+    {
+        if ($mimeType && str_starts_with(strtolower($mimeType), 'image/')) {
+            return true;
+        }
+
+        return (bool) preg_match('/\.(png|jpe?g|gif|webp|bmp|svg)$/i', (string) $name);
     }
 
     protected function messageAttachments($message): array

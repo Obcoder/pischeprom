@@ -36,6 +36,8 @@ const noteImportance = ref('important')
 const leadTitle = ref('')
 const leadDescription = ref('')
 const feedback = ref(null)
+const savingAttachmentIndex = ref(null)
+const selectedAttachmentIndex = ref(null)
 
 const bodyHtml = computed(() => {
     return props.message?.html || null
@@ -46,9 +48,35 @@ const bodyText = computed(() => {
 })
 
 const attachments = computed(() => props.message?.attachments || [])
+const availableAttachments = computed(() => props.message?.available_attachments || [])
+const attachmentRows = computed(() => {
+    if (availableAttachments.value.length) {
+        return availableAttachments.value
+    }
+
+    return attachments.value.map((attachment, index) => ({
+        ...attachment,
+        index,
+        is_saved: true,
+        is_image: isAttachmentImage(attachment),
+        preview_url: isAttachmentImage(attachment) ? attachment.url : null,
+    }))
+})
+const imageAttachments = computed(() => attachmentRows.value.filter(isAttachmentImage))
+const selectedAttachment = computed(() => {
+    return attachmentRows.value.find((attachment) => Number(attachment.index) === Number(selectedAttachmentIndex.value))
+        || imageAttachments.value[0]
+        || attachmentRows.value[0]
+        || null
+})
+const selectedImageAttachment = computed(() => {
+    return selectedAttachment.value && isAttachmentImage(selectedAttachment.value)
+        ? selectedAttachment.value
+        : imageAttachments.value[0] || null
+})
 const notes = computed(() => props.message?.notes || [])
 const leads = computed(() => props.message?.leads || [])
-const hasAttachmentSignal = computed(() => Boolean(props.message?.has_attachments || attachments.value.length))
+const hasAttachmentSignal = computed(() => Boolean(props.message?.has_attachments || attachmentRows.value.length || attachments.value.length))
 
 function formatDate(value) {
     if (!value) {
@@ -82,6 +110,27 @@ function formatSize(value) {
     return `${(size / 1024 / 1024).toFixed(2)} MB`
 }
 
+function attachmentName(attachment) {
+    return attachment?.original_name || attachment?.file_name || attachment?.name || 'attachment'
+}
+
+function attachmentMime(attachment) {
+    return attachment?.mime_type || attachment?.mime || 'file'
+}
+
+function isAttachmentImage(attachment) {
+    const mime = String(attachment?.mime_type || attachment?.mime || '').toLowerCase()
+    const name = attachmentName(attachment)
+
+    return Boolean(attachment?.is_image)
+        || mime.startsWith('image/')
+        || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name)
+}
+
+function selectAttachment(attachment) {
+    selectedAttachmentIndex.value = attachment?.index ?? null
+}
+
 function plainBody() {
     return (props.message?.text || String(props.message?.html || '').replace(/<[^>]+>/g, ' ') || props.message?.preview || '').trim()
 }
@@ -97,33 +146,34 @@ function resetForms() {
         plainBody().slice(0, 1800),
     ].filter(Boolean).join('\n\n')
     feedback.value = null
+    savingAttachmentIndex.value = null
+    selectedAttachmentIndex.value = imageAttachments.value[0]?.index ?? attachmentRows.value[0]?.index ?? null
 }
 
-async function syncAttachments() {
-    if (!props.message?.id) {
+async function saveAttachment(attachment) {
+    if (!props.message?.id || attachment?.index === null || attachment?.index === undefined || attachment?.is_saved) {
         return
     }
 
-    actionLoading.value = true
+    savingAttachmentIndex.value = attachment.index
     feedback.value = null
 
     try {
-        const { data } = await axios.post(`/api/mail-messages/${props.message.id}/attachments/sync`, {
-            force: true,
-        })
+        const { data } = await axios.post(`/api/mail-messages/${props.message.id}/attachments/${attachment.index}/save`)
 
         emit('updated', data)
+        selectedAttachmentIndex.value = attachment.index
         feedback.value = {
             type: 'success',
-            text: 'Вложения сохранены в Yandex S3.',
+            text: `Файл "${attachmentName(attachment)}" сохранён в Yandex S3.`,
         }
     } catch (error) {
         feedback.value = {
             type: 'error',
-            text: error?.response?.data?.message || 'Не удалось сохранить вложения.',
+            text: error?.response?.data?.message || 'Не удалось сохранить файл.',
         }
     } finally {
-        actionLoading.value = false
+        savingAttachmentIndex.value = null
     }
 }
 
@@ -284,48 +334,105 @@ watch(() => props.message?.id, resetForms)
                 </v-alert>
 
                 <v-row dense class="mb-4">
-                    <v-col cols="12" lg="5">
-                        <v-card variant="tonal" color="blue" class="mail-tools-card">
-                            <v-card-title class="text-sm py-2">
-                                Вложения
+                    <v-col cols="12" lg="7">
+                        <v-card variant="tonal" color="blue" class="mail-tools-card mail-attachments-card">
+                            <v-card-title class="mail-attachments-card__title py-2">
+                                <span>Вложения</span>
+                                <small v-if="attachmentRows.length">{{ attachmentRows.length }} файлов</small>
                             </v-card-title>
 
                             <v-card-text class="pt-0">
-                                <div v-if="attachments.length" class="mail-attachments">
-                                    <a
-                                        v-for="attachment in attachments"
-                                        :key="attachment.id"
-                                        :href="attachment.url"
-                                        target="_blank"
-                                        class="mail-attachment"
-                                    >
-                                        <v-icon icon="mdi-paperclip" size="14" />
-                                        <span>{{ attachment.original_name || attachment.file_name }}</span>
-                                        <small>{{ formatSize(attachment.size) }}</small>
-                                    </a>
+                                <div v-if="attachmentRows.length" class="mail-attachments-workspace">
+                                    <div class="mail-attachments-sheet">
+                                        <div class="mail-attachments-sheet__row is-head">
+                                            <span>#</span>
+                                            <span>Файл</span>
+                                            <span>Тип</span>
+                                            <span>Размер</span>
+                                            <span>S3</span>
+                                        </div>
+
+                                        <div
+                                            v-for="(attachment, index) in attachmentRows"
+                                            :key="`${attachment.index}-${attachmentName(attachment)}-${index}`"
+                                            role="button"
+                                            tabindex="0"
+                                            class="mail-attachments-sheet__row"
+                                            :class="{
+                                                'is-active': selectedAttachment?.index === attachment.index,
+                                                'is-image': isAttachmentImage(attachment),
+                                                'is-saved': attachment.is_saved,
+                                            }"
+                                            @click="selectAttachment(attachment)"
+                                            @keydown.enter.prevent="selectAttachment(attachment)"
+                                        >
+                                            <span class="mail-attachments-sheet__num">{{ index + 1 }}</span>
+                                            <span class="mail-attachments-sheet__file">
+                                                <v-icon
+                                                    :icon="isAttachmentImage(attachment) ? 'mdi-image-outline' : 'mdi-file-outline'"
+                                                    size="13"
+                                                />
+                                                <span>{{ attachmentName(attachment) }}</span>
+                                            </span>
+                                            <span>{{ attachmentMime(attachment) }}</span>
+                                            <span>{{ formatSize(attachment.size) }}</span>
+                                            <span class="mail-attachments-sheet__s3">
+                                                <a
+                                                    v-if="attachment.is_saved && attachment.url"
+                                                    :href="attachment.url"
+                                                    target="_blank"
+                                                    @click.stop
+                                                >
+                                                    open
+                                                </a>
+
+                                                <v-btn
+                                                    v-else
+                                                    size="x-small"
+                                                    density="compact"
+                                                    variant="tonal"
+                                                    color="blue"
+                                                    :loading="savingAttachmentIndex === attachment.index"
+                                                    @click.stop="saveAttachment(attachment)"
+                                                >
+                                                    save
+                                                </v-btn>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="mail-attachment-preview">
+                                        <template v-if="selectedImageAttachment">
+                                            <div class="mail-attachment-preview__meta">
+                                                <strong>{{ attachmentName(selectedImageAttachment) }}</strong>
+                                                <span>{{ formatSize(selectedImageAttachment.size) }}</span>
+                                            </div>
+
+                                            <img
+                                                v-if="selectedImageAttachment.preview_url || selectedImageAttachment.url"
+                                                :src="selectedImageAttachment.preview_url || selectedImageAttachment.url"
+                                                :alt="attachmentName(selectedImageAttachment)"
+                                            >
+
+                                            <div v-else class="mail-attachment-preview__empty">
+                                                Preview недоступен. Сохраните файл в S3 и откройте ссылку.
+                                            </div>
+                                        </template>
+
+                                        <div v-else class="mail-attachment-preview__empty">
+                                            В письме нет изображений для предпросмотра.
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div v-else class="text-[11px] text-grey-lighten-1">
-                                    {{ hasAttachmentSignal ? 'Письмо содержит вложения. Нажмите сохранить.' : 'Вложений нет.' }}
+                                <div v-else class="mail-attachments-empty">
+                                    {{ hasAttachmentSignal ? 'Вложения ещё не загружены. Нажмите refresh письма.' : 'Вложений нет.' }}
                                 </div>
-
-                                <v-btn
-                                    v-if="hasAttachmentSignal"
-                                    class="mt-2"
-                                    size="small"
-                                    color="blue"
-                                    variant="elevated"
-                                    prepend-icon="mdi-cloud-upload-outline"
-                                    :loading="actionLoading"
-                                    @click="syncAttachments"
-                                >
-                                    Сохранить в Yandex S3
-                                </v-btn>
                             </v-card-text>
                         </v-card>
                     </v-col>
 
-                    <v-col cols="12" lg="7">
+                    <v-col cols="12" lg="5">
                         <v-card variant="tonal" color="teal" class="mail-tools-card">
                             <v-card-title class="text-sm py-2">
                                 CRM
@@ -496,34 +603,204 @@ watch(() => props.message?.id, resetForms)
     height: 100%;
 }
 
-.mail-attachments,
 .mail-crm-history {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
 
-.mail-attachment {
-    align-items: center;
-    border: 1px solid rgba(147, 197, 253, 0.34);
-    border-radius: 8px;
-    color: #bfdbfe;
-    display: inline-flex;
-    font-size: 11px;
-    gap: 4px;
-    max-width: 100%;
-    padding: 4px 6px;
-    text-decoration: none;
+.mail-attachments-card__title {
+    align-items: baseline;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
 }
 
-.mail-attachment span {
-    max-width: 220px;
+.mail-attachments-card__title span {
+    font-size: 0.88rem;
+    font-weight: 900;
+}
+
+.mail-attachments-card__title small {
+    color: #93c5fd;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.mail-attachments-workspace {
+    display: grid;
+    grid-template-columns: minmax(310px, 0.92fr) minmax(260px, 1fr);
+    gap: 10px;
+    min-height: 260px;
+}
+
+.mail-attachments-sheet {
+    overflow: auto;
+    border: 1px solid rgba(147, 197, 253, 0.28);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.78);
+}
+
+.mail-attachments-sheet__row {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 30px minmax(140px, 1fr) 88px 62px 58px;
+    align-items: center;
+    gap: 0;
+    border: 0;
+    border-bottom: 1px solid rgba(147, 197, 253, 0.18);
+    background: transparent;
+    color: #dbeafe;
+    cursor: pointer;
+    font-size: 10px;
+    line-height: 1.15;
+    padding: 0;
+    text-align: left;
+}
+
+.mail-attachments-sheet__row > span {
+    min-height: 28px;
+    min-width: 0;
+    overflow: hidden;
+    padding: 5px 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-attachments-sheet__row > span + span {
+    border-left: 1px solid rgba(147, 197, 253, 0.14);
+}
+
+.mail-attachments-sheet__row.is-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #1e3a8a;
+    color: #eff6ff;
+    cursor: default;
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.mail-attachments-sheet__row:not(.is-head):nth-child(odd) {
+    background: rgba(30, 58, 138, 0.12);
+}
+
+.mail-attachments-sheet__row:not(.is-head):hover,
+.mail-attachments-sheet__row.is-active {
+    background: rgba(59, 130, 246, 0.24);
+}
+
+.mail-attachments-sheet__row.is-image .mail-attachments-sheet__file {
+    color: #bfdbfe;
+    font-weight: 900;
+}
+
+.mail-attachments-sheet__row.is-saved .mail-attachments-sheet__s3 {
+    color: #86efac;
+}
+
+.mail-attachments-sheet__num {
+    color: #93c5fd;
+    font-family: monospace;
+    text-align: right;
+}
+
+.mail-attachments-sheet__file {
+    align-items: center;
+    display: inline-flex;
+    gap: 4px;
+}
+
+.mail-attachments-sheet__file span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.mail-attachment small {
+.mail-attachments-sheet__s3 {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+}
+
+.mail-attachments-sheet__s3 a {
+    color: #86efac;
+    font-size: 10px;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.mail-attachments-sheet__s3 a:hover {
+    text-decoration: underline;
+}
+
+.mail-attachment-preview {
+    display: grid;
+    align-content: center;
+    gap: 8px;
+    min-height: 260px;
+    overflow: hidden;
+    border: 1px solid rgba(147, 197, 253, 0.28);
+    border-radius: 12px;
+    background:
+        linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92)),
+        repeating-linear-gradient(45deg, rgba(147, 197, 253, 0.08) 0 8px, transparent 8px 16px);
+    padding: 10px;
+}
+
+.mail-attachment-preview__meta {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    min-width: 0;
+}
+
+.mail-attachment-preview__meta strong {
+    overflow: hidden;
+    color: #dbeafe;
+    font-size: 11px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-attachment-preview__meta span {
     color: #94a3b8;
+    flex: 0 0 auto;
+    font-size: 10px;
+}
+
+.mail-attachment-preview img {
+    display: block;
+    max-height: 390px;
+    max-width: 100%;
+    justify-self: center;
+    border-radius: 10px;
+    object-fit: contain;
+}
+
+.mail-attachment-preview__empty,
+.mail-attachments-empty {
+    display: grid;
+    min-height: 170px;
+    place-items: center;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 800;
+    text-align: center;
+}
+
+@media (max-width: 960px) {
+    .mail-attachments-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .mail-attachments-sheet__row {
+        grid-template-columns: 30px minmax(140px, 1fr) 74px 58px 54px;
+    }
 }
 </style>

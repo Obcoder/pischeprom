@@ -89,7 +89,9 @@ class MailMessageController extends Controller
     ): JsonResponse {
         $mailMessage = $service->loadBody(
             mailMessage: $mailMessage,
-            force: $request->boolean('force')
+            force: $request->boolean('force'),
+            withAttachments: false,
+            includeAttachmentList: true,
         );
 
         $mailMessage->load($this->messageRelations());

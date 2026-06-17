@@ -171,6 +171,9 @@ Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show']
     ->name('mail-messages.show');
 Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
     ->name('mail-messages.attachments.sync');
+Route::post('mail-messages/{mailMessage}/attachments/{index}/save', [MailMessageActionController::class, 'saveAttachment'])
+    ->whereNumber('index')
+    ->name('mail-messages.attachments.save');
 Route::post('mail-messages/{mailMessage}/notes', [MailMessageActionController::class, 'storeNote'])
     ->name('mail-messages.notes.store');
 Route::post('mail-messages/{mailMessage}/lead', [MailMessageActionController::class, 'createLead'])
