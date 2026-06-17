@@ -102,19 +102,12 @@ class EntityController extends Controller
             return $entity;
         });
 
-        return new EntityResource(
-            Entity::query()->baseRelations()->withTableStats()->findOrFail($entity->id)
-        );
+        return new EntityResource($this->findEntityForDetail($entity->id));
     }
 
     public function show(string $id)
     {
-        $entity = Entity::query()
-            ->baseRelations()
-            ->withTableStats()
-            ->findOrFail($id);
-
-        return new EntityResource($entity);
+        return new EntityResource($this->findEntityForDetail($id));
     }
 
     public function update(UpdateEntityRequest $request, string $id)
@@ -127,9 +120,7 @@ class EntityController extends Controller
             $this->syncRelations($entity, $request);
         });
 
-        return new EntityResource(
-            Entity::query()->baseRelations()->withTableStats()->findOrFail($entity->id)
-        );
+        return new EntityResource($this->findEntityForDetail($entity->id));
     }
 
     public function destroy(string $id)
@@ -162,6 +153,33 @@ class EntityController extends Controller
         }
 
         return $this->onlyExistingEntityColumns($attributes);
+    }
+
+    private function findEntityForDetail(int|string $id): Entity
+    {
+        return Entity::query()
+            ->baseRelations()
+            ->withTableStats()
+            ->with([
+                'units' => fn ($query) => $query
+                    ->with([
+                        'labels',
+                        'fields',
+                        'telephones',
+                        'uris',
+                        'cities',
+                        'buildings.city',
+                        'industries',
+                        'emails',
+                    ])
+                    ->withCount([
+                        'entities',
+                        'emails',
+                        'buildings',
+                        'cities',
+                    ]),
+            ])
+            ->findOrFail($id);
     }
 
     private function onlyExistingEntityColumns(array $attributes): array

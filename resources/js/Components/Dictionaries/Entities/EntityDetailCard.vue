@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { Link } from '@inertiajs/vue3'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
 
 const props = defineProps({
@@ -40,6 +41,77 @@ const lastPurchaseDate = computed(() => {
 
 function emptyText(items, text = '—') {
     return items.length ? null : text
+}
+
+function unitUrl(unit) {
+    return unit?.id ? `/Ameise/unit/${unit.id}` : '/Ameise/units'
+}
+
+function unitInitial(unit) {
+    return String(unit?.name || 'U').trim().slice(0, 1).toUpperCase()
+}
+
+function unitRoles(unit) {
+    const roles = []
+
+    if (unit?.is_customer) {
+        roles.push('customer')
+    }
+
+    if (unit?.is_supplier) {
+        roles.push('supplier')
+    }
+
+    return roles.length ? roles : ['unit']
+}
+
+function relationNames(items, key = 'name', limit = 2) {
+    const values = (items || [])
+        .map((item) => item?.[key])
+        .filter(Boolean)
+
+    if (!values.length) {
+        return '—'
+    }
+
+    const visible = values.slice(0, limit).join(', ')
+    const hidden = values.length - limit
+
+    return hidden > 0 ? `${visible} +${hidden}` : visible
+}
+
+function unitPhones(unit) {
+    return relationNames(unit?.telephones, 'number', 2)
+}
+
+function unitEmails(unit) {
+    return relationNames(unit?.emails, 'address', 2)
+}
+
+function unitLocation(unit) {
+    const cityText = relationNames(unit?.cities, 'name', 2)
+
+    if (cityText !== '—') {
+        return cityText
+    }
+
+    return relationNames(unit?.buildings, 'address', 1)
+}
+
+function unitTags(unit) {
+    return [
+        ...(unit?.labels || []).map((label) => label?.name),
+        ...(unit?.fields || []).map((field) => field?.name || field?.title),
+        ...(unit?.industries || []).map((industry) => industry?.name || industry?.code),
+    ].filter(Boolean).slice(0, 5)
+}
+
+function countText(value) {
+    if (value === null || value === undefined || value === '') {
+        return '—'
+    }
+
+    return Number.isFinite(Number(value)) ? Number(value) : '—'
 }
 </script>
 
@@ -144,10 +216,69 @@ function emptyText(items, text = '—') {
                         <div class="entity-relation-columns">
                             <div>
                                 <span>Units</span>
-                                <div class="entity-chip-list">
-                                    <span v-for="unit in units" :key="unit.id" class="entity-chip">
-                                        {{ unit.name }}
-                                    </span>
+                                <div class="entity-unit-card-list">
+                                    <article
+                                        v-for="unit in units"
+                                        :key="unit.id"
+                                        class="entity-unit-card"
+                                    >
+                                        <div class="entity-unit-card__head">
+                                            <div class="entity-unit-card__avatar">
+                                                {{ unitInitial(unit) }}
+                                            </div>
+
+                                            <div class="entity-unit-card__title">
+                                                <Link
+                                                    :href="unitUrl(unit)"
+                                                    class="entity-unit-card__name"
+                                                >
+                                                    {{ unit.name }}
+                                                </Link>
+
+                                                <div class="entity-unit-card__roles">
+                                                    <span
+                                                        v-for="role in unitRoles(unit)"
+                                                        :key="role"
+                                                        :class="`is-${role}`"
+                                                    >
+                                                        {{ role }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="entity-unit-card__facts">
+                                            <div>
+                                                <span>Тел.</span>
+                                                <strong>{{ unitPhones(unit) }}</strong>
+                                            </div>
+
+                                            <div>
+                                                <span>Email</span>
+                                                <strong>{{ unitEmails(unit) }}</strong>
+                                            </div>
+
+                                            <div>
+                                                <span>Гео</span>
+                                                <strong>{{ unitLocation(unit) }}</strong>
+                                            </div>
+                                        </div>
+
+                                        <div class="entity-unit-card__meta">
+                                            <span>E {{ countText(unit.entities_count) }}</span>
+                                            <span>M {{ countText(unit.emails_count ?? unit.emails?.length) }}</span>
+                                            <span>B {{ countText(unit.buildings_count ?? unit.buildings?.length) }}</span>
+                                        </div>
+
+                                        <div v-if="unitTags(unit).length" class="entity-unit-card__tags">
+                                            <span
+                                                v-for="(tag, index) in unitTags(unit)"
+                                                :key="`${tag}-${index}`"
+                                            >
+                                                {{ tag }}
+                                            </span>
+                                        </div>
+                                    </article>
 
                                     <span v-if="emptyText(units)" class="entity-empty">Нет Units</span>
                                 </div>
@@ -356,6 +487,166 @@ function emptyText(items, text = '—') {
     color: #800000;
 }
 
+.entity-unit-card-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 10px;
+}
+
+.entity-unit-card {
+    position: relative;
+    display: grid;
+    gap: 10px;
+    min-height: 164px;
+    padding: 13px;
+    overflow: hidden;
+    border: 1px solid rgba(128, 0, 0, 0.14);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(128, 0, 0, 0.14), transparent 34%),
+        linear-gradient(135deg, #fffdf8 0%, #fff7ed 100%);
+    box-shadow: 0 10px 24px rgba(48, 20, 10, 0.08);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.entity-unit-card:hover {
+    border-color: rgba(128, 0, 0, 0.34);
+    box-shadow: 0 16px 34px rgba(48, 20, 10, 0.13);
+    transform: translateY(-1px);
+}
+
+.entity-unit-card__head {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+}
+
+.entity-unit-card__avatar {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(128, 0, 0, 0.24);
+    border-radius: 14px;
+    background:
+        linear-gradient(135deg, rgba(128, 0, 0, 0.95), rgba(63, 29, 29, 0.95));
+    color: #fff7ed;
+    font-size: 1.05rem;
+    font-weight: 950;
+    place-items: center;
+    text-transform: uppercase;
+}
+
+.entity-unit-card__title {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+}
+
+.entity-unit-card__name {
+    overflow: hidden;
+    color: #3f1d1d;
+    font-size: 0.98rem;
+    font-weight: 950;
+    line-height: 1.15;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entity-unit-card__name:hover {
+    color: #800000;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+}
+
+.entity-unit-card__roles,
+.entity-unit-card__meta,
+.entity-unit-card__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.entity-unit-card__roles span {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(128, 0, 0, 0.09);
+    color: #800000;
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.entity-unit-card__roles span.is-supplier {
+    background: rgba(63, 29, 29, 0.11);
+    color: #4b2418;
+}
+
+.entity-unit-card__roles span.is-unit {
+    background: #efe6de;
+    color: #7c5148;
+}
+
+.entity-unit-card__facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.entity-unit-card__facts div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid rgba(128, 0, 0, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.entity-unit-card__facts span {
+    color: #9b8379;
+    font-size: 0.58rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.entity-unit-card__facts strong {
+    overflow: hidden;
+    color: #32140c;
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entity-unit-card__meta span,
+.entity-unit-card__tags span {
+    border-radius: 7px;
+    font-size: 0.66rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.entity-unit-card__meta span {
+    padding: 4px 6px;
+    background: #f4e7dc;
+    color: #6f4439;
+}
+
+.entity-unit-card__tags span {
+    max-width: 160px;
+    padding: 5px 7px;
+    overflow: hidden;
+    background: #fff;
+    color: #7c5148;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .entity-address-list {
     display: grid;
     gap: 8px;
@@ -425,6 +716,11 @@ function emptyText(items, text = '—') {
 
     .entity-panel--wide {
         grid-column: auto;
+    }
+
+    .entity-unit-card-list,
+    .entity-unit-card__facts {
+        grid-template-columns: 1fr;
     }
 }
 </style>

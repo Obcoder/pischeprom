@@ -9,6 +9,8 @@ class EntityResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $includeUnitDetails = $request->routeIs('entities.show', 'entities.store', 'entities.update');
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -67,10 +69,9 @@ class EntityResource extends JsonResource
                 'number' => $item->number ?? $item->telephone ?? $item->phone,
             ])->values()),
 
-            'units' => $this->whenLoaded('units', fn () => $this->units->map(fn ($item) => [
-                'id' => $item->id,
-                'name' => $item->name,
-            ])),
+            'units' => $this->whenLoaded('units', fn () => $this->units
+                ->map(fn ($item) => $this->unitPayload($item, $includeUnitDetails))
+                ->values()),
 
             'chats' => $this->whenLoaded('chats', fn () => $this->chats->map(fn ($item) => [
                 'id' => $item->id,
@@ -80,5 +81,80 @@ class EntityResource extends JsonResource
             'sales_count' => $this->whenCounted('sales', fn () => $this->sales_count),
             'last_purchase_date' => $this->sales_max_date,
         ];
+    }
+
+    private function unitPayload($unit, bool $includeDetails): array
+    {
+        $payload = [
+            'id' => $unit->id,
+            'name' => $unit->name,
+            'is_customer' => (bool) $unit->is_customer,
+            'is_supplier' => (bool) $unit->is_supplier,
+        ];
+
+        if (! $includeDetails) {
+            return $payload;
+        }
+
+        return [
+            ...$payload,
+            'created_at' => $unit->created_at?->toISOString(),
+            'updated_at' => $unit->updated_at?->toISOString(),
+            'entities_count' => $unit->entities_count ?? null,
+            'emails_count' => $unit->emails_count ?? null,
+            'buildings_count' => $unit->buildings_count ?? null,
+            'cities_count' => $unit->cities_count ?? null,
+            'labels' => $this->mapLoadedRelation($unit, 'labels', fn ($label) => [
+                'id' => $label->id,
+                'name' => $label->name,
+            ]),
+            'fields' => $this->mapLoadedRelation($unit, 'fields', fn ($field) => [
+                'id' => $field->id,
+                'name' => $field->name ?? $field->title,
+                'title' => $field->title,
+            ]),
+            'telephones' => $this->mapLoadedRelation($unit, 'telephones', fn ($telephone) => [
+                'id' => $telephone->id,
+                'number' => $telephone->number ?? $telephone->telephone ?? $telephone->phone,
+            ]),
+            'uris' => $this->mapLoadedRelation($unit, 'uris', fn ($uri) => [
+                'id' => $uri->id,
+                'address' => $uri->address,
+            ]),
+            'cities' => $this->mapLoadedRelation($unit, 'cities', fn ($city) => [
+                'id' => $city->id,
+                'name' => $city->name,
+            ]),
+            'buildings' => $this->mapLoadedRelation($unit, 'buildings', fn ($building) => [
+                'id' => $building->id,
+                'address' => $building->address,
+                'city' => $building->city ? [
+                    'id' => $building->city->id,
+                    'name' => $building->city->name,
+                ] : null,
+            ]),
+            'industries' => $this->mapLoadedRelation($unit, 'industries', fn ($industry) => [
+                'id' => $industry->id,
+                'name' => $industry->name,
+                'code' => $industry->code,
+            ]),
+            'emails' => $this->mapLoadedRelation($unit, 'emails', fn ($email) => [
+                'id' => $email->id,
+                'address' => $email->address,
+                'name' => $email->name,
+            ]),
+        ];
+    }
+
+    private function mapLoadedRelation($model, string $relation, callable $mapper): array
+    {
+        if (! method_exists($model, 'relationLoaded') || ! $model->relationLoaded($relation)) {
+            return [];
+        }
+
+        return $model->{$relation}
+            ->map($mapper)
+            ->values()
+            ->all();
     }
 }
