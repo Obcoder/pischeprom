@@ -156,15 +156,7 @@ function isAttachmentSaved(attachment) {
 }
 
 function canSaveAttachment(attachment) {
-    if (!currentMessage.value?.id || attachment?.index === null || attachment?.index === undefined) {
-        return false
-    }
-
-    if (!isAttachmentSaved(attachment)) {
-        return true
-    }
-
-    return normalizePath(attachmentFolderPath(attachment)) !== normalizePath(targetFolderPath.value)
+    return Boolean(currentMessage.value?.id && attachment?.index !== null && attachment?.index !== undefined)
 }
 
 function isAttachmentImage(attachment) {
@@ -659,7 +651,7 @@ watch(model, async (isOpen) => {
                                                     :loading="savingAttachmentIndex === attachment.index"
                                                     @click.stop="saveAttachment(attachment)"
                                                 >
-                                                    {{ isAttachmentSaved(attachment) ? 'move' : 'save' }}
+                                                    save
                                                 </v-btn>
                                             </span>
                                         </div>

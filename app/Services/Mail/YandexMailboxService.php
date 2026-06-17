@@ -743,13 +743,7 @@ class YandexMailboxService
                 'body_loaded_at' => now(),
             ];
 
-            if ($withAttachments) {
-                $storedAttachments = $this->storeAttachments($mailMessage, $message);
-
-                if ($storedAttachments > 0 || $this->messageHasAttachments($message)) {
-                    $payload['has_attachments'] = true;
-                }
-            } elseif ($includeAttachmentList && $this->messageHasAttachments($message)) {
+            if (($withAttachments || $includeAttachmentList) && $this->messageHasAttachments($message)) {
                 $payload['has_attachments'] = true;
             }
 
@@ -785,7 +779,8 @@ class YandexMailboxService
         return $this->loadBody(
             mailMessage: $mailMessage,
             force: $force,
-            withAttachments: true,
+            withAttachments: false,
+            includeAttachmentList: true,
         );
     }
 
