@@ -6,6 +6,7 @@ import { useHead } from '@vueuse/head'
 import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import EntityDetailCard from '@/Components/Dictionaries/Entities/EntityDetailCard.vue'
+import EntityEmailsTab from '@/Components/Dictionaries/Entities/EntityEmailsTab.vue'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
 import EntitySalesCard from '@/Components/Dictionaries/Entities/EntitySalesCard.vue'
 import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
@@ -40,11 +41,13 @@ const deleting = ref(false)
 const error = ref(null)
 const dialog = ref(false)
 const isEdit = ref(false)
+const activeTab = ref('overview')
 
 const { getMeta, createOne, updateOne, deleteOne } = useEntityApi()
 const { form, resetForm, fillForm, toPayload } = useEntityForm()
 
 const pageTitle = computed(() => entity.value?.name || (props.entityId ? `Entity #${props.entityId}` : 'Новая Entity'))
+const emailsCount = computed(() => entity.value?.emails?.length || 0)
 
 async function fetchEntity() {
     if (!props.entityId) {
@@ -172,10 +175,16 @@ useHead({
 
 <template>
     <v-container fluid class="entity-page pa-4">
-        <div class="entity-page__toolbar mb-4">
-            <div>
-                <div class="text-caption text-medium-emphasis">CRM Entity</div>
+        <header class="entity-page__header mb-4">
+            <div class="entity-page__heading">
+                <div v-if="entity" class="entity-page__kicker">
+                    Entity #{{ entity.id }}
+                </div>
                 <h1>{{ pageTitle }}</h1>
+
+                <div class="entity-page__subtitle">
+                    {{ entity?.classification?.name || 'Карточка контрагента' }}
+                </div>
             </div>
 
             <div class="entity-page__actions">
@@ -212,7 +221,7 @@ useHead({
                     </v-btn>
                 </Link>
             </div>
-        </div>
+        </header>
 
         <v-progress-linear v-if="loading || metaLoading" indeterminate color="#800000" class="mb-3" />
 
@@ -220,9 +229,27 @@ useHead({
             {{ error }}
         </v-alert>
 
-        <EntityDetailCard :entity="entity" />
+        <v-card class="entity-page__tabs mb-4">
+            <v-tabs v-model="activeTab" color="#800000" density="compact" class="entity-page__tabbar">
+                <v-tab value="overview">Overview</v-tab>
+                <v-tab value="emails">Emails {{ emailsCount }}</v-tab>
+                <v-tab value="sales">Sales</v-tab>
+            </v-tabs>
+        </v-card>
 
-        <EntitySalesCard :entity="entity" class="mt-4" />
+        <v-tabs-window v-model="activeTab" class="entity-page__window">
+            <v-tabs-window-item value="overview">
+                <EntityDetailCard :entity="entity" />
+            </v-tabs-window-item>
+
+            <v-tabs-window-item value="emails">
+                <EntityEmailsTab :entity="entity" />
+            </v-tabs-window-item>
+
+            <v-tabs-window-item value="sales">
+                <EntitySalesCard :entity="entity" />
+            </v-tabs-window-item>
+        </v-tabs-window>
 
         <EntityFormDialog
             v-model="dialog"
@@ -244,11 +271,12 @@ useHead({
         linear-gradient(135deg, #fffaf4 0%, #f7f2eb 48%, #fff 100%);
 }
 
-.entity-page__toolbar {
+.entity-page__header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    flex-direction: column;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
     padding: 16px 18px;
     border: 1px solid rgba(128, 0, 0, 0.08);
     border-radius: 22px;
@@ -257,11 +285,32 @@ useHead({
     backdrop-filter: blur(8px);
 }
 
-.entity-page__toolbar h1 {
+.entity-page__heading {
+    min-width: 0;
+}
+
+.entity-page__kicker {
+    margin-bottom: 4px;
+    color: #8b6b61;
+    font-size: 0.72rem;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.entity-page__header h1 {
     margin: 0;
     color: #35160d;
     font-size: clamp(1.4rem, 2vw, 2.4rem);
     font-weight: 950;
+    line-height: 1.06;
+}
+
+.entity-page__subtitle {
+    margin-top: 4px;
+    color: #7c5148;
+    font-size: 0.86rem;
+    font-weight: 800;
 }
 
 .entity-page__back {
@@ -271,16 +320,27 @@ useHead({
 .entity-page__actions {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 8px;
 }
 
-@media (max-width: 760px) {
-    .entity-page__toolbar {
-        align-items: flex-start;
-        flex-direction: column;
-    }
+.entity-page__tabs {
+    overflow: hidden;
+    border: 1px solid rgba(128, 0, 0, 0.10);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.86);
+    box-shadow: 0 12px 28px rgba(48, 20, 10, 0.06);
+}
 
+.entity-page__tabbar {
+    color: #3f1d1d;
+}
+
+.entity-page__window {
+    overflow: visible;
+}
+
+@media (max-width: 760px) {
     .entity-page__actions {
         justify-content: flex-start;
     }

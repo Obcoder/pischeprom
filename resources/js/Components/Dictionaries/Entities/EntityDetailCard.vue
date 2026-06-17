@@ -12,7 +12,6 @@ const props = defineProps({
 const { formatPhones } = usePhoneFormatter()
 
 const phones = computed(() => props.entity?.telephones || [])
-const emails = computed(() => props.entity?.emails || [])
 const cities = computed(() => props.entity?.cities || [])
 const buildings = computed(() => props.entity?.buildings || [])
 const units = computed(() => props.entity?.units || [])
@@ -110,19 +109,6 @@ function emptyText(items, text = '—') {
                         <div class="entity-contact-block">
                             <span>Телефоны</span>
                             <strong>{{ formatPhones(phones) || '—' }}</strong>
-                        </div>
-
-                        <div class="entity-chip-list">
-                            <a
-                                v-for="email in emails"
-                                :key="email.id"
-                                :href="`mailto:${email.address}`"
-                                class="entity-chip entity-chip--link"
-                            >
-                                {{ email.address }}
-                            </a>
-
-                            <span v-if="emptyText(emails)" class="entity-empty">Email не указан</span>
                         </div>
                     </section>
 
