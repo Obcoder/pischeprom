@@ -1,5 +1,7 @@
 <script setup>
+import { Link } from '@inertiajs/vue3'
 import { computed } from 'vue'
+import { route } from 'ziggy-js'
 
 defineProps({
     messages: {
@@ -104,6 +106,56 @@ function recipients(item) {
         cc ? `CC: ${cc}` : null,
     ].filter(Boolean)
 }
+
+function uniqueById(items) {
+    return Array.from(
+        new Map(
+            items
+                .filter((item) => item?.id)
+                .map((item) => [Number(item.id), item])
+        ).values()
+    )
+}
+
+function relatedUnits(item) {
+    return uniqueById(
+        (item.emails ?? []).flatMap((email) => email.units ?? [])
+    )
+}
+
+function relatedEntities(item) {
+    return uniqueById(
+        (item.emails ?? []).flatMap((email) => email.entities ?? [])
+    )
+}
+
+function relationLabel(item, fallback) {
+    return item?.name || `${fallback} #${item?.id}`
+}
+
+function unitHref(unit) {
+    if (!unit?.id) {
+        return null
+    }
+
+    try {
+        return route('web.unit.show', unit.id)
+    } catch (error) {
+        return `/Ameise/unit/${unit.id}`
+    }
+}
+
+function entityHref(entity) {
+    if (!entity?.id) {
+        return null
+    }
+
+    try {
+        return route('Ameise.entity.show', entity.id)
+    } catch (error) {
+        return `/Ameise/entity/${entity.id}`
+    }
+}
 </script>
 
 <template>
@@ -194,16 +246,44 @@ function recipients(item) {
         </template>
 
         <template #item.relations="{ item }">
-            <div class="d-flex justify-center ga-1 flex-wrap">
+            <div class="mail-relations">
                 <v-chip
                     v-for="email in item.emails"
                     :key="email.id"
                     size="x-small"
                     color="teal"
                     variant="tonal"
+                    class="mail-relations__email"
                 >
                     {{ email.address }}
                 </v-chip>
+
+                <div
+                    v-if="relatedUnits(item).length || relatedEntities(item).length"
+                    class="mail-relations__links"
+                >
+                    <Link
+                        v-for="unit in relatedUnits(item)"
+                        :key="`unit-${unit.id}`"
+                        :href="unitHref(unit)"
+                        class="mail-relation-link mail-relation-link--unit"
+                        :title="relationLabel(unit, 'Unit')"
+                        @click.stop
+                    >
+                        U {{ relationLabel(unit, 'Unit') }}
+                    </Link>
+
+                    <Link
+                        v-for="entity in relatedEntities(item)"
+                        :key="`entity-${entity.id}`"
+                        :href="entityHref(entity)"
+                        class="mail-relation-link mail-relation-link--entity"
+                        :title="relationLabel(entity, 'Entity')"
+                        @click.stop
+                    >
+                        E {{ relationLabel(entity, 'Entity') }}
+                    </Link>
+                </div>
             </div>
         </template>
 
@@ -225,5 +305,53 @@ function recipients(item) {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+.mail-relations {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    justify-content: center;
+}
+
+.mail-relations__email {
+    max-width: 140px;
+}
+
+.mail-relations__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    justify-content: center;
+    width: 100%;
+}
+
+.mail-relation-link {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 999px;
+    display: inline-block;
+    font-size: 9px;
+    line-height: 1.1;
+    max-width: 138px;
+    overflow: hidden;
+    padding: 1px 5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-relation-link--unit {
+    background: rgba(59, 130, 246, 0.12);
+    color: #93c5fd;
+}
+
+.mail-relation-link--entity {
+    background: rgba(168, 85, 247, 0.12);
+    color: #d8b4fe;
+}
+
+.mail-relation-link:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+    color: #fff;
 }
 </style>

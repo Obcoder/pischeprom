@@ -37,7 +37,7 @@ class MailMessageController extends Controller
                          'created_at',
                          'updated_at',
                      ])
-            ->with(['emails:id,address,name'])
+            ->with($this->messageRelations())
             ->search($request->input('search'))
             ->filter($request->input('filters', []))
             ->orderByDesc('message_date')
@@ -91,8 +91,21 @@ class MailMessageController extends Controller
             force: $request->boolean('force')
         );
 
-        $mailMessage->load(['emails:id,address,name']);
+        $mailMessage->load($this->messageRelations());
 
         return response()->json($mailMessage);
+    }
+
+    protected function messageRelations(): array
+    {
+        return [
+            'emails' => fn ($query) => $query->select('emails.id', 'emails.address', 'emails.name'),
+            'emails.units' => fn ($query) => $query
+                ->without(['fields', 'labels', 'telephones', 'uris'])
+                ->select('units.id', 'units.name'),
+            'emails.entities' => fn ($query) => $query
+                ->without(['buildings', 'classification', 'country'])
+                ->select('entities.id', 'entities.name'),
+        ];
     }
 }
