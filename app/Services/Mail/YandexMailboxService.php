@@ -1237,27 +1237,35 @@ class YandexMailboxService
         $mailMessage->loadMissing('attachments');
         $mailMessage->setAttribute(
             'available_attachments',
-            $mailMessage->attachments->map(fn (MailMessageAttachment $attachment, int $index) => [
-                'id' => $attachment->id,
-                'index' => $index,
-                'original_name' => $attachment->original_name,
-                'file_name' => $attachment->file_name,
-                'mime_type' => $attachment->mime_type,
-                'size' => $attachment->size,
-                'content_id' => $attachment->content_id,
-                'disposition' => $attachment->disposition,
-                'is_image' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name),
-                'is_saved' => true,
-                'disk' => $attachment->disk,
-                'path' => $attachment->path,
-                'folder_path' => $attachment->folder_path,
-                'folder_url' => $attachment->folder_url,
-                'url' => $attachment->url,
-                'preview_url' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name)
-                    ? $attachment->url
-                    : null,
-                'saved_to_disk_at' => $attachment->saved_to_disk_at,
-            ])->values()->all()
+            $mailMessage->attachments
+                ->map(function (MailMessageAttachment $attachment, int $index) {
+                    $name = $attachment->original_name ?: $attachment->file_name;
+                    $isImage = $this->isImageAttachment($attachment->mime_type, $name);
+                    $isPdf = $this->isPdfAttachment($attachment->mime_type, $name);
+
+                    return [
+                        'id' => $attachment->id,
+                        'index' => $index,
+                        'original_name' => $attachment->original_name,
+                        'file_name' => $attachment->file_name,
+                        'mime_type' => $attachment->mime_type,
+                        'size' => $attachment->size,
+                        'content_id' => $attachment->content_id,
+                        'disposition' => $attachment->disposition,
+                        'is_image' => $isImage,
+                        'is_pdf' => $isPdf,
+                        'is_saved' => true,
+                        'disk' => $attachment->disk,
+                        'path' => $attachment->path,
+                        'folder_path' => $attachment->folder_path,
+                        'folder_url' => $attachment->folder_url,
+                        'url' => $attachment->url,
+                        'preview_url' => ($isImage || $isPdf) ? $attachment->url : null,
+                        'saved_to_disk_at' => $attachment->saved_to_disk_at,
+                    ];
+                })
+                ->values()
+                ->all()
         );
 
         return $mailMessage;
@@ -1285,6 +1293,7 @@ class YandexMailboxService
                     $mimeType = $this->attachmentMimeType($attachment);
                     $saved = $this->matchingSavedAttachment($mailMessage, $name, $size);
                     $isImage = $this->isImageAttachment($mimeType, $name);
+                    $isPdf = $this->isPdfAttachment($mimeType, $name);
 
                     return [
                         'id' => $saved?->id,
@@ -1296,13 +1305,14 @@ class YandexMailboxService
                         'content_id' => $this->attachmentContentId($attachment),
                         'disposition' => $this->attachmentDisposition($attachment),
                         'is_image' => $isImage,
+                        'is_pdf' => $isPdf,
                         'is_saved' => (bool) $saved,
                         'disk' => $saved?->disk,
                         'path' => $saved?->path,
                         'folder_path' => $saved?->folder_path,
                         'folder_url' => $saved?->folder_url,
                         'url' => $saved?->url,
-                        'preview_url' => $this->attachmentPreviewUrl($content, $mimeType, $isImage, $saved),
+                        'preview_url' => $this->attachmentPreviewUrl($content, $mimeType, $isImage, $isPdf, $saved),
                         'saved_to_disk_at' => $saved?->saved_to_disk_at,
                     ];
                 } catch (Throwable $exception) {
@@ -1322,6 +1332,7 @@ class YandexMailboxService
                         'content_id' => null,
                         'disposition' => null,
                         'is_image' => false,
+                        'is_pdf' => false,
                         'is_saved' => false,
                         'disk' => null,
                         'path' => null,
@@ -1343,6 +1354,10 @@ class YandexMailboxService
             return null;
         }
 
+        $name = $attachment->original_name ?: $attachment->file_name;
+        $isImage = $this->isImageAttachment($attachment->mime_type, $name);
+        $isPdf = $this->isPdfAttachment($attachment->mime_type, $name);
+
         return [
             'id' => $attachment->id,
             'index' => $index,
@@ -1352,16 +1367,15 @@ class YandexMailboxService
             'size' => $attachment->size,
             'content_id' => $attachment->content_id,
             'disposition' => $attachment->disposition,
-            'is_image' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name),
+            'is_image' => $isImage,
+            'is_pdf' => $isPdf,
             'is_saved' => true,
             'disk' => $attachment->disk,
             'path' => $attachment->path,
             'folder_path' => $attachment->folder_path,
             'folder_url' => $attachment->folder_url,
             'url' => $attachment->url,
-            'preview_url' => $this->isImageAttachment($attachment->mime_type, $attachment->original_name ?: $attachment->file_name)
-                ? $attachment->url
-                : null,
+            'preview_url' => ($isImage || $isPdf) ? $attachment->url : null,
             'saved_to_disk_at' => $attachment->saved_to_disk_at,
         ];
     }
@@ -1556,17 +1570,25 @@ class YandexMailboxService
             });
     }
 
-    protected function attachmentPreviewUrl(?string $content, string $mimeType, bool $isImage, ?MailMessageAttachment $saved): ?string
+    protected function attachmentPreviewUrl(
+        ?string $content,
+        string $mimeType,
+        bool $isImage,
+        bool $isPdf,
+        ?MailMessageAttachment $saved
+    ): ?string
     {
-        if ($saved?->url && $isImage) {
+        if ($saved?->url && ($isImage || $isPdf)) {
             return $saved->url;
         }
 
-        if (!$isImage || !is_string($content) || $content === '') {
+        if ((!$isImage && !$isPdf) || !is_string($content) || $content === '') {
             return null;
         }
 
-        if (strlen($content) > 5 * 1024 * 1024) {
+        $maxInlinePreviewSize = $isPdf ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+
+        if (strlen($content) > $maxInlinePreviewSize) {
             return null;
         }
 
@@ -1580,6 +1602,12 @@ class YandexMailboxService
         }
 
         return (bool) preg_match('/\.(png|jpe?g|gif|webp|bmp|svg)$/i', (string) $name);
+    }
+
+    protected function isPdfAttachment(?string $mimeType, ?string $name = null): bool
+    {
+        return strtolower((string) $mimeType) === 'application/pdf'
+            || (bool) preg_match('/\.pdf$/i', (string) $name);
     }
 
     protected function mailMessageHeadersSuggestAttachments(MailMessage $mailMessage): bool

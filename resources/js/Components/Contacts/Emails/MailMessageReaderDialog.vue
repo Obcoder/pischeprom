@@ -82,6 +82,9 @@ const selectedAttachment = computed(() => {
 const selectedImageAttachment = computed(() => {
     return selectedAttachment.value && isAttachmentImage(selectedAttachment.value) ? selectedAttachment.value : null
 })
+const selectedPdfAttachment = computed(() => {
+    return selectedAttachment.value && isAttachmentPdf(selectedAttachment.value) ? selectedAttachment.value : null
+})
 const notes = computed(() => currentMessage.value?.notes || [])
 const leads = computed(() => currentMessage.value?.leads || [])
 const hasAttachmentSignal = computed(() => Boolean(currentMessage.value?.has_attachments || attachmentRows.value.length || attachments.value.length))
@@ -186,12 +189,37 @@ function isAttachmentImage(attachment) {
         || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name)
 }
 
+function isAttachmentPdf(attachment) {
+    const mime = String(attachment?.mime_type || attachment?.mime || '').toLowerCase()
+    const name = attachmentName(attachment)
+
+    return Boolean(attachment?.is_pdf)
+        || mime === 'application/pdf'
+        || /\.pdf$/i.test(name)
+}
+
+function attachmentPreviewSrc(attachment) {
+    return attachment?.preview_url || attachment?.url || null
+}
+
+function pdfPreviewSrc(attachment) {
+    const src = attachmentPreviewSrc(attachment)
+
+    if (!src) {
+        return null
+    }
+
+    return String(src).startsWith('data:')
+        ? src
+        : `${src}#toolbar=0&navpanes=0&view=FitH`
+}
+
 function attachmentIcon(attachment) {
     const mime = attachmentMime(attachment).toLowerCase()
     const name = attachmentName(attachment).toLowerCase()
 
     if (isAttachmentImage(attachment)) return 'mdi-image-outline'
-    if (mime.includes('pdf') || name.endsWith('.pdf')) return 'mdi-file-pdf-box'
+    if (isAttachmentPdf(attachment)) return 'mdi-file-pdf-box'
     if (mime.includes('word') || /\.(doc|docx)$/i.test(name)) return 'mdi-file-word-box'
     if (mime.includes('excel') || mime.includes('spreadsheet') || /\.(xls|xlsx|xlsm|csv)$/i.test(name)) return 'mdi-file-excel-box'
     if (mime.includes('powerpoint') || mime.includes('presentation') || /\.(ppt|pptx)$/i.test(name)) return 'mdi-file-powerpoint-box'
@@ -757,8 +785,19 @@ watch(model, async (isOpen) => {
                                                 :alt="attachmentName(selectedImageAttachment)"
                                             >
 
+                                            <iframe
+                                                v-else-if="selectedPdfAttachment && pdfPreviewSrc(selectedPdfAttachment)"
+                                                class="mail-attachment-preview__pdf"
+                                                :src="pdfPreviewSrc(selectedPdfAttachment)"
+                                                :title="attachmentName(selectedPdfAttachment)"
+                                            ></iframe>
+
                                             <div v-else class="mail-attachment-preview__empty">
-                                                {{ isAttachmentImage(selectedAttachment) ? 'Preview недоступен. Сохраните файл в S3 и откройте ссылку.' : 'Файл не является image, preview не выводится.' }}
+                                                {{
+                                                    isAttachmentImage(selectedAttachment) || isAttachmentPdf(selectedAttachment)
+                                                        ? 'Preview недоступен. Сохраните файл в S3 и откройте ссылку.'
+                                                        : 'Для этого типа файла preview не выводится.'
+                                                }}
                                             </div>
 
                                             <div v-if="isAttachmentSaved(selectedAttachment)" class="mail-attachment-preview__storage">
@@ -1217,6 +1256,14 @@ watch(model, async (isOpen) => {
     justify-self: center;
     border-radius: 10px;
     object-fit: contain;
+}
+
+.mail-attachment-preview__pdf {
+    width: 100%;
+    height: clamp(260px, 44vh, 460px);
+    border: 1px solid rgba(191, 219, 254, 0.24);
+    border-radius: 10px;
+    background: #f8fafc;
 }
 
 .mail-attachment-preview__empty,
