@@ -55,6 +55,7 @@ const bodyHtml = computed(() => {
 const bodyText = computed(() => {
     return currentMessage.value?.text || 'Тело письма не загружено или письмо пустое.'
 })
+const syncError = computed(() => currentMessage.value?.mail_sync_error || null)
 
 const attachments = computed(() => currentMessage.value?.attachments || [])
 const availableAttachments = computed(() => currentMessage.value?.available_attachments || [])
@@ -508,6 +509,16 @@ watch(model, async (isOpen) => {
                     class="mb-3"
                 >
                     {{ feedback.text }}
+                </v-alert>
+
+                <v-alert
+                    v-if="syncError"
+                    type="warning"
+                    variant="tonal"
+                    density="compact"
+                    class="mb-3"
+                >
+                    {{ syncError }}
                 </v-alert>
 
                 <v-row dense class="mb-4">

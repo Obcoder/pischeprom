@@ -161,7 +161,7 @@ class MailMessageActionController extends Controller
             force: $request->boolean('force', true),
         );
 
-        return response()->json($this->messagePayload($mailMessage));
+        return response()->json($this->messagePayload($mailMessage), 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function saveAttachment(
@@ -188,7 +188,7 @@ class MailMessageActionController extends Controller
             ], 500);
         }
 
-        return response()->json($this->messagePayload($mailMessage));
+        return response()->json($this->messagePayload($mailMessage), 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function attachmentFolders(

@@ -229,7 +229,7 @@ class YandexMailboxService
                                'cc' => $cc,
                                'preview' => $mailMessage->preview,
                                'has_attachments' => $mailMessage->has_attachments ?? false,
-                               'raw_headers' => $message->header->raw ?? null,
+                               'raw_headers' => $this->stringValue($message->header->raw ?? null),
                            ]);
 
         $mailMessage->save();
@@ -419,22 +419,57 @@ class YandexMailboxService
         }
 
         if (is_string($value)) {
-            return trim($value) ?: null;
+            return $this->safeUtf8($value);
         }
 
         if (is_scalar($value)) {
-            return trim((string) $value) ?: null;
+            return $this->safeUtf8((string) $value);
         }
 
         if (is_object($value) && method_exists($value, 'toString')) {
-            return trim($value->toString()) ?: null;
+            return $this->safeUtf8($value->toString());
         }
 
         if (is_object($value) && method_exists($value, '__toString')) {
-            return trim((string) $value) ?: null;
+            return $this->safeUtf8((string) $value);
         }
 
         return null;
+    }
+
+    protected function safeUtf8(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (function_exists('mb_check_encoding') && mb_check_encoding($value, 'UTF-8')) {
+            return $value;
+        }
+
+        foreach (['Windows-1251', 'ISO-8859-1', 'UTF-8'] as $encoding) {
+            if (!function_exists('mb_convert_encoding')) {
+                continue;
+            }
+
+            $converted = @mb_convert_encoding($value, 'UTF-8', $encoding);
+
+            if (is_string($converted) && (!function_exists('mb_check_encoding') || mb_check_encoding($converted, 'UTF-8'))) {
+                return trim($converted) ?: null;
+            }
+        }
+
+        $converted = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        return is_string($converted) && trim($converted) !== ''
+            ? trim($converted)
+            : null;
     }
 
     protected function dateValue($value): ?Carbon
@@ -472,7 +507,7 @@ class YandexMailboxService
             'UTF-8'
         );
 
-        return trim($decoded ?: $value) ?: null;
+        return $this->safeUtf8($decoded ?: $value);
     }
 
     protected function attribute($message, string $name)
@@ -770,7 +805,10 @@ class YandexMailboxService
                 'message' => $exception->getMessage(),
             ]);
 
-            throw $exception;
+            return $this->withMailSyncError(
+                $mailMessage->fresh() ?: $mailMessage,
+                'Не удалось обновить письмо из Yandex IMAP. Показаны сохранённые данные.'
+            );
         } finally {
             $this->safeDisconnect($client, [
                 'operation' => 'load_body',
@@ -1119,6 +1157,14 @@ class YandexMailboxService
         );
 
         return $mailMessage;
+    }
+
+    protected function withMailSyncError(MailMessage $mailMessage, string $message): MailMessage
+    {
+        $mailMessage->loadMissing(['attachments', 'notes.user', 'leads']);
+        $mailMessage->setAttribute('mail_sync_error', $message);
+
+        return $this->withAvailableAttachments($mailMessage);
     }
 
     protected function attachmentPayloads(MailMessage $mailMessage, $message): array

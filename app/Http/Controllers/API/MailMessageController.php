@@ -7,6 +7,7 @@ use App\Models\MailMessage;
 use App\Services\Mail\YandexMailboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class MailMessageController extends Controller
 {
@@ -87,16 +88,25 @@ class MailMessageController extends Controller
         MailMessage $mailMessage,
         YandexMailboxService $service,
     ): JsonResponse {
-        $mailMessage = $service->loadBody(
-            mailMessage: $mailMessage,
-            force: $request->boolean('force'),
-            withAttachments: false,
-            includeAttachmentList: true,
-        );
+        try {
+            $mailMessage = $service->loadBody(
+                mailMessage: $mailMessage,
+                force: $request->boolean('force'),
+                withAttachments: false,
+                includeAttachmentList: true,
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $mailMessage->setAttribute(
+                'mail_sync_error',
+                'Не удалось обновить письмо из Yandex IMAP. Показаны сохранённые данные.'
+            );
+        }
 
         $mailMessage->load($this->messageRelations());
 
-        return response()->json($mailMessage);
+        return response()->json($mailMessage, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     protected function messageRelations(): array
