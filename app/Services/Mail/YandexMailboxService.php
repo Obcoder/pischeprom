@@ -228,7 +228,8 @@ class YandexMailboxService
                                'to' => $to,
                                'cc' => $cc,
                                'preview' => $mailMessage->preview,
-                               'has_attachments' => $mailMessage->has_attachments ?? false,
+                               'has_attachments' => (bool) ($mailMessage->has_attachments ?? false)
+                                   || $this->messageHeadersSuggestAttachments($message),
                                'raw_headers' => $this->stringValue($message->header->raw ?? null),
                            ]);
 
@@ -703,7 +704,12 @@ class YandexMailboxService
         bool $includeAttachmentList = true,
     ): MailMessage
     {
-        $needsAttachmentList = $includeAttachmentList && ($mailMessage->has_attachments || $mailMessage->attachments()->exists());
+        $needsAttachmentList = $includeAttachmentList
+            && (
+                $mailMessage->has_attachments
+                || $mailMessage->attachments()->exists()
+                || $this->mailMessageHeadersSuggestAttachments($mailMessage)
+            );
 
         if (
             !$force
@@ -1576,8 +1582,39 @@ class YandexMailboxService
         return (bool) preg_match('/\.(png|jpe?g|gif|webp|bmp|svg)$/i', (string) $name);
     }
 
+    protected function mailMessageHeadersSuggestAttachments(MailMessage $mailMessage): bool
+    {
+        return $this->messageHeadersSuggestAttachments($mailMessage->raw_headers);
+    }
+
+    protected function messageHeadersSuggestAttachments($source): bool
+    {
+        if ($source instanceof MailMessage) {
+            $headers = $source->raw_headers;
+        } elseif (is_object($source)) {
+            $headers = $this->stringValue($source->header->raw ?? null);
+        } else {
+            $headers = $this->stringValue($source);
+        }
+
+        if (!$headers) {
+            return false;
+        }
+
+        $headers = strtolower($headers);
+
+        return str_contains($headers, 'multipart/mixed')
+            || str_contains($headers, 'content-disposition: attachment')
+            || str_contains($headers, 'filename=')
+            || str_contains($headers, 'filename*=')
+            || str_contains($headers, 'x-ms-has-attach: yes')
+            || str_contains($headers, 'x-attachment-id:');
+    }
+
     protected function messageAttachments($message): array
     {
+        $attachments = [];
+
         foreach (['getAttachments', 'attachments'] as $methodOrProperty) {
             try {
                 $value = null;
@@ -1588,25 +1625,397 @@ class YandexMailboxService
                     $value = $message->{$methodOrProperty};
                 }
 
-                if ($value instanceof \Traversable) {
-                    return array_values(iterator_to_array($value));
-                }
-
-                if (is_array($value)) {
-                    return array_values($value);
-                }
-
-                if (is_object($value) && method_exists($value, 'all')) {
-                    $all = $value->all();
-
-                    return is_array($all) ? array_values($all) : [];
-                }
+                $attachments = [
+                    ...$attachments,
+                    ...$this->attachmentsFromValue($value),
+                ];
             } catch (Throwable) {
                 continue;
             }
         }
 
+        $attachments = [
+            ...$attachments,
+            ...$this->messagePartAttachments($message),
+        ];
+
+        return $this->uniqueMessageAttachments($attachments);
+    }
+
+    protected function attachmentsFromValue($value): array
+    {
+        if ($value instanceof \Traversable) {
+            return array_values(iterator_to_array($value));
+        }
+
+        if (is_array($value)) {
+            return array_values($value);
+        }
+
+        foreach (['all', 'toArray'] as $method) {
+            if (is_object($value) && method_exists($value, $method)) {
+                $items = $value->{$method}();
+
+                return is_array($items) ? array_values($items) : [];
+            }
+        }
+
         return [];
+    }
+
+    protected function messagePartAttachments($message): array
+    {
+        return collect($this->messageStructureParts($message))
+            ->filter(fn ($part) => $this->partLooksLikeAttachment($part))
+            ->map(fn ($part, int $index) => $this->attachmentFromMessagePart($message, $part, $index))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    protected function messageStructureParts($message): array
+    {
+        $structure = null;
+
+        if (is_object($message) && method_exists($message, 'getStructure')) {
+            try {
+                $structure = $message->getStructure();
+            } catch (Throwable) {
+                $structure = null;
+            }
+        }
+
+        if (!$structure && is_object($message)) {
+            try {
+                $reflection = new ReflectionObject($message);
+
+                if ($reflection->hasProperty('structure')) {
+                    $property = $reflection->getProperty('structure');
+                    $property->setAccessible(true);
+                    $structure = $property->getValue($message);
+                }
+            } catch (Throwable) {
+                $structure = null;
+            }
+        }
+
+        $parts = is_object($structure) ? ($structure->parts ?? null) : null;
+
+        if ($parts instanceof \Traversable) {
+            return array_values(iterator_to_array($parts));
+        }
+
+        return is_array($parts) ? array_values($parts) : [];
+    }
+
+    protected function partLooksLikeAttachment($part): bool
+    {
+        if (!is_object($part) && !is_array($part)) {
+            return false;
+        }
+
+        try {
+            if (is_object($part) && method_exists($part, 'isAttachment') && $part->isAttachment()) {
+                return true;
+            }
+        } catch (Throwable) {
+            // Fall through to header-based detection.
+        }
+
+        $name = $this->partAttachmentName($part);
+        $mimeType = strtolower((string) $this->partMimeType($part, $name));
+        $disposition = strtolower((string) $this->partString($part, 'disposition'));
+        $contentId = $this->partContentId($part);
+
+        if ($name) {
+            return true;
+        }
+
+        if ($disposition === 'attachment') {
+            return true;
+        }
+
+        if ($disposition === 'inline' && $contentId) {
+            return true;
+        }
+
+        return $this->isDocumentAttachment($mimeType, $name);
+    }
+
+    protected function attachmentFromMessagePart($message, $part, int $index)
+    {
+        try {
+            if (
+                class_exists(\Webklex\PHPIMAP\Message::class)
+                && class_exists(\Webklex\PHPIMAP\Part::class)
+                && class_exists(\Webklex\PHPIMAP\Attachment::class)
+                && $message instanceof \Webklex\PHPIMAP\Message
+                && $part instanceof \Webklex\PHPIMAP\Part
+            ) {
+                $attachment = new \Webklex\PHPIMAP\Attachment($message, $part);
+
+                if ($this->attachmentContent($attachment) !== null) {
+                    return $attachment;
+                }
+            }
+        } catch (Throwable) {
+            // Some malformed MIME parts cannot be wrapped by Webklex; use the raw part fallback below.
+        }
+
+        return $this->partAttachmentPayload($part, $index);
+    }
+
+    protected function partAttachmentPayload($part, int $index): ?array
+    {
+        $content = $this->partRawValue($part, 'content');
+
+        if (!is_string($content)) {
+            return null;
+        }
+
+        $content = $this->decodePartContent($content, $this->partRawValue($part, 'encoding'));
+
+        if ($content === '') {
+            return null;
+        }
+
+        $name = $this->partAttachmentName($part, $index) ?: 'attachment-' . ($index + 1) . '.bin';
+        $mimeType = $this->partMimeType($part, $name) ?: 'application/octet-stream';
+
+        return [
+            'name' => $name,
+            'filename' => $name,
+            'content' => $content,
+            'mime_type' => $mimeType,
+            'content_id' => $this->partContentId($part),
+            'disposition' => $this->partString($part, 'disposition'),
+            'part_number' => $this->partRawValue($part, 'part_number'),
+        ];
+    }
+
+    protected function partAttachmentName($part, ?int $index = null): ?string
+    {
+        foreach (['filename', 'name', 'file_name'] as $property) {
+            $name = $this->decodeMime($this->stringValue($this->partRawValue($part, $property)));
+
+            if ($name) {
+                return $name;
+            }
+        }
+
+        foreach (['filename', 'name'] as $header) {
+            $name = $this->decodeMime($this->partHeaderString($part, $header));
+
+            if ($name) {
+                return $name;
+            }
+        }
+
+        return $index === null ? null : 'attachment-' . ($index + 1) . '.bin';
+    }
+
+    protected function partMimeType($part, ?string $name = null): ?string
+    {
+        $mimeType = $this->stringValue($this->partRawValue($part, 'content_type'))
+            ?: $this->partHeaderString($part, 'content_type')
+            ?: $this->mimeTypeFromName($name);
+
+        if (!$mimeType) {
+            return null;
+        }
+
+        return strtolower(trim(explode(';', $mimeType)[0]));
+    }
+
+    protected function partContentId($part): ?string
+    {
+        $contentId = $this->stringValue($this->partRawValue($part, 'content_id'))
+            ?: $this->stringValue($this->partRawValue($part, 'id'))
+            ?: $this->partHeaderString($part, 'content_id')
+            ?: $this->partHeaderString($part, 'x_attachment_id');
+
+        return $contentId ? trim($contentId, '<>') : null;
+    }
+
+    protected function partString($part, string $property): ?string
+    {
+        return $this->stringValue($this->partRawValue($part, $property));
+    }
+
+    protected function partRawValue($part, string $property)
+    {
+        if (is_array($part)) {
+            return $part[$property] ?? null;
+        }
+
+        if (!is_object($part)) {
+            return null;
+        }
+
+        try {
+            return $part->{$property} ?? null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    protected function partHeaderString($part, string $header): ?string
+    {
+        if (!is_object($part) || !method_exists($part, 'getHeader')) {
+            return null;
+        }
+
+        try {
+            $partHeader = $part->getHeader();
+
+            if (!$partHeader || !method_exists($partHeader, 'get')) {
+                return null;
+            }
+
+            $attribute = $partHeader->get($header);
+            $value = $this->firstAttributeValue($attribute) ?? $this->stringValue($attribute);
+
+            return $this->stringValue($value);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    protected function decodePartContent(string $content, $encoding): string
+    {
+        $encodingName = is_numeric($encoding) ? (int) $encoding : strtolower((string) $encoding);
+
+        if (
+            $encodingName === 'base64'
+            || (
+                class_exists(\Webklex\PHPIMAP\IMAP::class)
+                && $encodingName === \Webklex\PHPIMAP\IMAP::MESSAGE_ENC_BASE64
+            )
+        ) {
+            $normalized = preg_replace('/\s+/', '', $content) ?: $content;
+            $decoded = base64_decode($normalized, true);
+
+            if (is_string($decoded)) {
+                return $decoded;
+            }
+
+            $decoded = base64_decode($normalized, false);
+
+            return is_string($decoded) ? $decoded : $content;
+        }
+
+        if (
+            $encodingName === 'quoted-printable'
+            || (
+                class_exists(\Webklex\PHPIMAP\IMAP::class)
+                && $encodingName === \Webklex\PHPIMAP\IMAP::MESSAGE_ENC_QUOTED_PRINTABLE
+            )
+        ) {
+            return quoted_printable_decode($content);
+        }
+
+        return $content;
+    }
+
+    protected function uniqueMessageAttachments(array $attachments): array
+    {
+        $seen = [];
+        $unique = [];
+
+        foreach ($attachments as $index => $attachment) {
+            if (!$attachment) {
+                continue;
+            }
+
+            $key = $this->messageAttachmentKey($attachment, $index);
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $attachment;
+        }
+
+        return $unique;
+    }
+
+    protected function messageAttachmentKey($attachment, int $index): string
+    {
+        $partNumber = $this->attachmentRawValue($attachment, 'part_number');
+
+        if ($partNumber !== null && $partNumber !== '') {
+            return 'part:' . $partNumber;
+        }
+
+        $contentId = $this->attachmentContentId($attachment);
+
+        if ($contentId) {
+            return 'cid:' . strtolower($contentId);
+        }
+
+        $name = strtolower($this->attachmentName($attachment, $index));
+        $content = $this->attachmentContent($attachment);
+        $size = is_string($content) ? strlen($content) : 'unknown';
+
+        return 'file:' . $name . ':' . $size;
+    }
+
+    protected function attachmentRawValue($attachment, string $property)
+    {
+        if (is_array($attachment)) {
+            return $attachment[$property] ?? null;
+        }
+
+        if (!is_object($attachment)) {
+            return null;
+        }
+
+        try {
+            return $attachment->{$property} ?? null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    protected function isDocumentAttachment(?string $mimeType, ?string $name = null): bool
+    {
+        $mimeType = strtolower((string) $mimeType);
+
+        if ($mimeType && (
+            str_starts_with($mimeType, 'application/')
+            || str_starts_with($mimeType, 'image/')
+            || str_starts_with($mimeType, 'audio/')
+            || str_starts_with($mimeType, 'video/')
+            || in_array($mimeType, ['text/csv', 'text/calendar'], true)
+        )) {
+            return true;
+        }
+
+        return (bool) preg_match('/\.(pdf|docx?|xlsx?|xlsm|csv|pptx?|zip|rar|7z|txt|rtf)$/i', (string) $name);
+    }
+
+    protected function mimeTypeFromName(?string $name): ?string
+    {
+        $extension = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'xlsm' => 'application/vnd.ms-excel.sheet.macroEnabled.12',
+            'csv' => 'text/csv',
+            'ppt' => 'application/vnd.ms-powerpoint',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'zip' => 'application/zip',
+            'rar' => 'application/vnd.rar',
+            '7z' => 'application/x-7z-compressed',
+            'rtf' => 'application/rtf',
+            'txt' => 'text/plain',
+            default => null,
+        };
     }
 
     protected function messageHasAttachments($message): bool
@@ -1618,11 +2027,15 @@ class YandexMailboxService
         foreach (['hasAttachments', 'has_attachments'] as $methodOrProperty) {
             try {
                 if (method_exists($message, $methodOrProperty)) {
-                    return (bool) $message->{$methodOrProperty}();
+                    if ((bool) $message->{$methodOrProperty}()) {
+                        return true;
+                    }
+
+                    continue;
                 }
 
-                if (isset($message->{$methodOrProperty})) {
-                    return (bool) $message->{$methodOrProperty};
+                if (isset($message->{$methodOrProperty}) && (bool) $message->{$methodOrProperty}) {
+                    return true;
                 }
             } catch (Throwable) {
                 continue;
@@ -1681,6 +2094,12 @@ class YandexMailboxService
 
     protected function attachmentMimeType($attachment): string
     {
+        $mimeFromName = $this->mimeTypeFromName($this->attachmentName($attachment, 0));
+
+        if ($mimeFromName) {
+            return $mimeFromName;
+        }
+
         foreach (['getMimeType', 'getContentType'] as $method) {
             if (is_object($attachment) && method_exists($attachment, $method)) {
                 $mime = $this->stringValue($attachment->{$method}());
@@ -1700,7 +2119,7 @@ class YandexMailboxService
             }
         }
 
-        return 'application/octet-stream';
+        return $this->mimeTypeFromName($this->attachmentName($attachment, 0)) ?: 'application/octet-stream';
     }
 
     protected function attachmentContentId($attachment): ?string

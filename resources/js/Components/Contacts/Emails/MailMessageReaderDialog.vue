@@ -186,6 +186,20 @@ function isAttachmentImage(attachment) {
         || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name)
 }
 
+function attachmentIcon(attachment) {
+    const mime = attachmentMime(attachment).toLowerCase()
+    const name = attachmentName(attachment).toLowerCase()
+
+    if (isAttachmentImage(attachment)) return 'mdi-image-outline'
+    if (mime.includes('pdf') || name.endsWith('.pdf')) return 'mdi-file-pdf-box'
+    if (mime.includes('word') || /\.(doc|docx)$/i.test(name)) return 'mdi-file-word-box'
+    if (mime.includes('excel') || mime.includes('spreadsheet') || /\.(xls|xlsx|xlsm|csv)$/i.test(name)) return 'mdi-file-excel-box'
+    if (mime.includes('powerpoint') || mime.includes('presentation') || /\.(ppt|pptx)$/i.test(name)) return 'mdi-file-powerpoint-box'
+    if (mime.includes('zip') || mime.includes('rar') || /\.(zip|rar|7z)$/i.test(name)) return 'mdi-folder-zip'
+
+    return 'mdi-file-outline'
+}
+
 function selectAttachment(attachment) {
     selectedAttachmentIndex.value = attachment?.index ?? null
 }
@@ -687,7 +701,7 @@ watch(model, async (isOpen) => {
                                             <span class="mail-attachments-sheet__num">{{ index + 1 }}</span>
                                             <span class="mail-attachments-sheet__file">
                                                 <v-icon
-                                                    :icon="isAttachmentImage(attachment) ? 'mdi-image-outline' : 'mdi-file-outline'"
+                                                    :icon="attachmentIcon(attachment)"
                                                     size="13"
                                                 />
                                                 <span>{{ attachmentName(attachment) }}</span>
