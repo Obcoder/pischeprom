@@ -959,7 +959,10 @@ class YandexMailboxService
             $fresh->setAttribute('saved_attachment', $savedAttachment
                 ? $this->savedAttachmentPayload($savedAttachment->fresh(), $index)
                 : null);
-            $fresh->setAttribute('saved_folder', $this->attachmentFolderPayload($targetFolder, $diskName));
+            $fresh->setAttribute('saved_folder', $this->attachmentFolderPayload(
+                $targetFolder,
+                $savedAttachment?->disk ?: $diskName
+            ));
 
             return $fresh;
         } finally {
@@ -1029,13 +1032,14 @@ class YandexMailboxService
             ->where('size', $size)
             ->first();
 
-        if (
-            $existing
-            && $existing->path
-            && dirname($existing->path) === $folderPath
-            && $disk->exists($existing->path)
-        ) {
-            return $existing;
+        if ($existing && $existing->path && dirname($existing->path) === $folderPath) {
+            try {
+                if (Storage::disk($existing->disk ?: $diskName)->exists($existing->path)) {
+                    return $existing;
+                }
+            } catch (Throwable) {
+                // Continue with a fresh upload if the old disk is unavailable.
+            }
         }
 
         $safeName = $this->safeAttachmentName($originalName);
@@ -1047,17 +1051,35 @@ class YandexMailboxService
         );
 
         try {
-            $stored = $this->putAttachmentContent($disk, $path, $content, $mimeType);
+            $uploaded = null;
 
-            if ($stored === false) {
+            foreach ($this->attachmentUploadDisks($diskName, $disk) as [$candidateDiskName, $candidateDisk]) {
+                if ($this->putAttachmentContent($candidateDisk, $path, $content, $mimeType)) {
+                    $uploaded = [$candidateDiskName, $candidateDisk];
+                    break;
+                }
+
+                logger()->warning('Yandex mail attachment upload attempt rejected', [
+                    'mail_message_id' => $mailMessage->id,
+                    'original_name' => $originalName,
+                    'path' => $path,
+                    'disk' => $candidateDiskName,
+                    'mime' => $mimeType,
+                    'size' => $size,
+                ]);
+            }
+
+            if ($uploaded === null) {
                 throw new RuntimeException(sprintf(
-                    'Yandex S3 rejected attachment upload: disk=%s path=%s mime=%s size=%d',
-                    $diskName,
+                    'Yandex S3 rejected attachment upload: disks=%s path=%s mime=%s size=%d',
+                    implode(',', collect($this->attachmentUploadDisks($diskName, $disk))->pluck(0)->all()),
                     $path,
                     $mimeType,
                     $size
                 ));
             }
+
+            [$storedDiskName] = $uploaded;
 
             $saved = MailMessageAttachment::query()->updateOrCreate(
                 [
@@ -1066,7 +1088,7 @@ class YandexMailboxService
                     'size' => $size,
                 ],
                 [
-                    'disk' => $diskName,
+                    'disk' => $storedDiskName,
                     'path' => $path,
                     'file_name' => basename($path),
                     'mime_type' => $mimeType,
@@ -1076,8 +1098,16 @@ class YandexMailboxService
                 ]
             );
 
-            if ($existing && $existing->path && $existing->path !== $path && $disk->exists($existing->path)) {
-                $disk->delete($existing->path);
+            if ($existing && $existing->path && $existing->path !== $path) {
+                try {
+                    $existingDisk = Storage::disk($existing->disk ?: $storedDiskName);
+
+                    if ($existingDisk->exists($existing->path)) {
+                        $existingDisk->delete($existing->path);
+                    }
+                } catch (Throwable) {
+                    // Stale attachment cleanup must not fail the current save.
+                }
             }
 
             return $saved;
@@ -1106,7 +1136,40 @@ class YandexMailboxService
             return true;
         }
 
-        return $disk->put($path, $content) !== false;
+        try {
+            return $disk->put($path, $content) !== false;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    protected function attachmentUploadDisks(string $primaryDiskName, $primaryDisk = null): array
+    {
+        $diskNames = collect([
+            $primaryDiskName,
+            'yandex',
+            's3',
+        ])
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $diskNames
+            ->map(function (string $diskName) use ($primaryDiskName, $primaryDisk) {
+                try {
+                    return [
+                        $diskName,
+                        $diskName === $primaryDiskName && $primaryDisk
+                            ? $primaryDisk
+                            : Storage::disk($diskName),
+                    ];
+                } catch (Throwable) {
+                    return null;
+                }
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     protected function putAttachmentStream($disk, string $path, string $content, array $options = []): bool
