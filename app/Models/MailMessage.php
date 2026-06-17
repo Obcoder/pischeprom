@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MailMessage extends Model
 {
@@ -49,6 +50,21 @@ class MailMessage extends Model
             ->withTimestamps();
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(MailMessageAttachment::class);
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(MailMessageNote::class)->latest();
+    }
+
+    public function leads(): HasMany
+    {
+        return $this->hasMany(Lead::class);
+    }
+
     public function replyTo()
     {
         return $this->belongsTo(self::class, 'reply_to_mail_message_id');
@@ -86,6 +102,22 @@ class MailMessage extends Model
             })
             ->when(!empty($filters['email_id']), function (Builder $q) use ($filters) {
                 $q->whereHas('emails', fn (Builder $sq) => $sq->where('emails.id', $filters['email_id']));
+            })
+            ->when(!empty($filters['email_ids']), function (Builder $q) use ($filters) {
+                $q->whereHas('emails', fn (Builder $sq) => $sq->whereIn('emails.id', (array) $filters['email_ids']));
+            })
+            ->when(!empty($filters['entity_id']), function (Builder $q) use ($filters) {
+                $q->whereHas('emails.entities', fn (Builder $sq) => $sq->where('entities.id', $filters['entity_id']));
+            })
+            ->when(!empty($filters['unit_id']), function (Builder $q) use ($filters) {
+                $q->where(function (Builder $nested) use ($filters) {
+                    $nested
+                        ->whereHas('emails.units', fn (Builder $sq) => $sq->where('units.id', $filters['unit_id']))
+                        ->orWhereHas('emails.entities.units', fn (Builder $sq) => $sq->where('units.id', $filters['unit_id']));
+                });
+            })
+            ->when(array_key_exists('has_attachments', $filters) && $filters['has_attachments'] !== null && $filters['has_attachments'] !== '', function (Builder $q) use ($filters) {
+                $q->where('has_attachments', filter_var($filters['has_attachments'], FILTER_VALIDATE_BOOLEAN));
             });
     }
 }

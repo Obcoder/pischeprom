@@ -158,14 +158,23 @@ Route::post('emails/{email}/entities/sync', [EmailRelationController::class, 'sy
 
 Route::apiResource('emails', EmailController::class);
 
+use App\Http\Controllers\API\MailMessageActionController;
 use App\Http\Controllers\API\MailMessageController;
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
     ->name('mail-messages.folders');
+Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
+    ->name('mail-messages.send');
 Route::get('mail-messages', [MailMessageController::class, 'index'])
     ->name('mail-messages.index');
 
 Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show'])
     ->name('mail-messages.show');
+Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
+    ->name('mail-messages.attachments.sync');
+Route::post('mail-messages/{mailMessage}/notes', [MailMessageActionController::class, 'storeNote'])
+    ->name('mail-messages.notes.store');
+Route::post('mail-messages/{mailMessage}/lead', [MailMessageActionController::class, 'createLead'])
+    ->name('mail-messages.lead.store');
 
 use App\Http\Controllers\API\MailTemplateController;
 Route::apiResource('mail-templates', MailTemplateController::class)

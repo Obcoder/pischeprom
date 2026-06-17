@@ -156,6 +156,10 @@ async function afterSent() {
     await fetchMessages()
 }
 
+function updateSelectedMessage(message) {
+    selectedMessage.value = message
+}
+
 onMounted(async () => {
     await Promise.all([
         fetchMessages(),
@@ -373,8 +377,10 @@ onUnmounted(() => {
             v-model="readerDialog"
             :message="selectedMessage"
             :loading="reading"
+            :default-unit-id="unit.id"
             @reload="forceReloadMessage"
             @reply="replyToMessage"
+            @updated="updateSelectedMessage"
         />
     </BaseSectionCard>
 </template>

@@ -4,6 +4,7 @@ import { useMailMessages } from '@/Composables/useMailMessages.js'
 import MailMessagesToolbar from './MailMessagesToolbar.vue'
 import MailMessagesTable from './MailMessagesTable.vue'
 import MailMessageReaderDialog from './MailMessageReaderDialog.vue'
+import MailComposerDialog from './MailComposerDialog.vue'
 
 const {
     messages,
@@ -19,6 +20,8 @@ const {
 } = useMailMessages()
 
 const readerDialog = ref(false)
+const composerDialog = ref(false)
+const replyContext = ref(null)
 let autoRefreshTimer = null
 
 async function openMessage(message) {
@@ -30,6 +33,31 @@ async function forceReloadMessage() {
     if (selectedMessage.value) {
         await readMessage(selectedMessage.value, true)
     }
+}
+
+function updateSelectedMessage(message) {
+    selectedMessage.value = message
+}
+
+function openComposer() {
+    replyContext.value = null
+    composerDialog.value = true
+}
+
+function replyToMessage(message) {
+    if (!message || message.direction !== 'incoming') {
+        return
+    }
+
+    replyContext.value = message
+    readerDialog.value = false
+    composerDialog.value = true
+}
+
+async function afterSent() {
+    composerDialog.value = false
+    replyContext.value = null
+    await fetchMessages()
 }
 
 onMounted(async () => {
@@ -60,13 +88,25 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <v-chip
-                size="small"
-                color="blue"
-                variant="tonal"
-            >
-                {{ totalItems }}
-            </v-chip>
+            <div class="d-flex align-center ga-2">
+                <v-btn
+                    size="small"
+                    color="blue"
+                    variant="tonal"
+                    prepend-icon="mdi-email-plus-outline"
+                    @click="openComposer"
+                >
+                    Написать
+                </v-btn>
+
+                <v-chip
+                    size="small"
+                    color="blue"
+                    variant="tonal"
+                >
+                    {{ totalItems }}
+                </v-chip>
+            </div>
         </v-card-title>
 
         <v-divider />
@@ -96,5 +136,13 @@ onUnmounted(() => {
         :message="selectedMessage"
         :loading="reading"
         @reload="forceReloadMessage"
+        @reply="replyToMessage"
+        @updated="updateSelectedMessage"
+    />
+
+    <MailComposerDialog
+        v-model="composerDialog"
+        :reply-context="replyContext"
+        @sent="afterSent"
     />
 </template>

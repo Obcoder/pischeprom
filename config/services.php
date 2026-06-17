@@ -58,7 +58,7 @@ return [
     'yandex_mail' => [
         'address' => env('YANDEX_MAIL_ADDRESS', env('MAIL_FROM_ADDRESS')),
 
-        'attachments_disk' => env('YANDEX_ATTACHMENTS_DISK', env('FILESYSTEM_DISK', 's3')),
+        'attachments_disk' => env('YANDEX_ATTACHMENTS_DISK', 'yandex'),
 
         'imap' => [
             'host' => env('YANDEX_IMAP_HOST', 'imap.yandex.com'),

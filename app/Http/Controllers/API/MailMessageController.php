@@ -38,6 +38,7 @@ class MailMessageController extends Controller
                          'updated_at',
                      ])
             ->with($this->messageRelations())
+            ->withCount(['attachments', 'notes', 'leads'])
             ->search($request->input('search'))
             ->filter($request->input('filters', []))
             ->orderByDesc('message_date')
@@ -106,6 +107,9 @@ class MailMessageController extends Controller
             'emails.entities' => fn ($query) => $query
                 ->without(['buildings', 'classification', 'country'])
                 ->select('entities.id', 'entities.name'),
+            'attachments',
+            'notes.user:id,name',
+            'leads:id,mail_message_id,title,status,entity_id,unit_id',
         ];
     }
 }

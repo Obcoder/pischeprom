@@ -27,6 +27,7 @@ class Lead extends Model
         'telephone_id',
         'entity_id',
         'unit_id',
+        'mail_message_id',
         'assigned_user_id',
         'first_phone_call_id',
         'last_phone_call_id',
@@ -74,6 +75,11 @@ class Lead extends Model
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function mailMessage(): BelongsTo
+    {
+        return $this->belongsTo(MailMessage::class);
     }
 
     public function scopeOpen(Builder $query): Builder
