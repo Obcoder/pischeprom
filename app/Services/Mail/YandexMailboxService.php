@@ -1096,27 +1096,34 @@ class YandexMailboxService
 
     protected function putAttachmentContent($disk, string $path, string $content, string $mimeType): bool
     {
+        if ($this->putAttachmentStream($disk, $path, $content, [
+            'ContentType' => $mimeType,
+        ])) {
+            return true;
+        }
+
+        if ($this->putAttachmentStream($disk, $path, $content)) {
+            return true;
+        }
+
+        return $disk->put($path, $content) !== false;
+    }
+
+    protected function putAttachmentStream($disk, string $path, string $content, array $options = []): bool
+    {
         $stream = fopen('php://temp', 'w+b');
 
         if ($stream === false) {
-            return $disk->put($path, $content) !== false;
+            return false;
         }
 
         try {
             fwrite($stream, $content);
             rewind($stream);
 
-            $stored = $disk->put($path, $stream, [
-                'ContentType' => $mimeType,
-            ]);
-
-            if ($stored !== false) {
-                return true;
-            }
-
-            rewind($stream);
-
-            return $disk->put($path, $stream) !== false;
+            return $disk->put($path, $stream, $options) !== false;
+        } catch (Throwable) {
+            return false;
         } finally {
             if (is_resource($stream)) {
                 fclose($stream);
