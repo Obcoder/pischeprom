@@ -23,6 +23,7 @@ const loading = ref(false)
 const error = ref('')
 const product = ref(null)
 const tab = ref('main')
+const translationsEditMode = ref(false)
 const savingTranslations = ref(false)
 const translationError = ref('')
 const translationSaved = ref(false)
@@ -131,6 +132,19 @@ function hydrateTranslationForm(data = product.value || {}) {
     })
 }
 
+function startTranslationsEdit() {
+    hydrateTranslationForm()
+    translationError.value = ''
+    translationSaved.value = false
+    translationsEditMode.value = true
+}
+
+function cancelTranslationsEdit() {
+    hydrateTranslationForm()
+    translationError.value = ''
+    translationsEditMode.value = false
+}
+
 function normalizeTranslationsPayload() {
     const payload = {
         category_id: product.value?.category_id ?? null,
@@ -163,6 +177,7 @@ async function saveTranslations() {
         const { data } = await axios.put(`/api/products/${props.id}`, normalizeTranslationsPayload())
         product.value = data
         hydrateTranslationForm(data)
+        translationsEditMode.value = false
         translationSaved.value = true
     } catch (e) {
         console.error(e)
@@ -458,11 +473,18 @@ onMounted(loadProduct)
                                                 Переводы продукта
                                             </div>
                                             <div class="text-caption text-medium-emphasis">
-                                                Редактирование всех языковых полей Products
+                                                Языки отсортированы по количеству носителей в мире
                                             </div>
                                         </div>
 
                                         <div class="d-flex align-center ga-2 flex-wrap">
+                                            <v-chip
+                                                :color="translationsEditMode ? 'warning' : 'primary'"
+                                                variant="tonal"
+                                                size="small"
+                                            >
+                                                {{ translationsEditMode ? 'Редактирование' : 'Просмотр' }}
+                                            </v-chip>
                                             <v-chip color="primary" variant="tonal" size="small">
                                                 {{ translationStats.filled }}/{{ translationStats.total }}
                                             </v-chip>
@@ -489,39 +511,57 @@ onMounted(loadProduct)
                                 <v-divider />
 
                                 <v-card-text class="pa-3 pa-md-4">
-                                    <v-form ref="translationFormRef" @submit.prevent="saveTranslations">
-                                        <v-row dense>
-                                            <v-col
-                                                v-for="row in languageRows"
-                                                :key="row.key"
-                                                cols="12"
-                                                sm="6"
-                                                md="4"
-                                                xl="3"
+                                    <v-form
+                                        ref="translationFormRef"
+                                        class="translation-rows"
+                                        @submit.prevent="saveTranslations"
+                                    >
+                                        <div
+                                            v-for="row in languageRows"
+                                            :key="row.key"
+                                            class="translation-row"
+                                            :class="{ 'translation-row--empty': !row.value }"
+                                        >
+                                            <div class="translation-row__meta">
+                                                <v-chip
+                                                    size="small"
+                                                    :color="row.value ? 'primary' : undefined"
+                                                    :variant="row.value ? 'tonal' : 'outlined'"
+                                                    class="translation-row__code"
+                                                >
+                                                    {{ row.code }}
+                                                </v-chip>
+
+                                                <div class="min-w-0">
+                                                    <div class="translation-row__label">
+                                                        {{ row.label }}
+                                                        <span class="translation-row__key">({{ row.key }})</span>
+                                                    </div>
+                                                    <div class="translation-row__native text-medium-emphasis">
+                                                        {{ row.native }}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div
+                                                v-if="!translationsEditMode"
+                                                class="translation-row__value"
                                             >
+                                                {{ row.value || '—' }}
+                                            </div>
+
+                                            <div v-else class="translation-row__input">
                                                 <v-text-field
                                                     v-model.trim="translationForm[row.key]"
-                                                    :label="`${row.label} (${row.key})`"
-                                                    :hint="row.native"
+                                                    :label="row.label"
                                                     :rules="row.key === 'rus' ? [rules.required] : []"
                                                     variant="outlined"
                                                     density="compact"
                                                     hide-details="auto"
-                                                    persistent-hint
                                                     class="translation-field"
-                                                >
-                                                    <template #prepend-inner>
-                                                        <v-chip
-                                                            size="x-small"
-                                                            :color="translationForm[row.key] ? 'primary' : undefined"
-                                                            :variant="translationForm[row.key] ? 'tonal' : 'outlined'"
-                                                        >
-                                                            {{ row.code }}
-                                                        </v-chip>
-                                                    </template>
-                                                </v-text-field>
-                                            </v-col>
-                                        </v-row>
+                                                />
+                                            </div>
+                                        </div>
 
                                         <v-alert
                                             v-if="translationError"
@@ -537,17 +577,34 @@ onMounted(loadProduct)
 
                                 <v-card-actions class="px-4 py-3">
                                     <div class="text-caption text-medium-emphasis">
-                                        `rus` обязателен; остальные поля можно оставлять пустыми.
+                                        Просмотр по умолчанию. `rus` обязателен при сохранении.
                                     </div>
                                     <v-spacer />
                                     <v-btn
+                                        v-if="!translationsEditMode"
                                         color="primary"
-                                        prepend-icon="mdi-content-save-outline"
-                                        :loading="savingTranslations"
-                                        @click="saveTranslations"
+                                        prepend-icon="mdi-pencil-outline"
+                                        @click="startTranslationsEdit"
                                     >
-                                        Сохранить переводы
+                                        Редактировать
                                     </v-btn>
+                                    <template v-else>
+                                        <v-btn
+                                            variant="text"
+                                            :disabled="savingTranslations"
+                                            @click="cancelTranslationsEdit"
+                                        >
+                                            Отмена
+                                        </v-btn>
+                                        <v-btn
+                                            color="primary"
+                                            prepend-icon="mdi-content-save-outline"
+                                            :loading="savingTranslations"
+                                            @click="saveTranslations"
+                                        >
+                                            Сохранить
+                                        </v-btn>
+                                    </template>
                                 </v-card-actions>
                             </v-card>
                         </div>
@@ -998,12 +1055,83 @@ onMounted(loadProduct)
         linear-gradient(135deg, rgba(var(--v-theme-primary), 0.12), rgba(var(--v-theme-surface), 0.96));
 }
 
+.translation-rows {
+    display: grid;
+    gap: 8px;
+}
+
+.translation-row {
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-height: 58px;
+    padding: 8px 10px;
+    border: 1px solid rgba(var(--v-theme-primary), 0.10);
+    border-radius: 16px;
+    background: rgba(var(--v-theme-surface), 0.82);
+}
+
+.translation-row--empty {
+    border-style: dashed;
+    background: rgba(var(--v-theme-on-surface), 0.025);
+}
+
+.translation-row__meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.translation-row__code {
+    flex: 0 0 auto;
+    min-width: 42px;
+    justify-content: center;
+    font-weight: 800;
+}
+
+.translation-row__label {
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.translation-row__key {
+    color: rgba(var(--v-theme-on-surface), 0.52);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.translation-row__native {
+    margin-top: 2px;
+    font-size: 0.78rem;
+    line-height: 1.1;
+}
+
+.translation-row__value {
+    min-width: 0;
+    font-size: 0.94rem;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.translation-row__input {
+    min-width: 0;
+}
+
 .translation-field :deep(.v-field) {
     font-size: 0.88rem;
 }
 
 .translation-error {
     white-space: pre-line;
+}
+
+@media (max-width: 760px) {
+    .translation-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
 }
 
 .consumers-pane {
