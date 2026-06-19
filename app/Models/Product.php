@@ -13,20 +13,54 @@ class Product extends Model
 {
     use HasFactory;
 
+    public const TRANSLATION_COLUMNS = [
+        'rus',
+        'eng',
+        'zh',
+        'es',
+        'ar',
+        'hi',
+        'ur',
+        'de',
+        'fr',
+        'po',
+        'it',
+        'nl',
+        'tu',
+        'fa',
+        'vi',
+        'ja',
+        'ko',
+        'he',
+        'idn',
+    ];
+
     protected $fillable = [
         'rus',
         'eng',
         'zh',
         'es',
         'ar',
-        'po',
+        'hi',
+        'ur',
         'de',
         'fr',
-        'hi',
-        'tu',
-        'vi',
+        'po',
         'it',
+        'nl',
+        'tu',
+        'fa',
+        'vi',
+        'ja',
+        'ko',
+        'he',
+        'idn',
         'category_id',
+        'is_published',
+    ];
+
+    protected $casts = [
+        'is_published' => 'boolean',
     ];
 
     protected $with = [
@@ -88,22 +122,13 @@ class Product extends Model
                 $q->whereRaw('1 = 0');
             }
 
-            $q
-                ->orWhere('rus', 'like', $like)
-                ->orWhere('eng', 'like', $like)
-                ->orWhere('zh', 'like', $like)
-                ->orWhere('es', 'like', $like)
-                ->orWhere('ar', 'like', $like)
-                ->orWhere('po', 'like', $like)
-                ->orWhere('de', 'like', $like)
-                ->orWhere('fr', 'like', $like)
-                ->orWhere('hi', 'like', $like)
-                ->orWhere('tu', 'like', $like)
-                ->orWhere('vi', 'like', $like)
-                ->orWhere('it', 'like', $like)
-                ->orWhereHas('category', fn (Builder $categoryQuery) =>
-                    $categoryQuery->where('name', 'like', $like)
-                );
+            foreach (self::TRANSLATION_COLUMNS as $column) {
+                $q->orWhere($column, 'like', $like);
+            }
+
+            $q->orWhereHas('category', fn (Builder $categoryQuery) =>
+                $categoryQuery->where('name', 'like', $like)
+            );
         });
     }
 

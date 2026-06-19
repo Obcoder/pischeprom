@@ -1,10 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
-import { route } from 'ziggy-js';
-import ProductYandexSearchCard from "@/Components/ProductYandexSearchCard.vue";
-import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
+import { route } from 'ziggy-js'
+import ProductYandexSearchCard from '@/Components/ProductYandexSearchCard.vue'
+import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import {
+    emptyProductTranslationForm,
+    productTranslationFields,
+} from '@/Pages/Helpers/productLanguages.js'
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -19,6 +23,15 @@ const loading = ref(false)
 const error = ref('')
 const product = ref(null)
 const tab = ref('main')
+const savingTranslations = ref(false)
+const translationError = ref('')
+const translationSaved = ref(false)
+const translationFormRef = ref(null)
+const translationForm = reactive(emptyProductTranslationForm())
+
+const rules = {
+    required: v => !!String(v ?? '').trim() || 'Обязательное поле',
+}
 
 const productTitle = computed(() => {
     const p = product.value
@@ -29,20 +42,22 @@ const productTitle = computed(() => {
 const languageRows = computed(() => {
     const p = product.value || {}
 
-    return [
-        { key: 'rus', label: 'Русский', value: p.rus },
-        { key: 'eng', label: 'English', value: p.eng },
-        { key: 'zh', label: '中文', value: p.zh },
-        { key: 'es', label: 'Español', value: p.es },
-        { key: 'ar', label: 'العربية', value: p.ar },
-        { key: 'po', label: 'Português', value: p.po },
-        { key: 'de', label: 'Deutsch', value: p.de },
-        { key: 'fr', label: 'Français', value: p.fr },
-        { key: 'hi', label: 'हिन्दी', value: p.hi },
-        { key: 'tu', label: 'Türkçe', value: p.tu },
-        { key: 'vi', label: 'Tiếng Việt', value: p.vi },
-        { key: 'it', label: 'Italiano', value: p.it },
-    ]
+    return productTranslationFields.map(field => ({
+        ...field,
+        value: p[field.key],
+    }))
+})
+
+const translationStats = computed(() => {
+    const filled = productTranslationFields.filter(field =>
+        String(translationForm[field.key] ?? '').trim()
+    ).length
+
+    return {
+        filled,
+        total: productTranslationFields.length,
+        missing: productTranslationFields.length - filled,
+    }
 })
 
 const summaryChips = computed(() => {
@@ -110,6 +125,59 @@ function goBack() {
     }
 }
 
+function hydrateTranslationForm(data = product.value || {}) {
+    productTranslationFields.forEach(field => {
+        translationForm[field.key] = data?.[field.key] ?? ''
+    })
+}
+
+function normalizeTranslationsPayload() {
+    const payload = {
+        category_id: product.value?.category_id ?? null,
+        is_published: product.value?.is_published ?? true,
+    }
+
+    productTranslationFields.forEach(field => {
+        const value = String(translationForm[field.key] ?? '').trim()
+        payload[field.key] = value === '' ? null : value
+    })
+
+    return payload
+}
+
+async function saveTranslations() {
+    translationError.value = ''
+    translationSaved.value = false
+
+    const formEl = translationFormRef.value
+    if (formEl?.validate) {
+        const res = await formEl.validate()
+        if (!res.valid) return
+    } else if (!String(translationForm.rus ?? '').trim()) {
+        return
+    }
+
+    savingTranslations.value = true
+
+    try {
+        const { data } = await axios.put(`/api/products/${props.id}`, normalizeTranslationsPayload())
+        product.value = data
+        hydrateTranslationForm(data)
+        translationSaved.value = true
+    } catch (e) {
+        console.error(e)
+
+        translationError.value =
+            e?.response?.data?.message ||
+            (e?.response?.data?.errors
+                ? Object.values(e.response.data.errors).flat().join('\n')
+                : null) ||
+            'Не удалось сохранить переводы'
+    } finally {
+        savingTranslations.value = false
+    }
+}
+
 async function loadProduct() {
     loading.value = true
     error.value = ''
@@ -117,6 +185,7 @@ async function loadProduct() {
     try {
         const { data } = await axios.get(`/api/products/${props.id}`)
         product.value = data
+        hydrateTranslationForm(data)
     } catch (e) {
         console.error(e)
         error.value = e?.response?.data?.message || 'Не удалось загрузить продукт'
@@ -380,30 +449,106 @@ onMounted(loadProduct)
                     </v-window-item>
 
                     <v-window-item value="translations" class="window-pane">
-                        <div class="tab-scroll pa-4">
-                            <v-card rounded="lg" variant="tonal">
-                                <v-card-title class="text-subtitle-1">
-                                    Названия и переводы
-                                </v-card-title>
+                        <div class="tab-scroll pa-3 pa-md-4 translations-pane">
+                            <v-card rounded="xl" variant="flat" class="translations-editor">
+                                <div class="translations-editor__head px-4 py-3">
+                                    <div class="d-flex align-center justify-space-between ga-3 flex-wrap">
+                                        <div class="min-w-0">
+                                            <div class="text-h6 font-weight-black text-truncate">
+                                                Переводы продукта
+                                            </div>
+                                            <div class="text-caption text-medium-emphasis">
+                                                Редактирование всех языковых полей Products
+                                            </div>
+                                        </div>
+
+                                        <div class="d-flex align-center ga-2 flex-wrap">
+                                            <v-chip color="primary" variant="tonal" size="small">
+                                                {{ translationStats.filled }}/{{ translationStats.total }}
+                                            </v-chip>
+                                            <v-chip
+                                                v-if="translationStats.missing"
+                                                color="warning"
+                                                variant="tonal"
+                                                size="small"
+                                            >
+                                                Пустых: {{ translationStats.missing }}
+                                            </v-chip>
+                                            <v-chip
+                                                v-if="translationSaved"
+                                                color="success"
+                                                variant="tonal"
+                                                size="small"
+                                            >
+                                                Сохранено
+                                            </v-chip>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <v-divider />
 
-                                <v-card-text class="pt-3">
-                                    <v-table density="compact" class="data-table-fixed">
-                                        <thead>
-                                        <tr>
-                                            <th class="text-left">Поле</th>
-                                            <th class="text-left">Значение</th>
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        <tr v-for="row in languageRows" :key="row.key">
-                                            <td class="table-key">{{ row.label }}</td>
-                                            <td class="break-word">{{ row.value || '—' }}</td>
-                                        </tr>
-                                        </tbody>
-                                    </v-table>
+                                <v-card-text class="pa-3 pa-md-4">
+                                    <v-form ref="translationFormRef" @submit.prevent="saveTranslations">
+                                        <v-row dense>
+                                            <v-col
+                                                v-for="row in languageRows"
+                                                :key="row.key"
+                                                cols="12"
+                                                sm="6"
+                                                md="4"
+                                                xl="3"
+                                            >
+                                                <v-text-field
+                                                    v-model.trim="translationForm[row.key]"
+                                                    :label="`${row.label} (${row.key})`"
+                                                    :hint="row.native"
+                                                    :rules="row.key === 'rus' ? [rules.required] : []"
+                                                    variant="outlined"
+                                                    density="compact"
+                                                    hide-details="auto"
+                                                    persistent-hint
+                                                    class="translation-field"
+                                                >
+                                                    <template #prepend-inner>
+                                                        <v-chip
+                                                            size="x-small"
+                                                            :color="translationForm[row.key] ? 'primary' : undefined"
+                                                            :variant="translationForm[row.key] ? 'tonal' : 'outlined'"
+                                                        >
+                                                            {{ row.code }}
+                                                        </v-chip>
+                                                    </template>
+                                                </v-text-field>
+                                            </v-col>
+                                        </v-row>
+
+                                        <v-alert
+                                            v-if="translationError"
+                                            type="error"
+                                            variant="tonal"
+                                            class="mt-2 translation-error"
+                                            :text="translationError"
+                                        />
+                                    </v-form>
                                 </v-card-text>
+
+                                <v-divider />
+
+                                <v-card-actions class="px-4 py-3">
+                                    <div class="text-caption text-medium-emphasis">
+                                        `rus` обязателен; остальные поля можно оставлять пустыми.
+                                    </div>
+                                    <v-spacer />
+                                    <v-btn
+                                        color="primary"
+                                        prepend-icon="mdi-content-save-outline"
+                                        :loading="savingTranslations"
+                                        @click="saveTranslations"
+                                    >
+                                        Сохранить переводы
+                                    </v-btn>
+                                </v-card-actions>
                             </v-card>
                         </div>
                     </v-window-item>
@@ -737,14 +882,22 @@ onMounted(loadProduct)
 
 .page-header {
     flex: 0 0 auto;
+    padding: 10px 12px;
+    border: 1px solid rgba(var(--v-theme-primary), 0.12);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 0 0, rgba(var(--v-theme-primary), 0.14), transparent 30%),
+        linear-gradient(135deg, rgba(var(--v-theme-surface), 0.98), rgba(var(--v-theme-primary), 0.05));
 }
 
 .product-card {
-    height: calc(100vh - 92px);
-    min-height: 620px;
+    height: calc(100vh - 86px);
+    min-height: 600px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    border: 1px solid rgba(var(--v-theme-primary), 0.14);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
 }
 
 .tabs-header {
@@ -809,7 +962,7 @@ onMounted(loadProduct)
 }
 
 .stat-card {
-    min-height: 84px;
+    min-height: 72px;
 }
 
 .break-word {
@@ -827,6 +980,30 @@ onMounted(loadProduct)
 .data-table-fixed {
     table-layout: fixed;
     width: 100%;
+}
+
+.translations-pane {
+    background:
+        radial-gradient(circle at 100% 0, rgba(var(--v-theme-primary), 0.10), transparent 34%),
+        linear-gradient(180deg, rgba(var(--v-theme-primary), 0.04), transparent 280px);
+}
+
+.translations-editor {
+    border: 1px solid rgba(var(--v-theme-primary), 0.14);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.translations-editor__head {
+    background:
+        linear-gradient(135deg, rgba(var(--v-theme-primary), 0.12), rgba(var(--v-theme-surface), 0.96));
+}
+
+.translation-field :deep(.v-field) {
+    font-size: 0.88rem;
+}
+
+.translation-error {
+    white-space: pre-line;
 }
 
 .consumers-pane {
