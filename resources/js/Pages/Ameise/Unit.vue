@@ -9,6 +9,7 @@ import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
 import UnitCallsCard from '@/Components/Unit/UnitCallsCard.vue'
+import UnitManufacturesCard from '@/Components/Unit/UnitManufacturesCard.vue'
 import UnitTradeTabsCard from '@/Components/Unit/UnitTradeTabsCard.vue'
 
 defineOptions({
@@ -116,6 +117,16 @@ onMounted(async () => {
             </div>
         </section>
 
+        <section class="unit-page__band unit-page__band--manufactures">
+            <div>
+                <UnitManufacturesCard
+                    :unit="unit"
+                    :dict="dict"
+                    @refresh="refreshUnit"
+                />
+            </div>
+        </section>
+
         <section class="unit-page__band unit-page__band--communications">
             <div>
                 <UnitSendingsCard :unit="unit" />
@@ -158,6 +169,10 @@ onMounted(async () => {
     grid-template-columns: 1fr;
 }
 
+.unit-page__band--manufactures {
+    grid-template-columns: 1fr;
+}
+
 .unit-page__band--communications {
     grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
 }
@@ -173,6 +188,7 @@ onMounted(async () => {
 @media (max-width: 1180px) {
     .unit-page__band--overview,
     .unit-page__band--trade-tabs,
+    .unit-page__band--manufactures,
     .unit-page__band--communications,
     .unit-page__band--trade {
         grid-template-columns: 1fr;

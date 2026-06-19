@@ -334,6 +334,9 @@ Route::prefix('units/{unit}')->group(function () {
     Route::post('/industries', [UnitRelationController::class, 'attachIndustry'])->name('api.units.industries.attach');
     Route::delete('/industries/{industry}', [UnitRelationController::class, 'detachIndustry'])->name('api.units.industries.detach');
 
+    Route::post('/manufactures', [UnitRelationController::class, 'attachManufacture'])->name('api.units.manufactures.attach');
+    Route::delete('/manufactures/{product}', [UnitRelationController::class, 'detachManufacture'])->name('api.units.manufactures.detach');
+
     Route::post('/labels', [UnitRelationController::class, 'attachLabel'])->name('api.units.labels.attach');
     Route::delete('/labels/{label}', [UnitRelationController::class, 'detachLabel'])->name('api.units.labels.detach');
 

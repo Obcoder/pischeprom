@@ -9,6 +9,7 @@ use App\Models\Entity;
 use App\Models\Field;
 use App\Models\Industry;
 use App\Models\Label;
+use App\Models\Product;
 use App\Models\Telephone;
 use App\Models\Unit;
 use App\Models\Uri;
@@ -161,6 +162,31 @@ class UnitRelationController extends Controller
 
         return response()->json([
             'message' => 'Industry detached.',
+        ]);
+    }
+
+    public function attachManufacture(Request $request, Unit $unit): JsonResponse
+    {
+        $data = $request->validate([
+            'product_id' => ['required', 'integer', 'exists:products,id'],
+        ]);
+
+        $product = Product::findOrFail($data['product_id']);
+
+        $unit->manufactures()->syncWithoutDetaching([$product->id]);
+
+        return response()->json([
+            'message' => 'Manufacture attached.',
+            'data' => $product,
+        ]);
+    }
+
+    public function detachManufacture(Unit $unit, Product $product): JsonResponse
+    {
+        $unit->manufactures()->detach($product->id);
+
+        return response()->json([
+            'message' => 'Manufacture detached.',
         ]);
     }
 
