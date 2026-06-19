@@ -82,7 +82,14 @@ class Product extends Model
         return $query->where(function (Builder $q) use ($search) {
             $like = "%{$search}%";
 
-            $q->where('rus', 'like', $like)
+            if (ctype_digit($search)) {
+                $q->where('id', (int) $search);
+            } else {
+                $q->whereRaw('1 = 0');
+            }
+
+            $q
+                ->orWhere('rus', 'like', $like)
                 ->orWhere('eng', 'like', $like)
                 ->orWhere('zh', 'like', $like)
                 ->orWhere('es', 'like', $like)
@@ -93,7 +100,10 @@ class Product extends Model
                 ->orWhere('hi', 'like', $like)
                 ->orWhere('tu', 'like', $like)
                 ->orWhere('vi', 'like', $like)
-                ->orWhere('it', 'like', $like);
+                ->orWhere('it', 'like', $like)
+                ->orWhereHas('category', fn (Builder $categoryQuery) =>
+                    $categoryQuery->where('name', 'like', $like)
+                );
         });
     }
 

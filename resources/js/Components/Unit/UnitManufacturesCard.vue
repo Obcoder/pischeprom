@@ -1,8 +1,9 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
+import { useDebounceFn } from '@vueuse/core'
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 
 const props = defineProps({
@@ -18,8 +19,11 @@ const props = defineProps({
 
 const emit = defineEmits(['refresh'])
 
-const showAttachForm = ref(false)
-const localSearch = ref('')
+const showAttachForm = ref(true)
+const productSearch = ref('')
+const productSearchResults = ref([])
+const productSearchLoading = ref(false)
+const productSearchError = ref(null)
 const saving = ref(false)
 const deletingProductId = ref(null)
 const errors = ref({})
@@ -43,21 +47,17 @@ const manufactures = computed(() => {
 const existingProductIds = computed(() => new Set(manufactures.value.map((product) => product.id)))
 
 const availableProducts = computed(() => {
-    return (props.dict?.products || [])
+    const source = productSearch.value.trim()
+        ? productSearchResults.value
+        : (props.dict?.products || [])
+
+    return uniqueProducts(source)
         .filter((product) => product?.id && !existingProductIds.value.has(product.id))
-        .map((product) => ({
-            ...product,
-            searchTitle: [
-                product.rus,
-                product.eng,
-                product.category?.name,
-                `#${product.id}`,
-            ].filter(Boolean).join(' - '),
-        }))
+        .map(decorateProduct)
 })
 
 const filteredManufactures = computed(() => {
-    const search = localSearch.value.trim().toLowerCase()
+    const search = productSearch.value.trim().toLowerCase()
 
     if (!search) {
         return manufactures.value
@@ -84,6 +84,56 @@ const categoryStats = computed(() => {
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 })
 
+const productSearchHint = computed(() => {
+    if (productSearchError.value) {
+        return productSearchError.value
+    }
+
+    if (productSearch.value.trim()) {
+        return `Найдено products для добавления: ${availableProducts.value.length}`
+    }
+
+    return 'Ищет по Products: rus, eng, ID и категории. Уже привязанные products скрываются.'
+})
+
+const debouncedSearchProducts = useDebounceFn(async (value) => {
+    await searchProducts(value)
+}, 300)
+
+watch(productSearch, (value) => {
+    debouncedSearchProducts(value)
+})
+
+function asArray(payload) {
+    if (Array.isArray(payload)) return payload
+    if (Array.isArray(payload?.data)) return payload.data
+    return []
+}
+
+function uniqueProducts(products = []) {
+    const unique = new Map()
+
+    for (const product of products || []) {
+        if (product?.id && !unique.has(product.id)) {
+            unique.set(product.id, product)
+        }
+    }
+
+    return [...unique.values()]
+}
+
+function decorateProduct(product) {
+    return {
+        ...product,
+        searchTitle: [
+            productTitle(product),
+            product?.eng,
+            product?.category?.name,
+            `#${product?.id}`,
+        ].filter(Boolean).join(' - '),
+    }
+}
+
 function productTitle(product) {
     return product?.rus || product?.name || product?.eng || `Product #${product?.id ?? '-'}`
 }
@@ -107,6 +157,34 @@ function productHref(product) {
     }
 }
 
+async function searchProducts(value = '') {
+    const search = String(value || '').trim()
+
+    productSearchError.value = null
+
+    if (!search) {
+        productSearchResults.value = []
+        productSearchLoading.value = false
+        return
+    }
+
+    productSearchLoading.value = true
+
+    try {
+        const { data } = await axios.get(route('products.index'), {
+            params: { search },
+        })
+
+        productSearchResults.value = asArray(data)
+    } catch (error) {
+        productSearchResults.value = []
+        productSearchError.value = 'Не удалось выполнить поиск по Products.'
+        console.error('Ошибка поиска products:', error)
+    } finally {
+        productSearchLoading.value = false
+    }
+}
+
 async function attachManufacture() {
     if (!form.product_id || saving.value) {
         return
@@ -121,7 +199,8 @@ async function attachManufacture() {
         })
 
         form.product_id = null
-        showAttachForm.value = false
+        productSearch.value = ''
+        productSearchResults.value = []
         emit('refresh')
     } catch (error) {
         errors.value = error.response?.data?.errors || {}
@@ -175,8 +254,8 @@ async function detachManufacture(product) {
                     class="unit-manufactures__add"
                     @click="showAttachForm = !showAttachForm"
                 >
-                    <v-icon icon="mdi-plus" size="15" />
-                    <span>Add</span>
+                    <v-icon :icon="showAttachForm ? 'mdi-chevron-up' : 'mdi-magnify-plus-outline'" size="15" />
+                    <span>{{ showAttachForm ? 'Hide search' : 'Find product' }}</span>
                 </button>
             </div>
         </template>
@@ -212,16 +291,21 @@ async function detachManufacture(product) {
                 <div v-if="showAttachForm" class="unit-manufactures__form">
                     <v-autocomplete
                         v-model="form.product_id"
+                        v-model:search="productSearch"
                         :items="availableProducts"
                         item-title="searchTitle"
                         item-value="id"
-                        label="Добавить product"
+                        label="Фильтр / поиск по Products"
+                        placeholder="Введите product: rus, eng, ID или категорию"
                         variant="outlined"
                         density="comfortable"
                         clearable
+                        no-filter
                         hide-details="auto"
                         prepend-inner-icon="mdi-magnify"
+                        :loading="productSearchLoading"
                         :error-messages="errors.product_id || []"
+                        :messages="productSearchHint"
                         no-data-text="Нет доступных products для добавления"
                     >
                         <template #item="{ props: itemProps, item }">
@@ -251,22 +335,12 @@ async function detachManufacture(product) {
             </v-expand-transition>
 
             <div class="unit-manufactures__tools">
-                <v-text-field
-                    v-model="localSearch"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                    clearable
-                    prepend-inner-icon="mdi-magnify"
-                    placeholder="Фильтр по названию, категории или ID"
-                />
-
                 <div v-if="categoryStats.length" class="unit-manufactures__chips">
                     <button
                         v-for="category in categoryStats.slice(0, 6)"
                         :key="category.name"
                         type="button"
-                        @click="localSearch = category.name === 'Без категории' ? '' : category.name"
+                        @click="productSearch = category.name === 'Без категории' ? '' : category.name"
                     >
                         {{ category.name }}
                         <strong>{{ category.count }}</strong>
@@ -315,9 +389,9 @@ async function detachManufacture(product) {
 
             <div v-else class="unit-manufactures__empty">
                 <v-icon icon="mdi-factory-off" size="34" />
-                <strong>{{ localSearch ? 'По фильтру ничего не найдено' : 'Производимые products ещё не добавлены' }}</strong>
+                <strong>{{ productSearch ? 'В manufactures нет совпадений по этому Product-фильтру' : 'Производимые products ещё не добавлены' }}</strong>
                 <span>
-                    {{ localSearch ? 'Очистите фильтр или добавьте новый product.' : 'Нажмите Add и выберите product из справочника.' }}
+                    {{ productSearch ? 'Выберите найденный Product выше и нажмите Attach, чтобы привязать его к Unit.' : 'Найдите Product выше и привяжите его к Unit.' }}
                 </span>
             </div>
         </div>
