@@ -30,9 +30,12 @@ jobs:
 
             git config --global --add safe.directory ${{ secrets.TARGET_DIR }}
 
+            git checkout -- bootstrap/ssr public/sitemap.xml storage bootstrap/cache || true
+            git clean -fd bootstrap/ssr || true
+
             git fetch origin
             git checkout main
-            git pull origin main
+            git pull --ff-only origin main
 
             php artisan down || true
 
