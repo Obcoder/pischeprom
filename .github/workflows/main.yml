@@ -53,6 +53,7 @@ jobs:
             fi
 
             npm ci --no-audit --no-fund
+            rm -rf bootstrap/ssr
             NODE_OPTIONS="--max-old-space-size=768" npm run build
             rm -rf node_modules
 

@@ -661,8 +661,8 @@ watch(
                                 :filter-keys="['raw.search_text']"
                                 item-title="name"
                                 item-value="id"
-                                label="Поиск и привязка Units"
-                                placeholder="Любая часть названия Unit"
+                                aria-label="Поиск и привязка Units"
+                                placeholder="Поиск по любой части названия Unit"
                                 multiple
                                 chips
                                 closable-chips
