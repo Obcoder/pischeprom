@@ -9,7 +9,6 @@ use App\Models\Unit;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class FieldBoardController extends Controller
@@ -18,8 +17,10 @@ class FieldBoardController extends Controller
     {
         $producers = $this->producerQuery($field)
             ->with([
-                'manufactures:id,rus,eng,category_id',
-                'manufactures.category:id,name',
+                'manufactures' => fn ($query) => $query
+                    ->select('products.id', 'products.rus', 'products.eng', 'products.category_id')
+                    ->whereHas('category', fn ($categoryQuery) => $categoryQuery->where('field_id', $field->id)),
+                'manufactures.category:id,name,field_id',
                 'fields:id,title',
                 'uris:id,address',
                 'cities:id,name',
@@ -28,8 +29,10 @@ class FieldBoardController extends Controller
 
         $consumers = $this->consumerQuery($field)
             ->with([
+                'consumptions' => fn ($query) => $query
+                    ->whereHas('product.category', fn ($categoryQuery) => $categoryQuery->where('field_id', $field->id)),
                 'consumptions.product:id,rus,eng,category_id',
-                'consumptions.product.category:id,name',
+                'consumptions.product.category:id,name,field_id',
                 'consumptions.measure:id,name',
                 'fields:id,title',
                 'uris:id,address',
@@ -37,8 +40,13 @@ class FieldBoardController extends Controller
             ])
             ->get();
 
+        $producerIds = $producers->pluck('id');
+        $consumerIds = $consumers->pluck('id');
+
         $matches = FieldMatch::query()
             ->where('field_id', $field->id)
+            ->whereIn('producer_unit_id', $producerIds)
+            ->whereIn('consumer_unit_id', $consumerIds)
             ->with([
                 'producer:id,name,is_supplier,is_customer',
                 'consumer:id,name,is_supplier,is_customer',
@@ -67,15 +75,15 @@ class FieldBoardController extends Controller
             'note' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        if (!$this->unitBelongsToField($field, (int) $data['producer_unit_id'])) {
+        if (!$this->unitHasFieldManufacture($field, (int) $data['producer_unit_id'])) {
             return response()->json([
-                'message' => 'Producer unit is not attached to this field.',
+                'message' => 'Producer unit has no manufactures in this field.',
             ], 422);
         }
 
-        if (!$this->unitBelongsToField($field, (int) $data['consumer_unit_id'])) {
+        if (!$this->unitHasFieldConsumption($field, (int) $data['consumer_unit_id'])) {
             return response()->json([
-                'message' => 'Consumer unit is not attached to this field.',
+                'message' => 'Consumer unit has no consumptions in this field.',
             ], 422);
         }
 
@@ -128,12 +136,15 @@ class FieldBoardController extends Controller
     {
         return Unit::query()
             ->select('units.*')
-            ->whereHas('fields', fn ($query) => $query->where('fields.id', $field->id))
-            ->whereHas('manufactures')
-            ->withCount(['manufactures', 'fieldProducerMatches as field_matches_count' => fn ($query) =>
-                $query->where('field_id', $field->id)
+            ->whereHas('manufactures.category', fn ($query) => $query->where('field_id', $field->id))
+            ->withCount([
+                'manufactures as field_products_count' => fn ($query) =>
+                    $query->whereHas('category', fn ($categoryQuery) => $categoryQuery->where('field_id', $field->id)),
+                'fieldProducerMatches as field_matches_count' => fn ($query) =>
+                    $query->where('field_id', $field->id),
             ])
             ->orderByDesc('field_matches_count')
+            ->orderByDesc('field_products_count')
             ->orderBy('name');
     }
 
@@ -141,12 +152,15 @@ class FieldBoardController extends Controller
     {
         return Unit::query()
             ->select('units.*')
-            ->whereHas('fields', fn ($query) => $query->where('fields.id', $field->id))
-            ->whereHas('consumptions')
-            ->withCount(['consumptions', 'fieldConsumerMatches as field_matches_count' => fn ($query) =>
-                $query->where('field_id', $field->id)
+            ->whereHas('consumptions.product.category', fn ($query) => $query->where('field_id', $field->id))
+            ->withCount([
+                'consumptions as field_products_count' => fn ($query) =>
+                    $query->whereHas('product.category', fn ($categoryQuery) => $categoryQuery->where('field_id', $field->id)),
+                'fieldConsumerMatches as field_matches_count' => fn ($query) =>
+                    $query->where('field_id', $field->id),
             ])
             ->orderByDesc('field_matches_count')
+            ->orderByDesc('field_products_count')
             ->orderBy('name');
     }
 
@@ -253,11 +267,19 @@ class FieldBoardController extends Controller
             ->all();
     }
 
-    protected function unitBelongsToField(Field $field, int $unitId): bool
+    protected function unitHasFieldManufacture(Field $field, int $unitId): bool
     {
-        return DB::table('field_unit')
-            ->where('field_id', $field->id)
-            ->where('unit_id', $unitId)
+        return Unit::query()
+            ->whereKey($unitId)
+            ->whereHas('manufactures.category', fn ($query) => $query->where('field_id', $field->id))
+            ->exists();
+    }
+
+    protected function unitHasFieldConsumption(Field $field, int $unitId): bool
+    {
+        return Unit::query()
+            ->whereKey($unitId)
+            ->whereHas('consumptions.product.category', fn ($query) => $query->where('field_id', $field->id))
             ->exists();
     }
 

@@ -34,7 +34,7 @@ class CategoryController extends Controller
                                             'search' => ['nullable', 'string'],
                                             'published' => ['nullable', 'boolean'],
                                             'featured' => ['nullable', 'boolean'],
-                                            'sortBy' => ['nullable', 'string', 'in:id,name,slug,sort_order,updated_at,products_count,goods_count'],
+                                            'sortBy' => ['nullable', 'string', 'in:id,name,slug,field_id,sort_order,updated_at,products_count,goods_count'],
                                             'sortDesc' => ['nullable', 'boolean'],
                                             'page' => ['nullable', 'integer', 'min:1'],
                                             'per_page' => ['nullable', 'integer', 'min:1', 'max:500'],
@@ -45,6 +45,7 @@ class CategoryController extends Controller
         $sortDirection = !empty($validated['sortDesc']) ? 'desc' : 'asc';
 
         $categories = Category::query()
+            ->with('field:id,title')
             ->withCount(['products', 'goods'])
             ->search($validated['search'] ?? null)
             ->when(array_key_exists('published', $validated) && $validated['published'] !== null, function ($query) use ($validated) {
@@ -67,13 +68,16 @@ class CategoryController extends Controller
             return Category::create($this->categoryPayload($request));
         });
 
-        return new CategoryResource($category->loadCount(['products', 'goods']));
+        return new CategoryResource($category->load('field:id,title')->loadCount(['products', 'goods']));
     }
 
     public function show(Category $category): CategoryResource
     {
         $category
-            ->load(['products' => fn ($query) => $query->withCount('goods')])
+            ->load([
+                'field:id,title',
+                'products' => fn ($query) => $query->withCount('goods'),
+            ])
             ->loadCount(['products', 'goods']);
 
         return new CategoryResource($category);
@@ -85,7 +89,7 @@ class CategoryController extends Controller
             $category->update($this->categoryPayload($request, $category));
         });
 
-        return new CategoryResource($category->fresh()->loadCount(['products', 'goods']));
+        return new CategoryResource($category->fresh()->load('field:id,title')->loadCount(['products', 'goods']));
     }
 
     public function destroy(Category $category): JsonResponse

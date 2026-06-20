@@ -9,6 +9,10 @@ class CategoryFormRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
+        if ($this->input('field_id') === '') {
+            $this->merge(['field_id' => null]);
+        }
+
         if (!$this->has('keywords') || is_array($this->input('keywords'))) {
             return;
         }
@@ -58,6 +62,7 @@ class CategoryFormRequest extends FormRequest
                 Rule::unique('categories', 'slug')->ignore($categoryId),
             ],
             'local_code' => ['nullable', 'string', 'max:255'],
+            'field_id' => ['nullable', 'integer', 'exists:fields,id'],
             'image' => ['nullable', 'string', 'max:2048'],
             'avatar' => ['nullable', 'image', 'max:4096'],
             'remove_avatar' => ['nullable', 'boolean'],

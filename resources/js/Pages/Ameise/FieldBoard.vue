@@ -342,7 +342,7 @@ onMounted(async () => {
                 density="compact"
                 class="my-2"
             >
-                В этом поле пока нет Units с производством или потреблением. Добавьте Units в Field и заполните Manufactures/Consumptions.
+                В этом Field пока нет Units с производством или потреблением. Назначьте Field нужным Categories и заполните Manufactures/Consumptions по Products этих категорий.
             </v-alert>
 
             <main class="field-board__grid">

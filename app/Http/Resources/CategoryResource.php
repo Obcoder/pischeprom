@@ -14,6 +14,18 @@ class CategoryResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'local_code' => $this->local_code,
+            'field_id' => $this->field_id,
+            'field' => $this->whenLoaded('field', function () {
+                if (!$this->field) {
+                    return null;
+                }
+
+                return [
+                    'id' => $this->field->id,
+                    'title' => $this->field->title,
+                    'name' => $this->field->name,
+                ];
+            }),
             'image' => $this->image,
             'image_alt' => $this->image_alt,
             'is_published' => (bool) $this->is_published,

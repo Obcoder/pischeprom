@@ -4,6 +4,7 @@ import axios from 'axios'
 import { route } from 'ziggy-js'
 
 const categories = ref([])
+const fields = ref([])
 const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
@@ -36,6 +37,7 @@ const form = reactive({
     name: '',
     slug: '',
     local_code: '',
+    field_id: null,
     image: '',
     image_alt: '',
     remove_avatar: false,
@@ -61,6 +63,7 @@ const form = reactive({
 const headers = [
     { title: '', key: 'image', sortable: false, width: 86 },
     { title: 'Категория', key: 'name', sortable: true },
+    { title: 'Field', key: 'field', sortable: false, width: 160 },
     { title: 'SEO', key: 'seo', sortable: false, width: 150 },
     { title: 'Публикация', key: 'is_published', sortable: false, width: 150 },
     { title: 'Порядок', key: 'sort_order', sortable: true, width: 110 },
@@ -109,6 +112,10 @@ function showMessage(text, color = 'success') {
 
 function categoryParam(category) {
     return category.slug || category.id
+}
+
+function fieldTitle(field) {
+    return field?.title || field?.name || 'Без Field'
 }
 
 function parseKeywords(value) {
@@ -176,6 +183,7 @@ function resetForm() {
         name: '',
         slug: '',
         local_code: '',
+        field_id: null,
         image: '',
         image_alt: '',
         remove_avatar: false,
@@ -210,6 +218,7 @@ function fillForm(category) {
         name: category.name ?? '',
         slug: category.slug ?? '',
         local_code: category.local_code ?? '',
+        field_id: category.field_id ?? category.field?.id ?? null,
         image: category.image ?? '',
         image_alt: category.image_alt ?? '',
         remove_avatar: false,
@@ -243,6 +252,7 @@ function buildFormData(source = form, includeAvatar = true) {
         'name',
         'slug',
         'local_code',
+        'field_id',
         'image',
         'image_alt',
         'sort_order',
@@ -315,6 +325,16 @@ async function fetchCategories() {
         showMessage('Не удалось загрузить категории', 'error')
     } finally {
         loading.value = false
+    }
+}
+
+async function fetchFields() {
+    try {
+        const response = await axios.get(route('fields.index'))
+        fields.value = Array.isArray(response.data) ? response.data : []
+    } catch (error) {
+        console.error(error)
+        showMessage('Не удалось загрузить Fields для категорий', 'error')
     }
 }
 
@@ -490,7 +510,10 @@ watch(avatarFile, (file) => {
     }
 })
 
-onMounted(fetchCategories)
+onMounted(() => {
+    fetchFields()
+    fetchCategories()
+})
 
 onBeforeUnmount(() => {
     if (previewUrl.value) {
@@ -610,6 +633,18 @@ onBeforeUnmount(() => {
                             {{ item.short_description }}
                         </div>
                     </div>
+                </template>
+
+                <template #item.field="{ item }">
+                    <v-chip
+                        v-if="item.field"
+                        color="blue"
+                        size="x-small"
+                        variant="tonal"
+                    >
+                        {{ fieldTitle(item.field) }}
+                    </v-chip>
+                    <span v-else class="text-caption text-medium-emphasis">без Field</span>
                 </template>
 
                 <template #item.seo="{ item }">
@@ -748,6 +783,22 @@ onBeforeUnmount(() => {
                                                 variant="outlined"
                                                 density="comfortable"
                                                 :error-messages="errors.local_code"
+                                            />
+                                        </v-col>
+
+                                        <v-col cols="12" md="5">
+                                            <v-select
+                                                v-model="form.field_id"
+                                                :items="fields"
+                                                item-title="title"
+                                                item-value="id"
+                                                label="Field"
+                                                variant="outlined"
+                                                density="comfortable"
+                                                clearable
+                                                hint="Связывает Category с Field для Manufactures/Consumptions и страницы Fields."
+                                                persistent-hint
+                                                :error-messages="errors.field_id"
                                             />
                                         </v-col>
 

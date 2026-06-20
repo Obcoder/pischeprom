@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -17,6 +18,7 @@ class Category extends Model
         'name',
         'slug',
         'local_code',
+        'field_id',
         'image',
         'image_alt',
         'is_published',
@@ -43,6 +45,7 @@ class Category extends Model
         'keywords' => 'array',
         'published_at' => 'datetime',
         'sort_order' => 'integer',
+        'field_id' => 'integer',
     ];
 
     protected static function booted(): void
@@ -79,6 +82,11 @@ class Category extends Model
     {
         return $this->hasMany(Product::class)
             ->where('is_published', 1);
+    }
+
+    public function field(): BelongsTo
+    {
+        return $this->belongsTo(Field::class);
     }
 
     public function goods(): BelongsToMany
