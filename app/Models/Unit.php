@@ -115,6 +115,16 @@ class Unit extends Model
         return $this->belongsToMany(Field::class);
     }
 
+    public function fieldProducerMatches(): HasMany
+    {
+        return $this->hasMany(FieldMatch::class, 'producer_unit_id');
+    }
+
+    public function fieldConsumerMatches(): HasMany
+    {
+        return $this->hasMany(FieldMatch::class, 'consumer_unit_id');
+    }
+
     public function industries(): BelongsToMany
     {
         return $this->belongsToMany(Industry::class)

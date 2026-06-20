@@ -277,6 +277,16 @@ onMounted(fetchWorkingLeads)
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
+                <Link
+                    :href="route('Ameise.fields')"
+                    class="ameise-field-link"
+                    title="Field matching"
+                    aria-label="Field matching"
+                >
+                    <span>F</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
                 <Link :href="route('ameise.workboard')">
                     <span>WorkBoard</span>
                 </Link>
@@ -442,6 +452,25 @@ onMounted(fetchWorkingLeads)
 .verwalter-layout :deep(.v-app-bar a) {
     color: inherit;
     text-decoration: none;
+}
+
+.ameise-field-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.24);
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+}
+
+.ameise-field-link:hover {
+    background: rgba(255, 255, 255, 0.18);
 }
 
 .ameise-leads-drawer {

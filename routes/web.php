@@ -221,6 +221,10 @@ Route::get('/Ameise/FluxMonitor/', function (){
     return Inertia::render('Ameise/FluxMonitor');
 })->name('Ameise.fluxmonitor');
 
+Route::get('/Ameise/fields', function () {
+    return Inertia::render('Ameise/FieldBoard');
+})->name('Ameise.fields');
+
 //   G E O G R A P H Y
 Route::get('/Ameise/Geography/', function (){
     return Inertia::render('Ameise/Geography');
