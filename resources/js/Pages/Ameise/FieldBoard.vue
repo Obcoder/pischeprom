@@ -605,8 +605,55 @@ onMounted(async () => {
 
 .field-board__select {
     width: 280px;
-    background: rgba(255, 255, 255, 0.92);
+}
+
+.field-board__select :deep(.v-field) {
+    min-height: 42px;
     border-radius: 10px;
+    background: rgba(15, 23, 42, 0.62);
+    color: #f8fafc;
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.22);
+}
+
+.field-board__select :deep(.v-field:hover) {
+    background: rgba(15, 23, 42, 0.76);
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.42);
+}
+
+.field-board__select :deep(.v-field--focused) {
+    background: rgba(15, 23, 42, 0.88);
+    box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.72);
+}
+
+.field-board__select :deep(.v-field__outline) {
+    --v-field-border-opacity: 0;
+}
+
+.field-board__select :deep(.v-label) {
+    color: #bfdbfe;
+    font-size: 12px;
+    font-weight: 800;
+    opacity: 1;
+}
+
+.field-board__select :deep(.v-field__input) {
+    min-height: 42px;
+    padding-top: 8px;
+    padding-bottom: 6px;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+}
+
+.field-board__select :deep(.v-select__selection-text) {
+    color: #ffffff;
+}
+
+.field-board__select :deep(.v-field__append-inner),
+.field-board__select :deep(.v-icon) {
+    color: #60a5fa;
+    opacity: 1;
 }
 
 .field-board__stats {
