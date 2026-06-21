@@ -113,7 +113,36 @@ class MailingCampaignService
         $recipient->update(['contact_id' => $contact->id]);
 
         $message = $this->buildMessage($campaign, collect([$recipient]), true);
-        $result = $this->client->sendEmail($message);
+
+        try {
+            $result = $this->client->sendEmail($message);
+        } catch (RuntimeException $exception) {
+            if (! $this->isTrackingDomainConfigurationError($exception)) {
+                throw $exception;
+            }
+
+            Log::warning('Retrying Unisender Go test send without tracking because tracking domain is not configured', [
+                'provider' => 'unisender_go',
+                'campaign_id' => $campaign->id,
+                'recipient_domain' => Str::after($email, '@'),
+            ]);
+
+            $message['track_read'] = 0;
+            $message['track_links'] = 0;
+            $message['global_metadata']['tracking_disabled_for_test'] = true;
+
+            $retryResult = $this->client->sendEmail($message);
+            $result = new UnisenderSendResult(
+                successful: $retryResult->successful,
+                jobId: $retryResult->jobId,
+                response: $retryResult->response + [
+                    'tracking_disabled_for_test' => true,
+                    'warning' => 'Tracking was disabled for this test send because Unisender requires a custom backend or tracking domain.',
+                ],
+                failedEmails: $retryResult->failedEmails,
+                error: $exception->getMessage(),
+            );
+        }
 
         $recipient->update([
             'status' => 'accepted',
@@ -572,6 +601,14 @@ class MailingCampaignService
         $domain = Str::lower(Str::after($email, '@'));
 
         return in_array($domain, ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'mail.ru', 'yandex.ru', 'ya.ru', 'rambler.ru'], true);
+    }
+
+    private function isTrackingDomainConfigurationError(RuntimeException $exception): bool
+    {
+        $message = Str::lower($exception->getMessage());
+
+        return str_contains($message, 'tracking domain')
+            || str_contains($message, 'custom backend domain');
     }
 
     private function campaign(MailingCampaign|int $campaign): MailingCampaign

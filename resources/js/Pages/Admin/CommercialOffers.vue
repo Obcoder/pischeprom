@@ -132,7 +132,8 @@ async function request(action, callback) {
     notice.value = ''
     try {
         const result = await callback()
-        notice.value = action
+        const responseWarning = result?.data?.response?.warning || result?.data?.warning
+        notice.value = responseWarning ? `${action}: ${responseWarning}` : action
         return result
     } catch (err) {
         console.error(err)

@@ -219,6 +219,34 @@ class CommercialOffersUnisenderTest extends TestCase
             && $request->data()['message']['recipients'][0]['email'] === 'single@example.test');
     }
 
+    public function test_campaign_test_send_retries_without_tracking_when_tracking_domain_is_required(): void
+    {
+        Http::fake([
+            '*email/send.json*' => Http::sequence()
+                ->push(['message' => 'Error ID:test. Custom backend domain or tracking domain required for sending.'], 422)
+                ->push(['job_id' => 'test-job-no-tracking', 'failed_emails' => []], 200),
+        ]);
+
+        $campaign = $this->campaign(['contact_set_id' => null]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", [
+            'email' => 'single@example.test',
+        ])->assertOk()
+            ->assertJsonPath('job_id', 'test-job-no-tracking')
+            ->assertJsonPath('response.tracking_disabled_for_test', true);
+
+        $requests = Http::recorded();
+        $this->assertCount(2, $requests);
+        $this->assertSame(1, $requests[0][0]->data()['message']['track_read']);
+        $this->assertSame(1, $requests[0][0]->data()['message']['track_links']);
+        $this->assertSame(0, $requests[1][0]->data()['message']['track_read']);
+        $this->assertSame(0, $requests[1][0]->data()['message']['track_links']);
+        $this->assertDatabaseHas('mailing_messages', [
+            'email' => 'single@example.test',
+            'unisender_job_id' => 'test-job-no-tracking',
+        ]);
+    }
+
     public function test_webhook_updates_open_click_bounce_spam_and_is_idempotent(): void
     {
         Http::fake(['*suppression/set.json*' => Http::response(['ok' => true])]);
