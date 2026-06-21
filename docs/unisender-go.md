@@ -142,6 +142,8 @@ CSV импорт доступен через UI и команду:
 php artisan mailings:import-contacts storage/app/imports/contacts.csv --set-id=1 --contact-source=expo-2026
 ```
 
+Во вкладке `Recipients` есть блок `emails DB -> recipients`. Он показывает текущую CRM-таблицу `emails`, позволяет выбрать существующие адреса и синхронизировать их в `mailing_contacts`. Это не меняет исходные записи `emails`: для рассылок создаётся отдельный recipient со своим `consent_status`, suppression/отписками и историей событий. При синхронизации можно сразу указать `set id`, чтобы добавить выбранные адреса в recipient set.
+
 ## Статусы и события
 
 Unisender события сохраняются в `mailing_events`. Если Unisender не прислал event id, модуль создаёт `event_fingerprint = sha256(provider + job_id + email + status + event_time + url + campaign_recipient_id)`. Повторный webhook не увеличивает counters.

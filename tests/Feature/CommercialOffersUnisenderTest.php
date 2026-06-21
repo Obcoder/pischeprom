@@ -259,6 +259,46 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonFragment(['message' => "Unisender Go rejected API key/account: Error ID:CC8F8330-6DA8-11F1-BDEC-6E52618EE1EB. User with id '8252570' not found.. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and UNISENDER_GO_API_BASE uses your Go host, for example https://go1.unisender.ru/en/transactional/api/v1. Current API base: https://go1.unisender.test/en/transactional/api/v1. After env changes run php artisan config:clear."]);
     }
 
+    public function test_recipients_can_be_imported_from_existing_emails_table(): void
+    {
+        DB::statement('create table emails (id integer primary key autoincrement, address varchar(255) not null, name varchar(255) null, domain varchar(255) null, source varchar(255) null, is_active tinyint default 1, verified_at datetime null, last_seen_at datetime null, deleted_at datetime null, created_at datetime null, updated_at datetime null)');
+        DB::table('emails')->insert([
+            'address' => 'Buyer@Example.test',
+            'name' => 'Buyer One',
+            'domain' => 'example.test',
+            'source' => 'crm',
+            'is_active' => 1,
+            'last_seen_at' => '2026-06-21 10:00:00',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $source = $this->get('/Ameise/commercial-offers/source-emails?q=buyer')
+            ->assertOk()
+            ->assertJsonPath('data.0.address', 'Buyer@Example.test')
+            ->json('data.0');
+
+        $this->post('/Ameise/commercial-offers/contacts/import-existing-emails', [
+            'email_ids' => [$source['id']],
+            'consent_status' => 'confirmed',
+        ])
+            ->assertOk()
+            ->assertJson(['requested' => 1, 'imported' => 1]);
+
+        $this->assertDatabaseHas('mailing_contacts', [
+            'email' => 'buyer@example.test',
+            'normalized_email' => 'buyer@example.test',
+            'first_name' => 'Buyer One',
+            'source_type' => 'pischeprom_db',
+            'contact_source' => 'emails',
+            'consent_status' => 'confirmed',
+        ]);
+
+        $this->get('/Ameise/commercial-offers/source-emails?q=buyer')
+            ->assertOk()
+            ->assertJsonPath('data.0.imported', true);
+    }
+
     private function campaign(array $overrides = []): MailingCampaign
     {
         return MailingCampaign::query()->create($overrides + [

@@ -528,7 +528,9 @@ Route::prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->gro
     Route::post('/campaigns/{id}/duplicate', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'duplicateCampaign'])->name('campaigns.duplicate');
 
     Route::get('/contacts', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'contacts'])->name('contacts.index');
+    Route::get('/source-emails', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'sourceEmails'])->name('source-emails.index');
     Route::post('/contacts', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'createContact'])->name('contacts.store');
+    Route::post('/contacts/import-existing-emails', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'importExistingEmails'])->name('contacts.import-existing-emails');
     Route::put('/contacts/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'updateContact'])->name('contacts.update');
     Route::post('/contacts/import', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'importContacts'])->name('contacts.import');
     Route::post('/contacts/bulk-update', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'bulkUpdateContacts'])->name('contacts.bulk-update');

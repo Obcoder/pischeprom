@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendMailingCampaignJob;
+use App\Models\Email;
 use App\Models\MailingCampaign;
 use App\Models\MailingContact;
 use App\Models\MailingContactSet;
@@ -22,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -195,6 +197,67 @@ class CommercialOffersController extends Controller
         return response()->json($items);
     }
 
+    public function sourceEmails(Request $request): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.view');
+
+        $query = Email::query()
+            ->select($this->emailSourceColumns())
+            ->whereNotNull('address')
+            ->when($request->string('q')->toString(), function ($query, string $q): void {
+                $query->where(function ($inner) use ($q): void {
+                    $inner->where('address', 'like', "%{$q}%");
+
+                    foreach (['name', 'domain', 'comment', 'source'] as $column) {
+                        if (Schema::hasColumn('emails', $column)) {
+                            $inner->orWhere($column, 'like', "%{$q}%");
+                        }
+                    }
+                });
+            })
+            ->when(Schema::hasColumn('emails', 'is_active') && ! $request->boolean('include_inactive'), function ($query): void {
+                $query->where('is_active', true);
+            })
+            ->orderByDesc(Schema::hasColumn('emails', 'last_seen_at') ? 'last_seen_at' : 'updated_at')
+            ->orderBy('address');
+
+        $items = $query->paginate($request->integer('per_page', 100));
+        $normalized = $items->getCollection()
+            ->map(fn (Email $email) => MailingContact::normalizeEmail($email->address))
+            ->filter()
+            ->unique()
+            ->values();
+        $existingContacts = MailingContact::query()
+            ->whereIn('normalized_email', $normalized)
+            ->get(['id', 'normalized_email', 'consent_status', 'do_not_email', 'unsubscribed_at', 'hard_bounced_at', 'complained_at'])
+            ->keyBy('normalized_email');
+
+        $items->getCollection()->transform(function (Email $email) use ($existingContacts): array {
+            $contact = $existingContacts->get(MailingContact::normalizeEmail($email->address));
+
+            return [
+                'id' => $email->id,
+                'address' => $email->address,
+                'name' => $email->getAttribute('name'),
+                'domain' => $email->getAttribute('domain'),
+                'source' => $email->getAttribute('source'),
+                'comment' => $email->getAttribute('comment'),
+                'is_active' => $email->getAttribute('is_active'),
+                'verified_at' => $email->getAttribute('verified_at'),
+                'last_seen_at' => $email->getAttribute('last_seen_at'),
+                'imported' => $contact !== null,
+                'mailing_contact_id' => $contact?->id,
+                'mailing_consent_status' => $contact?->consent_status,
+                'mailing_do_not_email' => $contact?->do_not_email,
+                'mailing_blocked' => $contact
+                    ? ($contact->do_not_email || $contact->unsubscribed_at || $contact->hard_bounced_at || $contact->complained_at)
+                    : false,
+            ];
+        });
+
+        return response()->json($items);
+    }
+
     public function createContact(Request $request): JsonResponse
     {
         $this->authorizeSales('sales_mailings.edit');
@@ -218,6 +281,61 @@ class CommercialOffersController extends Controller
         $this->audit->log('contact.saved', MailingContact::class, $contact->id, null, $contact->toArray(), $request);
 
         return response()->json($contact, 201);
+    }
+
+    public function importExistingEmails(Request $request): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.edit');
+        $data = $request->validate([
+            'email_ids' => ['required', 'array', 'min:1'],
+            'email_ids.*' => ['integer'],
+            'set_id' => ['nullable', 'integer'],
+            'consent_status' => ['nullable', 'string'],
+        ]);
+
+        $emails = Email::query()
+            ->select($this->emailSourceColumns())
+            ->whereIn('id', collect($data['email_ids'])->map(fn ($id) => (int) $id)->filter()->unique())
+            ->get();
+        $stats = ['requested' => count($data['email_ids']), 'imported' => 0, 'updated' => 0, 'skipped' => 0, 'added_to_set' => 0];
+        $contactIds = [];
+        $consentStatus = $data['consent_status'] ?? 'unknown';
+
+        foreach ($emails as $email) {
+            $normalized = MailingContact::normalizeEmail($email->address);
+
+            if (! filter_var($normalized, FILTER_VALIDATE_EMAIL)) {
+                $stats['skipped']++;
+
+                continue;
+            }
+
+            $contact = MailingContact::query()->firstOrNew(['normalized_email' => $normalized]);
+            $isNew = ! $contact->exists;
+            $before = $contact->exists ? $contact->toArray() : null;
+            $contactData = $this->mailingContactDataFromEmail($email, $consentStatus, $isNew);
+            $contactData['custom_fields'] = array_replace($contact->custom_fields ?? [], $contactData['custom_fields'] ?? []);
+            $contactData['tags'] = array_values(array_unique(array_merge($contact->tags ?? [], $contactData['tags'] ?? [])));
+            $contact->fill($contactData);
+            $contact->save();
+            $contactIds[] = $contact->id;
+            $isNew ? $stats['imported']++ : $stats['updated']++;
+
+            $this->audit->log(
+                $isNew ? 'contact.imported_from_email' : 'contact.synced_from_email',
+                MailingContact::class,
+                $contact->id,
+                $before,
+                $contact->fresh()->toArray(),
+                $request
+            );
+        }
+
+        if (! empty($data['set_id']) && $contactIds) {
+            $stats['added_to_set'] = $this->recipientSets->addContacts((int) $data['set_id'], $contactIds, $request->user()?->id);
+        }
+
+        return response()->json($stats);
     }
 
     public function updateContact(Request $request, int $id): JsonResponse
@@ -600,5 +718,37 @@ class CommercialOffersController extends Controller
         }
 
         abort_unless(Gate::allows($ability), 403);
+    }
+
+    private function emailSourceColumns(): array
+    {
+        return collect(['id', 'address', 'created_at', 'updated_at', 'name', 'domain', 'comment', 'source', 'is_active', 'verified_at', 'last_seen_at'])
+            ->filter(fn (string $column) => $column === 'id' || Schema::hasColumn('emails', $column))
+            ->values()
+            ->all();
+    }
+
+    private function mailingContactDataFromEmail(Email $email, string $consentStatus, bool $isNew): array
+    {
+        $normalized = MailingContact::normalizeEmail($email->address);
+        $lastSeenAt = $email->getAttribute('last_seen_at');
+
+        return array_filter([
+            'email' => $normalized,
+            'first_name' => $email->getAttribute('name') ?: null,
+            'source_type' => 'pischeprom_db',
+            'contact_source' => 'emails',
+            'consent_status' => $isNew ? $consentStatus : null,
+            'tags' => ['pischeprom-email'],
+            'custom_fields' => [
+                'source_email_id' => $email->id,
+                'source_email_address' => $email->address,
+                'source_email_name' => $email->getAttribute('name'),
+                'source_email_domain' => $email->getAttribute('domain'),
+                'source_email_source' => $email->getAttribute('source'),
+                'source_email_is_active' => $email->getAttribute('is_active'),
+                'source_email_last_seen_at' => $lastSeenAt instanceof \DateTimeInterface ? $lastSeenAt->format('Y-m-d H:i:s') : $lastSeenAt,
+            ],
+        ], fn ($value) => $value !== null);
     }
 }
