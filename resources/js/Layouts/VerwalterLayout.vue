@@ -171,6 +171,14 @@ function entityUrl(entityId) {
     }
 }
 
+function commercialOffersUrl() {
+    try {
+        return route('admin.commercial-offers.index')
+    } catch (error) {
+        return '/Ameise/commercial-offers'
+    }
+}
+
 function leadPrimaryContact(lead) {
     return lead.client_phone || lead.telephone?.number || ''
 }
@@ -306,6 +314,17 @@ onMounted(fetchWorkingLeads)
                 <Link :href="route('Ameise.marketing.yandex-direct')">
                     <v-icon icon="mdi-bullhorn-variant-outline" size="small" class="mx-1" />
                     <span>Маркетинг</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
+                <Link
+                    :href="commercialOffersUrl()"
+                    class="ameise-offers-link"
+                    title="Коммерческие предложения"
+                    aria-label="Коммерческие предложения"
+                >
+                    <v-icon icon="mdi-email-newsletter" size="small" class="mx-1" />
+                    <span>КП</span>
                 </Link>
             </v-app-bar-title>
 
@@ -471,6 +490,21 @@ onMounted(fetchWorkingLeads)
 
 .ameise-field-link:hover {
     background: rgba(255, 255, 255, 0.18);
+}
+
+.ameise-offers-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: #d9ffbf;
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+}
+
+.ameise-offers-link:hover {
+    color: #ffffff;
 }
 
 .ameise-leads-drawer {
