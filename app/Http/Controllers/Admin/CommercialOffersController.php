@@ -511,16 +511,27 @@ class CommercialOffersController extends Controller
                 'response' => $this->client->listSuppression(['limit' => 1]),
             ]);
         } catch (Throwable $exception) {
+            $message = $exception->getMessage();
+            $isAuthError = Str::contains(Str::lower($message), [
+                'user not found',
+                'unauthorized',
+                'forbidden',
+                'invalid api key',
+                'api key',
+            ]);
+
             Log::warning('Unisender Go API test failed', [
                 'provider' => 'unisender_go',
                 'exception' => $exception::class,
-                'message' => $exception->getMessage(),
+                'message' => $message,
             ]);
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Unisender Go API test failed: '.$exception->getMessage(),
-            ], 502);
+                'message' => $isAuthError
+                    ? 'Unisender Go rejected API key/account: '.$message.'. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and production config cache was cleared.'
+                    : 'Unisender Go API test failed: '.$message,
+            ], $isAuthError ? 422 : 502);
         }
     }
 

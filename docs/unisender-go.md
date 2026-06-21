@@ -248,6 +248,8 @@ rg -n "Mailgun|mailgun|MAILGUN|mailgun-php|mailgun.com|api.mailgun.net|api.eu.ma
 
 `UNISENDER_GO_API_KEY is not configured`: заполните env и выполните `php artisan config:clear`.
 
+`user not found`: Unisender не признал API key или аккаунт. Проверьте, что ключ взят именно из Unisender Go Transactional API, относится к нужному проекту/аккаунту, скопирован без пробелов/переносов, `UNISENDER_GO_API_BASE=https://goapi.unisender.ru/ru/transactional/api/v1`, затем выполните `php artisan config:clear` на production.
+
 `from_email must use a corporate domain`: замените отправителя на адрес корпоративного домена.
 
 `No eligible recipients`: проверьте consent, suppression, unsubscribe/hard bounce/spam flags и состав set.
