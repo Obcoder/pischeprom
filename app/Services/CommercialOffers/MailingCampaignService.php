@@ -95,6 +95,8 @@ class MailingCampaignService
     public function sendTest(MailingCampaign|int $campaign, string $email, ?int $userId = null): UnisenderSendResult
     {
         $campaign = $this->campaign($campaign);
+        $this->validateBeforeSend($campaign, requireRecipients: false);
+
         $email = MailingContact::normalizeEmail($email ?: (string) config('services.mailings.test_recipient'));
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new RuntimeException('Valid test recipient email is required.');
@@ -368,7 +370,7 @@ class MailingCampaignService
         return $campaign->fresh();
     }
 
-    public function validateBeforeSend(MailingCampaign $campaign): void
+    public function validateBeforeSend(MailingCampaign $campaign, bool $requireRecipients = true): void
     {
         $errors = [];
         $html = $campaign->html_markup ?: $campaign->template?->html_markup;
@@ -388,7 +390,7 @@ class MailingCampaignService
         if ($html && ! str_contains($html, '{{unsubscribe_url}}') && ! str_contains($html, 'unsubscribe')) {
             $errors[] = 'Unsubscribe block or {{unsubscribe_url}} variable is required.';
         }
-        if ($campaign->type === 'mass_offer') {
+        if ($requireRecipients && $campaign->type === 'mass_offer') {
             if (! $campaign->contact_set_id) {
                 $errors[] = 'Contact set is required for mass campaign.';
             } elseif ($this->recipientSets->countEligibleRecipients($campaign->contact_set_id, true) < 1) {

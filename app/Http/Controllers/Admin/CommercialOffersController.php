@@ -117,7 +117,19 @@ class CommercialOffersController extends Controller
         $this->authorizeSales('sales_mailings.send_test');
         $email = $request->input('email') ?: config('services.mailings.test_recipient');
 
-        return response()->json($this->campaigns->sendTest($id, (string) $email, $request->user()?->id)->toArray());
+        try {
+            return response()->json($this->campaigns->sendTest($id, (string) $email, $request->user()?->id)->toArray());
+        } catch (Throwable $exception) {
+            Log::warning('Commercial offer test send failed', [
+                'campaign_id' => $id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Test email failed: '.$exception->getMessage(),
+            ], 422);
+        }
     }
 
     public function approveCampaign(Request $request, int $id): JsonResponse
@@ -511,7 +523,20 @@ class CommercialOffersController extends Controller
         $template = MailingTemplate::query()->findOrFail($id);
         $campaign = $this->campaigns->createDraft(['name' => 'Test '.$template->name, 'type' => 'test', 'template_id' => $template->id], $request->user()?->id);
 
-        return response()->json($this->campaigns->sendTest($campaign, (string) ($request->input('email') ?: config('services.mailings.test_recipient')), $request->user()?->id)->toArray());
+        try {
+            return response()->json($this->campaigns->sendTest($campaign, (string) ($request->input('email') ?: config('services.mailings.test_recipient')), $request->user()?->id)->toArray());
+        } catch (Throwable $exception) {
+            Log::warning('Commercial offer template test send failed', [
+                'template_id' => $id,
+                'campaign_id' => $campaign->id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Test email failed: '.$exception->getMessage(),
+            ], 422);
+        }
     }
 
     public function productSearch(Request $request): JsonResponse

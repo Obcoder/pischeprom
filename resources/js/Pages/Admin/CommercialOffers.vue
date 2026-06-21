@@ -395,6 +395,7 @@ onMounted(refreshAll)
                 <input v-model="campaignForm.contact_set_id" placeholder="set id">
                 <input v-model="campaignForm.template_id" placeholder="template id">
                 <button type="button" @click="createCampaign">create campaign</button>
+                <input v-model="testEmail" placeholder="test recipient email">
             </div>
             <div class="table-shell">
                 <table>

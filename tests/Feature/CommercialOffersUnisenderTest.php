@@ -183,6 +183,42 @@ class CommercialOffersUnisenderTest extends TestCase
         });
     }
 
+    public function test_campaign_test_send_requires_valid_email_without_500(): void
+    {
+        config(['services.mailings.test_recipient' => null]);
+        $campaign = $this->campaign(['contact_set_id' => null]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", ['email' => ''])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Test email failed: Valid test recipient email is required.');
+    }
+
+    public function test_campaign_test_send_does_not_require_contact_set(): void
+    {
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'job_id' => 'test-job-1',
+                'failed_emails' => [],
+            ]),
+        ]);
+
+        $campaign = $this->campaign(['contact_set_id' => null]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", [
+            'email' => 'single@example.test',
+        ])->assertOk()
+            ->assertJsonPath('job_id', 'test-job-1');
+
+        $this->assertDatabaseHas('mailing_campaign_recipients', [
+            'campaign_id' => $campaign->id,
+            'email' => 'single@example.test',
+            'status' => 'accepted',
+            'unisender_job_id' => 'test-job-1',
+        ]);
+        Http::assertSent(fn ($request) => $request->data()['message']['subject'] === '[TEST] Коммерческое предложение'
+            && $request->data()['message']['recipients'][0]['email'] === 'single@example.test');
+    }
+
     public function test_webhook_updates_open_click_bounce_spam_and_is_idempotent(): void
     {
         Http::fake(['*suppression/set.json*' => Http::response(['ok' => true])]);
