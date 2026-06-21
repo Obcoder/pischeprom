@@ -513,13 +513,14 @@ class CommercialOffersController extends Controller
         } catch (Throwable $exception) {
             $message = $exception->getMessage();
             $apiBase = (string) config('services.unisender_go.api_base');
-            $isAuthError = Str::contains(Str::lower($message), [
+            $lowerMessage = Str::lower($message);
+            $isAuthError = Str::contains($lowerMessage, [
                 'user not found',
                 'unauthorized',
                 'forbidden',
                 'invalid api key',
                 'api key',
-            ]);
+            ]) || preg_match('/user\s+.*not\s+found/i', $message) === 1;
 
             Log::warning('Unisender Go API test failed', [
                 'provider' => 'unisender_go',

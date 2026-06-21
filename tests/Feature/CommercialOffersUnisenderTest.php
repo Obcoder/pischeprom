@@ -250,13 +250,13 @@ class CommercialOffersUnisenderTest extends TestCase
     public function test_unisender_test_api_reports_rejected_account_as_configuration_error(): void
     {
         Http::fake([
-            '*suppression/list.json*' => Http::response(['message' => 'user not found'], 401),
+            '*suppression/list.json*' => Http::response(['message' => "Error ID:CC8F8330-6DA8-11F1-BDEC-6E52618EE1EB. User with id '8252570' not found."], 401),
         ]);
 
         $this->post('/Ameise/commercial-offers/settings/test-api')
             ->assertStatus(422)
             ->assertJsonPath('status', 'error')
-            ->assertJsonFragment(['message' => 'Unisender Go rejected API key/account: user not found. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and UNISENDER_GO_API_BASE uses your Go host, for example https://go1.unisender.ru/en/transactional/api/v1. Current API base: https://go1.unisender.test/en/transactional/api/v1. After env changes run php artisan config:clear.']);
+            ->assertJsonFragment(['message' => "Unisender Go rejected API key/account: Error ID:CC8F8330-6DA8-11F1-BDEC-6E52618EE1EB. User with id '8252570' not found.. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and UNISENDER_GO_API_BASE uses your Go host, for example https://go1.unisender.ru/en/transactional/api/v1. Current API base: https://go1.unisender.test/en/transactional/api/v1. After env changes run php artisan config:clear."]);
     }
 
     private function campaign(array $overrides = []): MailingCampaign
