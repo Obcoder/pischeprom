@@ -525,14 +525,25 @@ class CommercialOffersController extends Controller
         ]);
     }
 
-    public function addOfferItem(Request $request, int $id): JsonResponse
+    public function addOfferItem(Request $request, mixed $id): JsonResponse
     {
         $this->authorizeSales('sales_mailings.edit');
-        if ($request->input('item_type') === 'category') {
-            return response()->json($this->products->addCategoryToCampaign($id, (int) $request->input('category_id'), $request->all()), 201);
+
+        if (! is_numeric($id) || ! MailingCampaign::query()->whereKey((int) $id)->exists()) {
+            return response()->json([
+                'message' => 'Select a valid campaign before adding products to КП.',
+            ], 422);
         }
 
-        return response()->json($this->products->addProductToCampaign($id, (int) $request->input('product_id'), $request->all()), 201);
+        if ($request->input('item_type') === 'category') {
+            $request->validate(['category_id' => ['required', 'integer', 'exists:categories,id']]);
+
+            return response()->json($this->products->addCategoryToCampaign((int) $id, (int) $request->input('category_id'), $request->all()), 201);
+        }
+
+        $request->validate(['product_id' => ['required', 'integer', 'exists:goods,id']]);
+
+        return response()->json($this->products->addProductToCampaign((int) $id, (int) $request->input('product_id'), $request->all()), 201);
     }
 
     public function updateOfferItem(Request $request, int $id): JsonResponse

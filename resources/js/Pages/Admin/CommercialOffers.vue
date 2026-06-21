@@ -112,6 +112,11 @@ const kpiRows = computed(() => [
     ['api', dashboard.value.unisender_api_status || 'unknown'],
 ])
 
+const campaignOptions = computed(() => campaigns.value.map((campaign) => ({
+    id: campaign.id,
+    label: `#${campaign.id} ${campaign.name || campaign.subject || 'campaign'} [${campaign.status}]`,
+})))
+
 function percent(value) {
     const number = Number(value || 0)
     return `${(number * 100).toFixed(2)}%`
@@ -273,12 +278,24 @@ async function searchProducts() {
 }
 
 async function addProduct(product) {
-    if (!productCampaignId.value) {
-        error.value = 'campaign id required'
+    const campaignId = Number(productCampaignId.value)
+    if (!Number.isInteger(campaignId) || campaignId <= 0) {
+        error.value = 'select campaign first'
         return
     }
     await request('product added', async () => {
-        await axios.post(endpoint(`/campaigns/${productCampaignId.value}/offer-items`), { product_id: product.id, item_type: 'product' })
+        await axios.post(endpoint(`/campaigns/${campaignId}/offer-items`), { product_id: product.id, item_type: 'product' })
+    })
+}
+
+async function addCategory(category) {
+    const campaignId = Number(productCampaignId.value)
+    if (!Number.isInteger(campaignId) || campaignId <= 0) {
+        error.value = 'select campaign first'
+        return
+    }
+    await request('category added', async () => {
+        await axios.post(endpoint(`/campaigns/${campaignId}/offer-items`), { category_id: category.id, item_type: 'category' })
     })
 }
 
@@ -501,7 +518,7 @@ onMounted(refreshAll)
                 <button @click="createSet">create set</button>
             </div>
             <div class="table-shell">
-                <table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>contacts</th><th>active</th><th>updated</th><th>actions</th></tr></thead><tbody><tr v-for="item in sets" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.contacts_count }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ formatDate(item.updated_at) }}</td><td><button @click="productCampaignId = item.id">preview recipients</button></td></tr></tbody></table>
+                <table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>contacts</th><th>active</th><th>updated</th><th>actions</th></tr></thead><tbody><tr v-for="item in sets" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.contacts_count }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ formatDate(item.updated_at) }}</td><td><button @click="campaignForm.contact_set_id = item.id; activeTab = 'campaigns'">use in campaign</button></td></tr></tbody></table>
             </div>
         </section>
 
@@ -534,13 +551,17 @@ onMounted(refreshAll)
         <section v-if="activeTab === 'products'" class="panel split">
             <div>
                 <div class="form-row compact">
-                    <input v-model="productCampaignId" placeholder="campaign id">
-                    <input v-model="productSearch" placeholder="name / sku / category / brand" @keyup.enter="searchProducts">
+                    <select v-model="productCampaignId">
+                        <option value="">select campaign</option>
+                        <option v-for="campaign in campaignOptions" :key="campaign.id" :value="campaign.id">{{ campaign.label }}</option>
+                    </select>
+                    <input v-model="productSearch" placeholder="search goods DB: name / category / brand" @keyup.enter="searchProducts">
                     <button @click="searchProducts">search</button>
                 </div>
-                <div class="table-shell mid"><table><thead><tr><th class="sticky-col">id</th><th>title</th><th>price</th><th>url</th><th>thumb</th><th>actions</th></tr></thead><tbody><tr v-for="item in products" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.title || item.name }}</td><td>{{ item.price }}</td><td>{{ item.canonical_url }}</td><td>{{ item.thumbnail_url ? 'img' : '-' }}</td><td><button @click="addProduct(item)">add to КП</button></td></tr></tbody></table></div>
+                <div class="mini-help">source: pischeprom DB table <code>goods</code>. Adding stores snapshot in КП, catalog price is not changed.</div>
+                <div class="table-shell mid"><table><thead><tr><th class="sticky-col">id</th><th>title</th><th>price</th><th>url</th><th>thumb</th><th>source</th><th>actions</th></tr></thead><tbody><tr v-for="item in products" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.title || item.name }}</td><td>{{ item.price_formatted || item.price || '-' }}</td><td>{{ item.canonical_url }}</td><td>{{ item.thumbnail_url ? 'img' : '-' }}</td><td>{{ item.source_table || 'goods' }}</td><td><button @click="addProduct(item)">add to КП</button></td></tr></tbody></table></div>
             </div>
-            <aside class="side-panel"><h3>categories</h3><div v-for="item in categories" :key="item.id" class="mini-row"><span>{{ item.id }}</span><span>{{ item.title || item.name }}</span></div><p>Offer item stores snapshot. Edited КП price does not update catalog price.</p></aside>
+            <aside class="side-panel"><h3>categories DB</h3><div v-for="item in categories" :key="item.id" class="mini-row"><span>{{ item.id }}</span><span>{{ item.title || item.name }}</span><button @click="addCategory(item)">add</button></div><p>Categories are read from pischeprom DB table <code>categories</code>.</p></aside>
         </section>
 
         <section v-if="activeTab === 'events'" class="panel">
@@ -561,5 +582,5 @@ onMounted(refreshAll)
 </template>
 
 <style scoped>
-.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px 1fr;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
+.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
 </style>

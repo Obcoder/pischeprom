@@ -299,6 +299,38 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonPath('data.0.imported', true);
     }
 
+    public function test_products_are_loaded_from_existing_goods_database(): void
+    {
+        $this->createCatalogTables();
+
+        DB::table('currencies')->insert(['id' => 1, 'code' => 'RUB']);
+        DB::table('price_types')->insert(['id' => 1, 'currency_id' => 1]);
+        DB::table('categories')->insert(['id' => 1, 'name' => 'Эмульгаторы', 'slug' => 'emulgatory', 'local_code' => null, 'meta_title' => null, 'is_published' => 1]);
+        DB::table('products')->insert(['id' => 1, 'category_id' => 1, 'rus' => 'Лецитин', 'eng' => 'Lecithin', 'is_published' => 1]);
+        DB::table('goods')->insert(['id' => 7, 'name' => 'Лецитин подсолнечный', 'slug' => 'lecithin', 'ava_image' => null, 'ava_thumb' => null, 'description' => 'Пищевой лецитин', 'is_published' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('good_product')->insert(['good_id' => 7, 'product_id' => 1]);
+        DB::table('good_media')->insert(['id' => 1, 'good_id' => 7, 'type' => 'image', 'url' => 'https://pischeprom.test/i/lecithin.jpg', 'thumb_url' => 'https://pischeprom.test/i/lecithin-thumb.jpg', 'is_published' => 1, 'is_ava' => 1, 'sort_order' => 1]);
+        DB::table('good_price_type_values')->insert(['id' => 1, 'good_id' => 7, 'price_type_id' => 1, 'currency_id' => 1, 'price_net' => 100, 'price_gross' => 120, 'is_published' => 1, 'updated_at' => now()]);
+
+        $this->get('/Ameise/commercial-offers/products/search?q=lecithin')
+            ->assertOk()
+            ->assertJsonPath('products.0.id', 7)
+            ->assertJsonPath('products.0.title', 'Лецитин подсолнечный')
+            ->assertJsonPath('products.0.source_table', 'goods')
+            ->assertJsonPath('products.0.price_formatted', '120,00 RUB')
+            ->assertJsonPath('products.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg');
+    }
+
+    public function test_invalid_campaign_id_when_adding_product_returns_validation_error(): void
+    {
+        $this->post('/Ameise/commercial-offers/campaigns/Lecithin/offer-items', [
+            'product_id' => 7,
+            'item_type' => 'product',
+        ])
+            ->assertStatus(422)
+            ->assertJson(['message' => 'Select a valid campaign before adding products to КП.']);
+    }
+
     private function campaign(array $overrides = []): MailingCampaign
     {
         return MailingCampaign::query()->create($overrides + [
@@ -333,5 +365,19 @@ class CommercialOffersUnisenderTest extends TestCase
                 'delivery_info' => ['status' => $status, 'destination_response' => 'ok'],
             ],
         ];
+    }
+
+    private function createCatalogTables(): void
+    {
+        DB::statement('create table goods (id integer primary key autoincrement, name varchar(255) not null, slug varchar(255) null, ava_image varchar(255) null, ava_thumb varchar(255) null, description text null, is_published tinyint default 1, created_at datetime null, updated_at datetime null)');
+        DB::statement('create table categories (id integer primary key autoincrement, name varchar(255) not null, slug varchar(255) null, local_code varchar(255) null, meta_title varchar(255) null, is_published tinyint default 1)');
+        DB::statement('create table units (id integer primary key autoincrement, name varchar(255) null)');
+        DB::statement('create table manufacturers (product_id integer not null, unit_id integer not null)');
+        DB::statement('create table products (id integer primary key autoincrement, category_id integer null, rus varchar(255) null, eng varchar(255) null, zh varchar(255) null, es varchar(255) null, ar varchar(255) null, hi varchar(255) null, ur varchar(255) null, de varchar(255) null, fr varchar(255) null, po varchar(255) null, it varchar(255) null, nl varchar(255) null, tu varchar(255) null, fa varchar(255) null, vi varchar(255) null, ja varchar(255) null, ko varchar(255) null, he varchar(255) null, idn varchar(255) null, is_published tinyint default 1)');
+        DB::statement('create table good_product (good_id integer not null, product_id integer not null)');
+        DB::statement('create table good_media (id integer primary key autoincrement, good_id integer not null, type varchar(255) not null, url varchar(255) null, thumb_url varchar(255) null, is_published tinyint default 1, is_ava tinyint default 0, sort_order integer default 100)');
+        DB::statement('create table currencies (id integer primary key autoincrement, code varchar(10) null)');
+        DB::statement('create table price_types (id integer primary key autoincrement, currency_id integer null)');
+        DB::statement('create table good_price_type_values (id integer primary key autoincrement, good_id integer not null, price_type_id integer null, currency_id integer null, price_net decimal(16,4) null, price_gross decimal(16,4) null, is_published tinyint default 1, updated_at datetime null)');
     }
 }

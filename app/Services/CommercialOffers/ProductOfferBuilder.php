@@ -5,19 +5,48 @@ namespace App\Services\CommercialOffers;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\MailingOfferItem;
-use Illuminate\Database\Eloquent\Collection;
+use App\Models\Product;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
+use Illuminate\Support\Collection;
 
 class ProductOfferBuilder
 {
     public function searchProducts(string $query, array $filters = []): Collection
     {
         return Good::query()
-            ->with(['products.category', 'publishedMedia', 'priceTypeValues.priceType.currency', 'priceTypeValues.currency'])
-            ->search($query)
+            ->with([
+                'products.category',
+                'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
+                'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
+                'priceTypeValues' => fn ($q) => $q->where('is_published', true)->with(['priceType.currency', 'currency'])->orderByDesc('updated_at'),
+            ])
+            ->when(trim($query) !== '', function (Builder $goodQuery) use ($query): void {
+                $like = "%{$query}%";
+                $goodQuery->where(function (Builder $searchQuery) use ($query, $like): void {
+                    if (ctype_digit($query)) {
+                        $searchQuery->where('id', (int) $query);
+                    } else {
+                        $searchQuery->where('name', 'like', $like)
+                            ->orWhere('slug', 'like', $like)
+                            ->orWhere('description', 'like', $like);
+                    }
+
+                    $searchQuery->orWhereHas('products', function (Builder $productQuery) use ($like): void {
+                        foreach (Product::TRANSLATION_COLUMNS as $column) {
+                            $productQuery->orWhere($column, 'like', $like);
+                        }
+
+                        $productQuery->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', $like));
+                        $productQuery->orWhereHas('manufacturers', fn (Builder $manufacturerQuery) => $manufacturerQuery->where('name', 'like', $like));
+                    });
+                });
+            })
             ->when(array_key_exists('published', $filters), fn ($q) => $q->where('is_published', (bool) $filters['published']))
+            ->orderBy('name')
             ->limit((int) ($filters['limit'] ?? 30))
-            ->get();
+            ->get()
+            ->map(fn (Good $good) => $this->productSearchPayload($good));
     }
 
     public function searchCategories(string $query, array $filters = []): Collection
@@ -25,8 +54,17 @@ class ProductOfferBuilder
         return Category::query()
             ->search($query)
             ->when(array_key_exists('published', $filters), fn ($q) => $q->where('is_published', (bool) $filters['published']))
+            ->orderBy('name')
             ->limit((int) ($filters['limit'] ?? 30))
-            ->get();
+            ->get()
+            ->map(fn (Category $category) => [
+                'id' => $category->id,
+                'title' => $category->name,
+                'name' => $category->name,
+                'canonical_url' => $this->categoryUrl($category),
+                'source_table' => 'categories',
+                'source_model' => Category::class,
+            ]);
     }
 
     public function addProductToCampaign($campaignId, $productId, array $overrides = []): MailingOfferItem
@@ -95,6 +133,18 @@ class ProductOfferBuilder
             'category' => $category?->name,
             'availability' => $product->is_published ? 'published' : 'hidden',
             'description' => Str::limit(strip_tags((string) $product->description), 240),
+        ];
+    }
+
+    private function productSearchPayload(Good $good): array
+    {
+        $snapshot = $this->createProductSnapshot($good);
+
+        return $snapshot + [
+            'id' => $good->id,
+            'source_table' => 'goods',
+            'is_published' => (bool) $good->is_published,
+            'price_formatted' => $snapshot['price'] !== null ? number_format((float) $snapshot['price'], 2, ',', ' ').' '.$snapshot['currency'] : '-',
         ];
     }
 
