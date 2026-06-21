@@ -233,6 +233,18 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertHeaderMissing('Location');
     }
 
+    public function test_unisender_test_api_reports_missing_key_without_server_error(): void
+    {
+        config(['services.unisender_go.api_key' => '']);
+
+        $this->post('/Ameise/commercial-offers/settings/test-api')
+            ->assertStatus(422)
+            ->assertJson([
+                'status' => 'error',
+                'message' => 'UNISENDER_GO_API_KEY is not configured.',
+            ]);
+    }
+
     private function campaign(array $overrides = []): MailingCampaign
     {
         return MailingCampaign::query()->create($overrides + [

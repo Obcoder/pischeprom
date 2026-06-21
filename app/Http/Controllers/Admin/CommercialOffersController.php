@@ -21,9 +21,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class CommercialOffersController extends Controller
 {
@@ -489,7 +491,37 @@ class CommercialOffersController extends Controller
     {
         $this->authorizeSales('sales_mailings.view');
 
-        return response()->json(['status' => 'ok', 'response' => $this->client->listSuppression(['limit' => 1])]);
+        if (! (bool) config('services.unisender_go.enabled', false)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unisender Go is disabled. Set UNISENDER_GO_ENABLED=true.',
+            ], 422);
+        }
+
+        if (blank(config('services.unisender_go.api_key'))) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'UNISENDER_GO_API_KEY is not configured.',
+            ], 422);
+        }
+
+        try {
+            return response()->json([
+                'status' => 'ok',
+                'response' => $this->client->listSuppression(['limit' => 1]),
+            ]);
+        } catch (Throwable $exception) {
+            Log::warning('Unisender Go API test failed', [
+                'provider' => 'unisender_go',
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unisender Go API test failed: '.$exception->getMessage(),
+            ], 502);
+        }
     }
 
     public function setWebhook(): JsonResponse
