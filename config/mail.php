@@ -29,7 +29,7 @@ return [
     | when delivering an email. You may specify which one you're using for
     | your mailers below. You may also add additional mailers if needed.
     |
-    | Supported: "smtp", "sendmail", "mailgun", "ses", "ses-v2",
+    | Supported: "smtp", "sendmail", "ses", "ses-v2",
     |            "postmark", "log", "array", "failover", "roundrobin"
     |
     */
@@ -88,13 +88,6 @@ return [
                 'ses',
                 'postmark',
             ],
-        ],
-
-        'mailgun' => [
-            'transport' => 'mailgun',
-            'domain' => env('MAILGUN_DOMAIN'),
-            'secret' => env('MAILGUN_SECRET'),
-            'endpoint' => env('MAILGUN_ENDPOINT'),
         ],
 
     ],

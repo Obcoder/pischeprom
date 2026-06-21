@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
+    | as Postmark, AWS, Unisender Go and more. This file provides the de facto
     | location for this type of information, allowing packages to have
     | a conventional file to locate the various service credentials.
     |
@@ -31,11 +31,33 @@ return [
         ],
     ],
 
-    'mailgun' => [
-        'domain' => env('MAILGUN_DOMAIN'),
-        'secret' => env('MAILGUN_SECRET'),
-        'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
-        'scheme' => 'https',
+    'email_provider' => env('EMAIL_PROVIDER', 'log'),
+
+    'unisender_go' => [
+        'enabled' => env('UNISENDER_GO_ENABLED', false),
+        'api_base' => env('UNISENDER_GO_API_BASE', 'https://goapi.unisender.ru/ru/transactional/api/v1'),
+        'api_key' => env('UNISENDER_GO_API_KEY'),
+        'from_email' => env('UNISENDER_GO_FROM_EMAIL', 'sales@pischeprom.ru'),
+        'from_name' => env('UNISENDER_GO_FROM_NAME', 'Pischeprom'),
+        'reply_to' => env('UNISENDER_GO_REPLY_TO', env('UNISENDER_GO_FROM_EMAIL', 'sales@pischeprom.ru')),
+        'track_read' => env('UNISENDER_GO_TRACK_READ', true),
+        'track_links' => env('UNISENDER_GO_TRACK_LINKS', true),
+        'global_language' => env('UNISENDER_GO_GLOBAL_LANGUAGE', 'ru'),
+        'webhook_url' => env('UNISENDER_GO_WEBHOOK_URL'),
+        'webhook_max_parallel' => env('UNISENDER_GO_WEBHOOK_MAX_PARALLEL', 10),
+        'webhook_delivery_info' => env('UNISENDER_GO_WEBHOOK_DELIVERY_INFO', true),
+        'timeout' => env('UNISENDER_GO_TIMEOUT', 20),
+    ],
+
+    'mailings' => [
+        'batch_size' => env('MAILINGS_BATCH_SIZE', 500),
+        'daily_limit' => env('MAILINGS_DAILY_LIMIT', 500),
+        'hourly_limit' => env('MAILINGS_HOURLY_LIMIT', 100),
+        'stop_on_spam_rate' => env('MAILINGS_STOP_ON_SPAM_RATE', 0.002),
+        'stop_on_hard_bounce_rate' => env('MAILINGS_STOP_ON_HARD_BOUNCE_RATE', 0.05),
+        'require_consent_for_mass' => env('MAILINGS_REQUIRE_CONSENT_FOR_MASS', true),
+        'test_recipient' => env('MAILINGS_TEST_RECIPIENT'),
+        'dry_run' => env('MAILINGS_DRY_RUN', false),
     ],
 
     'avito' => [

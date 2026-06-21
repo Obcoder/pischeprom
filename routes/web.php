@@ -501,6 +501,70 @@ Route::get('/email/open/{token}', [EmailTrackingController::class, 'open'])
 Route::get('/email/click/{token}', [EmailTrackingController::class, 'click'])
     ->name('email.click');
 
+Route::get('/webhooks/unisender-go', [\App\Http\Controllers\Public\UnisenderWebhookController::class, 'verify'])
+    ->name('webhooks.unisender-go.verify');
+Route::post('/webhooks/unisender-go', [\App\Http\Controllers\Public\UnisenderWebhookController::class, 'handle'])
+    ->name('webhooks.unisender-go.handle');
+Route::get('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\MailingUnsubscribeController::class, 'show'])
+    ->name('mailings.unsubscribe.show');
+Route::post('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\MailingUnsubscribeController::class, 'unsubscribe'])
+    ->name('mailings.unsubscribe.submit');
+
+Route::middleware([
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+])->prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'index'])->name('index');
+
+    Route::get('/campaigns', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'campaigns'])->name('campaigns.index');
+    Route::post('/campaigns', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'createCampaign'])->name('campaigns.store');
+    Route::get('/campaigns/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'showCampaign'])->name('campaigns.show');
+    Route::put('/campaigns/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'updateCampaign'])->name('campaigns.update');
+    Route::post('/campaigns/{id}/preview', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'previewCampaign'])->name('campaigns.preview');
+    Route::post('/campaigns/{id}/send-test', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'sendTestCampaign'])->name('campaigns.send-test');
+    Route::post('/campaigns/{id}/approve', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'approveCampaign'])->name('campaigns.approve');
+    Route::post('/campaigns/{id}/schedule', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'scheduleCampaign'])->name('campaigns.schedule');
+    Route::post('/campaigns/{id}/start', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'startCampaign'])->name('campaigns.start');
+    Route::post('/campaigns/{id}/pause', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'pauseCampaign'])->name('campaigns.pause');
+    Route::post('/campaigns/{id}/resume', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'resumeCampaign'])->name('campaigns.resume');
+    Route::post('/campaigns/{id}/cancel', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'cancelCampaign'])->name('campaigns.cancel');
+    Route::post('/campaigns/{id}/duplicate', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'duplicateCampaign'])->name('campaigns.duplicate');
+
+    Route::get('/contacts', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'contacts'])->name('contacts.index');
+    Route::post('/contacts', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'createContact'])->name('contacts.store');
+    Route::put('/contacts/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'updateContact'])->name('contacts.update');
+    Route::post('/contacts/import', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'importContacts'])->name('contacts.import');
+    Route::post('/contacts/bulk-update', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'bulkUpdateContacts'])->name('contacts.bulk-update');
+
+    Route::get('/sets', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'sets'])->name('sets.index');
+    Route::post('/sets', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'createSet'])->name('sets.store');
+    Route::put('/sets/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'updateSet'])->name('sets.update');
+    Route::post('/sets/{id}/members', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'addSetMembers'])->name('sets.members.store');
+    Route::delete('/sets/{id}/members/{contactId}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'removeSetMember'])->name('sets.members.destroy');
+    Route::post('/sets/{id}/duplicate', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'duplicateSet'])->name('sets.duplicate');
+
+    Route::get('/templates', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'templates'])->name('templates.index');
+    Route::post('/templates', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'createTemplate'])->name('templates.store');
+    Route::put('/templates/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'updateTemplate'])->name('templates.update');
+    Route::post('/templates/{id}/duplicate', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'duplicateTemplate'])->name('templates.duplicate');
+    Route::post('/templates/{id}/sync-unisender', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'syncTemplate'])->name('templates.sync-unisender');
+    Route::post('/templates/{id}/send-test', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'sendTestTemplate'])->name('templates.send-test');
+
+    Route::get('/products/search', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'productSearch'])->name('products.search');
+    Route::post('/campaigns/{id}/offer-items', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'addOfferItem'])->name('offer-items.store');
+    Route::put('/offer-items/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'updateOfferItem'])->name('offer-items.update');
+    Route::delete('/offer-items/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'deleteOfferItem'])->name('offer-items.destroy');
+    Route::post('/campaigns/{id}/offer-items/reorder', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'reorderOfferItems'])->name('offer-items.reorder');
+
+    Route::get('/events', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'events'])->name('events.index');
+    Route::get('/suppression', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'suppression'])->name('suppression.index');
+    Route::post('/suppression', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'addSuppression'])->name('suppression.store');
+    Route::delete('/suppression/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'deleteSuppression'])->name('suppression.destroy');
+
+    Route::post('/settings/test-api', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'testApi'])->name('settings.test-api');
+    Route::post('/settings/set-webhook', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'setWebhook'])->name('settings.set-webhook');
+});
+
 /*|
 |-------------------------------------------------------------------------- */
 

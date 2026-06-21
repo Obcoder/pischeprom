@@ -1,6 +1,7 @@
 name: Deploy to VPS
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -63,6 +64,11 @@ jobs:
             php artisan migrate --force
 
             php artisan optimize:clear
+            php artisan route:list --path=Ameise/commercial-offers
+            php artisan route:list --path=unisender-go
+            php artisan route:list --path=unsubscribe
+            php artisan list mailings
+
             php artisan beeline:sync-calls --period=today --limit=500
             php artisan beeline:rebuild-calls --limit=2000
 
