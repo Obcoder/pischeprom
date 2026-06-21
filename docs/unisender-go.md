@@ -8,7 +8,7 @@
 EMAIL_PROVIDER=unisender_go
 
 UNISENDER_GO_ENABLED=true
-UNISENDER_GO_API_BASE=https://goapi.unisender.ru/ru/transactional/api/v1
+UNISENDER_GO_API_BASE=https://go1.unisender.ru/en/transactional/api/v1
 UNISENDER_GO_API_KEY=
 UNISENDER_GO_FROM_EMAIL=sales@pischeprom.ru
 UNISENDER_GO_FROM_NAME="Pischeprom"
@@ -36,8 +36,10 @@ MAILINGS_DRY_RUN=false
 
 1. Откройте Unisender Go.
 2. Создайте API key для transactional API.
-3. Заполните `UNISENDER_GO_API_KEY` на production/stage.
-4. Проверьте связь командой `php artisan mailings:unisender:test-api`.
+3. Узнайте host вашего Go-инстанса в кабинете Unisender Go. Официальный SDK использует формат `https://{YOUR-HOST-NAME}/en/transactional/api/v1`, пример: `https://go1.unisender.ru/en/transactional/api/v1`.
+4. Заполните `UNISENDER_GO_API_KEY` и `UNISENDER_GO_API_BASE` на production/stage.
+5. Выполните `php artisan config:clear`, если Laravel config был закеширован.
+6. Проверьте связь командой `php artisan mailings:unisender:test-api`.
 
 ## Домен отправителя
 
@@ -248,7 +250,7 @@ rg -n "Mailgun|mailgun|MAILGUN|mailgun-php|mailgun.com|api.mailgun.net|api.eu.ma
 
 `UNISENDER_GO_API_KEY is not configured`: заполните env и выполните `php artisan config:clear`.
 
-`user not found`: Unisender не признал API key или аккаунт. Проверьте, что ключ взят именно из Unisender Go Transactional API, относится к нужному проекту/аккаунту, скопирован без пробелов/переносов, `UNISENDER_GO_API_BASE=https://goapi.unisender.ru/ru/transactional/api/v1`, затем выполните `php artisan config:clear` на production.
+`user not found`: Unisender не признал API key или аккаунт. Проверьте, что ключ взят именно из Unisender Go Transactional API, относится к нужному проекту/аккаунту, скопирован без пробелов/переносов, а `UNISENDER_GO_API_BASE` указывает на Go host вашего аккаунта в формате `https://{YOUR-HOST-NAME}/en/transactional/api/v1`, например `https://go1.unisender.ru/en/transactional/api/v1`. Затем выполните `php artisan config:clear` на production.
 
 `from_email must use a corporate domain`: замените отправителя на адрес корпоративного домена.
 

@@ -136,7 +136,11 @@ class UnisenderGoClient
         $url = rtrim((string) config('services.unisender_go.api_base'), '/').'/'.ltrim($endpoint, '/');
         $request = Http::acceptJson()
             ->asJson()
-            ->withHeader('X-API-KEY', $this->apiKey())
+            ->withHeaders([
+                'X-API-KEY' => $this->apiKey(),
+                'X-Mailer' => 'pischeprom-commercial-offers',
+            ])
+            ->withOptions(['query' => ['platform' => 'pischeprom.laravel']])
             ->timeout((int) config('services.unisender_go.timeout', 20));
 
         if ($retry) {

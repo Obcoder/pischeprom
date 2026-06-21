@@ -33,7 +33,7 @@ class CommercialOffersUnisenderTest extends TestCase
             'app.url' => 'https://pischeprom.test',
             'services.email_provider' => 'unisender_go',
             'services.unisender_go.enabled' => true,
-            'services.unisender_go.api_base' => 'https://goapi.unisender.test/ru/transactional/api/v1',
+            'services.unisender_go.api_base' => 'https://go1.unisender.test/en/transactional/api/v1',
             'services.unisender_go.api_key' => 'test-api-key',
             'services.unisender_go.from_email' => 'sales@pischeprom.ru',
             'services.unisender_go.from_name' => 'Pischeprom',
@@ -59,7 +59,7 @@ class CommercialOffersUnisenderTest extends TestCase
     public function test_unisender_client_builds_send_payload_and_webhook_auth(): void
     {
         Http::fake([
-            '*email/send.json' => Http::response(['job_id' => 'job-1', 'failed_emails' => []]),
+            '*email/send.json*' => Http::response(['job_id' => 'job-1', 'failed_emails' => []]),
         ]);
 
         $client = app(UnisenderGoClient::class);
@@ -83,7 +83,9 @@ class CommercialOffersUnisenderTest extends TestCase
             $payload = $request->data();
 
             return $request->hasHeader('X-API-KEY', 'test-api-key')
-                && str_ends_with($request->url(), '/email/send.json')
+                && $request->hasHeader('X-Mailer', 'pischeprom-commercial-offers')
+                && str_contains($request->url(), '/email/send.json')
+                && str_contains($request->url(), 'platform=pischeprom.laravel')
                 && $payload['message']['track_read'] === 1
                 && $payload['message']['track_links'] === 1
                 && $payload['message']['idempotence_key'] === 'idem-1'
@@ -154,7 +156,7 @@ class CommercialOffersUnisenderTest extends TestCase
     public function test_campaign_send_chunks_recipients_and_records_failed_emails(): void
     {
         Http::fake([
-            '*email/send.json' => Http::response([
+            '*email/send.json*' => Http::response([
                 'job_id' => 'job-42',
                 'failed_emails' => [['email' => 'bad@example.test', 'reason' => 'invalid']],
             ]),
@@ -183,7 +185,7 @@ class CommercialOffersUnisenderTest extends TestCase
 
     public function test_webhook_updates_open_click_bounce_spam_and_is_idempotent(): void
     {
-        Http::fake(['*suppression/set.json' => Http::response(['ok' => true])]);
+        Http::fake(['*suppression/set.json*' => Http::response(['ok' => true])]);
         $campaign = $this->campaign();
         $contact = MailingContact::query()->create(['email' => 'lead@example.test', 'normalized_email' => 'lead@example.test', 'consent_status' => 'confirmed']);
         $recipient = MailingCampaignRecipient::query()->create([
@@ -214,7 +216,7 @@ class CommercialOffersUnisenderTest extends TestCase
 
     public function test_unsubscribe_route_blocks_future_sending(): void
     {
-        Http::fake(['*suppression/set.json' => Http::response(['ok' => true])]);
+        Http::fake(['*suppression/set.json*' => Http::response(['ok' => true])]);
         $campaign = $this->campaign();
         $contact = MailingContact::query()->create(['email' => 'optout@example.test', 'normalized_email' => 'optout@example.test', 'consent_status' => 'confirmed']);
         $recipient = MailingCampaignRecipient::query()->create(['campaign_id' => $campaign->id, 'contact_id' => $contact->id, 'email' => $contact->email, 'status' => 'accepted']);
@@ -248,13 +250,13 @@ class CommercialOffersUnisenderTest extends TestCase
     public function test_unisender_test_api_reports_rejected_account_as_configuration_error(): void
     {
         Http::fake([
-            '*suppression/list.json' => Http::response(['message' => 'user not found'], 401),
+            '*suppression/list.json*' => Http::response(['message' => 'user not found'], 401),
         ]);
 
         $this->post('/Ameise/commercial-offers/settings/test-api')
             ->assertStatus(422)
             ->assertJsonPath('status', 'error')
-            ->assertJsonFragment(['message' => 'Unisender Go rejected API key/account: user not found. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and production config cache was cleared.']);
+            ->assertJsonFragment(['message' => 'Unisender Go rejected API key/account: user not found. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and UNISENDER_GO_API_BASE uses your Go host, for example https://go1.unisender.ru/en/transactional/api/v1. Current API base: https://go1.unisender.test/en/transactional/api/v1. After env changes run php artisan config:clear.']);
     }
 
     private function campaign(array $overrides = []): MailingCampaign

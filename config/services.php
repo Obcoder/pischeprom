@@ -35,7 +35,7 @@ return [
 
     'unisender_go' => [
         'enabled' => env('UNISENDER_GO_ENABLED', false),
-        'api_base' => env('UNISENDER_GO_API_BASE', 'https://goapi.unisender.ru/ru/transactional/api/v1'),
+        'api_base' => env('UNISENDER_GO_API_BASE', 'https://go1.unisender.ru/en/transactional/api/v1'),
         'api_key' => env('UNISENDER_GO_API_KEY'),
         'from_email' => env('UNISENDER_GO_FROM_EMAIL', 'sales@pischeprom.ru'),
         'from_name' => env('UNISENDER_GO_FROM_NAME', 'Pischeprom'),

@@ -512,6 +512,7 @@ class CommercialOffersController extends Controller
             ]);
         } catch (Throwable $exception) {
             $message = $exception->getMessage();
+            $apiBase = (string) config('services.unisender_go.api_base');
             $isAuthError = Str::contains(Str::lower($message), [
                 'user not found',
                 'unauthorized',
@@ -529,7 +530,7 @@ class CommercialOffersController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => $isAuthError
-                    ? 'Unisender Go rejected API key/account: '.$message.'. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and production config cache was cleared.'
+                    ? 'Unisender Go rejected API key/account: '.$message.'. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and UNISENDER_GO_API_BASE uses your Go host, for example https://go1.unisender.ru/en/transactional/api/v1. Current API base: '.$apiBase.'. After env changes run php artisan config:clear.'
                     : 'Unisender Go API test failed: '.$message,
             ], $isAuthError ? 422 : 502);
         }
