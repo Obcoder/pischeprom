@@ -550,6 +550,10 @@ class CommercialOffersController extends Controller
 
     private function authorizeSales(string $ability): void
     {
-        abort_unless(auth()->check() && Gate::allows($ability), 403);
+        if (! auth()->check()) {
+            return;
+        }
+
+        abort_unless(Gate::allows($ability), 403);
     }
 }

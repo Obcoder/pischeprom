@@ -28,6 +28,7 @@ class CommercialOffersUnisenderTest extends TestCase
         config([
             'database.default' => 'sqlite',
             'database.connections.sqlite.database' => ':memory:',
+            'inertia.ssr.enabled' => false,
             'queue.default' => 'sync',
             'app.url' => 'https://pischeprom.test',
             'services.email_provider' => 'unisender_go',
@@ -50,6 +51,9 @@ class CommercialOffersUnisenderTest extends TestCase
         DB::connection()->getPdo();
         $migration = include base_path('database/migrations/2026_06_21_130000_create_commercial_offer_mailings_tables.php');
         $migration->up();
+
+        DB::statement('create table regions (id integer primary key autoincrement, name varchar(255) null)');
+        DB::statement('create table cities (id integer primary key autoincrement, name varchar(255) not null, region_id integer null)');
     }
 
     public function test_unisender_client_builds_send_payload_and_webhook_auth(): void
@@ -220,6 +224,13 @@ class CommercialOffersUnisenderTest extends TestCase
 
         $this->assertDatabaseHas('mailing_contacts', ['email' => 'optout@example.test', 'do_not_email' => 1]);
         $this->assertDatabaseHas('mailing_suppression_list', ['email' => 'optout@example.test', 'cause' => 'unsubscribed']);
+    }
+
+    public function test_ameise_commercial_offers_page_does_not_redirect_guest_to_login(): void
+    {
+        $this->get('/Ameise/commercial-offers')
+            ->assertOk()
+            ->assertHeaderMissing('Location');
     }
 
     private function campaign(array $overrides = []): MailingCampaign

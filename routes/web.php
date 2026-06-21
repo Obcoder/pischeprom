@@ -510,10 +510,7 @@ Route::get('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\Mailin
 Route::post('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\MailingUnsubscribeController::class, 'unsubscribe'])
     ->name('mailings.unsubscribe.submit');
 
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-])->prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->group(function () {
+Route::prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->group(function () {
     Route::get('/', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'index'])->name('index');
 
     Route::get('/campaigns', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'campaigns'])->name('campaigns.index');
