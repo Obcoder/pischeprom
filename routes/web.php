@@ -556,6 +556,7 @@ Route::prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->gro
 
     Route::post('/images', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'uploadImage'])->name('images.store');
 
+    Route::get('/price-types', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'priceTypes'])->name('price-types.index');
     Route::get('/products/search', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'productSearch'])->name('products.search');
     Route::post('/campaigns/{id}/offer-items/add-filtered', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'addFilteredOfferItems'])->name('offer-items.add-filtered');
     Route::post('/campaigns/{id}/offer-items', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'addOfferItem'])->name('offer-items.store');

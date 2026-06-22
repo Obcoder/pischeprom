@@ -611,14 +611,25 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->createCatalogTables();
 
         DB::table('currencies')->insert(['id' => 1, 'code' => 'RUB']);
-        DB::table('price_types')->insert(['id' => 1, 'currency_id' => 1]);
+        DB::table('price_types')->insert([
+            ['id' => 1, 'name' => 'Розничная', 'code' => 'retail', 'currency_id' => 1, 'is_active' => 1, 'is_public' => 1, 'sort_order' => 10, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'name' => 'Оптовая', 'code' => 'wholesale', 'currency_id' => 1, 'is_active' => 1, 'is_public' => 0, 'sort_order' => 20, 'created_at' => now(), 'updated_at' => now()],
+        ]);
         DB::table('vat_rates')->insert(['id' => 1, 'title' => 'НДС 22%', 'rate' => 22, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('categories')->insert(['id' => 1, 'name' => 'Эмульгаторы', 'slug' => 'emulgatory', 'local_code' => null, 'meta_title' => null, 'is_published' => 1]);
         DB::table('products')->insert(['id' => 1, 'category_id' => 1, 'rus' => 'Лецитин', 'eng' => 'Lecithin', 'is_published' => 1]);
         DB::table('goods')->insert(['id' => 7, 'name' => 'Лецитин подсолнечный', 'slug' => 'lecithin', 'ava_image' => null, 'ava_thumb' => null, 'description' => 'Пищевой лецитин', 'is_published' => 1, 'vat_rate_id' => 1, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('good_product')->insert(['good_id' => 7, 'product_id' => 1]);
         DB::table('good_media')->insert(['id' => 1, 'good_id' => 7, 'type' => 'image', 'url' => 'https://pischeprom.test/i/lecithin.jpg', 'thumb_url' => 'https://pischeprom.test/i/lecithin-thumb.jpg', 'is_published' => 1, 'is_ava' => 1, 'sort_order' => 1]);
-        DB::table('good_price_type_values')->insert(['id' => 1, 'good_id' => 7, 'price_type_id' => 1, 'currency_id' => 1, 'price_net' => 100, 'price_gross' => 120, 'vat_rate' => 20, 'is_published' => 1, 'updated_at' => now()]);
+        DB::table('good_price_type_values')->insert([
+            ['id' => 1, 'good_id' => 7, 'price_type_id' => 1, 'currency_id' => 1, 'price_net' => 100, 'price_gross' => 120, 'vat_rate' => 20, 'is_published' => 1, 'updated_at' => now()->subDay()],
+            ['id' => 2, 'good_id' => 7, 'price_type_id' => 2, 'currency_id' => 1, 'price_net' => 80, 'price_gross' => 96, 'vat_rate' => 20, 'is_published' => 1, 'updated_at' => now()],
+        ]);
+
+        $this->get('/Ameise/commercial-offers/price-types')
+            ->assertOk()
+            ->assertJsonPath('0.name', 'Розничная')
+            ->assertJsonPath('1.name', 'Оптовая');
 
         $this->get('/Ameise/commercial-offers/products/search?q=lecithin&per_page=25')
             ->assertOk()
@@ -627,9 +638,30 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonPath('products.data.0.id', 7)
             ->assertJsonPath('products.data.0.title', 'Лецитин подсолнечный')
             ->assertJsonPath('products.data.0.source_table', 'goods')
-            ->assertJsonPath('products.data.0.price_formatted', '120,00 RUB')
+            ->assertJsonPath('products.data.0.price_formatted', '96,00 RUB')
+            ->assertJsonPath('products.data.0.price_type_name', 'Оптовая')
             ->assertJsonPath('products.data.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg')
             ->assertJsonPath('products.data.0.vat_rate', 22);
+
+        $this->get('/Ameise/commercial-offers/products/search?'.http_build_query([
+            'q' => 'lecithin',
+            'per_page' => 25,
+            'price_type_id' => 1,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('products.data.0.price_formatted', '120,00 RUB')
+            ->assertJsonPath('products.data.0.price_type_name', 'Розничная');
+
+        $campaign = $this->campaign();
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/offer-items", [
+            'product_id' => 7,
+            'item_type' => 'product',
+            'price_type_id' => 1,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('offer_price', '120.0000')
+            ->assertJsonPath('snapshot.price_type_id', 1)
+            ->assertJsonPath('snapshot.price_type_name', 'Розничная');
 
         $this->get('/Ameise/commercial-offers/products/search?'.http_build_query([
             'type' => 'categories',
@@ -736,7 +768,7 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->createCatalogTables();
 
         DB::table('currencies')->insert(['id' => 1, 'code' => 'RUB']);
-        DB::table('price_types')->insert(['id' => 1, 'currency_id' => 1]);
+        DB::table('price_types')->insert(['id' => 1, 'name' => 'Розничная', 'code' => 'retail', 'currency_id' => 1, 'is_active' => 1, 'is_public' => 1, 'sort_order' => 10, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('goods')->insert([
             'id' => 8,
             'name' => 'Шар пробный',
@@ -995,7 +1027,7 @@ class CommercialOffersUnisenderTest extends TestCase
         DB::statement('create table good_product (good_id integer not null, product_id integer not null)');
         DB::statement('create table good_media (id integer primary key autoincrement, good_id integer not null, type varchar(255) not null, url varchar(255) null, thumb_url varchar(255) null, is_published tinyint default 1, is_ava tinyint default 0, sort_order integer default 100)');
         DB::statement('create table currencies (id integer primary key autoincrement, code varchar(10) null)');
-        DB::statement('create table price_types (id integer primary key autoincrement, currency_id integer null)');
+        DB::statement('create table price_types (id integer primary key autoincrement, name varchar(255) not null, code varchar(255) null, description text null, currency_id integer null, markup_percent decimal(10,4) null, target_margin_percent decimal(10,4) null, rounding_step decimal(12,4) null, is_active tinyint default 1, is_public tinyint default 0, sort_order integer default 100, created_at datetime null, updated_at datetime null)');
         DB::statement('create table good_price_type_values (id integer primary key autoincrement, good_id integer not null, price_type_id integer null, currency_id integer null, price_net decimal(16,4) null, price_gross decimal(16,4) null, vat_rate decimal(10,4) null, is_published tinyint default 1, updated_at datetime null)');
     }
 

@@ -4,6 +4,7 @@ namespace App\Services\CommercialOffers;
 
 use App\Models\Category;
 use App\Models\Good;
+use App\Models\GoodPriceTypeValue;
 use App\Models\MailingOfferItem;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,7 +18,7 @@ class ProductOfferBuilder
         return $this->productQuery($query, $filters)
             ->orderBy('name')
             ->paginate($this->perPage($filters))
-            ->through(fn (Good $good) => $this->productSearchPayload($good));
+            ->through(fn (Good $good) => $this->productSearchPayload($good, $filters));
     }
 
     public function searchCategories(string $query, array $filters = []): LengthAwarePaginator
@@ -82,9 +83,9 @@ class ProductOfferBuilder
                     continue;
                 }
 
-                $items[] = $this->createProductOfferItem($campaignId, $good, [
+                $items[] = $this->createProductOfferItem($campaignId, $good, array_merge($filters, [
                     'sort_order' => ++$nextSortOrder,
-                ]);
+                ]));
             }
         }
 
@@ -117,14 +118,14 @@ class ProductOfferBuilder
         ]);
     }
 
-    public function createProductSnapshot($product): array
+    public function createProductSnapshot($product, ?int $priceTypeId = null): array
     {
         /** @var Good $product */
         $media = $product->publishedMedia
             ->where('type', 'image')
             ->first()
             ?: $product->images->where('type', 'image')->first();
-        $price = $product->priceTypeValues->first();
+        $price = $this->selectedPriceValue($product, $priceTypeId);
         $linkedProduct = $product->products->first();
         $category = $linkedProduct?->category;
         $vatRate = $product->vatRate?->rate ?? $price?->vat_rate;
@@ -142,6 +143,10 @@ class ProductOfferBuilder
             'category_id' => $category?->id,
             'category' => $category?->name,
             'category_url' => $category ? $this->categoryUrl($category) : null,
+            'requested_price_type_id' => $priceTypeId,
+            'price_type_id' => $price?->price_type_id,
+            'price_type_name' => $price?->priceType?->name,
+            'price_type_code' => $price?->priceType?->code,
             'vat_rate_id' => $product->vatRate?->id,
             'vat_rate_title' => $product->vatRate?->title,
             'vat_rate' => $vatRate !== null ? (float) $vatRate : null,
@@ -150,21 +155,23 @@ class ProductOfferBuilder
         ];
     }
 
-    private function productSearchPayload(Good $good): array
+    private function productSearchPayload(Good $good, array $filters = []): array
     {
-        $snapshot = $this->createProductSnapshot($good);
+        $selectedPriceTypeId = $this->selectedPriceTypeId($filters);
+        $snapshot = $this->createProductSnapshot($good, $selectedPriceTypeId);
 
         return $snapshot + [
             'id' => $good->id,
             'source_table' => 'goods',
             'is_published' => (bool) $good->is_published,
+            'price_available' => $snapshot['price'] !== null,
             'price_formatted' => $snapshot['price'] !== null ? number_format((float) $snapshot['price'], 2, ',', ' ').' '.$snapshot['currency'] : '-',
         ];
     }
 
     private function createProductOfferItem($campaignId, Good $good, array $overrides = []): MailingOfferItem
     {
-        $snapshot = $this->createProductSnapshot($good);
+        $snapshot = $this->createProductSnapshot($good, $this->selectedPriceTypeId($overrides));
 
         return MailingOfferItem::query()->create([
             'campaign_id' => $campaignId,
@@ -224,6 +231,22 @@ class ProductOfferBuilder
             'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
             'priceTypeValues' => fn ($q) => $q->where('is_published', true)->with(['priceType.currency', 'currency'])->orderByDesc('updated_at'),
         ];
+    }
+
+    private function selectedPriceValue(Good $product, ?int $priceTypeId): ?GoodPriceTypeValue
+    {
+        if ($priceTypeId !== null) {
+            return $product->priceTypeValues->first(fn ($value) => (int) $value->price_type_id === $priceTypeId);
+        }
+
+        return $product->priceTypeValues->first();
+    }
+
+    private function selectedPriceTypeId(array $filters): ?int
+    {
+        $value = $filters['price_type_id'] ?? null;
+
+        return is_numeric($value) && (int) $value > 0 ? (int) $value : null;
     }
 
     public function updateOfferItemPrice($offerItemId, $price): MailingOfferItem

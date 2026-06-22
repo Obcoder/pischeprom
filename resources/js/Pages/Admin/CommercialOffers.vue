@@ -61,6 +61,7 @@ const sets = ref([])
 const templates = ref([])
 const events = ref([])
 const suppression = ref([])
+const priceTypes = ref([])
 const products = ref([])
 const categories = ref([])
 const selectedRows = ref(new Set())
@@ -96,6 +97,7 @@ const templateForm = reactive({
 })
 const productSearch = ref('')
 const productCampaignId = ref('')
+const productPriceTypeId = ref('')
 const productActiveTab = ref('goods')
 const productPublishedFilter = ref('')
 const productPerPage = ref(50)
@@ -152,6 +154,7 @@ const templateOptions = computed(() => templates.value.map((template) => ({
 })))
 
 const activeProductMeta = computed(() => productActiveTab.value === 'categories' ? categoryMeta : productMeta)
+const selectedProductPriceType = computed(() => priceTypes.value.find((item) => Number(item.id) === Number(productPriceTypeId.value)) || null)
 
 const selectedRecipientSet = computed(() => new Set(selectedCampaignRecipients.value.map((item) => normalizeEmail(item.email))))
 
@@ -219,11 +222,20 @@ async function loadSourceEmails() {
     sourceEmails.value = data.data || data
 }
 
+async function loadPriceTypes() {
+    const { data } = await axios.get(endpoint('/price-types'))
+    priceTypes.value = Array.isArray(data) ? data : data.data || []
+    if (!productPriceTypeId.value && priceTypes.value.length > 0) {
+        productPriceTypeId.value = String(priceTypes.value[0].id)
+    }
+}
+
 async function refreshAll() {
     await request('loaded', async () => {
         await Promise.all([
             ...['campaigns', 'contacts', 'sets', 'templates', 'events', 'suppression'].map(loadTable),
             loadSourceEmails(),
+            loadPriceTypes(),
         ])
     })
 }
@@ -555,6 +567,7 @@ async function searchProducts(page = 1) {
                 type,
                 q: productSearch.value,
                 published: productPublishedFilter.value,
+                price_type_id: productPriceTypeId.value,
                 per_page: productPerPage.value,
                 page,
             },
@@ -595,7 +608,11 @@ async function addProduct(product) {
         return
     }
     await request('product added', async () => {
-        await axios.post(endpoint(`/campaigns/${campaignId}/offer-items`), { product_id: product.id, item_type: 'product' })
+        await axios.post(endpoint(`/campaigns/${campaignId}/offer-items`), {
+            product_id: product.id,
+            item_type: 'product',
+            price_type_id: productPriceTypeId.value,
+        })
         await Promise.all([loadCampaignOfferItems(), loadTable('campaigns')])
     })
 }
@@ -614,7 +631,8 @@ async function addFilteredProducts() {
         error.value = 'search result is empty'
         return
     }
-    if (!window.confirm(`Add all ${productMeta.total} goods from current search/filter to selected КП? Existing items will be skipped.`)) {
+    const priceTypeName = selectedProductPriceType.value?.name || 'auto/latest published price'
+    if (!window.confirm(`Add all ${productMeta.total} goods from current search/filter to selected КП using "${priceTypeName}"? Existing items will be skipped.`)) {
         return
     }
 
@@ -623,6 +641,7 @@ async function addFilteredProducts() {
             type: 'goods',
             q: productSearch.value,
             published: productPublishedFilter.value,
+            price_type_id: productPriceTypeId.value,
         })
         await Promise.all([loadCampaignOfferItems(), loadTable('campaigns')])
         return response
@@ -1166,6 +1185,12 @@ onMounted(refreshAll)
                     <option value="">select campaign</option>
                     <option v-for="campaign in campaignOptions" :key="campaign.id" :value="campaign.id">{{ campaign.label }}</option>
                 </select>
+                <select v-model="productPriceTypeId" @change="searchProducts(1)">
+                    <option value="">auto/latest price</option>
+                    <option v-for="priceType in priceTypes" :key="priceType.id" :value="String(priceType.id)">
+                        {{ priceType.name }}{{ priceType.currency ? ` / ${priceType.currency}` : '' }}
+                    </option>
+                </select>
                 <button type="button" :class="{ active: productActiveTab === 'goods' }" @click="switchProductTab('goods')">goods</button>
                 <button type="button" :class="{ active: productActiveTab === 'categories' }" @click="switchProductTab('categories')">categories</button>
                 <input v-model="productSearch" placeholder="search by name / category / brand / id" @keyup.enter="searchProducts(1)">
@@ -1182,7 +1207,7 @@ onMounted(refreshAll)
                 <button type="button" @click="searchProducts(1)">search</button>
             </div>
 
-            <div class="mini-help">Goods and categories are loaded from pischeprom DB with server-side pagination. Adding stores snapshot in КП; catalog price is not changed.</div>
+            <div class="mini-help">Goods and categories are loaded from pischeprom DB with server-side pagination. Selected price type is saved into КП snapshot; catalog price is not changed.</div>
 
             <div class="products-workspace">
                 <div class="products-catalog">
@@ -1201,12 +1226,13 @@ onMounted(refreshAll)
 
                     <div v-if="productActiveTab === 'goods'" class="table-shell products-table">
                         <table>
-                            <thead><tr><th class="sticky-col">id</th><th>title</th><th>price</th><th>category/url</th><th>thumb</th><th>published</th><th>actions</th></tr></thead>
+                            <thead><tr><th class="sticky-col">id</th><th>title</th><th>price</th><th>price type</th><th>category/url</th><th>thumb</th><th>published</th><th>actions</th></tr></thead>
                             <tbody>
                                 <tr v-for="item in products" :key="item.id">
                                     <td class="sticky-col">{{ item.id }}</td>
                                     <td>{{ item.title || item.name }}</td>
-                                    <td>{{ item.price_formatted || item.price || '-' }}</td>
+                                    <td :class="{ 'is-warn': productPriceTypeId && !item.price_available }">{{ item.price_formatted || item.price || '-' }}</td>
+                                    <td :class="{ 'is-warn': productPriceTypeId && !item.price_available }">{{ item.price_type_name || (productPriceTypeId ? 'no selected price' : 'auto') }}</td>
                                     <td>{{ item.category || item.canonical_url }}</td>
                                     <td>{{ item.thumbnail_url ? 'img' : '-' }}</td>
                                     <td>{{ item.is_published ? '1' : '0' }}</td>

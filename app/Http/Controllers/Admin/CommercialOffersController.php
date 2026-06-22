@@ -14,6 +14,7 @@ use App\Models\MailingOfferItem;
 use App\Models\MailingSuppression;
 use App\Models\MailingTemplate;
 use App\Models\MailingWebhookCall;
+use App\Models\PriceType;
 use App\Models\Unit;
 use App\Services\CommercialOffers\MailingAuditLogger;
 use App\Services\CommercialOffers\MailingCampaignService;
@@ -814,6 +815,27 @@ class CommercialOffersController extends Controller
         ]);
     }
 
+    public function priceTypes(): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.view');
+
+        return response()->json(PriceType::query()
+            ->with('currency')
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PriceType $priceType) => [
+                'id' => $priceType->id,
+                'name' => $priceType->name,
+                'code' => $priceType->code,
+                'currency' => $priceType->currency?->code,
+                'is_public' => (bool) $priceType->is_public,
+                'sort_order' => $priceType->sort_order,
+            ])
+            ->values());
+    }
+
     public function addOfferItem(Request $request, mixed $id): JsonResponse
     {
         $this->authorizeSales('sales_mailings.edit');
@@ -830,7 +852,10 @@ class CommercialOffersController extends Controller
             return response()->json($this->products->addCategoryToCampaign((int) $id, (int) $request->input('category_id'), $request->all()), 201);
         }
 
-        $request->validate(['product_id' => ['required', 'integer', 'exists:goods,id']]);
+        $request->validate([
+            'product_id' => ['required', 'integer', 'exists:goods,id'],
+            'price_type_id' => ['nullable', 'integer', 'exists:price_types,id'],
+        ]);
 
         return response()->json($this->products->addProductToCampaign((int) $id, (int) $request->input('product_id'), $request->all()), 201);
     }
@@ -849,6 +874,7 @@ class CommercialOffersController extends Controller
             'q' => ['nullable', 'string'],
             'published' => ['nullable'],
             'type' => ['nullable', 'in:goods,products,product'],
+            'price_type_id' => ['nullable', 'integer', 'exists:price_types,id'],
         ]);
 
         return response()->json($this->products->addProductsFromSearchToCampaign(
