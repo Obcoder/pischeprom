@@ -40,9 +40,9 @@ class MailingCampaignService
             'contact_set_id' => $data['contact_set_id'] ?? null,
             'html_markup' => $data['html_markup'] ?? $template?->html_markup,
             'plaintext' => $data['plaintext'] ?? $template?->plaintext,
-            'from_email' => $data['from_email'] ?? $template?->from_email ?? config('services.unisender_go.from_email'),
-            'from_name' => $data['from_name'] ?? $template?->from_name ?? config('services.unisender_go.from_name'),
-            'reply_to' => $data['reply_to'] ?? $template?->reply_to ?? config('services.unisender_go.reply_to'),
+            'from_email' => $this->providerFromEmail(),
+            'from_name' => $this->providerFromName(),
+            'reply_to' => $this->providerReplyTo(),
             'created_by' => $userId,
             'updated_by' => $userId,
             'compliance_status' => $data['compliance_status'] ?? 'draft',
@@ -68,6 +68,7 @@ class MailingCampaignService
             'name', 'type', 'subject', 'preheader', 'template_id', 'contact_set_id', 'html_markup', 'plaintext',
             'from_email', 'from_name', 'reply_to', 'scheduled_at', 'compliance_status', 'compliance_note', 'metadata', 'tags',
         ]));
+        $campaign->forceFill($this->providerSenderPayload());
         $campaign->updated_by = $userId;
         $campaign->save();
 
@@ -95,6 +96,7 @@ class MailingCampaignService
     public function sendTest(MailingCampaign|int $campaign, string $email, ?int $userId = null): UnisenderSendResult
     {
         $campaign = $this->campaign($campaign);
+        $campaign = $this->syncCampaignProviderSender($campaign);
         $this->validateBeforeSend($campaign, requireRecipients: false);
 
         $email = MailingContact::normalizeEmail($email ?: (string) config('services.mailings.test_recipient'));
@@ -172,6 +174,7 @@ class MailingCampaignService
     public function approve(MailingCampaign|int $campaign, ?int $userId = null, ?string $note = null): MailingCampaign
     {
         $campaign = $this->campaign($campaign);
+        $campaign = $this->syncCampaignProviderSender($campaign);
         $this->validateBeforeSend($campaign);
         $campaign->update([
             'status' => 'ready',
@@ -189,6 +192,7 @@ class MailingCampaignService
     public function schedule(MailingCampaign|int $campaign, DateTimeInterface|string $sendAt, ?int $userId = null): MailingCampaign
     {
         $campaign = $this->campaign($campaign);
+        $campaign = $this->syncCampaignProviderSender($campaign);
         $this->validateBeforeSend($campaign);
         $campaign->update(['status' => 'scheduled', 'scheduled_at' => $sendAt]);
         $this->audit->log('campaign.scheduled', MailingCampaign::class, $campaign->id, null, ['scheduled_at' => (string) $campaign->scheduled_at], userId: $userId);
@@ -199,6 +203,7 @@ class MailingCampaignService
     public function startSending(MailingCampaign|int $campaign, ?int $userId = null): MailingCampaign
     {
         $campaign = $this->campaign($campaign);
+        $campaign = $this->syncCampaignProviderSender($campaign);
         $this->validateBeforeSend($campaign);
 
         if (in_array($campaign->status, ['sending', 'completed', 'cancelled'], true)) {
@@ -407,11 +412,13 @@ class MailingCampaignService
         if (blank($campaign->subject)) {
             $errors[] = 'Subject is required.';
         }
-        if (blank($campaign->from_email) || ! filter_var($campaign->from_email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Valid from_email is required.';
+        $fromEmail = $this->providerFromEmail();
+
+        if (blank($fromEmail) || ! filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Valid UNISENDER_GO_FROM_EMAIL is required.';
         }
-        if ($campaign->from_email && $this->isPublicEmailDomain($campaign->from_email)) {
-            $errors[] = 'from_email must use a corporate domain, not a public mailbox.';
+        if ($fromEmail && $this->isPublicEmailDomain($fromEmail)) {
+            $errors[] = 'UNISENDER_GO_FROM_EMAIL must use a corporate domain, not a public mailbox.';
         }
         if (blank($html)) {
             $errors[] = 'HTML markup is required.';
@@ -507,9 +514,9 @@ class MailingCampaignService
             })->all(),
             'body' => ['html' => $html, 'plaintext' => $plaintext],
             'subject' => ($test ? '[TEST] ' : '').$campaign->subject,
-            'from_email' => $campaign->from_email,
-            'from_name' => $campaign->from_name,
-            'reply_to' => $campaign->reply_to,
+            'from_email' => $this->providerFromEmail(),
+            'from_name' => $this->providerFromName(),
+            'reply_to' => $this->providerReplyTo(),
             'track_links' => (bool) config('services.unisender_go.track_links', true) ? 1 : 0,
             'track_read' => (bool) config('services.unisender_go.track_read', true) ? 1 : 0,
             'template_id' => $campaign->template?->unisender_template_id,
@@ -586,6 +593,7 @@ class MailingCampaignService
     {
         return [
             'subject' => $message['subject'] ?? null,
+            'from_email' => $message['from_email'] ?? null,
             'recipients_count' => count($message['recipients'] ?? []),
             'track_links' => $message['track_links'] ?? null,
             'track_read' => $message['track_read'] ?? null,
@@ -614,5 +622,48 @@ class MailingCampaignService
     private function campaign(MailingCampaign|int $campaign): MailingCampaign
     {
         return $campaign instanceof MailingCampaign ? $campaign->loadMissing(['template', 'offerItems', 'recipients.contact']) : MailingCampaign::query()->with(['template', 'offerItems', 'recipients.contact'])->findOrFail($campaign);
+    }
+
+    private function syncCampaignProviderSender(MailingCampaign $campaign): MailingCampaign
+    {
+        $payload = $this->providerSenderPayload();
+
+        if (
+            $campaign->from_email !== $payload['from_email']
+            || $campaign->from_name !== $payload['from_name']
+            || $campaign->reply_to !== $payload['reply_to']
+        ) {
+            $campaign->forceFill($payload)->save();
+        }
+
+        return $campaign->fresh(['template', 'offerItems', 'recipients.contact']);
+    }
+
+    private function providerSenderPayload(): array
+    {
+        return [
+            'from_email' => $this->providerFromEmail(),
+            'from_name' => $this->providerFromName(),
+            'reply_to' => $this->providerReplyTo(),
+        ];
+    }
+
+    private function providerFromEmail(): ?string
+    {
+        $email = MailingContact::normalizeEmail((string) config('services.unisender_go.from_email'));
+
+        return $email !== '' ? $email : null;
+    }
+
+    private function providerFromName(): string
+    {
+        return trim((string) config('services.unisender_go.from_name')) ?: 'Pischeprom';
+    }
+
+    private function providerReplyTo(): ?string
+    {
+        $replyTo = MailingContact::normalizeEmail((string) config('services.unisender_go.reply_to'));
+
+        return $replyTo !== '' ? $replyTo : $this->providerFromEmail();
     }
 }

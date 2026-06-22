@@ -219,6 +219,45 @@ class CommercialOffersUnisenderTest extends TestCase
             && $request->data()['message']['recipients'][0]['email'] === 'single@example.test');
     }
 
+    public function test_campaign_test_send_uses_configured_unisender_sender_not_stale_campaign_sender(): void
+    {
+        config([
+            'services.unisender_go.from_email' => 'com@food-server.ru',
+            'services.unisender_go.from_name' => 'Pischeprom',
+            'services.unisender_go.reply_to' => 'com@food-server.ru',
+        ]);
+
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'job_id' => 'test-job-food-server',
+                'failed_emails' => [],
+            ]),
+        ]);
+
+        $campaign = $this->campaign([
+            'contact_set_id' => null,
+            'from_email' => 'office@180022.ru',
+            'from_name' => 'Old sender',
+            'reply_to' => 'office@180022.ru',
+        ]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", [
+            'email' => 'single@example.test',
+        ])->assertOk()
+            ->assertJsonPath('job_id', 'test-job-food-server');
+
+        Http::assertSent(fn ($request) => $request->data()['message']['from_email'] === 'com@food-server.ru'
+            && $request->data()['message']['from_name'] === 'Pischeprom'
+            && $request->data()['message']['reply_to'] === 'com@food-server.ru');
+
+        $this->assertDatabaseHas('mailing_campaigns', [
+            'id' => $campaign->id,
+            'from_email' => 'com@food-server.ru',
+            'from_name' => 'Pischeprom',
+            'reply_to' => 'com@food-server.ru',
+        ]);
+    }
+
     public function test_campaign_test_send_retries_without_tracking_when_tracking_domain_is_required(): void
     {
         Http::fake([

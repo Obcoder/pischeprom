@@ -10,9 +10,9 @@ EMAIL_PROVIDER=unisender_go
 UNISENDER_GO_ENABLED=true
 UNISENDER_GO_API_BASE=https://go1.unisender.ru/en/transactional/api/v1
 UNISENDER_GO_API_KEY=
-UNISENDER_GO_FROM_EMAIL=sales@pischeprom.ru
+UNISENDER_GO_FROM_EMAIL=com@food-server.ru
 UNISENDER_GO_FROM_NAME="Pischeprom"
-UNISENDER_GO_REPLY_TO=sales@pischeprom.ru
+UNISENDER_GO_REPLY_TO=com@food-server.ru
 UNISENDER_GO_TRACK_READ=true
 UNISENDER_GO_TRACK_LINKS=true
 UNISENDER_GO_GLOBAL_LANGUAGE=ru
@@ -46,7 +46,7 @@ MAILINGS_DRY_RUN=false
 1. Подключите корпоративный домен отправителя в Unisender.
 2. Настройте SPF, DKIM и DMARC по инструкции Unisender.
 3. Не отправляйте коммерческие предложения с публичных ящиков вроде gmail/yandex/mail.ru.
-4. Используйте `UNISENDER_GO_FROM_EMAIL` на корпоративном домене.
+4. Используйте `UNISENDER_GO_FROM_EMAIL` только с подтверждённого домена Unisender, сейчас для КП это `com@food-server.ru`.
 5. Проверьте deliverability тестовой отправкой перед массовой кампанией.
 
 ## Webhook
