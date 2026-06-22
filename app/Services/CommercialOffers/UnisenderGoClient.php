@@ -159,7 +159,7 @@ class UnisenderGoClient
         ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException((string) (Arr::get($json, 'message') ?: Arr::get($json, 'error') ?: 'Unisender Go request failed.'));
+            throw new RuntimeException($this->providerErrorMessage($json));
         }
 
         return is_array($json) ? $json : [];
@@ -213,6 +213,40 @@ class UnisenderGoClient
         }
 
         return $result;
+    }
+
+    private function providerErrorMessage(array $json): string
+    {
+        $message = (string) (Arr::get($json, 'message') ?: Arr::get($json, 'error') ?: 'Unisender Go request failed.');
+
+        if ($this->isFreeTierCheckedRecipientError($message)) {
+            $domain = $this->externalRecipientDomain($message);
+            $suffix = $domain ? " Домен получателя: {$domain}." : '';
+
+            return 'Unisender free_tier отклонил получателя: можно отправлять только на checked emails/domains в Unisender.'
+                .$suffix
+                .' Добавьте email получателя/домен в проверенные в кабинете Unisender, укажите MAILINGS_TEST_RECIPIENT на проверенный адрес или смените тариф.';
+        }
+
+        return $message;
+    }
+
+    private function isFreeTierCheckedRecipientError(string $message): bool
+    {
+        $message = mb_strtolower($message);
+
+        return str_contains($message, 'free_tier')
+            && str_contains($message, 'checked')
+            && str_contains($message, 'external domain');
+    }
+
+    private function externalRecipientDomain(string $message): ?string
+    {
+        if (preg_match("/external domain\\(s\\)\\s+'([^']+)'/i", $message, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     private function apiKey(): string

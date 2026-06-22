@@ -291,6 +291,26 @@ class CommercialOffersUnisenderTest extends TestCase
         ]);
     }
 
+    public function test_campaign_test_send_explains_unisender_free_tier_checked_recipient_limit(): void
+    {
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'message' => "Error ID:test. On the 'free_tier' tariff it is allowed to send letters only to the 'checked' domains or 'checked' emails. The request contains external domain(s) 'gmail.com'.",
+            ], 422),
+        ]);
+
+        $campaign = $this->campaign(['contact_set_id' => null]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", [
+            'email' => 'buyer@gmail.com',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'message',
+                'Test email failed: Unisender free_tier отклонил получателя: можно отправлять только на checked emails/domains в Unisender. Домен получателя: gmail.com. Добавьте email получателя/домен в проверенные в кабинете Unisender, укажите MAILINGS_TEST_RECIPIENT на проверенный адрес или смените тариф.'
+            );
+    }
+
     public function test_webhook_updates_open_click_bounce_spam_and_is_idempotent(): void
     {
         Http::fake(['*suppression/set.json*' => Http::response(['ok' => true])]);

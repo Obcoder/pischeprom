@@ -743,6 +743,7 @@ class CommercialOffersController extends Controller
             'daily_limit' => (int) config('services.mailings.daily_limit'),
             'hourly_limit' => (int) config('services.mailings.hourly_limit'),
             'webhook_url' => config('services.unisender_go.webhook_url'),
+            'test_recipient' => config('services.mailings.test_recipient'),
             'api_key_configured' => filled(config('services.unisender_go.api_key')),
         ];
     }
