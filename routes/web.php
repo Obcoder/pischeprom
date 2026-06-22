@@ -526,6 +526,11 @@ Route::prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->gro
     Route::post('/campaigns/{id}/resume', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'resumeCampaign'])->name('campaigns.resume');
     Route::post('/campaigns/{id}/cancel', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'cancelCampaign'])->name('campaigns.cancel');
     Route::post('/campaigns/{id}/duplicate', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'duplicateCampaign'])->name('campaigns.duplicate');
+    Route::get('/campaigns/{id}/recipients', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'campaignRecipients'])->name('campaigns.recipients.index');
+    Route::post('/campaigns/{id}/recipients', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'saveCampaignRecipients'])->name('campaigns.recipients.store');
+    Route::delete('/campaigns/{id}/recipients/{recipientId}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'removeCampaignRecipient'])->name('campaigns.recipients.destroy');
+    Route::get('/campaigns/{id}/recipient-picker/emails', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'recipientPickerEmails'])->name('campaigns.recipient-picker.emails');
+    Route::get('/campaigns/{id}/recipient-picker/units', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'recipientPickerUnits'])->name('campaigns.recipient-picker.units');
 
     Route::get('/contacts', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'contacts'])->name('contacts.index');
     Route::get('/source-emails', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'sourceEmails'])->name('source-emails.index');

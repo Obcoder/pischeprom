@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendMailingCampaignJob;
 use App\Models\Email;
 use App\Models\MailingCampaign;
+use App\Models\MailingCampaignRecipient;
 use App\Models\MailingContact;
 use App\Models\MailingContactSet;
 use App\Models\MailingEvent;
@@ -13,6 +14,7 @@ use App\Models\MailingOfferItem;
 use App\Models\MailingSuppression;
 use App\Models\MailingTemplate;
 use App\Models\MailingWebhookCall;
+use App\Models\Unit;
 use App\Services\CommercialOffers\MailingAuditLogger;
 use App\Services\CommercialOffers\MailingCampaignService;
 use App\Services\CommercialOffers\ProductOfferBuilder;
@@ -188,6 +190,224 @@ class CommercialOffersController extends Controller
         $this->authorizeSales('sales_mailings.edit');
 
         return response()->json($this->campaigns->cloneCampaign($id, $request->user()?->id), 201);
+    }
+
+    public function campaignRecipients(Request $request, int $id): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.view');
+        $campaign = MailingCampaign::query()->findOrFail($id);
+
+        $items = $campaign->recipients()
+            ->with('contact')
+            ->orderBy('email')
+            ->paginate($request->integer('per_page', 500));
+
+        $items->getCollection()->transform(fn (MailingCampaignRecipient $recipient) => $this->campaignRecipientPayload($recipient));
+
+        return response()->json($items);
+    }
+
+    public function recipientPickerEmails(Request $request, int $id): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.view');
+        MailingCampaign::query()->findOrFail($id);
+        $selected = $this->campaignRecipientEmailSet($id);
+
+        $query = Email::query()
+            ->select($this->emailSourceColumns())
+            ->whereNotNull('address')
+            ->when($request->string('q')->toString(), function ($query, string $q): void {
+                $query->where(function ($inner) use ($q): void {
+                    $inner->where('address', 'like', "%{$q}%");
+
+                    foreach (['name', 'domain', 'comment', 'source'] as $column) {
+                        if (Schema::hasColumn('emails', $column)) {
+                            $inner->orWhere($column, 'like', "%{$q}%");
+                        }
+                    }
+                });
+            })
+            ->when(Schema::hasColumn('emails', 'is_active') && ! $request->boolean('include_inactive'), function ($query): void {
+                $query->where('is_active', true);
+            })
+            ->orderByDesc(Schema::hasColumn('emails', 'last_seen_at') ? 'last_seen_at' : 'updated_at')
+            ->orderBy('address');
+
+        $items = $query->paginate($request->integer('per_page', 100));
+        $items->getCollection()->transform(fn (Email $email) => $this->sourceEmailPayload($email, $selected));
+
+        return response()->json($items);
+    }
+
+    public function recipientPickerUnits(Request $request, int $id): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.view');
+        MailingCampaign::query()->findOrFail($id);
+        $selected = $this->campaignRecipientEmailSet($id);
+        $emailColumns = $this->qualifiedEmailSourceColumns();
+
+        $query = Unit::query()
+            ->without(['fields', 'labels', 'telephones', 'uris'])
+            ->with(['emails' => function ($query) use ($emailColumns): void {
+                $query->select($emailColumns)
+                    ->whereNotNull('emails.address')
+                    ->when(Schema::hasColumn('emails', 'is_active'), fn ($inner) => $inner->where('emails.is_active', true))
+                    ->orderBy('emails.address');
+            }])
+            ->withCount('emails')
+            ->when($request->string('q')->toString(), function ($query, string $q): void {
+                $query->where(function ($inner) use ($q): void {
+                    $inner->where('name', 'like', "%{$q}%")
+                        ->orWhereHas('emails', function ($emailQuery) use ($q): void {
+                            $emailQuery->where('address', 'like', "%{$q}%");
+
+                            if (Schema::hasColumn('emails', 'name')) {
+                                $emailQuery->orWhere('name', 'like', "%{$q}%");
+                            }
+                        });
+                });
+            })
+            ->orderBy('name');
+
+        $items = $query->paginate($request->integer('per_page', 50));
+        $items->getCollection()->transform(function (Unit $unit) use ($selected): array {
+            $emails = $unit->emails
+                ->map(fn (Email $email) => $this->sourceEmailPayload($email, $selected))
+                ->filter(fn (array $email) => filter_var($email['address'], FILTER_VALIDATE_EMAIL))
+                ->values();
+
+            return [
+                'id' => $unit->id,
+                'name' => $unit->name,
+                'emails_count' => $unit->emails_count,
+                'selectable_count' => $emails->count(),
+                'selected_count' => $emails->where('selected', true)->count(),
+                'emails' => $emails,
+            ];
+        });
+
+        return response()->json($items);
+    }
+
+    public function saveCampaignRecipients(Request $request, int $id): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.edit');
+        $campaign = MailingCampaign::query()->findOrFail($id);
+        $data = $request->validate([
+            'emails' => ['nullable', 'array'],
+            'emails.*' => ['string'],
+            'email_ids' => ['nullable', 'array'],
+            'email_ids.*' => ['integer'],
+            'unit_ids' => ['nullable', 'array'],
+            'unit_ids.*' => ['integer'],
+            'replace' => ['nullable', 'boolean'],
+        ]);
+
+        $emails = collect($data['emails'] ?? [])
+            ->map(fn ($email) => ['email' => MailingContact::normalizeEmail($email), 'source' => 'manual'])
+            ->filter(fn (array $item) => filter_var($item['email'], FILTER_VALIDATE_EMAIL));
+
+        if (! empty($data['email_ids'])) {
+            Email::query()
+                ->select($this->emailSourceColumns())
+                ->whereIn('id', collect($data['email_ids'])->map(fn ($id) => (int) $id)->filter()->unique())
+                ->get()
+                ->each(function (Email $email) use (&$emails): void {
+                    $emails->push(['email' => MailingContact::normalizeEmail($email->address), 'source' => 'email', 'source_email' => $email]);
+                });
+        }
+
+        if (! empty($data['unit_ids'])) {
+            Unit::query()
+                ->without(['fields', 'labels', 'telephones', 'uris'])
+                ->with(['emails' => fn ($query) => $query->select($this->qualifiedEmailSourceColumns())->whereNotNull('emails.address')])
+                ->whereIn('id', collect($data['unit_ids'])->map(fn ($id) => (int) $id)->filter()->unique())
+                ->get()
+                ->each(function (Unit $unit) use (&$emails): void {
+                    foreach ($unit->emails as $email) {
+                        $emails->push([
+                            'email' => MailingContact::normalizeEmail($email->address),
+                            'source' => 'unit',
+                            'source_email' => $email,
+                            'source_unit_id' => $unit->id,
+                            'source_unit_name' => $unit->name,
+                        ]);
+                    }
+                });
+        }
+
+        $emails = $emails
+            ->filter(fn (array $item) => filter_var($item['email'], FILTER_VALIDATE_EMAIL))
+            ->unique('email')
+            ->values();
+
+        if ($request->boolean('replace')) {
+            $campaign->recipients()
+                ->whereNull('sent_at')
+                ->whereNull('unisender_job_id')
+                ->delete();
+        }
+
+        $created = 0;
+        $updated = 0;
+        foreach ($emails as $item) {
+            $contact = $this->mailingContactFromPickerItem($item);
+            $recipient = MailingCampaignRecipient::query()->firstOrNew([
+                'campaign_id' => $campaign->id,
+                'normalized_email' => $contact->normalized_email,
+            ]);
+            $isNew = ! $recipient->exists;
+            $metadata = array_replace($recipient->metadata ?? [], array_filter([
+                'campaign_id' => $campaign->id,
+                'contact_id' => $contact->id,
+                'source' => $item['source'],
+                'source_email_id' => $item['source_email']->id ?? null,
+                'source_unit_id' => $item['source_unit_id'] ?? null,
+                'source_unit_name' => $item['source_unit_name'] ?? null,
+            ], fn ($value) => $value !== null && $value !== ''));
+
+            $recipient->fill([
+                'contact_id' => $contact->id,
+                'email' => $contact->email,
+                'status' => $recipient->exists ? $recipient->status : 'pending',
+                'metadata' => $metadata,
+            ]);
+            $recipient->save();
+            $isNew ? $created++ : $updated++;
+        }
+
+        $campaign->update(['total_recipients' => $campaign->recipients()->count()]);
+        $this->audit->log('campaign.recipients_saved', MailingCampaign::class, $campaign->id, null, [
+            'created' => $created,
+            'updated' => $updated,
+            'replace' => $request->boolean('replace'),
+        ], $request);
+
+        return response()->json([
+            'created' => $created,
+            'updated' => $updated,
+            'total' => $campaign->recipients()->count(),
+            'recipients' => $campaign->recipients()->with('contact')->orderBy('email')->get()->map(fn (MailingCampaignRecipient $recipient) => $this->campaignRecipientPayload($recipient))->values(),
+        ]);
+    }
+
+    public function removeCampaignRecipient(Request $request, int $id, int $recipientId): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.edit');
+        $recipient = MailingCampaignRecipient::query()
+            ->where('campaign_id', $id)
+            ->findOrFail($recipientId);
+
+        if ($recipient->sent_at || $recipient->unisender_job_id) {
+            return response()->json(['message' => 'Recipient already has provider send history and cannot be deleted.'], 422);
+        }
+
+        $before = $recipient->toArray();
+        $recipient->delete();
+        MailingCampaign::query()->whereKey($id)->update(['total_recipients' => MailingCampaignRecipient::query()->where('campaign_id', $id)->count()]);
+        $this->audit->log('campaign.recipient_removed', MailingCampaign::class, $id, $before, null, $request);
+
+        return response()->json(['removed' => true]);
     }
 
     public function contacts(Request $request): JsonResponse
@@ -789,11 +1009,105 @@ class CommercialOffersController extends Controller
         abort_unless(Gate::allows($ability), 403);
     }
 
+    private function campaignRecipientEmailSet(int $campaignId): array
+    {
+        return MailingCampaignRecipient::query()
+            ->where('campaign_id', $campaignId)
+            ->pluck('normalized_email')
+            ->filter()
+            ->mapWithKeys(fn ($email) => [$email => true])
+            ->all();
+    }
+
+    private function campaignRecipientPayload(MailingCampaignRecipient $recipient): array
+    {
+        $metadata = $recipient->metadata ?: [];
+        $contact = $recipient->contact;
+
+        return [
+            'id' => $recipient->id,
+            'email' => $recipient->email,
+            'normalized_email' => $recipient->normalized_email,
+            'status' => $recipient->status,
+            'contact_id' => $recipient->contact_id,
+            'first_name' => $contact?->first_name,
+            'last_name' => $contact?->last_name,
+            'company_name' => $contact?->company_name,
+            'source' => $metadata['source'] ?? $contact?->contact_source,
+            'source_unit_id' => $metadata['source_unit_id'] ?? null,
+            'source_unit_name' => $metadata['source_unit_name'] ?? null,
+            'locked' => (bool) ($recipient->sent_at || $recipient->unisender_job_id),
+            'sent_at' => $recipient->sent_at,
+            'delivered_at' => $recipient->delivered_at,
+            'open_count' => $recipient->open_count,
+            'click_count' => $recipient->click_count,
+            'last_clicked_url' => $recipient->last_clicked_url,
+        ];
+    }
+
+    private function sourceEmailPayload(Email $email, array $selected = []): array
+    {
+        $normalized = MailingContact::normalizeEmail($email->address);
+
+        return [
+            'id' => $email->id,
+            'address' => $email->address,
+            'normalized_email' => $normalized,
+            'name' => $email->getAttribute('name'),
+            'domain' => $email->getAttribute('domain'),
+            'source' => $email->getAttribute('source'),
+            'comment' => $email->getAttribute('comment'),
+            'is_active' => $email->getAttribute('is_active'),
+            'verified_at' => $email->getAttribute('verified_at'),
+            'last_seen_at' => $email->getAttribute('last_seen_at'),
+            'selected' => isset($selected[$normalized]),
+        ];
+    }
+
+    private function mailingContactFromPickerItem(array $item): MailingContact
+    {
+        $normalized = MailingContact::normalizeEmail($item['email'] ?? '');
+        $contact = MailingContact::query()->firstOrNew(['normalized_email' => $normalized]);
+        $isNew = ! $contact->exists;
+
+        if (($item['source_email'] ?? null) instanceof Email) {
+            $contactData = $this->mailingContactDataFromEmail($item['source_email'], 'unknown', $isNew);
+        } else {
+            $contactData = [
+                'email' => $normalized,
+                'normalized_email' => $normalized,
+                'consent_status' => $isNew ? 'unknown' : null,
+                'contact_source' => 'campaign_picker',
+                'source_type' => 'manual',
+                'tags' => ['campaign-recipient'],
+                'custom_fields' => [],
+            ];
+        }
+
+        $contactData['custom_fields'] = array_replace($contact->custom_fields ?? [], $contactData['custom_fields'] ?? [], array_filter([
+            'campaign_picker_source' => $item['source'] ?? null,
+            'source_unit_id' => $item['source_unit_id'] ?? null,
+            'source_unit_name' => $item['source_unit_name'] ?? null,
+        ], fn ($value) => $value !== null && $value !== ''));
+        $contactData['tags'] = array_values(array_unique(array_merge($contact->tags ?? [], $contactData['tags'] ?? [], ['campaign-recipient'])));
+        $contact->fill(array_filter($contactData, fn ($value) => $value !== null));
+        $contact->save();
+
+        return $contact;
+    }
+
     private function emailSourceColumns(): array
     {
         return collect(['id', 'address', 'created_at', 'updated_at', 'name', 'domain', 'comment', 'source', 'is_active', 'verified_at', 'last_seen_at'])
             ->filter(fn (string $column) => $column === 'id' || Schema::hasColumn('emails', $column))
             ->values()
+            ->all();
+    }
+
+    private function qualifiedEmailSourceColumns(): array
+    {
+        return collect($this->emailSourceColumns())
+            ->map(fn (string $column) => 'emails.'.$column)
             ->all();
     }
 

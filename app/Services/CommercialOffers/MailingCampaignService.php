@@ -427,9 +427,10 @@ class MailingCampaignService
             $errors[] = 'Unsubscribe block or {{unsubscribe_url}} variable is required.';
         }
         if ($requireRecipients && $campaign->type === 'mass_offer') {
-            if (! $campaign->contact_set_id) {
+            $hasManualRecipients = $campaign->recipients()->exists();
+            if (! $campaign->contact_set_id && ! $hasManualRecipients) {
                 $errors[] = 'Contact set is required for mass campaign.';
-            } elseif ($this->recipientSets->countEligibleRecipients($campaign->contact_set_id, true) < 1) {
+            } elseif ($campaign->contact_set_id && $this->recipientSets->countEligibleRecipients($campaign->contact_set_id, true) < 1) {
                 $errors[] = 'No eligible recipients in selected contact set.';
             }
         }

@@ -459,6 +459,76 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonPath('products.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg');
     }
 
+    public function test_campaign_recipients_can_be_managed_from_emails_and_units(): void
+    {
+        $this->createEmailUnitTables();
+
+        DB::table('emails')->insert([
+            ['id' => 1, 'address' => 'direct@example.test', 'name' => 'Direct Buyer', 'domain' => 'example.test', 'source' => 'crm', 'is_active' => 1, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'address' => 'unit@example.test', 'name' => 'Unit Buyer', 'domain' => 'example.test', 'source' => 'unit', 'is_active' => 1, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('units')->insert(['id' => 1, 'name' => 'Factory Unit', 'is_customer' => 1, 'is_supplier' => 0, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('email_unit')->insert(['email_id' => 2, 'unit_id' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        $campaign = $this->campaign(['status' => 'draft', 'contact_set_id' => null]);
+
+        $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipient-picker/emails?q=direct")
+            ->assertOk()
+            ->assertJsonPath('data.0.address', 'direct@example.test')
+            ->assertJsonPath('data.0.selected', false);
+
+        $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipient-picker/units?q=factory")
+            ->assertOk()
+            ->assertJsonPath('data.0.name', 'Factory Unit')
+            ->assertJsonPath('data.0.emails.0.address', 'unit@example.test');
+
+        $response = $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients", [
+            'replace' => true,
+            'email_ids' => [1],
+            'unit_ids' => [1],
+        ])->assertOk()
+            ->assertJsonPath('total', 2);
+
+        $this->assertDatabaseHas('mailing_campaign_recipients', ['campaign_id' => $campaign->id, 'email' => 'direct@example.test', 'status' => 'pending']);
+        $this->assertDatabaseHas('mailing_campaign_recipients', ['campaign_id' => $campaign->id, 'email' => 'unit@example.test', 'status' => 'pending']);
+        $this->assertDatabaseHas('mailing_contacts', ['email' => 'direct@example.test', 'contact_source' => 'emails']);
+
+        $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients")
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $recipientId = $response->json('recipients.0.id');
+        $this->delete("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients/{$recipientId}")
+            ->assertOk()
+            ->assertJson(['removed' => true]);
+    }
+
+    public function test_mass_campaign_can_send_to_manual_campaign_recipients_without_contact_set(): void
+    {
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'job_id' => 'manual-recipient-job',
+                'failed_emails' => [],
+            ]),
+        ]);
+
+        $campaign = $this->campaign(['type' => 'mass_offer', 'contact_set_id' => null]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients", [
+            'replace' => true,
+            'emails' => ['manual@example.test'],
+        ])->assertOk()
+            ->assertJsonPath('total', 1);
+
+        app(MailingCampaignService::class)->startSending($campaign);
+
+        $this->assertDatabaseHas('mailing_campaign_recipients', [
+            'campaign_id' => $campaign->id,
+            'email' => 'manual@example.test',
+            'status' => 'accepted',
+            'unisender_job_id' => 'manual-recipient-job',
+        ]);
+    }
+
     public function test_campaign_can_be_created_from_template_content(): void
     {
         $template = MailingTemplate::query()->create([
@@ -560,5 +630,12 @@ class CommercialOffersUnisenderTest extends TestCase
         DB::statement('create table currencies (id integer primary key autoincrement, code varchar(10) null)');
         DB::statement('create table price_types (id integer primary key autoincrement, currency_id integer null)');
         DB::statement('create table good_price_type_values (id integer primary key autoincrement, good_id integer not null, price_type_id integer null, currency_id integer null, price_net decimal(16,4) null, price_gross decimal(16,4) null, is_published tinyint default 1, updated_at datetime null)');
+    }
+
+    private function createEmailUnitTables(): void
+    {
+        DB::statement('create table emails (id integer primary key autoincrement, address varchar(255) not null, name varchar(255) null, domain varchar(255) null, source varchar(255) null, is_active tinyint default 1, verified_at datetime null, last_seen_at datetime null, deleted_at datetime null, created_at datetime null, updated_at datetime null)');
+        DB::statement('create table units (id integer primary key autoincrement, name varchar(255) null, is_customer tinyint default 0, is_supplier tinyint default 0, created_at datetime null, updated_at datetime null)');
+        DB::statement('create table email_unit (id integer primary key autoincrement, email_id integer not null, unit_id integer not null, created_at datetime null, updated_at datetime null)');
     }
 }

@@ -102,6 +102,14 @@ const sourceEmailSearch = ref('')
 const sourceEmailSetId = ref('')
 const sourceEmailConsentStatus = ref('unknown')
 const selectedSourceEmailIds = ref(new Set())
+const recipientDialogOpen = ref(false)
+const recipientCampaign = ref(null)
+const recipientPickerTab = ref('emails')
+const recipientSearch = ref('')
+const recipientEmails = ref([])
+const recipientUnits = ref([])
+const campaignRecipients = ref([])
+const selectedCampaignRecipients = ref([])
 const imageFile = ref(null)
 const imageForm = reactive({
     url: '',
@@ -136,6 +144,8 @@ const templateOptions = computed(() => templates.value.map((template) => ({
     label: `#${template.id} ${template.name || template.subject || 'template'} [${template.type || 'template'}]`,
 })))
 
+const selectedRecipientSet = computed(() => new Set(selectedCampaignRecipients.value.map((item) => normalizeEmail(item.email))))
+
 function percent(value) {
     const number = Number(value || 0)
     return `${(number * 100).toFixed(2)}%`
@@ -143,6 +153,10 @@ function percent(value) {
 
 function endpoint(path) {
     return `/Ameise/commercial-offers${path}`
+}
+
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase()
 }
 
 async function request(action, callback) {
@@ -216,6 +230,119 @@ async function campaignAction(id, action, payload = {}) {
     await request(`${action} queued`, async () => {
         await axios.post(endpoint(`/campaigns/${id}/${action}`), payload)
         await loadTable('campaigns')
+    })
+}
+
+async function openRecipientsDialog(campaign) {
+    recipientCampaign.value = campaign
+    recipientDialogOpen.value = true
+    recipientPickerTab.value = 'emails'
+    recipientSearch.value = ''
+    await request('recipients loaded', async () => {
+        await Promise.all([
+            loadCampaignRecipients(),
+            loadRecipientPicker(),
+        ])
+    })
+}
+
+async function loadCampaignRecipients() {
+    if (!recipientCampaign.value?.id) return
+    const { data } = await axios.get(endpoint(`/campaigns/${recipientCampaign.value.id}/recipients`), {
+        params: { per_page: 500 },
+    })
+    campaignRecipients.value = data.data || data
+    selectedCampaignRecipients.value = campaignRecipients.value.map((item) => ({
+        email: item.email,
+        label: item.company_name || item.first_name || item.source_unit_name || item.email,
+        source: item.source || 'campaign',
+        status: item.status,
+        id: item.id,
+        locked: item.locked,
+    }))
+}
+
+async function loadRecipientPicker() {
+    if (!recipientCampaign.value?.id) return
+    const tab = recipientPickerTab.value === 'units' ? 'units' : 'emails'
+    const { data } = await axios.get(endpoint(`/campaigns/${recipientCampaign.value.id}/recipient-picker/${tab}`), {
+        params: { q: recipientSearch.value, per_page: tab === 'units' ? 50 : 100 },
+    })
+    if (tab === 'units') {
+        recipientUnits.value = data.data || data
+    } else {
+        recipientEmails.value = data.data || data
+    }
+}
+
+function switchRecipientTab(tab) {
+    recipientPickerTab.value = tab
+    if (tab !== 'selected') {
+        loadRecipientPicker()
+    }
+}
+
+function isRecipientSelected(email) {
+    return selectedRecipientSet.value.has(normalizeEmail(email))
+}
+
+function addRecipientEmail(email, label = '', source = 'email') {
+    const normalized = normalizeEmail(email)
+    if (!normalized || isRecipientSelected(normalized)) return
+
+    selectedCampaignRecipients.value = [
+        ...selectedCampaignRecipients.value,
+        { email: normalized, label: label || normalized, source, status: 'pending', locked: false },
+    ]
+}
+
+function toggleRecipientEmail(item) {
+    const normalized = normalizeEmail(item.address || item.email)
+    if (!normalized) return
+
+    if (isRecipientSelected(normalized)) {
+        removeSelectedRecipient(normalized)
+        return
+    }
+
+    addRecipientEmail(normalized, item.name || item.address || normalized, item.source || 'email')
+}
+
+function addRecipientUnit(unit) {
+    for (const email of unit.emails || []) {
+        addRecipientEmail(email.address, email.name || unit.name || email.address, `unit:${unit.name || unit.id}`)
+    }
+}
+
+function removeSelectedRecipient(email) {
+    const normalized = normalizeEmail(email)
+    const existing = selectedCampaignRecipients.value.find((item) => normalizeEmail(item.email) === normalized)
+    if (existing?.locked) {
+        error.value = 'recipient already has send history and cannot be removed'
+        return
+    }
+    selectedCampaignRecipients.value = selectedCampaignRecipients.value.filter((item) => normalizeEmail(item.email) !== normalized)
+}
+
+async function saveCampaignRecipients() {
+    if (!recipientCampaign.value?.id) return
+
+    await request('campaign recipients saved', async () => {
+        const response = await axios.post(endpoint(`/campaigns/${recipientCampaign.value.id}/recipients`), {
+            replace: true,
+            emails: selectedCampaignRecipients.value.map((item) => item.email),
+        })
+        campaignRecipients.value = response.data.recipients || []
+        selectedCampaignRecipients.value = campaignRecipients.value.map((item) => ({
+            email: item.email,
+            label: item.company_name || item.first_name || item.source_unit_name || item.email,
+            source: item.source || 'campaign',
+            status: item.status,
+            id: item.id,
+            locked: item.locked,
+        }))
+        await loadTable('campaigns')
+        return response
     })
 }
 
@@ -616,6 +743,7 @@ onMounted(refreshAll)
                             <td>{{ item.spam_count }}</td>
                             <td>{{ formatDate(item.scheduled_at) }}</td>
                             <td class="actions actions-col">
+                                <button @click.stop="openRecipientsDialog(item)">recipients</button>
                                 <button @click.stop="campaignAction(item.id, 'send-test', { email: testEmail })">test</button>
                                 <button @click.stop="campaignAction(item.id, 'approve')">approve</button>
                                 <button @click.stop="campaignAction(item.id, 'start')">start</button>
@@ -629,6 +757,91 @@ onMounted(refreshAll)
                 </table>
             </div>
         </section>
+
+        <div v-if="recipientDialogOpen" class="modal-backdrop" @click.self="recipientDialogOpen = false">
+            <section class="recipient-dialog">
+                <header class="dialog-head">
+                    <div>
+                        <div class="eyebrow">CAMPAIGN RECIPIENTS</div>
+                        <h2>#{{ recipientCampaign?.id }} {{ recipientCampaign?.name || recipientCampaign?.subject }}</h2>
+                    </div>
+                    <button type="button" @click="recipientDialogOpen = false">close</button>
+                </header>
+
+                <div class="dialog-toolbar">
+                    <button type="button" :class="{ active: recipientPickerTab === 'emails' }" @click="switchRecipientTab('emails')">emails</button>
+                    <button type="button" :class="{ active: recipientPickerTab === 'units' }" @click="switchRecipientTab('units')">units</button>
+                    <button type="button" :class="{ active: recipientPickerTab === 'selected' }" @click="switchRecipientTab('selected')">selected {{ selectedCampaignRecipients.length }}</button>
+                    <input v-if="recipientPickerTab !== 'selected'" v-model="recipientSearch" placeholder="search emails / units" @keyup.enter="loadRecipientPicker">
+                    <button v-if="recipientPickerTab !== 'selected'" type="button" @click="loadRecipientPicker">find</button>
+                    <button type="button" @click="saveCampaignRecipients">save recipients</button>
+                </div>
+
+                <div v-if="recipientPickerTab === 'emails'" class="dialog-grid">
+                    <div class="table-shell dialog-table">
+                        <table>
+                            <thead><tr><th class="sticky-col">sel</th><th>email</th><th>name</th><th>source</th><th>last_seen</th></tr></thead>
+                            <tbody>
+                                <tr v-for="item in recipientEmails" :key="item.id" :class="{ 'is-muted-row': isRecipientSelected(item.address) }">
+                                    <td class="sticky-col"><input type="checkbox" :checked="isRecipientSelected(item.address)" @change="toggleRecipientEmail(item)"></td>
+                                    <td>{{ item.address }}</td>
+                                    <td>{{ item.name || '-' }}</td>
+                                    <td>{{ item.source || item.domain || '-' }}</td>
+                                    <td>{{ formatDate(item.last_seen_at) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <aside class="side-panel selected-panel">
+                        <h3>selected</h3>
+                        <div v-for="item in selectedCampaignRecipients" :key="item.email" class="selected-chip">
+                            <span>{{ item.email }}</span>
+                            <button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">x</button>
+                        </div>
+                    </aside>
+                </div>
+
+                <div v-if="recipientPickerTab === 'units'" class="dialog-grid">
+                    <div class="table-shell dialog-table">
+                        <table>
+                            <thead><tr><th class="sticky-col">add</th><th>unit</th><th>emails</th><th>selected</th><th>preview</th></tr></thead>
+                            <tbody>
+                                <tr v-for="unit in recipientUnits" :key="unit.id">
+                                    <td class="sticky-col"><button type="button" @click="addRecipientUnit(unit)">add unit</button></td>
+                                    <td>{{ unit.name }}</td>
+                                    <td>{{ unit.selectable_count }}/{{ unit.emails_count }}</td>
+                                    <td>{{ unit.selected_count }}</td>
+                                    <td>{{ (unit.emails || []).map((email) => email.address).join(', ') }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <aside class="side-panel selected-panel">
+                        <h3>selected</h3>
+                        <div v-for="item in selectedCampaignRecipients" :key="item.email" class="selected-chip">
+                            <span>{{ item.email }}</span>
+                            <button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">x</button>
+                        </div>
+                    </aside>
+                </div>
+
+                <div v-if="recipientPickerTab === 'selected'" class="table-shell dialog-table full">
+                    <table>
+                        <thead><tr><th class="sticky-col">email</th><th>label</th><th>source</th><th>status</th><th>locked</th><th>actions</th></tr></thead>
+                        <tbody>
+                            <tr v-for="item in selectedCampaignRecipients" :key="item.email">
+                                <td class="sticky-col">{{ item.email }}</td>
+                                <td>{{ item.label || '-' }}</td>
+                                <td>{{ item.source || '-' }}</td>
+                                <td :class="statusClass(item.status)">{{ item.status || 'pending' }}</td>
+                                <td>{{ item.locked ? 'yes' : 'no' }}</td>
+                                <td><button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">remove</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
 
         <section v-if="activeTab === 'contacts'" class="panel split">
             <div>
@@ -816,5 +1029,5 @@ onMounted(refreshAll)
 </template>
 
 <style scoped>
-.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.form-row button,.actions button{white-space:nowrap;flex:0 0 auto}.campaign-form-row{flex-wrap:wrap}.campaign-form-row input,.campaign-form-row select{min-width:140px;flex:1 1 140px}.campaign-form-row input[placeholder="test recipient email"]{max-width:260px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.actions-col{position:sticky;right:0;z-index:3;background:#071407;min-width:322px;max-width:none}.actions-col.actions{display:flex}.actions-col button{white-space:nowrap}th.actions-col{z-index:6;background:#0a180a}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
+.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.form-row button,.actions button{white-space:nowrap;flex:0 0 auto}.campaign-form-row{flex-wrap:wrap}.campaign-form-row input,.campaign-form-row select{min-width:140px;flex:1 1 140px}.campaign-form-row input[placeholder="test recipient email"]{max-width:260px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.actions-col{position:sticky;right:0;z-index:3;background:#071407;min-width:410px;max-width:none}.actions-col.actions{display:flex}.actions-col button{white-space:nowrap}th.actions-col{z-index:6;background:#0a180a}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.74);display:flex;align-items:stretch;justify-content:center;padding:18px}.recipient-dialog{width:min(1600px,100%);height:calc(100vh - 36px);border:1px solid var(--border);background:#050805;color:var(--text);display:flex;flex-direction:column;box-shadow:0 0 0 1px #000,0 18px 80px rgba(0,0,0,.65)}.dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid var(--border);padding:10px 12px;background:#071007}.dialog-head h2{font-size:15px;margin:2px 0 0}.dialog-toolbar{display:flex;gap:4px;flex-wrap:wrap;padding:6px;border-bottom:1px solid var(--border);background:#061006}.dialog-toolbar button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer;white-space:nowrap}.dialog-toolbar button.active,.dialog-toolbar button:hover{background:var(--text);color:#050805}.dialog-toolbar input{height:24px;min-width:320px;flex:1 1 320px}.dialog-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:8px;min-height:0;flex:1;padding:8px}.dialog-table{max-height:none;height:100%;min-height:0}.dialog-table.full{margin:8px;height:auto;max-height:calc(100vh - 155px)}.selected-panel{min-height:0;overflow:auto}.selected-chip{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:4px;align-items:center;height:24px;border-bottom:1px solid var(--border)}.selected-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.selected-chip button{height:20px;padding:0}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
 </style>
