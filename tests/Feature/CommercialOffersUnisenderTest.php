@@ -783,6 +783,57 @@ class CommercialOffersUnisenderTest extends TestCase
         ]);
     }
 
+    public function test_campaign_list_shows_template_and_template_can_be_changed(): void
+    {
+        $firstTemplate = MailingTemplate::query()->create([
+            'name' => 'Old template',
+            'slug' => 'old-template',
+            'type' => 'commercial_offer',
+            'subject' => 'Old subject',
+            'html_markup' => '<p>old {{unsubscribe_url}}</p>',
+            'plaintext' => 'old {{unsubscribe_url}}',
+        ]);
+        $secondTemplate = MailingTemplate::query()->create([
+            'name' => 'New template',
+            'slug' => 'new-template',
+            'type' => 'commercial_offer',
+            'subject' => 'New subject',
+            'html_markup' => '<p>new {{greeting}} {{unsubscribe_url}}</p>',
+            'plaintext' => 'new {{greeting}} {{unsubscribe_url}}',
+        ]);
+        $campaign = $this->campaign([
+            'template_id' => $firstTemplate->id,
+            'subject' => $firstTemplate->subject,
+            'html_markup' => $firstTemplate->html_markup,
+            'plaintext' => $firstTemplate->plaintext,
+        ]);
+
+        $this->get('/Ameise/commercial-offers/campaigns')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $campaign->id)
+            ->assertJsonPath('data.0.template.id', $firstTemplate->id)
+            ->assertJsonPath('data.0.template.name', 'Old template');
+
+        $this->put("/Ameise/commercial-offers/campaigns/{$campaign->id}", [
+            'template_id' => $secondTemplate->id,
+            'subject' => $secondTemplate->subject,
+            'html_markup' => $secondTemplate->html_markup,
+            'plaintext' => $secondTemplate->plaintext,
+        ])
+            ->assertOk()
+            ->assertJsonPath('template_id', $secondTemplate->id)
+            ->assertJsonPath('subject', 'New subject')
+            ->assertJsonPath('html_markup', '<p>new {{greeting}} {{unsubscribe_url}}</p>');
+
+        $this->assertDatabaseHas('mailing_campaigns', [
+            'id' => $campaign->id,
+            'template_id' => $secondTemplate->id,
+            'subject' => 'New subject',
+            'html_markup' => '<p>new {{greeting}} {{unsubscribe_url}}</p>',
+            'plaintext' => 'new {{greeting}} {{unsubscribe_url}}',
+        ]);
+    }
+
     public function test_commercial_offer_image_upload_returns_public_storage_url(): void
     {
         Storage::fake('public');

@@ -66,6 +66,7 @@ class CommercialOffersController extends Controller
         $this->authorizeSales('sales_mailings.view');
 
         $items = MailingCampaign::query()
+            ->with('template:id,name,subject,type,active')
             ->withCount('recipients')
             ->when($request->string('status')->toString(), fn ($query, $status) => $query->where('status', $status))
             ->when($request->string('q')->toString(), fn ($query, $q) => $query->where('name', 'like', "%{$q}%"))
