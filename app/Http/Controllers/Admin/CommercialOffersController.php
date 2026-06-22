@@ -835,6 +835,29 @@ class CommercialOffersController extends Controller
         return response()->json($this->products->addProductToCampaign((int) $id, (int) $request->input('product_id'), $request->all()), 201);
     }
 
+    public function addFilteredOfferItems(Request $request, mixed $id): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.edit');
+
+        if (! is_numeric($id) || ! MailingCampaign::query()->whereKey((int) $id)->exists()) {
+            return response()->json([
+                'message' => 'Select a valid campaign before adding products to КП.',
+            ], 422);
+        }
+
+        $request->validate([
+            'q' => ['nullable', 'string'],
+            'published' => ['nullable'],
+            'type' => ['nullable', 'in:goods,products,product'],
+        ]);
+
+        return response()->json($this->products->addProductsFromSearchToCampaign(
+            (int) $id,
+            $request->string('q')->toString(),
+            $request->all(),
+        ), 201);
+    }
+
     public function updateOfferItem(Request $request, int $id): JsonResponse
     {
         $this->authorizeSales('sales_mailings.edit');

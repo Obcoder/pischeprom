@@ -600,6 +600,39 @@ async function addProduct(product) {
     })
 }
 
+async function addFilteredProducts() {
+    const campaignId = Number(productCampaignId.value)
+    if (!Number.isInteger(campaignId) || campaignId <= 0) {
+        error.value = 'select campaign first'
+        return
+    }
+    if (productActiveTab.value !== 'goods') {
+        error.value = 'bulk add is available for goods; switch to goods tab'
+        return
+    }
+    if (productMeta.total <= 0) {
+        error.value = 'search result is empty'
+        return
+    }
+    if (!window.confirm(`Add all ${productMeta.total} goods from current search/filter to selected КП? Existing items will be skipped.`)) {
+        return
+    }
+
+    const result = await request('filtered goods added', async () => {
+        const response = await axios.post(endpoint(`/campaigns/${campaignId}/offer-items/add-filtered`), {
+            type: 'goods',
+            q: productSearch.value,
+            published: productPublishedFilter.value,
+        })
+        await Promise.all([loadCampaignOfferItems(), loadTable('campaigns')])
+        return response
+    })
+
+    if (result?.data) {
+        notice.value = `filtered goods added: ${result.data.added} added, ${result.data.skipped_existing} skipped, ${result.data.matched} matched`
+    }
+}
+
 async function addCategory(category) {
     const campaignId = Number(productCampaignId.value)
     if (!Number.isInteger(campaignId) || campaignId <= 0) {
@@ -1156,6 +1189,12 @@ onMounted(refreshAll)
                     <div class="product-subhead">
                         <strong>{{ productActiveTab === 'categories' ? 'categories DB' : 'goods DB' }}</strong>
                         <span>{{ activeProductMeta.total }} total / page {{ activeProductMeta.current_page }} of {{ activeProductMeta.last_page }}</span>
+                        <button
+                            v-if="productActiveTab === 'goods'"
+                            type="button"
+                            :disabled="!productCampaignId || productMeta.total <= 0"
+                            @click="addFilteredProducts"
+                        >add all filtered to КП</button>
                         <button type="button" :disabled="activeProductMeta.current_page <= 1" @click="searchProducts(activeProductMeta.current_page - 1)">prev</button>
                         <button type="button" :disabled="activeProductMeta.current_page >= activeProductMeta.last_page" @click="searchProducts(activeProductMeta.current_page + 1)">next</button>
                     </div>

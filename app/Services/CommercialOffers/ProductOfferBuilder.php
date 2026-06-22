@@ -14,43 +14,9 @@ class ProductOfferBuilder
 {
     public function searchProducts(string $query, array $filters = []): LengthAwarePaginator
     {
-        $perPage = $this->perPage($filters);
-        $search = trim($query);
-
-        return Good::query()
-            ->with([
-                'products.category',
-                'vatRate',
-                'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
-                'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
-                'priceTypeValues' => fn ($q) => $q->where('is_published', true)->with(['priceType.currency', 'currency'])->orderByDesc('updated_at'),
-            ])
-            ->when($search !== '', function (Builder $goodQuery) use ($search): void {
-                $like = "%{$search}%";
-                $goodQuery->where(function (Builder $searchQuery) use ($search, $like): void {
-                    if (ctype_digit($search)) {
-                        $searchQuery->where('id', (int) $search);
-                    } else {
-                        $searchQuery->where('name', 'like', $like)
-                            ->orWhere('slug', 'like', $like)
-                            ->orWhere('description', 'like', $like);
-                    }
-
-                    $searchQuery->orWhereHas('products', function (Builder $productQuery) use ($like): void {
-                        $productQuery->where(function (Builder $translationQuery) use ($like): void {
-                            foreach (Product::TRANSLATION_COLUMNS as $column) {
-                                $translationQuery->orWhere($column, 'like', $like);
-                            }
-                        });
-
-                        $productQuery->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', $like));
-                        $productQuery->orWhereHas('manufacturers', fn (Builder $manufacturerQuery) => $manufacturerQuery->where('name', 'like', $like));
-                    });
-                });
-            })
-            ->when($this->publishedFilter($filters) !== null, fn ($q) => $q->where('is_published', $this->publishedFilter($filters)))
+        return $this->productQuery($query, $filters)
             ->orderBy('name')
-            ->paginate($perPage)
+            ->paginate($this->perPage($filters))
             ->through(fn (Good $good) => $this->productSearchPayload($good));
     }
 
@@ -76,33 +42,58 @@ class ProductOfferBuilder
     public function addProductToCampaign($campaignId, $productId, array $overrides = []): MailingOfferItem
     {
         $good = Good::query()
-            ->with([
-                'products.category',
-                'vatRate',
-                'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
-                'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
-                'priceTypeValues.priceType.currency',
-                'priceTypeValues.currency',
-            ])
+            ->with($this->productRelations())
             ->findOrFail($productId);
 
-        $snapshot = $this->createProductSnapshot($good);
+        return $this->createProductOfferItem($campaignId, $good, $overrides);
+    }
 
-        return MailingOfferItem::query()->create([
-            'campaign_id' => $campaignId,
-            'product_id' => $good->id,
-            'item_type' => 'product',
-            'title' => $overrides['title'] ?? $snapshot['title'],
-            'sku' => $overrides['sku'] ?? $snapshot['sku'],
-            'thumbnail_url' => $overrides['thumbnail_url'] ?? $snapshot['thumbnail_url'],
-            'canonical_url' => $overrides['canonical_url'] ?? $snapshot['canonical_url'],
-            'original_price' => $snapshot['price'],
-            'offer_price' => $overrides['offer_price'] ?? $snapshot['price'],
-            'currency' => $overrides['currency'] ?? $snapshot['currency'],
-            'description' => $overrides['description'] ?? $snapshot['description'],
-            'sort_order' => $overrides['sort_order'] ?? 0,
-            'snapshot' => $snapshot,
-        ]);
+    public function addProductsFromSearchToCampaign($campaignId, string $query, array $filters = []): array
+    {
+        $matchedIds = $this->productQuery($query, $filters)
+            ->orderBy('name')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $existingIds = MailingOfferItem::query()
+            ->where('campaign_id', $campaignId)
+            ->where('item_type', 'product')
+            ->whereNotNull('product_id')
+            ->pluck('product_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $existingLookup = array_fill_keys($existingIds, true);
+        $idsToAdd = array_values(array_filter($matchedIds, fn (int $id) => ! isset($existingLookup[$id])));
+        $nextSortOrder = (int) MailingOfferItem::query()->where('campaign_id', $campaignId)->max('sort_order');
+        $items = [];
+
+        foreach (array_chunk($idsToAdd, 100) as $chunk) {
+            $goods = Good::query()
+                ->with($this->productRelations())
+                ->whereIn('id', $chunk)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($chunk as $id) {
+                $good = $goods->get($id);
+                if (! $good instanceof Good) {
+                    continue;
+                }
+
+                $items[] = $this->createProductOfferItem($campaignId, $good, [
+                    'sort_order' => ++$nextSortOrder,
+                ]);
+            }
+        }
+
+        return [
+            'matched' => count($matchedIds),
+            'added' => count($items),
+            'skipped_existing' => count($matchedIds) - count($idsToAdd),
+            'items' => $items,
+        ];
     }
 
     public function addCategoryToCampaign($campaignId, $categoryId, array $options = []): MailingOfferItem
@@ -168,6 +159,70 @@ class ProductOfferBuilder
             'source_table' => 'goods',
             'is_published' => (bool) $good->is_published,
             'price_formatted' => $snapshot['price'] !== null ? number_format((float) $snapshot['price'], 2, ',', ' ').' '.$snapshot['currency'] : '-',
+        ];
+    }
+
+    private function createProductOfferItem($campaignId, Good $good, array $overrides = []): MailingOfferItem
+    {
+        $snapshot = $this->createProductSnapshot($good);
+
+        return MailingOfferItem::query()->create([
+            'campaign_id' => $campaignId,
+            'product_id' => $good->id,
+            'item_type' => 'product',
+            'title' => $overrides['title'] ?? $snapshot['title'],
+            'sku' => $overrides['sku'] ?? $snapshot['sku'],
+            'thumbnail_url' => $overrides['thumbnail_url'] ?? $snapshot['thumbnail_url'],
+            'canonical_url' => $overrides['canonical_url'] ?? $snapshot['canonical_url'],
+            'original_price' => $snapshot['price'],
+            'offer_price' => $overrides['offer_price'] ?? $snapshot['price'],
+            'currency' => $overrides['currency'] ?? $snapshot['currency'],
+            'description' => $overrides['description'] ?? $snapshot['description'],
+            'sort_order' => $overrides['sort_order'] ?? 0,
+            'snapshot' => $snapshot,
+        ]);
+    }
+
+    private function productQuery(string $query, array $filters = []): Builder
+    {
+        $search = trim($query);
+
+        return Good::query()
+            ->with($this->productRelations())
+            ->when($search !== '', function (Builder $goodQuery) use ($search): void {
+                $like = "%{$search}%";
+                $goodQuery->where(function (Builder $searchQuery) use ($search, $like): void {
+                    if (ctype_digit($search)) {
+                        $searchQuery->where('id', (int) $search);
+                    } else {
+                        $searchQuery->where('name', 'like', $like)
+                            ->orWhere('slug', 'like', $like)
+                            ->orWhere('description', 'like', $like);
+                    }
+
+                    $searchQuery->orWhereHas('products', function (Builder $productQuery) use ($like): void {
+                        $productQuery->where(function (Builder $translationQuery) use ($like): void {
+                            foreach (Product::TRANSLATION_COLUMNS as $column) {
+                                $translationQuery->orWhere($column, 'like', $like);
+                            }
+                        });
+
+                        $productQuery->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', $like));
+                        $productQuery->orWhereHas('manufacturers', fn (Builder $manufacturerQuery) => $manufacturerQuery->where('name', 'like', $like));
+                    });
+                });
+            })
+            ->when($this->publishedFilter($filters) !== null, fn ($q) => $q->where('is_published', $this->publishedFilter($filters)));
+    }
+
+    private function productRelations(): array
+    {
+        return [
+            'products.category',
+            'vatRate',
+            'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
+            'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
+            'priceTypeValues' => fn ($q) => $q->where('is_published', true)->with(['priceType.currency', 'currency'])->orderByDesc('updated_at'),
         ];
     }
 

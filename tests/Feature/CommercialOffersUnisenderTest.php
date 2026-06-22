@@ -681,6 +681,56 @@ class CommercialOffersUnisenderTest extends TestCase
         ]);
     }
 
+    public function test_campaign_offer_items_can_be_bulk_added_from_filtered_goods(): void
+    {
+        $this->createCatalogTables();
+
+        DB::table('goods')->insert([
+            ['id' => 20, 'name' => 'Лецитин А', 'slug' => 'lecithin-a', 'description' => 'Эмульгатор', 'is_published' => 1, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 21, 'name' => 'Лецитин Б', 'slug' => 'lecithin-b', 'description' => 'Эмульгатор', 'is_published' => 1, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 22, 'name' => 'Масло какао', 'slug' => 'cocoa-butter', 'description' => 'Жир', 'is_published' => 1, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $campaign = $this->campaign();
+        app(ProductOfferBuilder::class)->addProductToCampaign($campaign->id, 20);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/offer-items/add-filtered", [
+            'type' => 'goods',
+            'q' => 'Лецитин',
+            'published' => 'true',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('matched', 2)
+            ->assertJsonPath('added', 1)
+            ->assertJsonPath('skipped_existing', 1);
+
+        $this->assertDatabaseCount('mailing_offer_items', 2);
+        $this->assertDatabaseHas('mailing_offer_items', [
+            'campaign_id' => $campaign->id,
+            'product_id' => 20,
+        ]);
+        $this->assertDatabaseHas('mailing_offer_items', [
+            'campaign_id' => $campaign->id,
+            'product_id' => 21,
+        ]);
+        $this->assertDatabaseMissing('mailing_offer_items', [
+            'campaign_id' => $campaign->id,
+            'product_id' => 22,
+        ]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/offer-items/add-filtered", [
+            'type' => 'goods',
+            'q' => 'Лецитин',
+            'published' => 'true',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('matched', 2)
+            ->assertJsonPath('added', 0)
+            ->assertJsonPath('skipped_existing', 2);
+
+        $this->assertDatabaseCount('mailing_offer_items', 2);
+    }
+
     public function test_product_video_media_is_not_used_as_commercial_offer_thumbnail(): void
     {
         $this->createCatalogTables();
