@@ -89,7 +89,8 @@ class CommercialOffersUnisenderTest extends TestCase
                 && $payload['message']['track_read'] === 1
                 && $payload['message']['track_links'] === 1
                 && $payload['message']['idempotence_key'] === 'idem-1'
-                && $payload['message']['recipients'][0]['metadata']['campaign_recipient_id'] === 10;
+            && $payload['message']['global_metadata']['campaign_id'] === '1'
+            && $payload['message']['recipients'][0]['metadata']['campaign_recipient_id'] === '10';
         });
 
         $tooMany = array_fill(0, 501, ['email' => 'bulk@example.test']);
@@ -178,8 +179,10 @@ class CommercialOffersUnisenderTest extends TestCase
 
             return count($recipients) <= 500
                 && isset($request->data()['message']['idempotence_key'])
-                && $recipients[0]['metadata']['campaign_id'] > 0
-                && $recipients[0]['metadata']['campaign_recipient_id'] > 0;
+                && is_string($recipients[0]['metadata']['campaign_id'])
+                && is_string($recipients[0]['metadata']['campaign_recipient_id'])
+                && (int) $recipients[0]['metadata']['campaign_id'] > 0
+                && (int) $recipients[0]['metadata']['campaign_recipient_id'] > 0;
         });
     }
 
@@ -248,7 +251,9 @@ class CommercialOffersUnisenderTest extends TestCase
 
         Http::assertSent(fn ($request) => $request->data()['message']['from_email'] === 'com@food-server.ru'
             && $request->data()['message']['from_name'] === 'Pischeprom'
-            && $request->data()['message']['reply_to'] === 'com@food-server.ru');
+            && $request->data()['message']['reply_to'] === 'com@food-server.ru'
+            && $request->data()['message']['global_metadata']['campaign_id'] === (string) $campaign->id
+            && $request->data()['message']['recipients'][0]['metadata']['campaign_id'] === (string) $campaign->id);
 
         $this->assertDatabaseHas('mailing_campaigns', [
             'id' => $campaign->id,

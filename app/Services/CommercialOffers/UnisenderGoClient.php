@@ -13,6 +13,7 @@ class UnisenderGoClient
 {
     public function sendEmail(array $message): UnisenderSendResult
     {
+        $message = $this->normalizeSendMessage($message);
         $recipients = Arr::get($message, 'recipients', []);
         if (count($recipients) > 500) {
             throw new RuntimeException('Unisender Go email/send.json accepts at most 500 recipients per request.');
@@ -162,6 +163,56 @@ class UnisenderGoClient
         }
 
         return is_array($json) ? $json : [];
+    }
+
+    private function normalizeSendMessage(array $message): array
+    {
+        $message['recipients'] = collect((array) ($message['recipients'] ?? []))
+            ->map(function (array $recipient) {
+                if (isset($recipient['metadata']) && is_array($recipient['metadata'])) {
+                    $recipient['metadata'] = $this->stringMap($recipient['metadata']);
+                }
+
+                if (isset($recipient['substitutions']) && is_array($recipient['substitutions'])) {
+                    $recipient['substitutions'] = $this->stringMap($recipient['substitutions']);
+                }
+
+                return $recipient;
+            })
+            ->all();
+
+        foreach (['global_metadata', 'global_substitutions'] as $key) {
+            if (isset($message[$key]) && is_array($message[$key])) {
+                $message[$key] = $this->stringMap($message[$key]);
+            }
+        }
+
+        return $message;
+    }
+
+    private function stringMap(array $values): array
+    {
+        $result = [];
+
+        foreach ($values as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_bool($value)) {
+                $value = $value ? '1' : '0';
+            } elseif ($value instanceof DateTimeInterface) {
+                $value = $value->format(DateTimeInterface::ATOM);
+            } elseif (is_scalar($value)) {
+                $value = (string) $value;
+            } else {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+            }
+
+            $result[(string) $key] = $value;
+        }
+
+        return $result;
     }
 
     private function apiKey(): string
