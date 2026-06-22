@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue'
+
 const search = defineModel('search', {
     type: String,
     default: '',
@@ -9,8 +11,12 @@ const filters = defineModel('filters', {
     required: true,
 })
 
-defineProps({
+const props = defineProps({
     loading: Boolean,
+    mailboxes: {
+        type: Array,
+        default: () => [],
+    },
 })
 
 const emit = defineEmits([
@@ -46,11 +52,22 @@ const folderOptions = [
         value: 'Sent',
     },
 ]
+
+const mailboxOptions = computed(() => [
+    {
+        title: 'Все ящики',
+        value: null,
+    },
+    ...props.mailboxes.map((mailbox) => ({
+        title: mailbox.label || mailbox.address,
+        value: mailbox.address,
+    })),
+])
 </script>
 
 <template>
     <v-row dense>
-        <v-col cols="12" lg="5">
+        <v-col cols="12" lg="4">
             <v-text-field
                 v-model="search"
                 label="Поиск по теме, адресу, тексту"
@@ -58,6 +75,17 @@ const folderOptions = [
                 variant="solo"
                 density="compact"
                 clearable
+                hide-details
+            />
+        </v-col>
+
+        <v-col cols="12" lg="2">
+            <v-select
+                v-model="filters.mailbox"
+                :items="mailboxOptions"
+                label="Ящик"
+                variant="outlined"
+                density="compact"
                 hide-details
             />
         </v-col>
@@ -84,7 +112,7 @@ const folderOptions = [
             />
         </v-col>
 
-        <v-col cols="12" lg="3">
+        <v-col cols="12" lg="2">
             <div class="d-flex justify-end">
                 <v-btn
                     prepend-icon="mdi-refresh"

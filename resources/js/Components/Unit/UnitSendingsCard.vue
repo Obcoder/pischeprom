@@ -22,9 +22,12 @@ const {
     sending,
     reading,
     selectedMessage,
+    mailboxes,
     search,
     direction,
+    mailbox,
     options,
+    fetchMailboxes,
     fetchMessages,
     readMessage,
 } = useUnitMail(props.unit.id)
@@ -88,6 +91,17 @@ const directionItems = [
         value: 'outgoing',
     },
 ]
+
+const mailboxItems = computed(() => [
+    {
+        title: 'Все ящики',
+        value: null,
+    },
+    ...mailboxes.value.map((item) => ({
+        title: item.label || item.address,
+        value: item.address,
+    })),
+])
 
 const visibleRelatedEmails = computed(() => {
     return relatedEmails.value.slice(0, 5)
@@ -162,6 +176,7 @@ function updateSelectedMessage(message) {
 
 onMounted(async () => {
     await Promise.all([
+        fetchMailboxes(),
         fetchMessages(),
         loadFiles(),
     ])
@@ -241,7 +256,7 @@ onUnmounted(() => {
         </div>
 
         <v-row dense class="mb-3">
-            <v-col cols="12" lg="8">
+            <v-col cols="12" lg="6">
                 <v-text-field
                     v-model="search"
                     label="Поиск по письмам"
@@ -253,7 +268,18 @@ onUnmounted(() => {
                 />
             </v-col>
 
-            <v-col cols="12" lg="4">
+            <v-col cols="12" lg="3">
+                <v-select
+                    v-model="mailbox"
+                    :items="mailboxItems"
+                    label="Ящик"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                />
+            </v-col>
+
+            <v-col cols="12" lg="3">
                 <v-select
                     v-model="direction"
                     :items="directionItems"
@@ -298,6 +324,10 @@ onUnmounted(() => {
 
                 <div class="text-[9px] text-grey">
                     {{ item.folder }}
+                </div>
+
+                <div class="text-[9px] text-teal-lighten-3">
+                    {{ item.mailbox || '—' }}
                 </div>
             </template>
 
@@ -364,6 +394,7 @@ onUnmounted(() => {
             v-model="composerDialog"
             :unit-id="unit.id"
             :recipients="relatedEmails"
+            :mailboxes="mailboxes"
             :unit-files="files"
             :reply-context="replyContext"
             :sending="sending"

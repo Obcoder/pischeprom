@@ -11,9 +11,11 @@ export function useUnitMail(unitId) {
     const reading = ref(false)
 
     const selectedMessage = ref(null)
+    const mailboxes = ref([])
 
     const search = ref('')
     const direction = ref(null)
+    const mailbox = ref(null)
 
     const options = ref({
         page: 1,
@@ -31,6 +33,7 @@ export function useUnitMail(unitId) {
                 params: {
                     search: search.value,
                     direction: direction.value,
+                    mailbox: mailbox.value,
                     page: options.value.page,
                     per_page: options.value.itemsPerPage,
                 },
@@ -43,6 +46,16 @@ export function useUnitMail(unitId) {
             console.error('Unit mail loading error:', error)
         } finally {
             loading.value = false
+        }
+    }
+
+    async function fetchMailboxes() {
+        try {
+            const { data } = await axios.get('/api/mailboxes')
+            mailboxes.value = data.data ?? data ?? []
+        } catch (error) {
+            console.error('Mailboxes loading error:', error)
+            mailboxes.value = []
         }
     }
 
@@ -101,6 +114,11 @@ export function useUnitMail(unitId) {
         fetchMessages()
     })
 
+    watch(mailbox, () => {
+        options.value.page = 1
+        fetchMessages()
+    })
+
     watch(options, () => {
         fetchMessages()
     }, {
@@ -115,9 +133,12 @@ export function useUnitMail(unitId) {
         sending,
         reading,
         selectedMessage,
+        mailboxes,
         search,
         direction,
+        mailbox,
         options,
+        fetchMailboxes,
         fetchMessages,
         readMessage,
         sendMail,

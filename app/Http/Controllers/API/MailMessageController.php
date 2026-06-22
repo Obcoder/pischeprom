@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\MailMessage;
+use App\Services\Mail\MailboxRegistry;
 use App\Services\Mail\YandexMailboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,6 +12,13 @@ use Throwable;
 
 class MailMessageController extends Controller
 {
+    public function mailboxes(MailboxRegistry $mailboxes): JsonResponse
+    {
+        return response()->json([
+            'data' => $mailboxes->publicMailboxes(),
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $itemsPerPage = (int) $request->input('itemsPerPage', 25);

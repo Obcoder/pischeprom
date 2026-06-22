@@ -18,12 +18,12 @@ class SyncYandexMailboxJob implements ShouldQueue
 
     public int $timeout = 600;
 
-    public function __construct(public int $limit = 1000)
+    public function __construct(public int $limit = 1000, public ?string $mailbox = null)
     {
     }
 
     public function handle(YandexMailboxService $service): void
     {
-        $service->syncAll($this->limit);
+        $service->syncAll($this->limit, $this->mailbox);
     }
 }

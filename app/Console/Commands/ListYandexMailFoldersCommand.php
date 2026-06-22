@@ -2,32 +2,25 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Mail\MailboxRegistry;
 use Illuminate\Console\Command;
 use Webklex\PHPIMAP\ClientManager;
 
 class ListYandexMailFoldersCommand extends Command
 {
-    protected $signature = 'mail:yandex-folders';
+    protected $signature = 'mail:yandex-folders {--mailbox=}';
 
     protected $description = 'List Yandex IMAP folders';
 
-    public function handle(): int
+    public function handle(MailboxRegistry $mailboxes): int
     {
+        $mailbox = $mailboxes->findOrDefault($this->option('mailbox') ?: null);
         $manager = new ClientManager();
-
-        $client = $manager->make([
-                                     'host' => config('services.yandex_mail.imap.host'),
-                                     'port' => config('services.yandex_mail.imap.port', 993),
-                                     'encryption' => config('services.yandex_mail.imap.encryption', 'ssl'),
-                                     'validate_cert' => true,
-                                     'username' => config('services.yandex_mail.imap.username'),
-                                     'password' => config('services.yandex_mail.imap.password'),
-                                     'protocol' => 'imap',
-                                 ]);
+        $client = $manager->make($mailboxes->imapClientConfig($mailbox));
 
         $client->connect();
 
-        $this->info('Folders:');
+        $this->info('Folders for ' . $mailbox['address'] . ':');
 
         foreach ($client->getFolders() as $folder) {
             $path = $folder->path ?? null;

@@ -78,24 +78,79 @@ return [
     ],
 
     'yandex_mail' => [
-        'address' => env('YANDEX_MAIL_ADDRESS', env('MAIL_FROM_ADDRESS')),
+        'address' => env('MAILBOX_1_ADDRESS', env('YANDEX_MAIL_ADDRESS', env('MAIL_FROM_ADDRESS'))),
 
         'attachments_disk' => env('YANDEX_ATTACHMENTS_DISK', 'yandex'),
 
         'imap' => [
-            'host' => env('YANDEX_IMAP_HOST', 'imap.yandex.com'),
-            'port' => (int) env('YANDEX_IMAP_PORT', 993),
-            'encryption' => env('YANDEX_IMAP_ENCRYPTION', 'ssl'),
-            'username' => env('YANDEX_IMAP_USERNAME'),
-            'password' => env('YANDEX_IMAP_PASSWORD'),
-            'inbox' => env('YANDEX_IMAP_INBOX', 'INBOX'),
-            'sent' => env('YANDEX_IMAP_SENT', 'Sent'),
+            'host' => env('MAILBOX_1_IMAP_HOST', env('YANDEX_IMAP_HOST', 'imap.yandex.com')),
+            'port' => (int) env('MAILBOX_1_IMAP_PORT', env('YANDEX_IMAP_PORT', 993)),
+            'encryption' => env('MAILBOX_1_IMAP_ENCRYPTION', env('YANDEX_IMAP_ENCRYPTION', 'ssl')),
+            'username' => env('MAILBOX_1_IMAP_USERNAME', env('YANDEX_IMAP_USERNAME')),
+            'password' => env('MAILBOX_1_IMAP_PASSWORD', env('YANDEX_IMAP_PASSWORD')),
+            'inbox' => env('MAILBOX_1_IMAP_INBOX', env('YANDEX_IMAP_INBOX', 'INBOX')),
+            'sent' => env('MAILBOX_1_IMAP_SENT', env('YANDEX_IMAP_SENT', 'Sent')),
         ],
 
         'folders' => array_values(array_filter(array_map(
                                                    'trim',
-                                                   explode(',', env('YANDEX_IMAP_FOLDERS', 'INBOX,Sent'))
+                                                   explode(',', env('MAILBOX_1_IMAP_FOLDERS', env('YANDEX_IMAP_FOLDERS', 'INBOX,Sent')))
                                                ))),
+
+        'mailboxes' => [
+            [
+                'address' => env('MAILBOX_1_ADDRESS', env('YANDEX_MAIL_ADDRESS', env('MAIL_FROM_ADDRESS'))),
+                'name' => env('MAILBOX_1_NAME', env('YANDEX_MAIL_NAME', env('MAIL_FROM_NAME'))),
+                'from_name' => env('MAILBOX_1_FROM_NAME', env('MAILBOX_1_NAME', env('MAIL_FROM_NAME'))),
+                'imap' => [
+                    'host' => env('MAILBOX_1_IMAP_HOST', env('YANDEX_IMAP_HOST', 'imap.yandex.com')),
+                    'port' => (int) env('MAILBOX_1_IMAP_PORT', env('YANDEX_IMAP_PORT', 993)),
+                    'encryption' => env('MAILBOX_1_IMAP_ENCRYPTION', env('YANDEX_IMAP_ENCRYPTION', 'ssl')),
+                    'username' => env('MAILBOX_1_IMAP_USERNAME', env('YANDEX_IMAP_USERNAME')),
+                    'password' => env('MAILBOX_1_IMAP_PASSWORD', env('YANDEX_IMAP_PASSWORD')),
+                    'inbox' => env('MAILBOX_1_IMAP_INBOX', env('YANDEX_IMAP_INBOX', 'INBOX')),
+                    'sent' => env('MAILBOX_1_IMAP_SENT', env('YANDEX_IMAP_SENT', 'Sent')),
+                ],
+                'smtp' => [
+                    'host' => env('MAILBOX_1_SMTP_HOST', env('YANDEX_SMTP_HOST', env('MAIL_HOST'))),
+                    'port' => (int) env('MAILBOX_1_SMTP_PORT', env('YANDEX_SMTP_PORT', env('MAIL_PORT', 465))),
+                    'encryption' => env('MAILBOX_1_SMTP_ENCRYPTION', env('YANDEX_SMTP_ENCRYPTION', env('MAIL_ENCRYPTION', 'ssl'))),
+                    'username' => env('MAILBOX_1_SMTP_USERNAME', env('YANDEX_SMTP_USERNAME', env('MAIL_USERNAME'))),
+                    'password' => env('MAILBOX_1_SMTP_PASSWORD', env('YANDEX_SMTP_PASSWORD', env('MAIL_PASSWORD'))),
+                    'timeout' => (int) env('MAILBOX_1_SMTP_TIMEOUT', 30),
+                ],
+                'folders' => array_values(array_filter(array_map(
+                    'trim',
+                    explode(',', env('MAILBOX_1_IMAP_FOLDERS', env('YANDEX_IMAP_FOLDERS', 'INBOX,Sent')))
+                ))),
+            ],
+            [
+                'address' => env('MAILBOX_2_ADDRESS', env('YANDEX_MAILBOX_2_ADDRESS')),
+                'name' => env('MAILBOX_2_NAME', env('YANDEX_MAILBOX_2_NAME')),
+                'from_name' => env('MAILBOX_2_FROM_NAME', env('MAILBOX_2_NAME', env('MAIL_FROM_NAME'))),
+                'imap' => [
+                    'host' => env('MAILBOX_2_IMAP_HOST', env('YANDEX_MAILBOX_2_IMAP_HOST', 'imap.beget.com')),
+                    'port' => (int) env('MAILBOX_2_IMAP_PORT', env('YANDEX_MAILBOX_2_IMAP_PORT', 993)),
+                    'encryption' => env('MAILBOX_2_IMAP_ENCRYPTION', env('YANDEX_MAILBOX_2_IMAP_ENCRYPTION', 'ssl')),
+                    'username' => env('MAILBOX_2_IMAP_USERNAME', env('YANDEX_MAILBOX_2_IMAP_USERNAME')),
+                    'password' => env('MAILBOX_2_IMAP_PASSWORD', env('YANDEX_MAILBOX_2_IMAP_PASSWORD')),
+                    'inbox' => env('MAILBOX_2_IMAP_INBOX', env('YANDEX_MAILBOX_2_IMAP_INBOX', 'INBOX')),
+                    'sent' => env('MAILBOX_2_IMAP_SENT', env('YANDEX_MAILBOX_2_IMAP_SENT', 'Sent')),
+                ],
+                'smtp' => [
+                    'host' => env('MAILBOX_2_SMTP_HOST', env('YANDEX_MAILBOX_2_SMTP_HOST', 'smtp.beget.com')),
+                    'port' => (int) env('MAILBOX_2_SMTP_PORT', env('YANDEX_MAILBOX_2_SMTP_PORT', 465)),
+                    'encryption' => env('MAILBOX_2_SMTP_ENCRYPTION', env('YANDEX_MAILBOX_2_SMTP_ENCRYPTION', 'ssl')),
+                    'username' => env('MAILBOX_2_SMTP_USERNAME', env('YANDEX_MAILBOX_2_SMTP_USERNAME')),
+                    'password' => env('MAILBOX_2_SMTP_PASSWORD', env('YANDEX_MAILBOX_2_SMTP_PASSWORD')),
+                    'timeout' => (int) env('MAILBOX_2_SMTP_TIMEOUT', 30),
+                ],
+                'folders' => array_values(array_filter(array_map(
+                    'trim',
+                    explode(',', env('MAILBOX_2_IMAP_FOLDERS', env('YANDEX_MAILBOX_2_IMAP_FOLDERS', 'INBOX,Sent')))
+                ))),
+            ],
+        ],
     ],
 
     'indexnow' => [

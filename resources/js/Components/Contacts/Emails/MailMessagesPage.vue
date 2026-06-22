@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useMailMessages } from '@/Composables/useMailMessages.js'
 import MailMessagesToolbar from './MailMessagesToolbar.vue'
 import MailMessagesTable from './MailMessagesTable.vue'
@@ -12,9 +12,11 @@ const {
     loading,
     reading,
     selectedMessage,
+    mailboxes,
     search,
     filters,
     options,
+    fetchMailboxes,
     fetchMessages,
     readMessage,
 } = useMailMessages()
@@ -23,6 +25,14 @@ const readerDialog = ref(false)
 const composerDialog = ref(false)
 const replyContext = ref(null)
 let autoRefreshTimer = null
+
+const mailboxSubtitle = computed(() => {
+    if (!mailboxes.value.length) {
+        return 'Все входящие и исходящие письма настроенных ящиков'
+    }
+
+    return `Ящики: ${mailboxes.value.map((mailbox) => mailbox.address).join(' / ')}`
+})
 
 async function openMessage(message) {
     readerDialog.value = true
@@ -61,7 +71,10 @@ async function afterSent() {
 }
 
 onMounted(async () => {
-    await fetchMessages()
+    await Promise.all([
+        fetchMailboxes(),
+        fetchMessages(),
+    ])
 
     autoRefreshTimer = window.setInterval(() => {
         fetchMessages()
@@ -84,7 +97,7 @@ onUnmounted(() => {
                 </div>
 
                 <div class="text-[10px] text-grey">
-                    Все входящие и исходящие письма office@180022.ru
+                    {{ mailboxSubtitle }}
                 </div>
             </div>
 
@@ -115,6 +128,7 @@ onUnmounted(() => {
             <MailMessagesToolbar
                 v-model:search="search"
                 v-model:filters="filters"
+                :mailboxes="mailboxes"
                 :loading="loading"
                 @refresh="fetchMessages"
             />
@@ -142,6 +156,7 @@ onUnmounted(() => {
 
     <MailComposerDialog
         v-model="composerDialog"
+        :mailboxes="mailboxes"
         :reply-context="replyContext"
         @sent="afterSent"
     />

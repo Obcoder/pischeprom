@@ -7,12 +7,14 @@ export function useMailMessages() {
     const loading = ref(false)
     const reading = ref(false)
     const selectedMessage = ref(null)
+    const mailboxes = ref([])
 
     const search = ref('')
 
     const filters = ref({
         direction: null,
         folder: null,
+        mailbox: null,
         email_id: null,
     })
 
@@ -41,6 +43,16 @@ export function useMailMessages() {
             console.error('Mail messages loading error:', error)
         } finally {
             loading.value = false
+        }
+    }
+
+    async function fetchMailboxes() {
+        try {
+            const { data } = await axios.get('/api/mailboxes')
+            mailboxes.value = data.data ?? data ?? []
+        } catch (error) {
+            console.error('Mailboxes loading error:', error)
+            mailboxes.value = []
         }
     }
 
@@ -96,9 +108,11 @@ export function useMailMessages() {
         loading,
         reading,
         selectedMessage,
+        mailboxes,
         search,
         filters,
         options,
+        fetchMailboxes,
         fetchMessages,
         readMessage,
     }

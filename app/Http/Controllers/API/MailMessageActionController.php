@@ -8,6 +8,7 @@ use App\Models\Lead;
 use App\Models\MailMessage;
 use App\Models\MailMessageAttachment;
 use App\Models\MailMessageNote;
+use App\Services\Mail\MailboxRegistry;
 use App\Services\Mail\YandexMailboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,11 +24,12 @@ use Throwable;
 
 class MailMessageActionController extends Controller
 {
-    public function send(Request $request): JsonResponse
+    public function send(Request $request, MailboxRegistry $mailboxes): JsonResponse
     {
         $request->validate([
             'subject' => ['nullable', 'string', 'max:998'],
             'body' => ['nullable', 'string'],
+            'mailbox' => ['nullable', 'email'],
             'to' => ['required'],
             'cc' => ['nullable'],
             'bcc' => ['nullable'],
@@ -58,14 +60,25 @@ class MailMessageActionController extends Controller
         $subject = trim((string) $request->input('subject')) ?: '(без темы)';
         $body = (string) $request->input('body', '');
         $bodyHtml = nl2br(e($body));
-        $fromAddress = $this->defaultFromAddress();
-        $fromName = $this->defaultFromName();
+        $requestedMailbox = $request->input('mailbox') ?: $replyToMessage?->mailbox;
+        $mailbox = $requestedMailbox ? $mailboxes->find($requestedMailbox) : null;
+
+        if ($requestedMailbox && !$mailbox) {
+            return response()->json([
+                'message' => 'Выбранный почтовый ящик не настроен.',
+            ], 422);
+        }
+
+        $mailbox = $mailbox ?: $mailboxes->findOrDefault(null);
+        $fromAddress = $mailbox['address'];
+        $fromName = $mailbox['from_name'] ?: $this->defaultFromName();
+        $mailerName = $mailboxes->registerMailer($mailbox);
         $localAttachments = $this->normalizeUploadedFiles($request->file('attachments'));
         $storageFiles = $this->normalizeStorageFiles($request->input('storage_files'));
         $storageAttachments = $this->buildStorageAttachments($storageFiles);
 
         try {
-            Mail::html($bodyHtml, function ($message) use (
+            Mail::mailer($mailerName)->html($bodyHtml, function ($message) use (
                 $to,
                 $cc,
                 $bcc,

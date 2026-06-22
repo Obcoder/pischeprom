@@ -4,12 +4,13 @@ import axios from 'axios'
 export function useEmailMailboxSync() {
     const syncing = ref(false)
 
-    async function syncYandex(limit = 1000) {
+    async function syncYandex(limit = 1000, mailbox = null) {
         syncing.value = true
 
         try {
             await axios.post('/api/emails/sync-yandex', {
                 limit,
+                mailbox,
             })
         } catch (error) {
             console.error('Yandex mailbox sync error:', error)

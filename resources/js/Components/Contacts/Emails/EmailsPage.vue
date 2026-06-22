@@ -167,7 +167,7 @@ onUnmounted(() => {
                 </div>
 
                 <div class="text-[10px] text-grey">
-                    CRUD, связи с Units/Entities, входящие и исходящие письма office@180022.ru
+                    CRUD, связи с Units/Entities, входящие и исходящие письма настроенных ящиков
                 </div>
             </div>
 

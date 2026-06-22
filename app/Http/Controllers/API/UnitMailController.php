@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Email;
 use App\Models\MailMessage;
 use App\Models\Unit;
+use App\Services\Mail\MailboxRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -41,6 +42,10 @@ class UnitMailController extends Controller
 
         if ($direction = $request->input('direction')) {
             $query->where('direction', $direction);
+        }
+
+        if ($mailbox = $request->input('mailbox')) {
+            $query->where('mailbox', mb_strtolower(trim((string) $mailbox)));
         }
 
         if ($search = trim((string) $request->input('search'))) {
@@ -133,7 +138,7 @@ class UnitMailController extends Controller
             ->all();
     }
 
-    public function send(Request $request, Unit $unit): JsonResponse
+    public function send(Request $request, Unit $unit, MailboxRegistry $mailboxes): JsonResponse
     {
         Log::info('DEBUG UnitMailController send started', [
             'unit_id' => $unit->id,
@@ -146,6 +151,7 @@ class UnitMailController extends Controller
         $request->validate([
                                'subject' => ['nullable', 'string', 'max:998'],
                                'body' => ['nullable', 'string'],
+                               'mailbox' => ['nullable', 'email'],
 
                                'to' => ['required'],
                                'cc' => ['nullable'],
@@ -181,8 +187,19 @@ class UnitMailController extends Controller
         $body = (string) $request->input('body', '');
         $bodyHtml = nl2br(e($body));
 
-        $fromAddress = $this->defaultFromAddress();
-        $fromName = $this->defaultFromName();
+        $requestedMailbox = $request->input('mailbox') ?: $replyToMessage?->mailbox;
+        $mailbox = $requestedMailbox ? $mailboxes->find($requestedMailbox) : null;
+
+        if ($requestedMailbox && !$mailbox) {
+            return response()->json([
+                'message' => 'Выбранный почтовый ящик не настроен.',
+            ], 422);
+        }
+
+        $mailbox = $mailbox ?: $mailboxes->findOrDefault(null);
+        $fromAddress = $mailbox['address'];
+        $fromName = $mailbox['from_name'] ?: $this->defaultFromName();
+        $mailerName = $mailboxes->registerMailer($mailbox);
 
         $localAttachments = $this->normalizeUploadedFiles($request->file('attachments'));
         $storageFiles = $this->normalizeStorageFiles($request->input('storage_files'));
@@ -201,7 +218,7 @@ class UnitMailController extends Controller
         ]);
 
         try {
-            Mail::html($bodyHtml, function ($message) use (
+            Mail::mailer($mailerName)->html($bodyHtml, function ($message) use (
                 $to,
                 $cc,
                 $bcc,

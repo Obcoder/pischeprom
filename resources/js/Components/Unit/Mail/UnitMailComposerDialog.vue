@@ -32,6 +32,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    mailboxes: {
+        type: Array,
+        default: () => [],
+    },
     sending: Boolean,
 })
 
@@ -44,6 +48,8 @@ const to = ref([])
 const cc = ref([])
 const subject = ref('')
 const body = ref('')
+const selectedMailbox = ref(null)
+const availableMailboxes = ref([])
 const localFiles = ref([])
 const storageFiles = ref([])
 const templates = ref([])
@@ -52,6 +58,14 @@ const loadingTemplates = ref(false)
 const fileInput = ref(null)
 
 const isReply = computed(() => Boolean(props.replyContext?.id))
+const mailboxItems = computed(() => {
+    const source = props.mailboxes.length ? props.mailboxes : availableMailboxes.value
+
+    return source.map((mailbox) => ({
+        title: mailbox.label || mailbox.address,
+        value: mailbox.address,
+    }))
+})
 
 const replyRecipient = computed(() => {
     if (!props.replyContext?.from_address) {
@@ -112,6 +126,20 @@ async function fetchTemplates() {
         console.error('Templates loading error:', error)
     } finally {
         loadingTemplates.value = false
+    }
+}
+
+async function fetchMailboxes() {
+    if (props.mailboxes.length) {
+        return
+    }
+
+    try {
+        const { data } = await axios.get('/api/mailboxes')
+        availableMailboxes.value = data.data ?? data ?? []
+    } catch (error) {
+        console.error('Mailboxes loading error:', error)
+        availableMailboxes.value = []
     }
 }
 
@@ -189,6 +217,7 @@ function applyReplyContext() {
 
     to.value = props.replyContext.from_address ? [props.replyContext.from_address] : []
     cc.value = []
+    selectedMailbox.value = props.replyContext.mailbox || mailboxItems.value[0]?.value || null
     subject.value = replySubject(props.replyContext)
     body.value = replyQuote(props.replyContext)
 }
@@ -226,6 +255,10 @@ async function submit() {
     formData.append('subject', subject.value)
     formData.append('body', body.value)
 
+    if (selectedMailbox.value) {
+        formData.append('mailbox', selectedMailbox.value)
+    }
+
     storageFiles.value.forEach((path) => {
         formData.append('storage_files[]', path)
     })
@@ -257,6 +290,7 @@ function resetForm() {
     cc.value = []
     subject.value = ''
     body.value = ''
+    selectedMailbox.value = null
     localFiles.value = []
     storageFiles.value = [...props.initialStorageFiles]
     selectedTemplateId.value = null
@@ -268,7 +302,9 @@ function resetForm() {
 
 watch(model, async (value) => {
     if (value) {
+        await fetchMailboxes()
         storageFiles.value = [...props.initialStorageFiles]
+        selectedMailbox.value = props.replyContext?.mailbox || mailboxItems.value[0]?.value || null
 
         if (props.replyContext) {
             applyReplyContext()
@@ -355,6 +391,17 @@ watch(() => props.initialTo, () => {
                                 {{ replyContext?.from_address }}
                             </div>
                         </v-alert>
+                    </v-col>
+
+                    <v-col cols="12" lg="4">
+                        <v-select
+                            v-model="selectedMailbox"
+                            :items="mailboxItems"
+                            label="От ящика"
+                            variant="outlined"
+                            density="compact"
+                            hide-details
+                        />
                     </v-col>
 
                     <v-col cols="12" lg="8">
@@ -500,7 +547,7 @@ watch(() => props.initialTo, () => {
                     color="blue"
                     variant="elevated"
                     :loading="sending"
-                    :disabled="!to.length || !subject || !body"
+                    :disabled="!selectedMailbox || !to.length || !subject || !body"
                     @click="submit"
                 >
                     {{ isReply ? 'Отправить ответ' : 'Отправить' }}

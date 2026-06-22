@@ -18,39 +18,79 @@ use Webklex\PHPIMAP\ClientManager;
 
 class YandexMailboxService
 {
-    public function syncAll(int $limit = 1000): array
+    public function __construct(private readonly MailboxRegistry $mailboxes)
     {
-        $folders = config('services.yandex_mail.folders', [
-            config('services.yandex_mail.imap.inbox', 'INBOX'),
-            config('services.yandex_mail.imap.sent', 'Sent'),
-        ]);
+    }
+
+    public function mailboxes(): array
+    {
+        return $this->mailboxes->publicMailboxes();
+    }
+
+    public function syncAll(int $limit = 1000, ?string $mailboxAddress = null): array
+    {
+        if ($mailboxAddress) {
+            $mailbox = $this->mailboxes->find($mailboxAddress);
+
+            if (!$mailbox) {
+                throw new RuntimeException('Почтовый ящик не настроен: ' . $mailboxAddress);
+            }
+
+            $configuredMailboxes = [$mailbox];
+        } else {
+            $configuredMailboxes = $this->mailboxes->all();
+        }
 
         $result = [];
 
-        foreach ($folders as $folder) {
-            try {
-                $result[$folder] = $this->syncFolder(
-                    folderName: $folder,
-                    direction: null,
-                    limit: $limit,
-                );
-            } catch (Throwable $exception) {
-                logger()->error('Yandex mailbox folder sync failed', [
-                    'folder' => $folder,
-                    'limit' => $limit,
-                    'message' => $exception->getMessage(),
-                ]);
+        foreach ($configuredMailboxes as $mailbox) {
+            foreach ($this->mailboxes->folders($mailbox) as $folder) {
+                $key = $mailbox['address'] . '/' . $folder;
 
-                $result[$folder] = 0;
+                try {
+                    $result[$key] = $this->syncFolder(
+                        folderName: $folder,
+                        direction: null,
+                        limit: $limit,
+                        mailbox: $mailbox,
+                    );
+                } catch (Throwable $exception) {
+                    logger()->error('Yandex mailbox folder sync failed', [
+                        'mailbox' => $mailbox['address'],
+                        'folder' => $folder,
+                        'limit' => $limit,
+                        'message' => $exception->getMessage(),
+                    ]);
+
+                    $result[$key] = 0;
+                }
             }
         }
 
         return $result;
     }
 
-    public function syncFolder(string $folderName, ?string $direction = null, int $limit = 1000): int
+    public function syncFolder(
+        string $folderName,
+        ?string $direction = null,
+        int $limit = 1000,
+        array|string|null $mailbox = null,
+    ): int
     {
-        $client = $this->client();
+        if (is_array($mailbox)) {
+            $mailbox = $mailbox;
+        } elseif (is_string($mailbox) && trim($mailbox) !== '') {
+            $mailboxAddress = $mailbox;
+            $mailbox = $this->mailboxes->find($mailboxAddress);
+
+            if (!$mailbox) {
+                throw new RuntimeException('Почтовый ящик не настроен: ' . $mailboxAddress);
+            }
+        } else {
+            $mailbox = $this->mailboxes->findOrDefault(null);
+        }
+
+        $client = $this->client($mailbox);
 
         try {
             $client->connect();
@@ -59,6 +99,7 @@ class YandexMailboxService
 
             if (!$folder) {
                 logger()->warning('Yandex IMAP folder not found', [
+                    'mailbox' => $mailbox['address'],
                     'requested_folder' => $folderName,
                     'direction' => $direction,
                     'available_folders' => collect($client->getFolders())->map(fn ($folder) => [
@@ -71,6 +112,7 @@ class YandexMailboxService
             }
 
             logger()->info('Yandex folder opened', [
+                'mailbox' => $mailbox['address'],
                 'folder' => $folderName,
                 'direction' => $direction,
             ]);
@@ -78,6 +120,7 @@ class YandexMailboxService
             $total = $folder->query()->all()->count();
 
             logger()->info('Yandex folder count', [
+                'mailbox' => $mailbox['address'],
                 'folder' => $folderName,
                 'direction' => $direction,
                 'total' => $total,
@@ -120,6 +163,7 @@ class YandexMailboxService
                         message: $message,
                         folderName: $folderName,
                         direction: $direction,
+                        mailbox: $mailbox,
                     );
 
                     $stored++;
@@ -127,6 +171,7 @@ class YandexMailboxService
             }
 
             logger()->info('Yandex folder synced', [
+                'mailbox' => $mailbox['address'],
                 'folder' => $folderName,
                 'direction' => $direction,
                 'stored' => $stored,
@@ -136,33 +181,30 @@ class YandexMailboxService
         } finally {
             $this->safeDisconnect($client, [
                 'operation' => 'sync_folder',
+                'mailbox' => $mailbox['address'],
                 'folder' => $folderName,
             ]);
         }
     }
 
-    protected function client()
+    protected function client(?array $mailbox = null)
     {
         $manager = new ClientManager();
 
-        return $manager->make([
-                                  'host' => config('services.yandex_mail.imap.host'),
-                                  'port' => config('services.yandex_mail.imap.port', 993),
-                                  'encryption' => config('services.yandex_mail.imap.encryption', 'ssl'),
-                                  'validate_cert' => true,
-                                  'username' => config('services.yandex_mail.imap.username'),
-                                  'password' => config('services.yandex_mail.imap.password'),
-                                  'protocol' => 'imap',
-                              ]);
+        return $manager->make(
+            $this->mailboxes->imapClientConfig($mailbox ?: $this->mailboxes->findOrDefault(null))
+        );
     }
 
-    protected function storeMessage($message, string $folderName, ?string $direction = null): void
+    protected function storeMessage($message, string $folderName, ?string $direction = null, ?array $mailbox = null): void
     {
+        $mailbox = $mailbox ?: $this->mailboxes->findOrDefault(null);
+        $mailboxAddress = $mailbox['address'];
         $from = Arr::first($this->addresses($this->attribute($message, 'from')));
         $to = $this->addresses($this->attribute($message, 'to'));
         $cc = $this->addresses($this->attribute($message, 'cc'));
 
-        $direction = $direction ?: $this->detectDirection($from);
+        $direction = $direction ?: $this->detectDirection($from, $mailboxAddress);
 
         $messageId = $this->stringValue(
             $this->firstAttributeValue(
@@ -199,21 +241,8 @@ class YandexMailboxService
             );
         }
 
-        $identity = $messageId
-            ? [
-                'mailbox' => config('services.yandex_mail.address'),
-                'message_id' => $messageId,
-            ]
-            : [
-                'mailbox' => config('services.yandex_mail.address'),
-                'folder' => $folderName,
-                'imap_uid' => $imapUid,
-            ];
-
-        $mailbox = config('services.yandex_mail.address');
-
         $mailMessage = MailMessage::query()->firstOrNew([
-                                                            'mailbox' => $mailbox,
+                                                            'mailbox' => $mailboxAddress,
                                                             'folder' => $folderName,
                                                             'imap_uid' => $imapUid,
                                                         ]);
@@ -265,9 +294,10 @@ class YandexMailboxService
         }
     }
 
-    protected function detectDirection(?array $from): string
+    protected function detectDirection(?array $from, ?string $ownAddress = null): string
     {
-        $ownAddress = Str::lower((string) config('services.yandex_mail.address'));
+        $defaultMailbox = $this->mailboxes->default();
+        $ownAddress = Str::lower((string) ($ownAddress ?: ($defaultMailbox['address'] ?? '')));
         $fromAddress = Str::lower((string) ($from['address'] ?? ''));
 
         return $fromAddress === $ownAddress
@@ -728,7 +758,16 @@ class YandexMailboxService
             );
         }
 
-        $client = $this->client();
+        $mailbox = $mailMessage->mailbox
+            ? $this->mailboxes->find($mailMessage->mailbox)
+            : null;
+
+        if ($mailMessage->mailbox && !$mailbox) {
+            throw new RuntimeException('Почтовый ящик не настроен: ' . $mailMessage->mailbox);
+        }
+
+        $mailbox = $mailbox ?: $this->mailboxes->findOrDefault(null);
+        $client = $this->client($mailbox);
 
         try {
             $client->connect();
@@ -737,6 +776,7 @@ class YandexMailboxService
 
             if (!$folder) {
                 logger()->warning('Yandex load body folder not found', [
+                    'mailbox' => $mailbox['address'],
                     'mail_message_id' => $mailMessage->id,
                     'folder' => $mailMessage->folder,
                     'imap_uid' => $mailMessage->imap_uid,
@@ -760,6 +800,7 @@ class YandexMailboxService
 
             if (!$message) {
                 logger()->warning('Yandex message body not found by uid', [
+                    'mailbox' => $mailbox['address'],
                     'mail_message_id' => $mailMessage->id,
                     'folder' => $mailMessage->folder,
                     'imap_uid' => $mailMessage->imap_uid,
@@ -805,6 +846,7 @@ class YandexMailboxService
             return $this->withAvailableAttachments($fresh);
         } catch (Throwable $exception) {
             logger()->error('Yandex load body failed', [
+                'mailbox' => $mailbox['address'],
                 'mail_message_id' => $mailMessage->id,
                 'folder' => $mailMessage->folder,
                 'imap_uid' => $mailMessage->imap_uid,
@@ -818,6 +860,7 @@ class YandexMailboxService
         } finally {
             $this->safeDisconnect($client, [
                 'operation' => 'load_body',
+                'mailbox' => $mailbox['address'],
                 'mail_message_id' => $mailMessage->id,
                 'folder' => $mailMessage->folder,
             ]);
@@ -935,7 +978,16 @@ class YandexMailboxService
             );
         }
 
-        $client = $this->client();
+        $mailbox = $mailMessage->mailbox
+            ? $this->mailboxes->find($mailMessage->mailbox)
+            : null;
+
+        if ($mailMessage->mailbox && !$mailbox) {
+            throw new RuntimeException('Почтовый ящик не настроен: ' . $mailMessage->mailbox);
+        }
+
+        $mailbox = $mailbox ?: $this->mailboxes->findOrDefault(null);
+        $client = $this->client($mailbox);
         $diskName = $this->attachmentsDiskName();
         $targetFolder = $this->normalizeAttachmentFolder($folder, $mailMessage);
 
@@ -946,6 +998,7 @@ class YandexMailboxService
 
             if (!$folder) {
                 logger()->warning('Yandex save attachment folder not found', [
+                    'mailbox' => $mailbox['address'],
                     'mail_message_id' => $mailMessage->id,
                     'folder' => $mailMessage->folder,
                     'imap_uid' => $mailMessage->imap_uid,
@@ -1002,6 +1055,7 @@ class YandexMailboxService
         } finally {
             $this->safeDisconnect($client, [
                 'operation' => 'save_attachment',
+                'mailbox' => $mailbox['address'],
                 'mail_message_id' => $mailMessage->id,
                 'folder' => $mailMessage->folder,
                 'attachment_index' => $index,

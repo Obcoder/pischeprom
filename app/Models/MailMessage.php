@@ -100,6 +100,9 @@ class MailMessage extends Model
             ->when(!empty($filters['folder']), function (Builder $q) use ($filters) {
                 $q->where('folder', $filters['folder']);
             })
+            ->when(!empty($filters['mailbox']), function (Builder $q) use ($filters) {
+                $q->where('mailbox', mb_strtolower(trim((string) $filters['mailbox'])));
+            })
             ->when(!empty($filters['email_id']), function (Builder $q) use ($filters) {
                 $q->whereHas('emails', fn (Builder $sq) => $sq->where('emails.id', $filters['email_id']));
             })

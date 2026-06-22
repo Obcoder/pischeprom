@@ -38,6 +38,12 @@ const headers = computed(() => [
         width: '150px',
     },
     {
+        title: 'Ящик',
+        key: 'mailbox',
+        sortable: false,
+        width: '180px',
+    },
+    {
         title: 'От / Кому',
         key: 'contact',
         sortable: false,
@@ -194,6 +200,16 @@ function entityHref(entity) {
             <div class="text-[9px] text-grey">
                 {{ item.folder }}
             </div>
+        </template>
+
+        <template #item.mailbox="{ item }">
+            <v-chip
+                size="x-small"
+                color="teal"
+                variant="tonal"
+            >
+                {{ item.mailbox || '—' }}
+            </v-chip>
         </template>
 
         <template #item.contact="{ item }">

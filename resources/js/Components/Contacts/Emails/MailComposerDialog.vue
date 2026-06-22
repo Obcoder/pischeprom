@@ -24,6 +24,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    mailboxes: {
+        type: Array,
+        default: () => [],
+    },
     entityId: {
         type: Number,
         default: null,
@@ -44,6 +48,8 @@ const to = ref([])
 const cc = ref([])
 const subject = ref('')
 const body = ref('')
+const selectedMailbox = ref(null)
+const availableMailboxes = ref([])
 const localFiles = ref([])
 const storageFiles = ref([])
 const sending = ref(false)
@@ -55,6 +61,14 @@ const isReply = computed(() => Boolean(props.replyContext?.id))
 const normalizedTo = computed(() => selectedAddresses(to.value))
 const normalizedCc = computed(() => selectedAddresses(cc.value))
 const normalizedStorageFiles = computed(() => selectedStoragePaths(storageFiles.value))
+const mailboxItems = computed(() => {
+    const source = props.mailboxes.length ? props.mailboxes : availableMailboxes.value
+
+    return source.map((mailbox) => ({
+        title: mailbox.label || mailbox.address,
+        value: mailbox.address,
+    }))
+})
 
 const recipientItems = computed(() => {
     const replyRecipient = props.replyContext?.from_address
@@ -85,6 +99,20 @@ const storageFileItems = computed(() => {
         value: path,
     }))
 })
+
+async function fetchMailboxes() {
+    if (props.mailboxes.length) {
+        return
+    }
+
+    try {
+        const { data } = await axios.get('/api/mailboxes')
+        availableMailboxes.value = data.data ?? data ?? []
+    } catch (error) {
+        console.error('Mailboxes loading error:', error)
+        availableMailboxes.value = []
+    }
+}
 
 function stripHtml(value) {
     if (!value) return ''
@@ -153,6 +181,7 @@ function resetForm() {
     cc.value = []
     subject.value = ''
     body.value = ''
+    selectedMailbox.value = null
     localFiles.value = []
     storageFiles.value = [...props.initialStorageFiles]
     error.value = null
@@ -164,6 +193,9 @@ function resetForm() {
 
 function applyInitialState() {
     storageFiles.value = [...props.initialStorageFiles]
+    selectedMailbox.value = props.replyContext?.mailbox
+        || mailboxItems.value[0]?.value
+        || null
 
     if (props.replyContext) {
         to.value = props.replyContext.from_address ? [props.replyContext.from_address] : []
@@ -203,6 +235,10 @@ async function submit() {
     formData.append('subject', subject.value)
     formData.append('body', body.value)
 
+    if (selectedMailbox.value) {
+        formData.append('mailbox', selectedMailbox.value)
+    }
+
     if (props.replyContext?.id) {
         formData.append('reply_to_mail_message_id', props.replyContext.id)
     }
@@ -231,8 +267,9 @@ async function submit() {
     }
 }
 
-watch(model, (value) => {
+watch(model, async (value) => {
     if (value) {
+        await fetchMailboxes()
         applyInitialState()
     } else {
         resetForm()
@@ -272,6 +309,17 @@ watch(() => props.replyContext, () => {
                 </v-alert>
 
                 <v-row dense>
+                    <v-col cols="12" lg="4">
+                        <v-select
+                            v-model="selectedMailbox"
+                            :items="mailboxItems"
+                            label="От ящика"
+                            variant="outlined"
+                            density="compact"
+                            hide-details
+                        />
+                    </v-col>
+
                     <v-col cols="12" lg="8">
                         <v-combobox
                             v-model="to"
@@ -381,7 +429,7 @@ watch(() => props.replyContext, () => {
                     color="#800000"
                     variant="elevated"
                     :loading="sending"
-                    :disabled="!normalizedTo.length || !subject || !body"
+                    :disabled="!selectedMailbox || !normalizedTo.length || !subject || !body"
                     @click="submit"
                 >
                     {{ isReply ? 'Отправить ответ' : 'Отправить' }}

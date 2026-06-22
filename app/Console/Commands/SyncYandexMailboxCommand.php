@@ -7,13 +7,16 @@ use Illuminate\Console\Command;
 
 class SyncYandexMailboxCommand extends Command
 {
-    protected $signature = 'mail:yandex-sync {--limit=1000}';
+    protected $signature = 'mail:yandex-sync {--limit=1000} {--mailbox=}';
 
     protected $description = 'Sync Yandex mailbox headers into local database';
 
     public function handle(YandexMailboxService $service): int
     {
-        $result = $service->syncAll((int) $this->option('limit'));
+        $result = $service->syncAll(
+            (int) $this->option('limit'),
+            $this->option('mailbox') ?: null,
+        );
 
         foreach ($result as $folder => $count) {
             $this->info("{$folder}: {$count}");
