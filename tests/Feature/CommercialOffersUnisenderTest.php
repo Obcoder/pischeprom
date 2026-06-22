@@ -277,6 +277,37 @@ class CommercialOffersUnisenderTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_suppression_can_be_removed_and_local_contact_unblocked(): void
+    {
+        $contact = MailingContact::query()->create([
+            'email' => 'blocked@example.test',
+            'normalized_email' => 'blocked@example.test',
+            'consent_status' => 'confirmed',
+            'do_not_email' => true,
+            'hard_bounced_at' => now(),
+        ]);
+        $suppression = MailingSuppression::query()->create([
+            'email' => 'blocked@example.test',
+            'normalized_email' => 'blocked@example.test',
+            'cause' => 'permanent_unavailable',
+            'source' => 'webhook',
+            'note' => 'Hard bounce',
+        ]);
+
+        $this->deleteJson("/Ameise/commercial-offers/suppression/{$suppression->id}", [
+            'clear_contact_block' => true,
+        ])
+            ->assertOk()
+            ->assertJson(['deleted' => true, 'contact_unblocked' => true]);
+
+        $this->assertDatabaseMissing('mailing_suppression_list', [
+            'email' => 'blocked@example.test',
+        ]);
+        $contact->refresh();
+        $this->assertFalse($contact->do_not_email);
+        $this->assertNull($contact->hard_bounced_at);
+    }
+
     public function test_campaign_test_send_uses_configured_unisender_sender_not_stale_campaign_sender(): void
     {
         config([

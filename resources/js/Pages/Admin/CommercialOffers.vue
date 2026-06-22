@@ -612,6 +612,22 @@ async function addSuppression(email, cause = 'manual_block') {
     })
 }
 
+async function removeSuppression(item) {
+    if (!item?.id) return
+    if (!window.confirm(`Remove ${item.email} from suppression list and unblock local contact flags?`)) return
+
+    await request('suppression removed', async () => {
+        await axios.delete(endpoint(`/suppression/${item.id}`), {
+            data: { clear_contact_block: true },
+        })
+        await Promise.all([
+            loadTable('suppression'),
+            loadTable('contacts'),
+            loadTable('campaigns'),
+        ])
+    })
+}
+
 async function testApi() {
     await request('api ok', async () => axios.post(endpoint('/settings/test-api')))
 }
@@ -1018,7 +1034,7 @@ onMounted(refreshAll)
 
         <section v-if="activeTab === 'suppression'" class="panel">
             <div class="form-row compact"><input v-model="contactForm.email" placeholder="email"><select v-model="contactForm.consent_status"><option>manual_block</option><option>unsubscribed</option><option>temporary_unavailable</option><option>permanent_unavailable</option><option>complained</option></select><button @click="addSuppression(contactForm.email, contactForm.consent_status)">block</button></div>
-            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>email</th><th>cause</th><th>source</th><th>note</th><th>created_at</th></tr></thead><tbody><tr v-for="item in suppression" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.email }}</td><td :class="statusClass(item.cause)">{{ item.cause }}</td><td>{{ item.source }}</td><td>{{ item.note }}</td><td>{{ formatDate(item.created_at) }}</td></tr></tbody></table></div>
+            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>email</th><th>cause</th><th>source</th><th>note</th><th>created_at</th><th>actions</th></tr></thead><tbody><tr v-for="item in suppression" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.email }}</td><td :class="statusClass(item.cause)">{{ item.cause }}</td><td>{{ item.source }}</td><td>{{ item.note }}</td><td>{{ formatDate(item.created_at) }}</td><td class="actions"><button type="button" class="danger" @click="removeSuppression(item)">remove + unblock</button></td></tr></tbody></table></div>
         </section>
 
         <section v-if="activeTab === 'settings'" class="panel grid-panel">

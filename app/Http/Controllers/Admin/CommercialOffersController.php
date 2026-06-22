@@ -892,10 +892,32 @@ class CommercialOffersController extends Controller
         $this->authorizeSales('sales_mailings.manage_suppression');
         $suppression = MailingSuppression::query()->findOrFail($id);
         $before = $suppression->toArray();
-        $suppression->delete();
-        $this->audit->log('suppression.deleted', MailingSuppression::class, $id, $before, null, $request);
+        $contactBefore = null;
+        $contactAfter = null;
 
-        return response()->json(['deleted' => true]);
+        if ($request->boolean('clear_contact_block')) {
+            $contact = MailingContact::query()
+                ->where('normalized_email', $suppression->normalized_email)
+                ->first();
+
+            if ($contact) {
+                $contactBefore = $contact->toArray();
+                $this->clearContactBlockForSuppression($contact, $suppression->cause);
+                $contactAfter = $contact->fresh()?->toArray();
+            }
+        }
+
+        $suppression->delete();
+        $this->audit->log('suppression.deleted', MailingSuppression::class, $id, $before, [
+            'clear_contact_block' => $request->boolean('clear_contact_block'),
+            'contact_before' => $contactBefore,
+            'contact_after' => $contactAfter,
+        ], $request);
+
+        return response()->json([
+            'deleted' => true,
+            'contact_unblocked' => $contactBefore !== null,
+        ]);
     }
 
     public function testApi(): JsonResponse
@@ -1099,6 +1121,32 @@ class CommercialOffersController extends Controller
         $contact->save();
 
         return $contact;
+    }
+
+    private function clearContactBlockForSuppression(MailingContact $contact, ?string $cause): void
+    {
+        $updates = [];
+
+        match ($cause) {
+            'unsubscribed' => $updates['unsubscribed_at'] = null,
+            'complained' => $updates['complained_at'] = null,
+            'permanent_unavailable' => $updates['hard_bounced_at'] = null,
+            'temporary_unavailable' => $updates += ['soft_bounced_at' => null, 'soft_bounce_count' => 0],
+            'manual_block' => null,
+            default => null,
+        };
+
+        $remainingUnsubscribed = array_key_exists('unsubscribed_at', $updates) ? null : $contact->unsubscribed_at;
+        $remainingComplained = array_key_exists('complained_at', $updates) ? null : $contact->complained_at;
+        $remainingHardBounced = array_key_exists('hard_bounced_at', $updates) ? null : $contact->hard_bounced_at;
+
+        if (! $remainingUnsubscribed && ! $remainingComplained && ! $remainingHardBounced) {
+            $updates['do_not_email'] = false;
+        }
+
+        if ($updates !== []) {
+            $contact->forceFill($updates)->save();
+        }
     }
 
     private function emailSourceColumns(): array
