@@ -50,31 +50,51 @@ class MailingRenderer
 
     public function renderProductCard(MailingOfferItem|array $item, MailingCampaign $campaign, ?MailingCampaignRecipient $recipient = null): string
     {
+        return $this->productListTable($this->renderProductRow($item, $campaign, $recipient));
+    }
+
+    public function renderProductGrid(array $items, MailingCampaign $campaign, ?MailingCampaignRecipient $recipient = null): string
+    {
+        $rows = collect($items)
+            ->map(fn ($item) => $this->renderProductRow($item, $campaign, $recipient))
+            ->implode('');
+
+        return $rows !== '' ? $this->productListTable($rows) : '';
+    }
+
+    private function renderProductRow(MailingOfferItem|array $item, MailingCampaign $campaign, ?MailingCampaignRecipient $recipient = null): string
+    {
         $data = $item instanceof MailingOfferItem ? $item->toArray() : $item;
+        $snapshot = is_array($data['snapshot'] ?? null) ? $data['snapshot'] : [];
         $title = e((string) ($data['title'] ?? 'Товар'));
-        $description = e(Str::limit(strip_tags((string) ($data['description'] ?? '')), 180));
+        $description = e(Str::limit(strip_tags((string) ($data['description'] ?? '')), 92));
         $price = $data['offer_price'] ?? $data['original_price'] ?? null;
         $currency = $data['currency'] ?? 'RUB';
         $utmContent = 'product_'.($data['product_id'] ?? 'custom');
         $url = $this->withUtm((string) ($data['canonical_url'] ?? config('app.url')), $campaign, $utmContent);
         $image = (string) ($data['thumbnail_url'] ?? '');
-        $imageHtml = $image !== '' ? '<img src="'.e($image).'" alt="'.$title.'" width="160" style="display:block;width:160px;max-width:100%;border:0;border-radius:6px;">' : '';
-        $priceHtml = $price !== null ? '<div style="font-size:18px;font-weight:700;color:#203b14;margin:8px 0;">'.e(number_format((float) $price, 2, ',', ' ')).' '.e($currency).'</div>' : '';
+        $sku = trim((string) ($data['sku'] ?? $snapshot['sku'] ?? ''));
+        $category = trim((string) ($snapshot['category'] ?? ''));
+        $meta = collect([$sku !== '' ? 'SKU '.$sku : null, $category ?: null])->filter()->implode(' / ');
+        $imageHtml = $image !== ''
+            ? '<img src="'.e($image).'" alt="'.$title.'" width="52" height="52" style="display:block;width:52px;height:52px;object-fit:cover;border:0;border-radius:6px;background:#eef4ea;">'
+            : '<span style="display:block;width:52px;height:52px;line-height:52px;text-align:center;border-radius:6px;background:#eef4ea;color:#6c7c68;font-size:10px;">КП</span>';
+        $priceHtml = $price !== null
+            ? e(number_format((float) $price, 2, ',', ' ')).' '.e($currency)
+            : 'по запросу';
 
-        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #d7e6d1;border-radius:10px;margin:0 0 12px 0;background:#ffffff;">'
-            .'<tr><td width="180" valign="top" style="padding:14px;">'.$imageHtml.'</td>'
-            .'<td valign="top" style="padding:14px;font-family:Arial,sans-serif;color:#203020;">'
-            .'<div style="font-size:16px;font-weight:700;margin-bottom:6px;">'.$title.'</div>'
-            .'<div style="font-size:13px;line-height:1.45;color:#526052;">'.$description.'</div>'.$priceHtml
-            .'<a href="'.e($url).'" style="display:inline-block;background:#2f7d32;color:#ffffff;text-decoration:none;border-radius:5px;padding:9px 14px;font-size:13px;font-weight:700;">Запросить КП</a>'
-            .'</td></tr></table>';
-    }
-
-    public function renderProductGrid(array $items, MailingCampaign $campaign, ?MailingCampaignRecipient $recipient = null): string
-    {
-        return collect($items)
-            ->map(fn ($item) => $this->renderProductCard($item, $campaign, $recipient))
-            ->implode('');
+        return '<tr>'
+            .'<td width="64" valign="top" style="padding:8px 10px 8px 12px;border-bottom:1px solid #e3edde;">'.$imageHtml.'</td>'
+            .'<td valign="top" style="padding:8px 8px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;color:#203020;">'
+            .'<div style="font-size:14px;line-height:18px;font-weight:700;color:#1f2f1d;margin:0 0 2px;">'.$title.'</div>'
+            .($meta !== '' ? '<div style="font-size:11px;line-height:15px;color:#71806d;margin:0 0 2px;">'.e($meta).'</div>' : '')
+            .($description !== '' ? '<div style="font-size:12px;line-height:16px;color:#526052;margin:0;">'.$description.'</div>' : '')
+            .'</td>'
+            .'<td width="120" valign="top" align="right" style="padding:10px 8px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;font-size:14px;line-height:18px;font-weight:700;color:#203b14;white-space:nowrap;">'.$priceHtml.'</td>'
+            .'<td width="74" valign="top" align="right" style="padding:8px 12px 8px 6px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;">'
+            .'<a href="'.e($url).'" style="display:inline-block;background:#2f7d32;color:#ffffff;text-decoration:none;border-radius:4px;padding:6px 9px;font-size:11px;line-height:13px;font-weight:700;white-space:nowrap;">Открыть</a>'
+            .'</td>'
+            .'</tr>';
     }
 
     public function sanitizeHtml(string $html): string
@@ -117,6 +137,18 @@ class MailingRenderer
             .'<table role="presentation" width="680" style="max-width:680px;background:#ffffff;border-radius:12px;padding:22px;font-family:Arial,sans-serif;color:#203020;">'
             .'<tr><td><div style="display:none;max-height:0;overflow:hidden;">{{preheader}}</div><h1>{{campaign_name}}</h1><p>Здравствуйте, {{first_name}}.</p><p>Подготовили для вас коммерческое предложение.</p>{{offer_items_html}}<p>С уважением, Pischeprom</p><p style="font-size:12px;color:#667">Если письмо неактуально, <a href="{{unsubscribe_url}}">отпишитесь</a>.</p></td></tr></table>'
             .'</td></tr></table>';
+    }
+
+    private function productListTable(string $rows): string
+    {
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;border:1px solid #d7e6d1;border-radius:10px;overflow:hidden;margin:12px 0;background:#ffffff;">'
+            .'<tr>'
+            .'<td colspan="2" style="padding:9px 12px;background:#101910;color:#e8ffe4;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #2e432c;">Позиции КП</td>'
+            .'<td width="120" align="right" style="padding:9px 8px;background:#101910;color:#e8ffe4;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #2e432c;">Цена</td>'
+            .'<td width="74" style="padding:9px 12px 9px 6px;background:#101910;border-bottom:1px solid #2e432c;">&nbsp;</td>'
+            .'</tr>'
+            .$rows
+            .'</table>';
     }
 
     private function unsubscribeFooter(string $unsubscribeUrl): string

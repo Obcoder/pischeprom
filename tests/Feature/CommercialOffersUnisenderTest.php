@@ -122,12 +122,14 @@ class CommercialOffersUnisenderTest extends TestCase
             'product_id' => 123,
             'item_type' => 'product',
             'title' => 'Насос пищевой',
+            'sku' => 'PUMP-123',
             'thumbnail_url' => 'https://pischeprom.test/i/pump.jpg',
             'canonical_url' => 'https://pischeprom.test/g/pump',
             'original_price' => 1000,
             'offer_price' => 900,
             'currency' => 'RUB',
             'description' => 'Описание товара',
+            'snapshot' => ['category' => 'Оборудование'],
         ]);
 
         $renderer = app(MailingRenderer::class);
@@ -136,6 +138,11 @@ class CommercialOffersUnisenderTest extends TestCase
 
         $this->assertStringContainsString('https://pischeprom.test/i/pump.jpg', $html);
         $this->assertStringContainsString('900,00 RUB', $html);
+        $this->assertStringContainsString('Позиции КП', $html);
+        $this->assertStringContainsString('width:52px', $html);
+        $this->assertStringContainsString('SKU PUMP-123 / Оборудование', $html);
+        $this->assertStringContainsString('Открыть', $html);
+        $this->assertStringNotContainsString('width:160px', $html);
         $this->assertStringContainsString('utm_source=unisender', $html);
         $this->assertStringContainsString($recipient->unsubscribe_token, $html);
         $this->assertStringContainsString('Насос пищевой', $text);
