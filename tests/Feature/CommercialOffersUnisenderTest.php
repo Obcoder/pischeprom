@@ -115,7 +115,10 @@ class CommercialOffersUnisenderTest extends TestCase
 
     public function test_renderer_outputs_product_card_unsubscribe_and_plaintext(): void
     {
-        $campaign = $this->campaign(['plaintext' => null]);
+        $campaign = $this->campaign([
+            'html_markup' => '<h1>{{campaign_name}}</h1><p>Здравствуйте, {{to_name}}.</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">unsubscribe</a></p>',
+            'plaintext' => 'Здравствуйте, {{to_name}}. {{offer_items_html}} {{unsubscribe_url}}',
+        ]);
         $contact = MailingContact::query()->create(['email' => 'buyer@example.test', 'normalized_email' => 'buyer@example.test', 'consent_status' => 'confirmed']);
         $recipient = MailingCampaignRecipient::query()->create(['campaign_id' => $campaign->id, 'contact_id' => $contact->id, 'email' => $contact->email, 'status' => 'pending']);
         $item = MailingOfferItem::query()->create([
@@ -130,7 +133,7 @@ class CommercialOffersUnisenderTest extends TestCase
             'offer_price' => 900,
             'currency' => 'RUB',
             'description' => 'Описание товара',
-            'snapshot' => ['category' => 'Оборудование'],
+            'snapshot' => ['category_id' => 77, 'category' => 'Оборудование', 'category_url' => 'https://pischeprom.test/catalog/equipment'],
         ]);
 
         $renderer = app(MailingRenderer::class);
@@ -139,15 +142,25 @@ class CommercialOffersUnisenderTest extends TestCase
 
         $this->assertStringContainsString('https://pischeprom.test/i/pump.jpg', $html);
         $this->assertStringContainsString('900,00 RUB', $html);
-        $this->assertStringContainsString('Некоторые позиции каталога', $html);
+        $this->assertStringContainsString('Цены включают НДС. Доставка до адреса.', $html);
+        $this->assertStringNotContainsString('Некоторые позиции каталога', $html);
         $this->assertStringContainsString('background:#8b1e1e', $html);
         $this->assertStringContainsString('width:52px', $html);
-        $this->assertStringContainsString('SKU PUMP-123 / Оборудование', $html);
+        $this->assertStringNotContainsString('SKU PUMP-123', $html);
+        $this->assertStringContainsString('href="https://pischeprom.test/catalog/equipment?utm_source=unisender', $html);
+        $this->assertStringContainsString('>Оборудование</a>', $html);
+        $this->assertStringContainsString('Добрый день!', $html);
+        $this->assertStringNotContainsString('buyer@example.test', $html);
         $this->assertStringContainsString('Открыть', $html);
         $this->assertStringNotContainsString('width:160px', $html);
         $this->assertStringContainsString('utm_source=unisender', $html);
         $this->assertStringContainsString($recipient->unsubscribe_token, $html);
+        $this->assertStringContainsString('Добрый день!', $text);
         $this->assertStringContainsString('Насос пищевой', $text);
+
+        $namedContact = MailingContact::query()->create(['email' => 'irina@example.test', 'normalized_email' => 'irina@example.test', 'first_name' => 'Ирина', 'consent_status' => 'confirmed']);
+        $namedHtml = $renderer->renderCampaignHtml($campaign, $namedContact, []);
+        $this->assertStringContainsString('Здравствуйте, Ирина.', $namedHtml);
     }
 
     public function test_renderer_blocks_embedded_media_video_tags_and_oversized_html(): void

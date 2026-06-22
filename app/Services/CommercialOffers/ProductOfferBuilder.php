@@ -132,7 +132,8 @@ class ProductOfferBuilder
             ->first()
             ?: $product->images->where('type', 'image')->first();
         $price = $product->priceTypeValues->first();
-        $category = $product->products->first()?->category ?: $product->products->first();
+        $linkedProduct = $product->products->first();
+        $category = $linkedProduct?->category;
 
         return [
             'product_id' => $product->id,
@@ -144,7 +145,9 @@ class ProductOfferBuilder
             'price' => $price?->price_gross ?? $price?->price_net,
             'currency' => $price?->currency?->code ?: $price?->priceType?->currency?->code ?: 'RUB',
             'canonical_url' => $this->goodUrl($product),
+            'category_id' => $category?->id,
             'category' => $category?->name,
+            'category_url' => $category ? $this->categoryUrl($category) : null,
             'availability' => $product->is_published ? 'published' : 'hidden',
             'description' => Str::limit(strip_tags((string) $product->description), 240),
         ];

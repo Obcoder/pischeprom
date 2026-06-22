@@ -30,7 +30,8 @@ const tabs = [
 ]
 
 const mailingVariables = [
-    ['{{to_name}}', 'безопасное имя получателя: имя/фамилия или email, если имени нет'],
+    ['{{greeting}}', 'готовое приветствие: “Здравствуйте, Имя.” или “Добрый день!”, если имени нет'],
+    ['{{to_name}}', 'имя/фамилия получателя; пусто, если имени нет'],
     ['{{first_name}}', 'поле first_name из Recipients'],
     ['{{last_name}}', 'поле last_name из Recipients'],
     ['{{company_name}}', 'компания получателя'],
@@ -42,10 +43,10 @@ const mailingVariables = [
     ['{{offer_items_html}}', 'HTML товаров/категорий из Product picker'],
 ]
 
-const defaultCampaignHtml = '<h1>{{campaign_name}}</h1><p>Здравствуйте, {{to_name}}.</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p>'
-const defaultCampaignPlaintext = 'Здравствуйте, {{to_name}}. Коммерческое предложение: {{unsubscribe_url}}'
-const defaultTemplateHtml = '<table width="100%" role="presentation" cellspacing="0" cellpadding="0"><tr><td><h1>{{campaign_name}}</h1><p>Здравствуйте, {{to_name}}.</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p></td></tr></table>'
-const defaultTemplatePlaintext = 'Здравствуйте, {{to_name}}. Коммерческое предложение: {{unsubscribe_url}}'
+const defaultCampaignHtml = '<h1>{{campaign_name}}</h1><p>{{greeting}}</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p>'
+const defaultCampaignPlaintext = '{{greeting}} Коммерческое предложение: {{unsubscribe_url}}'
+const defaultTemplateHtml = '<table width="100%" role="presentation" cellspacing="0" cellpadding="0"><tr><td><h1>{{campaign_name}}</h1><p>{{greeting}}</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p></td></tr></table>'
+const defaultTemplatePlaintext = '{{greeting}} Коммерческое предложение: {{unsubscribe_url}}'
 
 const activeTab = ref('dashboard')
 const busy = ref(false)

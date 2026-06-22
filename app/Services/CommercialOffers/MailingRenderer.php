@@ -17,22 +17,10 @@ class MailingRenderer
         $html = $recipient?->personal_html_markup ?: $campaign->html_markup ?: $campaign->template?->html_markup ?: $this->defaultMarkup();
         $offerItemsHtml = $this->renderProductGrid($products, $campaign, $recipient);
         $unsubscribeUrl = $recipient ? route('mailings.unsubscribe.show', $recipient->unsubscribe_token) : '{{unsubscribe_url}}';
+        $toName = $this->recipientDisplayName($contact);
+        $variables = $this->templateVariables($campaign, $contact, $unsubscribeUrl, $offerItemsHtml, $toName);
 
-        $variables = [
-            '{{to_name}}' => trim($contact->first_name.' '.$contact->last_name) ?: $contact->email,
-            '{{first_name}}' => (string) $contact->first_name,
-            '{{last_name}}' => (string) $contact->last_name,
-            '{{company_name}}' => (string) $contact->company_name,
-            '{{manager_name}}' => '',
-            '{{manager_phone}}' => '',
-            '{{manager_email}}' => (string) $campaign->reply_to,
-            '{{campaign_name}}' => $campaign->name,
-            '{{unsubscribe_url}}' => $unsubscribeUrl,
-            '{{products_html}}' => $offerItemsHtml,
-            '{{offer_items_html}}' => $offerItemsHtml,
-        ];
-
-        $body = strtr($html, $variables);
+        $body = $this->normalizeEmptyGreeting(strtr($html, $variables), $toName);
         if (! str_contains($body, $unsubscribeUrl) && ! str_contains($body, '{{unsubscribe_url}}')) {
             $body .= $this->unsubscribeFooter($unsubscribeUrl);
         }
@@ -45,6 +33,11 @@ class MailingRenderer
         $text = $recipient?->personal_plaintext ?: $campaign->plaintext ?: $campaign->template?->plaintext;
         if (! $text) {
             $text = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $this->renderCampaignHtml($campaign, $contact, $products, $recipient)));
+        } else {
+            $offerItemsText = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $this->renderProductGrid($products, $campaign, $recipient)));
+            $unsubscribeUrl = $recipient ? route('mailings.unsubscribe.show', $recipient->unsubscribe_token) : '{{unsubscribe_url}}';
+            $toName = $this->recipientDisplayName($contact);
+            $text = $this->normalizeEmptyGreeting(strtr($text, $this->templateVariables($campaign, $contact, $unsubscribeUrl, $offerItemsText, $toName)), $toName);
         }
 
         return trim(html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
@@ -75,9 +68,9 @@ class MailingRenderer
         $utmContent = 'product_'.($data['product_id'] ?? 'custom');
         $url = $this->withUtm((string) ($data['canonical_url'] ?? config('app.url')), $campaign, $utmContent);
         $image = $this->safeEmailImageUrl((string) ($data['thumbnail_url'] ?? ''));
-        $sku = trim((string) ($data['sku'] ?? $snapshot['sku'] ?? ''));
         $category = trim((string) ($snapshot['category'] ?? ''));
-        $meta = collect([$sku !== '' ? 'SKU '.$sku : null, $category ?: null])->filter()->implode(' / ');
+        $categoryUrl = trim((string) ($snapshot['category_url'] ?? ''));
+        $categoryHtml = $this->categoryLinkHtml($category, $categoryUrl, $campaign, $snapshot);
         $imageHtml = $image !== ''
             ? '<img src="'.e($image).'" alt="'.$title.'" width="52" height="52" style="display:block;width:52px;height:52px;object-fit:cover;border:0;border-radius:6px;background:#eef4ea;">'
             : '<span style="display:block;width:52px;height:52px;border-radius:6px;background:#eef4ea;">&nbsp;</span>';
@@ -89,7 +82,7 @@ class MailingRenderer
             .'<td width="64" valign="top" style="padding:8px 10px 8px 12px;border-bottom:1px solid #e3edde;">'.$imageHtml.'</td>'
             .'<td valign="top" style="padding:8px 8px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;color:#203020;">'
             .'<div style="font-size:14px;line-height:18px;font-weight:700;color:#1f2f1d;margin:0 0 2px;">'.$title.'</div>'
-            .($meta !== '' ? '<div style="font-size:11px;line-height:15px;color:#71806d;margin:0 0 2px;">'.e($meta).'</div>' : '')
+            .($categoryHtml !== '' ? '<div style="font-size:11px;line-height:15px;color:#71806d;margin:0 0 2px;">'.$categoryHtml.'</div>' : '')
             .($description !== '' ? '<div style="font-size:12px;line-height:16px;color:#526052;margin:0;">'.$description.'</div>' : '')
             .'</td>'
             .'<td width="120" valign="top" align="right" style="padding:10px 8px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;font-size:14px;line-height:18px;font-weight:700;color:#203b14;white-space:nowrap;">'.$priceHtml.'</td>'
@@ -146,7 +139,7 @@ class MailingRenderer
     {
         return '<table role="presentation" width="100%" style="background:#f4f7f2;padding:20px;"><tr><td align="center">'
             .'<table role="presentation" width="680" style="max-width:680px;background:#ffffff;border-radius:12px;padding:22px;font-family:Arial,sans-serif;color:#203020;">'
-            .'<tr><td><div style="display:none;max-height:0;overflow:hidden;">{{preheader}}</div><h1>{{campaign_name}}</h1><p>Здравствуйте, {{first_name}}.</p><p>Подготовили для вас коммерческое предложение.</p>{{offer_items_html}}<p>С уважением, Pischeprom</p><p style="font-size:12px;color:#667">Если письмо неактуально, <a href="{{unsubscribe_url}}">отпишитесь</a>.</p></td></tr></table>'
+            .'<tr><td><div style="display:none;max-height:0;overflow:hidden;">{{preheader}}</div><h1>{{campaign_name}}</h1><p>{{greeting}}</p><p>Подготовили для вас коммерческое предложение.</p>{{offer_items_html}}<p>С уважением, Pischeprom</p><p style="font-size:12px;color:#667">Если письмо неактуально, <a href="{{unsubscribe_url}}">отпишитесь</a>.</p></td></tr></table>'
             .'</td></tr></table>';
     }
 
@@ -154,12 +147,70 @@ class MailingRenderer
     {
         return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;border:1px solid #e3c2a6;border-radius:10px;overflow:hidden;margin:12px 0;background:#ffffff;">'
             .'<tr>'
-            .'<td colspan="2" style="padding:9px 12px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:3px solid #d69a2d;">Некоторые позиции каталога</td>'
+            .'<td colspan="2" style="padding:9px 12px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.02em;border-bottom:3px solid #d69a2d;">Цены включают НДС. Доставка до адреса.</td>'
             .'<td width="120" align="right" style="padding:9px 8px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:3px solid #d69a2d;">Цена</td>'
             .'<td width="74" style="padding:9px 12px 9px 6px;background:#8b1e1e;border-bottom:3px solid #d69a2d;">&nbsp;</td>'
             .'</tr>'
             .$rows
             .'</table>';
+    }
+
+    private function templateVariables(MailingCampaign $campaign, MailingContact $contact, string $unsubscribeUrl, string $offerItemsHtml, string $toName): array
+    {
+        return [
+            '{{to_name}}' => $toName,
+            '{{greeting}}' => $toName !== '' ? 'Здравствуйте, '.$toName.'.' : 'Добрый день!',
+            '{{first_name}}' => (string) $contact->first_name,
+            '{{last_name}}' => (string) $contact->last_name,
+            '{{company_name}}' => (string) $contact->company_name,
+            '{{manager_name}}' => '',
+            '{{manager_phone}}' => '',
+            '{{manager_email}}' => (string) $campaign->reply_to,
+            '{{campaign_name}}' => $campaign->name,
+            '{{unsubscribe_url}}' => $unsubscribeUrl,
+            '{{products_html}}' => $offerItemsHtml,
+            '{{offer_items_html}}' => $offerItemsHtml,
+        ];
+    }
+
+    private function recipientDisplayName(MailingContact $contact): string
+    {
+        return trim(implode(' ', array_filter([
+            trim((string) $contact->first_name),
+            trim((string) $contact->last_name),
+        ])));
+    }
+
+    private function normalizeEmptyGreeting(string $content, string $toName): string
+    {
+        if ($toName !== '') {
+            return $content;
+        }
+
+        $content = preg_replace('/Здравствуйте,\s*(?:[.!?]\s*)?(?=<\/(?:p|div|td|span|h[1-6])>)/iu', 'Добрый день!', $content) ?? $content;
+        $content = preg_replace('/Здравствуйте,\s*[.!?]/iu', 'Добрый день!', $content) ?? $content;
+        $content = preg_replace('/Добрый день,\s*(?:[.!?]\s*)?(?=<\/(?:p|div|td|span|h[1-6])>)/iu', 'Добрый день!', $content) ?? $content;
+        $content = preg_replace('/Добрый день,\s*[.!?]/iu', 'Добрый день!', $content) ?? $content;
+
+        return $content;
+    }
+
+    private function categoryLinkHtml(string $category, string $categoryUrl, MailingCampaign $campaign, array $snapshot): string
+    {
+        if ($category === '') {
+            return '';
+        }
+
+        if ($categoryUrl === '') {
+            return e($category);
+        }
+
+        $categoryKey = $snapshot['category_id'] ?? Str::slug($category);
+        if ($categoryKey === null || $categoryKey === '') {
+            $categoryKey = 'catalog';
+        }
+
+        return '<a href="'.e($this->withUtm($categoryUrl, $campaign, 'category_'.$categoryKey)).'" style="color:#486f38;text-decoration:underline;">'.e($category).'</a>';
     }
 
     private function unsubscribeFooter(string $unsubscribeUrl): string

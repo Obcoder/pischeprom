@@ -575,8 +575,11 @@ class MailingCampaignService
 
     private function contactSubstitutions(?MailingContact $contact, ?MailingCampaignRecipient $recipient): array
     {
+        $toName = trim(($contact?->first_name ?? '').' '.($contact?->last_name ?? ''));
+
         return [
-            'to_name' => trim(($contact?->first_name ?? '').' '.($contact?->last_name ?? '')) ?: $contact?->email,
+            'to_name' => $toName,
+            'greeting' => $toName !== '' ? 'Здравствуйте, '.$toName.'.' : 'Добрый день!',
             'first_name' => (string) $contact?->first_name,
             'last_name' => (string) $contact?->last_name,
             'company_name' => (string) $contact?->company_name,
