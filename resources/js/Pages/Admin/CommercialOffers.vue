@@ -521,6 +521,21 @@ function formatDate(value) {
     return String(value).replace('T', ' ').slice(0, 16)
 }
 
+function systemPauseReason(campaign) {
+    const metadata = campaign?.metadata
+    if (!metadata) return ''
+
+    if (typeof metadata === 'string') {
+        try {
+            return JSON.parse(metadata)?.system_pause_reason || ''
+        } catch {
+            return ''
+        }
+    }
+
+    return metadata.system_pause_reason || ''
+}
+
 onMounted(refreshAll)
 </script>
 
@@ -582,11 +597,12 @@ onMounted(refreshAll)
             </div>
             <div class="table-shell">
                 <table>
-                    <thead><tr><th class="sticky-col">id</th><th>status</th><th>name</th><th>type</th><th>subject</th><th>recipients</th><th>delivered</th><th>opened</th><th>clicked</th><th>unsub</th><th>soft</th><th>hard</th><th>spam</th><th>scheduled</th><th>actions</th></tr></thead>
+                    <thead><tr><th class="sticky-col">id</th><th>status</th><th>system_reason</th><th>name</th><th>type</th><th>subject</th><th>recipients</th><th>delivered</th><th>opened</th><th>clicked</th><th>unsub</th><th>soft</th><th>hard</th><th>spam</th><th>scheduled</th><th>actions</th></tr></thead>
                     <tbody>
                         <tr v-for="item in campaigns" :key="item.id" tabindex="0" @click="toggleRow(item.id)">
                             <td class="sticky-col">{{ item.id }}</td>
                             <td :class="statusClass(item.status)">{{ item.status }}</td>
+                            <td :class="{ 'is-danger': systemPauseReason(item) }" :title="systemPauseReason(item)">{{ systemPauseReason(item) || '-' }}</td>
                             <td>{{ item.name }}</td>
                             <td>{{ item.type }}</td>
                             <td>{{ item.subject }}</td>
