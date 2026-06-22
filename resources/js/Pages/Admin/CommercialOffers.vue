@@ -95,6 +95,12 @@ const templateForm = reactive({
 })
 const productSearch = ref('')
 const productCampaignId = ref('')
+const productActiveTab = ref('goods')
+const productPublishedFilter = ref('')
+const productPerPage = ref(50)
+const productMeta = reactive({ current_page: 1, last_page: 1, total: 0, per_page: 50 })
+const categoryMeta = reactive({ current_page: 1, last_page: 1, total: 0, per_page: 50 })
+const campaignOfferItems = ref([])
 const eventStatus = ref('')
 const testEmail = ref(props.settings?.test_recipient || '')
 const pasteBuffer = ref('')
@@ -143,6 +149,8 @@ const templateOptions = computed(() => templates.value.map((template) => ({
     id: template.id,
     label: `#${template.id} ${template.name || template.subject || 'template'} [${template.type || 'template'}]`,
 })))
+
+const activeProductMeta = computed(() => productActiveTab.value === 'categories' ? categoryMeta : productMeta)
 
 const selectedRecipientSet = computed(() => new Set(selectedCampaignRecipients.value.map((item) => normalizeEmail(item.email))))
 
@@ -217,6 +225,14 @@ async function refreshAll() {
             loadSourceEmails(),
         ])
     })
+}
+
+async function selectTab(key) {
+    activeTab.value = key
+
+    if (key === 'products' && products.value.length === 0 && categories.value.length === 0) {
+        await searchProducts(1)
+    }
 }
 
 async function createCampaign() {
@@ -493,12 +509,53 @@ async function syncTemplate(id) {
     })
 }
 
-async function searchProducts() {
-    await request('products loaded', async () => {
-        const { data } = await axios.get(endpoint('/products/search'), { params: { q: productSearch.value } })
-        products.value = data.products || []
-        categories.value = data.categories || []
+function assignPagination(target, payload = {}) {
+    target.current_page = Number(payload.current_page || 1)
+    target.last_page = Number(payload.last_page || 1)
+    target.total = Number(payload.total || 0)
+    target.per_page = Number(payload.per_page || productPerPage.value || 50)
+}
+
+async function searchProducts(page = 1) {
+    const type = productActiveTab.value === 'categories' ? 'categories' : 'goods'
+
+    await request(`${type} loaded`, async () => {
+        const { data } = await axios.get(endpoint('/products/search'), {
+            params: {
+                type,
+                q: productSearch.value,
+                published: productPublishedFilter.value,
+                per_page: productPerPage.value,
+                page,
+            },
+        })
+
+        if (type === 'categories') {
+            const payload = data.categories || { data: [] }
+            categories.value = payload.data || []
+            assignPagination(categoryMeta, payload)
+        } else {
+            const payload = data.products || { data: [] }
+            products.value = payload.data || []
+            assignPagination(productMeta, payload)
+        }
     })
+}
+
+function switchProductTab(tab) {
+    productActiveTab.value = tab
+    searchProducts(1)
+}
+
+async function loadCampaignOfferItems() {
+    const campaignId = Number(productCampaignId.value)
+    if (!Number.isInteger(campaignId) || campaignId <= 0) {
+        campaignOfferItems.value = []
+        return
+    }
+
+    const { data } = await axios.get(endpoint(`/campaigns/${campaignId}`))
+    campaignOfferItems.value = data.offer_items || data.offerItems || []
 }
 
 async function addProduct(product) {
@@ -509,6 +566,7 @@ async function addProduct(product) {
     }
     await request('product added', async () => {
         await axios.post(endpoint(`/campaigns/${campaignId}/offer-items`), { product_id: product.id, item_type: 'product' })
+        await Promise.all([loadCampaignOfferItems(), loadTable('campaigns')])
     })
 }
 
@@ -520,6 +578,17 @@ async function addCategory(category) {
     }
     await request('category added', async () => {
         await axios.post(endpoint(`/campaigns/${campaignId}/offer-items`), { category_id: category.id, item_type: 'category' })
+        await Promise.all([loadCampaignOfferItems(), loadTable('campaigns')])
+    })
+}
+
+async function deleteOfferItem(item) {
+    if (!item?.id) return
+    if (!window.confirm(`Remove ${item.title || item.name || 'offer item'} from campaign КП?`)) return
+
+    await request('offer item removed', async () => {
+        await axios.delete(endpoint(`/offer-items/${item.id}`))
+        await Promise.all([loadCampaignOfferItems(), loadTable('campaigns')])
     })
 }
 
@@ -713,7 +782,7 @@ onMounted(refreshAll)
                 :key="key"
                 type="button"
                 :class="{ active: activeTab === key }"
-                @click="activeTab = key"
+                @click="selectTab(key)"
             >
                 {{ label }}
             </button>
@@ -1022,20 +1091,94 @@ onMounted(refreshAll)
             <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>subject</th><th>updated</th><th>active</th><th>unisender_template_id</th><th>actions</th></tr></thead><tbody><tr v-for="item in templates" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.subject }}</td><td>{{ formatDate(item.updated_at) }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ item.unisender_template_id || '-' }}</td><td><button @click="syncTemplate(item.id)">sync</button><button @click="applyTemplateToCampaign(item); activeTab = 'editor'">use</button><button @click="fillTemplateForm(item)">edit form</button></td></tr></tbody></table></div>
         </section>
 
-        <section v-if="activeTab === 'products'" class="panel split">
-            <div>
-                <div class="form-row compact">
-                    <select v-model="productCampaignId">
-                        <option value="">select campaign</option>
-                        <option v-for="campaign in campaignOptions" :key="campaign.id" :value="campaign.id">{{ campaign.label }}</option>
-                    </select>
-                    <input v-model="productSearch" placeholder="search goods DB: name / category / brand" @keyup.enter="searchProducts">
-                    <button @click="searchProducts">search</button>
-                </div>
-                <div class="mini-help">source: pischeprom DB table <code>goods</code>. Adding stores snapshot in КП, catalog price is not changed.</div>
-                <div class="table-shell mid"><table><thead><tr><th class="sticky-col">id</th><th>title</th><th>price</th><th>url</th><th>thumb</th><th>source</th><th>actions</th></tr></thead><tbody><tr v-for="item in products" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.title || item.name }}</td><td>{{ item.price_formatted || item.price || '-' }}</td><td>{{ item.canonical_url }}</td><td>{{ item.thumbnail_url ? 'img' : '-' }}</td><td>{{ item.source_table || 'goods' }}</td><td><button @click="addProduct(item)">add to КП</button></td></tr></tbody></table></div>
+        <section v-if="activeTab === 'products'" class="panel products-panel">
+            <div class="form-row compact stackable products-toolbar">
+                <select v-model="productCampaignId" @change="loadCampaignOfferItems">
+                    <option value="">select campaign</option>
+                    <option v-for="campaign in campaignOptions" :key="campaign.id" :value="campaign.id">{{ campaign.label }}</option>
+                </select>
+                <button type="button" :class="{ active: productActiveTab === 'goods' }" @click="switchProductTab('goods')">goods</button>
+                <button type="button" :class="{ active: productActiveTab === 'categories' }" @click="switchProductTab('categories')">categories</button>
+                <input v-model="productSearch" placeholder="search by name / category / brand / id" @keyup.enter="searchProducts(1)">
+                <select v-model="productPublishedFilter" @change="searchProducts(1)">
+                    <option value="">all</option>
+                    <option value="true">published</option>
+                    <option value="false">hidden</option>
+                </select>
+                <select v-model.number="productPerPage" @change="searchProducts(1)">
+                    <option :value="25">25/page</option>
+                    <option :value="50">50/page</option>
+                    <option :value="100">100/page</option>
+                </select>
+                <button type="button" @click="searchProducts(1)">search</button>
             </div>
-            <aside class="side-panel"><h3>categories DB</h3><div v-for="item in categories" :key="item.id" class="mini-row"><span>{{ item.id }}</span><span>{{ item.title || item.name }}</span><button @click="addCategory(item)">add</button></div><p>Categories are read from pischeprom DB table <code>categories</code>.</p></aside>
+
+            <div class="mini-help">Goods and categories are loaded from pischeprom DB with server-side pagination. Adding stores snapshot in КП; catalog price is not changed.</div>
+
+            <div class="products-workspace">
+                <div class="products-catalog">
+                    <div class="product-subhead">
+                        <strong>{{ productActiveTab === 'categories' ? 'categories DB' : 'goods DB' }}</strong>
+                        <span>{{ activeProductMeta.total }} total / page {{ activeProductMeta.current_page }} of {{ activeProductMeta.last_page }}</span>
+                        <button type="button" :disabled="activeProductMeta.current_page <= 1" @click="searchProducts(activeProductMeta.current_page - 1)">prev</button>
+                        <button type="button" :disabled="activeProductMeta.current_page >= activeProductMeta.last_page" @click="searchProducts(activeProductMeta.current_page + 1)">next</button>
+                    </div>
+
+                    <div v-if="productActiveTab === 'goods'" class="table-shell products-table">
+                        <table>
+                            <thead><tr><th class="sticky-col">id</th><th>title</th><th>price</th><th>category/url</th><th>thumb</th><th>published</th><th>actions</th></tr></thead>
+                            <tbody>
+                                <tr v-for="item in products" :key="item.id">
+                                    <td class="sticky-col">{{ item.id }}</td>
+                                    <td>{{ item.title || item.name }}</td>
+                                    <td>{{ item.price_formatted || item.price || '-' }}</td>
+                                    <td>{{ item.category || item.canonical_url }}</td>
+                                    <td>{{ item.thumbnail_url ? 'img' : '-' }}</td>
+                                    <td>{{ item.is_published ? '1' : '0' }}</td>
+                                    <td><button type="button" @click="addProduct(item)">add to КП</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div v-if="productActiveTab === 'categories'" class="table-shell products-table">
+                        <table>
+                            <thead><tr><th class="sticky-col">id</th><th>category</th><th>url</th><th>source</th><th>actions</th></tr></thead>
+                            <tbody>
+                                <tr v-for="item in categories" :key="item.id">
+                                    <td class="sticky-col">{{ item.id }}</td>
+                                    <td>{{ item.title || item.name }}</td>
+                                    <td>{{ item.canonical_url }}</td>
+                                    <td>{{ item.source_table || 'categories' }}</td>
+                                    <td><button type="button" @click="addCategory(item)">add to КП</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <aside class="side-panel offer-items-panel">
+                    <div class="product-subhead">
+                        <strong>campaign items</strong>
+                        <button type="button" @click="loadCampaignOfferItems">refresh</button>
+                    </div>
+                    <p v-if="!productCampaignId" class="mini-help">Select campaign to see saved КП items.</p>
+                    <div class="table-shell offer-items-table">
+                        <table>
+                            <thead><tr><th class="sticky-col">id</th><th>type</th><th>title</th><th>price</th><th>actions</th></tr></thead>
+                            <tbody>
+                                <tr v-for="item in campaignOfferItems" :key="item.id">
+                                    <td class="sticky-col">{{ item.id }}</td>
+                                    <td>{{ item.item_type }}</td>
+                                    <td>{{ item.title }}</td>
+                                    <td>{{ item.offer_price || item.original_price || '-' }} {{ item.currency || '' }}</td>
+                                    <td><button type="button" class="danger" @click="deleteOfferItem(item)">delete</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </aside>
+            </div>
         </section>
 
         <section v-if="activeTab === 'events'" class="panel">
@@ -1056,5 +1199,5 @@ onMounted(refreshAll)
 </template>
 
 <style scoped>
-.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.form-row button,.actions button{white-space:nowrap;flex:0 0 auto}.campaign-form-row{flex-wrap:wrap}.campaign-form-row input,.campaign-form-row select{min-width:140px;flex:1 1 140px}.campaign-form-row input[placeholder="test recipient email"]{max-width:260px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.actions-col{position:sticky;right:0;z-index:3;background:#071407;min-width:410px;max-width:none}.actions-col.actions{display:flex}.actions-col button{white-space:nowrap}th.actions-col{z-index:6;background:#0a180a}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.74);display:flex;align-items:stretch;justify-content:center;padding:18px}.recipient-dialog{width:min(1600px,100%);height:calc(100vh - 36px);border:1px solid var(--border);background:#050805;color:var(--text);display:flex;flex-direction:column;box-shadow:0 0 0 1px #000,0 18px 80px rgba(0,0,0,.65)}.dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid var(--border);padding:10px 12px;background:#071007}.dialog-head h2{font-size:15px;margin:2px 0 0}.dialog-toolbar{display:flex;gap:4px;flex-wrap:wrap;padding:6px;border-bottom:1px solid var(--border);background:#061006}.dialog-toolbar button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer;white-space:nowrap}.dialog-toolbar button.active,.dialog-toolbar button:hover{background:var(--text);color:#050805}.dialog-toolbar input{height:24px;min-width:320px;flex:1 1 320px}.dialog-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:8px;min-height:0;flex:1;padding:8px}.dialog-table{max-height:none;height:100%;min-height:0}.dialog-table.full{margin:8px;height:auto;max-height:calc(100vh - 155px)}.selected-panel{min-height:0;overflow:auto}.selected-chip{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:4px;align-items:center;height:24px;border-bottom:1px solid var(--border)}.selected-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.selected-chip button{height:20px;padding:0}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
+.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.form-row button,.actions button{white-space:nowrap;flex:0 0 auto}.campaign-form-row{flex-wrap:wrap}.campaign-form-row input,.campaign-form-row select{min-width:140px;flex:1 1 140px}.campaign-form-row input[placeholder="test recipient email"]{max-width:260px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.actions-col{position:sticky;right:0;z-index:3;background:#071407;min-width:410px;max-width:none}.actions-col.actions{display:flex}.actions-col button{white-space:nowrap}th.actions-col{z-index:6;background:#0a180a}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.products-panel{display:flex;flex-direction:column;min-height:calc(100vh - 230px)}.products-toolbar input{min-width:320px;flex:1 1 320px}.products-toolbar button.active{background:var(--text);color:#050805}.products-workspace{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:8px;min-height:0;flex:1}.products-catalog,.offer-items-panel{min-height:0;display:flex;flex-direction:column}.product-subhead{display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-bottom:0;background:#061006;padding:4px 6px;min-height:28px}.product-subhead span{color:var(--muted);margin-left:auto}.product-subhead button{height:22px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 7px}.product-subhead button:disabled{opacity:.45;cursor:not-allowed}.products-table,.offer-items-table{max-height:none;min-height:0;flex:1}.modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.74);display:flex;align-items:stretch;justify-content:center;padding:18px}.recipient-dialog{width:min(1600px,100%);height:calc(100vh - 36px);border:1px solid var(--border);background:#050805;color:var(--text);display:flex;flex-direction:column;box-shadow:0 0 0 1px #000,0 18px 80px rgba(0,0,0,.65)}.dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid var(--border);padding:10px 12px;background:#071007}.dialog-head h2{font-size:15px;margin:2px 0 0}.dialog-toolbar{display:flex;gap:4px;flex-wrap:wrap;padding:6px;border-bottom:1px solid var(--border);background:#061006}.dialog-toolbar button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer;white-space:nowrap}.dialog-toolbar button.active,.dialog-toolbar button:hover{background:var(--text);color:#050805}.dialog-toolbar input{height:24px;min-width:320px;flex:1 1 320px}.dialog-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:8px;min-height:0;flex:1;padding:8px}.dialog-table{max-height:none;height:100%;min-height:0}.dialog-table.full{margin:8px;height:auto;max-height:calc(100vh - 155px)}.selected-panel{min-height:0;overflow:auto}.selected-chip{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:4px;align-items:center;height:24px;border-bottom:1px solid var(--border)}.selected-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.selected-chip button{height:20px;padding:0}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid,.products-workspace{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
 </style>

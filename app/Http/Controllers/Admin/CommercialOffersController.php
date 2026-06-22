@@ -800,10 +800,16 @@ class CommercialOffersController extends Controller
     {
         $this->authorizeSales('sales_mailings.view');
         $q = $request->string('q')->toString();
+        $type = $request->string('type')->toString();
+
+        if ($type === 'categories') {
+            return response()->json([
+                'categories' => $this->products->searchCategories($q, $request->all()),
+            ]);
+        }
 
         return response()->json([
             'products' => $this->products->searchProducts($q, $request->all()),
-            'categories' => $this->products->searchCategories($q, $request->all()),
         ]);
     }
 

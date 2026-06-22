@@ -7,13 +7,16 @@ use App\Models\Good;
 use App\Models\MailingOfferItem;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
-use Illuminate\Support\Collection;
 
 class ProductOfferBuilder
 {
-    public function searchProducts(string $query, array $filters = []): Collection
+    public function searchProducts(string $query, array $filters = []): LengthAwarePaginator
     {
+        $perPage = $this->perPage($filters);
+        $search = trim($query);
+
         return Good::query()
             ->with([
                 'products.category',
@@ -21,11 +24,11 @@ class ProductOfferBuilder
                 'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
                 'priceTypeValues' => fn ($q) => $q->where('is_published', true)->with(['priceType.currency', 'currency'])->orderByDesc('updated_at'),
             ])
-            ->when(trim($query) !== '', function (Builder $goodQuery) use ($query): void {
-                $like = "%{$query}%";
-                $goodQuery->where(function (Builder $searchQuery) use ($query, $like): void {
-                    if (ctype_digit($query)) {
-                        $searchQuery->where('id', (int) $query);
+            ->when($search !== '', function (Builder $goodQuery) use ($search): void {
+                $like = "%{$search}%";
+                $goodQuery->where(function (Builder $searchQuery) use ($search, $like): void {
+                    if (ctype_digit($search)) {
+                        $searchQuery->where('id', (int) $search);
                     } else {
                         $searchQuery->where('name', 'like', $like)
                             ->orWhere('slug', 'like', $like)
@@ -33,31 +36,33 @@ class ProductOfferBuilder
                     }
 
                     $searchQuery->orWhereHas('products', function (Builder $productQuery) use ($like): void {
-                        foreach (Product::TRANSLATION_COLUMNS as $column) {
-                            $productQuery->orWhere($column, 'like', $like);
-                        }
+                        $productQuery->where(function (Builder $translationQuery) use ($like): void {
+                            foreach (Product::TRANSLATION_COLUMNS as $column) {
+                                $translationQuery->orWhere($column, 'like', $like);
+                            }
+                        });
 
                         $productQuery->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', $like));
                         $productQuery->orWhereHas('manufacturers', fn (Builder $manufacturerQuery) => $manufacturerQuery->where('name', 'like', $like));
                     });
                 });
             })
-            ->when(array_key_exists('published', $filters), fn ($q) => $q->where('is_published', (bool) $filters['published']))
+            ->when($this->publishedFilter($filters) !== null, fn ($q) => $q->where('is_published', $this->publishedFilter($filters)))
             ->orderBy('name')
-            ->limit((int) ($filters['limit'] ?? 30))
-            ->get()
-            ->map(fn (Good $good) => $this->productSearchPayload($good));
+            ->paginate($perPage)
+            ->through(fn (Good $good) => $this->productSearchPayload($good));
     }
 
-    public function searchCategories(string $query, array $filters = []): Collection
+    public function searchCategories(string $query, array $filters = []): LengthAwarePaginator
     {
+        $perPage = $this->perPage($filters);
+
         return Category::query()
             ->search($query)
-            ->when(array_key_exists('published', $filters), fn ($q) => $q->where('is_published', (bool) $filters['published']))
+            ->when($this->publishedFilter($filters) !== null, fn ($q) => $q->where('is_published', $this->publishedFilter($filters)))
             ->orderBy('name')
-            ->limit((int) ($filters['limit'] ?? 30))
-            ->get()
-            ->map(fn (Category $category) => [
+            ->paginate($perPage)
+            ->through(fn (Category $category) => [
                 'id' => $category->id,
                 'title' => $category->name,
                 'name' => $category->name,
@@ -235,5 +240,19 @@ class ProductOfferBuilder
         }
 
         return $url;
+    }
+
+    private function perPage(array $filters): int
+    {
+        return min(100, max(10, (int) ($filters['per_page'] ?? 50)));
+    }
+
+    private function publishedFilter(array $filters): ?bool
+    {
+        if (! array_key_exists('published', $filters) || $filters['published'] === '' || $filters['published'] === null) {
+            return null;
+        }
+
+        return filter_var($filters['published'], FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
     }
 }

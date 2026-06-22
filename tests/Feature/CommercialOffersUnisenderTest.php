@@ -572,13 +572,64 @@ class CommercialOffersUnisenderTest extends TestCase
         DB::table('good_media')->insert(['id' => 1, 'good_id' => 7, 'type' => 'image', 'url' => 'https://pischeprom.test/i/lecithin.jpg', 'thumb_url' => 'https://pischeprom.test/i/lecithin-thumb.jpg', 'is_published' => 1, 'is_ava' => 1, 'sort_order' => 1]);
         DB::table('good_price_type_values')->insert(['id' => 1, 'good_id' => 7, 'price_type_id' => 1, 'currency_id' => 1, 'price_net' => 100, 'price_gross' => 120, 'is_published' => 1, 'updated_at' => now()]);
 
-        $this->get('/Ameise/commercial-offers/products/search?q=lecithin')
+        $this->get('/Ameise/commercial-offers/products/search?q=lecithin&per_page=25')
             ->assertOk()
-            ->assertJsonPath('products.0.id', 7)
-            ->assertJsonPath('products.0.title', 'Лецитин подсолнечный')
-            ->assertJsonPath('products.0.source_table', 'goods')
-            ->assertJsonPath('products.0.price_formatted', '120,00 RUB')
-            ->assertJsonPath('products.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg');
+            ->assertJsonPath('products.current_page', 1)
+            ->assertJsonPath('products.per_page', 25)
+            ->assertJsonPath('products.data.0.id', 7)
+            ->assertJsonPath('products.data.0.title', 'Лецитин подсолнечный')
+            ->assertJsonPath('products.data.0.source_table', 'goods')
+            ->assertJsonPath('products.data.0.price_formatted', '120,00 RUB')
+            ->assertJsonPath('products.data.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg');
+
+        $this->get('/Ameise/commercial-offers/products/search?'.http_build_query([
+            'type' => 'categories',
+            'q' => 'Эмульгаторы',
+        ]))
+            ->assertOk()
+            ->assertJsonPath('categories.current_page', 1)
+            ->assertJsonPath('categories.data.0.id', 1)
+            ->assertJsonPath('categories.data.0.name', 'Эмульгаторы');
+    }
+
+    public function test_campaign_offer_items_can_be_added_listed_and_deleted(): void
+    {
+        $this->createCatalogTables();
+
+        DB::table('goods')->insert([
+            'id' => 9,
+            'name' => 'Прайс-лист позиция',
+            'slug' => 'price-list-item',
+            'ava_image' => null,
+            'ava_thumb' => null,
+            'description' => 'Тестовая позиция КП',
+            'is_published' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $campaign = $this->campaign();
+
+        $response = $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/offer-items", [
+            'product_id' => 9,
+            'item_type' => 'product',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('campaign_id', $campaign->id)
+            ->assertJsonPath('product_id', 9)
+            ->assertJsonPath('title', 'Прайс-лист позиция');
+
+        $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}")
+            ->assertOk()
+            ->assertJsonPath('offer_items.0.id', $response->json('id'))
+            ->assertJsonPath('offer_items.0.title', 'Прайс-лист позиция');
+
+        $this->delete('/Ameise/commercial-offers/offer-items/'.$response->json('id'))
+            ->assertOk()
+            ->assertJson(['deleted' => true]);
+
+        $this->assertDatabaseMissing('mailing_offer_items', [
+            'id' => $response->json('id'),
+        ]);
     }
 
     public function test_product_video_media_is_not_used_as_commercial_offer_thumbnail(): void
@@ -613,7 +664,7 @@ class CommercialOffersUnisenderTest extends TestCase
 
         $this->get('/Ameise/commercial-offers/products/search?q=шар')
             ->assertOk()
-            ->assertJsonPath('products.0.thumbnail_url', null);
+            ->assertJsonPath('products.data.0.thumbnail_url', null);
 
         $item = app(ProductOfferBuilder::class)->addProductToCampaign($campaign->id, 8);
 
