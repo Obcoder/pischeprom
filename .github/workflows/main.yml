@@ -69,8 +69,12 @@ jobs:
             php artisan route:list --path=unsubscribe
             php artisan list mailings
 
-            php artisan beeline:sync-calls --period=today --limit=500
-            php artisan beeline:rebuild-calls --limit=2000
+            if ! php artisan beeline:sync-calls --period=today --limit=500; then
+              echo "::warning::Beeline call sync failed during deploy; deployment continues."
+            fi
+            if ! php artisan beeline:rebuild-calls --limit=2000; then
+              echo "::warning::Beeline call rebuild failed during deploy; deployment continues."
+            fi
 
             php artisan config:cache
             php artisan route:cache
