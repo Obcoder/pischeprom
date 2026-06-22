@@ -433,9 +433,6 @@ class MailingCampaignService
         if (blank($html)) {
             $errors[] = 'HTML markup is required.';
         }
-        if ($html && ! str_contains($html, '{{unsubscribe_url}}') && ! str_contains($html, 'unsubscribe')) {
-            $errors[] = 'Unsubscribe block or {{unsubscribe_url}} variable is required.';
-        }
         if ($requireRecipients && $campaign->type === 'mass_offer') {
             $hasManualRecipients = $campaign->recipients()->exists();
             if (! $campaign->contact_set_id && ! $hasManualRecipients) {

@@ -170,6 +170,8 @@ class CommercialOffersUnisenderTest extends TestCase
     {
         $renderer = app(MailingRenderer::class);
 
+        $this->assertNotContains('Missing unsubscribe link/block.', $renderer->validateEmailHtml('<p>Коммерческое предложение</p>'));
+
         $errors = $renderer->validateEmailHtml(
             '<p>unsubscribe</p><img src="data:image/png;base64,'.str_repeat('a', 100).'"><video src="https://pischeprom.test/v.mp4"></video>'
         );
@@ -383,6 +385,35 @@ class CommercialOffersUnisenderTest extends TestCase
             'from_name' => 'Pischeprom',
             'reply_to' => 'com@food-server.ru',
         ]);
+    }
+
+    public function test_campaign_test_send_does_not_require_local_unsubscribe_block(): void
+    {
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'job_id' => 'test-no-local-unsubscribe',
+                'failed_emails' => [],
+            ]),
+        ]);
+
+        $campaign = $this->campaign([
+            'html_markup' => '<h1>{{campaign_name}}</h1><p>{{greeting}}</p>{{offer_items_html}}',
+            'plaintext' => '{{greeting}} Коммерческое предложение',
+            'contact_set_id' => null,
+        ]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", [
+            'email' => 'single@example.test',
+        ])->assertOk()
+            ->assertJsonPath('job_id', 'test-no-local-unsubscribe');
+
+        Http::assertSent(function ($request) {
+            $payload = $request->data()['message'];
+
+            return ! str_contains($payload['body']['html'], 'unsubscribe')
+                && ! str_contains($payload['body']['html'], 'Отпис')
+                && isset($payload['options']['unsubscribe_url']);
+        });
     }
 
     public function test_campaign_test_send_retries_without_tracking_when_tracking_domain_is_required(): void

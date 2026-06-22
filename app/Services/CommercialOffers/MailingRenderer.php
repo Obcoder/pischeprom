@@ -21,9 +21,6 @@ class MailingRenderer
         $variables = $this->templateVariables($campaign, $contact, $unsubscribeUrl, $offerItemsHtml, $toName);
 
         $body = $this->normalizeEmptyGreeting(strtr($html, $variables), $toName);
-        if (! str_contains($body, $unsubscribeUrl) && ! str_contains($body, '{{unsubscribe_url}}')) {
-            $body .= $this->unsubscribeFooter($unsubscribeUrl);
-        }
 
         return $this->inlineCssIfPossible($this->sanitizeHtml($body));
     }
@@ -115,9 +112,6 @@ class MailingRenderer
     public function validateEmailHtml(string $html): array
     {
         $errors = [];
-        if (! str_contains($html, 'unsubscribe')) {
-            $errors[] = 'Missing unsubscribe link/block.';
-        }
         if (strlen($html) > self::MAX_MESSAGE_BYTES) {
             $errors[] = 'Email HTML is too large: '.$this->formatBytes(strlen($html)).'. Limit is '.$this->formatBytes(self::MAX_MESSAGE_BYTES).'. Remove embedded/base64 media or reduce content.';
         }
@@ -141,7 +135,7 @@ class MailingRenderer
     {
         return '<table role="presentation" width="100%" style="background:#f4f7f2;padding:20px;"><tr><td align="center">'
             .'<table role="presentation" width="680" style="max-width:680px;background:#ffffff;border-radius:12px;padding:22px;font-family:Arial,sans-serif;color:#203020;">'
-            .'<tr><td><div style="display:none;max-height:0;overflow:hidden;">{{preheader}}</div><h1>{{campaign_name}}</h1><p>{{greeting}}</p><p>Подготовили для вас коммерческое предложение.</p>{{offer_items_html}}<p>С уважением, Pischeprom</p><p style="font-size:12px;color:#667">Если письмо неактуально, <a href="{{unsubscribe_url}}">отпишитесь</a>.</p></td></tr></table>'
+            .'<tr><td><div style="display:none;max-height:0;overflow:hidden;">{{preheader}}</div><h1>{{campaign_name}}</h1><p>{{greeting}}</p><p>Подготовили для вас коммерческое предложение.</p>{{offer_items_html}}<p>С уважением, Pischeprom</p></td></tr></table>'
             .'</td></tr></table>';
     }
 
@@ -238,11 +232,6 @@ class MailingRenderer
     private function formatRate(float $rate): string
     {
         return rtrim(rtrim(number_format($rate, 2, ',', ' '), '0'), ',');
-    }
-
-    private function unsubscribeFooter(string $unsubscribeUrl): string
-    {
-        return '<p style="font-family:Arial,sans-serif;font-size:12px;color:#667;text-align:center;">Вы получили это письмо как коммерческое предложение. <a href="'.e($unsubscribeUrl).'">Отписаться</a></p>';
     }
 
     private function withUtm(string $url, MailingCampaign $campaign, string $content): string

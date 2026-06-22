@@ -39,14 +39,14 @@ const mailingVariables = [
     ['{{manager_phone}}', 'телефон менеджера'],
     ['{{manager_email}}', 'email менеджера'],
     ['{{campaign_name}}', 'название campaign'],
-    ['{{unsubscribe_url}}', 'обязательная ссылка отписки'],
+    ['{{unsubscribe_url}}', 'ссылка отписки, если нужна вручную; обычно Unisender добавляет свой unsubscribe'],
     ['{{offer_items_html}}', 'HTML товаров/категорий из Product picker'],
 ]
 
-const defaultCampaignHtml = '<h1>{{campaign_name}}</h1><p>{{greeting}}</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p>'
-const defaultCampaignPlaintext = '{{greeting}} Коммерческое предложение: {{unsubscribe_url}}'
-const defaultTemplateHtml = '<table width="100%" role="presentation" cellspacing="0" cellpadding="0"><tr><td><h1>{{campaign_name}}</h1><p>{{greeting}}</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p></td></tr></table>'
-const defaultTemplatePlaintext = '{{greeting}} Коммерческое предложение: {{unsubscribe_url}}'
+const defaultCampaignHtml = '<h1>{{campaign_name}}</h1><p>{{greeting}}</p>{{offer_items_html}}'
+const defaultCampaignPlaintext = '{{greeting}} Коммерческое предложение'
+const defaultTemplateHtml = '<table width="100%" role="presentation" cellspacing="0" cellpadding="0"><tr><td><h1>{{campaign_name}}</h1><p>{{greeting}}</p>{{offer_items_html}}</td></tr></table>'
+const defaultTemplatePlaintext = '{{greeting}} Коммерческое предложение'
 
 const activeTab = ref('dashboard')
 const busy = ref(false)
