@@ -879,6 +879,33 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->delete("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients/{$recipientId}")
             ->assertOk()
             ->assertJson(['removed' => true]);
+
+        $contactCampaign = $this->campaign(['status' => 'draft', 'contact_set_id' => null]);
+        $contact = MailingContact::query()->create([
+            'email' => 'contact-tab@example.test',
+            'normalized_email' => 'contact-tab@example.test',
+            'first_name' => 'Contact',
+            'last_name' => 'Tab',
+            'company_name' => 'Recipient Company',
+            'consent_status' => 'unknown',
+            'contact_source' => 'manual',
+        ]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$contactCampaign->id}/recipients", [
+            'contact_ids' => [$contact->id],
+        ])->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('recipients.0.email', 'contact-tab@example.test')
+            ->assertJsonPath('recipients.0.name', 'Contact Tab')
+            ->assertJsonPath('recipients.0.company_name', 'Recipient Company')
+            ->assertJsonPath('recipients.0.source_contact_id', $contact->id);
+
+        $this->assertDatabaseHas('mailing_campaign_recipients', [
+            'campaign_id' => $contactCampaign->id,
+            'contact_id' => $contact->id,
+            'email' => 'contact-tab@example.test',
+            'status' => 'pending',
+        ]);
     }
 
     public function test_mass_campaign_can_send_to_manual_campaign_recipients_without_contact_set(): void

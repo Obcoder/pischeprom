@@ -307,6 +307,8 @@ class CommercialOffersController extends Controller
         $data = $request->validate([
             'emails' => ['nullable', 'array'],
             'emails.*' => ['string'],
+            'contact_ids' => ['nullable', 'array'],
+            'contact_ids.*' => ['integer'],
             'email_ids' => ['nullable', 'array'],
             'email_ids.*' => ['integer'],
             'unit_ids' => ['nullable', 'array'],
@@ -352,6 +354,23 @@ class CommercialOffersController extends Controller
                 'source_unit_name' => $sourceUnitName !== '' ? $sourceUnitName : null,
             ], fn ($value) => $value !== null && $value !== ''));
         });
+
+        if (! empty($data['contact_ids'])) {
+            MailingContact::query()
+                ->whereIn('id', collect($data['contact_ids'])->map(fn ($id) => (int) $id)->filter()->unique())
+                ->get()
+                ->each(function (MailingContact $contact) use (&$emails): void {
+                    $name = trim(implode(' ', array_filter([$contact->first_name, $contact->last_name])));
+                    $emails->push(array_filter([
+                        'email' => MailingContact::normalizeEmail($contact->email),
+                        'name' => $name,
+                        'company_name' => $contact->company_name,
+                        'source' => 'recipients_tab',
+                        'contact' => $contact,
+                        'source_contact_id' => $contact->id,
+                    ], fn ($value) => $value !== null && $value !== ''));
+                });
+        }
 
         if (! empty($data['email_ids'])) {
             Email::query()
@@ -409,6 +428,7 @@ class CommercialOffersController extends Controller
                 'source' => $item['source'],
                 'name' => $item['name'] ?? null,
                 'company_name' => $item['company_name'] ?? null,
+                'source_contact_id' => $item['source_contact_id'] ?? null,
                 'source_email_id' => $item['source_email']->id ?? ($item['source_email_id'] ?? null),
                 'source_unit_id' => $item['source_unit_id'] ?? null,
                 'source_unit_name' => $item['source_unit_name'] ?? null,
@@ -1163,6 +1183,7 @@ class CommercialOffersController extends Controller
             'last_name' => $lastName,
             'company_name' => $companyName,
             'source' => $metadata['source'] ?? $contact?->contact_source,
+            'source_contact_id' => $metadata['source_contact_id'] ?? null,
             'source_email_id' => $metadata['source_email_id'] ?? null,
             'source_unit_id' => $metadata['source_unit_id'] ?? null,
             'source_unit_name' => $metadata['source_unit_name'] ?? null,
@@ -1205,6 +1226,10 @@ class CommercialOffersController extends Controller
 
     private function mailingContactFromPickerItem(array $item): MailingContact
     {
+        if (($item['contact'] ?? null) instanceof MailingContact) {
+            return $item['contact'];
+        }
+
         $normalized = MailingContact::normalizeEmail($item['email'] ?? '');
         $contact = MailingContact::query()->firstOrNew(['normalized_email' => $normalized]);
         $isNew = ! $contact->exists;

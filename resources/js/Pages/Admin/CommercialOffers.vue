@@ -65,6 +65,8 @@ const priceTypes = ref([])
 const products = ref([])
 const categories = ref([])
 const selectedRows = ref(new Set())
+const selectedContactIds = ref(new Set())
+const recipientTargetCampaignId = ref('')
 
 const campaignForm = reactive({
     name: '',
@@ -157,6 +159,7 @@ const activeProductMeta = computed(() => productActiveTab.value === 'categories'
 const selectedProductPriceType = computed(() => priceTypes.value.find((item) => Number(item.id) === Number(productPriceTypeId.value)) || null)
 
 const selectedRecipientSet = computed(() => new Set(selectedCampaignRecipients.value.map((item) => normalizeEmail(item.email))))
+const selectedContactRows = computed(() => contacts.value.filter((item) => selectedContactIds.value.has(item.id)))
 
 function percent(value) {
     const number = Number(value || 0)
@@ -203,7 +206,12 @@ async function loadTable(name) {
 
     const { data } = await axios.get(endpoint(url))
     const rows = data.data || data
-    if (name === 'campaigns') campaigns.value = rows
+    if (name === 'campaigns') {
+        campaigns.value = rows
+        if (!recipientTargetCampaignId.value && rows.length > 0) {
+            recipientTargetCampaignId.value = String(rows[0].id)
+        }
+    }
     if (name === 'contacts') contacts.value = rows
     if (name === 'sets') sets.value = rows
     if (name === 'templates') templates.value = rows
@@ -494,6 +502,85 @@ async function importVisibleSourceEmails() {
 
     selectedSourceEmailIds.value = new Set(emailIds)
     await importSelectedSourceEmails()
+}
+
+function targetCampaignId() {
+    const campaignId = Number(recipientTargetCampaignId.value)
+    return Number.isInteger(campaignId) && campaignId > 0 ? campaignId : null
+}
+
+async function saveContactRowsToCampaign(rows, label = 'recipients') {
+    const campaignId = targetCampaignId()
+    if (!campaignId) {
+        error.value = 'select target campaign first'
+        return
+    }
+
+    const contactIds = rows.map((item) => Number(item.id)).filter((id) => Number.isInteger(id) && id > 0)
+    if (!contactIds.length) {
+        error.value = 'select recipients first'
+        return
+    }
+
+    const result = await request(`${label} saved to campaign #${campaignId}`, async () => {
+        const response = await axios.post(endpoint(`/campaigns/${campaignId}/recipients`), {
+            replace: false,
+            contact_ids: contactIds,
+        })
+        await loadTable('campaigns')
+        return response
+    })
+
+    if (result?.data) {
+        notice.value = `${label} saved to campaign #${campaignId}: ${result.data.created} created, ${result.data.updated} updated, ${result.data.total} total`
+    }
+}
+
+async function saveSelectedContactsToCampaign() {
+    await saveContactRowsToCampaign(selectedContactRows.value, 'selected recipients')
+}
+
+async function saveVisibleContactsToCampaign() {
+    await saveContactRowsToCampaign(contacts.value, 'visible recipients')
+}
+
+async function importSourceEmailsToCampaign(emailIds, label = 'emails') {
+    const campaignId = targetCampaignId()
+    if (!campaignId) {
+        error.value = 'select target campaign first'
+        return
+    }
+    if (!emailIds.length) {
+        error.value = 'select emails from DB'
+        return
+    }
+
+    const result = await request(`${label} synced and saved to campaign #${campaignId}`, async () => {
+        await axios.post(endpoint('/contacts/import-existing-emails'), cleanPayload({
+            email_ids: emailIds,
+            set_id: sourceEmailSetId.value,
+            consent_status: sourceEmailConsentStatus.value,
+        }))
+        const response = await axios.post(endpoint(`/campaigns/${campaignId}/recipients`), {
+            replace: false,
+            email_ids: emailIds,
+        })
+        selectedSourceEmailIds.value = new Set()
+        await Promise.all([loadTable('contacts'), loadSourceEmails(), loadTable('sets'), loadTable('campaigns')])
+        return response
+    })
+
+    if (result?.data) {
+        notice.value = `${label} saved to campaign #${campaignId}: ${result.data.created} created, ${result.data.updated} updated, ${result.data.total} total`
+    }
+}
+
+async function importSelectedSourceEmailsToCampaign() {
+    await importSourceEmailsToCampaign(Array.from(selectedSourceEmailIds.value), 'selected emails')
+}
+
+async function importVisibleSourceEmailsToCampaign() {
+    await importSourceEmailsToCampaign(sourceEmails.value.map((item) => item.id), 'visible emails')
 }
 
 async function createSet() {
@@ -852,6 +939,12 @@ function toggleRow(id) {
     selectedRows.value = next
 }
 
+function toggleContact(id) {
+    const next = new Set(selectedContactIds.value)
+    next.has(id) ? next.delete(id) : next.add(id)
+    selectedContactIds.value = next
+}
+
 function toggleSourceEmail(id) {
     const next = new Set(selectedSourceEmailIds.value)
     next.has(id) ? next.delete(id) : next.add(id)
@@ -1083,12 +1176,21 @@ onMounted(refreshAll)
                     <select v-model="contactForm.consent_status"><option>unknown</option><option>confirmed</option><option>revoked</option><option>not_required_internal</option><option>rejected</option></select>
                     <button @click="createContact">save</button>
                 </div>
+                <div class="form-row compact stackable">
+                    <select v-model="recipientTargetCampaignId" class="recipient-campaign-select">
+                        <option value="">target campaign...</option>
+                        <option v-for="campaign in campaignOptions" :key="campaign.id" :value="campaign.id">{{ campaign.label }}</option>
+                    </select>
+                    <button type="button" @click="saveSelectedContactsToCampaign">selected -> campaign</button>
+                    <button type="button" @click="saveVisibleContactsToCampaign">visible -> campaign</button>
+                    <span>{{ selectedContactIds.size }} selected / {{ contacts.length }} visible</span>
+                </div>
                 <div class="table-shell mid">
                     <table>
                         <thead><tr><th class="sticky-col">sel</th><th>email</th><th>first</th><th>last</th><th>company</th><th>position</th><th>consent</th><th>source</th><th>do_not</th><th>unsub</th><th>complained</th><th>hard</th><th>soft#</th><th>last open</th><th>last click</th><th>tags</th></tr></thead>
                         <tbody>
                             <tr v-for="item in contacts" :key="item.id" tabindex="0">
-                                <td class="sticky-col"><input type="checkbox" :checked="selectedRows.has(item.id)" @change="toggleRow(item.id)"></td>
+                                <td class="sticky-col"><input type="checkbox" :checked="selectedContactIds.has(item.id)" @change="toggleContact(item.id)"></td>
                                 <td>{{ item.email }}</td>
                                 <td>{{ item.first_name }}</td>
                                 <td>{{ item.last_name }}</td>
@@ -1127,6 +1229,11 @@ onMounted(refreshAll)
                     <button @click="importSelectedSourceEmails">sync selected</button>
                     <button @click="importVisibleSourceEmails">sync visible</button>
                     <span>{{ selectedSourceEmailIds.size }} selected</span>
+                </div>
+                <div class="source-actions">
+                    <button @click="importSelectedSourceEmailsToCampaign">selected -> campaign</button>
+                    <button @click="importVisibleSourceEmailsToCampaign">visible -> campaign</button>
+                    <span>target #{{ recipientTargetCampaignId || '-' }}</span>
                 </div>
                 <div class="source-email-shell">
                     <table>
@@ -1346,5 +1453,5 @@ onMounted(refreshAll)
 </template>
 
 <style scoped>
-.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.form-row button,.actions button{white-space:nowrap;flex:0 0 auto}.campaign-form-row{flex-wrap:wrap}.campaign-form-row input,.campaign-form-row select{min-width:140px;flex:1 1 140px}.campaign-form-row input[placeholder="test recipient email"]{max-width:260px}.row-select{min-width:220px;max-width:260px;height:22px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.actions-col{position:sticky;right:0;z-index:3;background:#071407;min-width:410px;max-width:none}.actions-col.actions{display:flex}.actions-col button{white-space:nowrap}th.actions-col{z-index:6;background:#0a180a}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.products-panel{display:flex;flex-direction:column;min-height:calc(100vh - 230px)}.products-toolbar input{min-width:320px;flex:1 1 320px}.products-toolbar button.active{background:var(--text);color:#050805}.products-workspace{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:8px;min-height:0;flex:1}.products-catalog,.offer-items-panel{min-height:0;display:flex;flex-direction:column}.product-subhead{display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-bottom:0;background:#061006;padding:4px 6px;min-height:28px}.product-subhead span{color:var(--muted);margin-left:auto}.product-subhead button{height:22px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 7px}.product-subhead button:disabled{opacity:.45;cursor:not-allowed}.products-table,.offer-items-table{max-height:none;min-height:0;flex:1}.modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden;box-sizing:border-box}.recipient-dialog{box-sizing:border-box;width:100%;max-width:min(1600px,calc(100vw - 16px));height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);min-width:0;min-height:0;border:1px solid var(--border);background:#050805;color:var(--text);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 0 1px #000,0 18px 80px rgba(0,0,0,.65)}.dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex:0 0 auto;min-width:0;border-bottom:1px solid var(--border);padding:8px 10px;background:#071007}.dialog-head h2{font-size:15px;margin:2px 0 0;max-width:calc(100vw - 120px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dialog-toolbar{display:flex;gap:4px;flex-wrap:wrap;flex:0 0 auto;min-width:0;padding:6px;border-bottom:1px solid var(--border);background:#061006}.dialog-toolbar button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer;white-space:nowrap}.dialog-toolbar button.active,.dialog-toolbar button:hover{background:var(--text);color:#050805}.dialog-toolbar input{height:24px;min-width:180px;flex:1 1 260px}.dialog-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,340px);gap:8px;min-width:0;min-height:0;flex:1 1 auto;padding:8px;overflow:hidden;box-sizing:border-box}.dialog-table{max-height:none;height:100%;min-width:0;min-height:0;overflow:auto}.dialog-table.full{box-sizing:border-box;margin:8px;height:auto;max-height:none;min-height:0;flex:1 1 auto;overflow:auto}.selected-panel{box-sizing:border-box;min-width:0;min-height:0;overflow:auto}.selected-chip{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:4px;align-items:center;height:24px;border-bottom:1px solid var(--border)}.selected-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.selected-chip button{height:20px;padding:0}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid,.products-workspace{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}.modal-backdrop{padding:4px}.recipient-dialog{height:calc(100dvh - 8px);max-width:calc(100vw - 8px);max-height:calc(100dvh - 8px)}.dialog-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(92px,28vh);gap:6px;padding:6px}.dialog-toolbar input{flex-basis:100%;min-width:0}.selected-panel{margin-top:0}}
+.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.form-row button,.actions button{white-space:nowrap;flex:0 0 auto}.campaign-form-row{flex-wrap:wrap}.campaign-form-row input,.campaign-form-row select{min-width:140px;flex:1 1 140px}.campaign-form-row input[placeholder="test recipient email"]{max-width:260px}.row-select{min-width:220px;max-width:260px;height:22px}.recipient-campaign-select{min-width:360px;max-width:520px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.actions-col{position:sticky;right:0;z-index:3;background:#071407;min-width:410px;max-width:none}.actions-col.actions{display:flex}.actions-col button{white-space:nowrap}th.actions-col{z-index:6;background:#0a180a}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.products-panel{display:flex;flex-direction:column;min-height:calc(100vh - 230px)}.products-toolbar input{min-width:320px;flex:1 1 320px}.products-toolbar button.active{background:var(--text);color:#050805}.products-workspace{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:8px;min-height:0;flex:1}.products-catalog,.offer-items-panel{min-height:0;display:flex;flex-direction:column}.product-subhead{display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-bottom:0;background:#061006;padding:4px 6px;min-height:28px}.product-subhead span{color:var(--muted);margin-left:auto}.product-subhead button{height:22px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 7px}.product-subhead button:disabled{opacity:.45;cursor:not-allowed}.products-table,.offer-items-table{max-height:none;min-height:0;flex:1}.modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden;box-sizing:border-box}.recipient-dialog{box-sizing:border-box;width:100%;max-width:min(1600px,calc(100vw - 16px));height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);min-width:0;min-height:0;border:1px solid var(--border);background:#050805;color:var(--text);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 0 1px #000,0 18px 80px rgba(0,0,0,.65)}.dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex:0 0 auto;min-width:0;border-bottom:1px solid var(--border);padding:8px 10px;background:#071007}.dialog-head h2{font-size:15px;margin:2px 0 0;max-width:calc(100vw - 120px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dialog-toolbar{display:flex;gap:4px;flex-wrap:wrap;flex:0 0 auto;min-width:0;padding:6px;border-bottom:1px solid var(--border);background:#061006}.dialog-toolbar button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer;white-space:nowrap}.dialog-toolbar button.active,.dialog-toolbar button:hover{background:var(--text);color:#050805}.dialog-toolbar input{height:24px;min-width:180px;flex:1 1 260px}.dialog-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,340px);gap:8px;min-width:0;min-height:0;flex:1 1 auto;padding:8px;overflow:hidden;box-sizing:border-box}.dialog-table{max-height:none;height:100%;min-width:0;min-height:0;overflow:auto}.dialog-table.full{box-sizing:border-box;margin:8px;height:auto;max-height:none;min-height:0;flex:1 1 auto;overflow:auto}.selected-panel{box-sizing:border-box;min-width:0;min-height:0;overflow:auto}.selected-chip{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:4px;align-items:center;height:24px;border-bottom:1px solid var(--border)}.selected-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.selected-chip button{height:20px;padding:0}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid,.products-workspace{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}.modal-backdrop{padding:4px}.recipient-dialog{height:calc(100dvh - 8px);max-width:calc(100vw - 8px);max-height:calc(100dvh - 8px)}.dialog-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(92px,28vh);gap:6px;padding:6px}.dialog-toolbar input{flex-basis:100%;min-width:0}.selected-panel{margin-top:0}}
 </style>
