@@ -623,7 +623,7 @@ class CommercialOffersUnisenderTest extends TestCase
         DB::table('good_media')->insert(['id' => 1, 'good_id' => 7, 'type' => 'image', 'url' => 'https://pischeprom.test/i/lecithin.jpg', 'thumb_url' => 'https://pischeprom.test/i/lecithin-thumb.jpg', 'is_published' => 1, 'is_ava' => 1, 'sort_order' => 1]);
         DB::table('good_price_type_values')->insert([
             ['id' => 1, 'good_id' => 7, 'price_type_id' => 1, 'currency_id' => 1, 'price_net' => 100, 'price_gross' => 120, 'vat_rate' => 20, 'is_published' => 1, 'updated_at' => now()->subDay()],
-            ['id' => 2, 'good_id' => 7, 'price_type_id' => 2, 'currency_id' => 1, 'price_net' => 80, 'price_gross' => 96, 'vat_rate' => 20, 'is_published' => 1, 'updated_at' => now()],
+            ['id' => 2, 'good_id' => 7, 'price_type_id' => 2, 'currency_id' => 1, 'price_net' => 80, 'price_gross' => 96, 'vat_rate' => 20, 'is_published' => 0, 'updated_at' => now()],
         ]);
 
         $this->get('/Ameise/commercial-offers/price-types')
@@ -638,8 +638,8 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonPath('products.data.0.id', 7)
             ->assertJsonPath('products.data.0.title', 'Лецитин подсолнечный')
             ->assertJsonPath('products.data.0.source_table', 'goods')
-            ->assertJsonPath('products.data.0.price_formatted', '96,00 RUB')
-            ->assertJsonPath('products.data.0.price_type_name', 'Оптовая')
+            ->assertJsonPath('products.data.0.price_formatted', '120,00 RUB')
+            ->assertJsonPath('products.data.0.price_type_name', 'Розничная')
             ->assertJsonPath('products.data.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg')
             ->assertJsonPath('products.data.0.vat_rate', 22);
 
@@ -652,16 +652,25 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonPath('products.data.0.price_formatted', '120,00 RUB')
             ->assertJsonPath('products.data.0.price_type_name', 'Розничная');
 
+        $this->get('/Ameise/commercial-offers/products/search?'.http_build_query([
+            'q' => 'lecithin',
+            'per_page' => 25,
+            'price_type_id' => 2,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('products.data.0.price_formatted', '96,00 RUB')
+            ->assertJsonPath('products.data.0.price_type_name', 'Оптовая');
+
         $campaign = $this->campaign();
         $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/offer-items", [
             'product_id' => 7,
             'item_type' => 'product',
-            'price_type_id' => 1,
+            'price_type_id' => 2,
         ])
             ->assertCreated()
-            ->assertJsonPath('offer_price', '120.0000')
-            ->assertJsonPath('snapshot.price_type_id', 1)
-            ->assertJsonPath('snapshot.price_type_name', 'Розничная');
+            ->assertJsonPath('offer_price', '96.0000')
+            ->assertJsonPath('snapshot.price_type_id', 2)
+            ->assertJsonPath('snapshot.price_type_name', 'Оптовая');
 
         $this->get('/Ameise/commercial-offers/products/search?'.http_build_query([
             'type' => 'categories',
