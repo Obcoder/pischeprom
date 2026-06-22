@@ -819,18 +819,12 @@ class CommercialOffersController extends Controller
     {
         $this->authorizeSales('sales_mailings.view');
 
-        $query = PriceType::query()
+        return response()->json(PriceType::query()
             ->with('currency')
+            ->where('is_active', true)
             ->orderBy('sort_order')
-            ->orderBy('name');
-
-        $items = (clone $query)->where('is_active', true)->get();
-
-        if ($items->isEmpty()) {
-            $items = $query->get();
-        }
-
-        return response()->json($items
+            ->orderBy('name')
+            ->get()
             ->map(fn (PriceType $priceType) => [
                 'id' => $priceType->id,
                 'name' => $priceType->name,

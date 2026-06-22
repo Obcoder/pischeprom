@@ -229,20 +229,17 @@ class ProductOfferBuilder
             'vatRate',
             'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
             'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
-            'priceTypeValues' => fn ($q) => $q->with(['priceType.currency', 'currency'])->orderByDesc('is_published')->orderByDesc('updated_at'),
+            'priceTypeValues' => fn ($q) => $q->where('is_published', true)->with(['priceType.currency', 'currency'])->orderByDesc('updated_at'),
         ];
     }
 
     private function selectedPriceValue(Good $product, ?int $priceTypeId): ?GoodPriceTypeValue
     {
         if ($priceTypeId !== null) {
-            $values = $product->priceTypeValues->filter(fn ($value) => (int) $value->price_type_id === $priceTypeId);
-
-            return $values->first(fn ($value) => (bool) $value->is_published) ?: $values->first();
+            return $product->priceTypeValues->first(fn ($value) => (int) $value->price_type_id === $priceTypeId);
         }
 
-        return $product->priceTypeValues->first(fn ($value) => (bool) $value->is_published)
-            ?: $product->priceTypeValues->first();
+        return $product->priceTypeValues->first();
     }
 
     private function selectedPriceTypeId(array $filters): ?int
