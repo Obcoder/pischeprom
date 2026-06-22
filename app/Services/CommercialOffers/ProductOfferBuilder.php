@@ -20,6 +20,7 @@ class ProductOfferBuilder
         return Good::query()
             ->with([
                 'products.category',
+                'vatRate',
                 'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
                 'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
                 'priceTypeValues' => fn ($q) => $q->where('is_published', true)->with(['priceType.currency', 'currency'])->orderByDesc('updated_at'),
@@ -77,6 +78,7 @@ class ProductOfferBuilder
         $good = Good::query()
             ->with([
                 'products.category',
+                'vatRate',
                 'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
                 'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
                 'priceTypeValues.priceType.currency',
@@ -134,6 +136,7 @@ class ProductOfferBuilder
         $price = $product->priceTypeValues->first();
         $linkedProduct = $product->products->first();
         $category = $linkedProduct?->category;
+        $vatRate = $product->vatRate?->rate ?? $price?->vat_rate;
 
         return [
             'product_id' => $product->id,
@@ -148,6 +151,9 @@ class ProductOfferBuilder
             'category_id' => $category?->id,
             'category' => $category?->name,
             'category_url' => $category ? $this->categoryUrl($category) : null,
+            'vat_rate_id' => $product->vatRate?->id,
+            'vat_rate_title' => $product->vatRate?->title,
+            'vat_rate' => $vatRate !== null ? (float) $vatRate : null,
             'availability' => $product->is_published ? 'published' : 'hidden',
             'description' => Str::limit(strip_tags((string) $product->description), 240),
         ];

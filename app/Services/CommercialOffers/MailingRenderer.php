@@ -77,6 +77,7 @@ class MailingRenderer
         $priceHtml = $price !== null
             ? e(number_format((float) $price, 2, ',', ' ')).' '.e($currency)
             : 'по запросу';
+        $vatHtml = $this->vatColumnHtml($data, $snapshot, $price, $currency);
 
         return '<tr>'
             .'<td width="64" valign="top" style="padding:8px 10px 8px 12px;border-bottom:1px solid #e3edde;">'.$imageHtml.'</td>'
@@ -86,6 +87,7 @@ class MailingRenderer
             .($description !== '' ? '<div style="font-size:12px;line-height:16px;color:#526052;margin:0;">'.$description.'</div>' : '')
             .'</td>'
             .'<td width="120" valign="top" align="right" style="padding:10px 8px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;font-size:14px;line-height:18px;font-weight:700;color:#203b14;white-space:nowrap;">'.$priceHtml.'</td>'
+            .'<td width="70" valign="top" align="right" style="padding:9px 6px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;color:#526052;white-space:nowrap;">'.$vatHtml.'</td>'
             .'<td width="74" valign="top" align="right" style="padding:8px 12px 8px 6px;border-bottom:1px solid #e3edde;font-family:Arial,sans-serif;">'
             .'<a href="'.e($url).'" style="display:inline-block;background:#2f7d32;color:#ffffff;text-decoration:none;border-radius:4px;padding:6px 9px;font-size:11px;line-height:13px;font-weight:700;white-space:nowrap;">Открыть</a>'
             .'</td>'
@@ -149,6 +151,7 @@ class MailingRenderer
             .'<tr>'
             .'<td colspan="2" style="padding:9px 12px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.02em;border-bottom:3px solid #d69a2d;">Цены включают НДС. Доставка до адреса.</td>'
             .'<td width="120" align="right" style="padding:9px 8px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:3px solid #d69a2d;">Цена</td>'
+            .'<td width="70" align="right" style="padding:9px 6px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:10px;line-height:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-bottom:3px solid #d69a2d;">НДС</td>'
             .'<td width="74" style="padding:9px 12px 9px 6px;background:#8b1e1e;border-bottom:3px solid #d69a2d;">&nbsp;</td>'
             .'</tr>'
             .$rows
@@ -211,6 +214,30 @@ class MailingRenderer
         }
 
         return '<a href="'.e($this->withUtm($categoryUrl, $campaign, 'category_'.$categoryKey)).'" style="color:#486f38;text-decoration:underline;">'.e($category).'</a>';
+    }
+
+    private function vatColumnHtml(array $data, array $snapshot, mixed $price, string $currency): string
+    {
+        $rate = $data['vat_rate'] ?? $snapshot['vat_rate'] ?? null;
+        if ($rate === null || $rate === '' || ! is_numeric($rate)) {
+            return '<span style="font-size:10px;line-height:12px;color:#9aa69a;">&mdash;</span>';
+        }
+
+        $rate = (float) $rate;
+        $rateHtml = e($this->formatRate($rate)).'%';
+        if ($price === null || ! is_numeric($price)) {
+            return '<span style="display:block;font-size:10px;line-height:12px;color:#4b5d47;">'.$rateHtml.'</span>';
+        }
+
+        $vatAmount = $rate > -100 ? ((float) $price * $rate / (100 + $rate)) : 0.0;
+
+        return '<span style="display:block;font-size:10px;line-height:12px;font-weight:700;color:#4b5d47;">'.$rateHtml.'</span>'
+            .'<span style="display:block;font-size:9px;line-height:11px;color:#7b8877;">'.e(number_format($vatAmount, 2, ',', ' ')).' '.e($currency).'</span>';
+    }
+
+    private function formatRate(float $rate): string
+    {
+        return rtrim(rtrim(number_format($rate, 2, ',', ' '), '0'), ',');
     }
 
     private function unsubscribeFooter(string $unsubscribeUrl): string
