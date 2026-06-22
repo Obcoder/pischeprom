@@ -152,11 +152,11 @@ class MailingRenderer
 
     private function productListTable(string $rows): string
     {
-        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;border:1px solid #d7e6d1;border-radius:10px;overflow:hidden;margin:12px 0;background:#ffffff;">'
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;border:1px solid #e3c2a6;border-radius:10px;overflow:hidden;margin:12px 0;background:#ffffff;">'
             .'<tr>'
-            .'<td colspan="2" style="padding:9px 12px;background:#101910;color:#e8ffe4;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #2e432c;">Позиции КП</td>'
-            .'<td width="120" align="right" style="padding:9px 8px;background:#101910;color:#e8ffe4;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #2e432c;">Цена</td>'
-            .'<td width="74" style="padding:9px 12px 9px 6px;background:#101910;border-bottom:1px solid #2e432c;">&nbsp;</td>'
+            .'<td colspan="2" style="padding:9px 12px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:3px solid #d69a2d;">Некоторые позиции каталога</td>'
+            .'<td width="120" align="right" style="padding:9px 8px;background:#8b1e1e;color:#fff7e6;font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:3px solid #d69a2d;">Цена</td>'
+            .'<td width="74" style="padding:9px 12px 9px 6px;background:#8b1e1e;border-bottom:3px solid #d69a2d;">&nbsp;</td>'
             .'</tr>'
             .$rows
             .'</table>';

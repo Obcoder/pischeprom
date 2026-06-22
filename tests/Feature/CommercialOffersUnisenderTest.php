@@ -139,7 +139,8 @@ class CommercialOffersUnisenderTest extends TestCase
 
         $this->assertStringContainsString('https://pischeprom.test/i/pump.jpg', $html);
         $this->assertStringContainsString('900,00 RUB', $html);
-        $this->assertStringContainsString('Позиции КП', $html);
+        $this->assertStringContainsString('Некоторые позиции каталога', $html);
+        $this->assertStringContainsString('background:#8b1e1e', $html);
         $this->assertStringContainsString('width:52px', $html);
         $this->assertStringContainsString('SKU PUMP-123 / Оборудование', $html);
         $this->assertStringContainsString('Открыть', $html);
