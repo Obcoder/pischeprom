@@ -24,6 +24,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -537,6 +538,37 @@ class CommercialOffersController extends Controller
                 'message' => 'Test email failed: '.$exception->getMessage(),
             ], 422);
         }
+    }
+
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $this->authorizeSales('sales_mailings.manage_templates');
+
+        $data = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'alt' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $file = $data['image'];
+        $safeName = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) ?: Str::random(8);
+        $extension = $file->getClientOriginalExtension() ?: $file->extension();
+        $path = $file->storeAs(
+            'commercial-offers/images/'.now()->format('Y/m'),
+            $safeName.'-'.Str::random(8).'.'.$extension,
+            'public',
+        );
+
+        $url = Storage::disk('public')->url($path);
+
+        if (! Str::startsWith($url, ['http://', 'https://'])) {
+            $url = url($url);
+        }
+
+        return response()->json([
+            'url' => $url,
+            'path' => $path,
+            'alt' => $data['alt'] ?? null,
+        ], 201);
     }
 
     public function productSearch(Request $request): JsonResponse

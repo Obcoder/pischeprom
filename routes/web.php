@@ -549,6 +549,8 @@ Route::prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->gro
     Route::post('/templates/{id}/sync-unisender', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'syncTemplate'])->name('templates.sync-unisender');
     Route::post('/templates/{id}/send-test', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'sendTestTemplate'])->name('templates.send-test');
 
+    Route::post('/images', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'uploadImage'])->name('images.store');
+
     Route::get('/products/search', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'productSearch'])->name('products.search');
     Route::post('/campaigns/{id}/offer-items', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'addOfferItem'])->name('offer-items.store');
     Route::put('/offer-items/{id}', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'updateOfferItem'])->name('offer-items.update');

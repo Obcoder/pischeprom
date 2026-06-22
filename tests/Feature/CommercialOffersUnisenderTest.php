@@ -8,14 +8,17 @@ use App\Models\MailingContact;
 use App\Models\MailingContactSet;
 use App\Models\MailingOfferItem;
 use App\Models\MailingSuppression;
+use App\Models\MailingTemplate;
 use App\Services\CommercialOffers\MailingCampaignService;
 use App\Services\CommercialOffers\MailingRenderer;
 use App\Services\CommercialOffers\RecipientSetService;
 use App\Services\CommercialOffers\UnisenderGoClient;
 use App\Services\CommercialOffers\UnisenderWebhookPayload;
 use App\Services\CommercialOffers\UnisenderWebhookService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -447,6 +450,49 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonPath('products.0.source_table', 'goods')
             ->assertJsonPath('products.0.price_formatted', '120,00 RUB')
             ->assertJsonPath('products.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg');
+    }
+
+    public function test_campaign_can_be_created_from_template_content(): void
+    {
+        $template = MailingTemplate::query()->create([
+            'name' => 'Template offer',
+            'slug' => 'template-offer',
+            'type' => 'commercial_offer',
+            'subject' => 'Template subject',
+            'html_markup' => '<p>Здравствуйте, {{to_name}}</p><p><a href="{{unsubscribe_url}}">Отписаться</a></p>',
+            'plaintext' => 'Здравствуйте, {{to_name}} {{unsubscribe_url}}',
+        ]);
+
+        $response = $this->post('/Ameise/commercial-offers/campaigns', [
+            'name' => 'Campaign from template',
+            'template_id' => $template->id,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('mailing_campaigns', [
+            'id' => $response->json('id'),
+            'template_id' => $template->id,
+            'subject' => 'Template subject',
+            'html_markup' => '<p>Здравствуйте, {{to_name}}</p><p><a href="{{unsubscribe_url}}">Отписаться</a></p>',
+            'plaintext' => 'Здравствуйте, {{to_name}} {{unsubscribe_url}}',
+        ]);
+    }
+
+    public function test_commercial_offer_image_upload_returns_public_storage_url(): void
+    {
+        Storage::fake('public');
+
+        $response = $this->post('/Ameise/commercial-offers/images', [
+            'image' => UploadedFile::fake()->image('logo.png', 120, 40),
+            'alt' => 'Pischeprom logo',
+        ])->assertCreated();
+
+        $path = $response->json('path');
+        $url = $response->json('url');
+
+        $this->assertStringStartsWith('commercial-offers/images/', $path);
+        $this->assertStringContainsString('/storage/commercial-offers/images/', $url);
+        $this->assertSame('Pischeprom logo', $response->json('alt'));
+        Storage::disk('public')->assertExists($path);
     }
 
     public function test_invalid_campaign_id_when_adding_product_returns_validation_error(): void

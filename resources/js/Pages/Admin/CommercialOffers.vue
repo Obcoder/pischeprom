@@ -30,14 +30,22 @@ const tabs = [
 ]
 
 const mailingVariables = [
-    '{{to_name}}',
-    '{{first_name}}',
-    '{{last_name}}',
-    '{{company_name}}',
-    '{{manager_name}}',
-    '{{unsubscribe_url}}',
-    '{{offer_items_html}}',
+    ['{{to_name}}', 'безопасное имя получателя: имя/фамилия или email, если имени нет'],
+    ['{{first_name}}', 'поле first_name из Recipients'],
+    ['{{last_name}}', 'поле last_name из Recipients'],
+    ['{{company_name}}', 'компания получателя'],
+    ['{{manager_name}}', 'имя менеджера'],
+    ['{{manager_phone}}', 'телефон менеджера'],
+    ['{{manager_email}}', 'email менеджера'],
+    ['{{campaign_name}}', 'название campaign'],
+    ['{{unsubscribe_url}}', 'обязательная ссылка отписки'],
+    ['{{offer_items_html}}', 'HTML товаров/категорий из Product picker'],
 ]
+
+const defaultCampaignHtml = '<h1>{{campaign_name}}</h1><p>Здравствуйте, {{to_name}}.</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p>'
+const defaultCampaignPlaintext = 'Здравствуйте, {{to_name}}. Коммерческое предложение: {{unsubscribe_url}}'
+const defaultTemplateHtml = '<table width="100%" role="presentation" cellspacing="0" cellpadding="0"><tr><td><h1>{{campaign_name}}</h1><p>Здравствуйте, {{to_name}}.</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p></td></tr></table>'
+const defaultTemplatePlaintext = 'Здравствуйте, {{to_name}}. Коммерческое предложение: {{unsubscribe_url}}'
 
 const activeTab = ref('dashboard')
 const busy = ref(false)
@@ -62,8 +70,8 @@ const campaignForm = reactive({
     subject: '',
     contact_set_id: '',
     template_id: '',
-    html_markup: '<h1>{{campaign_name}}</h1><p>Здравствуйте, {{first_name}}.</p>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p>',
-    plaintext: 'Здравствуйте, {{first_name}}. Коммерческое предложение: {{unsubscribe_url}}',
+    html_markup: defaultCampaignHtml,
+    plaintext: defaultCampaignPlaintext,
 })
 
 const contactForm = reactive({
@@ -82,8 +90,8 @@ const templateForm = reactive({
     name: '',
     subject: '',
     type: 'commercial_offer',
-    html_markup: '<table width="100%"><tr><td><h1>{{campaign_name}}</h1>{{offer_items_html}}<p><a href="{{unsubscribe_url}}">Отписаться</a></p></td></tr></table>',
-    plaintext: 'Коммерческое предложение: {{unsubscribe_url}}',
+    html_markup: defaultTemplateHtml,
+    plaintext: defaultTemplatePlaintext,
 })
 const productSearch = ref('')
 const productCampaignId = ref('')
@@ -94,6 +102,12 @@ const sourceEmailSearch = ref('')
 const sourceEmailSetId = ref('')
 const sourceEmailConsentStatus = ref('unknown')
 const selectedSourceEmailIds = ref(new Set())
+const imageFile = ref(null)
+const imageForm = reactive({
+    url: '',
+    alt: '',
+    link: '',
+})
 
 const kpiRows = computed(() => [
     ['drafts', dashboard.value.drafts ?? 0],
@@ -115,6 +129,11 @@ const kpiRows = computed(() => [
 const campaignOptions = computed(() => campaigns.value.map((campaign) => ({
     id: campaign.id,
     label: `#${campaign.id} ${campaign.name || campaign.subject || 'campaign'} [${campaign.status}]`,
+})))
+
+const templateOptions = computed(() => templates.value.map((template) => ({
+    id: template.id,
+    label: `#${template.id} ${template.name || template.subject || 'template'} [${template.type || 'template'}]`,
 })))
 
 function percent(value) {
@@ -258,9 +277,86 @@ async function createSet() {
 
 async function createTemplate() {
     await request('template saved', async () => {
-        await axios.post(endpoint('/templates'), cleanPayload(templateForm))
+        const response = await axios.post(endpoint('/templates'), cleanPayload(templateForm))
+        fillTemplateForm(response.data)
         await loadTable('templates')
+        return response
     })
+}
+
+async function saveEditorAsTemplate() {
+    const name = campaignForm.name || campaignForm.subject || `КП ${new Date().toLocaleString('ru-RU')}`
+    const subject = campaignForm.subject || name
+
+    if (!subject.trim() || !campaignForm.html_markup.trim()) {
+        error.value = 'template requires subject and html'
+        return
+    }
+
+    await request('editor saved as template', async () => {
+        const response = await axios.post(endpoint('/templates'), cleanPayload({
+            name,
+            subject,
+            type: campaignForm.type === 'personal_offer' ? 'personal_offer' : 'commercial_offer',
+            html_markup: campaignForm.html_markup,
+            plaintext: campaignForm.plaintext,
+        }))
+        fillTemplateForm(response.data)
+        campaignForm.template_id = response.data.id
+        await loadTable('templates')
+        return response
+    })
+}
+
+function fillTemplateForm(template) {
+    if (!template) return
+
+    Object.assign(templateForm, {
+        name: template.name || templateForm.name,
+        subject: template.subject || templateForm.subject,
+        type: template.type || templateForm.type,
+        html_markup: template.html_markup || templateForm.html_markup,
+        plaintext: template.plaintext || templateForm.plaintext,
+    })
+}
+
+function copyEditorToTemplateForm() {
+    Object.assign(templateForm, {
+        name: campaignForm.name || templateForm.name,
+        subject: campaignForm.subject || templateForm.subject,
+        type: campaignForm.type === 'personal_offer' ? 'personal_offer' : 'commercial_offer',
+        html_markup: campaignForm.html_markup,
+        plaintext: campaignForm.plaintext,
+    })
+    activeTab.value = 'templates'
+}
+
+function applySelectedTemplate() {
+    const selected = templates.value.find((template) => Number(template.id) === Number(campaignForm.template_id))
+    if (!selected) {
+        error.value = 'template not loaded; press refresh or open Templates tab'
+        return
+    }
+
+    applyTemplateToCampaign(selected)
+}
+
+function applyTemplateToCampaign(template) {
+    if (!template) return
+
+    campaignForm.template_id = template.id
+    campaignForm.subject = template.subject || campaignForm.subject
+    campaignForm.html_markup = template.html_markup || campaignForm.html_markup
+    campaignForm.plaintext = template.plaintext || campaignForm.plaintext
+    if (!campaignForm.name) {
+        campaignForm.name = template.name || ''
+    }
+    if (template.type === 'personal_offer') {
+        campaignForm.type = 'personal_offer'
+    }
+
+    notice.value = `template loaded: #${template.id}`
+    error.value = ''
 }
 
 async function syncTemplate(id) {
@@ -297,6 +393,88 @@ async function addCategory(category) {
     }
     await request('category added', async () => {
         await axios.post(endpoint(`/campaigns/${campaignId}/offer-items`), { category_id: category.id, item_type: 'category' })
+    })
+}
+
+function onImageSelected(event) {
+    imageFile.value = event.target.files?.[0] || null
+}
+
+function escapeAttr(value) {
+    return String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+}
+
+function normalizeHttpsUrl(value) {
+    const url = String(value || '').trim()
+    if (!url) return ''
+    if (url.startsWith('//')) return `https:${url}`
+    return url
+}
+
+function isHttpsUrl(value) {
+    return /^https:\/\/[^ ]+/i.test(normalizeHttpsUrl(value))
+}
+
+function imageSnippet(url, alt = '', link = '') {
+    const safeUrl = escapeAttr(normalizeHttpsUrl(url))
+    const safeAlt = escapeAttr(alt || 'Изображение')
+    const safeLink = isHttpsUrl(link) ? escapeAttr(normalizeHttpsUrl(link)) : ''
+    const image = `<img src="${safeUrl}" alt="${safeAlt}" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:8px;">`
+
+    return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0;"><tr><td align="center">${safeLink ? `<a href="${safeLink}" target="_blank" style="text-decoration:none;">${image}</a>` : image}</td></tr></table>`
+}
+
+function logoSignatureSnippet(url, alt = '', link = '') {
+    const safeUrl = escapeAttr(normalizeHttpsUrl(url))
+    const safeAlt = escapeAttr(alt || 'Pischeprom')
+    const safeLink = isHttpsUrl(link) ? escapeAttr(normalizeHttpsUrl(link)) : ''
+    const image = `<img src="${safeUrl}" alt="${safeAlt}" width="72" style="display:block;width:72px;max-width:72px;height:auto;border:0;">`
+
+    return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:18px 0 8px;"><tr><td width="84" valign="top">${safeLink ? `<a href="${safeLink}" target="_blank" style="text-decoration:none;">${image}</a>` : image}</td><td valign="top" style="font-family:Arial,sans-serif;font-size:14px;line-height:20px;color:#1d2b1d;"><strong>{{manager_name}}</strong><br><span>{{manager_phone}}</span><br><a href="mailto:{{manager_email}}" style="color:#1b6f1b;">{{manager_email}}</a></td></tr></table>`
+}
+
+function appendEditorHtml(snippet) {
+    campaignForm.html_markup = `${campaignForm.html_markup.trim()}\n${snippet}`
+}
+
+function insertImageFromUrl(mode = 'image') {
+    const url = normalizeHttpsUrl(imageForm.url)
+    if (!isHttpsUrl(url)) {
+        error.value = 'image URL must be absolute HTTPS, for example https://food-server.ru/logo.png'
+        return
+    }
+
+    appendEditorHtml(mode === 'logo'
+        ? logoSignatureSnippet(url, imageForm.alt, imageForm.link)
+        : imageSnippet(url, imageForm.alt, imageForm.link))
+    notice.value = mode === 'logo' ? 'logo signature inserted' : 'image inserted'
+    error.value = ''
+}
+
+async function uploadAndInsertImage(mode = 'image') {
+    if (!imageFile.value) {
+        error.value = 'select image file first'
+        return
+    }
+
+    await request(mode === 'logo' ? 'logo uploaded' : 'image uploaded', async () => {
+        const form = new FormData()
+        form.append('image', imageFile.value)
+        form.append('alt', imageForm.alt || '')
+        const response = await axios.post(endpoint('/images'), form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        })
+
+        imageForm.url = response.data.url
+        appendEditorHtml(mode === 'logo'
+            ? logoSignatureSnippet(response.data.url, imageForm.alt || response.data.alt, imageForm.link)
+            : imageSnippet(response.data.url, imageForm.alt || response.data.alt, imageForm.link))
+
+        return response
     })
 }
 
@@ -394,7 +572,11 @@ onMounted(refreshAll)
                 <input v-model="campaignForm.subject" placeholder="subject">
                 <select v-model="campaignForm.type"><option>mass_offer</option><option>personal_offer</option><option>follow_up</option><option>test</option></select>
                 <input v-model="campaignForm.contact_set_id" placeholder="set id">
-                <input v-model="campaignForm.template_id" placeholder="template id">
+                <select v-model="campaignForm.template_id" @change="applySelectedTemplate">
+                    <option value="">template</option>
+                    <option v-for="template in templateOptions" :key="template.id" :value="template.id">{{ template.label }}</option>
+                </select>
+                <button type="button" @click="applySelectedTemplate">load template</button>
                 <button type="button" @click="createCampaign">create campaign</button>
                 <input v-model="testEmail" placeholder="test recipient email">
             </div>
@@ -527,12 +709,41 @@ onMounted(refreshAll)
         <section v-if="activeTab === 'editor'" class="panel editor-grid">
             <div class="editor-card">
                 <h2>block-based КП skeleton</h2>
-                <input v-model="campaignForm.name" placeholder="campaign_name">
-                <input v-model="campaignForm.subject" placeholder="subject">
+                <div class="form-row compact stackable">
+                    <input v-model="campaignForm.name" placeholder="campaign_name">
+                    <input v-model="campaignForm.subject" placeholder="subject">
+                    <select v-model="campaignForm.template_id" @change="applySelectedTemplate">
+                        <option value="">load template</option>
+                        <option v-for="template in templateOptions" :key="template.id" :value="template.id">{{ template.label }}</option>
+                    </select>
+                    <button type="button" @click="applySelectedTemplate">load</button>
+                </div>
+                <div class="form-row compact stackable image-tools">
+                    <input v-model="imageForm.url" placeholder="https image/logo URL">
+                    <input v-model="imageForm.alt" placeholder="alt text">
+                    <input v-model="imageForm.link" placeholder="optional https link">
+                    <button type="button" @click="insertImageFromUrl('image')">insert image URL</button>
+                    <button type="button" @click="insertImageFromUrl('logo')">insert logo/signature</button>
+                </div>
+                <div class="form-row compact stackable image-tools">
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="onImageSelected">
+                    <button type="button" @click="uploadAndInsertImage('image')">upload image</button>
+                    <button type="button" @click="uploadAndInsertImage('logo')">upload logo</button>
+                    <span class="mini-help">email images must be public HTTPS; uploaded files use Laravel public storage.</span>
+                </div>
                 <textarea v-model="campaignForm.html_markup" class="codebox"></textarea>
                 <textarea v-model="campaignForm.plaintext" class="codebox small"></textarea>
-                <div class="form-row compact"><button @click="createCampaign">save as campaign draft</button><button @click="createTemplate">save template</button></div>
-                <p>variables: <code v-for="variable in mailingVariables" :key="variable">{{ variable }} </code></p>
+                <div class="form-row compact">
+                    <button type="button" @click="createCampaign">save as campaign draft</button>
+                    <button type="button" @click="saveEditorAsTemplate">save current editor as template</button>
+                    <button type="button" @click="copyEditorToTemplateForm">copy to Templates tab</button>
+                </div>
+                <div class="variables-grid">
+                    <div v-for="[variable, description] in mailingVariables" :key="variable">
+                        <code>{{ variable }}</code>
+                        <span>{{ description }}</span>
+                    </div>
+                </div>
             </div>
             <div class="editor-card preview">
                 <h2>preview / desktop</h2>
@@ -545,9 +756,14 @@ onMounted(refreshAll)
                 <input v-model="templateForm.name" placeholder="template name">
                 <input v-model="templateForm.subject" placeholder="subject">
                 <select v-model="templateForm.type"><option>commercial_offer</option><option>personal_offer</option><option>follow_up</option><option>custom</option></select>
-                <button @click="createTemplate">create template</button>
+                <button type="button" @click="createTemplate">create template</button>
+                <button type="button" @click="copyEditorToTemplateForm">copy from editor</button>
             </div>
-            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>subject</th><th>updated</th><th>active</th><th>unisender_template_id</th><th>actions</th></tr></thead><tbody><tr v-for="item in templates" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.subject }}</td><td>{{ formatDate(item.updated_at) }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ item.unisender_template_id || '-' }}</td><td><button @click="syncTemplate(item.id)">sync</button><button @click="campaignForm.template_id = item.id; activeTab = 'editor'">use</button></td></tr></tbody></table></div>
+            <div class="template-editor-grid">
+                <textarea v-model="templateForm.html_markup" class="codebox template-codebox" placeholder="template HTML"></textarea>
+                <textarea v-model="templateForm.plaintext" class="codebox template-codebox small" placeholder="template plaintext"></textarea>
+            </div>
+            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>subject</th><th>updated</th><th>active</th><th>unisender_template_id</th><th>actions</th></tr></thead><tbody><tr v-for="item in templates" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.subject }}</td><td>{{ formatDate(item.updated_at) }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ item.unisender_template_id || '-' }}</td><td><button @click="syncTemplate(item.id)">sync</button><button @click="applyTemplateToCampaign(item); activeTab = 'editor'">use</button><button @click="fillTemplateForm(item)">edit form</button></td></tr></tbody></table></div>
         </section>
 
         <section v-if="activeTab === 'products'" class="panel split">
@@ -584,5 +800,5 @@ onMounted(refreshAll)
 </template>
 
 <style scoped>
-.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
+.terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}}
 </style>
