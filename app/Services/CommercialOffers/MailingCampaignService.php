@@ -103,6 +103,7 @@ class MailingCampaignService
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new RuntimeException('Valid test recipient email is required.');
         }
+        $this->assertRecipientCanReceiveTest($email);
 
         $recipient = MailingCampaignRecipient::query()->updateOrCreate(
             ['campaign_id' => $campaign->id, 'normalized_email' => $email],
@@ -120,7 +121,9 @@ class MailingCampaignService
             $result = $this->client->sendEmail($message);
         } catch (RuntimeException $exception) {
             if (! $this->isTrackingDomainConfigurationError($exception)) {
-                throw $exception;
+                $this->markRecipientSendFailed($recipient, $exception);
+
+                throw new RuntimeException($this->testSendFailureMessage($exception, $email), previous: $exception);
             }
 
             Log::warning('Retrying Unisender Go test send without tracking because tracking domain is not configured', [
@@ -133,7 +136,14 @@ class MailingCampaignService
             $message['track_links'] = 0;
             $message['global_metadata']['tracking_disabled_for_test'] = true;
 
-            $retryResult = $this->client->sendEmail($message);
+            try {
+                $retryResult = $this->client->sendEmail($message);
+            } catch (RuntimeException $retryException) {
+                $this->markRecipientSendFailed($recipient, $retryException);
+
+                throw new RuntimeException($this->testSendFailureMessage($retryException, $email), previous: $retryException);
+            }
+
             $result = new UnisenderSendResult(
                 successful: $retryResult->successful,
                 jobId: $retryResult->jobId,
@@ -603,6 +613,66 @@ class MailingCampaignService
             'tags' => $message['tags'] ?? null,
             'idempotence_key' => $message['idempotence_key'] ?? null,
         ];
+    }
+
+    private function assertRecipientCanReceiveTest(string $email): void
+    {
+        $normalized = MailingContact::normalizeEmail($email);
+        $suppression = MailingSuppression::query()
+            ->where('normalized_email', $normalized)
+            ->first();
+
+        if ($suppression) {
+            throw new RuntimeException(sprintf(
+                'Recipient %s is blocked in local suppression list: cause=%s, source=%s. Remove suppression only if this block is known to be wrong.',
+                $email,
+                $suppression->cause ?: 'unknown',
+                $suppression->source ?: 'unknown',
+            ));
+        }
+
+        $contact = MailingContact::query()
+            ->where('normalized_email', $normalized)
+            ->first();
+
+        if (! $contact) {
+            return;
+        }
+
+        $reasons = array_filter([
+            $contact->do_not_email ? 'do_not_email' : null,
+            $contact->unsubscribed_at ? 'unsubscribed' : null,
+            $contact->complained_at ? 'complained/spam' : null,
+            $contact->hard_bounced_at ? 'hard_bounced' : null,
+        ]);
+
+        if ($reasons !== []) {
+            throw new RuntimeException(sprintf(
+                'Recipient %s is blocked locally: %s. This address will not be sent until the block is removed intentionally.',
+                $email,
+                implode(', ', $reasons),
+            ));
+        }
+    }
+
+    private function markRecipientSendFailed(MailingCampaignRecipient $recipient, RuntimeException $exception): void
+    {
+        $recipient->update([
+            'status' => 'failed',
+            'failure_reason' => $exception->getMessage(),
+        ]);
+    }
+
+    private function testSendFailureMessage(RuntimeException $exception, string $email): string
+    {
+        $message = $exception->getMessage();
+        $lower = Str::lower($message);
+
+        if (str_contains($lower, 'no valid recipients')) {
+            return $message.' Attempted recipient: '.$email.'. Sender: '.$this->providerFromEmail().'. Check Unisender suppression/blocklist, free tier checked recipients/domains, recipient validity, and confirmed sender domain.';
+        }
+
+        return $message;
     }
 
     private function isPublicEmailDomain(string $email): bool

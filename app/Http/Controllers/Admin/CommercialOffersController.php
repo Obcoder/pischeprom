@@ -118,7 +118,12 @@ class CommercialOffersController extends Controller
     public function sendTestCampaign(Request $request, int $id): JsonResponse
     {
         $this->authorizeSales('sales_mailings.send_test');
-        $email = $request->input('email') ?: config('services.mailings.test_recipient');
+        $email = $request->input('email')
+            ?: MailingCampaignRecipient::query()
+                ->where('campaign_id', $id)
+                ->orderBy('id')
+                ->value('email')
+            ?: config('services.mailings.test_recipient');
 
         try {
             return response()->json($this->campaigns->sendTest($id, (string) $email, $request->user()?->id)->toArray());

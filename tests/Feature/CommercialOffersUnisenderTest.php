@@ -232,6 +232,51 @@ class CommercialOffersUnisenderTest extends TestCase
             && $request->data()['message']['recipients'][0]['email'] === 'single@example.test');
     }
 
+    public function test_campaign_test_send_uses_first_campaign_recipient_when_email_is_empty(): void
+    {
+        config(['services.mailings.test_recipient' => null]);
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'job_id' => 'test-job-from-recipient',
+                'failed_emails' => [],
+            ]),
+        ]);
+
+        $campaign = $this->campaign(['contact_set_id' => null]);
+        MailingCampaignRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'email' => 'first-recipient@example.test',
+            'status' => 'pending',
+        ]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", ['email' => ''])
+            ->assertOk()
+            ->assertJsonPath('job_id', 'test-job-from-recipient');
+
+        Http::assertSent(fn ($request) => $request->data()['message']['recipients'][0]['email'] === 'first-recipient@example.test');
+    }
+
+    public function test_campaign_test_send_blocks_local_suppressed_recipient_before_provider_call(): void
+    {
+        Http::fake();
+        $campaign = $this->campaign(['contact_set_id' => null]);
+        MailingSuppression::query()->create([
+            'email' => 'blocked@example.test',
+            'normalized_email' => 'blocked@example.test',
+            'cause' => 'permanent_unavailable',
+            'source' => 'webhook',
+            'note' => 'Hard bounce',
+        ]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", [
+            'email' => 'blocked@example.test',
+        ])
+            ->assertStatus(422)
+            ->assertJsonFragment(['message' => 'Test email failed: Recipient blocked@example.test is blocked in local suppression list: cause=permanent_unavailable, source=webhook. Remove suppression only if this block is known to be wrong.']);
+
+        Http::assertNothingSent();
+    }
+
     public function test_campaign_test_send_uses_configured_unisender_sender_not_stale_campaign_sender(): void
     {
         config([
@@ -319,6 +364,32 @@ class CommercialOffersUnisenderTest extends TestCase
                 'message',
                 'Test email failed: Unisender free_tier отклонил получателя: можно отправлять только на checked emails/domains в Unisender. Домен получателя: gmail.com. Добавьте email получателя/домен в проверенные в кабинете Unisender, укажите MAILINGS_TEST_RECIPIENT на проверенный адрес или смените тариф.'
             );
+    }
+
+    public function test_campaign_test_send_explains_no_valid_recipients_provider_error(): void
+    {
+        config(['services.unisender_go.from_email' => 'com@food-server.ru']);
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'message' => 'Error ID:test. No valid recipients',
+            ], 422),
+        ]);
+
+        $campaign = $this->campaign(['contact_set_id' => null]);
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", [
+            'email' => 'buyer@gmail.com',
+        ])
+            ->assertStatus(422)
+            ->assertJsonFragment([
+                'message' => 'Test email failed: Error ID:test. No valid recipients Attempted recipient: buyer@gmail.com. Sender: com@food-server.ru. Check Unisender suppression/blocklist, free tier checked recipients/domains, recipient validity, and confirmed sender domain.',
+            ]);
+
+        $this->assertDatabaseHas('mailing_campaign_recipients', [
+            'campaign_id' => $campaign->id,
+            'email' => 'buyer@gmail.com',
+            'status' => 'failed',
+        ]);
     }
 
     public function test_webhook_updates_open_click_bounce_spam_and_is_idempotent(): void
