@@ -821,27 +821,59 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipient-picker/emails?q=direct")
             ->assertOk()
             ->assertJsonPath('data.0.address', 'direct@example.test')
+            ->assertJsonPath('data.0.name', 'Direct Buyer')
             ->assertJsonPath('data.0.selected', false);
+
+        $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipient-picker/emails?q=unit")
+            ->assertOk()
+            ->assertJsonPath('data.0.address', 'unit@example.test')
+            ->assertJsonPath('data.0.name', 'Unit Buyer')
+            ->assertJsonPath('data.0.company_name', 'Factory Unit');
 
         $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipient-picker/units?q=factory")
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Factory Unit')
-            ->assertJsonPath('data.0.emails.0.address', 'unit@example.test');
+            ->assertJsonPath('data.0.emails.0.address', 'unit@example.test')
+            ->assertJsonPath('data.0.emails.0.name', 'Unit Buyer')
+            ->assertJsonPath('data.0.emails.0.company_name', 'Factory Unit')
+            ->assertJsonPath('data.0.emails.0.source_unit_id', 1)
+            ->assertJsonPath('data.0.emails.0.source_unit_name', 'Factory Unit');
 
         $response = $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients", [
             'replace' => true,
-            'email_ids' => [1],
-            'unit_ids' => [1],
+            'recipients' => [
+                [
+                    'email' => 'direct@example.test',
+                    'name' => 'Direct Buyer',
+                    'source' => 'email',
+                    'source_email_id' => 1,
+                ],
+                [
+                    'email' => 'unit@example.test',
+                    'name' => 'Unit Buyer',
+                    'company_name' => 'Factory Unit',
+                    'source' => 'unit:Factory Unit',
+                    'source_email_id' => 2,
+                    'source_unit_id' => 1,
+                    'source_unit_name' => 'Factory Unit',
+                ],
+            ],
         ])->assertOk()
-            ->assertJsonPath('total', 2);
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('recipients.0.name', 'Direct Buyer')
+            ->assertJsonPath('recipients.1.name', 'Unit Buyer')
+            ->assertJsonPath('recipients.1.company_name', 'Factory Unit')
+            ->assertJsonPath('recipients.1.source_unit_name', 'Factory Unit');
 
         $this->assertDatabaseHas('mailing_campaign_recipients', ['campaign_id' => $campaign->id, 'email' => 'direct@example.test', 'status' => 'pending']);
         $this->assertDatabaseHas('mailing_campaign_recipients', ['campaign_id' => $campaign->id, 'email' => 'unit@example.test', 'status' => 'pending']);
         $this->assertDatabaseHas('mailing_contacts', ['email' => 'direct@example.test', 'contact_source' => 'emails']);
+        $this->assertDatabaseHas('mailing_contacts', ['email' => 'unit@example.test', 'first_name' => 'Unit Buyer', 'company_name' => 'Factory Unit']);
 
         $this->get("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients")
             ->assertOk()
-            ->assertJsonCount(2, 'data');
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.1.company_name', 'Factory Unit');
 
         $recipientId = $response->json('recipients.0.id');
         $this->delete("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients/{$recipientId}")

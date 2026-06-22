@@ -312,8 +312,13 @@ async function loadCampaignRecipients() {
     campaignRecipients.value = data.data || data
     selectedCampaignRecipients.value = campaignRecipients.value.map((item) => ({
         email: item.email,
-        label: item.company_name || item.first_name || item.source_unit_name || item.email,
+        name: item.name || [item.first_name, item.last_name].filter(Boolean).join(' '),
+        company_name: item.company_name || item.source_unit_name || '',
+        label: item.company_name || item.name || item.first_name || item.source_unit_name || item.email,
         source: item.source || 'campaign',
+        source_email_id: item.source_email_id || null,
+        source_unit_id: item.source_unit_id || null,
+        source_unit_name: item.source_unit_name || '',
         status: item.status,
         id: item.id,
         locked: item.locked,
@@ -344,13 +349,27 @@ function isRecipientSelected(email) {
     return selectedRecipientSet.value.has(normalizeEmail(email))
 }
 
-function addRecipientEmail(email, label = '', source = 'email') {
+function addRecipientEmail(email, label = '', source = 'email', extra = {}) {
     const normalized = normalizeEmail(email)
     if (!normalized || isRecipientSelected(normalized)) return
 
+    const name = extra.name || label || ''
+    const companyName = extra.company_name || extra.source_unit_name || ''
+
     selectedCampaignRecipients.value = [
         ...selectedCampaignRecipients.value,
-        { email: normalized, label: label || normalized, source, status: 'pending', locked: false },
+        {
+            email: normalized,
+            name,
+            company_name: companyName,
+            label: companyName || name || normalized,
+            source,
+            source_email_id: extra.source_email_id || extra.email_id || null,
+            source_unit_id: extra.source_unit_id || null,
+            source_unit_name: extra.source_unit_name || '',
+            status: 'pending',
+            locked: false,
+        },
     ]
 }
 
@@ -363,12 +382,24 @@ function toggleRecipientEmail(item) {
         return
     }
 
-    addRecipientEmail(normalized, item.name || item.address || normalized, item.source || 'email')
+    addRecipientEmail(normalized, item.name || item.address || normalized, item.source || 'email', {
+        name: item.name || '',
+        company_name: item.company_name || '',
+        source_email_id: item.id,
+        source_unit_id: item.source_unit_id || item.unit_ids?.[0] || null,
+        source_unit_name: item.source_unit_name || item.unit_names?.[0] || item.company_name || '',
+    })
 }
 
 function addRecipientUnit(unit) {
     for (const email of unit.emails || []) {
-        addRecipientEmail(email.address, email.name || unit.name || email.address, `unit:${unit.name || unit.id}`)
+        addRecipientEmail(email.address, email.name || email.address, `unit:${unit.name || unit.id}`, {
+            name: email.name || '',
+            company_name: unit.name || '',
+            source_email_id: email.id,
+            source_unit_id: unit.id,
+            source_unit_name: unit.name || '',
+        })
     }
 }
 
@@ -388,13 +419,26 @@ async function saveCampaignRecipients() {
     await request('campaign recipients saved', async () => {
         const response = await axios.post(endpoint(`/campaigns/${recipientCampaign.value.id}/recipients`), {
             replace: true,
-            emails: selectedCampaignRecipients.value.map((item) => item.email),
+            recipients: selectedCampaignRecipients.value.map((item) => ({
+                email: item.email,
+                name: item.name || '',
+                company_name: item.company_name || item.source_unit_name || '',
+                source: item.source || 'campaign',
+                source_email_id: item.source_email_id || null,
+                source_unit_id: item.source_unit_id || null,
+                source_unit_name: item.source_unit_name || item.company_name || '',
+            })),
         })
         campaignRecipients.value = response.data.recipients || []
         selectedCampaignRecipients.value = campaignRecipients.value.map((item) => ({
             email: item.email,
-            label: item.company_name || item.first_name || item.source_unit_name || item.email,
+            name: item.name || [item.first_name, item.last_name].filter(Boolean).join(' '),
+            company_name: item.company_name || item.source_unit_name || '',
+            label: item.company_name || item.name || item.first_name || item.source_unit_name || item.email,
             source: item.source || 'campaign',
+            source_email_id: item.source_email_id || null,
+            source_unit_id: item.source_unit_id || null,
+            source_unit_name: item.source_unit_name || '',
             status: item.status,
             id: item.id,
             locked: item.locked,
@@ -964,12 +1008,13 @@ onMounted(refreshAll)
                 <div v-if="recipientPickerTab === 'emails'" class="dialog-grid">
                     <div class="table-shell dialog-table">
                         <table>
-                            <thead><tr><th class="sticky-col">sel</th><th>email</th><th>name</th><th>source</th><th>last_seen</th></tr></thead>
+                            <thead><tr><th class="sticky-col">sel</th><th>email</th><th>name</th><th>company</th><th>source</th><th>last_seen</th></tr></thead>
                             <tbody>
                                 <tr v-for="item in recipientEmails" :key="item.id" :class="{ 'is-muted-row': isRecipientSelected(item.address) }">
                                     <td class="sticky-col"><input type="checkbox" :checked="isRecipientSelected(item.address)" @change="toggleRecipientEmail(item)"></td>
                                     <td>{{ item.address }}</td>
                                     <td>{{ item.name || '-' }}</td>
+                                    <td>{{ item.company_name || '-' }}</td>
                                     <td>{{ item.source || item.domain || '-' }}</td>
                                     <td>{{ formatDate(item.last_seen_at) }}</td>
                                 </tr>
@@ -979,7 +1024,7 @@ onMounted(refreshAll)
                     <aside class="side-panel selected-panel">
                         <h3>selected</h3>
                         <div v-for="item in selectedCampaignRecipients" :key="item.email" class="selected-chip">
-                            <span>{{ item.email }}</span>
+                            <span>{{ item.email }} · {{ item.name || 'no name' }} · {{ item.company_name || '-' }}</span>
                             <button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">x</button>
                         </div>
                     </aside>
@@ -1003,7 +1048,7 @@ onMounted(refreshAll)
                     <aside class="side-panel selected-panel">
                         <h3>selected</h3>
                         <div v-for="item in selectedCampaignRecipients" :key="item.email" class="selected-chip">
-                            <span>{{ item.email }}</span>
+                            <span>{{ item.email }} · {{ item.name || 'no name' }} · {{ item.company_name || '-' }}</span>
                             <button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">x</button>
                         </div>
                     </aside>
@@ -1011,11 +1056,12 @@ onMounted(refreshAll)
 
                 <div v-if="recipientPickerTab === 'selected'" class="table-shell dialog-table full">
                     <table>
-                        <thead><tr><th class="sticky-col">email</th><th>label</th><th>source</th><th>status</th><th>locked</th><th>actions</th></tr></thead>
+                        <thead><tr><th class="sticky-col">email</th><th>name</th><th>company</th><th>source</th><th>status</th><th>locked</th><th>actions</th></tr></thead>
                         <tbody>
                             <tr v-for="item in selectedCampaignRecipients" :key="item.email">
                                 <td class="sticky-col">{{ item.email }}</td>
-                                <td>{{ item.label || '-' }}</td>
+                                <td>{{ item.name || '-' }}</td>
+                                <td>{{ item.company_name || item.source_unit_name || '-' }}</td>
                                 <td>{{ item.source || '-' }}</td>
                                 <td :class="statusClass(item.status)">{{ item.status || 'pending' }}</td>
                                 <td>{{ item.locked ? 'yes' : 'no' }}</td>

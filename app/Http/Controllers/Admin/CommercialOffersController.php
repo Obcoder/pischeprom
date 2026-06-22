@@ -222,6 +222,10 @@ class CommercialOffersController extends Controller
 
         $query = Email::query()
             ->select($this->emailSourceColumns())
+            ->with(['units' => fn ($unitQuery) => $unitQuery
+                ->without(['fields', 'labels', 'telephones', 'uris'])
+                ->select('units.id', 'units.name')
+                ->orderBy('units.name')])
             ->whereNotNull('address')
             ->when($request->string('q')->toString(), function ($query, string $q): void {
                 $query->where(function ($inner) use ($q): void {
@@ -279,7 +283,7 @@ class CommercialOffersController extends Controller
         $items = $query->paginate($request->integer('per_page', 50));
         $items->getCollection()->transform(function (Unit $unit) use ($selected): array {
             $emails = $unit->emails
-                ->map(fn (Email $email) => $this->sourceEmailPayload($email, $selected))
+                ->map(fn (Email $email) => $this->sourceEmailPayload($email, $selected, $unit))
                 ->filter(fn (array $email) => filter_var($email['address'], FILTER_VALIDATE_EMAIL))
                 ->values();
 
@@ -307,12 +311,47 @@ class CommercialOffersController extends Controller
             'email_ids.*' => ['integer'],
             'unit_ids' => ['nullable', 'array'],
             'unit_ids.*' => ['integer'],
+            'recipients' => ['nullable', 'array'],
+            'recipients.*.email' => ['required_with:recipients', 'string'],
+            'recipients.*.name' => ['nullable', 'string'],
+            'recipients.*.company_name' => ['nullable', 'string'],
+            'recipients.*.source' => ['nullable', 'string'],
+            'recipients.*.source_email_id' => ['nullable', 'integer'],
+            'recipients.*.source_unit_id' => ['nullable', 'integer'],
+            'recipients.*.source_unit_name' => ['nullable', 'string'],
             'replace' => ['nullable', 'boolean'],
         ]);
 
         $emails = collect($data['emails'] ?? [])
             ->map(fn ($email) => ['email' => MailingContact::normalizeEmail($email), 'source' => 'manual'])
             ->filter(fn (array $item) => filter_var($item['email'], FILTER_VALIDATE_EMAIL));
+
+        $recipientRows = collect($data['recipients'] ?? []);
+        $recipientEmailIds = $recipientRows
+            ->pluck('source_email_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        $recipientEmailsById = $recipientEmailIds->isNotEmpty()
+            ? Email::query()->select($this->emailSourceColumns())->whereIn('id', $recipientEmailIds)->get()->keyBy('id')
+            : collect();
+
+        $recipientRows->each(function (array $row) use (&$emails, $recipientEmailsById): void {
+            $sourceEmail = isset($row['source_email_id']) ? $recipientEmailsById->get((int) $row['source_email_id']) : null;
+            $sourceUnitName = trim((string) ($row['source_unit_name'] ?? $row['company_name'] ?? ''));
+
+            $emails->push(array_filter([
+                'email' => MailingContact::normalizeEmail($row['email'] ?? ''),
+                'name' => trim((string) ($row['name'] ?? '')),
+                'company_name' => trim((string) ($row['company_name'] ?? $sourceUnitName)),
+                'source' => $row['source'] ?? ($sourceUnitName !== '' ? 'unit' : 'email'),
+                'source_email' => $sourceEmail instanceof Email ? $sourceEmail : null,
+                'source_email_id' => $row['source_email_id'] ?? null,
+                'source_unit_id' => $row['source_unit_id'] ?? null,
+                'source_unit_name' => $sourceUnitName !== '' ? $sourceUnitName : null,
+            ], fn ($value) => $value !== null && $value !== ''));
+        });
 
         if (! empty($data['email_ids'])) {
             Email::query()
@@ -368,7 +407,9 @@ class CommercialOffersController extends Controller
                 'campaign_id' => $campaign->id,
                 'contact_id' => $contact->id,
                 'source' => $item['source'],
-                'source_email_id' => $item['source_email']->id ?? null,
+                'name' => $item['name'] ?? null,
+                'company_name' => $item['company_name'] ?? null,
+                'source_email_id' => $item['source_email']->id ?? ($item['source_email_id'] ?? null),
                 'source_unit_id' => $item['source_unit_id'] ?? null,
                 'source_unit_name' => $item['source_unit_name'] ?? null,
             ], fn ($value) => $value !== null && $value !== ''));
@@ -1106,6 +1147,10 @@ class CommercialOffersController extends Controller
     {
         $metadata = $recipient->metadata ?: [];
         $contact = $recipient->contact;
+        $firstName = $contact?->first_name ?: ($metadata['name'] ?? null);
+        $lastName = $contact?->last_name;
+        $name = trim(implode(' ', array_filter([$firstName, $lastName])));
+        $companyName = $contact?->company_name ?: ($metadata['source_unit_name'] ?? null);
 
         return [
             'id' => $recipient->id,
@@ -1113,10 +1158,12 @@ class CommercialOffersController extends Controller
             'normalized_email' => $recipient->normalized_email,
             'status' => $recipient->status,
             'contact_id' => $recipient->contact_id,
-            'first_name' => $contact?->first_name,
-            'last_name' => $contact?->last_name,
-            'company_name' => $contact?->company_name,
+            'name' => $name !== '' ? $name : null,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'company_name' => $companyName,
             'source' => $metadata['source'] ?? $contact?->contact_source,
+            'source_email_id' => $metadata['source_email_id'] ?? null,
             'source_unit_id' => $metadata['source_unit_id'] ?? null,
             'source_unit_name' => $metadata['source_unit_name'] ?? null,
             'locked' => (bool) ($recipient->sent_at || $recipient->unisender_job_id),
@@ -1128,15 +1175,24 @@ class CommercialOffersController extends Controller
         ];
     }
 
-    private function sourceEmailPayload(Email $email, array $selected = []): array
+    private function sourceEmailPayload(Email $email, array $selected = [], ?Unit $unit = null): array
     {
         $normalized = MailingContact::normalizeEmail($email->address);
+        $units = $unit
+            ? collect([$unit])
+            : ($email->relationLoaded('units') ? $email->units : collect());
+        $unitNames = $units->pluck('name')->filter()->values();
 
         return [
             'id' => $email->id,
             'address' => $email->address,
             'normalized_email' => $normalized,
             'name' => $email->getAttribute('name'),
+            'company_name' => $unitNames->first(),
+            'unit_ids' => $units->pluck('id')->filter()->values(),
+            'unit_names' => $unitNames,
+            'source_unit_id' => $unit?->id,
+            'source_unit_name' => $unit?->name,
             'domain' => $email->getAttribute('domain'),
             'source' => $email->getAttribute('source'),
             'comment' => $email->getAttribute('comment'),
@@ -1152,6 +1208,8 @@ class CommercialOffersController extends Controller
         $normalized = MailingContact::normalizeEmail($item['email'] ?? '');
         $contact = MailingContact::query()->firstOrNew(['normalized_email' => $normalized]);
         $isNew = ! $contact->exists;
+        $sourceUnitName = trim((string) ($item['source_unit_name'] ?? $item['company_name'] ?? ''));
+        $displayName = trim((string) ($item['name'] ?? ''));
 
         if (($item['source_email'] ?? null) instanceof Email) {
             $contactData = $this->mailingContactDataFromEmail($item['source_email'], 'unknown', $isNew);
@@ -1159,6 +1217,8 @@ class CommercialOffersController extends Controller
             $contactData = [
                 'email' => $normalized,
                 'normalized_email' => $normalized,
+                'first_name' => $displayName !== '' ? $displayName : null,
+                'company_name' => $sourceUnitName !== '' ? $sourceUnitName : null,
                 'consent_status' => $isNew ? 'unknown' : null,
                 'contact_source' => 'campaign_picker',
                 'source_type' => 'manual',
@@ -1167,8 +1227,17 @@ class CommercialOffersController extends Controller
             ];
         }
 
+        if ($sourceUnitName !== '' && empty($contact->company_name)) {
+            $contactData['company_name'] = $sourceUnitName;
+        }
+
+        if ($displayName !== '' && empty($contact->first_name)) {
+            $contactData['first_name'] = $displayName;
+        }
+
         $contactData['custom_fields'] = array_replace($contact->custom_fields ?? [], $contactData['custom_fields'] ?? [], array_filter([
             'campaign_picker_source' => $item['source'] ?? null,
+            'source_email_id' => $item['source_email']->id ?? ($item['source_email_id'] ?? null),
             'source_unit_id' => $item['source_unit_id'] ?? null,
             'source_unit_name' => $item['source_unit_name'] ?? null,
         ], fn ($value) => $value !== null && $value !== ''));
