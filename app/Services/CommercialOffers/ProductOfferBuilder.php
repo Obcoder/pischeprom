@@ -70,7 +70,13 @@ class ProductOfferBuilder
     public function addProductToCampaign($campaignId, $productId, array $overrides = []): MailingOfferItem
     {
         $good = Good::query()
-            ->with(['products.category', 'publishedMedia', 'priceTypeValues.priceType.currency', 'priceTypeValues.currency'])
+            ->with([
+                'products.category',
+                'publishedMedia' => fn ($q) => $q->where('type', 'image')->where('is_published', true)->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
+                'images' => fn ($q) => $q->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),
+                'priceTypeValues.priceType.currency',
+                'priceTypeValues.currency',
+            ])
             ->findOrFail($productId);
 
         $snapshot = $this->createProductSnapshot($good);
@@ -101,7 +107,7 @@ class ProductOfferBuilder
             'category_id' => $category->id,
             'item_type' => 'category',
             'title' => $options['title'] ?? $category->name,
-            'thumbnail_url' => $options['thumbnail_url'] ?? $this->absoluteUrl($category->image ?: $category->og_image),
+            'thumbnail_url' => $options['thumbnail_url'] ?? $this->safeImageUrl($category->image ?: $category->og_image),
             'canonical_url' => $options['canonical_url'] ?? $this->categoryUrl($category),
             'description' => $options['description'] ?? ($category->short_description ?: $category->description),
             'sort_order' => $options['sort_order'] ?? 0,
@@ -116,7 +122,10 @@ class ProductOfferBuilder
     public function createProductSnapshot($product): array
     {
         /** @var Good $product */
-        $media = $product->publishedMedia->first() ?: $product->images->first();
+        $media = $product->publishedMedia
+            ->where('type', 'image')
+            ->first()
+            ?: $product->images->where('type', 'image')->first();
         $price = $product->priceTypeValues->first();
         $category = $product->products->first()?->category ?: $product->products->first();
 
@@ -126,7 +135,7 @@ class ProductOfferBuilder
             'sku' => (string) $product->id,
             'title' => $product->name,
             'name' => $product->name,
-            'thumbnail_url' => $this->absoluteUrl($media?->thumb_url ?: $media?->url ?: $product->ava_thumb ?: $product->ava_image),
+            'thumbnail_url' => $this->safeImageUrl($media?->thumb_url ?: $media?->url ?: $product->ava_thumb ?: $product->ava_image),
             'price' => $price?->price_gross ?? $price?->price_net,
             'currency' => $price?->currency?->code ?: $price?->priceType?->currency?->code ?: 'RUB',
             'canonical_url' => $this->goodUrl($product),
@@ -204,5 +213,27 @@ class ProductOfferBuilder
         }
 
         return rtrim((string) config('app.url'), '/').'/'.ltrim($url, '/');
+    }
+
+    private function safeImageUrl(?string $url): ?string
+    {
+        $rawUrl = trim((string) $url);
+        $lowerRawUrl = Str::lower($rawUrl);
+        if ($rawUrl === '' || str_starts_with($lowerRawUrl, 'data:')) {
+            return null;
+        }
+
+        $url = $this->absoluteUrl($url);
+        if ($url === null) {
+            return null;
+        }
+
+        $path = Str::lower((string) parse_url($url, PHP_URL_PATH));
+
+        if (preg_match('/\.(mp4|m4v|mov|webm|avi|mkv|mpeg|mpg|ogv|m3u8|pdf|doc|docx|xls|xlsx|zip|rar)(?:$|\?)/i', $path)) {
+            return null;
+        }
+
+        return $url;
     }
 }

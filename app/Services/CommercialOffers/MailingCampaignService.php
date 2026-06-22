@@ -509,7 +509,7 @@ class MailingCampaignService
         $plaintext = $this->renderer->renderPlaintext($campaign, $firstContact, $offerItems, $recipients->count() === 1 ? $firstRecipient : null);
         $idempotenceKey = 'campaign-'.$campaign->id.'-'.Str::uuid();
 
-        return [
+        $message = [
             'recipients' => $recipients->values()->map(function (MailingCampaignRecipient $recipient) use ($campaign) {
                 $contact = $recipient->contact;
 
@@ -540,6 +540,10 @@ class MailingCampaignService
                 'send_at' => $campaign->scheduled_at instanceof CarbonInterface ? $campaign->scheduled_at->toIso8601String() : null,
             ]),
         ];
+
+        $this->assertRenderedMessageIsSafe($message);
+
+        return $message;
     }
 
     private function createMailingMessages(MailingCampaign $campaign, Collection|\Illuminate\Support\Collection $recipients, array $message): \Illuminate\Support\Collection
@@ -606,6 +610,8 @@ class MailingCampaignService
             'subject' => $message['subject'] ?? null,
             'from_email' => $message['from_email'] ?? null,
             'recipients_count' => count($message['recipients'] ?? []),
+            'html_bytes' => strlen((string) Arr::get($message, 'body.html', '')),
+            'plaintext_bytes' => strlen((string) Arr::get($message, 'body.plaintext', '')),
             'track_links' => $message['track_links'] ?? null,
             'track_read' => $message['track_read'] ?? null,
             'template_id' => $message['template_id'] ?? null,
@@ -613,6 +619,25 @@ class MailingCampaignService
             'tags' => $message['tags'] ?? null,
             'idempotence_key' => $message['idempotence_key'] ?? null,
         ];
+    }
+
+    private function assertRenderedMessageIsSafe(array $message): void
+    {
+        $html = (string) Arr::get($message, 'body.html', '');
+        $plaintext = (string) Arr::get($message, 'body.plaintext', '');
+        $errors = $this->renderer->validateEmailHtml($html);
+        $payloadBytes = strlen($html)
+            + strlen($plaintext)
+            + strlen((string) ($message['subject'] ?? ''))
+            + strlen(json_encode($message['recipients'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '');
+
+        if ($payloadBytes > MailingRenderer::MAX_MESSAGE_BYTES) {
+            $errors[] = 'Rendered email payload is too large: '.$this->formatBytes($payloadBytes).'. Limit is '.$this->formatBytes(MailingRenderer::MAX_MESSAGE_BYTES).'. Remove embedded/base64 media or reduce content.';
+        }
+
+        if ($errors !== []) {
+            throw new RuntimeException(implode(' ', array_unique($errors)));
+        }
     }
 
     private function assertRecipientCanReceiveTest(string $email): void
@@ -672,7 +697,16 @@ class MailingCampaignService
             return $message.' Attempted recipient: '.$email.'. Sender: '.$this->providerFromEmail().'. Check Unisender suppression/blocklist, free tier checked recipients/domains, recipient validity, and confirmed sender domain.';
         }
 
+        if (str_contains($lower, 'message size limits') || str_contains($lower, 'exceeded google')) {
+            return $message.' Rendered email was rejected by recipient server because it is too large. Remove embedded/base64 media, video, or reduce offer content.';
+        }
+
         return $message;
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        return round($bytes / 1024 / 1024, 2).' MiB';
     }
 
     private function isPublicEmailDomain(string $email): bool

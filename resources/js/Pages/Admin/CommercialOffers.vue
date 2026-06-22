@@ -546,6 +546,13 @@ function isHttpsUrl(value) {
     return /^https:\/\/[^ ]+/i.test(normalizeHttpsUrl(value))
 }
 
+function isEmailImageUrl(value) {
+    const url = normalizeHttpsUrl(value)
+    if (!isHttpsUrl(url)) return false
+    if (/^data:/i.test(url)) return false
+    return !/\.(mp4|m4v|mov|webm|avi|mkv|mpeg|mpg|ogv|m3u8|pdf|doc|docx|xls|xlsx|zip|rar)(?:[?#].*)?$/i.test(url)
+}
+
 function imageSnippet(url, alt = '', link = '') {
     const safeUrl = escapeAttr(normalizeHttpsUrl(url))
     const safeAlt = escapeAttr(alt || 'Изображение')
@@ -572,6 +579,10 @@ function insertImageFromUrl(mode = 'image') {
     const url = normalizeHttpsUrl(imageForm.url)
     if (!isHttpsUrl(url)) {
         error.value = 'image URL must be absolute HTTPS, for example https://food-server.ru/logo.png'
+        return
+    }
+    if (!isEmailImageUrl(url)) {
+        error.value = 'image URL must point to an image, not video/document/archive. Use product page link for video.'
         return
     }
 

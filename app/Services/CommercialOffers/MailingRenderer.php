@@ -10,6 +10,8 @@ use Illuminate\Support\Str;
 
 class MailingRenderer
 {
+    public const MAX_MESSAGE_BYTES = 20 * 1024 * 1024;
+
     public function renderCampaignHtml(MailingCampaign $campaign, MailingContact $contact, array $products = [], ?MailingCampaignRecipient $recipient = null): string
     {
         $html = $recipient?->personal_html_markup ?: $campaign->html_markup ?: $campaign->template?->html_markup ?: $this->defaultMarkup();
@@ -72,13 +74,13 @@ class MailingRenderer
         $currency = $data['currency'] ?? 'RUB';
         $utmContent = 'product_'.($data['product_id'] ?? 'custom');
         $url = $this->withUtm((string) ($data['canonical_url'] ?? config('app.url')), $campaign, $utmContent);
-        $image = (string) ($data['thumbnail_url'] ?? '');
+        $image = $this->safeEmailImageUrl((string) ($data['thumbnail_url'] ?? ''));
         $sku = trim((string) ($data['sku'] ?? $snapshot['sku'] ?? ''));
         $category = trim((string) ($snapshot['category'] ?? ''));
         $meta = collect([$sku !== '' ? 'SKU '.$sku : null, $category ?: null])->filter()->implode(' / ');
         $imageHtml = $image !== ''
             ? '<img src="'.e($image).'" alt="'.$title.'" width="52" height="52" style="display:block;width:52px;height:52px;object-fit:cover;border:0;border-radius:6px;background:#eef4ea;">'
-            : '<span style="display:block;width:52px;height:52px;line-height:52px;text-align:center;border-radius:6px;background:#eef4ea;color:#6c7c68;font-size:10px;">КП</span>';
+            : '<span style="display:block;width:52px;height:52px;border-radius:6px;background:#eef4ea;">&nbsp;</span>';
         $priceHtml = $price !== null
             ? e(number_format((float) $price, 2, ',', ' ')).' '.e($currency)
             : 'по запросу';
@@ -121,8 +123,17 @@ class MailingRenderer
         if (! str_contains($html, 'unsubscribe')) {
             $errors[] = 'Missing unsubscribe link/block.';
         }
-        if (strlen($html) > 1024 * 1024) {
-            $errors[] = 'HTML is larger than 1MB.';
+        if (strlen($html) > self::MAX_MESSAGE_BYTES) {
+            $errors[] = 'Email HTML is too large: '.$this->formatBytes(strlen($html)).'. Limit is '.$this->formatBytes(self::MAX_MESSAGE_BYTES).'. Remove embedded/base64 media or reduce content.';
+        }
+        if (preg_match('/\bdata:(?:image|video|application)\//i', $html)) {
+            $errors[] = 'Embedded base64/data media is not allowed in email. Upload images and use public HTTPS URLs.';
+        }
+        if (preg_match('/<(?:video|source)\b/i', $html)) {
+            $errors[] = 'Video tags are not allowed in email. Use a regular HTTPS product page link instead.';
+        }
+        if (preg_match('/src=["\'][^"\']+\.(?:mp4|m4v|mov|webm|avi|mkv|mpeg|mpg|ogv|m3u8)(?:\?|#|["\'])/i', $html)) {
+            $errors[] = 'Video URLs cannot be used as email image sources.';
         }
         if (preg_match('/src=["\']http:\/\//i', $html)) {
             $errors[] = 'Images must use HTTPS URLs.';
@@ -170,5 +181,31 @@ class MailingRenderer
             'utm_campaign' => Str::slug($campaign->name) ?: $campaign->id,
             'utm_content' => $content,
         ]);
+    }
+
+    private function safeEmailImageUrl(string $url): string
+    {
+        $url = trim($url);
+        $lowerUrl = Str::lower($url);
+
+        if ($url === '' || str_starts_with($lowerUrl, 'data:')) {
+            return '';
+        }
+
+        $path = Str::lower((string) parse_url($url, PHP_URL_PATH));
+        if (preg_match('/\.(mp4|m4v|mov|webm|avi|mkv|mpeg|mpg|ogv|m3u8|pdf|doc|docx|xls|xlsx|zip|rar)$/i', $path)) {
+            return '';
+        }
+
+        if (! str_starts_with($lowerUrl, 'https://')) {
+            return '';
+        }
+
+        return $url;
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        return round($bytes / 1024 / 1024, 2).' MiB';
     }
 }

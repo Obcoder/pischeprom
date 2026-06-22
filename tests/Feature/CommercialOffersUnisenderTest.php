@@ -11,6 +11,7 @@ use App\Models\MailingSuppression;
 use App\Models\MailingTemplate;
 use App\Services\CommercialOffers\MailingCampaignService;
 use App\Services\CommercialOffers\MailingRenderer;
+use App\Services\CommercialOffers\ProductOfferBuilder;
 use App\Services\CommercialOffers\RecipientSetService;
 use App\Services\CommercialOffers\UnisenderGoClient;
 use App\Services\CommercialOffers\UnisenderWebhookPayload;
@@ -146,6 +147,24 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->assertStringContainsString('utm_source=unisender', $html);
         $this->assertStringContainsString($recipient->unsubscribe_token, $html);
         $this->assertStringContainsString('Насос пищевой', $text);
+    }
+
+    public function test_renderer_blocks_embedded_media_video_tags_and_oversized_html(): void
+    {
+        $renderer = app(MailingRenderer::class);
+
+        $errors = $renderer->validateEmailHtml(
+            '<p>unsubscribe</p><img src="data:image/png;base64,'.str_repeat('a', 100).'"><video src="https://pischeprom.test/v.mp4"></video>'
+        );
+
+        $this->assertContains('Embedded base64/data media is not allowed in email. Upload images and use public HTTPS URLs.', $errors);
+        $this->assertContains('Video tags are not allowed in email. Use a regular HTTPS product page link instead.', $errors);
+
+        $oversized = '<p>unsubscribe</p>'.str_repeat('x', MailingRenderer::MAX_MESSAGE_BYTES + 1);
+        $this->assertNotEmpty(array_filter(
+            $renderer->validateEmailHtml($oversized),
+            fn (string $error) => str_contains($error, 'Email HTML is too large')
+        ));
     }
 
     public function test_recipient_sets_exclude_blocked_and_unconfirmed_contacts(): void
@@ -559,6 +578,49 @@ class CommercialOffersUnisenderTest extends TestCase
             ->assertJsonPath('products.0.source_table', 'goods')
             ->assertJsonPath('products.0.price_formatted', '120,00 RUB')
             ->assertJsonPath('products.0.thumbnail_url', 'https://pischeprom.test/i/lecithin-thumb.jpg');
+    }
+
+    public function test_product_video_media_is_not_used_as_commercial_offer_thumbnail(): void
+    {
+        $this->createCatalogTables();
+
+        DB::table('currencies')->insert(['id' => 1, 'code' => 'RUB']);
+        DB::table('price_types')->insert(['id' => 1, 'currency_id' => 1]);
+        DB::table('goods')->insert([
+            'id' => 8,
+            'name' => 'Шар пробный',
+            'slug' => 'test-ball',
+            'ava_image' => 'https://pischeprom.test/video/test-ball.mp4',
+            'ava_thumb' => null,
+            'description' => 'Видео есть, картинки нет',
+            'is_published' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('good_media')->insert([
+            'id' => 2,
+            'good_id' => 8,
+            'type' => 'video',
+            'url' => 'https://pischeprom.test/video/test-ball.mp4',
+            'thumb_url' => null,
+            'is_published' => 1,
+            'is_ava' => 1,
+            'sort_order' => 1,
+        ]);
+        DB::table('good_price_type_values')->insert(['id' => 2, 'good_id' => 8, 'price_type_id' => 1, 'currency_id' => 1, 'price_net' => 100, 'price_gross' => 120, 'is_published' => 1, 'updated_at' => now()]);
+        $campaign = $this->campaign();
+
+        $this->get('/Ameise/commercial-offers/products/search?q=шар')
+            ->assertOk()
+            ->assertJsonPath('products.0.thumbnail_url', null);
+
+        $item = app(ProductOfferBuilder::class)->addProductToCampaign($campaign->id, 8);
+
+        $this->assertNull($item->thumbnail_url);
+        $html = app(MailingRenderer::class)->renderProductCard($item, $campaign);
+        $this->assertStringNotContainsString('.mp4', $html);
+        $this->assertStringNotContainsString('<video', $html);
+        $this->assertStringContainsString('width:52px;height:52px', $html);
     }
 
     public function test_campaign_recipients_can_be_managed_from_emails_and_units(): void
