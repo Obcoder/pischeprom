@@ -216,7 +216,7 @@ class MailingCampaignService
         $campaign = $this->syncCampaignProviderSender($campaign);
         $this->validateBeforeSend($campaign);
 
-        if (in_array($campaign->status, ['sending', 'completed', 'cancelled'], true)) {
+        if (in_array($campaign->status, ['completed', 'cancelled'], true)) {
             throw new RuntimeException('Campaign is already '.$campaign->status.'.');
         }
 

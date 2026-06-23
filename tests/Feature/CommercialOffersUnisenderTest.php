@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendMailingCampaignJob;
 use App\Models\MailingCampaign;
 use App\Models\MailingCampaignRecipient;
 use App\Models\MailingContact;
@@ -19,6 +20,7 @@ use App\Services\CommercialOffers\UnisenderWebhookService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Tests\TestCase;
@@ -232,6 +234,40 @@ class CommercialOffersUnisenderTest extends TestCase
                 && (int) $recipients[0]['metadata']['campaign_id'] > 0
                 && (int) $recipients[0]['metadata']['campaign_recipient_id'] > 0;
         });
+    }
+
+    public function test_async_campaign_job_processes_campaign_already_marked_sending(): void
+    {
+        config(['queue.default' => 'database']);
+        Queue::fake();
+        Http::fake([
+            '*email/send.json*' => Http::response([
+                'job_id' => 'async-job-1',
+                'failed_emails' => [],
+            ]),
+        ]);
+
+        $campaign = $this->campaign(['contact_set_id' => null]);
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/recipients", [
+            'emails' => ['async@example.test'],
+        ])->assertOk();
+
+        $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/start")
+            ->assertOk()
+            ->assertJsonPath('status', 'queued');
+
+        Queue::assertPushed(SendMailingCampaignJob::class);
+        $this->assertSame('sending', $campaign->fresh()->status);
+
+        (new SendMailingCampaignJob($campaign->id))->handle(app(MailingCampaignService::class));
+
+        $this->assertSame('completed', $campaign->fresh()->status);
+        $this->assertDatabaseHas('mailing_campaign_recipients', [
+            'campaign_id' => $campaign->id,
+            'email' => 'async@example.test',
+            'status' => 'accepted',
+            'unisender_job_id' => 'async-job-1',
+        ]);
     }
 
     public function test_campaign_test_send_requires_valid_email_without_500(): void
