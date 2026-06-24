@@ -11,11 +11,13 @@ const {
     saving,
     goods,
     products,
+    fields,
     vatRates,
     totalItems,
     publishLoading,
     indexGoods: fetchGoods,
     indexProducts: fetchProducts,
+    indexFields: fetchFields,
     indexVatRates: fetchVatRates,
     showGood: fetchGood,
     saveGood: persistGood,
@@ -67,6 +69,7 @@ const form = useForm({
     vat_rate_id: null,
     is_published: true,
     products: [],
+    fields: [],
     ava_image: null,     // File | null
     remove_ava: false,   // bool
 })
@@ -75,6 +78,7 @@ const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '175px' },
     { key: 'ava_image', title: '', sortable: false, width: '200px' },
     { key: 'name', title: 'Good', sortable: true },
+    { key: 'fields', title: 'Fields', sortable: false, width: '220px' },
     { key: 'vat_rate', title: 'НДС', sortable: false, width: '140px' },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
     { key: 'created_at', title: 'Создан', sortable: true, width: '200px' },
@@ -168,6 +172,7 @@ function openCreate() {
     form.vat_rate_id = null
     form.is_published = true
     form.products = []
+    form.fields = []
     form.ava_image = null
     form.remove_ava = false
     dialogForm.value = true
@@ -183,6 +188,7 @@ function openEdit(g) {
     form.vat_rate_id = g.vat_rate_id ?? null
     form.is_published = !!g.is_published
     form.products = (g.products || []).map(p => p.id)
+    form.fields = (g.fields || []).map(field => field.id)
     form.ava_image = null
     form.remove_ava = false
     dialogForm.value = true
@@ -246,6 +252,7 @@ onMounted(async () => {
     await Promise.all([
         reloadGoods(),
         fetchProducts(),
+        fetchFields(),
         fetchVatRates(),
     ])
 })
@@ -353,6 +360,24 @@ onBeforeUnmount(() => {
                         >
                             {{ item.name }}
                         </Link>
+                    </template>
+
+                    <template #item.fields="{ item }">
+                        <div v-if="(item.fields || []).length" class="goods-field-strip">
+                            <v-chip
+                                v-for="field in item.fields.slice(0, 3)"
+                                :key="field.id"
+                                size="x-small"
+                                variant="tonal"
+                                color="teal"
+                            >
+                                {{ field.title || field.name }}
+                            </v-chip>
+                            <v-chip v-if="item.fields.length > 3" size="x-small" variant="outlined">
+                                +{{ item.fields.length - 3 }}
+                            </v-chip>
+                        </div>
+                        <span v-else class="text-caption text-medium-emphasis">—</span>
                     </template>
 
                     <template #item.vat_rate="{ item }">
@@ -471,6 +496,23 @@ onBeforeUnmount(() => {
                             {{ p.rus }}
                         </v-chip>
                     </v-col>
+
+                    <v-col cols="12">
+                        <div class="text-caption mb-1">Fields / подборки</div>
+                        <v-chip
+                            v-for="field in (selectedGood.fields || [])"
+                            :key="field.id"
+                            size="x-small"
+                            class="ma-1"
+                            color="teal"
+                            variant="tonal"
+                        >
+                            {{ field.title || field.name }}
+                        </v-chip>
+                        <span v-if="!(selectedGood.fields || []).length" class="text-caption text-medium-emphasis">
+                            Не привязан
+                        </span>
+                    </v-col>
                 </v-row>
             </v-container>
         </v-navigation-drawer>
@@ -496,6 +538,23 @@ onBeforeUnmount(() => {
                                 variant="outlined"
                                 density="comfortable"
                                 :error-messages="form.errors.products"
+                            />
+                        </v-col>
+
+                        <v-col cols="12">
+                            <v-autocomplete
+                                v-model="form.fields"
+                                :items="fields"
+                                item-title="title"
+                                item-value="id"
+                                label="Fields / подборки"
+                                multiple
+                                chips
+                                clearable
+                                closable-chips
+                                variant="outlined"
+                                density="comfortable"
+                                :error-messages="form.errors.fields"
                             />
                         </v-col>
 
@@ -629,6 +688,14 @@ onBeforeUnmount(() => {
 
 .goods-table-footer__select {
     max-width: 84px;
+}
+
+.goods-field-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 48px;
+    overflow: hidden;
 }
 
 :deep(.goods-table-footer__select .v-field) {

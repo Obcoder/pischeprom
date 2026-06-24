@@ -44,6 +44,7 @@ use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\CustomerDashboardController;
 use App\Http\Controllers\Web\CustomerProfileController;
 use App\Http\Controllers\Web\EntityLookupController;
+use App\Http\Controllers\Web\FieldController as WebFieldController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
 use App\Http\Controllers\Web\LocationController;
 use App\Http\Controllers\Web\ProductController as WebProductController;
@@ -87,6 +88,9 @@ Route::get('/g', [WebGoodController::class, 'index'])
 
 Route::get('/g/{good}', [WebGoodController::class, 'show'])
     ->name('public.goods.show');
+
+Route::get('/подборки/{field}', [WebFieldController::class, 'show'])
+    ->name('public.fields.show');
 
 Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
     return redirect()->route('public.goods.show', [

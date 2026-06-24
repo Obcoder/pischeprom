@@ -1,10 +1,11 @@
 <script setup>
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import {logo} from "@/Pages/Helpers/consts.js";
-import {ref} from "vue";
+import {computed, ref} from "vue";
 import {Link, router} from "@inertiajs/vue3";
 import {useHead} from "@vueuse/head";
 import {usePublicGoodUrl} from "@/Composables/usePublicGoodUrl";
+import {useAppRoute} from "@/Composables/useAppRoute";
 
 defineOptions({
     layout: LayoutDefault,
@@ -21,17 +22,43 @@ const props = defineProps({
             search: '',
         }),
     },
+    field: {
+        type: Object,
+        default: null,
+    },
 })
 
 const { goodPublicUrl } = usePublicGoodUrl()
+const { route: appRoute } = useAppRoute()
 const searchGoods = ref(props.filters.search || '')
 let searchTimer = null
+
+const isFieldPage = computed(() => Boolean(props.field?.id))
+const pageTitle = computed(() => {
+    if (isFieldPage.value) {
+        return `${props.field.title || props.field.name} — подборка товаров ПИЩЕПРОМ-СЕРВЕР`
+    }
+
+    return 'Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки'
+})
+
+const pageDescription = computed(() => {
+    if (isFieldPage.value) {
+        return props.field.description || `Товары подборки ${props.field.title || props.field.name}`
+    }
+
+    return 'Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки'
+})
 
 function indexGoods() {
     clearTimeout(searchTimer)
 
     searchTimer = setTimeout(() => {
-        router.get(route('public.goods.index'), {
+        const target = isFieldPage.value
+            ? appRoute('public.fields.show', props.field.slug || props.field.id)
+            : appRoute('public.goods.index')
+
+        router.get(target, {
             search: searchGoods.value || undefined,
         }, {
             preserveState: true,
@@ -42,11 +69,11 @@ function indexGoods() {
 }
 
 useHead({
-    title: `Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки`,
+    title: pageTitle,
     meta: [
         {
             name: 'description',
-            content: `Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки`,
+            content: pageDescription,
         }
     ]
 })
@@ -54,13 +81,29 @@ useHead({
 
 <template>
     <v-container fluid>
+        <v-row v-if="isFieldPage" class="mb-2">
+            <v-col cols="12">
+                <v-card rounded="xl" elevation="1" class="field-heading-card">
+                    <v-card-text>
+                        <div class="text-caption text-medium-emphasis mb-1">Подборка</div>
+                        <h1 class="text-h5 font-weight-bold mb-2">
+                            {{ field.title || field.name }}
+                        </h1>
+                        <p class="mb-0 text-body-2 text-medium-emphasis">
+                            {{ field.description || 'Товары, привязанные к этой подборке.' }}
+                        </p>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+        </v-row>
+
         <v-row>
             <v-col>
                 <v-text-field v-model="searchGoods"
                               @input="indexGoods"
                               density="compact"
                               variant="outlined"
-                              label="Поиск по товарам"
+                              :label="isFieldPage ? 'Поиск по товарам подборки' : 'Поиск по товарам'"
                               placeholder="вводите название товара"
                 ></v-text-field>
             </v-col>
@@ -112,3 +155,12 @@ useHead({
         </v-row>
     </v-container>
 </template>
+
+<style scoped>
+.field-heading-card {
+    background:
+        radial-gradient(circle at 100% 0%, rgba(220, 122, 81, 0.14), transparent 28%),
+        linear-gradient(135deg, #fffdfa 0%, #f5f0e8 100%);
+    border: 1px solid rgba(71, 118, 90, 0.14);
+}
+</style>

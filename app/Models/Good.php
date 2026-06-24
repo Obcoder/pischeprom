@@ -110,6 +110,12 @@ class Good extends Model
             ->withTimestamps();
     }
 
+    public function fields(): BelongsToMany
+    {
+        return $this->belongsToMany(Field::class)
+            ->withTimestamps();
+    }
+
     public function purchases(): BelongsToMany
     {
         return $this->belongsToMany(Purchase::class, 'good_purchase')

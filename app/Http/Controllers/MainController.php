@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Field;
 use App\Models\Good;
 use App\Models\GoodOfTheDay;
 use App\Models\Product;
@@ -27,6 +28,23 @@ class MainController extends Controller
 
         $goodOfTheDay = $this->resolveGoodOfTheDay();
 
+        $fields = Field::query()
+            ->published()
+            ->withCount([
+                'goods as goods_count' => fn ($query) => $query->where('goods.is_published', true),
+            ])
+            ->orderBy('sort_order')
+            ->orderBy('title')
+            ->limit(12)
+            ->get([
+                'id',
+                'title',
+                'slug',
+                'description',
+                'sort_order',
+                'is_published',
+            ]);
+
         $heroGoods = Good::query()
             ->where('is_published', true)
             ->whereNotNull('ava_thumb')
@@ -41,6 +59,7 @@ class MainController extends Controller
 
         return Inertia::render('Welcome', [
             'categories' => $categories,
+            'fields' => $fields,
             'goodOfTheDay' => $goodOfTheDay,
             'productsCount' => Product::query()->count(),
             'goodsCount' => Good::query()->count(),

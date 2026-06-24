@@ -8,6 +8,7 @@ export function useGoods() {
 
     const goods = ref([])
     const products = ref([])
+    const fields = ref([])
     const vatRates = ref([])
     const totalItems = ref(0)
 
@@ -42,6 +43,19 @@ export function useGoods() {
         } catch (e) {
             console.error(e)
             products.value = []
+            throw e
+        }
+    }
+
+    async function indexFields() {
+        try {
+            const { data } = await axios.get(route('fields.index'))
+
+            fields.value = (Array.isArray(data) ? data : (data.data || []))
+                .sort((a, b) => String(a.title || a.name || '').localeCompare(String(b.title || b.name || ''), 'ru'))
+        } catch (e) {
+            console.error(e)
+            fields.value = []
             throw e
         }
     }
@@ -83,6 +97,10 @@ export function useGoods() {
                     fd.append('products[]', String(id))
                 })
 
+                ;(form.fields || []).forEach((id) => {
+                    fd.append('fields[]', String(id))
+                })
+
                 fd.append('ava_image', form.ava_image)
 
                 if (isUpdate) {
@@ -104,6 +122,7 @@ export function useGoods() {
                     vat_rate_id: form.vat_rate_id,
                     is_published: form.is_published,
                     products: form.products,
+                    fields: form.fields,
                     remove_ava: form.remove_ava,
                 }
 
@@ -150,11 +169,13 @@ export function useGoods() {
         saving,
         goods,
         products,
+        fields,
         vatRates,
         totalItems,
         publishLoading,
         indexGoods,
         indexProducts,
+        indexFields,
         indexVatRates,
         showGood,
         saveGood,

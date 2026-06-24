@@ -18,6 +18,7 @@ import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue';
 import RegionsPage from '@/Components/Geography/Regions/RegionsPage.vue';
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
+import Fields from "@/Components/Dictionaries/Fields.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
 import GrossbuchSales from '@/Components/Grossbuch/GrossbuchSales.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
@@ -94,7 +95,6 @@ const components = ref([])
 const countries = ref([])
 const emails = ref([])
 const entityClassifications = ref([])
-const fields = ref([])
 const good = ref(null)
 const goods = ref([])
 const labels = ref([])
@@ -332,26 +332,6 @@ function indexEntityClassifications(){
 
 
 
-//      F I E L D S
-function indexFields(){
-    axios.get(route('fields.index')).then(function (response){
-        fields.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-const headerFields = ref([
-    {
-        key: 'title',
-        title: 'title',
-        align: 'start',
-        sortable: true,
-    },
-])
-// E N D  F I E L D S
-
-
-
 //   L A B E L S
 function indexLabels(){
     axios.get(route('labels.index')).then(function (response) {
@@ -572,7 +552,6 @@ onMounted(()=>{
     indexComponents()
     indexCountries()
     indexEntityClassifications()
-    indexFields()
     indexLabels()
     indexMeasures()
     indexProducts()
@@ -957,30 +936,7 @@ const formatBuildingTitle = (building) => {
                                                 </v-container>
                                             </v-tabs-window-item>
                                             <v-tabs-window-item value="fields">
-                                                <v-container fluid>
-                                                    <v-row>
-                                                        <v-col cols="2">
-                                                            <v-text-field label="Search"
-                                                                          variant="solo-inverted"
-                                                                          density="compact"
-                                                                          hide-details
-                                                            ></v-text-field>
-                                                        </v-col>
-                                                    </v-row>
-                                                    <v-row>
-                                                        <v-col>
-                                                            <v-data-table :items="fields"
-                                                                          items-per-page="100"
-                                                                          :headers="headerFields"
-                                                                          fixed-header
-                                                                          height="500px"
-                                                                          density="compact"
-                                                                          hover
-                                                                          class="border rounded"
-                                                            ></v-data-table>
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-container>
+                                                <Fields />
                                             </v-tabs-window-item>
                                             <v-tabs-window-item value="segments_tab">
                                                 <v-container fluid>

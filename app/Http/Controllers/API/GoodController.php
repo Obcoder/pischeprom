@@ -42,6 +42,7 @@ class GoodController extends Controller
                    'media',
                    'entityClassifications',
                    'industries',
+                   'fields',
                    'priceTypeValues.priceType.currency',
                    'priceTypeValues.currency',
                ]);
@@ -86,6 +87,7 @@ class GoodController extends Controller
                        'priceTypeValues.priceType.currency',
                        'priceTypeValues.currency',
                        'industries',
+                       'fields',
                    ])
             ->published(true)
             ->inRandomOrder()
@@ -108,6 +110,8 @@ class GoodController extends Controller
                                             'products.*' => ['integer', 'exists:products,id'],
                                             'industry_ids' => ['nullable', 'array'],
                                             'industry_ids.*' => ['integer', 'exists:industries,id'],
+                                            'fields' => ['nullable', 'array'],
+                                            'fields.*' => ['integer', 'exists:fields,id'],
                                             'entity_classification_ids' => ['nullable', 'array'],
                                             'entity_classification_ids.*' => ['integer', 'exists:entity_classifications,id'],
                                         ]);
@@ -129,6 +133,10 @@ class GoodController extends Controller
             $good->industries()->sync($validated['industry_ids'] ?? []);
         }
 
+        if (array_key_exists('fields', $validated)) {
+            $good->fields()->sync($validated['fields'] ?? []);
+        }
+
         if (array_key_exists('entity_classification_ids', $validated)) {
             $good->entityClassifications()->sync($validated['entity_classification_ids'] ?? []);
         }
@@ -147,6 +155,7 @@ class GoodController extends Controller
                              'media',
                              'entityClassifications',
                              'industries',
+                             'fields',
                          ]),
             201
         );
@@ -183,6 +192,7 @@ class GoodController extends Controller
                                'priceTypeValues.currency',
                                'entityClassifications',
                                'industries',
+                               'fields',
                                'industries.units' => function ($query): void {
                                    $query
                                        ->without(['fields', 'labels', 'telephones', 'uris'])
@@ -226,6 +236,8 @@ class GoodController extends Controller
                                             'products.*' => ['integer', 'exists:products,id'],
                                             'industry_ids' => ['nullable', 'array'],
                                             'industry_ids.*' => ['integer', 'exists:industries,id'],
+                                            'fields' => ['nullable', 'array'],
+                                            'fields.*' => ['integer', 'exists:fields,id'],
                                             'entity_classification_ids' => ['nullable', 'array'],
                                             'entity_classification_ids.*' => ['integer', 'exists:entity_classifications,id'],
 
@@ -237,6 +249,7 @@ class GoodController extends Controller
                          'ava_image',
                          'products',
                          'industry_ids',
+                         'fields',
                          'entity_classification_ids',
                          'remove_ava',
                      ])
@@ -250,6 +263,10 @@ class GoodController extends Controller
 
         if (array_key_exists('industry_ids', $validated)) {
             $good->industries()->sync($validated['industry_ids'] ?? []);
+        }
+
+        if (array_key_exists('fields', $validated)) {
+            $good->fields()->sync($validated['fields'] ?? []);
         }
 
         if (array_key_exists('entity_classification_ids', $validated)) {
@@ -280,6 +297,7 @@ class GoodController extends Controller
                              'media',
                              'entityClassifications',
                              'industries',
+                             'fields',
                          ])
         );
     }
@@ -388,6 +406,7 @@ class GoodController extends Controller
                              'priceTypeValues.currency',
                              'entityClassifications',
                              'industries',
+                             'fields',
                          ])->toJson(JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
     }

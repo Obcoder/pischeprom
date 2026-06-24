@@ -6,35 +6,13 @@ import { useAppRoute } from "@/Composables/useAppRoute";
 const { route } = useAppRoute();
 
 const props = defineProps({
-    categories: {
+    fields: {
         type: Array,
         default: () => [],
     },
 })
 
-const highlightedNames = ['Рыба', 'Овощи', 'Ягоды', 'Молочные']
-
-const highlightedCategories = computed(() => {
-    return highlightedNames
-        .map((name) => {
-            return props.categories.find((category) => {
-                return String(category.name || '')
-                    .toLowerCase()
-                    .includes(name.toLowerCase())
-            }) || {
-                id: null,
-                name,
-            }
-        })
-})
-
-const badges = [
-    'Оптовые поставки',
-    'Пищевые ингредиенты',
-    'Заморозка',
-    'Бакалея',
-    'HoReCa',
-]
+const visibleFields = computed(() => props.fields.slice(0, 9))
 </script>
 
 <template>
@@ -78,36 +56,27 @@ const badges = [
 
             <v-col cols="12" lg="6">
                 <div class="home-welcome-banner__meta">
-                    <div class="home-welcome-banner__badges">
-                        <span
-                            v-for="badge in badges"
-                            :key="badge"
-                            class="home-welcome-banner__badge"
+                    <div class="home-welcome-banner__fields">
+                        <Link
+                            v-for="field in visibleFields"
+                            :key="field.id"
+                            :href="route('public.fields.show', field.slug || field.id)"
+                            class="home-welcome-banner__field"
                         >
-                            {{ badge }}
-                        </span>
-                    </div>
-
-                    <div class="home-welcome-banner__categories">
-                        <template
-                            v-for="category in highlightedCategories"
-                            :key="category.name"
-                        >
-                            <Link
-                                v-if="category.id"
-                                :href="route('category.show', category.slug || category.id)"
-                                class="home-welcome-banner__category"
-                            >
-                                {{ category.name }}
-                            </Link>
-
-                            <span
-                                v-else
-                                class="home-welcome-banner__category"
-                            >
-                                {{ category.name }}
+                            <span class="home-welcome-banner__field-title">
+                                {{ field.title || field.name }}
                             </span>
-                        </template>
+                            <span class="home-welcome-banner__field-count">
+                                {{ field.goods_count || 0 }} товаров
+                            </span>
+                        </Link>
+
+                        <div
+                            v-if="!visibleFields.length"
+                            class="home-welcome-banner__field home-welcome-banner__field--empty"
+                        >
+                            Опубликованные подборки появятся здесь
+                        </div>
                     </div>
                 </div>
             </v-col>
@@ -173,27 +142,11 @@ const badges = [
     line-height: 1.45;
 }
 
-.home-welcome-banner__badges,
-.home-welcome-banner__categories,
+.home-welcome-banner__fields,
 .home-welcome-banner__actions {
     display: flex;
     flex-wrap: wrap;
     gap: 7px;
-}
-
-.home-welcome-banner__badges {
-    justify-content: flex-end;
-}
-
-.home-welcome-banner__badge {
-    display: inline-flex;
-    padding: 6px 10px;
-    border-radius: 999px;
-    color: #7f1d1d;
-    background: rgba(128, 0, 0, 0.06);
-    border: 1px solid rgba(128, 0, 0, 0.08);
-    font-weight: 700;
-    font-size: 0.82rem;
 }
 
 .home-welcome-banner__actions {
@@ -204,24 +157,53 @@ const badges = [
     text-decoration: none;
 }
 
-.home-welcome-banner__categories {
+.home-welcome-banner__fields {
     justify-content: flex-end;
-    margin-top: 8px;
 }
 
-.home-welcome-banner__category {
-    display: inline-flex;
+.home-welcome-banner__field {
+    display: flex;
     align-items: center;
-    min-height: 30px;
-    padding: 6px 10px;
-    border-radius: 10px;
+    min-width: 138px;
+    min-height: 54px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 9px 12px;
+    border-radius: 14px;
     text-decoration: none;
     color: #3f1d1d;
     background: #fff;
     border: 1px solid rgba(128, 0, 0, 0.10);
     box-shadow: 0 6px 14px rgba(63, 29, 29, 0.05);
-    font-size: 0.84rem;
+    font-size: 0.82rem;
     font-weight: 800;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.home-welcome-banner__field:hover {
+    border-color: rgba(128, 0, 0, 0.24);
+    box-shadow: 0 10px 20px rgba(63, 29, 29, 0.09);
+    transform: translateY(-2px);
+}
+
+.home-welcome-banner__field-title {
+    max-width: 160px;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.home-welcome-banner__field-count {
+    margin-top: 2px;
+    color: #47765a;
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+.home-welcome-banner__field--empty {
+    color: #7a6a62;
+    text-align: center;
 }
 
 @media (max-width: 960px) {
@@ -229,8 +211,7 @@ const badges = [
         padding: 14px;
     }
 
-    .home-welcome-banner__badges,
-    .home-welcome-banner__categories {
+    .home-welcome-banner__fields {
         justify-content: flex-start;
     }
 }

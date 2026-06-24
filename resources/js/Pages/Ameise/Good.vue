@@ -59,9 +59,11 @@ const currencies = ref([]);
 const measures = ref([]);
 const units = ref([]);
 const industries = ref([]);
+const fields = ref([]);
 const vatRates = ref([]);
 const products = ref([]);
 const savingRecommendationClassifications = ref(false);
+const savingFields = ref(false);
 
 const dialogFormQuotation = ref(false);
 const recommendationIndustryIds = ref([]);
@@ -70,8 +72,10 @@ const deletingGood = ref(false);
 const deleteGoodDialog = ref(false);
 const editGoodDialog = ref(false);
 const productsDialog = ref(false);
+const fieldsDialog = ref(false);
 const savingProducts = ref(false);
 const productIds = ref([]);
+const fieldIds = ref([]);
 const goodFormErrors = ref({});
 const goodFormMessage = ref("");
 const clipboardMessage = ref("");
@@ -106,6 +110,10 @@ const goodBoxWeight = computed(() => {
 
 const currentRecommendationIndustries = computed(() => {
     return goodData.value?.industries || [];
+});
+
+const currentFields = computed(() => {
+    return goodData.value?.fields || [];
 });
 
 const recommendationCards = computed(() => {
@@ -318,6 +326,7 @@ async function fetchGood() {
 
     goodData.value = response.data;
     syncRecommendationClassificationForm();
+    syncFieldsForm();
     syncGoodForm();
     syncProductsForm();
 }
@@ -362,6 +371,15 @@ async function fetchIndustries() {
         : response.data.data || [];
 }
 
+async function fetchFields() {
+    const response = await axios.get(route("fields.index"));
+
+    fields.value = (Array.isArray(response.data)
+        ? response.data
+        : response.data.data || [])
+        .sort((a, b) => String(a.title || a.name || "").localeCompare(String(b.title || b.name || ""), "ru"));
+}
+
 async function fetchVatRates() {
     const response = await axios.get("/api/vat-rates");
 
@@ -390,6 +408,7 @@ async function loadPageData() {
             fetchMeasures(),
             fetchUnits(),
             fetchIndustries(),
+            fetchFields(),
             fetchVatRates(),
             fetchProducts(),
         ]);
@@ -407,6 +426,10 @@ async function loadPageData() {
 
 function syncRecommendationClassificationForm() {
     recommendationIndustryIds.value = currentRecommendationIndustries.value.map((industry) => industry.id);
+}
+
+function syncFieldsForm() {
+    fieldIds.value = currentFields.value.map((field) => field.id);
 }
 
 function syncGoodForm() {
@@ -440,6 +463,11 @@ function openGoodEditDialog() {
 function openProductsDialog() {
     syncProductsForm();
     productsDialog.value = true;
+}
+
+function openFieldsDialog() {
+    syncFieldsForm();
+    fieldsDialog.value = true;
 }
 
 async function saveGood() {
@@ -505,6 +533,27 @@ async function saveGoodProducts() {
         console.error(error);
     } finally {
         savingProducts.value = false;
+    }
+}
+
+async function saveGoodFields() {
+    if (!goodData.value?.id) {
+        return;
+    }
+
+    savingFields.value = true;
+
+    try {
+        await axios.patch(`/api/goods/${goodData.value.id}`, {
+            fields: fieldIds.value,
+        });
+
+        await fetchGood();
+        fieldsDialog.value = false;
+    } catch (error) {
+        console.error(error);
+    } finally {
+        savingFields.value = false;
     }
 }
 
@@ -1020,6 +1069,51 @@ onMounted(() => {
             </v-card>
         </v-dialog>
 
+        <v-dialog
+            v-model="fieldsDialog"
+            width="760"
+        >
+            <v-card>
+                <v-card-title>Редактировать подборки</v-card-title>
+
+                <v-card-text>
+                    <v-autocomplete
+                        v-model="fieldIds"
+                        :items="fields"
+                        item-title="title"
+                        item-value="id"
+                        label="Fields / подборки товара"
+                        variant="outlined"
+                        density="compact"
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                    />
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+
+                    <v-btn
+                        variant="text"
+                        @click="fieldsDialog = false"
+                    >
+                        Закрыть
+                    </v-btn>
+
+                    <v-btn
+                        color="#47765a"
+                        variant="flat"
+                        :loading="savingFields"
+                        @click="saveGoodFields"
+                    >
+                        Сохранить
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
         <!-- LOADING -->
         <v-row v-if="pageLoading">
             <v-col cols="12" class="text-center py-10">
@@ -1107,6 +1201,7 @@ onMounted(() => {
                     <v-tab value="prices">Цены</v-tab>
                     <v-tab value="price-types">Виды цен</v-tab>
                     <v-tab value="recommendations">ОКВЭД-рекомендации</v-tab>
+                    <v-tab value="collections">Подборки</v-tab>
                     <v-tab value="media">Media</v-tab>
                     <v-tab value="seo">SEO</v-tab>
                     <v-tab value="sales">Продажи</v-tab>
@@ -1302,6 +1397,51 @@ onMounted(() => {
                                         density="compact"
                                     >
                                         Products пока не привязаны.
+                                    </v-alert>
+                                </v-card-text>
+                            </v-card>
+
+                            <v-card class="overview-action-card mt-3">
+                                <v-card-title class="compact-title">
+                                    <span>Подборки / Fields</span>
+
+                                    <div class="d-flex align-center ga-1">
+                                        <v-chip size="x-small" variant="tonal" color="teal">
+                                            {{ currentFields.length }}
+                                        </v-chip>
+
+                                        <v-btn
+                                            icon="mdi-pencil"
+                                            size="small"
+                                            variant="text"
+                                            @click="openFieldsDialog"
+                                        />
+                                    </div>
+                                </v-card-title>
+
+                                <v-card-text class="py-2">
+                                    <div
+                                        v-if="currentFields.length"
+                                        class="product-chip-strip"
+                                    >
+                                        <v-chip
+                                            v-for="field in currentFields"
+                                            :key="field.id"
+                                            size="small"
+                                            variant="tonal"
+                                            color="teal"
+                                        >
+                                            {{ field.title || field.name }}
+                                        </v-chip>
+                                    </div>
+
+                                    <v-alert
+                                        v-else
+                                        type="info"
+                                        variant="tonal"
+                                        density="compact"
+                                    >
+                                        Подборки пока не привязаны.
                                     </v-alert>
                                 </v-card-text>
                             </v-card>
@@ -1653,6 +1793,79 @@ onMounted(() => {
                     </v-card>
                 </v-window-item>
 
+                <v-window-item value="collections">
+                    <v-card>
+                        <v-card-title class="d-flex align-center justify-space-between">
+                            <span>Подборки товара</span>
+
+                            <v-btn
+                                color="#47765a"
+                                rounded="lg"
+                                density="compact"
+                                variant="tonal"
+                                prepend-icon="mdi-pencil"
+                                @click="openFieldsDialog"
+                            >
+                                Редактировать
+                            </v-btn>
+                        </v-card-title>
+
+                        <v-card-text>
+                            <v-row dense>
+                                <v-col
+                                    v-for="field in currentFields"
+                                    :key="field.id"
+                                    cols="12"
+                                    md="6"
+                                    xl="4"
+                                >
+                                    <v-card class="field-card h-100">
+                                        <v-card-text>
+                                            <div class="d-flex align-start justify-space-between ga-3">
+                                                <div class="min-width-0">
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        Field
+                                                    </div>
+
+                                                    <div class="text-subtitle-1 font-weight-bold">
+                                                        {{ field.title || field.name }}
+                                                    </div>
+
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        /подборки/{{ field.slug || field.id }}
+                                                    </div>
+                                                </div>
+
+                                                <v-chip
+                                                    size="small"
+                                                    variant="tonal"
+                                                    :color="field.is_published ? 'green' : 'grey'"
+                                                >
+                                                    {{ field.is_published ? "published" : "hidden" }}
+                                                </v-chip>
+                                            </div>
+
+                                            <p v-if="field.description" class="text-body-2 mt-3 mb-0">
+                                                {{ field.description }}
+                                            </p>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+
+                            <v-alert
+                                v-if="!currentFields.length"
+                                type="info"
+                                variant="tonal"
+                                density="compact"
+                                class="mb-0"
+                            >
+                                Этот товар пока не входит ни в одну подборку.
+                            </v-alert>
+                        </v-card-text>
+                    </v-card>
+                </v-window-item>
+
                 <!-- MEDIA -->
                 <v-window-item value="media">
                     <GoodMediaTab
@@ -1782,6 +1995,13 @@ onMounted(() => {
 
 .okved-card {
     border: 1px solid rgba(128, 0, 0, 0.16);
+}
+
+.field-card {
+    border: 1px solid rgba(71, 118, 90, 0.22);
+    background:
+        linear-gradient(135deg, rgba(71, 118, 90, 0.08), transparent 58%),
+        rgb(var(--v-theme-surface));
 }
 
 .recommendation-targets {

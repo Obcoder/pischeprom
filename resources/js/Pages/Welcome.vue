@@ -7,7 +7,7 @@ import { useAppRoute } from '@/Composables/useAppRoute'
 
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
-import HomeCategoriesSection from '@/Components/Home/HomeCategoriesSection.vue'
+import HomeFieldCollectionsSection from '@/Components/Home/HomeFieldCollectionsSection.vue'
 import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
@@ -48,6 +48,10 @@ const props = defineProps({
         default: 0,
     },
     categories: {
+        type: Array,
+        default: () => [],
+    },
+    fields: {
         type: Array,
         default: () => [],
     },
@@ -372,7 +376,7 @@ onMounted(() => {
     <div class="welcome-page">
         <section class="welcome-section welcome-section--soft welcome-section--top-search">
             <v-container>
-                <HomeWelcomeBanner :categories="categories" />
+                <HomeWelcomeBanner :fields="fields" />
 
                 <v-row dense class="align-stretch">
                     <v-col cols="12" lg="4">
@@ -413,7 +417,7 @@ onMounted(() => {
             :hero-goods="heroGoods"
         />
 
-        <HomeCategoriesSection :categories="categories" />
+        <HomeFieldCollectionsSection :fields="fields" />
 
         <HomeFeaturedProductsSection
             title="Популярные товары"
