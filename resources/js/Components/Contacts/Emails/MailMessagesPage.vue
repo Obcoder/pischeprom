@@ -5,6 +5,7 @@ import MailMessagesToolbar from './MailMessagesToolbar.vue'
 import MailMessagesTable from './MailMessagesTable.vue'
 import MailMessageReaderDialog from './MailMessageReaderDialog.vue'
 import MailComposerDialog from './MailComposerDialog.vue'
+import MailboxesManagerDialog from './MailboxesManagerDialog.vue'
 
 const {
     messages,
@@ -23,6 +24,7 @@ const {
 
 const readerDialog = ref(false)
 const composerDialog = ref(false)
+const mailboxesDialog = ref(false)
 const replyContext = ref(null)
 let autoRefreshTimer = null
 
@@ -54,6 +56,10 @@ function openComposer() {
     composerDialog.value = true
 }
 
+function openMailboxes() {
+    mailboxesDialog.value = true
+}
+
 function replyToMessage(message) {
     if (!message || message.direction !== 'incoming') {
         return
@@ -68,6 +74,13 @@ async function afterSent() {
     composerDialog.value = false
     replyContext.value = null
     await fetchMessages()
+}
+
+async function afterMailboxesChanged() {
+    await Promise.all([
+        fetchMailboxes(),
+        fetchMessages(),
+    ])
 }
 
 onMounted(async () => {
@@ -102,6 +115,16 @@ onUnmounted(() => {
             </div>
 
             <div class="d-flex align-center ga-2">
+                <v-btn
+                    size="small"
+                    color="cyan"
+                    variant="tonal"
+                    prepend-icon="mdi-email-cog-outline"
+                    @click="openMailboxes"
+                >
+                    Ящики
+                </v-btn>
+
                 <v-btn
                     size="small"
                     color="blue"
@@ -159,5 +182,10 @@ onUnmounted(() => {
         :mailboxes="mailboxes"
         :reply-context="replyContext"
         @sent="afterSent"
+    />
+
+    <MailboxesManagerDialog
+        v-model="mailboxesDialog"
+        @changed="afterMailboxesChanged"
     />
 </template>

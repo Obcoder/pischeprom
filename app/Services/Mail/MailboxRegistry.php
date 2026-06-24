@@ -2,13 +2,16 @@
 
 namespace App\Services\Mail;
 
+use App\Models\Mailbox;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class MailboxRegistry
 {
-    public function all(): array
+    public function all(bool $includeInactive = false): array
     {
         $configured = collect(config('services.yandex_mail.mailboxes', []))
             ->map(fn ($mailbox) => is_array($mailbox) ? $this->normalizeMailbox($mailbox) : null)
@@ -17,47 +20,49 @@ class MailboxRegistry
             ->values()
             ->all();
 
-        if (!empty($configured)) {
-            return $configured;
+        if (empty($configured)) {
+            $legacy = $this->normalizeMailbox([
+                'address' => config('services.yandex_mail.address'),
+                'name' => config('mail.from.name'),
+                'from_name' => config('mail.from.name'),
+                'imap' => config('services.yandex_mail.imap', []),
+                'smtp' => config('mail.mailers.smtp', []),
+                'folders' => config('services.yandex_mail.folders', []),
+            ]);
+
+            $configured = $legacy ? [$legacy] : [];
         }
 
-        $legacy = $this->normalizeMailbox([
-            'address' => config('services.yandex_mail.address'),
-            'name' => config('mail.from.name'),
-            'from_name' => config('mail.from.name'),
-            'imap' => config('services.yandex_mail.imap', []),
-            'smtp' => config('mail.mailers.smtp', []),
-            'folders' => config('services.yandex_mail.folders', []),
-        ]);
+        $mailboxes = collect($configured)->keyBy('address');
 
-        return $legacy ? [$legacy] : [];
+        foreach ($this->databaseMailboxes($includeInactive) as $mailbox) {
+            $mailboxes->put($mailbox['address'], $mailbox);
+        }
+
+        return $this->applyDefault($mailboxes->values()->all());
     }
 
-    public function publicMailboxes(): array
+    public function publicMailboxes(bool $includeInactive = false, bool $management = false): array
     {
-        $default = $this->default();
-
-        return collect($this->all())
-            ->map(fn (array $mailbox) => [
-                'address' => $mailbox['address'],
-                'name' => $mailbox['name'],
-                'label' => trim($mailbox['name'] . ' <' . $mailbox['address'] . '>'),
-                'is_default' => $default && $mailbox['address'] === $default['address'],
-            ])
+        return collect($this->all($includeInactive))
+            ->map(fn (array $mailbox) => $this->publicMailbox($mailbox, $management))
             ->values()
             ->all();
     }
 
     public function default(): ?array
     {
-        return $this->all()[0] ?? null;
+        $mailboxes = $this->all();
+
+        return collect($mailboxes)->first(fn (array $mailbox) => (bool) ($mailbox['is_default'] ?? false))
+            ?: ($mailboxes[0] ?? null);
     }
 
     public function find(?string $address): ?array
     {
         $address = $this->normalizeEmail($address);
 
-        if (!$address) {
+        if (! $address) {
             return null;
         }
 
@@ -68,7 +73,7 @@ class MailboxRegistry
     {
         $mailbox = $this->find($address) ?: $this->default();
 
-        if (!$mailbox) {
+        if (! $mailbox) {
             throw new RuntimeException('Почтовый ящик не настроен.');
         }
 
@@ -98,7 +103,7 @@ class MailboxRegistry
     {
         $mailbox = $this->normalizeMailbox($mailbox);
 
-        if (!$mailbox) {
+        if (! $mailbox) {
             return (string) config('mail.default', 'log');
         }
 
@@ -108,7 +113,7 @@ class MailboxRegistry
             return (string) config('mail.default', 'log');
         }
 
-        $name = 'mailbox_' . substr(sha1($mailbox['address']), 0, 12);
+        $name = 'mailbox_'.substr(sha1($mailbox['address']), 0, 12);
 
         config([
             "mail.mailers.{$name}" => [
@@ -130,7 +135,7 @@ class MailboxRegistry
     {
         $mailbox = $this->normalizeMailbox($mailbox);
 
-        if (!$mailbox) {
+        if (! $mailbox) {
             throw new RuntimeException('Почтовый ящик не настроен.');
         }
 
@@ -155,7 +160,7 @@ class MailboxRegistry
     {
         $address = $this->normalizeEmail($mailbox['address'] ?? null);
 
-        if (!$address) {
+        if (! $address) {
             return null;
         }
 
@@ -163,9 +168,14 @@ class MailboxRegistry
         $fromName = trim((string) ($mailbox['from_name'] ?? '')) ?: $name;
 
         return [
+            'id' => $mailbox['id'] ?? null,
+            'source' => $mailbox['source'] ?? 'config',
+            'can_edit' => (bool) ($mailbox['can_edit'] ?? false),
             'address' => $address,
             'name' => $name,
             'from_name' => $fromName,
+            'is_default' => (bool) ($mailbox['is_default'] ?? false),
+            'is_active' => (bool) ($mailbox['is_active'] ?? true),
             'imap' => [
                 'host' => $this->nullableString(Arr::get($mailbox, 'imap.host')),
                 'port' => (int) (Arr::get($mailbox, 'imap.port') ?: 993),
@@ -190,6 +200,90 @@ class MailboxRegistry
                 ->values()
                 ->all(),
         ];
+    }
+
+    private function databaseMailboxes(bool $includeInactive = false): array
+    {
+        try {
+            if (! Schema::hasTable('mailboxes')) {
+                return [];
+            }
+
+            return Mailbox::query()
+                ->when(! $includeInactive, fn ($query) => $query->where('is_active', true))
+                ->orderByDesc('is_default')
+                ->orderBy('address')
+                ->get()
+                ->map(fn (Mailbox $mailbox) => $this->normalizeMailbox($mailbox->toRegistryArray()))
+                ->filter()
+                ->values()
+                ->all();
+        } catch (Throwable $exception) {
+            logger()->debug('Mailboxes table is not available for registry lookup', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    private function applyDefault(array $mailboxes): array
+    {
+        $hasExplicitDefault = collect($mailboxes)
+            ->contains(fn (array $mailbox) => (bool) ($mailbox['is_default'] ?? false));
+
+        return collect($mailboxes)
+            ->values()
+            ->map(function (array $mailbox, int $index) use ($hasExplicitDefault) {
+                $mailbox['is_default'] = $hasExplicitDefault
+                    ? (bool) ($mailbox['is_default'] ?? false)
+                    : $index === 0;
+
+                return $mailbox;
+            })
+            ->sortByDesc(fn (array $mailbox) => (bool) ($mailbox['is_default'] ?? false))
+            ->values()
+            ->all();
+    }
+
+    private function publicMailbox(array $mailbox, bool $management = false): array
+    {
+        $payload = [
+            'id' => $mailbox['id'] ?? null,
+            'source' => $mailbox['source'] ?? 'config',
+            'can_edit' => (bool) ($mailbox['can_edit'] ?? false),
+            'address' => $mailbox['address'],
+            'name' => $mailbox['name'],
+            'from_name' => $mailbox['from_name'],
+            'label' => trim($mailbox['name'].' <'.$mailbox['address'].'>'),
+            'is_default' => (bool) ($mailbox['is_default'] ?? false),
+            'is_active' => (bool) ($mailbox['is_active'] ?? true),
+        ];
+
+        if (! $management) {
+            return $payload;
+        }
+
+        return array_merge($payload, [
+            'imap' => [
+                'host' => Arr::get($mailbox, 'imap.host'),
+                'port' => Arr::get($mailbox, 'imap.port'),
+                'encryption' => Arr::get($mailbox, 'imap.encryption'),
+                'username' => Arr::get($mailbox, 'imap.username'),
+                'inbox' => Arr::get($mailbox, 'imap.inbox'),
+                'sent' => Arr::get($mailbox, 'imap.sent'),
+            ],
+            'smtp' => [
+                'host' => Arr::get($mailbox, 'smtp.host'),
+                'port' => Arr::get($mailbox, 'smtp.port'),
+                'encryption' => Arr::get($mailbox, 'smtp.encryption'),
+                'username' => Arr::get($mailbox, 'smtp.username'),
+                'timeout' => Arr::get($mailbox, 'smtp.timeout'),
+            ],
+            'folders' => $this->folders($mailbox),
+            'has_imap_password' => filled(Arr::get($mailbox, 'imap.password')),
+            'has_smtp_password' => filled(Arr::get($mailbox, 'smtp.password')),
+        ]);
     }
 
     private function normalizeEmail(?string $email): ?string

@@ -160,9 +160,10 @@ Route::post('emails/{email}/entities/sync', [EmailRelationController::class, 'sy
 Route::apiResource('emails', EmailController::class);
 
 use App\Http\Controllers\API\MailMessageActionController;
+use App\Http\Controllers\API\MailboxController;
 use App\Http\Controllers\API\MailMessageController;
-Route::get('mailboxes', [MailMessageController::class, 'mailboxes'])
-    ->name('mailboxes.index');
+Route::apiResource('mailboxes', MailboxController::class)
+    ->only(['index', 'store', 'show', 'update', 'destroy']);
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
     ->name('mail-messages.folders');
 Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
