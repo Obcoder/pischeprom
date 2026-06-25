@@ -280,6 +280,16 @@ onMounted(fetchWorkingLeads)
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
+                <Link
+                    :href="route('Ameise.mail')"
+                    class="ameise-mail-link"
+                    title="Почта"
+                    aria-label="Почта"
+                >
+                    <v-icon icon="mdi-email-fast-outline" size="18" />
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
                 <Link :href="route('Ameise.fluxmonitor')">
                     <span>M</span>
                 </Link>
@@ -490,6 +500,42 @@ onMounted(fetchWorkingLeads)
 
 .ameise-field-link:hover {
     background: rgba(255, 255, 255, 0.18);
+}
+
+.ameise-mail-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 32px;
+    border: 1px solid rgba(14, 165, 233, 0.42);
+    border-radius: 11px;
+    background:
+        radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.92), transparent 8%),
+        linear-gradient(135deg, rgba(3, 105, 161, 0.88), rgba(15, 23, 42, 0.62));
+    box-shadow: 0 8px 24px rgba(14, 165, 233, 0.28);
+    color: #e0f2fe;
+}
+
+.ameise-mail-link::after {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.84);
+    border-radius: 50%;
+    background: #f97316;
+    content: "";
+}
+
+.ameise-mail-link:hover {
+    background:
+        radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.95), transparent 8%),
+        linear-gradient(135deg, rgba(14, 165, 233, 0.96), rgba(29, 78, 216, 0.78));
+    color: #ffffff;
+    transform: translateY(-1px);
 }
 
 .ameise-offers-link {

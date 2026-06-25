@@ -25,27 +25,27 @@ class MailMessageController extends Controller
 
         $query = MailMessage::query()
             ->select([
-                         'id',
-                         'mailbox',
-                         'folder',
-                         'direction',
-                         'imap_uid',
-                         'message_id',
-                         'reply_to_mail_message_id',
-                         'in_reply_to',
-                         'references',
-                         'subject',
-                         'message_date',
-                         'from_address',
-                         'from_name',
-                         'to',
-                         'cc',
-                         'preview',
-                         'has_attachments',
-                         'body_loaded_at',
-                         'created_at',
-                         'updated_at',
-                     ])
+                'id',
+                'mailbox',
+                'folder',
+                'direction',
+                'imap_uid',
+                'message_id',
+                'reply_to_mail_message_id',
+                'in_reply_to',
+                'references',
+                'subject',
+                'message_date',
+                'from_address',
+                'from_name',
+                'to',
+                'cc',
+                'preview',
+                'has_attachments',
+                'body_loaded_at',
+                'created_at',
+                'updated_at',
+            ])
             ->with($this->messageRelations())
             ->withCount(['attachments', 'notes', 'leads'])
             ->search($request->input('search'))
@@ -57,9 +57,9 @@ class MailMessageController extends Controller
             $items = $query->get();
 
             return response()->json([
-                                        'data' => $items,
-                                        'total' => $items->count(),
-                                    ]);
+                'data' => $items,
+                'total' => $items->count(),
+            ]);
         }
 
         return response()->json(
@@ -83,9 +83,9 @@ class MailMessageController extends Controller
                 'value' => $folder,
             ])
             ->prepend([
-                          'title' => 'Все',
-                          'value' => null,
-                      ])
+                'title' => 'Все',
+                'value' => null,
+            ])
             ->values();
 
         return response()->json($folders);
@@ -115,6 +115,15 @@ class MailMessageController extends Controller
         $mailMessage->load($this->messageRelations());
 
         return response()->json($mailMessage, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+    }
+
+    public function destroy(MailMessage $mailMessage): JsonResponse
+    {
+        $mailMessage->delete();
+
+        return response()->json([
+            'message' => 'Письмо удалено из базы.',
+        ]);
     }
 
     protected function messageRelations(): array

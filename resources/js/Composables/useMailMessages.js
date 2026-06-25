@@ -16,11 +16,13 @@ export function useMailMessages() {
         folder: null,
         mailbox: null,
         email_id: null,
+        today: false,
+        subject_exact: null,
     })
 
     const options = ref({
         page: 1,
-        itemsPerPage: 25,
+        itemsPerPage: 100,
         sortBy: [],
     })
 
@@ -78,6 +80,10 @@ export function useMailMessages() {
         }
     }
 
+    function clearSelectedMessage() {
+        selectedMessage.value = null
+    }
+
     let searchTimer = null
 
     watch(search, () => {
@@ -115,5 +121,6 @@ export function useMailMessages() {
         fetchMailboxes,
         fetchMessages,
         readMessage,
+        clearSelectedMessage,
     }
 }

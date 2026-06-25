@@ -22,7 +22,6 @@ import Fields from "@/Components/Dictionaries/Fields.vue";
 import Goods from "@/Components/Dictionaries/Goods.vue";
 import GrossbuchSales from '@/Components/Grossbuch/GrossbuchSales.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
-import MailMessagesPage from '@/Components/Contacts/Emails/MailMessagesPage.vue';
 import Products from '@/Components/Dictionaries/Products.vue';
 import Purchases from "@/Pages/Purchases/Purchases.vue";
 import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
@@ -45,6 +44,7 @@ const GROSSBUCH_PRODUCTS_TAB_KEY = 'ameise:grossbuch:products-tab'
 const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
 const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
 const allowedTabs = ['units', 'contacts', 'products', 'segments', 'geography', 'purchases', 'sales']
+const allowedContactTabs = ['telephones', 'uris', 'emails']
 
 function storedTab(key, fallback, allowed = null) {
     if (typeof window === 'undefined') {
@@ -70,7 +70,7 @@ function rememberTab(key, value) {
 
 function loadStoredTabs() {
     tab.value = storedTab(GROSSBUCH_TAB_KEY, 'units', allowedTabs)
-    tabsContacts.value = storedTab(GROSSBUCH_CONTACTS_TAB_KEY, 'telephones')
+    tabsContacts.value = storedTab(GROSSBUCH_CONTACTS_TAB_KEY, 'telephones', allowedContactTabs)
     tabsGeography.value = storedTab(GROSSBUCH_GEOGRAPHY_TAB_KEY, 'cities')
     tabsProducts.value = storedTab(GROSSBUCH_PRODUCTS_TAB_KEY, 'categories')
     tabsSegments.value = storedTab(GROSSBUCH_SEGMENTS_TAB_KEY, 'industries')
@@ -647,7 +647,6 @@ const formatBuildingTitle = (building) => {
                                                 <v-tab value="telephones">Телефоны</v-tab>
                                                 <v-tab value="uris">Uris</v-tab>
                                                 <v-tab value="emails">Emails</v-tab>
-                                                <v-tab value="mail_messages">Письма</v-tab>
                                             </v-tabs>
 
                                             <v-tabs-window v-model="tabsContacts">
@@ -661,10 +660,6 @@ const formatBuildingTitle = (building) => {
 
                                                 <v-tabs-window-item value="telephones">
                                                     <TelephonePage />
-                                                </v-tabs-window-item>
-
-                                                <v-tabs-window-item value="mail_messages">
-                                                    <MailMessagesPage />
                                                 </v-tabs-window-item>
                                             </v-tabs-window>
                                         </v-col>

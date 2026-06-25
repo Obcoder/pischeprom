@@ -1,63 +1,47 @@
 <?php
 
-use Inertia\Inertia;
-use App\Mail\TestEmail;
-
-use App\Models\Category;
-use App\Models\City;
-use App\Models\Good;
-use App\Models\Product;
-use App\Models\Region;
-use App\Models\Unit;
-
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Route;
-
-
-use App\Http\Controllers\EmailTrackingController;
-use App\Http\Controllers\EntityController;
-use App\Http\Controllers\TelegramController;
-use App\Http\Controllers\MainController;
-use App\Http\Controllers\Verwalter;
-
-
 use App\Http\Controllers\API\BuildingController;
-use App\Http\Controllers\API\FragranceController;
-use App\Http\Controllers\API\QuotationController;
-use App\Http\Controllers\API\CityController;
-use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\CheckCommodityController;
+use App\Http\Controllers\API\CheckController;
+use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CommodityController;
+use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\ManufacturerController;
 use App\Http\Controllers\API\NoteController;
 use App\Http\Controllers\API\ProductController;
+use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
-use App\Http\Controllers\API\UnitUriController;
 use App\Http\Controllers\API\UriController;
-
-
+use App\Http\Controllers\EmailTrackingController;
+use App\Http\Controllers\EntityController;
+use App\Http\Controllers\MainController;
+use App\Http\Controllers\Verwalter;
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\CustomerDashboardController;
 use App\Http\Controllers\Web\CustomerProfileController;
 use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\FieldController as WebFieldController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
+use App\Http\Controllers\Web\LegalPageController;
 use App\Http\Controllers\Web\LocationController;
 use App\Http\Controllers\Web\ProductController as WebProductController;
 use App\Http\Controllers\Web\PurchaseController;
 use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
-use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
 use App\Http\Controllers\Web\UnitRelationSyncController;
-
-
-use App\Http\Controllers\Web\LegalPageController;
-
-
+use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
+use App\Mail\TestEmail;
+use App\Models\City;
+use App\Models\Good;
+use App\Models\Product;
+use App\Models\Region;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,9 +52,9 @@ use App\Http\Controllers\Web\LegalPageController;
 //     D A S H B O A R D
 
 Route::middleware([
-                      'auth:sanctum',
-                      config('jetstream.auth_session'),
-                  ])->group(function () {
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+])->group(function () {
     Route::get('/dashboard', [CustomerDashboardController::class, 'index'])
         ->name('dashboard');
 
@@ -113,7 +97,6 @@ Route::get('/terms', [LegalPageController::class, 'terms'])
 Route::get('/personal-data-consent', [LegalPageController::class, 'personalDataConsent'])
     ->name('legal.personal-data-consent');
 
-
 /*
 |--------------------------------------------------------------------------
 | A M E I S E  (CRM / ERP)
@@ -133,14 +116,12 @@ Route::get('/Ameise/workboard', function () {
     return Inertia::render('Ameise/WorkBoard');
 })->name('ameise.workboard');
 
-
-
 // ⬇️⬇️⬇️
 // ВСЕ остальные /Ameise/* маршруты
 // просто ПЕРЕНОСЯТСЯ СЮДА БЕЗ ИЗМЕНЕНИЙ
 
 //   B O T A N Y
-Route::get('/Ameise/Botany/', function (){
+Route::get('/Ameise/Botany/', function () {
     return Inertia::render('Ameise/Botany');
 })->name('Ameise.botany');
 
@@ -150,14 +131,13 @@ Route::get('/категория/{category}', [WebCategoryController::class, 'sho
     ->name('category.show');
 
 //   C H E C K S
-Route::get('Ameise/checks', function (){
+Route::get('Ameise/checks', function () {
     return Inertia::render('Ameise/Checks');
 })->name('Ameise.checks');
 //
 
-
 //   C I T I E S
-Route::get('/Ameise/Cities', function (){
+Route::get('/Ameise/Cities', function () {
     return Inertia::render('Ameise/Cities');
 })->name('Ameise.cities');
 Route::get('/Ameise/city/{city}', function (City $city) {
@@ -166,7 +146,6 @@ Route::get('/Ameise/city/{city}', function (City $city) {
     ]);
 })->name('city.show');
 //
-
 
 /*
 |--------------------------------------------------------------------------
@@ -184,11 +163,14 @@ Route::get('/Ameise/Commodities/{commodity}', [WebCommodityController::class, 's
 
 //  E N D  C O M M O D I T I E S
 
-
 //   C O N T A C T S  C E N T R E
-Route::get('/Ameise/ContactsCentre', function (){
+Route::get('/Ameise/ContactsCentre', function () {
     return Inertia::render('Ameise/ContactsCentre');
 })->name('Ameise.contactsCentre');
+
+Route::get('/Ameise/Mail', function () {
+    return Inertia::render('Ameise/Mail');
+})->name('Ameise.mail');
 
 //
 
@@ -219,9 +201,8 @@ Route::prefix('web')->name('web.')->group(function () {
 });
 //  E N D  E N T I T I E S
 
-
 //     F L U X  M O N I T O R
-Route::get('/Ameise/FluxMonitor/', function (){
+Route::get('/Ameise/FluxMonitor/', function () {
     return Inertia::render('Ameise/FluxMonitor');
 })->name('Ameise.fluxmonitor');
 
@@ -230,28 +211,26 @@ Route::get('/Ameise/fields', function () {
 })->name('Ameise.fields');
 
 //   G E O G R A P H Y
-Route::get('/Ameise/Geography/', function (){
+Route::get('/Ameise/Geography/', function () {
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
-
-
 
 /*
 |--------------------------------------------------------------------------
 | G O O D S
 |--------------------------------------------------------------------------
 */
-Route::get('/Ameise/Goods/', function (){
+Route::get('/Ameise/Goods/', function () {
     return Inertia::render('Ameise/Goods');
 })->name('Ameise.goods');
 
-Route::get('/Ameise/goods/{id}/{slug?}', function ($id){
+Route::get('/Ameise/goods/{id}/{slug?}', function ($id) {
     $data = [
         'good' => Good::findOrFail($id),
     ];
+
     return Inertia::render('Ameise/Good', $data);
 })->name('Ameise.good.show');
-
 
 Route::get('/goods/published', [GoodController::class, 'indexPublished'])
     ->name('goods.published');
@@ -261,10 +240,8 @@ Route::post('/api/good/store', [GoodController::class, 'store'])
 
 //  E N D  G O O D
 
-
-
 //     G R O S S B U C H
-Route::get('/Ameise/grossbuch/', function (){
+Route::get('/Ameise/grossbuch/', function () {
     return Inertia::render('Ameise/Grossbuch');
 })->name('Ameise.großbuch');
 
@@ -273,11 +250,11 @@ Route::get('/Ameise/settings', function () {
 })->name('Ameise.settings');
 
 //   P E R F U M E
-Route::get('/Ameise/perfume/', function (){
+Route::get('/Ameise/perfume/', function () {
     return Inertia::render('Ameise/Perfume');
 })->name('Ameise.perfume');
 //   P R O D U C T S
-Route::get('/Ameise/products/', function (){
+Route::get('/Ameise/products/', function () {
     return Inertia::render('Ameise/Products');
 })->name('Ameise.products');
 
@@ -288,14 +265,13 @@ Route::get('/Ameise/product/{product}', function (Product $product) {
 })->name('product.show');
 
 //   R E G I O N
-Route::get('/Ameise/region/{id}', function ($id){
+Route::get('/Ameise/region/{id}', function ($id) {
     $data = [
-        'region' => Region::with('cities')->findOrFail($id)
+        'region' => Region::with('cities')->findOrFail($id),
     ];
+
     return Inertia::render('Ameise/Region', $data);
 })->name('Ameise.region');
-
-
 
 //     P R O D U C T S
 
@@ -314,10 +290,9 @@ Route::prefix('purchases')
     });
 
 //     S A L E S
-Route::get('/Ameise/Sales/', function (){
+Route::get('/Ameise/Sales/', function () {
     return Inertia::render('Ameise/Sales');
 })->name('Ameise.sales');
-
 
 /*
 |--------------------------------------------------------------------------
@@ -338,11 +313,9 @@ Route::get('/indexnow-key.txt', [SeoController::class, 'indexNowKey'])
 
 //  E N D  S E O
 
-
-
 //     U N I T S
 
-Route::get('/Ameise/units/', function (){
+Route::get('/Ameise/units/', function () {
     return Inertia::render('Ameise/Units');
 })->name('Ameise.units');
 
@@ -360,9 +333,8 @@ Route::post('/web/units/{unit}/fields/sync', [UnitRelationSyncController::class,
 Route::post('/web/units/{unit}/telephones/sync', [UnitRelationSyncController::class, 'syncTelephones'])->name('web.units.telephones.sync');
 Route::post('/web/units/{unit}/cities/sync', [UnitRelationSyncController::class, 'syncCities'])->name('web.units.cities.sync');
 
-
 //   Y A N D E X
-Route::get('/Ameise/yandex', function (){
+Route::get('/Ameise/yandex', function () {
     return Inertia::render('Ameise/Yandex');
 })->name('Ameise.yandex');
 
@@ -384,17 +356,14 @@ Route::get('/Ameise/Avito', function () {
     return Inertia::render('Ameise/Avito');
 })->name('Ameise/avito');
 
-
 //   S E A P R O M
-Route::get('Seaprom', function (){
+Route::get('Seaprom', function () {
     return Inertia::render('Seaprom');
 });
 //     S E S A M E
-Route::get('/кунжут/', function (){
+Route::get('/кунжут/', function () {
     return Inertia::render('Sesame');
 })->name('web.sesame');
-
-
 
 //                     A         P         I
 //                          G         E         T
@@ -412,7 +381,6 @@ Route::apiResource('/api/entity_unit', \App\Http\Controllers\API\EntityUnitContr
     ->name('store', 'api.entity_unit.store');
 Route::get('/api/manufacturers/', [\App\Http\Controllers\API\ManufacturerController::class, 'index'])
     ->name('api.manufacturers');
-
 
 //                           P        O         S         T
 //    B U I L D I N G
@@ -444,8 +412,6 @@ Route::post('/api/genus/store', [GenusController::class, 'store'])
 Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, 'toggleAgriculturable'])
     ->name('genera.toggleAgriculturable');
 
-
-
 //    G O O D - S A L E
 Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
     ->name('web.goodsale.store');
@@ -454,7 +420,6 @@ Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
 
 Route::post('/api/labelunit/store', [\App\Http\Controllers\API\LabelUnitController::class, 'store'])
     ->name('web.labelunit.store');
-
 
 //      M A N U F A C T U R E R
 Route::post('/api/manufactirer/store', [ManufacturerController::class, 'store'])
@@ -472,7 +437,6 @@ Route::post('/web/quotation/store', [QuotationController::class, 'store'])
 Route::post('/web/sale/store', [SaleController::class, 'store'])
     ->name('web.sale.store');
 
-
 //    U R I
 Route::post('/api/uri/store', [UriController::class, 'store'])
     ->name('web.uri.store');
@@ -485,13 +449,13 @@ Route::post('/api/uri/store', [UriController::class, 'store'])
 |
 |
  */
-//Route::post('/api/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
+// Route::post('/api/mail', [\App\Http\Controllers\MailController::class, 'sendMail'])
 //    ->name('api.mail');
 
 Route::get('/send-email', function () {
     $data = [
         'title' => 'Test Email from Laravel',
-        'message' => 'This is a test email sent via Elastic Email.'
+        'message' => 'This is a test email sent via Elastic Email.',
     ];
 
     Mail::to('obcoder@gmail.com')->send(new TestEmail($data));
@@ -580,9 +544,9 @@ Route::prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->gro
 /*|
 |-------------------------------------------------------------------------- */
 
-////////////      T E L E G R A M  B O T      /////////////////////
-/// __________________________________________________________ ////
-Route::get('/Ameise/TelegramBot/', function (){
+// //////////      T E L E G R A M  B O T      /////////////////////
+// / __________________________________________________________ ////
+Route::get('/Ameise/TelegramBot/', function () {
     return Inertia::render('Ameise/TelegramBot');
 })->name('ameise.telegrambot');
-///E N D//////////////////////////////////////////////////////////
+// /E N D//////////////////////////////////////////////////////////

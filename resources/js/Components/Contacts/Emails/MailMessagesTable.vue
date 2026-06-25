@@ -17,12 +17,49 @@ defineProps({
         type: Object,
         required: true,
     },
+    mailboxes: {
+        type: Array,
+        default: () => [],
+    },
+    height: {
+        type: [String, Number],
+        default: 720,
+    },
 })
 
 const emit = defineEmits([
     'update:options',
     'read',
+    'delete',
 ])
+
+const mailboxPalette = [
+    {
+        fg: '#67e8f9',
+        bg: 'rgba(8, 145, 178, 0.18)',
+        border: 'rgba(103, 232, 249, 0.45)',
+    },
+    {
+        fg: '#86efac',
+        bg: 'rgba(22, 163, 74, 0.18)',
+        border: 'rgba(134, 239, 172, 0.45)',
+    },
+    {
+        fg: '#fcd34d',
+        bg: 'rgba(217, 119, 6, 0.18)',
+        border: 'rgba(252, 211, 77, 0.45)',
+    },
+    {
+        fg: '#fda4af',
+        bg: 'rgba(225, 29, 72, 0.18)',
+        border: 'rgba(253, 164, 175, 0.45)',
+    },
+    {
+        fg: '#c4b5fd',
+        bg: 'rgba(124, 58, 237, 0.18)',
+        border: 'rgba(196, 181, 253, 0.45)',
+    },
+]
 
 const headers = computed(() => [
     {
@@ -44,6 +81,13 @@ const headers = computed(() => [
         width: '180px',
     },
     {
+        title: 'Связи',
+        key: 'relations',
+        sortable: false,
+        align: 'center',
+        width: '180px',
+    },
+    {
         title: 'От / Кому',
         key: 'contact',
         sortable: false,
@@ -55,22 +99,19 @@ const headers = computed(() => [
         sortable: false,
     },
     {
-        title: 'Связи',
-        key: 'relations',
-        sortable: false,
-        align: 'center',
-        width: '150px',
-    },
-    {
         title: '',
         key: 'actions',
         sortable: false,
         align: 'end',
-        width: '90px',
+        width: '112px',
     },
 ])
 
 const itemsPerPageOptions = [
+    {
+        value: 100,
+        title: '100',
+    },
     {
         value: 25,
         title: '25',
@@ -78,10 +119,6 @@ const itemsPerPageOptions = [
     {
         value: 50,
         title: '50',
-    },
-    {
-        value: 100,
-        title: '100',
     },
     {
         value: 200,
@@ -162,6 +199,61 @@ function entityHref(entity) {
         return `/Ameise/entity/${entity.id}`
     }
 }
+
+function mailboxIndex(address) {
+    const normalized = String(address || '').toLowerCase()
+    const configuredIndex = props.mailboxes.findIndex((mailbox) => String(mailbox.address || '').toLowerCase() === normalized)
+
+    if (configuredIndex >= 0) {
+        return configuredIndex
+    }
+
+    return Math.abs([...normalized].reduce((sum, char) => sum + char.charCodeAt(0), 0))
+}
+
+function mailboxStyle(address) {
+    const palette = mailboxPalette[mailboxIndex(address) % mailboxPalette.length]
+
+    return {
+        '--mailbox-fg': palette.fg,
+        '--mailbox-bg': palette.bg,
+        '--mailbox-border': palette.border,
+    }
+}
+
+function folderKind(folder) {
+    const normalized = String(folder || '').toLowerCase()
+
+    if (normalized.includes('sent')) {
+        return 'sent'
+    }
+
+    if (normalized.includes('inbox')) {
+        return 'inbox'
+    }
+
+    return 'other'
+}
+
+function folderLabel(folder) {
+    const kind = folderKind(folder)
+
+    if (kind === 'sent') {
+        return 'Sent'
+    }
+
+    if (kind === 'inbox') {
+        return 'INBOX'
+    }
+
+    return folder || '—'
+}
+
+function rowProps({ item }) {
+    return {
+        class: `mail-message-row mail-message-row--${folderKind(item?.folder)}`,
+    }
+}
 </script>
 
 <template>
@@ -173,12 +265,13 @@ function entityHref(entity) {
         :page="options.page"
         :items-per-page="options.itemsPerPage"
         :items-per-page-options="itemsPerPageOptions"
+        :height="height"
+        :row-props="rowProps"
         item-value="id"
         density="compact"
         fixed-header
-        height="720"
         hover
-        class="rounded border border-blue-900 bg-slate-950"
+        class="mail-messages-table rounded border border-blue-900 bg-slate-950"
         @update:options="emit('update:options', $event)"
         @click:row="(_, row) => emit('read', row.item)"
     >
@@ -190,26 +283,28 @@ function entityHref(entity) {
             >
                 {{ item.direction === 'incoming' ? '↓ in' : '↑ out' }}
             </v-chip>
+
+            <div
+                class="folder-badge"
+                :class="`folder-badge--${folderKind(item.folder)}`"
+            >
+                {{ folderLabel(item.folder) }}
+            </div>
         </template>
 
         <template #item.message_date="{ item }">
             <span class="text-[11px] font-mono">
                 {{ formatDate(item.message_date) }}
             </span>
-
-            <div class="text-[9px] text-grey">
-                {{ item.folder }}
-            </div>
         </template>
 
         <template #item.mailbox="{ item }">
-            <v-chip
-                size="x-small"
-                color="teal"
-                variant="tonal"
+            <span
+                class="mailbox-pill"
+                :style="mailboxStyle(item.mailbox)"
             >
                 {{ item.mailbox || '—' }}
-            </v-chip>
+            </span>
         </template>
 
         <template #item.contact="{ item }">
@@ -263,17 +358,6 @@ function entityHref(entity) {
 
         <template #item.relations="{ item }">
             <div class="mail-relations">
-                <v-chip
-                    v-for="email in item.emails"
-                    :key="email.id"
-                    size="x-small"
-                    color="teal"
-                    variant="tonal"
-                    class="mail-relations__email"
-                >
-                    {{ email.address }}
-                </v-chip>
-
                 <div
                     v-if="relatedUnits(item).length || relatedEntities(item).length"
                     class="mail-relations__links"
@@ -286,7 +370,8 @@ function entityHref(entity) {
                         :title="relationLabel(unit, 'Unit')"
                         @click.stop
                     >
-                        U {{ relationLabel(unit, 'Unit') }}
+                        <v-icon icon="mdi-factory" size="10" />
+                        <span>{{ relationLabel(unit, 'Unit') }}</span>
                     </Link>
 
                     <Link
@@ -297,20 +382,33 @@ function entityHref(entity) {
                         :title="relationLabel(entity, 'Entity')"
                         @click.stop
                     >
-                        E {{ relationLabel(entity, 'Entity') }}
+                        <v-icon icon="mdi-domain" size="10" />
+                        <span>{{ relationLabel(entity, 'Entity') }}</span>
                     </Link>
                 </div>
+
+                <span v-else class="mail-relations__empty">—</span>
             </div>
         </template>
 
         <template #item.actions="{ item }">
-            <v-btn
-                icon="mdi-email-open-outline"
-                size="x-small"
-                variant="text"
-                color="blue"
-                @click.stop="emit('read', item)"
-            />
+            <div class="d-flex justify-end ga-1">
+                <v-btn
+                    icon="mdi-email-open-outline"
+                    size="x-small"
+                    variant="text"
+                    color="blue"
+                    @click.stop="emit('read', item)"
+                />
+
+                <v-btn
+                    icon="mdi-delete-outline"
+                    size="x-small"
+                    variant="text"
+                    color="red-lighten-2"
+                    @click.stop="emit('delete', item)"
+                />
+            </div>
         </template>
     </v-data-table-server>
 </template>
@@ -331,8 +429,52 @@ function entityHref(entity) {
     justify-content: center;
 }
 
-.mail-relations__email {
-    max-width: 140px;
+.mail-messages-table :deep(.v-data-table__tr:hover) {
+    background: rgba(59, 130, 246, 0.08) !important;
+}
+
+.mailbox-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 166px;
+    padding: 3px 9px;
+    border: 1px solid var(--mailbox-border);
+    border-radius: 999px;
+    background: var(--mailbox-bg);
+    color: var(--mailbox-fg);
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 10px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-badge {
+    width: fit-content;
+    margin-top: 5px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.folder-badge--inbox {
+    background: rgba(168, 85, 247, 0.17);
+    color: #e879f9;
+}
+
+.folder-badge--sent {
+    background: rgba(14, 165, 233, 0.18);
+    color: #7dd3fc;
+}
+
+.folder-badge--other {
+    background: rgba(148, 163, 184, 0.15);
+    color: #cbd5e1;
 }
 
 .mail-relations__links {
@@ -343,10 +485,17 @@ function entityHref(entity) {
     width: 100%;
 }
 
+.mail-relations__empty {
+    color: rgba(148, 163, 184, 0.45);
+    font-size: 11px;
+}
+
 .mail-relation-link {
+    align-items: center;
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 999px;
-    display: inline-block;
+    display: inline-flex;
+    gap: 3px;
     font-size: 9px;
     line-height: 1.1;
     max-width: 138px;
@@ -354,6 +503,11 @@ function entityHref(entity) {
     padding: 1px 5px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.mail-relation-link span {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .mail-relation-link--unit {

@@ -77,7 +77,7 @@ class MailMessage extends Model
 
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
-        if (!$search) {
+        if (! $search) {
             return $query;
         }
 
@@ -94,25 +94,34 @@ class MailMessage extends Model
     public function scopeFilter(Builder $query, array $filters = []): Builder
     {
         return $query
-            ->when(!empty($filters['direction']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['direction']), function (Builder $q) use ($filters) {
                 $q->where('direction', $filters['direction']);
             })
-            ->when(!empty($filters['folder']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['folder']), function (Builder $q) use ($filters) {
                 $q->where('folder', $filters['folder']);
             })
-            ->when(!empty($filters['mailbox']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['today']), function (Builder $q) {
+                $q->whereBetween('message_date', [
+                    now()->startOfDay(),
+                    now()->endOfDay(),
+                ]);
+            })
+            ->when(! empty($filters['subject_exact']), function (Builder $q) use ($filters) {
+                $q->where('subject', trim((string) $filters['subject_exact']));
+            })
+            ->when(! empty($filters['mailbox']), function (Builder $q) use ($filters) {
                 $q->where('mailbox', mb_strtolower(trim((string) $filters['mailbox'])));
             })
-            ->when(!empty($filters['email_id']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['email_id']), function (Builder $q) use ($filters) {
                 $q->whereHas('emails', fn (Builder $sq) => $sq->where('emails.id', $filters['email_id']));
             })
-            ->when(!empty($filters['email_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['email_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('emails', fn (Builder $sq) => $sq->whereIn('emails.id', (array) $filters['email_ids']));
             })
-            ->when(!empty($filters['entity_id']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['entity_id']), function (Builder $q) use ($filters) {
                 $q->whereHas('emails.entities', fn (Builder $sq) => $sq->where('entities.id', $filters['entity_id']));
             })
-            ->when(!empty($filters['unit_id']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['unit_id']), function (Builder $q) use ($filters) {
                 $q->where(function (Builder $nested) use ($filters) {
                     $nested
                         ->whereHas('emails.units', fn (Builder $sq) => $sq->where('units.id', $filters['unit_id']))

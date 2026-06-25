@@ -1,13 +1,7 @@
 <?php
 
-use App\Http\Controllers\API\PriceTypeController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AvitoController;
-use App\Http\Controllers\MailController;
-use App\Http\Controllers\TelegramController;
-use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BeelinePbxController;
+use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\BuildingTypeController;
 use App\Http\Controllers\API\CatalogController;
@@ -23,28 +17,38 @@ use App\Http\Controllers\API\CurrencyController;
 use App\Http\Controllers\API\EmailController;
 use App\Http\Controllers\API\EmailMailboxController;
 use App\Http\Controllers\API\EmailRelationController;
+use App\Http\Controllers\API\EntitiesClassification;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\EntityMetaController;
-use App\Http\Controllers\API\EntitiesClassification;
 use App\Http\Controllers\API\FieldBoardController;
 use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
-use App\Http\Controllers\API\IndustryController;
 use App\Http\Controllers\API\GenusController;
 use App\Http\Controllers\API\GoodController;
-use App\Http\Controllers\API\GoodPriceCalculationController;
-use App\Http\Controllers\API\GoodPriceTypeValueController;
 use App\Http\Controllers\API\GoodMediaController;
 use App\Http\Controllers\API\GoodMediaFolderController;
-use App\Http\Controllers\API\GoodSeoController;
+use App\Http\Controllers\API\GoodPriceCalculationController;
+use App\Http\Controllers\API\GoodPriceTypeValueController;
 use App\Http\Controllers\API\GoodSaleController;
+use App\Http\Controllers\API\GoodSeoController;
+use App\Http\Controllers\API\IndustryController;
 use App\Http\Controllers\API\LabelController;
 use App\Http\Controllers\API\LeadController;
+use App\Http\Controllers\API\Marketing\YandexAccountController;
+use App\Http\Controllers\API\Marketing\YandexDirectAdController;
+use App\Http\Controllers\API\Marketing\YandexDirectAiAutopilotController;
+use App\Http\Controllers\API\Marketing\YandexDirectGeoRegionController;
+use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
+use App\Http\Controllers\API\Marketing\YandexDirectLaunchController;
+use App\Http\Controllers\API\Marketing\YandexDirectStatsController;
+use App\Http\Controllers\API\Marketing\YandexOAuthController;
+use App\Http\Controllers\API\Marketing\YandexSyncLogController;
 use App\Http\Controllers\API\MeasureController;
 use App\Http\Controllers\API\MessageController;
 use App\Http\Controllers\API\NoteController;
-use App\Http\Controllers\API\PlantController;
 use App\Http\Controllers\API\PhoneCallController;
+use App\Http\Controllers\API\PlantController;
+use App\Http\Controllers\API\PriceTypeController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\ProductSearchController;
 use App\Http\Controllers\API\PurchaseController;
@@ -61,27 +65,20 @@ use App\Http\Controllers\API\SupplierWorkBoardController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
-use App\Http\Controllers\API\UnitRelationController;
 use App\Http\Controllers\API\UnitFileController;
 use App\Http\Controllers\API\UnitMailController;
+use App\Http\Controllers\API\UnitRelationController;
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\YandexRequestController;
-use App\Http\Controllers\API\Marketing\YandexAccountController;
-use App\Http\Controllers\API\Marketing\YandexDirectAiAutopilotController;
-use App\Http\Controllers\API\Marketing\YandexDirectAdController;
-use App\Http\Controllers\API\Marketing\YandexDirectGeoRegionController;
-use App\Http\Controllers\API\Marketing\YandexDirectGoodController;
-use App\Http\Controllers\API\Marketing\YandexDirectLaunchController;
-use App\Http\Controllers\API\Marketing\YandexDirectStatsController;
-use App\Http\Controllers\API\Marketing\YandexOAuthController;
-use App\Http\Controllers\API\Marketing\YandexSyncLogController;
-use App\Services\YandexSearchService;
+use App\Http\Controllers\AvitoController;
+use App\Http\Controllers\MailController;
+use App\Http\Controllers\TelegramController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
-
-
 
 /*
  * ------------------
@@ -108,8 +105,6 @@ Route::prefix('cities/{city}')
             ->name('populations.destroy');
     });
 //  E N D  C I T I E S
-
-
 
 /*
 |--------------------------------------------------------------------------
@@ -139,8 +134,6 @@ Route::apiResource('commodities', CommodityController::class);
 
 //  E N D  C O M M O D I T I E S
 
-
-
 //  E M A I L S
 Route::get('emails/meta', [EmailController::class, 'meta'])
     ->name('emails.meta');
@@ -159,9 +152,10 @@ Route::post('emails/{email}/entities/sync', [EmailRelationController::class, 'sy
 
 Route::apiResource('emails', EmailController::class);
 
-use App\Http\Controllers\API\MailMessageActionController;
 use App\Http\Controllers\API\MailboxController;
+use App\Http\Controllers\API\MailMessageActionController;
 use App\Http\Controllers\API\MailMessageController;
+
 Route::apiResource('mailboxes', MailboxController::class)
     ->only(['index', 'store', 'show', 'update', 'destroy']);
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
@@ -173,6 +167,8 @@ Route::get('mail-messages', [MailMessageController::class, 'index'])
 
 Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show'])
     ->name('mail-messages.show');
+Route::delete('mail-messages/{mailMessage}', [MailMessageController::class, 'destroy'])
+    ->name('mail-messages.destroy');
 Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
     ->name('mail-messages.attachments.sync');
 Route::get('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'attachmentFolders'])
@@ -188,11 +184,10 @@ Route::post('mail-messages/{mailMessage}/lead', [MailMessageActionController::cl
     ->name('mail-messages.lead.store');
 
 use App\Http\Controllers\API\MailTemplateController;
+
 Route::apiResource('mail-templates', MailTemplateController::class)
     ->except(['show']);
 // E N D  E M A I L S
-
-
 
 /*
  * ------------------
@@ -204,8 +199,6 @@ Route::get('/entities-meta', [EntityMetaController::class, 'index']);
 Route::apiResource('entities', EntityController::class);
 
 //  E N D  E N T I T I E S
-
-
 
 /*
  * ----------------------
@@ -300,8 +293,6 @@ Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
     ->name('api.goods.publish');
 //  E N D  G O O D S
 
-
-
 /*
  * ----------------------
  *  T E L E P H O N E S
@@ -315,8 +306,6 @@ Route::prefix('telephones')->group(function () {
     Route::put('/{telephone}', [TelephoneController::class, 'update']);
 });
 //  E N D  T E L E P H O N E S
-
-
 
 /*
  * ------------------
@@ -373,7 +362,6 @@ Route::prefix('units/{unit}')->group(function () {
 Route::apiResource('units', UnitController::class)->except(['show']);
 
 // E N D  U N I T S
-
 
 Route::apiResource('brands', BrandController::class);
 Route::apiResource('buildings', BuildingController::class);
@@ -482,7 +470,6 @@ Route::prefix('marketing')
             ->name('direct.logs.show');
     });
 
-
 /*
  * ------------------
  *  T E L E P H O N Y
@@ -530,7 +517,6 @@ Route::apiResource('leads', LeadController::class)
     ->only(['index', 'show', 'update']);
 //  E N D  T E L E P H O N Y
 
-
 /*
  * -----------------------------
  *       M A I L  S E N D
@@ -547,7 +533,6 @@ Route::post('/mail', [MailController::class, 'sendMail'])
 Route::post('/webhook', [TelegramController::class, 'webhook']);
 Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class, 'sendMessage'])
     ->name('api.telegram.sendMessage');
-
 
 /*
  * -------------------------

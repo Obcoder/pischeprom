@@ -287,7 +287,7 @@ watch(() => props.replyContext, () => {
 
 <template>
     <v-dialog v-model="model" max-width="980" scrollable>
-        <v-card class="mail-composer">
+        <v-card class="mail-composer" theme="light">
             <v-card-title class="d-flex justify-space-between align-center">
                 <div>
                     <div class="mail-composer__title">
@@ -426,6 +426,7 @@ watch(() => props.replyContext, () => {
                 <v-spacer />
                 <v-btn variant="text" @click="model = false">Отмена</v-btn>
                 <v-btn
+                    class="mail-composer__send"
                     color="#800000"
                     variant="elevated"
                     :loading="sending"
@@ -444,6 +445,7 @@ watch(() => props.replyContext, () => {
     border: 1px solid rgba(128, 0, 0, 0.22);
     border-radius: 18px;
     background: #fffdf8;
+    color: #2b1715;
 }
 
 .mail-composer__title {
@@ -460,5 +462,24 @@ watch(() => props.replyContext, () => {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+.mail-composer :deep(.v-field) {
+    background: #fffaf2;
+    color: #2b1715;
+}
+
+.mail-composer :deep(.v-label),
+.mail-composer :deep(.v-field__input),
+.mail-composer :deep(.v-select__selection-text),
+.mail-composer :deep(textarea) {
+    color: #2b1715 !important;
+}
+
+.mail-composer__send {
+    background: linear-gradient(135deg, #8f1111, #b45309) !important;
+    color: #fff !important;
+    font-weight: 900;
+    letter-spacing: 0.08em;
 }
 </style>
