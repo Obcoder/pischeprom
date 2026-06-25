@@ -112,6 +112,9 @@ const pasteBuffer = ref('')
 const sourceEmailSearch = ref('')
 const sourceEmailSetId = ref('')
 const sourceEmailConsentStatus = ref('unknown')
+const sourceEmailIncludeInactive = ref(true)
+const sourceEmailPerPage = ref(100)
+const sourceEmailMeta = reactive({ current_page: 1, last_page: 1, total: 0, per_page: 100 })
 const selectedSourceEmailIds = ref(new Set())
 const recipientDialogOpen = ref(false)
 const recipientCampaign = ref(null)
@@ -160,6 +163,16 @@ const selectedProductPriceType = computed(() => priceTypes.value.find((item) => 
 
 const selectedRecipientSet = computed(() => new Set(selectedCampaignRecipients.value.map((item) => normalizeEmail(item.email))))
 const selectedContactRows = computed(() => contacts.value.filter((item) => selectedContactIds.value.has(item.id)))
+const sourceEmailRange = computed(() => {
+    if (!sourceEmailMeta.total) {
+        return '0 / 0'
+    }
+
+    const from = ((sourceEmailMeta.current_page - 1) * sourceEmailMeta.per_page) + 1
+    const to = Math.min(sourceEmailMeta.current_page * sourceEmailMeta.per_page, sourceEmailMeta.total)
+
+    return `${from}-${to} / ${sourceEmailMeta.total}`
+})
 
 function percent(value) {
     const number = Number(value || 0)
@@ -219,15 +232,18 @@ async function loadTable(name) {
     if (name === 'suppression') suppression.value = rows
 }
 
-async function loadSourceEmails() {
+async function loadSourceEmails(page = sourceEmailMeta.current_page || 1) {
     const { data } = await axios.get(endpoint('/source-emails'), {
         params: {
             q: sourceEmailSearch.value,
-            per_page: 100,
+            page,
+            per_page: sourceEmailPerPage.value,
+            include_inactive: sourceEmailIncludeInactive.value ? 1 : 0,
         },
     })
 
     sourceEmails.value = data.data || data
+    assignPagination(sourceEmailMeta, data, sourceEmailPerPage.value)
 }
 
 async function loadPriceTypes() {
@@ -682,11 +698,11 @@ async function syncTemplate(id) {
     })
 }
 
-function assignPagination(target, payload = {}) {
+function assignPagination(target, payload = {}, fallbackPerPage = 50) {
     target.current_page = Number(payload.current_page || 1)
     target.last_page = Number(payload.last_page || 1)
     target.total = Number(payload.total || 0)
-    target.per_page = Number(payload.per_page || productPerPage.value || 50)
+    target.per_page = Number(payload.per_page || fallbackPerPage)
 }
 
 async function searchProducts(page = 1) {
@@ -707,11 +723,11 @@ async function searchProducts(page = 1) {
         if (type === 'categories') {
             const payload = data.categories || { data: [] }
             categories.value = payload.data || []
-            assignPagination(categoryMeta, payload)
+            assignPagination(categoryMeta, payload, productPerPage.value)
         } else {
             const payload = data.products || { data: [] }
             products.value = payload.data || []
-            assignPagination(productMeta, payload)
+            assignPagination(productMeta, payload, productPerPage.value)
         }
     })
 }
@@ -1214,8 +1230,8 @@ onMounted(refreshAll)
             <aside class="side-panel source-email-panel">
                 <h3>emails DB -> recipients</h3>
                 <div class="form-row compact source-toolbar">
-                    <input v-model="sourceEmailSearch" placeholder="search current emails DB" @keyup.enter="loadSourceEmails">
-                    <button @click="loadSourceEmails">find</button>
+                    <input v-model="sourceEmailSearch" placeholder="search current emails DB" @keyup.enter="loadSourceEmails(1)">
+                    <button @click="loadSourceEmails(1)">find</button>
                 </div>
                 <div class="form-row compact source-toolbar">
                     <input v-model="sourceEmailSetId" placeholder="set id optional">
@@ -1223,6 +1239,21 @@ onMounted(refreshAll)
                         <option>unknown</option>
                         <option>confirmed</option>
                         <option>not_required_internal</option>
+                    </select>
+                </div>
+                <div class="source-email-controls">
+                    <label>
+                        <input
+                            v-model="sourceEmailIncludeInactive"
+                            type="checkbox"
+                            @change="loadSourceEmails(1)"
+                        >
+                        include inactive
+                    </label>
+                    <select v-model.number="sourceEmailPerPage" @change="loadSourceEmails(1)">
+                        <option :value="100">100/page</option>
+                        <option :value="250">250/page</option>
+                        <option :value="500">500/page</option>
                     </select>
                 </div>
                 <div class="source-actions">
@@ -1235,18 +1266,40 @@ onMounted(refreshAll)
                     <button @click="importVisibleSourceEmailsToCampaign">visible -> campaign</button>
                     <span>target #{{ recipientTargetCampaignId || '-' }}</span>
                 </div>
+                <div class="source-pagination">
+                    <strong>{{ sourceEmailRange }}</strong>
+                    <span>page {{ sourceEmailMeta.current_page }} / {{ sourceEmailMeta.last_page }}</span>
+                    <button
+                        type="button"
+                        :disabled="sourceEmailMeta.current_page <= 1"
+                        @click="loadSourceEmails(sourceEmailMeta.current_page - 1)"
+                    >
+                        prev
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="sourceEmailMeta.current_page >= sourceEmailMeta.last_page"
+                        @click="loadSourceEmails(sourceEmailMeta.current_page + 1)"
+                    >
+                        next
+                    </button>
+                </div>
                 <div class="source-email-shell">
                     <table>
-                        <thead><tr><th>sel</th><th>email</th><th>name</th><th>src</th><th>in recipients</th></tr></thead>
+                        <thead><tr><th>sel</th><th>email</th><th>name</th><th>src</th><th>active</th><th>in recipients</th></tr></thead>
                         <tbody>
                             <tr v-for="item in sourceEmails" :key="item.id" :class="{ 'is-muted-row': item.imported }">
                                 <td><input type="checkbox" :checked="selectedSourceEmailIds.has(item.id)" @change="toggleSourceEmail(item.id)"></td>
                                 <td>{{ item.address }}</td>
                                 <td>{{ item.name || '-' }}</td>
                                 <td>{{ item.source || item.domain || '-' }}</td>
+                                <td :class="item.is_active === false ? 'is-warn' : 'is-ok'">{{ item.is_active === false ? 'off' : 'on' }}</td>
                                 <td :class="item.mailing_blocked ? 'is-danger' : (item.imported ? 'is-ok' : '')">
                                     {{ item.imported ? (item.mailing_consent_status || 'yes') : 'no' }}
                                 </td>
+                            </tr>
+                            <tr v-if="!sourceEmails.length">
+                                <td colspan="6">no emails loaded</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1454,4 +1507,33 @@ onMounted(refreshAll)
 
 <style scoped>
 .terminal-mailings{--bg:#050805;--panel:#071007;--text:#9cff57;--text2:#8ee66b;--muted:#5c8f4f;--border:#1c3a1c;--warn:#d9b94f;--danger:#ff4d4d;width:100%;max-width:none;align-self:stretch;min-height:100vh;background:radial-gradient(circle at top left,#0b1c0b 0,#050805 42rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;padding:10px}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border:1px solid var(--border);background:linear-gradient(90deg,#071007,#081808);padding:10px 12px}.eyebrow{color:var(--muted);letter-spacing:.14em;font-size:10px}.topbar h1{font-size:18px;margin:2px 0 0}.status-line{display:flex;gap:8px;align-items:center;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:var(--text);box-shadow:0 0 10px var(--text)}.dot.off{background:var(--danger)}.tabs,.toolbar{display:flex;gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-top:0;background:#061006;padding:5px}.sticky{position:sticky;top:0;z-index:20}.tabs button,.toolbar button,.actions button,.form-row button,.wide-actions button,.side-panel button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer}.tabs button.active,.toolbar button:hover,.form-row button:hover{background:var(--text);color:#050805}.toolbar span{line-height:24px}.ok{color:var(--text2)}.danger,.is-danger{color:var(--danger)!important}.is-warn{color:var(--warn)!important}.is-ok{color:var(--text2)!important}.panel{border:1px solid var(--border);background:rgba(7,16,7,.92);margin-top:8px;padding:8px}.grid-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}.kpi-row{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#061106;padding:5px 7px;min-height:24px}.kpi-row span{color:var(--muted)}.form-row{display:flex;gap:4px;margin-bottom:6px}.form-row.compact input,.form-row.compact select{height:24px}.form-row button,.actions button{white-space:nowrap;flex:0 0 auto}.campaign-form-row{flex-wrap:wrap}.campaign-form-row input,.campaign-form-row select{min-width:140px;flex:1 1 140px}.campaign-form-row input[placeholder="test recipient email"]{max-width:260px}.row-select{min-width:220px;max-width:260px;height:22px}.recipient-campaign-select{min-width:360px;max-width:520px}.stackable{flex-wrap:wrap}input,select,textarea{border:1px solid var(--border);background:#030603;color:var(--text);font:inherit;padding:2px 6px;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--text)}input[type=file]{min-width:260px;color:var(--muted)}.table-shell{max-height:68vh;overflow:auto;border:1px solid var(--border)}.table-shell.mid{max-height:58vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);height:24px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;text-align:left}th{position:sticky;top:0;z-index:4;background:#0a180a;color:var(--text2)}tr:focus,tbody tr:hover{background:#0d210d}.sticky-col{position:sticky;left:0;z-index:3;background:#071407}th.sticky-col{z-index:5}.actions{display:flex;gap:3px}.actions button{height:20px;padding:0 5px}.actions-col{position:sticky;right:0;z-index:3;background:#071407;min-width:410px;max-width:none}.actions-col.actions{display:flex}.actions-col button{white-space:nowrap}th.actions-col{z-index:6;background:#0a180a}.split{display:grid;grid-template-columns:minmax(0,1fr) 620px;gap:8px}.side-panel,.editor-card{border:1px solid var(--border);background:#061106;padding:8px}.side-panel textarea,.codebox{width:100%;min-height:140px}.codebox{min-height:42vh}.codebox.small{min-height:120px}.editor-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.preview{background:#0b120b;color:#d6ffd0}.preview-frame{display:block;width:100%;min-height:72vh;border:1px solid var(--border);background:#fff}.mini-row{display:grid;grid-template-columns:48px minmax(0,1fr) 54px;gap:6px;border-bottom:1px solid var(--border);height:24px;align-items:center}.mini-help{margin:0 0 6px;color:var(--muted)}.wide-actions{grid-column:1/-1;display:flex;gap:6px;align-items:center}.source-email-panel{min-width:0}.source-toolbar{margin-bottom:4px}.source-toolbar input{min-width:0;width:100%}.source-actions{display:flex;gap:4px;align-items:center;margin-bottom:6px}.source-email-shell{max-height:34vh;overflow:auto;border:1px solid var(--border);margin-bottom:8px}.source-email-shell table{font-size:11px}.source-email-shell th,.source-email-shell td{height:22px;max-width:190px}.variables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:3px;margin-top:6px}.variables-grid div{display:flex;gap:6px;border:1px solid var(--border);padding:3px 5px;background:#040904}.variables-grid span{color:var(--muted)}.image-tools input{min-width:210px}.template-editor-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:6px;margin-bottom:6px}.template-codebox{min-height:240px}.products-panel{display:flex;flex-direction:column;min-height:calc(100vh - 230px)}.products-toolbar input{min-width:320px;flex:1 1 320px}.products-toolbar button.active{background:var(--text);color:#050805}.products-workspace{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:8px;min-height:0;flex:1}.products-catalog,.offer-items-panel{min-height:0;display:flex;flex-direction:column}.product-subhead{display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-bottom:0;background:#061006;padding:4px 6px;min-height:28px}.product-subhead span{color:var(--muted);margin-left:auto}.product-subhead button{height:22px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 7px}.product-subhead button:disabled{opacity:.45;cursor:not-allowed}.products-table,.offer-items-table{max-height:none;min-height:0;flex:1}.modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden;box-sizing:border-box}.recipient-dialog{box-sizing:border-box;width:100%;max-width:min(1600px,calc(100vw - 16px));height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);min-width:0;min-height:0;border:1px solid var(--border);background:#050805;color:var(--text);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 0 1px #000,0 18px 80px rgba(0,0,0,.65)}.dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex:0 0 auto;min-width:0;border-bottom:1px solid var(--border);padding:8px 10px;background:#071007}.dialog-head h2{font-size:15px;margin:2px 0 0;max-width:calc(100vw - 120px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dialog-toolbar{display:flex;gap:4px;flex-wrap:wrap;flex:0 0 auto;min-width:0;padding:6px;border-bottom:1px solid var(--border);background:#061006}.dialog-toolbar button{height:24px;border:1px solid var(--border);background:#091709;color:var(--text);font:inherit;padding:0 8px;cursor:pointer;white-space:nowrap}.dialog-toolbar button.active,.dialog-toolbar button:hover{background:var(--text);color:#050805}.dialog-toolbar input{height:24px;min-width:180px;flex:1 1 260px}.dialog-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,340px);gap:8px;min-width:0;min-height:0;flex:1 1 auto;padding:8px;overflow:hidden;box-sizing:border-box}.dialog-table{max-height:none;height:100%;min-width:0;min-height:0;overflow:auto}.dialog-table.full{box-sizing:border-box;margin:8px;height:auto;max-height:none;min-height:0;flex:1 1 auto;overflow:auto}.selected-panel{box-sizing:border-box;min-width:0;min-height:0;overflow:auto}.selected-chip{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:4px;align-items:center;height:24px;border-bottom:1px solid var(--border)}.selected-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.selected-chip button{height:20px;padding:0}.is-muted-row{opacity:.78}a{color:var(--text2)}@media (max-width:900px){.topbar,.split,.editor-grid,.template-editor-grid,.products-workspace{display:block}.status-line{margin-top:8px}.side-panel,.editor-card{margin-top:8px}.terminal-mailings{padding:6px}.table-shell{max-height:60vh}.modal-backdrop{padding:4px}.recipient-dialog{height:calc(100dvh - 8px);max-width:calc(100vw - 8px);max-height:calc(100dvh - 8px)}.dialog-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(92px,28vh);gap:6px;padding:6px}.dialog-toolbar input{flex-basis:100%;min-width:0}.selected-panel{margin-top:0}}
+.source-email-controls,
+.source-pagination {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.source-email-controls label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+}
+
+.source-email-controls input[type=checkbox] {
+    min-width: 0;
+}
+
+.source-pagination {
+    justify-content: space-between;
+    color: var(--muted);
+}
+
+.source-pagination strong {
+    color: var(--text2);
+    font-weight: 700;
+}
 </style>
