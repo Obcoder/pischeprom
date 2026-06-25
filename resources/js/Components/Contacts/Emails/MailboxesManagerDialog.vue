@@ -21,6 +21,7 @@ const editing = ref(null)
 const error = ref('')
 const formError = ref('')
 const notice = ref('')
+const syncStatuses = ref({})
 
 const encryptionOptions = [
     { title: 'SSL', value: 'ssl' },
@@ -102,6 +103,32 @@ function passwordHint(hasPassword) {
 
 function sourceLabel(mailbox) {
     return mailbox.source === 'database' ? 'БД' : '.env'
+}
+
+function formatSyncTime(date = new Date()) {
+    return new Intl.DateTimeFormat('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    }).format(date)
+}
+
+function syncStatus(mailbox) {
+    return syncStatuses.value[mailbox.address] || null
+}
+
+function syncStatusText(mailbox) {
+    const status = syncStatus(mailbox)
+
+    if (!status) {
+        return null
+    }
+
+    if (status.state === 'queued') {
+        return `В очереди с ${status.time}`
+    }
+
+    return `Ошибка запуска ${status.time}`
 }
 
 function errorMessage(error) {
@@ -253,8 +280,22 @@ async function syncMailbox(mailbox) {
             limit: 1000,
         })
 
+        syncStatuses.value = {
+            ...syncStatuses.value,
+            [mailbox.address]: {
+                state: 'queued',
+                time: formatSyncTime(),
+            },
+        }
         notice.value = `Синхронизация ${mailbox.address} поставлена в очередь.`
     } catch (syncError) {
+        syncStatuses.value = {
+            ...syncStatuses.value,
+            [mailbox.address]: {
+                state: 'failed',
+                time: formatSyncTime(),
+            },
+        }
         error.value = errorMessage(syncError)
     } finally {
         syncingAddress.value = null
@@ -434,6 +475,18 @@ watch(dialog, (isOpen) => {
                                 >
                                     {{ folder }}
                                 </v-chip>
+                            </div>
+
+                            <div
+                                v-if="syncStatus(mailbox)"
+                                class="mailbox-card__sync-status mt-3"
+                                :class="`mailbox-card__sync-status--${syncStatus(mailbox).state}`"
+                            >
+                                <v-icon
+                                    :icon="syncStatus(mailbox).state === 'queued' ? 'mdi-timer-sand' : 'mdi-alert-circle-outline'"
+                                    size="13"
+                                />
+                                <span>{{ syncStatusText(mailbox) }}</span>
                             </div>
 
                             <div class="d-flex align-center justify-space-between mt-4">
@@ -835,6 +888,30 @@ watch(dialog, (isOpen) => {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+.mailbox-card__sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.mailbox-card__sync-status--queued {
+    color: #93c5fd;
+    background: rgba(59, 130, 246, 0.16);
+    border: 1px solid rgba(96, 165, 250, 0.28);
+}
+
+.mailbox-card__sync-status--failed {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(248, 113, 113, 0.28);
 }
 
 .mailbox-form-section {

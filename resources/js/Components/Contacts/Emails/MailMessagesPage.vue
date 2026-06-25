@@ -63,6 +63,78 @@ const viewTabs = [
     },
 ]
 
+const viewDescription = computed(() => {
+    if (activeView.value === 'price_requests') {
+        return `Показаны только исходящие письма с точной темой: ${PRICE_REQUEST_SUBJECT}`
+    }
+
+    return 'Общая серверная выборка писем по всем активным фильтрам.'
+})
+
+const activeFilterChips = computed(() => {
+    const chips = []
+
+    if (search.value) {
+        chips.push({
+            key: 'search',
+            label: `Поиск: ${search.value}`,
+            color: 'blue',
+            closable: true,
+        })
+    }
+
+    if (filters.value.mailbox) {
+        const mailbox = mailboxes.value.find((item) => item.address === filters.value.mailbox)
+
+        chips.push({
+            key: 'mailbox',
+            label: `Ящик: ${mailbox?.label || filters.value.mailbox}`,
+            color: 'cyan',
+            closable: true,
+        })
+    }
+
+    if (filters.value.direction) {
+        chips.push({
+            key: 'direction',
+            label: filters.value.direction === 'incoming' ? 'Тип: входящие' : 'Тип: исходящие',
+            color: filters.value.direction === 'incoming' ? 'purple' : 'blue',
+            closable: activeView.value !== 'price_requests',
+        })
+    }
+
+    if (filters.value.folder) {
+        chips.push({
+            key: 'folder',
+            label: `Папка: ${filters.value.folder}`,
+            color: filters.value.folder === 'Sent' ? 'blue' : 'purple',
+            closable: true,
+        })
+    }
+
+    if (filters.value.today) {
+        chips.push({
+            key: 'today',
+            label: 'Почта сегодня',
+            color: 'amber',
+            closable: true,
+        })
+    }
+
+    if (filters.value.subject_exact && activeView.value !== 'price_requests') {
+        chips.push({
+            key: 'subject_exact',
+            label: `Тема: ${filters.value.subject_exact}`,
+            color: 'blue-grey',
+            closable: true,
+        })
+    }
+
+    return chips
+})
+
+const hasResettableFilters = computed(() => activeFilterChips.value.some((chip) => chip.closable))
+
 async function openMessage(message) {
     readerDialog.value = true
     await readMessage(message)
@@ -147,6 +219,39 @@ function applyView(value) {
 
     filters.value.subject_exact = null
     filters.value.direction = null
+}
+
+function resetFilters() {
+    search.value = ''
+    options.value.page = 1
+    filters.value = {
+        ...filters.value,
+        direction: activeView.value === 'price_requests' ? 'outgoing' : null,
+        folder: null,
+        mailbox: null,
+        email_id: null,
+        today: false,
+        subject_exact: activeView.value === 'price_requests' ? PRICE_REQUEST_SUBJECT : null,
+    }
+}
+
+function clearFilter(key) {
+    options.value.page = 1
+
+    if (key === 'search') {
+        search.value = ''
+
+        return
+    }
+
+    if (key === 'direction' && activeView.value === 'price_requests') {
+        return
+    }
+
+    filters.value = {
+        ...filters.value,
+        [key]: key === 'today' ? false : null,
+    }
 }
 
 onMounted(async () => {
@@ -239,6 +344,40 @@ watch(activeView, (value) => {
                 </v-tab>
             </v-tabs>
 
+            <div class="mail-view-context mb-3">
+                <div class="mail-view-context__text">
+                    {{ viewDescription }}
+                </div>
+
+                <v-btn
+                    v-if="hasResettableFilters"
+                    size="x-small"
+                    variant="text"
+                    color="blue-lighten-3"
+                    prepend-icon="mdi-filter-remove-outline"
+                    @click="resetFilters"
+                >
+                    Сбросить фильтры
+                </v-btn>
+            </div>
+
+            <div
+                v-if="activeFilterChips.length"
+                class="mail-active-filters mb-3"
+            >
+                <v-chip
+                    v-for="chip in activeFilterChips"
+                    :key="chip.key"
+                    size="x-small"
+                    :color="chip.color"
+                    variant="tonal"
+                    :closable="chip.closable"
+                    @click:close="clearFilter(chip.key)"
+                >
+                    {{ chip.label }}
+                </v-chip>
+            </div>
+
             <MailMessagesToolbar
                 v-model:search="search"
                 v-model:filters="filters"
@@ -313,5 +452,28 @@ watch(activeView, (value) => {
 
 .mail-view-tabs {
     border-bottom: 1px solid rgba(96, 165, 250, 0.18);
+}
+
+.mail-view-context {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
+    padding: 6px 10px;
+    border: 1px solid rgba(96, 165, 250, 0.16);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.58);
+}
+
+.mail-view-context__text {
+    color: rgba(191, 219, 254, 0.82);
+    font-size: 11px;
+}
+
+.mail-active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 </style>
