@@ -2,9 +2,10 @@
 import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
-import { useAppRoute } from "@/Composables/useAppRoute";
+import { logo } from '@/Pages/Helpers/consts.js'
+import { useAppRoute } from '@/Composables/useAppRoute'
 
-const { route } = useAppRoute();
+const { route } = useAppRoute()
 
 const { goodPublicUrl } = usePublicGoodUrl()
 
@@ -22,30 +23,11 @@ const props = defineProps({
     },
 })
 
-const collageItems = computed(() => {
-    const shuffled = [...props.heroGoods]
-        .sort(() => Math.random() - 0.5)
+const search = ref('')
 
-    return shuffled.map((item, index) => {
-        const patterns = [
-            'tall',
-            'wide',
-            'square',
-            'square',
-            'medium',
-            'square',
-            'wide',
-            'tall',
-            'square',
-            'medium',
-        ]
-
-        return {
-            ...item,
-            layout: patterns[index % patterns.length],
-        }
-    })
-})
+const previewGoods = computed(() => props.heroGoods.slice(0, 7))
+const leadGood = computed(() => previewGoods.value[0] || null)
+const sideGoods = computed(() => previewGoods.value.slice(1, 7))
 
 const quickQueries = [
     'Лецитин',
@@ -59,30 +41,55 @@ const quickQueries = [
 const heroCategories = [
     {
         title: 'Рыба',
-        description: 'Сырьё и товарные позиции для рыбной промышленности',
+        description: 'Филе, морепродукты и позиции для переработки',
         href: '/Seaprom',
         icon: 'mdi-fish',
     },
     {
         title: 'Овощи',
-        description: 'Продукция и направления для овощного сегмента',
+        description: 'Заморозка, смеси, нарезка и полуфабрикаты',
         href: '/vegetables',
         icon: 'mdi-carrot',
     },
     {
         title: 'Бакалея',
-        description: 'Сухие смеси, сыпучие товары и ингредиенты',
+        description: 'Сыпучие ингредиенты, добавки и сухие смеси',
         href: '/grocery',
         icon: 'mdi-package-variant-closed',
     },
 ]
 
 const advantages = [
-    'Фото и описания товаров',
-    'Категории и быстрый поиск',
-    'Характеристики и назначение',
-    'Товары для B2B-задач',
+    'Найти товар по названию',
+    'Перейти в нужную категорию',
+    'Посмотреть фото и описание',
+    'Собрать заявку для закупки',
 ]
+
+const customerTasks = [
+    {
+        title: 'Закупить сырьё',
+        text: 'быстро открыть позиции для производства',
+        icon: 'mdi-cart-arrow-down',
+        query: 'сырьё',
+    },
+    {
+        title: 'Найти добавку',
+        text: 'эмульгаторы, красители, консерванты',
+        icon: 'mdi-flask-outline',
+        query: 'эмульгаторы',
+    },
+    {
+        title: 'Подобрать замену',
+        text: 'сравнить похожие товарные позиции',
+        icon: 'mdi-swap-horizontal',
+        query: 'зам.',
+    },
+]
+
+function goodImage(good) {
+    return good?.ava_thumb || good?.ava_image || logo
+}
 
 function submitSearch() {
     const value = search.value?.trim() || ''
@@ -103,178 +110,177 @@ function applyQuickQuery(query) {
 
 <template>
     <section class="hero-v2">
-        <v-container class="py-8 py-md-12">
+        <div class="hero-v2__grain" />
+        <div class="hero-v2__orb hero-v2__orb--one" />
+        <div class="hero-v2__orb hero-v2__orb--two" />
+
+        <v-container class="py-7 py-md-11">
             <v-row align="center" class="hero-v2__row">
-                <!-- Левая колонка -->
-                <v-col cols="12" lg="7">
+                <v-col cols="12" lg="6">
                     <div class="hero-v2__content">
-                        <div class="hero-v2__badge mb-4">
-                            Маркетплейс для пищевой промышленности
+                        <div class="hero-v2__badge">
+                            <v-icon icon="mdi-sparkles" size="16" />
+                            Каталог для закупки и производства
                         </div>
 
-                        <h1 class="hero-v2__title mb-4">
-                            Пищевое сырьё, ингредиенты и товары
-                            <span class="hero-v2__title-accent">для производственных задач</span>
+                        <h1 class="hero-v2__title">
+                            Найдите пищевое сырьё
+                            <span>под свою задачу</span>
                         </h1>
 
-                        <p class="hero-v2__subtitle mb-6">
-                            Главная стартовая страница должна быстро отвечать на вопрос:
-                            <strong>что можно купить, к какой категории относится товар, как он выглядит и где его применять.</strong>
-                            Именно на это и работает этот hero-блок.
+                        <p class="hero-v2__subtitle">
+                            Ищите ингредиенты, добавки, заморозку и бакалею по названию,
+                            назначению или категории. Смотрите фото, описание и быстро
+                            переходите к нужной товарной позиции.
                         </p>
 
-                        <!-- Поиск -->
-                        <div class="hero-v2__search mb-4">
-                            <v-text-field
-                                v-model="search"
-                                label="Поиск по каталогу"
-                                placeholder="Например: лецитин, глицерин, эмульгаторы, какао-масло"
-                                variant="solo"
-                                bg-color="white"
-                                density="comfortable"
-                                rounded="xl"
-                                hide-details
-                                clearable
-                                prepend-inner-icon="mdi-magnify"
-                                class="hero-v2__search-field"
-                                @keyup.enter="submitSearch"
-                            />
-
-                            <v-btn
-                                color="#800000"
-                                size="x-large"
-                                rounded="xl"
-                                class="hero-v2__search-btn"
-                                @click="submitSearch"
-                            >
-                                Найти
-                            </v-btn>
-                        </div>
-
-                        <!-- Популярные запросы -->
-                        <div class="mb-8">
-                            <div class="text-body-2 text-medium-emphasis mb-3">
-                                Быстрые запросы:
+                        <div class="hero-v2__finder">
+                            <div class="hero-v2__finder-label">
+                                Что нужно найти?
                             </div>
 
-                            <div class="d-flex flex-wrap ga-2">
-                                <v-chip
+                            <div class="hero-v2__search">
+                                <v-text-field
+                                    v-model="search"
+                                    placeholder="Например: лецитин, глицерин, какао-масло"
+                                    variant="solo"
+                                    bg-color="white"
+                                    density="comfortable"
+                                    rounded="xl"
+                                    hide-details
+                                    clearable
+                                    prepend-inner-icon="mdi-magnify"
+                                    class="hero-v2__search-field"
+                                    @keyup.enter="submitSearch"
+                                />
+
+                                <v-btn
+                                    color="#8a100c"
+                                    size="x-large"
+                                    rounded="xl"
+                                    class="hero-v2__search-btn"
+                                    @click="submitSearch"
+                                >
+                                    Найти
+                                </v-btn>
+                            </div>
+
+                            <div class="hero-v2__quick">
+                                <button
                                     v-for="query in quickQueries"
                                     :key="query"
-                                    variant="outlined"
-                                    color="#800000"
-                                    class="cursor-pointer"
+                                    type="button"
+                                    class="hero-v2__quick-chip"
                                     @click="applyQuickQuery(query)"
                                 >
                                     {{ query }}
-                                </v-chip>
+                                </button>
                             </div>
                         </div>
 
-                        <!-- Преимущества -->
-                        <div class="hero-v2__advantages mb-8">
+                        <div class="hero-v2__task-grid">
+                            <button
+                                v-for="task in customerTasks"
+                                :key="task.title"
+                                type="button"
+                                class="hero-v2__task-card"
+                                @click="applyQuickQuery(task.query)"
+                            >
+                                <span class="hero-v2__task-icon">
+                                    <v-icon :icon="task.icon" size="18" />
+                                </span>
+                                <span>
+                                    <strong>{{ task.title }}</strong>
+                                    <small>{{ task.text }}</small>
+                                </span>
+                            </button>
+                        </div>
+
+                        <div class="hero-v2__advantages">
                             <div
                                 v-for="item in advantages"
                                 :key="item"
                                 class="hero-v2__advantage"
                             >
-                                <v-icon size="18" color="#800000">
-                                    mdi-check-circle
-                                </v-icon>
-                                <span>{{ item }}</span>
+                                <v-icon icon="mdi-check-bold" size="14" />
+                                {{ item }}
                             </div>
                         </div>
-
-                        <!-- Статистика -->
-                        <v-row>
-                            <v-col cols="12" sm="6">
-                                <v-card
-                                    rounded="xl"
-                                    elevation="2"
-                                    class="hero-v2__stat-card"
-                                >
-                                    <v-card-text>
-                                        <div class="hero-v2__stat-value">
-                                            {{ stats.productsCount }}
-                                        </div>
-                                        <div class="hero-v2__stat-label">
-                                            товарных наименований
-                                        </div>
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-
-                            <v-col cols="12" sm="6">
-                                <v-card
-                                    rounded="xl"
-                                    elevation="2"
-                                    class="hero-v2__stat-card"
-                                >
-                                    <v-card-text>
-                                        <div class="hero-v2__stat-value">
-                                            {{ stats.goodsCount }}
-                                        </div>
-                                        <div class="hero-v2__stat-label">
-                                            товаров в каталоге
-                                        </div>
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-                        </v-row>
                     </div>
                 </v-col>
 
-                <!-- Правая колонка -->
-                <v-col cols="12" lg="5">
-                    <v-card
-                        rounded="xl"
-                        elevation="4"
-                        class="hero-v2__visual-main overflow-hidden"
-                    >
-                        <div class="hero-v2__collage">
+                <v-col cols="12" lg="6">
+                    <div class="hero-v2__showcase">
+                        <div class="hero-v2__showcase-head">
+                            <div>
+                                <span>Живая витрина</span>
+                                <strong>популярные позиции каталога</strong>
+                            </div>
+
+                            <Link :href="route('public.goods.index')" class="hero-v2__showcase-link">
+                                В каталог
+                                <v-icon icon="mdi-arrow-right" size="16" />
+                            </Link>
+                        </div>
+
+                        <div v-if="leadGood" class="hero-v2__goods-layout">
                             <Link
-                                v-for="item in collageItems"
-                                :key="item.id"
-                                :href="goodPublicUrl(item)"
-                                class="hero-v2__collage-item"
-                                :class="`hero-v2__collage-item--${item.layout}`"
+                                :href="goodPublicUrl(leadGood)"
+                                class="hero-v2__lead-good"
                             >
-                                <div class="hero-v2__collage-media">
+                                <img
+                                    :src="goodImage(leadGood)"
+                                    :alt="leadGood.name"
+                                    loading="lazy"
+                                >
+
+                                <span class="hero-v2__lead-badge">Смотреть товар</span>
+
+                                <div class="hero-v2__lead-copy">
+                                    <small>Витрина каталога</small>
+                                    <strong>{{ leadGood.name }}</strong>
+                                </div>
+                            </Link>
+
+                            <div class="hero-v2__side-goods">
+                                <Link
+                                    v-for="item in sideGoods"
+                                    :key="item.id"
+                                    :href="goodPublicUrl(item)"
+                                    class="hero-v2__side-good"
+                                >
                                     <img
-                                        :src="item.ava_thumb"
+                                        :src="goodImage(item)"
                                         :alt="item.name"
                                         loading="lazy"
                                     >
 
-                                    <div class="hero-v2__collage-overlay">
-                                        <div class="hero-v2__collage-name">
-                                            {{ item.name }}
-                                        </div>
-                                        <div class="hero-v2__collage-action">
-                                            Смотреть товар
-                                        </div>
-                                    </div>
-                                </div>
-                            </Link>
-
-                            <div class="hero-v2__visual-overlay">
-                                <div class="hero-v2__visual-top-chip">
-                                    Каталог пищевой промышленности
-                                </div>
-
-                                <div class="hero-v2__visual-bottom-card">
-                                    <div class="hero-v2__visual-bottom-title">
-                                        Удобный вход в категории
-                                    </div>
-                                    <div class="hero-v2__visual-bottom-text">
-                                        Быстрый переход к товарам, фото, описаниям и характеристикам
-                                    </div>
-                                </div>
+                                    <span>{{ item.name }}</span>
+                                </Link>
                             </div>
                         </div>
-                    </v-card>
 
-                    <!-- Плитки категорий -->
+                        <div v-else class="hero-v2__empty-showcase">
+                            Товары для витрины появятся после публикации каталога.
+                        </div>
+
+                        <div class="hero-v2__meta-strip">
+                            <div class="hero-v2__meta-card">
+                                <strong>{{ stats.productsCount }}</strong>
+                                <span>наименований</span>
+                            </div>
+
+                            <div class="hero-v2__meta-card">
+                                <strong>{{ stats.goodsCount }}</strong>
+                                <span>товаров</span>
+                            </div>
+
+                            <div class="hero-v2__meta-note">
+                                Фото, категории и описания в одном месте.
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="hero-v2__category-grid">
                         <Link
                             v-for="item in heroCategories"
@@ -282,27 +288,23 @@ function applyQuickQuery(query) {
                             :href="item.href"
                             class="hero-v2__category-link"
                         >
-                            <v-card
-                                rounded="xl"
-                                elevation="4"
-                                class="hero-v2__category-card"
-                            >
-                                <v-card-text class="pa-4">
-                                    <div class="hero-v2__category-icon-wrap mb-3">
-                                        <v-icon size="24" color="#800000">
-                                            {{ item.icon }}
-                                        </v-icon>
-                                    </div>
+                            <div class="hero-v2__category-card">
+                                <div class="hero-v2__category-icon-wrap">
+                                    <v-icon size="22">
+                                        {{ item.icon }}
+                                    </v-icon>
+                                </div>
 
-                                    <div class="hero-v2__category-title mb-2">
+                                <div>
+                                    <div class="hero-v2__category-title">
                                         {{ item.title }}
                                     </div>
 
                                     <div class="hero-v2__category-description">
                                         {{ item.description }}
                                     </div>
-                                </v-card-text>
-                            </v-card>
+                                </div>
+                            </div>
                         </Link>
                     </div>
                 </v-col>
@@ -313,17 +315,63 @@ function applyQuickQuery(query) {
 
 <style scoped>
 .hero-v2 {
+    --hero-ink: #241817;
+    --hero-muted: #6b5b54;
+    --hero-red: #8a100c;
+    --hero-red-dark: #5f0a08;
+    --hero-cream: #fff7ef;
+    --hero-sand: #ead7c8;
+    --hero-line: rgba(138, 16, 12, 0.14);
     position: relative;
     overflow: hidden;
     background:
-        radial-gradient(circle at top left, rgba(128, 0, 0, 0.12), transparent 24%),
-        radial-gradient(circle at bottom right, rgba(128, 0, 0, 0.08), transparent 24%),
-        linear-gradient(180deg, #fff8f5 0%, #fffdfb 58%, #ffffff 100%);
+        radial-gradient(circle at 7% 14%, rgba(138, 16, 12, 0.13), transparent 28%),
+        radial-gradient(circle at 88% 6%, rgba(201, 139, 68, 0.18), transparent 24%),
+        linear-gradient(135deg, #fffaf6 0%, #fff4eb 45%, #ffffff 100%);
+    color: var(--hero-ink);
+    font-family: "Comfortaa", "Trebuchet MS", sans-serif;
 }
 
-.hero-v2__row {
+.hero-v2__grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.34;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(138, 16, 12, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(138, 16, 12, 0.03) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.76), transparent 72%);
+}
+
+.hero-v2__orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(4px);
+    pointer-events: none;
+}
+
+.hero-v2__orb--one {
+    left: -120px;
+    top: 90px;
+    width: 280px;
+    height: 280px;
+    background: rgba(138, 16, 12, 0.08);
+}
+
+.hero-v2__orb--two {
+    right: -140px;
+    bottom: 30px;
+    width: 360px;
+    height: 360px;
+    background: rgba(210, 142, 64, 0.16);
+}
+
+.hero-v2__row,
+.hero-v2__content,
+.hero-v2__showcase {
     position: relative;
-    z-index: 2;
+    z-index: 1;
 }
 
 .hero-v2__content {
@@ -333,367 +381,515 @@ function applyQuickQuery(query) {
 .hero-v2__badge {
     display: inline-flex;
     align-items: center;
-    padding: 8px 16px;
+    gap: 8px;
+    margin-bottom: 18px;
+    padding: 9px 14px;
+    border: 1px solid var(--hero-line);
     border-radius: 999px;
-    background: rgba(128, 0, 0, 0.08);
-    color: #800000;
-    font-size: 0.95rem;
-    font-weight: 700;
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 12px 28px rgba(95, 10, 8, 0.08);
+    color: var(--hero-red);
+    font-size: 0.83rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
 }
 
 .hero-v2__title {
-    font-size: clamp(2.2rem, 4vw, 4rem);
-    line-height: 1.05;
-    font-weight: 900;
-    color: #262626;
-    max-width: 820px;
+    max-width: 760px;
+    margin: 0;
+    color: var(--hero-ink);
+    font-size: clamp(2.55rem, 5.7vw, 6.4rem);
+    font-weight: 950;
+    letter-spacing: -0.07em;
+    line-height: 0.93;
 }
 
-.hero-v2__title-accent {
-    color: #800000;
+.hero-v2__title span {
+    display: block;
+    margin-top: 4px;
+    color: var(--hero-red);
 }
 
 .hero-v2__subtitle {
-    font-size: 1.08rem;
-    line-height: 1.75;
-    color: rgba(0, 0, 0, 0.72);
-    max-width: 700px;
+    max-width: 690px;
+    margin: 22px 0 0;
+    color: var(--hero-muted);
+    font-size: clamp(1rem, 1.4vw, 1.2rem);
+    line-height: 1.72;
+}
+
+.hero-v2__finder {
+    max-width: 780px;
+    margin-top: 28px;
+    padding: 14px;
+    border: 1px solid rgba(138, 16, 12, 0.11);
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 24px 54px rgba(79, 38, 22, 0.13);
+    backdrop-filter: blur(10px);
+}
+
+.hero-v2__finder-label {
+    margin: 0 0 10px 6px;
+    color: var(--hero-red-dark);
+    font-size: 0.82rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .hero-v2__search {
     display: grid;
-    grid-template-columns: 1fr 160px;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) 154px;
+    gap: 10px;
     align-items: center;
+}
+
+.hero-v2__search-field :deep(.v-field) {
+    border: 1px solid rgba(36, 24, 23, 0.08);
+    box-shadow: none;
 }
 
 .hero-v2__search-btn {
     height: 56px;
-    font-weight: 700;
-    letter-spacing: 0.2px;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 16px 34px rgba(138, 16, 12, 0.28);
+}
+
+.hero-v2__quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.hero-v2__quick-chip {
+    padding: 8px 12px;
+    border: 1px solid rgba(138, 16, 12, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 250, 246, 0.86);
+    color: var(--hero-red);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 800;
+    transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.hero-v2__quick-chip:hover {
+    transform: translateY(-2px);
+    background: var(--hero-red);
+    color: #fff;
+}
+
+.hero-v2__task-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.hero-v2__task-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 104px;
+    padding: 14px;
+    border: 1px solid rgba(138, 16, 12, 0.12);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.64);
+    color: var(--hero-ink);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.hero-v2__task-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(138, 16, 12, 0.26);
+    box-shadow: 0 18px 36px rgba(79, 38, 22, 0.12);
+}
+
+.hero-v2__task-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    border-radius: 14px;
+    background: #fff1e8;
+    color: var(--hero-red);
+}
+
+.hero-v2__task-card strong,
+.hero-v2__task-card small {
+    display: block;
+}
+
+.hero-v2__task-card strong {
+    font-size: 0.92rem;
+    font-weight: 950;
+}
+
+.hero-v2__task-card small {
+    margin-top: 5px;
+    color: var(--hero-muted);
+    font-size: 0.74rem;
+    line-height: 1.45;
 }
 
 .hero-v2__advantages {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px 16px;
+    gap: 10px 14px;
+    margin-top: 22px;
 }
 
 .hero-v2__advantage {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #4b403c;
+    font-size: 0.92rem;
+    font-weight: 800;
+}
+
+.hero-v2__advantage :deep(.v-icon) {
+    color: var(--hero-red);
+}
+
+.hero-v2__showcase {
+    overflow: hidden;
+    padding: 18px;
+    border: 1px solid rgba(138, 16, 12, 0.10);
+    border-radius: 36px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.83), rgba(255, 243, 234, 0.74)),
+        #fff;
+    box-shadow: 0 32px 70px rgba(62, 35, 24, 0.18);
+    backdrop-filter: blur(14px);
+}
+
+.hero-v2__showcase-head {
     display: flex;
     align-items: center;
-    gap: 10px;
-    color: rgba(0, 0, 0, 0.76);
-    font-weight: 500;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
 }
 
-.hero-v2__stat-card {
-    border: 1px solid rgba(128, 0, 0, 0.08);
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(6px);
-}
-
-.hero-v2__stat-value {
-    font-size: 2.1rem;
-    line-height: 1;
-    font-weight: 900;
-    color: #800000;
-    margin-bottom: 10px;
-}
-
-.hero-v2__stat-label {
-    font-size: 1rem;
-    color: rgba(0, 0, 0, 0.68);
-}
-
-.hero-v2__visual {
-    position: relative;
-}
-
-.hero-v2__visual-main {
-    position: relative;
-    z-index: 1;
-    min-height: 460px;
-    border-radius: 24px;
-    overflow: hidden;
-    background:
-        linear-gradient(135deg, rgba(128, 0, 0, 0.08), rgba(255, 255, 255, 0.4)),
-        #fff;
-}
-
-.hero-v2__collage {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-auto-rows: 96px;
-    gap: 10px;
-    min-height: 460px;
-    padding: 12px;
-    background:
-        radial-gradient(circle at top left, rgba(128, 0, 0, 0.10), transparent 30%),
-        linear-gradient(180deg, #fff7f4 0%, #fffdfc 100%);
-}
-
-.hero-v2__collage-item {
-    position: relative;
+.hero-v2__showcase-head span,
+.hero-v2__showcase-head strong {
     display: block;
-    overflow: hidden;
-    border-radius: 18px;
+}
+
+.hero-v2__showcase-head span {
+    color: var(--hero-red);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.hero-v2__showcase-head strong {
+    margin-top: 4px;
+    color: var(--hero-ink);
+    font-size: 1.1rem;
+    font-weight: 950;
+}
+
+.hero-v2__showcase-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 9px 12px;
+    border-radius: 999px;
+    background: #fff;
+    color: var(--hero-red);
+    font-size: 0.82rem;
+    font-weight: 900;
     text-decoration: none;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
-    transform: translateY(0) scale(1);
-    transition:
-        transform 0.28s ease,
-        box-shadow 0.28s ease,
-        filter 0.28s ease;
 }
 
-.hero-v2__collage-item:hover {
-    transform: translateY(-6px) scale(1.02);
-    box-shadow: 0 16px 30px rgba(0, 0, 0, 0.16);
-    z-index: 3;
+.hero-v2__goods-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.04fr) minmax(230px, 0.96fr);
+    gap: 12px;
 }
 
-.hero-v2__collage-item--square {
-    grid-column: span 1;
-    grid-row: span 1;
-}
-
-.hero-v2__collage-item--medium {
-    grid-column: span 1;
-    grid-row: span 2;
-}
-
-.hero-v2__collage-item--wide {
-    grid-column: span 2;
-    grid-row: span 1;
-}
-
-.hero-v2__collage-item--tall {
-    grid-column: span 2;
-    grid-row: span 2;
-}
-
-.hero-v2__collage-media {
+.hero-v2__lead-good,
+.hero-v2__side-good {
     position: relative;
-    width: 100%;
-    height: 100%;
+    overflow: hidden;
+    display: block;
+    color: #fff;
+    text-decoration: none;
+    background: #2d2926;
 }
 
-.hero-v2__collage-media img {
+.hero-v2__lead-good {
+    min-height: 430px;
+    border-radius: 30px;
+    box-shadow: 0 22px 44px rgba(0, 0, 0, 0.18);
+}
+
+.hero-v2__lead-good img,
+.hero-v2__side-good img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
     transform: scale(1.01);
-    transition: transform 0.4s ease, filter 0.4s ease;
+    transition: transform 0.35s ease, filter 0.35s ease;
 }
 
-.hero-v2__collage-item:hover .hero-v2__collage-media img {
-    transform: scale(1.08);
-    filter: saturate(1.05) contrast(1.03);
-}
-
-.hero-v2__collage-overlay {
+.hero-v2__lead-good::after,
+.hero-v2__side-good::after {
+    content: "";
     position: absolute;
     inset: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    padding: 12px;
-    background: linear-gradient(
-        to top,
-        rgba(0, 0, 0, 0.66) 0%,
-        rgba(0, 0, 0, 0.22) 45%,
-        rgba(0, 0, 0, 0.02) 100%
-    );
-    opacity: 0.96;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.68), rgba(0, 0, 0, 0.12) 56%, transparent);
 }
 
-.hero-v2__collage-name {
-    font-size: 0.92rem;
-    line-height: 1.3;
-    font-weight: 800;
-    color: #fff;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+.hero-v2__lead-good:hover img,
+.hero-v2__side-good:hover img {
+    transform: scale(1.07);
+    filter: saturate(1.08) contrast(1.04);
 }
 
-.hero-v2__collage-action {
-    margin-top: 6px;
-    font-size: 0.78rem;
-    color: rgba(255, 255, 255, 0.9);
-    font-weight: 600;
-}
-
-.hero-v2__visual-overlay {
-    pointer-events: none;
+.hero-v2__lead-badge,
+.hero-v2__lead-copy,
+.hero-v2__side-good span {
     position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 20px;
+    z-index: 1;
 }
 
-@media (max-width: 960px) {
-    .hero-v2__visual-main {
-        min-height: 360px;
-    }
-
-    .hero-v2__collage {
-        grid-template-columns: repeat(3, 1fr);
-        grid-auto-rows: 92px;
-        min-height: 360px;
-    }
-
-    .hero-v2__collage-item--wide,
-    .hero-v2__collage-item--tall {
-        grid-column: span 1;
-        grid-row: span 1;
-    }
-}
-
-@media (max-width: 600px) {
-    .hero-v2__collage {
-        grid-template-columns: repeat(2, 1fr);
-        grid-auto-rows: 88px;
-    }
-
-    .hero-v2__collage-name {
-        font-size: 0.82rem;
-    }
-}
-
-.hero-v2__visual-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 20px;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.04));
-}
-
-.hero-v2__visual-top-chip {
-    align-self: flex-start;
-    display: inline-flex;
-    padding: 10px 14px;
+.hero-v2__lead-badge {
+    top: 16px;
+    left: 16px;
+    padding: 8px 12px;
     border-radius: 999px;
-    background: rgba(255, 250, 245, 0.94);
-    color: #800000;
-    font-weight: 700;
-    font-size: 0.92rem;
+    background: rgba(255, 255, 255, 0.88);
+    color: var(--hero-red);
+    font-size: 0.78rem;
+    font-weight: 950;
 }
 
-.hero-v2__visual-bottom-card {
-    align-self: flex-end;
-    max-width: 280px;
-    padding: 16px 18px;
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(8px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+.hero-v2__lead-copy {
+    right: 18px;
+    bottom: 18px;
+    left: 18px;
 }
 
-.hero-v2__visual-bottom-title {
-    font-size: 1rem;
+.hero-v2__lead-copy small,
+.hero-v2__lead-copy strong {
+    display: block;
+}
+
+.hero-v2__lead-copy small {
+    margin-bottom: 7px;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.82rem;
     font-weight: 800;
-    color: #2b2b2b;
-    margin-bottom: 8px;
 }
 
-.hero-v2__visual-bottom-text {
-    font-size: 0.95rem;
-    line-height: 1.55;
-    color: rgba(0, 0, 0, 0.7);
+.hero-v2__lead-copy strong {
+    font-size: clamp(1.35rem, 2vw, 2rem);
+    font-weight: 950;
+    line-height: 1.14;
+}
+
+.hero-v2__side-goods {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.hero-v2__side-good {
+    min-height: 132px;
+    border-radius: 24px;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.13);
+}
+
+.hero-v2__side-good span {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    display: -webkit-box;
+    overflow: hidden;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 950;
+    line-height: 1.24;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.hero-v2__empty-showcase {
+    display: flex;
+    min-height: 260px;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed rgba(138, 16, 12, 0.2);
+    border-radius: 28px;
+    color: var(--hero-muted);
+    text-align: center;
+}
+
+.hero-v2__meta-strip {
+    display: grid;
+    grid-template-columns: 0.8fr 0.8fr 1.5fr;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.hero-v2__meta-card,
+.hero-v2__meta-note {
+    min-height: 82px;
+    padding: 14px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(138, 16, 12, 0.10);
+}
+
+.hero-v2__meta-card strong,
+.hero-v2__meta-card span {
+    display: block;
+}
+
+.hero-v2__meta-card strong {
+    color: var(--hero-red);
+    font-size: 1.8rem;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.hero-v2__meta-card span,
+.hero-v2__meta-note {
+    color: var(--hero-muted);
+    font-size: 0.84rem;
+    font-weight: 800;
+    line-height: 1.4;
 }
 
 .hero-v2__category-grid {
-    position: relative;
-    z-index: 2;
-    margin-top: -54px;
-    padding-left: 18px;
-    padding-right: 18px;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
 }
 
 .hero-v2__category-link {
+    color: inherit;
     text-decoration: none;
 }
 
 .hero-v2__category-card {
-    height: 100%;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    background: rgba(255, 255, 255, 0.98);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 112px;
+    padding: 14px;
+    border: 1px solid rgba(138, 16, 12, 0.10);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.74);
+    box-shadow: 0 18px 34px rgba(79, 38, 22, 0.10);
+    transition: transform 0.18s ease, border-color 0.18s ease;
 }
 
 .hero-v2__category-card:hover {
     transform: translateY(-4px);
+    border-color: rgba(138, 16, 12, 0.24);
 }
 
 .hero-v2__category-icon-wrap {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    background: rgba(128, 0, 0, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    border-radius: 15px;
+    background: #fff1e8;
+    color: var(--hero-red);
 }
 
 .hero-v2__category-title {
-    font-size: 1rem;
-    font-weight: 800;
-    color: #2f2f2f;
+    color: var(--hero-ink);
+    font-size: 0.92rem;
+    font-weight: 950;
 }
 
 .hero-v2__category-description {
-    font-size: 0.9rem;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.66);
+    margin-top: 4px;
+    color: var(--hero-muted);
+    font-size: 0.73rem;
+    font-weight: 700;
+    line-height: 1.42;
 }
 
 @media (max-width: 1264px) {
-    .hero-v2__category-grid {
-        grid-template-columns: 1fr;
-        margin-top: 16px;
-        padding-left: 0;
-        padding-right: 0;
+    .hero-v2__content {
+        max-width: none;
+    }
+
+    .hero-v2__showcase {
+        margin-top: 22px;
     }
 }
 
 @media (max-width: 960px) {
-    .hero-v2__search {
+    .hero-v2__goods-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-v2__lead-good {
+        min-height: 320px;
+    }
+
+    .hero-v2__meta-strip,
+    .hero-v2__category-grid,
+    .hero-v2__task-grid {
         grid-template-columns: 1fr;
     }
 
     .hero-v2__advantages {
         grid-template-columns: 1fr;
     }
-
-    .hero-v2__visual-main :deep(.v-img) {
-        min-height: 360px;
-    }
 }
 
 @media (max-width: 600px) {
     .hero-v2__title {
-        font-size: 2rem;
+        font-size: 2.55rem;
+        letter-spacing: -0.055em;
     }
 
-    .hero-v2__subtitle {
-        font-size: 1rem;
-        line-height: 1.65;
+    .hero-v2__finder,
+    .hero-v2__showcase {
+        border-radius: 24px;
+        padding: 12px;
     }
 
-    .hero-v2__visual-bottom-card {
-        max-width: 100%;
+    .hero-v2__search {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-v2__search-btn {
+        width: 100%;
+    }
+
+    .hero-v2__side-goods {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-v2__showcase-head {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
 </style>
