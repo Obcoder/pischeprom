@@ -136,6 +136,9 @@ class MailMessageController extends Controller
             'emails.entities' => fn ($query) => $query
                 ->without(['buildings', 'classification', 'country'])
                 ->select('entities.id', 'entities.name'),
+            'emails.entities.units' => fn ($query) => $query
+                ->without(['fields', 'labels', 'telephones', 'uris'])
+                ->select('units.id', 'units.name'),
             'attachments',
             'notes.user:id,name',
             'leads:id,mail_message_id,title,status,entity_id,unit_id',

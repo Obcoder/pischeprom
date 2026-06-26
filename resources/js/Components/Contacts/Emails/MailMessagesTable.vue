@@ -172,6 +172,17 @@ function relatedEntities(item) {
     )
 }
 
+function directUnitIds(item) {
+    return new Set(relatedUnits(item).map((unit) => Number(unit.id)))
+}
+
+function entityUnits(entity, item) {
+    const existingDirectUnits = directUnitIds(item)
+
+    return uniqueById(entity?.units ?? [])
+        .filter((unit) => !existingDirectUnits.has(Number(unit.id)))
+}
+
 function relationLabel(item, fallback) {
     return item?.name || `${fallback} #${item?.id}`
 }
@@ -435,17 +446,33 @@ function rowProps({ item }) {
                         <span>{{ relationLabel(unit, 'Unit') }}</span>
                     </Link>
 
-                    <Link
+                    <div
                         v-for="entity in relatedEntities(item)"
                         :key="`entity-${entity.id}`"
-                        :href="entityHref(entity)"
-                        class="mail-relation-link mail-relation-link--entity"
-                        :title="relationLabel(entity, 'Entity')"
-                        @click.stop
+                        class="mail-relation-entity-group"
                     >
-                        <v-icon icon="mdi-domain" size="10" />
-                        <span>{{ relationLabel(entity, 'Entity') }}</span>
-                    </Link>
+                        <Link
+                            :href="entityHref(entity)"
+                            class="mail-relation-link mail-relation-link--entity"
+                            :title="relationLabel(entity, 'Entity')"
+                            @click.stop
+                        >
+                            <v-icon icon="mdi-domain" size="10" />
+                            <span>{{ relationLabel(entity, 'Entity') }}</span>
+                        </Link>
+
+                        <Link
+                            v-for="unit in entityUnits(entity, item)"
+                            :key="`entity-${entity.id}-unit-${unit.id}`"
+                            :href="unitHref(unit)"
+                            class="mail-relation-link mail-relation-link--unit mail-relation-link--entity-unit"
+                            :title="relationLabel(unit, 'Unit')"
+                            @click.stop
+                        >
+                            <v-icon icon="mdi-factory" size="10" />
+                            <span>{{ relationLabel(unit, 'Unit') }}</span>
+                        </Link>
+                    </div>
                 </div>
 
                 <span v-else class="mail-relations__empty">—</span>
@@ -570,6 +597,14 @@ function rowProps({ item }) {
     width: 100%;
 }
 
+.mail-relation-entity-group {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-width: 150px;
+}
+
 .mail-relations__empty {
     color: rgba(148, 163, 184, 0.45);
     font-size: 11px;
@@ -598,6 +633,11 @@ function rowProps({ item }) {
 .mail-relation-link--unit {
     background: rgba(59, 130, 246, 0.12);
     color: #93c5fd;
+}
+
+.mail-relation-link--entity-unit {
+    border-color: rgba(96, 165, 250, 0.36);
+    max-width: 128px;
 }
 
 .mail-relation-link--entity {
