@@ -461,17 +461,26 @@ function rowProps({ item }) {
                             <span>{{ relationLabel(entity, 'Entity') }}</span>
                         </Link>
 
-                        <Link
+                        <div
                             v-for="unit in entityUnits(entity, item)"
                             :key="`entity-${entity.id}-unit-${unit.id}`"
-                            :href="unitHref(unit)"
-                            class="mail-relation-link mail-relation-link--unit mail-relation-link--entity-unit"
-                            :title="relationLabel(unit, 'Unit')"
-                            @click.stop
+                            class="mail-relation-entity-unit-row"
                         >
-                            <v-icon icon="mdi-factory" size="10" />
-                            <span>{{ relationLabel(unit, 'Unit') }}</span>
-                        </Link>
+                            <span
+                                class="mail-relation-entity-arrow"
+                                aria-hidden="true"
+                            >↳</span>
+
+                            <Link
+                                :href="unitHref(unit)"
+                                class="mail-relation-link mail-relation-link--unit mail-relation-link--entity-unit"
+                                :title="relationLabel(unit, 'Unit')"
+                                @click.stop
+                            >
+                                <v-icon icon="mdi-factory" size="10" />
+                                <span>{{ relationLabel(unit, 'Unit') }}</span>
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
@@ -601,8 +610,25 @@ function rowProps({ item }) {
     align-items: center;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     max-width: 150px;
+}
+
+.mail-relation-entity-unit-row {
+    align-items: center;
+    display: flex;
+    gap: 2px;
+    max-width: 150px;
+}
+
+.mail-relation-entity-arrow {
+    color: rgba(147, 197, 253, 0.78);
+    flex: 0 0 auto;
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1;
+    margin-top: -2px;
 }
 
 .mail-relations__empty {
