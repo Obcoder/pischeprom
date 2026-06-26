@@ -93,6 +93,8 @@ class MailMessage extends Model
 
     public function scopeFilter(Builder $query, array $filters = []): Builder
     {
+        $today = filter_var($filters['today'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
         return $query
             ->when(! empty($filters['direction']), function (Builder $q) use ($filters) {
                 $q->where('direction', $filters['direction']);
@@ -100,7 +102,7 @@ class MailMessage extends Model
             ->when(! empty($filters['folder']), function (Builder $q) use ($filters) {
                 $q->where('folder', $filters['folder']);
             })
-            ->when(! empty($filters['today']), function (Builder $q) {
+            ->when($today, function (Builder $q) {
                 $q->whereBetween('message_date', [
                     now()->startOfDay(),
                     now()->endOfDay(),

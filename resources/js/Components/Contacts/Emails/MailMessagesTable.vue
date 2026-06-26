@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import { route } from 'ziggy-js'
 
-defineProps({
+const props = defineProps({
     messages: {
         type: Array,
         default: () => [],
@@ -201,14 +201,74 @@ function entityHref(entity) {
 }
 
 function mailboxIndex(address) {
-    const normalized = String(address || '').toLowerCase()
-    const configuredIndex = props.mailboxes.findIndex((mailbox) => String(mailbox.address || '').toLowerCase() === normalized)
+    const normalized = normalizeEmailAddress(address)
+    const configuredIndex = props.mailboxes.findIndex((mailbox) => normalizeEmailAddress(mailbox.address) === normalized)
 
     if (configuredIndex >= 0) {
         return configuredIndex
     }
 
     return Math.abs([...normalized].reduce((sum, char) => sum + char.charCodeAt(0), 0))
+}
+
+function normalizeEmailAddress(value) {
+    return String(value || '').trim().toLowerCase()
+}
+
+function configuredMailbox(address) {
+    const normalized = normalizeEmailAddress(address)
+
+    if (!normalized) {
+        return null
+    }
+
+    return props.mailboxes.find((mailbox) => normalizeEmailAddress(mailbox.address) === normalized) || null
+}
+
+function configuredMailboxAddresses() {
+    return new Set(
+        props.mailboxes
+            .map((mailbox) => normalizeEmailAddress(mailbox.address))
+            .filter(Boolean)
+    )
+}
+
+function recipientAddresses(recipients = []) {
+    return recipients
+        .map((recipient) => normalizeEmailAddress(recipient?.address))
+        .filter(Boolean)
+}
+
+function mailboxAddress(item) {
+    const mailbox = normalizeEmailAddress(item?.mailbox)
+
+    if (mailbox) {
+        return mailbox
+    }
+
+    const configured = configuredMailboxAddresses()
+    const from = normalizeEmailAddress(item?.from_address)
+
+    if (configured.has(from)) {
+        return from
+    }
+
+    return [...recipientAddresses(item?.to), ...recipientAddresses(item?.cc)]
+        .find((address) => configured.has(address)) || ''
+}
+
+function mailboxLabel(item) {
+    const address = mailboxAddress(item)
+    const mailbox = configuredMailbox(address)
+
+    return mailbox?.address || address
+}
+
+function mailboxTitle(item) {
+    const address = mailboxAddress(item)
+    const mailbox = configuredMailbox(address)
+
+    return mailbox?.label || address || 'Ящик не определён'
 }
 
 function mailboxStyle(address) {
@@ -301,9 +361,10 @@ function rowProps({ item }) {
         <template #item.mailbox="{ item }">
             <span
                 class="mailbox-pill"
-                :style="mailboxStyle(item.mailbox)"
+                :style="mailboxStyle(mailboxAddress(item))"
+                :title="mailboxTitle(item)"
             >
-                {{ item.mailbox || '—' }}
+                {{ mailboxLabel(item) || '—' }}
             </span>
         </template>
 
@@ -433,10 +494,34 @@ function rowProps({ item }) {
     background: rgba(59, 130, 246, 0.08) !important;
 }
 
+.mail-messages-table :deep(.v-table__wrapper) {
+    overflow-x: auto;
+}
+
+.mail-messages-table :deep(table) {
+    min-width: 1180px;
+    table-layout: fixed;
+}
+
+.mail-messages-table :deep(th) {
+    white-space: nowrap;
+}
+
+.mail-messages-table :deep(th),
+.mail-messages-table :deep(td) {
+    vertical-align: top;
+}
+
+.mail-messages-table :deep(td) {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+}
+
 .mailbox-pill {
     display: inline-flex;
     align-items: center;
-    max-width: 166px;
+    max-width: 100%;
+    min-width: 0;
     padding: 3px 9px;
     border: 1px solid var(--mailbox-border);
     border-radius: 999px;
