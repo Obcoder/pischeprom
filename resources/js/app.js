@@ -9,32 +9,10 @@ import { createInertiaApp } from '@inertiajs/vue3'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from 'ziggy-js'
 import { createHead } from '@vueuse/head'
-
-// Vuetify
-import { createVuetify } from 'vuetify'
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
-import { aliases, mdi } from 'vuetify/iconsets/mdi'
+import { createAppVuetify } from '@/Plugins/vuetify'
 
 const head = createHead()
-
-const vuetify = createVuetify({
-    locale: {
-        locale: 'ru',
-    },
-
-    icons: {
-        defaultSet: 'mdi',
-        aliases,
-        sets: {
-            mdi,
-        },
-    },
-
-    ssr: true,
-    components,
-    directives,
-})
+const vuetify = createAppVuetify()
 
 const appName = import.meta.env?.['VITE_APP_NAME'] || 'ПИЩЕПРОМ-СЕРВЕР'
 

@@ -9,10 +9,7 @@ import { renderToString } from '@vue/server-renderer'
 import { createSSRApp, h } from 'vue'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from 'ziggy-js'
-
-import { createVuetify } from 'vuetify'
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
+import { createAppVuetify } from '@/Plugins/vuetify'
 
 const appName = import.meta.env.VITE_APP_NAME || 'ПИЩЕПРОМ-СЕРВЕР'
 
@@ -63,11 +60,7 @@ createServer((page) =>
                 render: () => h(App, props),
             })
 
-            const vuetify = createVuetify({
-                ssr: true,
-                components,
-                directives,
-            })
+            const vuetify = createAppVuetify()
 
             const ziggy = makeZiggyConfig(page)
 
