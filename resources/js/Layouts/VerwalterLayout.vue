@@ -305,6 +305,16 @@ onMounted(fetchWorkingLeads)
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
+                <Link
+                    :href="route('Ameise.home-banners')"
+                    title="Баннеры главной"
+                    aria-label="Баннеры главной"
+                >
+                    <v-icon icon="mdi-view-carousel-outline" size="small" class="mx-1" />
+                    <span>Баннеры</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
                 <Link :href="route('ameise.workboard')">
                     <span>WorkBoard</span>
                 </Link>

@@ -9,7 +9,8 @@ import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
 import HomeFieldCollectionsSection from '@/Components/Home/HomeFieldCollectionsSection.vue'
 import HomeCountryCollectionsSection from '@/Components/Home/HomeCountryCollectionsSection.vue'
-import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
+import HomeTopSalesSection from '@/Components/Home/HomeTopSalesSection.vue'
+import HomeBannerGallerySection from '@/Components/Home/HomeBannerGallerySection.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
 import HomeGoodsBookCard from '@/Components/Home/HomeGoodsBookCard.vue'
@@ -56,18 +57,6 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
-    featuredProducts: {
-        type: Array,
-        default: () => [],
-    },
-    promoProduct: {
-        type: Object,
-        default: null,
-    },
-    videos: {
-        type: Array,
-        default: () => [],
-    },
     stats: {
         type: Object,
         default: () => ({
@@ -84,6 +73,14 @@ const props = defineProps({
         default: null,
     },
     countryCollections: {
+        type: Array,
+        default: () => [],
+    },
+    topSalesGoods: {
+        type: Array,
+        default: () => [],
+    },
+    homeBanners: {
         type: Array,
         default: () => [],
     },
@@ -179,16 +176,6 @@ function fallbackRoute(name, params = {}, absolute = false) {
     return absolute && path !== '#'
         ? absoluteUrl(path)
         : path
-}
-
-function routeExistsInZiggy(name) {
-    const ziggy = page.props.ziggy || globalThis.Ziggy || {}
-
-    return Boolean(ziggy.routes?.[name])
-}
-
-function hasRoute(name) {
-    return routeExistsInZiggy(name)
 }
 
 function route(name, params = {}, absolute = false) {
@@ -431,106 +418,9 @@ onMounted(() => {
             :loading="goodsLoading"
         />
 
-        <HomeFeaturedProductsSection
-            title="Популярные товары"
-            subtitle="Ключевые позиции для пищевой промышленности"
-            :products="featuredProducts"
-        />
+        <HomeTopSalesSection :goods="topSalesGoods" />
 
-        <section class="welcome-section">
-            <v-container>
-                <v-row class="align-stretch" dense>
-                    <v-col cols="12" lg="8">
-                        <v-card class="welcome-banner-card" rounded="xl" elevation="2">
-                            <v-row dense class="fill-height">
-                                <v-col cols="12" md="7">
-                                    <div class="welcome-banner-card__content">
-                                        <div class="welcome-eyebrow">
-                                            Маркетплейс для пищевой промышленности
-                                        </div>
-
-                                        <h2 class="welcome-title">
-                                            Пищевое сырьё, ингредиенты и добавки
-                                        </h2>
-
-                                        <p class="welcome-text">
-                                            Подбор номенклатуры, каталог товарных позиций,
-                                            быстрый поиск и удобная навигация по категориям.
-                                        </p>
-
-                                        <div class="welcome-actions">
-                                            <Link :href="route('public.goods.index')">
-                                                <v-btn color="#800000" rounded="xl" size="large">
-                                                    Перейти в каталог
-                                                </v-btn>
-                                            </Link>
-
-                                            <Link
-                                                v-if="hasRoute('web.sesame')"
-                                                :href="route('web.sesame')"
-                                            >
-                                                <v-btn
-                                                    variant="outlined"
-                                                    color="#800000"
-                                                    rounded="xl"
-                                                    size="large"
-                                                >
-                                                    Кунжут
-                                                </v-btn>
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </v-col>
-
-                                <v-col cols="12" md="5">
-                                    <v-img
-                                        src="https://storage.yandexcloud.net/pps/banners/%D0%91%D0%B0%D0%BD%D0%BD%D0%B5%D1%80%20%D0%BB%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD_%D0%9B%D0%B5%D1%86%D0%B5%D1%82%D0%B8%D0%BD%20%D0%BA%D0%BE%D0%BF%D0%B8%D1%8F.png"
-                                        height="100%"
-                                        cover
-                                        class="welcome-banner-card__image"
-                                    />
-                                </v-col>
-                            </v-row>
-                        </v-card>
-                    </v-col>
-
-                    <v-col cols="12" lg="4">
-                        <v-card class="stats-card h-100" rounded="xl" elevation="2">
-                            <v-card-title class="text-h6 font-weight-bold">
-                                О проекте
-                            </v-card-title>
-
-                            <v-card-text class="stats-card__body">
-                                <div class="stats-card__numbers">
-                                    <div class="stats-chip">
-                                        <span class="stats-chip__value">
-                                            {{ heroStats.productsCount }}
-                                        </span>
-                                        <span class="stats-chip__label">
-                                            товарных наименований
-                                        </span>
-                                    </div>
-
-                                    <div class="stats-chip">
-                                        <span class="stats-chip__value">
-                                            {{ heroStats.goodsCount }}
-                                        </span>
-                                        <span class="stats-chip__label">
-                                            товаров
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <p class="welcome-text mb-0">
-                                    ПИЩЕПРОМ-СЕРВЕР — работа по поддержанию широкого
-                                    ассортимента пищевых добавок, ингредиентов и сырья.
-                                </p>
-                            </v-card-text>
-                        </v-card>
-                    </v-col>
-                </v-row>
-            </v-container>
-        </section>
+        <HomeBannerGallerySection :banners="homeBanners" />
 
         <section class="welcome-section">
             <v-container>
@@ -780,110 +670,6 @@ onMounted(() => {
     font-weight: 700;
 }
 
-.welcome-title {
-    margin: 14px 0 12px;
-    font-size: 2rem;
-    line-height: 1.15;
-    font-weight: 800;
-    color: #3f1d1d;
-}
-
-.welcome-text {
-    color: #5f5753;
-    line-height: 1.65;
-    font-size: 0.98rem;
-}
-
-.welcome-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 20px;
-}
-
-.welcome-banner-card {
-    overflow: hidden;
-    background:
-        linear-gradient(135deg, #fffaf8 0%, #fff 35%, #fff6f3 100%);
-}
-
-.welcome-banner-card__content {
-    padding: 32px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 100%;
-}
-
-.welcome-banner-card__image {
-    min-height: 100%;
-}
-
-.stats-card {
-    background: linear-gradient(180deg, #ffffff 0%, #fff8f5 100%);
-}
-
-.stats-card__body {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.stats-card__numbers {
-    display: grid;
-    gap: 12px;
-}
-
-.stats-chip {
-    display: flex;
-    flex-direction: column;
-    padding: 14px 16px;
-    border-radius: 18px;
-    background: rgba(128, 0, 0, 0.05);
-    border: 1px solid rgba(128, 0, 0, 0.08);
-}
-
-.stats-chip__value {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: #7f1d1d;
-    line-height: 1.1;
-}
-
-.stats-chip__label {
-    margin-top: 4px;
-    color: #6b625d;
-    font-size: 0.92rem;
-}
-
-.promo-mini-card {
-    background: #fff;
-}
-
-.category-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.category-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 999px;
-    text-decoration: none;
-    color: #7f1d1d;
-    background: rgba(128, 0, 0, 0.06);
-    border: 1px solid rgba(128, 0, 0, 0.08);
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.category-tag:hover {
-    background: rgba(128, 0, 0, 0.10);
-}
-
-.mini-list,
 .info-list {
     margin: 0;
     padding-left: 18px;
@@ -900,26 +686,8 @@ onMounted(() => {
         padding: 24px 0;
     }
 
-    .welcome-title {
-        font-size: 1.65rem;
-    }
-
     .section-title {
         font-size: 1.45rem;
-    }
-
-    .welcome-banner-card__content {
-        padding: 22px;
-    }
-}
-
-@media (max-width: 600px) {
-    .welcome-actions {
-        flex-direction: column;
-    }
-
-    .welcome-actions :deep(.v-btn) {
-        width: 100%;
     }
 }
 </style>

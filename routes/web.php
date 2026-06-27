@@ -219,6 +219,10 @@ Route::get('/Ameise/Geography/', function () {
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
 
+Route::get('/Ameise/home-banners', function () {
+    return Inertia::render('Ameise/HomeBanners');
+})->name('Ameise.home-banners');
+
 /*
 |--------------------------------------------------------------------------
 | G O O D S

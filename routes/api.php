@@ -31,6 +31,8 @@ use App\Http\Controllers\API\GoodPriceCalculationController;
 use App\Http\Controllers\API\GoodPriceTypeValueController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\GoodSeoController;
+use App\Http\Controllers\API\HomeBannerAssetController;
+use App\Http\Controllers\API\HomeBannerController;
 use App\Http\Controllers\API\IndustryController;
 use App\Http\Controllers\API\LabelController;
 use App\Http\Controllers\API\LeadController;
@@ -385,6 +387,18 @@ Route::apiResource('industries', IndustryController::class);
 Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
 Route::apiResource('genera', GenusController::class);
 Route::apiResource('goodsales', GoodSaleController::class);
+Route::prefix('home-banner-assets')
+    ->name('api.home-banner-assets.')
+    ->group(function () {
+        Route::get('/', [HomeBannerAssetController::class, 'index'])->name('index');
+        Route::post('/upload', [HomeBannerAssetController::class, 'upload'])->name('upload');
+        Route::post('/folders', [HomeBannerAssetController::class, 'storeFolder'])->name('folders.store');
+        Route::patch('/rename', [HomeBannerAssetController::class, 'rename'])->name('rename');
+        Route::patch('/move', [HomeBannerAssetController::class, 'move'])->name('move');
+        Route::delete('/', [HomeBannerAssetController::class, 'destroy'])->name('destroy');
+    });
+Route::apiResource('home-banners', HomeBannerController::class)
+    ->parameters(['home-banners' => 'homeBanner']);
 Route::apiResource('labels', LabelController::class);
 Route::apiResource('measures', MeasureController::class);
 Route::apiResource('messages', MessageController::class);
