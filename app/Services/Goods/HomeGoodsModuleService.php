@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Good;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
 
 class HomeGoodsModuleService
@@ -45,7 +46,7 @@ class HomeGoodsModuleService
 
     private function tableOfContents(): array
     {
-        $categories = Category::query()
+        $categoriesQuery = Category::query()
             ->published()
             ->with([
                 'products' => fn ($query) => $query
@@ -56,9 +57,17 @@ class HomeGoodsModuleService
                     ->limit(14),
             ])
             ->withCount('goods')
-            ->orderByDesc('is_featured')
-            ->orderBy('sort_order')
-            ->orderBy('name')
+            ->when(
+                Schema::hasColumn('categories', 'is_featured'),
+                fn ($query) => $query->orderByDesc('is_featured')
+            )
+            ->when(
+                Schema::hasColumn('categories', 'sort_order'),
+                fn ($query) => $query->orderBy('sort_order')
+            )
+            ->orderBy('name');
+
+        $categories = $categoriesQuery
             ->limit(10)
             ->get();
 

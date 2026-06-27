@@ -19,46 +19,38 @@ class MainController extends Controller
 {
     public function index(Request $request, HomeGoodsModuleService $homeGoodsModuleService): Response
     {
-        $categories = Category::query()
+        $categoriesQuery = Category::query()
             ->where('is_published', true)
             ->withCount(['products', 'goods'])
-            ->orderByDesc('is_featured')
-            ->orderBy('sort_order')
-            ->orderBy('name')
+            ->when(
+                Schema::hasColumn('categories', 'is_featured'),
+                fn ($query) => $query->orderByDesc('is_featured')
+            )
+            ->when(
+                Schema::hasColumn('categories', 'sort_order'),
+                fn ($query) => $query->orderBy('sort_order')
+            )
+            ->orderBy('name');
+
+        $categories = $categoriesQuery
             ->limit(12)
             ->get();
 
         $goodOfTheDay = $this->resolveGoodOfTheDay();
 
-        $fields = Field::query()
-            ->published()
-            ->withCount([
-                'goods as goods_count' => fn ($query) => $query->where('goods.is_published', true),
-            ])
-            ->orderBy('sort_order')
-            ->orderBy('title')
-            ->limit(12)
-            ->get([
-                'id',
-                'title',
-                'slug',
-                'description',
-                'sort_order',
-                'is_published',
-            ]);
+        $fields = $this->homeFields();
 
-        $heroGoods = Good::query()
+        $heroGoodsQuery = Good::query()
             ->where('is_published', true)
-            ->whereNotNull('ava_thumb')
+            ->whereNotNull(Schema::hasColumn('goods', 'ava_thumb') ? 'ava_thumb' : 'ava_image')
             ->inRandomOrder()
-            ->limit(random_int(8, 16))
-            ->get([
-                      'id',
-                      'name',
-                      'slug',
-                      'ava_image',
-                      'ava_thumb',
-                  ]);
+            ->limit(random_int(8, 16));
+
+        $heroGoods = $heroGoodsQuery->get($this->goodImageColumns([
+            'id',
+            'name',
+            'slug',
+        ]));
 
         return Inertia::render('Welcome', [
             'categories' => $categories,
@@ -79,7 +71,6 @@ class MainController extends Controller
         $hasGoodCountry = Schema::hasColumn('goods', 'country_id');
         $relations = [
             'products.category:id,name,slug',
-            'fields:id,name,description',
             'publishedMedia' => function ($query): void {
                 $query
                     ->where('type', 'image')
@@ -94,13 +85,18 @@ class MainController extends Controller
             'name',
             'slug',
             'ava_image',
-            'ava_thumb',
             'description',
         ];
+
+        $columns = $this->goodImageColumns($columns);
 
         if ($hasGoodCountry) {
             $relations[] = 'country:id,name,flag';
             $columns[] = 'country_id';
+        }
+
+        if ($this->hasPublicFieldCollections()) {
+            $relations[] = 'fields:id,title,description';
         }
 
         return Good::query()
@@ -112,6 +108,7 @@ class MainController extends Controller
             ->values()
             ->map(function (Good $good): array {
                 $mediaImage = $good->publishedMedia->first();
+                $fields = $good->relationLoaded('fields') ? $good->fields : collect();
 
                 return [
                     'id' => $good->id,
@@ -123,17 +120,53 @@ class MainController extends Controller
                     'image' => $mediaImage?->url ?: $good->ava_image ?: $good->ava_thumb,
                     'country' => $good->relationLoaded('country') ? $good->country : null,
                     'products' => $good->products->take(3)->values(),
-                    'fields' => $good->fields
+                    'fields' => $fields
                         ->take(3)
                         ->map(fn ($field): array => [
                             'id' => $field->id,
                             'name' => $field->name,
+                            'title' => $field->title,
                             'description' => $field->description,
                         ])
                         ->values(),
                 ];
             })
             ->all();
+    }
+
+    private function homeFields(): array
+    {
+        if (! $this->hasPublicFieldCollections()) {
+            return [];
+        }
+
+        return Field::query()
+            ->published()
+            ->withCount([
+                'goods as goods_count' => fn ($query) => $query->where('goods.is_published', true),
+            ])
+            ->orderBy('sort_order')
+            ->orderBy('title')
+            ->limit(12)
+            ->get([
+                'id',
+                'title',
+                'slug',
+                'description',
+                'sort_order',
+                'is_published',
+            ])
+            ->all();
+    }
+
+    private function hasPublicFieldCollections(): bool
+    {
+        return Schema::hasTable('fields')
+            && Schema::hasTable('field_good')
+            && Schema::hasColumn('fields', 'slug')
+            && Schema::hasColumn('fields', 'description')
+            && Schema::hasColumn('fields', 'is_published')
+            && Schema::hasColumn('fields', 'sort_order');
     }
 
     private function homeBanners(): array
@@ -146,7 +179,7 @@ class MainController extends Controller
             ->published()
             ->active()
             ->with([
-                'good:id,name,slug,ava_thumb,ava_image',
+                'good:' . implode(',', $this->goodImageColumns(['id', 'name', 'slug'])),
                 'product:id,rus,eng,category_id',
                 'product.category:id,name,slug',
                 'category:id,name,slug',
@@ -169,14 +202,12 @@ class MainController extends Controller
             ->whereNotNull('country_id')
             ->with('country:id,name,flag')
             ->orderBy('name')
-            ->get([
+            ->get($this->goodImageColumns([
                 'id',
                 'country_id',
                 'name',
                 'slug',
-                'ava_image',
-                'ava_thumb',
-            ])
+            ]))
             ->groupBy('country_id')
             ->map(function ($goods) {
                 $country = $goods->first()?->country;
@@ -196,6 +227,17 @@ class MainController extends Controller
             ->values()
             ->take(8)
             ->all();
+    }
+
+    private function goodImageColumns(array $columns): array
+    {
+        $columns[] = 'ava_image';
+
+        if (Schema::hasColumn('goods', 'ava_thumb')) {
+            $columns[] = 'ava_thumb';
+        }
+
+        return array_values(array_unique($columns));
     }
 
     private function resolveGoodOfTheDay(): ?GoodOfTheDay

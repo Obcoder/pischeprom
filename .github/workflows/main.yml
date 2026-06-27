@@ -89,7 +89,11 @@ jobs:
             sudo systemctl restart pischeprom-mail-sync-worker
             sudo systemctl restart pischeprom-ssr
 
+            sleep 2
+            php artisan inertia:check-ssr
+
             php artisan up
+            php artisan app:deploy-smoke --path=/
 
             trap - EXIT
           EOF
