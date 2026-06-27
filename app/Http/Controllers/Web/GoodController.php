@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Country;
 use App\Models\Good;
 use App\Services\Seo\GoodSeoService;
 use App\Services\Seo\GoodStructuredDataService;
@@ -16,9 +17,16 @@ class GoodController extends Controller
     public function index(Request $request): Response
     {
         $search = trim((string) $request->query('search', ''));
+        $countryId = $request->integer('country_id') ?: null;
+        $country = $countryId
+            ? Country::query()->select('id', 'name', 'flag')->find($countryId)
+            : null;
 
         $goods = Good::query()
             ->where('is_published', true)
+            ->when($country, function ($query) use ($country): void {
+                $query->where('country_id', $country->id);
+            })
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($searchQuery) use ($search): void {
                     $searchQuery
@@ -34,6 +42,7 @@ class GoodController extends Controller
             })
             ->with([
                 'products.category',
+                'country:id,name,flag',
                 'priceTypeValues.priceType.currency',
                 'priceTypeValues.currency',
                 'publishedMedia' => function ($query): void {
@@ -49,6 +58,7 @@ class GoodController extends Controller
             ->limit(96)
             ->get([
                 'id',
+                'country_id',
                 'name',
                 'slug',
                 'ava_image',
@@ -61,7 +71,9 @@ class GoodController extends Controller
             'goods' => $goods,
             'filters' => [
                 'search' => $search,
+                'country_id' => $country?->id,
             ],
+            'country' => $country,
         ]);
     }
 
@@ -97,6 +109,7 @@ class GoodController extends Controller
 
         $good->load([
                         'products.category',
+                        'country:id,name,flag',
                         'vatRate:id,title,rate',
                         'seo',
                         'publishedMedia' => function ($query) {
@@ -123,6 +136,7 @@ class GoodController extends Controller
             ->where('is_published', true)
             ->with([
                        'seo',
+                       'country:id,name,flag',
                        'priceTypeValues.priceType.currency',
                        'priceTypeValues.currency',
                        'publishedMedia' => function ($query) {
@@ -138,6 +152,7 @@ class GoodController extends Controller
             ->limit(8)
             ->get([
                       'id',
+                      'country_id',
                       'name',
                       'slug',
                       'ava_thumb',

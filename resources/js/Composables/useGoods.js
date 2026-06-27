@@ -8,6 +8,7 @@ export function useGoods() {
 
     const goods = ref([])
     const products = ref([])
+    const countries = ref([])
     const fields = ref([])
     const vatRates = ref([])
     const totalItems = ref(0)
@@ -43,6 +44,19 @@ export function useGoods() {
         } catch (e) {
             console.error(e)
             products.value = []
+            throw e
+        }
+    }
+
+    async function indexCountries() {
+        try {
+            const { data } = await axios.get(route('countries.index'))
+
+            countries.value = (Array.isArray(data) ? data : (data.data || []))
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'))
+        } catch (e) {
+            console.error(e)
+            countries.value = []
             throw e
         }
     }
@@ -90,6 +104,7 @@ export function useGoods() {
                 fd.append('denominator', form.denominator ?? '')
                 fd.append('description', form.description ?? '')
                 fd.append('vat_rate_id', form.vat_rate_id ?? '')
+                fd.append('country_id', form.country_id ?? '')
                 fd.append('is_published', form.is_published ? '1' : '0')
                 fd.append('remove_ava', form.remove_ava ? '1' : '0')
 
@@ -120,6 +135,7 @@ export function useGoods() {
                     denominator: form.denominator,
                     description: form.description,
                     vat_rate_id: form.vat_rate_id,
+                    country_id: form.country_id,
                     is_published: form.is_published,
                     products: form.products,
                     fields: form.fields,
@@ -169,12 +185,14 @@ export function useGoods() {
         saving,
         goods,
         products,
+        countries,
         fields,
         vatRates,
         totalItems,
         publishLoading,
         indexGoods,
         indexProducts,
+        indexCountries,
         indexFields,
         indexVatRates,
         showGood,

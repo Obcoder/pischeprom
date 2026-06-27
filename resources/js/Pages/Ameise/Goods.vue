@@ -15,11 +15,13 @@ const date = useDate()
 let goods = ref()
 const good = ref(null)
 let products = ref()
+const countries = ref([])
 const industries = ref([])
 
 let searchGoods = ref();
 const formGood = useForm({
     name: null,
+    country_id: null,
     ava_image: null,
     products: null,
     industry_ids: [],
@@ -61,6 +63,14 @@ function indexProducts(){
         console.log(error)
     })
 }
+function indexCountries(){
+    axios.get(route('countries.index')).then(function (response){
+        countries.value = (Array.isArray(response.data) ? response.data : response.data.data || [])
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'))
+    }).catch(function (error){
+        console.log(error)
+    })
+}
 function industryTitle(industry) {
     return [industry.code, industry.title].filter(Boolean).join(' — ')
 }
@@ -86,11 +96,16 @@ const headersGoods = [
         title: 'name',
         key: 'name',
     },
+    {
+        title: 'Страна',
+        key: 'country',
+    },
 ];
 
 onMounted(()=>{
     indexGoods()
     indexProducts()
+    indexCountries()
     indexIndustries()
 })
 
@@ -155,6 +170,37 @@ const generateSlug = (name) => {
                                                                     color="red"
                                                                     multiple
                                                     ></v-autocomplete>
+                                                </v-col>
+                                            </v-row>
+                                            <v-row>
+                                                <v-col cols="12">
+                                                    <v-autocomplete :items="countries"
+                                                                    item-title="name"
+                                                                    item-value="id"
+                                                                    v-model="formGood.country_id"
+                                                                    label="Страна происхождения"
+                                                                    placeholder="Выберите страну"
+                                                                    density="compact"
+                                                                    variant="outlined"
+                                                                    color="red"
+                                                                    clearable
+                                                    >
+                                                        <template #item="{ props, item }">
+                                                            <v-list-item v-bind="props">
+                                                                <template #prepend>
+                                                                    <v-avatar size="24">
+                                                                        <v-img
+                                                                            v-if="item.raw.flag"
+                                                                            :src="item.raw.flag"
+                                                                            :alt="item.raw.name"
+                                                                            cover
+                                                                        />
+                                                                        <span v-else>{{ item.raw.name?.slice(0, 1) }}</span>
+                                                                    </v-avatar>
+                                                                </template>
+                                                            </v-list-item>
+                                                        </template>
+                                                    </v-autocomplete>
                                                 </v-col>
                                             </v-row>
                                             <v-row>
@@ -232,6 +278,21 @@ const generateSlug = (name) => {
                                 {{ item.name }}
                             </Link>
                         </template>
+                        <template v-slot:item.country="{ item }">
+                            <div v-if="item.country" class="good-country-inline">
+                                <v-avatar size="24">
+                                    <v-img
+                                        v-if="item.country.flag"
+                                        :src="item.country.flag"
+                                        :alt="item.country.name"
+                                        cover
+                                    />
+                                    <span v-else>{{ item.country.name?.slice(0, 1) }}</span>
+                                </v-avatar>
+                                <span>{{ item.country.name }}</span>
+                            </div>
+                            <span v-else>—</span>
+                        </template>
                     </v-data-table>
                 </v-row>
             </v-col>
@@ -255,5 +316,14 @@ input{
 }
 input:focus{
     outline: none;
+}
+
+.good-country-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #30463a;
+    font-size: 0.86rem;
+    font-weight: 700;
 }
 </style>

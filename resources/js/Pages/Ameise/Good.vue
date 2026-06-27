@@ -58,6 +58,7 @@ const goodData = ref(null);
 const currencies = ref([]);
 const measures = ref([]);
 const units = ref([]);
+const countries = ref([]);
 const industries = ref([]);
 const fields = ref([]);
 const vatRates = ref([]);
@@ -89,6 +90,7 @@ const goodForm = reactive({
     denominator: null,
     description: "",
     vat_rate_id: null,
+    country_id: null,
     is_published: false,
     remove_ava: false,
 });
@@ -98,6 +100,10 @@ const goodForm = reactive({
 // --------------------------------------------------
 const currentVatRate = computed(() => {
     return goodData.value?.vat_rate || goodData.value?.vatRate || null;
+});
+
+const currentCountry = computed(() => {
+    return goodData.value?.country || null;
 });
 
 const defaultVatRate = computed(() => {
@@ -355,6 +361,15 @@ async function fetchUnits() {
         : response.data.data || [];
 }
 
+async function fetchCountries() {
+    const response = await axios.get(route("countries.index"));
+
+    countries.value = (Array.isArray(response.data)
+        ? response.data
+        : response.data.data || [])
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ru"));
+}
+
 function industryTitle(industry) {
     return [industry.code, industry.title].filter(Boolean).join(" — ");
 }
@@ -407,6 +422,7 @@ async function loadPageData() {
             fetchCurrencies(),
             fetchMeasures(),
             fetchUnits(),
+            fetchCountries(),
             fetchIndustries(),
             fetchFields(),
             fetchVatRates(),
@@ -444,6 +460,7 @@ function syncGoodForm() {
     goodForm.denominator = good.denominator ?? null;
     goodForm.description = good.description || "";
     goodForm.vat_rate_id = good.vat_rate_id || null;
+    goodForm.country_id = good.country_id || good.country?.id || null;
     goodForm.is_published = !!good.is_published;
     goodForm.remove_ava = false;
     avatarFile.value = null;
@@ -486,6 +503,7 @@ async function saveGood() {
     payload.append("denominator", goodForm.denominator ?? "");
     payload.append("description", goodForm.description || "");
     payload.append("vat_rate_id", goodForm.vat_rate_id ?? "");
+    payload.append("country_id", goodForm.country_id ?? "");
     payload.append("is_published", goodForm.is_published ? "1" : "0");
     payload.append("remove_ava", goodForm.remove_ava ? "1" : "0");
 
@@ -942,6 +960,51 @@ onMounted(() => {
                             </v-col>
 
                             <v-col cols="12" md="5">
+                                <v-autocomplete
+                                    v-model="goodForm.country_id"
+                                    :items="countries"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Страна происхождения"
+                                    variant="outlined"
+                                    density="compact"
+                                    clearable
+                                    :error-messages="goodFormErrors.country_id"
+                                >
+                                    <template #item="{ props, item }">
+                                        <v-list-item v-bind="props">
+                                            <template #prepend>
+                                                <v-avatar size="24">
+                                                    <v-img
+                                                        v-if="item.raw.flag"
+                                                        :src="item.raw.flag"
+                                                        :alt="item.raw.name"
+                                                        cover
+                                                    />
+                                                    <span v-else>{{ item.raw.name?.slice(0, 1) }}</span>
+                                                </v-avatar>
+                                            </template>
+                                        </v-list-item>
+                                    </template>
+
+                                    <template #selection="{ item }">
+                                        <div class="good-country-selection">
+                                            <v-avatar size="22">
+                                                <v-img
+                                                    v-if="item.raw.flag"
+                                                    :src="item.raw.flag"
+                                                    :alt="item.raw.name"
+                                                    cover
+                                                />
+                                                <span v-else>{{ item.raw.name?.slice(0, 1) }}</span>
+                                            </v-avatar>
+                                            <span>{{ item.raw.name }}</span>
+                                        </div>
+                                    </template>
+                                </v-autocomplete>
+                            </v-col>
+
+                            <v-col cols="12" md="5">
                                 <v-switch
                                     v-model="goodForm.is_published"
                                     label="Публиковать"
@@ -1295,6 +1358,25 @@ onMounted(() => {
 
                                         <v-chip v-if="currentVatRate" size="x-small" variant="tonal">
                                             НДС: {{ currentVatRate.rate }}%
+                                        </v-chip>
+
+                                        <v-chip
+                                            v-if="currentCountry"
+                                            size="x-small"
+                                            variant="tonal"
+                                            color="teal"
+                                            class="good-country-chip"
+                                        >
+                                            <v-avatar size="16" start>
+                                                <v-img
+                                                    v-if="currentCountry.flag"
+                                                    :src="currentCountry.flag"
+                                                    :alt="currentCountry.name"
+                                                    cover
+                                                />
+                                                <span v-else>{{ currentCountry.name?.slice(0, 1) }}</span>
+                                            </v-avatar>
+                                            {{ currentCountry.name }}
                                         </v-chip>
                                     </div>
 
@@ -2002,6 +2084,13 @@ onMounted(() => {
     background:
         linear-gradient(135deg, rgba(71, 118, 90, 0.08), transparent 58%),
         rgb(var(--v-theme-surface));
+}
+
+.good-country-selection,
+.good-country-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .recommendation-targets {

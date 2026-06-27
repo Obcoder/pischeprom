@@ -24,11 +24,13 @@ class Good extends Model
         'slug',
         'is_published',
         'vat_rate_id',
+        'country_id',
     ];
 
     protected $casts = [
         'is_published' => 'boolean',
         'denominator' => 'float',
+        'country_id' => 'integer',
     ];
 
     protected static function booted()
@@ -147,6 +149,11 @@ class Good extends Model
     public function vatRate(): BelongsTo
     {
         return $this->belongsTo(VatRate::class);
+    }
+
+    public function country(): BelongsTo
+    {
+        return $this->belongsTo(Country::class);
     }
 
     public function mediaFolders(): HasMany

@@ -37,6 +37,7 @@ class GoodController extends Controller
         $query = Good::query()
             ->with([
                        'products.category',
+                   'country:id,name,flag',
                    'vatRate',
                    'seo',
                    'media',
@@ -83,6 +84,7 @@ class GoodController extends Controller
         return Good::query()
             ->with([
                        'vatRate',
+                       'country:id,name,flag',
                        'products.category',
                        'priceTypeValues.priceType.currency',
                        'priceTypeValues.currency',
@@ -102,6 +104,7 @@ class GoodController extends Controller
                                             'denominator' => ['nullable', 'numeric'],
                                             'description' => ['nullable', 'string'],
                                             'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
+                                            'country_id' => ['nullable', 'integer', 'exists:countries,id'],
                                             'is_published' => ['nullable', 'boolean'],
 
                                             'ava_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
@@ -122,6 +125,7 @@ class GoodController extends Controller
                                  'denominator' => $validated['denominator'] ?? null,
                                  'description' => $validated['description'] ?? null,
                                  'vat_rate_id' => $validated['vat_rate_id'] ?? null,
+                                 'country_id' => $validated['country_id'] ?? null,
                                  'is_published' => $validated['is_published'] ?? true,
                              ]);
 
@@ -150,6 +154,7 @@ class GoodController extends Controller
         return response()->json(
             $good->fresh([
                              'products.category',
+                             'country:id,name,flag',
                              'vatRate',
                              'seo',
                              'media',
@@ -165,6 +170,7 @@ class GoodController extends Controller
     {
         $good = Good::with([
                                'products.category',
+                               'country:id,name,flag',
 
                                'quotations.unit',
                                'quotations.measure',
@@ -228,6 +234,7 @@ class GoodController extends Controller
                                             'denominator' => ['nullable', 'numeric'],
                                             'description' => ['nullable', 'string'],
                                             'vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
+                                            'country_id' => ['nullable', 'integer', 'exists:countries,id'],
                                             'is_published' => ['nullable', 'boolean'],
 
                                             'ava_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
@@ -292,6 +299,7 @@ class GoodController extends Controller
         return response()->json(
             $good->fresh([
                              'products.category',
+                             'country:id,name,flag',
                              'vatRate',
                              'seo',
                              'media',
@@ -399,6 +407,7 @@ class GoodController extends Controller
             "goods/{$good->id}/good.json",
             $good->fresh([
                              'products.category',
+                             'country:id,name,flag',
                              'vatRate',
                              'seo',
                              'publishedMedia',

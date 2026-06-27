@@ -26,6 +26,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    country: {
+        type: Object,
+        default: null,
+    },
 })
 
 const { goodPublicUrl } = usePublicGoodUrl()
@@ -34,9 +38,14 @@ const searchGoods = ref(props.filters.search || '')
 let searchTimer = null
 
 const isFieldPage = computed(() => Boolean(props.field?.id))
+const isCountryPage = computed(() => Boolean(props.country?.id))
 const pageTitle = computed(() => {
     if (isFieldPage.value) {
         return `${props.field.title || props.field.name} — подборка товаров ПИЩЕПРОМ-СЕРВЕР`
+    }
+
+    if (isCountryPage.value) {
+        return `Товары из ${props.country.name} — ПИЩЕПРОМ-СЕРВЕР`
     }
 
     return 'Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки'
@@ -45,6 +54,10 @@ const pageTitle = computed(() => {
 const pageDescription = computed(() => {
     if (isFieldPage.value) {
         return props.field.description || `Товары подборки ${props.field.title || props.field.name}`
+    }
+
+    if (isCountryPage.value) {
+        return `Подборка товаров из ${props.country.name}: пищевое сырьё, ингредиенты и позиции для производств.`
     }
 
     return 'Товары, которые Вы можете приобрести на ПИЩЕПРОМ-СЕРВЕРЕ: пищевое сырьё, пищевые ингредиенты, пищевые добавки'
@@ -60,6 +73,7 @@ function indexGoods() {
 
         router.get(target, {
             search: searchGoods.value || undefined,
+            country_id: props.country?.id || undefined,
         }, {
             preserveState: true,
             preserveScroll: true,
@@ -97,13 +111,41 @@ useHead({
             </v-col>
         </v-row>
 
+        <v-row v-else-if="isCountryPage" class="mb-2">
+            <v-col cols="12">
+                <v-card rounded="xl" elevation="1" class="country-heading-card">
+                    <v-card-text class="country-heading-card__body">
+                        <div class="country-heading-card__flag">
+                            <v-img
+                                v-if="country.flag"
+                                :src="country.flag"
+                                :alt="country.name"
+                                cover
+                            />
+                            <span v-else>{{ country.name?.slice(0, 1) }}</span>
+                        </div>
+
+                        <div>
+                            <div class="text-caption text-medium-emphasis mb-1">География товаров</div>
+                            <h1 class="text-h5 font-weight-bold mb-2">
+                                Товары из {{ country.name }}
+                            </h1>
+                            <p class="mb-0 text-body-2 text-medium-emphasis">
+                                Подборка позиций по стране происхождения для закупки и сравнения.
+                            </p>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-col>
+        </v-row>
+
         <v-row>
             <v-col>
                 <v-text-field v-model="searchGoods"
                               @input="indexGoods"
                               density="compact"
                               variant="outlined"
-                              :label="isFieldPage ? 'Поиск по товарам подборки' : 'Поиск по товарам'"
+                              :label="isFieldPage || isCountryPage ? 'Поиск по товарам подборки' : 'Поиск по товарам'"
                               placeholder="вводите название товара"
                 ></v-text-field>
             </v-col>
@@ -120,6 +162,20 @@ useHead({
                         rounded
                 >
                     <v-img :src="good.ava_image || logo"></v-img>
+                    <v-card-text v-if="good.country" class="pb-0">
+                        <div class="goods-card-country">
+                            <v-avatar size="22">
+                                <v-img
+                                    v-if="good.country.flag"
+                                    :src="good.country.flag"
+                                    :alt="good.country.name"
+                                    cover
+                                />
+                                <span v-else>{{ good.country.name?.slice(0, 1) }}</span>
+                            </v-avatar>
+                            <span>{{ good.country.name }}</span>
+                        </div>
+                    </v-card-text>
                     <v-card-subtitle class="font-sans text-wrap">
                         {{good.name}}
                     </v-card-subtitle>
@@ -162,5 +218,54 @@ useHead({
         radial-gradient(circle at 100% 0%, rgba(220, 122, 81, 0.14), transparent 28%),
         linear-gradient(135deg, #fffdfa 0%, #f5f0e8 100%);
     border: 1px solid rgba(71, 118, 90, 0.14);
+}
+
+.country-heading-card {
+    overflow: hidden;
+    border: 1px solid rgba(128, 0, 0, 0.14);
+    background:
+        radial-gradient(circle at 94% 12%, rgba(128, 0, 0, 0.16), transparent 24%),
+        linear-gradient(135deg, #fffaf0 0%, #eef6ef 56%, #ffffff 100%);
+}
+
+.country-heading-card__body {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.country-heading-card__flag {
+    display: grid;
+    width: 76px;
+    height: 76px;
+    overflow: hidden;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 6px solid rgba(255, 255, 255, 0.86);
+    border-radius: 999px;
+    background: #f6f0e4;
+    box-shadow: 0 14px 30px rgba(41, 54, 40, 0.16);
+    color: #47765a;
+    font-size: 2rem;
+    font-weight: 900;
+}
+
+.goods-card-country {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(71, 118, 90, 0.10);
+    color: #30463a;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+@media (max-width: 640px) {
+    .country-heading-card__body {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 }
 </style>

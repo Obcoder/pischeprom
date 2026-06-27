@@ -11,12 +11,14 @@ const {
     saving,
     goods,
     products,
+    countries,
     fields,
     vatRates,
     totalItems,
     publishLoading,
     indexGoods: fetchGoods,
     indexProducts: fetchProducts,
+    indexCountries: fetchCountries,
     indexFields: fetchFields,
     indexVatRates: fetchVatRates,
     showGood: fetchGood,
@@ -67,6 +69,7 @@ const form = useForm({
     denominator: '',
     description: '',
     vat_rate_id: null,
+    country_id: null,
     is_published: true,
     products: [],
     fields: [],
@@ -78,6 +81,7 @@ const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '175px' },
     { key: 'ava_image', title: '', sortable: false, width: '200px' },
     { key: 'name', title: 'Good', sortable: true },
+    { key: 'country', title: 'Страна', sortable: false, width: '150px' },
     { key: 'fields', title: 'Fields', sortable: false, width: '220px' },
     { key: 'vat_rate', title: 'НДС', sortable: false, width: '140px' },
     { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
@@ -170,6 +174,7 @@ function openCreate() {
     form.denominator = ''
     form.description = ''
     form.vat_rate_id = null
+    form.country_id = null
     form.is_published = true
     form.products = []
     form.fields = []
@@ -186,6 +191,7 @@ function openEdit(g) {
     form.denominator = g.denominator ?? ''
     form.description = g.description ?? ''
     form.vat_rate_id = g.vat_rate_id ?? null
+    form.country_id = g.country_id ?? g.country?.id ?? null
     form.is_published = !!g.is_published
     form.products = (g.products || []).map(p => p.id)
     form.fields = (g.fields || []).map(field => field.id)
@@ -252,6 +258,7 @@ onMounted(async () => {
     await Promise.all([
         reloadGoods(),
         fetchProducts(),
+        fetchCountries(),
         fetchFields(),
         fetchVatRates(),
     ])
@@ -360,6 +367,22 @@ onBeforeUnmount(() => {
                         >
                             {{ item.name }}
                         </Link>
+                    </template>
+
+                    <template #item.country="{ item }">
+                        <div v-if="item.country" class="goods-country-cell">
+                            <v-avatar size="26" rounded="circle" class="goods-country-cell__flag">
+                                <v-img
+                                    v-if="item.country.flag"
+                                    :src="item.country.flag"
+                                    :alt="item.country.name"
+                                    cover
+                                />
+                                <span v-else>{{ item.country.name?.slice(0, 1) }}</span>
+                            </v-avatar>
+                            <span>{{ item.country.name }}</span>
+                        </div>
+                        <span v-else class="text-caption text-medium-emphasis">—</span>
                     </template>
 
                     <template #item.fields="{ item }">
@@ -473,6 +496,25 @@ onBeforeUnmount(() => {
                         <div class="text-caption mb-1">VAT</div>
                         <div v-if="selectedGood.vatRate">
                             {{ selectedGood.vatRate.title }} ({{ selectedGood.vatRate.rate }}%)
+                        </div>
+                        <div v-else class="text-medium-emphasis">
+                            Не указана
+                        </div>
+                    </v-col>
+
+                    <v-col cols="12">
+                        <div class="text-caption mb-1">Country</div>
+                        <div v-if="selectedGood.country" class="goods-country-cell">
+                            <v-avatar size="28" rounded="circle" class="goods-country-cell__flag">
+                                <v-img
+                                    v-if="selectedGood.country.flag"
+                                    :src="selectedGood.country.flag"
+                                    :alt="selectedGood.country.name"
+                                    cover
+                                />
+                                <span v-else>{{ selectedGood.country.name?.slice(0, 1) }}</span>
+                            </v-avatar>
+                            <span>{{ selectedGood.country.name }}</span>
                         </div>
                         <div v-else class="text-medium-emphasis">
                             Не указана
@@ -610,6 +652,51 @@ onBeforeUnmount(() => {
                             </v-select>
                         </v-col>
 
+                        <v-col cols="12" md="6">
+                            <v-autocomplete
+                                v-model="form.country_id"
+                                :items="countries"
+                                item-title="name"
+                                item-value="id"
+                                label="Страна происхождения"
+                                variant="outlined"
+                                density="comfortable"
+                                clearable
+                                :error-messages="form.errors.country_id"
+                            >
+                                <template #item="{ props, item }">
+                                    <v-list-item v-bind="props">
+                                        <template #prepend>
+                                            <v-avatar size="24" rounded="circle">
+                                                <v-img
+                                                    v-if="item.raw.flag"
+                                                    :src="item.raw.flag"
+                                                    :alt="item.raw.name"
+                                                    cover
+                                                />
+                                                <span v-else>{{ item.raw.name?.slice(0, 1) }}</span>
+                                            </v-avatar>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+
+                                <template #selection="{ item }">
+                                    <div class="goods-country-selection">
+                                        <v-avatar size="22" rounded="circle">
+                                            <v-img
+                                                v-if="item.raw.flag"
+                                                :src="item.raw.flag"
+                                                :alt="item.raw.name"
+                                                cover
+                                            />
+                                            <span v-else>{{ item.raw.name?.slice(0, 1) }}</span>
+                                        </v-avatar>
+                                        <span>{{ item.raw.name }}</span>
+                                    </div>
+                                </template>
+                            </v-autocomplete>
+                        </v-col>
+
                         <v-col cols="12" md="4">
                             <v-switch v-model="form.is_published" label="Published" inset />
                         </v-col>
@@ -696,6 +783,26 @@ onBeforeUnmount(() => {
     gap: 4px;
     max-height: 48px;
     overflow: hidden;
+}
+
+.goods-country-cell,
+.goods-country-selection {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    color: #30463a;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.goods-country-cell__flag {
+    border: 1px solid rgba(48, 70, 58, 0.16);
+    background: #f3f7f0;
+}
+
+.goods-country-selection {
+    max-width: 100%;
 }
 
 :deep(.goods-table-footer__select .v-field) {

@@ -8,6 +8,7 @@ import { useAppRoute } from '@/Composables/useAppRoute'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
 import HomeFieldCollectionsSection from '@/Components/Home/HomeFieldCollectionsSection.vue'
+import HomeCountryCollectionsSection from '@/Components/Home/HomeCountryCollectionsSection.vue'
 import HomeFeaturedProductsSection from '@/Components/Home/HomeFeaturedProductsSection.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
@@ -419,6 +420,11 @@ onMounted(() => {
         />
 
         <HomeFieldCollectionsSection :fields="fields" />
+
+        <HomeCountryCollectionsSection
+            :goods="goods"
+            :loading="goodsLoading"
+        />
 
         <HomeFeaturedProductsSection
             title="Популярные товары"
