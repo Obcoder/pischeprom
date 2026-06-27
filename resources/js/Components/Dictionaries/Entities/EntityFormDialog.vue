@@ -11,7 +11,7 @@ const props = defineProps({
     meta: { type: Object, required: true },
 })
 
-const emit = defineEmits(['update:modelValue', 'submit', 'building-created'])
+const emit = defineEmits(['update:modelValue', 'submit', 'building-created', 'telephone-created'])
 
 const buildingFormOpen = ref(false)
 const buildingCreating = ref(false)
@@ -29,6 +29,10 @@ const buildingPostcodeManual = ref(false)
 const buildingPostcodeAutofilled = ref(false)
 let buildingPostcodeTimer = null
 let buildingPostcodeRequestId = 0
+const telephoneSearch = ref('')
+const telephoneCreating = ref(false)
+const telephoneError = ref('')
+const createdTelephones = ref([])
 const buildingForm = reactive({
     city_id: null,
     address: '',
@@ -76,6 +80,60 @@ const unitOptions = computed(() => {
         ...unit,
         search_text: searchText(unit.name, unit.full_name, unit.short_name),
     }))
+})
+
+const normalizeTelephoneNumber = (value) => String(value ?? '')
+    .replace(/[^\d+]/g, '')
+    .replace(/(?!^)\+/g, '')
+
+const normalizeTelephone = (telephone) => {
+    const number = String(telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? '').trim()
+    const normalizedNumber = normalizeTelephoneNumber(number)
+
+    return {
+        ...telephone,
+        id: Number(telephone.id),
+        number: number || normalizedNumber,
+        normalized_number: normalizedNumber,
+        search_text: searchText(number, normalizedNumber),
+    }
+}
+
+const telephoneOptions = computed(() => {
+    const map = new Map()
+    const sourceTelephones = [
+        ...(props.meta.telephones ?? []),
+        ...createdTelephones.value,
+    ]
+
+    sourceTelephones.forEach((telephone) => {
+        if (!telephone?.id) {
+            return
+        }
+
+        const normalized = normalizeTelephone(telephone)
+        map.set(normalized.id, normalized)
+    })
+
+    return [...map.values()].sort((a, b) => a.number.localeCompare(b.number, 'ru'))
+})
+
+const telephoneSearchNumber = computed(() => normalizeTelephoneNumber(telephoneSearch.value))
+
+const telephoneExactMatch = computed(() => {
+    if (!telephoneSearchNumber.value) {
+        return false
+    }
+
+    return telephoneOptions.value.some((telephone) => {
+        return telephone.normalized_number === telephoneSearchNumber.value
+    })
+})
+
+const canCreateTelephone = computed(() => {
+    return telephoneSearchNumber.value.length >= 2
+        && telephoneSearchNumber.value.length <= 16
+        && !telephoneExactMatch.value
 })
 
 const cityNameById = computed(() => new Map(
@@ -167,6 +225,31 @@ const mergeCreatedBuilding = (building) => {
     ]
 
     emit('building-created', building)
+}
+
+const mergeCreatedTelephone = (telephone) => {
+    createdTelephones.value = [
+        telephone,
+        ...createdTelephones.value.filter(item => Number(item.id) !== Number(telephone.id)),
+    ]
+
+    emit('telephone-created', telephone)
+}
+
+const telephoneRelationHint = (telephone) => {
+    const entityNames = (telephone?.entities ?? []).map(item => item.name).filter(Boolean)
+    const unitNames = (telephone?.units ?? []).map(item => item.name).filter(Boolean)
+    const hints = []
+
+    if (entityNames.length) {
+        hints.push(`Entity: ${entityNames.slice(0, 2).join(', ')}`)
+    }
+
+    if (unitNames.length) {
+        hints.push(`Unit: ${unitNames.slice(0, 2).join(', ')}`)
+    }
+
+    return hints.join(' · ')
 }
 
 const countryIdByName = (countryName) => {
@@ -338,6 +421,61 @@ const resetBuildingPostcodeLookup = () => {
     buildingPostcodeAutofilled.value = false
 }
 
+const attachTelephoneToForm = (telephone) => {
+    if (!telephone?.id) {
+        return
+    }
+
+    const id = Number(telephone.id)
+
+    if (!props.form.telephones.some(item => Number(item) === id)) {
+        props.form.telephones.push(id)
+    }
+}
+
+const createTelephone = async () => {
+    telephoneError.value = ''
+
+    const number = telephoneSearchNumber.value
+
+    if (number.length < 2) {
+        telephoneError.value = 'Введите номер телефона.'
+        return
+    }
+
+    if (number.length > 16) {
+        telephoneError.value = 'Номер должен быть не длиннее 16 символов.'
+        return
+    }
+
+    const existingTelephone = telephoneOptions.value.find((telephone) => {
+        return telephone.normalized_number === number
+    })
+
+    if (existingTelephone) {
+        attachTelephoneToForm(existingTelephone)
+        telephoneSearch.value = ''
+        return
+    }
+
+    telephoneCreating.value = true
+
+    try {
+        const { data } = await axios.post('/api/telephones', { number })
+        const telephone = normalizeTelephone(data.data || data)
+
+        mergeCreatedTelephone(telephone)
+        attachTelephoneToForm(telephone)
+        telephoneSearch.value = ''
+    } catch (error) {
+        telephoneError.value = error?.response?.data?.errors?.number?.[0]
+            || error?.response?.data?.message
+            || 'Не удалось создать телефон.'
+    } finally {
+        telephoneCreating.value = false
+    }
+}
+
 const createBuilding = async () => {
     buildingError.value = ''
 
@@ -381,6 +519,10 @@ watch(dadataSelected, (value) => {
     applyDaDataSuggestion(value)
 })
 
+watch(telephoneSearch, () => {
+    telephoneError.value = ''
+})
+
 watch(
     () => [buildingForm.city_id, buildingForm.address],
     () => {
@@ -402,6 +544,8 @@ watch(
             dadataSelected.value = null
             dadataSuggestions.value = []
             dadataMessage.value = ''
+            telephoneSearch.value = ''
+            telephoneError.value = ''
             resetBuildingPostcodeLookup()
         }
     }
@@ -772,17 +916,130 @@ watch(
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-autocomplete
-                            v-model="form.telephones"
-                            :items="meta.telephones"
-                            item-title="number"
-                            item-value="id"
-                            label="Телефоны"
-                            multiple
-                            chips
-                            closable-chips
-                            variant="solo-filled"
-                        />
+                        <div class="telephones-panel">
+                            <div class="telephones-panel__header">
+                                <div>
+                                    <span class="telephones-panel__eyebrow">Контакты</span>
+                                    <strong>Телефоны</strong>
+                                </div>
+
+                                <span class="telephones-panel__counter">
+                                    {{ form.telephones.length }} выбрано
+                                </span>
+                            </div>
+
+                            <v-autocomplete
+                                v-model="form.telephones"
+                                v-model:search="telephoneSearch"
+                                :items="telephoneOptions"
+                                :custom-filter="autocompleteTextFilter"
+                                :filter-keys="['raw.search_text']"
+                                item-title="number"
+                                item-value="id"
+                                aria-label="Поиск и привязка телефонов"
+                                placeholder="+7, 8 или часть номера"
+                                multiple
+                                chips
+                                closable-chips
+                                clearable
+                                hide-details="auto"
+                                variant="solo"
+                                density="compact"
+                                class="telephones-autocomplete"
+                                menu-icon="mdi-phone-search-outline"
+                                :menu-props="{ contentClass: 'entity-telephones-menu' }"
+                            >
+                                <template #chip="{ props, item }">
+                                    <v-chip
+                                        v-bind="props"
+                                        class="telephones-autocomplete__chip"
+                                        size="x-small"
+                                        variant="flat"
+                                    >
+                                        <v-icon icon="mdi-phone-outline" size="13" start />
+                                        {{ item.raw.number }}
+                                    </v-chip>
+                                </template>
+
+                                <template #item="{ props, item }">
+                                    <v-list-item
+                                        v-bind="props"
+                                        class="telephones-autocomplete__item"
+                                        prepend-icon="mdi-phone-outline"
+                                    >
+                                        <template #title>
+                                            <span>{{ item.raw.number }}</span>
+                                        </template>
+
+                                        <template
+                                            v-if="telephoneRelationHint(item.raw)"
+                                            #subtitle
+                                        >
+                                            <span>{{ telephoneRelationHint(item.raw) }}</span>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+
+                                <template #append-item>
+                                    <div
+                                        v-if="canCreateTelephone"
+                                        class="telephones-autocomplete__create"
+                                    >
+                                        <div>
+                                            <strong>Новый номер</strong>
+                                            <span>{{ telephoneSearchNumber }}</span>
+                                        </div>
+
+                                        <v-btn
+                                            size="small"
+                                            color="#1d4d3c"
+                                            rounded="lg"
+                                            :loading="telephoneCreating"
+                                            prepend-icon="mdi-plus"
+                                            @mousedown.prevent
+                                            @click.stop="createTelephone"
+                                        >
+                                            Создать
+                                        </v-btn>
+                                    </div>
+                                </template>
+
+                                <template #no-data>
+                                    <div class="telephones-autocomplete__empty">
+                                        <v-icon icon="mdi-phone-plus-outline" size="22" />
+
+                                        <div>
+                                            <strong>
+                                                {{ telephoneSearchNumber ? 'Номер не найден' : 'Введите номер для поиска' }}
+                                            </strong>
+                                            <span v-if="telephoneSearchNumber">
+                                                Можно создать {{ telephoneSearchNumber }} и сразу привязать к Entity.
+                                            </span>
+                                        </div>
+
+                                        <v-btn
+                                            v-if="canCreateTelephone"
+                                            size="small"
+                                            color="#1d4d3c"
+                                            rounded="lg"
+                                            :loading="telephoneCreating"
+                                            @mousedown.prevent
+                                            @click.stop="createTelephone"
+                                        >
+                                            Создать
+                                        </v-btn>
+                                    </div>
+                                </template>
+                            </v-autocomplete>
+
+                            <div
+                                v-if="telephoneError"
+                                class="telephones-panel__error"
+                            >
+                                <v-icon icon="mdi-alert-circle-outline" size="15" />
+                                <span>{{ telephoneError }}</span>
+                            </div>
+                        </div>
                     </v-col>
 
                     <v-col cols="12">
@@ -1004,6 +1261,152 @@ watch(
     color: #2f2114;
 }
 
+.telephones-panel {
+    padding: 12px;
+    border: 1px solid rgba(26, 83, 88, 0.16);
+    border-radius: 16px;
+    background:
+        linear-gradient(135deg, rgba(241, 250, 248, 0.98), rgba(255, 255, 255, 0.94)),
+        repeating-linear-gradient(90deg, rgba(26, 83, 88, 0.06) 0 1px, transparent 1px 10px);
+    box-shadow: 0 12px 28px rgba(18, 63, 66, 0.08);
+}
+
+.telephones-panel__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    color: #123f42;
+}
+
+.telephones-panel__header strong {
+    display: block;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 17px;
+    line-height: 1;
+}
+
+.telephones-panel__eyebrow {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(18, 63, 66, 0.54);
+}
+
+.telephones-panel__counter {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border: 1px solid rgba(26, 83, 88, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    font-size: 10px;
+    font-weight: 900;
+    color: #1d4d3c;
+}
+
+.telephones-autocomplete :deep(.v-field) {
+    min-height: 44px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: inset 0 0 0 1px rgba(26, 83, 88, 0.10), 0 8px 18px rgba(18, 63, 66, 0.07);
+    color: #123f42;
+}
+
+.telephones-autocomplete :deep(.v-field__input) {
+    min-height: 44px;
+    padding: 7px 44px 7px 12px;
+    gap: 5px;
+}
+
+.telephones-autocomplete :deep(.v-field__input input),
+.telephones-autocomplete :deep(.v-select__selection-text) {
+    min-height: 26px;
+    color: #123f42 !important;
+    font-size: 14px;
+    opacity: 1;
+}
+
+.telephones-autocomplete :deep(.v-field__input input::placeholder) {
+    color: rgba(18, 63, 66, 0.48) !important;
+    opacity: 1;
+}
+
+.telephones-autocomplete :deep(.v-icon),
+.telephones-autocomplete :deep(.v-field__clearable) {
+    color: rgba(18, 63, 66, 0.64) !important;
+}
+
+.telephones-autocomplete :deep(.v-field__overlay) {
+    opacity: 0;
+}
+
+.telephones-autocomplete__chip {
+    height: 24px;
+    background: #1d4d3c;
+    color: #effbf6;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.telephones-autocomplete__item {
+    min-height: 42px;
+}
+
+.telephones-autocomplete__item :deep(.v-list-item-title) {
+    color: #123f42;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.telephones-autocomplete__item :deep(.v-list-item-subtitle) {
+    color: rgba(18, 63, 66, 0.58);
+    font-size: 11px;
+}
+
+.telephones-autocomplete__create,
+.telephones-autocomplete__empty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 6px;
+    padding: 10px;
+    border: 1px dashed rgba(29, 77, 60, 0.24);
+    border-radius: 13px;
+    background: linear-gradient(135deg, rgba(240, 250, 246, 0.96), rgba(255, 255, 255, 0.96));
+    color: #123f42;
+}
+
+.telephones-autocomplete__create strong,
+.telephones-autocomplete__empty strong {
+    display: block;
+    font-size: 12px;
+}
+
+.telephones-autocomplete__create span,
+.telephones-autocomplete__empty span {
+    display: block;
+    margin-top: 2px;
+    color: rgba(18, 63, 66, 0.62);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.telephones-panel__error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 7px;
+    color: #9a3412;
+    font-size: 12px;
+}
+
 .buildings-panel {
     padding: 14px;
     border: 1px solid rgba(29, 77, 60, 0.16);
@@ -1193,6 +1596,7 @@ watch(
 
 <style>
 .entity-emails-menu .v-list,
+.entity-telephones-menu .v-list,
 .entity-units-menu .v-list,
 .entity-buildings-menu .v-list,
 .entity-dadata-menu .v-list {
@@ -1200,6 +1604,12 @@ watch(
     color: #2f2114 !important;
     border: 1px solid rgba(64, 44, 22, 0.16);
     box-shadow: 0 24px 64px rgba(26, 18, 10, 0.24);
+}
+
+.entity-telephones-menu .v-list {
+    background: #f6fffb !important;
+    color: #123f42 !important;
+    border-color: rgba(26, 83, 88, 0.18);
 }
 
 .entity-emails-menu .v-list-item,
@@ -1228,5 +1638,13 @@ watch(
 .entity-buildings-menu .v-list-item:hover,
 .entity-dadata-menu .v-list-item:hover {
     background: rgba(121, 84, 35, 0.12) !important;
+}
+
+.entity-telephones-menu .v-list-item {
+    color: #123f42 !important;
+}
+
+.entity-telephones-menu .v-list-item:hover {
+    background: rgba(26, 83, 88, 0.10) !important;
 }
 </style>

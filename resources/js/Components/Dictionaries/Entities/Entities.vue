@@ -91,6 +91,19 @@ const mergeBuildingMeta = (building) => {
     })
 }
 
+const mergeTelephoneMeta = (telephone) => {
+    if (!telephone?.id) {
+        return
+    }
+
+    meta.value.telephones = [
+        telephone,
+        ...meta.value.telephones.filter(item => Number(item.id) !== Number(telephone.id)),
+    ].sort((a, b) => {
+        return String(a.number || '').localeCompare(String(b.number || ''), 'ru')
+    })
+}
+
 const loadItems = async () => {
     loading.value = true
 
@@ -312,6 +325,7 @@ onMounted(async () => {
             :meta="meta"
             @submit="submit"
             @building-created="mergeBuildingMeta"
+            @telephone-created="mergeTelephoneMeta"
         />
     </v-container>
 </template>
