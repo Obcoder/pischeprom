@@ -2,6 +2,9 @@
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
+import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
+import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
+import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 
 const rows = ref([])
 const totalItems = ref(0)
@@ -9,6 +12,9 @@ const months = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const dialog = ref(false)
+const entityDialog = ref(false)
+const entitySaving = ref(false)
+const entityMetaLoading = ref(false)
 const detailsDialog = ref(false)
 const selectedSale = ref(null)
 const errorMessage = ref('')
@@ -16,6 +22,23 @@ const errorMessage = ref('')
 const entities = ref([])
 const goods = ref([])
 const measures = ref([])
+const entityMeta = ref({
+    classifications: [],
+    countries: [],
+    cities: [],
+    buildings: [],
+    emails: [],
+    telephones: [],
+    units: [],
+    chats: [],
+})
+
+const { getMeta: getEntityMeta, createOne: createEntity } = useEntityApi()
+const {
+    form: entityForm,
+    resetForm: resetEntityForm,
+    toPayload: entityPayload,
+} = useEntityForm()
 
 const options = reactive({
     page: 1,
@@ -68,6 +91,7 @@ const saleLinesTotal = computed(() => {
 const effectiveSaleTotal = computed(() => {
     return saleForm.manualTotal ? toNumber(saleForm.total) : saleLinesTotal.value
 })
+const entityDialogLoading = computed(() => entitySaving.value || entityMetaLoading.value)
 
 const canSubmitSale = computed(() => {
     const hasBase = Boolean(saleForm.date && saleForm.entity_id)
@@ -194,8 +218,65 @@ function goodVatText(good) {
     return `${good.vat_rate.title || 'НДС'} ${good.vat_rate.rate}%`
 }
 
+function normalizeEntity(entity) {
+    return {
+        ...entity,
+        units: entity?.units || [],
+        buildings: entity?.buildings || [],
+        cities: entity?.cities || [],
+        emails: entity?.emails || [],
+        telephones: entity?.telephones || [],
+        chats: entity?.chats || [],
+    }
+}
+
+function upsertEntity(entity) {
+    if (!entity?.id) {
+        return
+    }
+
+    const normalized = normalizeEntity(entity)
+
+    entities.value = [
+        normalized,
+        ...entities.value.filter((item) => Number(item.id) !== Number(normalized.id)),
+    ].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
+}
+
+function mergeEntityBuildingMeta(building) {
+    if (!building?.id) {
+        return
+    }
+
+    entityMeta.value.buildings = [
+        building,
+        ...entityMeta.value.buildings.filter((item) => Number(item.id) !== Number(building.id)),
+    ].sort((a, b) => {
+        const cityComparison = (a.city?.name || '').localeCompare(b.city?.name || '', 'ru')
+
+        if (cityComparison !== 0) {
+            return cityComparison
+        }
+
+        return (a.address || '').localeCompare(b.address || '', 'ru')
+    })
+}
+
+async function loadEntityMeta() {
+    entityMetaLoading.value = true
+
+    try {
+        entityMeta.value = await getEntityMeta()
+    } catch (error) {
+        errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить справочники Entity'
+        console.error('load entity meta error:', error?.response?.data || error)
+    } finally {
+        entityMetaLoading.value = false
+    }
+}
+
 async function fetchMeta() {
-    const [entitiesRes, goodsRes, measuresRes] = await Promise.all([
+    const [entitiesRes, goodsRes, measuresRes, entityMetaRes] = await Promise.all([
         axios.get('/api/entities', {
             params: {
                 itemsPerPage: 1000,
@@ -210,11 +291,13 @@ async function fetchMeta() {
             },
         }),
         axios.get('/api/measures'),
+        getEntityMeta(),
     ])
 
-    entities.value = entitiesRes.data.data || entitiesRes.data || []
+    entities.value = (entitiesRes.data.data || entitiesRes.data || []).map(normalizeEntity)
     goods.value = goodsRes.data.data || goodsRes.data || []
     measures.value = measuresRes.data.data || measuresRes.data || []
+    entityMeta.value = entityMetaRes
 }
 
 async function fetchSales() {
@@ -286,6 +369,15 @@ function openCreate() {
     dialog.value = true
 }
 
+function openEntityCreate() {
+    resetEntityForm()
+    entityDialog.value = true
+
+    if (!entityMeta.value.classifications.length && !entityMetaLoading.value) {
+        loadEntityMeta()
+    }
+}
+
 function openSaleDetails(item) {
     selectedSale.value = item
     detailsDialog.value = true
@@ -324,18 +416,21 @@ function recalcLine(line, changed) {
     const total = nullableNumber(line.total)
 
     if (changed === 'total') {
-        if (quantity && quantity > 0) line.price = round(total / quantity, 4)
-        else if (price && price > 0) line.quantity = round(total / price, 4)
+        if (total === null) return
+        if (quantity !== null && quantity > 0) line.price = round(total / quantity, 4)
+        else if (price !== null && price > 0) line.quantity = round(total / price, 4)
     }
 
     if (changed === 'quantity') {
-        if (total !== null && quantity && quantity > 0) line.price = round(total / quantity, 4)
-        else if (price !== null) line.total = round(quantity * price, 2)
+        if (quantity === null) return
+        if (price !== null) line.total = round(quantity * price, 2)
+        else if (total !== null && quantity > 0) line.price = round(total / quantity, 4)
     }
 
     if (changed === 'price') {
-        if (total !== null && price && price > 0) line.quantity = round(total / price, 4)
-        else if (quantity !== null) line.total = round(quantity * price, 2)
+        if (price === null) return
+        if (quantity !== null) line.total = round(quantity * price, 2)
+        else if (total !== null && price > 0) line.quantity = round(total / price, 4)
     }
 }
 
@@ -373,6 +468,25 @@ async function submitSale() {
         console.error('submit sale error:', error?.response?.data || error)
     } finally {
         saving.value = false
+    }
+}
+
+async function submitEntity() {
+    entitySaving.value = true
+    errorMessage.value = ''
+
+    try {
+        const saved = await createEntity(entityPayload())
+
+        upsertEntity(saved)
+        saleForm.entity_id = saved.id
+        entityDialog.value = false
+        resetEntityForm()
+    } catch (error) {
+        errorMessage.value = error?.response?.data?.message || Object.values(error?.response?.data?.errors || {})?.flat()?.[0] || 'Не удалось сохранить Entity'
+        console.error('submit entity error:', error?.response?.data || error)
+    } finally {
+        entitySaving.value = false
     }
 }
 
@@ -615,19 +729,39 @@ onMounted(async () => {
             </v-card>
         </v-dialog>
 
-        <v-dialog v-model="dialog" max-width="1260" scrollable>
+        <v-dialog
+            v-model="dialog"
+            width="calc(100vw - 24px)"
+            max-width="1880"
+            scrollable
+            class="sale-create-dialog"
+        >
             <v-card class="sale-dialog">
                 <v-card-title class="sale-dialog__title">
                     <div>
                         <span>Новая продажа</span>
                         <strong>{{ formatMoney(effectiveSaleTotal) }}</strong>
                     </div>
-                    <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
+
+                    <div class="sale-dialog__title-actions">
+                        <v-btn
+                            color="red-accent-3"
+                            variant="outlined"
+                            size="small"
+                            class="sale-dialog__entity-btn"
+                            :loading="entityMetaLoading"
+                            @click="openEntityCreate"
+                        >
+                            + E
+                        </v-btn>
+
+                        <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
+                    </div>
                 </v-card-title>
 
-                <v-card-text>
+                <v-card-text class="sale-dialog__body">
                     <v-row dense>
-                        <v-col cols="12" md="3">
+                        <v-col cols="12" md="2">
                             <v-text-field
                                 v-model="saleForm.date"
                                 label="Дата продажи"
@@ -637,7 +771,7 @@ onMounted(async () => {
                             />
                         </v-col>
 
-                        <v-col cols="12" md="6">
+                        <v-col cols="12" md="7">
                             <v-autocomplete
                                 v-model="saleForm.entity_id"
                                 :items="entityOptions"
@@ -815,6 +949,16 @@ onMounted(async () => {
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <EntityFormDialog
+            v-model="entityDialog"
+            :loading="entityDialogLoading"
+            :is-edit="false"
+            :form="entityForm"
+            :meta="entityMeta"
+            @submit="submitEntity"
+            @building-created="mergeEntityBuildingMeta"
+        />
     </section>
 </template>
 
@@ -1193,14 +1337,50 @@ onMounted(async () => {
 }
 
 .sale-dialog {
+    min-height: calc(100vh - 36px);
     background: #14080a;
     color: #ffe8e8;
+    font-size: 12px;
+}
+
+.sale-create-dialog :deep(.v-overlay__content) {
+    margin: 12px;
+    max-height: calc(100vh - 24px);
+}
+
+.sale-dialog__body {
+    padding: 10px 14px 12px !important;
+}
+
+.sale-dialog :deep(.v-field) {
+    min-height: 36px;
+    border-radius: 7px;
+    font-size: 12px;
+}
+
+.sale-dialog :deep(.v-field__input) {
+    min-height: 36px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    font-size: 12px;
+}
+
+.sale-dialog :deep(.v-label.v-field-label) {
+    font-size: 11px;
+}
+
+.sale-dialog :deep(.v-field__append-inner),
+.sale-dialog :deep(.v-field__prepend-inner),
+.sale-dialog :deep(.v-field__clearable) {
+    padding-top: 6px;
 }
 
 .sale-dialog__title {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    min-height: 44px;
+    padding: 8px 12px;
     background: linear-gradient(90deg, #26080c 0%, #4b1016 100%);
 }
 
@@ -1213,6 +1393,23 @@ onMounted(async () => {
 .sale-dialog__title strong {
     color: #ff9090;
     font-family: 'Courier New', monospace;
+    font-size: 16px;
+}
+
+.sale-dialog__title .sale-dialog__title-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sale-dialog__entity-btn {
+    min-width: 58px;
+    border-color: #ff2b19;
+    color: #ff2b19;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
 }
 
 .sale-entity-selection {
@@ -1335,37 +1532,39 @@ onMounted(async () => {
 }
 
 .sale-lines {
-    margin-top: 10px;
+    margin-top: 8px;
     border: 1px solid rgba(255, 80, 80, 0.36);
     background: #0d0809;
+    overflow-x: auto;
 }
 
 .sale-lines__head,
 .sale-line {
     display: grid;
-    grid-template-columns: minmax(220px, 1.9fr) 88px 70px 90px 90px 90px 100px 34px;
-    gap: 4px;
+    grid-template-columns: minmax(420px, 2.4fr) 76px 62px 92px 82px 92px 104px 30px;
+    gap: 3px;
     align-items: center;
+    min-width: 980px;
 }
 
 .sale-lines__head {
-    padding: 5px 8px;
+    padding: 4px 6px;
     background: #3a090e;
     color: #ffaaaa;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
 .sale-line {
-    padding: 5px 8px;
+    padding: 3px 6px;
     border-top: 1px solid rgba(255, 80, 80, 0.18);
 }
 
 .sale-line__meta {
     color: #ffd0d0;
-    font-size: 11px;
+    font-size: 10px;
     font-family: 'Courier New', monospace;
 }
 
@@ -1378,8 +1577,9 @@ onMounted(async () => {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-top: 10px;
+    margin-top: 8px;
     color: #ffdede;
+    font-size: 12px;
 }
 
 @media (max-width: 1180px) {

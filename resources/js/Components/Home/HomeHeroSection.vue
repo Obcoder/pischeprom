@@ -21,6 +21,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    categories: {
+        type: Array,
+        default: () => [],
+    },
 })
 
 const search = ref('')
@@ -38,24 +42,34 @@ const quickQueries = [
     'Консерванты',
 ]
 
-const heroCategories = [
+const heroCategoryTargets = [
     {
         title: 'Рыба',
         description: 'Филе, морепродукты и позиции для переработки',
-        href: '/Seaprom',
+        aliases: ['рыба'],
+        slug: 'ryba',
         icon: 'mdi-fish',
     },
     {
         title: 'Овощи',
         description: 'Заморозка, смеси, нарезка и полуфабрикаты',
-        href: '/vegetables',
+        aliases: ['овощи'],
+        slug: 'ovoschi',
         icon: 'mdi-carrot',
     },
     {
         title: 'Бакалея',
         description: 'Сыпучие ингредиенты, добавки и сухие смеси',
-        href: '/grocery',
+        aliases: ['бакалея'],
+        search: 'Бакалея',
         icon: 'mdi-package-variant-closed',
+    },
+    {
+        title: 'Ягоды',
+        description: 'Замороженные ягоды, фрукты и смеси',
+        aliases: ['ягоды', 'ягоды и фрукты'],
+        slug: 'yagody-i-frukty',
+        icon: 'mdi-fruit-cherries',
     },
 ]
 
@@ -87,8 +101,58 @@ const customerTasks = [
     },
 ]
 
+const availableCategories = computed(() => {
+    return Array.isArray(props.categories)
+        ? props.categories.filter((category) => category?.id && category?.name)
+        : []
+})
+
+const resolvedHeroCategories = computed(() => {
+    return heroCategoryTargets.map((item) => ({
+        ...item,
+        href: categoryHref(item),
+    }))
+})
+
+function normalizeText(value) {
+    return String(value || '').trim().toLowerCase()
+}
+
+function findCategory(target) {
+    const aliases = [target.title, ...(target.aliases || [])].map(normalizeText)
+
+    return availableCategories.value.find((category) => {
+        const name = normalizeText(category.name)
+
+        return aliases.some((alias) => name.includes(alias) || alias.includes(name))
+    })
+}
+
+function categoryHref(target) {
+    const category = findCategory(target)
+    const categoryParam = category?.slug || category?.id || target.slug
+
+    if (categoryParam) {
+        return route('category.show', categoryParam)
+    }
+
+    const searchQuery = target.search || target.title
+
+    return `${route('public.goods.index')}?search=${encodeURIComponent(searchQuery)}`
+}
+
+function leadGoodImage(good) {
+    const mediaImage = (good?.published_media || good?.publishedMedia || [])
+        .find((media) => media.type === 'image')
+
+    return mediaImage?.url || good?.ava_image || mediaImage?.thumb_url || good?.ava_thumb || logo
+}
+
 function goodImage(good) {
-    return good?.ava_thumb || good?.ava_image || logo
+    const mediaImage = (good?.published_media || good?.publishedMedia || [])
+        .find((media) => media.type === 'image')
+
+    return mediaImage?.thumb_url || good?.ava_thumb || mediaImage?.url || good?.ava_image || logo
 }
 
 function submitSearch() {
@@ -229,9 +293,11 @@ function applyQuickQuery(query) {
                                 class="hero-v2__lead-good"
                             >
                                 <img
-                                    :src="goodImage(leadGood)"
+                                    :src="leadGoodImage(leadGood)"
                                     :alt="leadGood.name"
-                                    loading="lazy"
+                                    loading="eager"
+                                    decoding="async"
+                                    fetchpriority="high"
                                 >
 
                                 <span class="hero-v2__lead-badge">Смотреть товар</span>
@@ -283,7 +349,7 @@ function applyQuickQuery(query) {
 
                     <div class="hero-v2__category-grid">
                         <Link
-                            v-for="item in heroCategories"
+                            v-for="item in resolvedHeroCategories"
                             :key="item.title"
                             :href="item.href"
                             class="hero-v2__category-link"
@@ -779,7 +845,7 @@ function applyQuickQuery(query) {
 
 .hero-v2__category-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
     gap: 10px;
     margin-top: 12px;
 }

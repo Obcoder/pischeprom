@@ -54,6 +54,7 @@ class MainController extends Controller
                       'id',
                       'name',
                       'slug',
+                      'ava_image',
                       'ava_thumb',
                   ]);
 

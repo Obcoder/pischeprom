@@ -415,6 +415,7 @@ onMounted(() => {
         <HomeHeroSection
             :stats="heroStats"
             :hero-goods="heroGoods"
+            :categories="categories"
         />
 
         <HomeFieldCollectionsSection :fields="fields" />
