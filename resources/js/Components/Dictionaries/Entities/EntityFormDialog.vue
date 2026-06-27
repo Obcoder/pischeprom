@@ -23,6 +23,12 @@ const dadataSuggestions = ref([])
 const dadataLoading = ref(false)
 const dadataMessage = ref('')
 let dadataTimer = null
+const buildingPostcodeLoading = ref(false)
+const buildingPostcodeMessage = ref('')
+const buildingPostcodeManual = ref(false)
+const buildingPostcodeAutofilled = ref(false)
+let buildingPostcodeTimer = null
+let buildingPostcodeRequestId = 0
 const buildingForm = reactive({
     city_id: null,
     address: '',
@@ -231,6 +237,107 @@ const applyDaDataSuggestion = (suggestion) => {
     dadataMessage.value = 'Реквизиты заполнены из DaData.'
 }
 
+const fetchBuildingPostcode = async (force = false) => {
+    clearTimeout(buildingPostcodeTimer)
+
+    const cityId = Number(buildingForm.city_id)
+    const address = buildingForm.address.trim()
+
+    if (!cityId || address.length < 2) {
+        buildingPostcodeMessage.value = 'Укажите город и адрес, чтобы найти индекс.'
+        return
+    }
+
+    const requestId = ++buildingPostcodeRequestId
+    buildingPostcodeLoading.value = true
+    buildingPostcodeMessage.value = 'Ищем индекс по адресу...'
+
+    try {
+        const { data } = await axios.get(route('web.entities.building-postcode'), {
+            params: {
+                city_id: cityId,
+                address,
+            },
+        })
+
+        if (requestId !== buildingPostcodeRequestId) {
+            return
+        }
+
+        const match = data.data || null
+
+        if (!match?.postcode) {
+            buildingPostcodeMessage.value = 'DaData не нашла индекс. Его можно указать вручную.'
+            return
+        }
+
+        const canApplyPostcode = force
+            || !buildingPostcodeManual.value
+            || !buildingForm.postcode.trim()
+
+        if (canApplyPostcode) {
+            buildingForm.postcode = match.postcode
+            buildingPostcodeManual.value = false
+            buildingPostcodeAutofilled.value = true
+            buildingPostcodeMessage.value = match.value
+                ? `Индекс ${match.postcode} подставлен для: ${match.value}`
+                : `Индекс ${match.postcode} подставлен из DaData.`
+            return
+        }
+
+        buildingPostcodeMessage.value = `DaData нашла индекс ${match.postcode}, но поле заполнено вручную.`
+    } catch (error) {
+        if (requestId !== buildingPostcodeRequestId) {
+            return
+        }
+
+        buildingPostcodeMessage.value = error?.response?.data?.message || 'Не удалось получить индекс из DaData.'
+    } finally {
+        if (requestId === buildingPostcodeRequestId) {
+            buildingPostcodeLoading.value = false
+        }
+    }
+}
+
+const scheduleBuildingPostcodeLookup = () => {
+    clearTimeout(buildingPostcodeTimer)
+    buildingPostcodeRequestId += 1
+
+    const cityId = Number(buildingForm.city_id)
+    const address = buildingForm.address.trim()
+
+    if (!cityId || address.length < 4) {
+        buildingPostcodeLoading.value = false
+        buildingPostcodeMessage.value = ''
+        return
+    }
+
+    if (buildingPostcodeManual.value && buildingForm.postcode.trim()) {
+        buildingPostcodeLoading.value = false
+        return
+    }
+
+    buildingPostcodeTimer = setTimeout(() => fetchBuildingPostcode(false), 650)
+}
+
+const markBuildingPostcodeManual = (value) => {
+    buildingPostcodeManual.value = String(value ?? '').trim() !== ''
+    buildingPostcodeAutofilled.value = false
+
+    if (buildingPostcodeManual.value) {
+        buildingPostcodeMessage.value = 'Индекс задан вручную.'
+    }
+}
+
+const resetBuildingPostcodeLookup = () => {
+    clearTimeout(buildingPostcodeTimer)
+    buildingPostcodeRequestId += 1
+    buildingPostcodeLoading.value = false
+    buildingPostcodeMessage.value = ''
+    buildingPostcodeManual.value = false
+    buildingPostcodeAutofilled.value = false
+}
+
 const createBuilding = async () => {
     buildingError.value = ''
 
@@ -261,6 +368,7 @@ const createBuilding = async () => {
 
         buildingForm.address = ''
         buildingForm.postcode = ''
+        resetBuildingPostcodeLookup()
         buildingFormOpen.value = false
     } catch (error) {
         buildingError.value = error?.response?.data?.message || 'Не удалось создать здание.'
@@ -274,6 +382,18 @@ watch(dadataSelected, (value) => {
 })
 
 watch(
+    () => [buildingForm.city_id, buildingForm.address],
+    () => {
+        if (buildingPostcodeAutofilled.value && !buildingPostcodeManual.value) {
+            buildingForm.postcode = ''
+            buildingPostcodeAutofilled.value = false
+        }
+
+        scheduleBuildingPostcodeLookup()
+    }
+)
+
+watch(
     () => props.modelValue,
     (isOpen) => {
         if (!isOpen) {
@@ -282,6 +402,7 @@ watch(
             dadataSelected.value = null
             dadataSuggestions.value = []
             dadataMessage.value = ''
+            resetBuildingPostcodeLookup()
         }
     }
 )
@@ -467,8 +588,8 @@ watch(
                                 :item-props="buildingItemProps"
                                 item-title="search_title"
                                 item-value="id"
-                                label="Поиск зданий по городу или адресу"
-                                placeholder="Город, адрес, индекс"
+                                aria-label="Поиск зданий по городу или адресу"
+                                placeholder="Поиск зданий по городу или адресу"
                                 multiple
                                 chips
                                 closable-chips
@@ -556,9 +677,32 @@ watch(
                                                 variant="solo-filled"
                                                 density="compact"
                                                 hide-details="auto"
+                                                :loading="buildingPostcodeLoading"
+                                                append-inner-icon="mdi-map-search-outline"
+                                                @click:append-inner="fetchBuildingPostcode(true)"
+                                                @update:model-value="markBuildingPostcodeManual"
                                             />
                                         </v-col>
                                     </v-row>
+
+                                    <div
+                                        v-if="buildingPostcodeMessage"
+                                        class="building-create-panel__hint"
+                                        :class="{ 'is-loading': buildingPostcodeLoading }"
+                                    >
+                                        <v-progress-circular
+                                            v-if="buildingPostcodeLoading"
+                                            indeterminate
+                                            size="16"
+                                            width="2"
+                                        />
+                                        <v-icon
+                                            v-else
+                                            icon="mdi-map-marker-check-outline"
+                                            size="16"
+                                        />
+                                        <span>{{ buildingPostcodeMessage }}</span>
+                                    </div>
 
                                     <div class="building-create-panel__footer">
                                         <v-alert
@@ -914,6 +1058,7 @@ watch(
 }
 
 .buildings-autocomplete :deep(.v-field) {
+    min-height: 58px;
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 10px 22px rgba(21, 54, 41, 0.08);
@@ -927,15 +1072,31 @@ watch(
     opacity: 1;
 }
 
+.buildings-autocomplete :deep(.v-field__input) {
+    min-height: 58px;
+    padding: 14px 52px 10px 16px;
+    align-items: center;
+}
+
+.buildings-autocomplete :deep(.v-field__input input) {
+    min-height: 28px;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1.25;
+}
+
 .buildings-autocomplete :deep(.v-field__input input::placeholder) {
     color: rgba(21, 54, 41, 0.58) !important;
     opacity: 1;
 }
 
-.buildings-autocomplete :deep(.v-label),
 .buildings-autocomplete :deep(.v-icon),
 .buildings-autocomplete :deep(.v-field__clearable) {
     color: rgba(21, 54, 41, 0.72) !important;
+}
+
+.buildings-autocomplete :deep(.v-label) {
+    display: none;
 }
 
 .buildings-autocomplete :deep(.v-field__overlay) {
@@ -989,6 +1150,20 @@ watch(
     border: 1px dashed rgba(29, 77, 60, 0.26);
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.70);
+}
+
+.building-create-panel__hint {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 8px;
+    color: rgba(21, 54, 41, 0.72);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.building-create-panel__hint.is-loading {
+    color: #1d4d3c;
 }
 
 .building-create-panel__footer {

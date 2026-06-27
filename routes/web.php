@@ -195,6 +195,10 @@ Route::prefix('web')->name('web.')->group(function () {
         ->middleware('throttle:30,1')
         ->name('entities.lookup-by-inn');
 
+    Route::get('/entities/building-postcode', [EntityLookupController::class, 'buildingPostcode'])
+        ->middleware('throttle:60,1')
+        ->name('entities.building-postcode');
+
     Route::get('/entities/lookup', [EntityLookupController::class, 'lookup'])
         ->middleware('throttle:30,1')
         ->name('entities.lookup');
