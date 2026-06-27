@@ -109,6 +109,34 @@ const canSubmitSale = computed(() => {
     return hasBase && (hasManualTotal || hasLine)
 })
 
+function normalizeSearchText(value) {
+    return String(value ?? '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function searchText(...values) {
+    return normalizeSearchText(values.filter(Boolean).join(' '))
+}
+
+function entitySearchFilter(value, query, item) {
+    const raw = item?.raw || item || {}
+    const haystack = searchText(
+        value,
+        raw.search_text,
+        raw.name,
+        raw.full_name,
+        entityUnitsText(raw, 12),
+        entityBuildingsText(raw, 12),
+    )
+    const tokens = normalizeSearchText(query).split(' ').filter(Boolean)
+
+    return tokens.every((token) => haystack.includes(token)) ? 0 : -1
+}
+
 function toNumber(value, fallback = 0) {
     const number = Number(String(value ?? '').replace(',', '.'))
     return Number.isFinite(number) ? number : fallback
@@ -762,63 +790,74 @@ onMounted(async () => {
                 <v-card-text class="sale-dialog__body">
                     <v-row dense>
                         <v-col cols="12" md="2">
-                            <v-text-field
-                                v-model="saleForm.date"
-                                label="Дата продажи"
-                                type="date"
-                                variant="solo-filled"
-                                density="compact"
-                            />
+                            <div class="sale-form-field sale-form-field--date">
+                                <span class="sale-form-field__label">Дата продажи</span>
+                                <v-text-field
+                                    v-model="saleForm.date"
+                                    aria-label="Дата продажи"
+                                    type="date"
+                                    variant="solo-filled"
+                                    density="compact"
+                                    hide-details
+                                    class="sale-date-field"
+                                />
+                            </div>
                         </v-col>
 
                         <v-col cols="12" md="7">
-                            <v-autocomplete
-                                v-model="saleForm.entity_id"
-                                :items="entityOptions"
-                                :item-title="entityOptionTitle"
-                                item-value="id"
-                                label="Entity"
-                                variant="solo-filled"
-                                density="compact"
-                                clearable
-                                hide-details="auto"
-                                :menu-props="{ contentClass: 'sale-entity-menu' }"
-                            >
-                                <template #selection="{ item }">
-                                    <div class="sale-entity-selection">
-                                        <strong>{{ item.raw.name }}</strong>
-                                        <span>#{{ item.raw.id }}</span>
-                                    </div>
-                                </template>
+                            <div class="sale-form-field sale-form-field--entity">
+                                <span class="sale-form-field__label">Entity</span>
+                                <v-autocomplete
+                                    v-model="saleForm.entity_id"
+                                    :items="entityOptions"
+                                    :item-title="entityOptionTitle"
+                                    :custom-filter="entitySearchFilter"
+                                    item-value="id"
+                                    aria-label="Entity"
+                                    placeholder="Название, Unit или адрес здания"
+                                    variant="solo-filled"
+                                    density="compact"
+                                    clearable
+                                    hide-details="auto"
+                                    class="sale-entity-field"
+                                    :menu-props="{ contentClass: 'sale-entity-menu' }"
+                                >
+                                    <template #selection="{ item }">
+                                        <div class="sale-entity-selection">
+                                            <strong>{{ item.raw.name }}</strong>
+                                            <span>#{{ item.raw.id }}</span>
+                                        </div>
+                                    </template>
 
-                                <template #item="{ props, item }">
-                                    <v-list-item
-                                        v-bind="props"
-                                        class="sale-entity-option"
-                                    >
-                                        <template #title>
-                                            <div class="sale-entity-option__title">
-                                                <strong>{{ item.raw.name }}</strong>
-                                                <span>#{{ item.raw.id }}</span>
-                                            </div>
-                                        </template>
+                                    <template #item="{ props, item }">
+                                        <v-list-item
+                                            v-bind="props"
+                                            class="sale-entity-option"
+                                        >
+                                            <template #title>
+                                                <div class="sale-entity-option__title">
+                                                    <strong>{{ item.raw.name }}</strong>
+                                                    <span>#{{ item.raw.id }}</span>
+                                                </div>
+                                            </template>
 
-                                        <template #subtitle>
-                                            <div class="sale-entity-option__meta">
-                                                <span v-if="entityUnitsText(item.raw)">
-                                                    Units: {{ entityUnitsText(item.raw) }}
-                                                </span>
-                                                <span v-if="entityBuildingsText(item.raw)">
-                                                    Buildings: {{ entityBuildingsText(item.raw) }}
-                                                </span>
-                                                <span v-if="!entityUnitsText(item.raw) && !entityBuildingsText(item.raw)">
-                                                    Нет привязанных units/buildings
-                                                </span>
-                                            </div>
-                                        </template>
-                                    </v-list-item>
-                                </template>
-                            </v-autocomplete>
+                                            <template #subtitle>
+                                                <div class="sale-entity-option__meta">
+                                                    <span v-if="entityUnitsText(item.raw)">
+                                                        Units: {{ entityUnitsText(item.raw) }}
+                                                    </span>
+                                                    <span v-if="entityBuildingsText(item.raw)">
+                                                        Buildings: {{ entityBuildingsText(item.raw) }}
+                                                    </span>
+                                                    <span v-if="!entityUnitsText(item.raw) && !entityBuildingsText(item.raw)">
+                                                        Нет привязанных units/buildings
+                                                    </span>
+                                                </div>
+                                            </template>
+                                        </v-list-item>
+                                    </template>
+                                </v-autocomplete>
+                            </div>
 
                             <div v-if="selectedEntityOption" class="sale-entity-context">
                                 <span v-if="entityUnitsText(selectedEntityOption)" class="sale-entity-context__unit">
@@ -875,10 +914,12 @@ onMounted(async () => {
                                 :items="goods"
                                 :item-title="goodTitle"
                                 item-value="id"
-                                label="Good"
+                                placeholder="Good"
                                 variant="solo-filled"
                                 density="compact"
                                 hide-details
+                                class="sale-good-field"
+                                :menu-props="{ contentClass: 'sale-good-menu' }"
                                 @update:model-value="handleGoodSelected(line)"
                             />
 
@@ -1352,27 +1393,85 @@ onMounted(async () => {
     padding: 10px 14px 12px !important;
 }
 
-.sale-dialog :deep(.v-field) {
+.sale-form-field {
+    display: grid;
+    gap: 4px;
+}
+
+.sale-form-field__label {
+    color: rgba(255, 190, 190, 0.74);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.sale-form-field :deep(.v-field),
+.sale-good-field :deep(.v-field),
+.sale-line :deep(.v-field) {
     min-height: 36px;
     border-radius: 7px;
     font-size: 12px;
 }
 
-.sale-dialog :deep(.v-field__input) {
+.sale-form-field :deep(.v-field__input),
+.sale-good-field :deep(.v-field__input),
+.sale-line :deep(.v-field__input) {
     min-height: 36px;
-    padding-top: 4px;
-    padding-bottom: 4px;
+    padding-top: 0;
+    padding-bottom: 0;
     font-size: 12px;
 }
 
-.sale-dialog :deep(.v-label.v-field-label) {
+.sale-form-field :deep(.v-field__input input),
+.sale-good-field :deep(.v-field__input input),
+.sale-line :deep(.v-field__input input),
+.sale-form-field :deep(.v-select__selection-text),
+.sale-good-field :deep(.v-select__selection-text),
+.sale-line :deep(.v-select__selection-text) {
+    color: #fff5f5 !important;
+    opacity: 1;
+}
+
+.sale-form-field :deep(input::placeholder),
+.sale-good-field :deep(input::placeholder),
+.sale-line :deep(input::placeholder) {
+    color: rgba(255, 225, 225, 0.62) !important;
+    opacity: 1;
+}
+
+.sale-form-field :deep(.v-label.v-field-label),
+.sale-good-field :deep(.v-label.v-field-label),
+.sale-line :deep(.v-label.v-field-label) {
     font-size: 11px;
 }
 
-.sale-dialog :deep(.v-field__append-inner),
-.sale-dialog :deep(.v-field__prepend-inner),
-.sale-dialog :deep(.v-field__clearable) {
+.sale-form-field :deep(.v-field__append-inner),
+.sale-form-field :deep(.v-field__prepend-inner),
+.sale-form-field :deep(.v-field__clearable),
+.sale-good-field :deep(.v-field__append-inner),
+.sale-good-field :deep(.v-field__prepend-inner),
+.sale-good-field :deep(.v-field__clearable),
+.sale-line :deep(.v-field__append-inner),
+.sale-line :deep(.v-field__prepend-inner),
+.sale-line :deep(.v-field__clearable) {
     padding-top: 6px;
+}
+
+.sale-date-field :deep(input[type="date"]) {
+    color-scheme: dark;
+    line-height: 1.2;
+}
+
+.sale-date-field :deep(input[type="date"]::-webkit-calendar-picker-indicator) {
+    cursor: pointer;
+    filter: invert(1) opacity(0.85);
+}
+
+.sale-entity-field :deep(.v-field__input),
+.sale-good-field :deep(.v-field__input) {
+    align-items: center;
 }
 
 .sale-dialog__title {
@@ -1522,12 +1621,36 @@ onMounted(async () => {
     background: #1f1f1f !important;
 }
 
+:global(.sale-good-menu) {
+    border: 1px solid rgba(255, 120, 120, 0.22);
+    background: #1f1f1f !important;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42) !important;
+}
+
+:global(.sale-good-menu .v-list) {
+    padding: 3px;
+    background: #1f1f1f !important;
+}
+
 :global(.sale-entity-menu .v-list-item) {
     border-radius: 4px;
 }
 
+:global(.sale-good-menu .v-list-item) {
+    min-height: 34px;
+    border-radius: 4px;
+    color: #f8eeee !important;
+}
+
+:global(.sale-good-menu .v-list-item-title) {
+    color: #f8eeee !important;
+    font-size: 13px;
+}
+
 :global(.sale-entity-menu .v-list-item:hover),
-:global(.sale-entity-menu .v-list-item--active) {
+:global(.sale-entity-menu .v-list-item--active),
+:global(.sale-good-menu .v-list-item:hover),
+:global(.sale-good-menu .v-list-item--active) {
     background: rgba(107, 24, 34, 0.78) !important;
 }
 

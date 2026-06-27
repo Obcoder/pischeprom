@@ -917,6 +917,29 @@ watch(
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 10px 22px rgba(21, 54, 41, 0.08);
+    color: #153629;
+}
+
+.buildings-autocomplete :deep(.v-field__input),
+.buildings-autocomplete :deep(.v-field__input input),
+.buildings-autocomplete :deep(.v-select__selection-text) {
+    color: #153629 !important;
+    opacity: 1;
+}
+
+.buildings-autocomplete :deep(.v-field__input input::placeholder) {
+    color: rgba(21, 54, 41, 0.58) !important;
+    opacity: 1;
+}
+
+.buildings-autocomplete :deep(.v-label),
+.buildings-autocomplete :deep(.v-icon),
+.buildings-autocomplete :deep(.v-field__clearable) {
+    color: rgba(21, 54, 41, 0.72) !important;
+}
+
+.buildings-autocomplete :deep(.v-field__overlay) {
+    opacity: 0;
 }
 
 .buildings-autocomplete__chip {
