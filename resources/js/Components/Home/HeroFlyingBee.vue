@@ -4,7 +4,6 @@
             <svg
                 class="hero-bee__svg"
                 viewBox="0 0 120 96"
-                role="img"
                 focusable="false"
             >
                 <g class="hero-bee__shadow">
@@ -88,22 +87,26 @@
      * --bee-flight-duration: скорость полного цикла;
      * --bee-opacity: прозрачность;
      * --bee-z-index: слой внутри hero;
-     * --bee-area-* задают безопасную область полета.
+     * --bee-area-* задают стартовую область;
+     * --bee-path-* задают траекторию полета.
      */
-    --bee-size: clamp(54px, 5.4vw, 86px);
-    --bee-flight-duration: 16s;
-    --bee-opacity: 0.88;
-    --bee-z-index: 1;
-    --bee-area-top: 8%;
-    --bee-area-right: 7%;
-    --bee-area-width: min(44vw, 560px);
-    --bee-area-height: min(34vh, 300px);
+    --bee-size: clamp(58px, 5vw, 92px);
+    --bee-flight-duration: 14s;
+    --bee-opacity: 0.96;
+    --bee-z-index: 2;
+    --bee-area-top: clamp(10px, 2.2vw, 24px);
+    --bee-area-right: clamp(14px, 4.8vw, 70px);
+    --bee-path-wide: clamp(-460px, -34vw, -170px);
+    --bee-path-mid: clamp(-280px, -20vw, -88px);
+    --bee-path-near: clamp(-92px, -7vw, -36px);
+    --bee-path-rise: clamp(-74px, -6vw, -28px);
+    --bee-path-dip: clamp(34px, 7vw, 92px);
 
     position: absolute;
     top: var(--bee-area-top);
     right: var(--bee-area-right);
-    width: var(--bee-area-width);
-    height: var(--bee-area-height);
+    width: var(--bee-size);
+    height: var(--bee-size);
     z-index: var(--bee-z-index);
     opacity: 0;
     pointer-events: none;
@@ -111,8 +114,8 @@
 }
 
 .hero-bee__flight {
-    width: var(--bee-size);
-    height: var(--bee-size);
+    width: 100%;
+    height: 100%;
     opacity: var(--bee-opacity);
     transform-origin: center;
     will-change: transform;
@@ -209,27 +212,27 @@
 /* Траекторию меняйте здесь: анимируются только transform/rotate/scale. */
 @keyframes hero-bee-flight {
     0% {
-        transform: translate3d(78%, 34%, 0) rotate(-8deg) scale(0.94);
+        transform: translate3d(0, var(--bee-path-dip), 0) rotate(-8deg) scale(0.92);
     }
 
     18% {
-        transform: translate3d(46%, 6%, 0) rotate(9deg) scale(1);
+        transform: translate3d(var(--bee-path-mid), var(--bee-path-rise), 0) rotate(8deg) scale(1);
     }
 
     38% {
-        transform: translate3d(8%, 28%, 0) rotate(-7deg) scale(0.96);
+        transform: translate3d(var(--bee-path-wide), 4px, 0) rotate(-7deg) scale(0.96);
     }
 
     58% {
-        transform: translate3d(34%, 64%, 0) rotate(10deg) scale(1.02);
+        transform: translate3d(var(--bee-path-mid), var(--bee-path-dip), 0) rotate(10deg) scale(1.02);
     }
 
     78% {
-        transform: translate3d(74%, 48%, 0) rotate(-4deg) scale(0.98);
+        transform: translate3d(var(--bee-path-near), var(--bee-path-rise), 0) rotate(-4deg) scale(0.98);
     }
 
     100% {
-        transform: translate3d(78%, 34%, 0) rotate(-8deg) scale(0.94);
+        transform: translate3d(0, var(--bee-path-dip), 0) rotate(-8deg) scale(0.92);
     }
 }
 
@@ -279,23 +282,29 @@
 
 @media (max-width: 960px) {
     .hero-bee {
-        --bee-size: clamp(42px, 8vw, 62px);
-        --bee-flight-duration: 18s;
-        --bee-opacity: 0.72;
-        --bee-area-top: 2%;
-        --bee-area-right: 4%;
-        --bee-area-width: min(50vw, 330px);
-        --bee-area-height: 180px;
+        --bee-size: clamp(42px, 7vw, 62px);
+        --bee-flight-duration: 16s;
+        --bee-opacity: 0.82;
+        --bee-area-top: 8px;
+        --bee-area-right: 16px;
+        --bee-path-wide: clamp(-230px, -28vw, -118px);
+        --bee-path-mid: clamp(-148px, -18vw, -62px);
+        --bee-path-near: clamp(-64px, -8vw, -24px);
+        --bee-path-rise: -22px;
+        --bee-path-dip: 42px;
     }
 }
 
 @media (max-width: 600px) {
     .hero-bee {
-        --bee-size: 42px;
-        --bee-area-top: 1.5%;
-        --bee-area-right: 5%;
-        --bee-area-width: 180px;
-        --bee-area-height: 116px;
+        --bee-size: 38px;
+        --bee-area-top: 10px;
+        --bee-area-right: 12px;
+        --bee-path-wide: -96px;
+        --bee-path-mid: -58px;
+        --bee-path-near: -22px;
+        --bee-path-rise: -12px;
+        --bee-path-dip: 28px;
     }
 }
 
@@ -307,7 +316,7 @@
 
     .hero-bee__flight {
         animation: none;
-        transform: translate3d(68%, 24%, 0) rotate(-6deg) scale(0.92);
+        transform: translate3d(var(--bee-path-near), 0, 0) rotate(-6deg) scale(0.92);
     }
 
     .hero-bee__bee,

@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Services\Goods\HomeGoodsModuleService;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -66,7 +67,48 @@ class MainController extends Controller
             'goodsCount' => Good::query()->count(),
             'heroGoods' => $heroGoods,
             'homeGoodsModule' => $homeGoodsModuleService->build($request->user()),
+            'countryCollections' => $this->countryCollections(),
         ]);
+    }
+
+    private function countryCollections(): array
+    {
+        if (! Schema::hasColumn('goods', 'country_id')) {
+            return [];
+        }
+
+        return Good::query()
+            ->where('is_published', true)
+            ->whereNotNull('country_id')
+            ->with('country:id,name,flag')
+            ->orderBy('name')
+            ->get([
+                'id',
+                'country_id',
+                'name',
+                'slug',
+                'ava_image',
+                'ava_thumb',
+            ])
+            ->groupBy('country_id')
+            ->map(function ($goods) {
+                $country = $goods->first()?->country;
+
+                if (! $country?->id) {
+                    return null;
+                }
+
+                return [
+                    'country' => $country,
+                    'goods_count' => $goods->count(),
+                    'goods' => $goods->take(3)->values(),
+                ];
+            })
+            ->filter()
+            ->sortByDesc('goods_count')
+            ->values()
+            ->take(8)
+            ->all();
     }
 
     private function resolveGoodOfTheDay(): ?GoodOfTheDay

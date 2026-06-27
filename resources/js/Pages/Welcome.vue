@@ -83,6 +83,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    countryCollections: {
+        type: Array,
+        default: () => [],
+    },
 })
 
 const page = usePage()
@@ -423,6 +427,7 @@ onMounted(() => {
 
         <HomeCountryCollectionsSection
             :goods="goods"
+            :collections="countryCollections"
             :loading="goodsLoading"
         />
 

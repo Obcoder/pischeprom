@@ -9,6 +9,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    collections: {
+        type: Array,
+        default: () => [],
+    },
     loading: {
         type: Boolean,
         default: false,
@@ -22,6 +26,10 @@ const props = defineProps({
 const { route } = useAppRoute()
 
 const countryCollections = computed(() => {
+    if (props.collections.length) {
+        return props.collections.slice(0, props.limit)
+    }
+
     const map = new Map()
 
     props.goods.forEach((good) => {
@@ -109,7 +117,7 @@ function countryUrl(country) {
                             </div>
 
                             <span class="country-card__count">
-                                {{ collection.goods.length }} товаров
+                                {{ collection.goods_count || collection.goods.length }} товаров
                             </span>
                         </div>
 
