@@ -9,7 +9,7 @@ import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
 import HomeFieldCollectionsSection from '@/Components/Home/HomeFieldCollectionsSection.vue'
 import HomeCountryCollectionsSection from '@/Components/Home/HomeCountryCollectionsSection.vue'
-import HomeTopSalesSection from '@/Components/Home/HomeTopSalesSection.vue'
+import HomeFeaturedGoodsSection from '@/Components/Home/HomeFeaturedGoodsSection.vue'
 import HomeBannerGallerySection from '@/Components/Home/HomeBannerGallerySection.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
@@ -76,7 +76,7 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
-    topSalesGoods: {
+    featuredGoods: {
         type: Array,
         default: () => [],
     },
@@ -418,7 +418,7 @@ onMounted(() => {
             :loading="goodsLoading"
         />
 
-        <HomeTopSalesSection :goods="topSalesGoods" />
+        <HomeFeaturedGoodsSection :goods="featuredGoods" />
 
         <HomeBannerGallerySection :banners="homeBanners" />
 

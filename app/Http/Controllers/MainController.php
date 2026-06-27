@@ -11,7 +11,6 @@ use App\Models\Product;
 use App\Services\Goods\HomeGoodsModuleService;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -70,45 +69,17 @@ class MainController extends Controller
             'heroGoods' => $heroGoods,
             'homeGoodsModule' => $homeGoodsModuleService->build($request->user()),
             'countryCollections' => $this->countryCollections(),
-            'topSalesGoods' => $this->topSalesGoods(),
+            'featuredGoods' => $this->featuredGoods(),
             'homeBanners' => $this->homeBanners(),
         ]);
     }
 
-    private function topSalesGoods(): array
+    private function featuredGoods(): array
     {
-        if (! Schema::hasTable('good_sale') || ! Schema::hasTable('sales')) {
-            return [];
-        }
-
-        $rankedRows = DB::table('good_sale')
-            ->join('sales', 'sales.id', '=', 'good_sale.sale_id')
-            ->join('goods', 'goods.id', '=', 'good_sale.good_id')
-            ->where('goods.is_published', true)
-            ->select('good_sale.good_id')
-            ->selectRaw('COUNT(DISTINCT sales.id) as sales_count')
-            ->selectRaw('SUM(good_sale.quantity) as quantity')
-            ->selectRaw('SUM(good_sale.total) as total')
-            ->selectRaw('AVG(good_sale.price) as average_price')
-            ->selectRaw('MAX(sales.date) as last_sale_date')
-            ->groupBy('good_sale.good_id')
-            ->orderByDesc('total')
-            ->orderByDesc('sales_count')
-            ->limit(8)
-            ->get();
-
-        if ($rankedRows->isEmpty()) {
-            return [];
-        }
-
-        $statsByGoodId = $rankedRows->keyBy('good_id');
-        $rankByGoodId = $rankedRows
-            ->pluck('good_id')
-            ->flip()
-            ->map(fn ($index) => $index + 1);
         $hasGoodCountry = Schema::hasColumn('goods', 'country_id');
         $relations = [
             'products.category:id,name,slug',
+            'fields:id,name,description',
             'publishedMedia' => function ($query): void {
                 $query
                     ->where('type', 'image')
@@ -133,13 +104,13 @@ class MainController extends Controller
         }
 
         return Good::query()
-            ->whereIn('id', $rankedRows->pluck('good_id'))
+            ->where('is_published', true)
             ->with($relations)
+            ->inRandomOrder()
+            ->limit(8)
             ->get($columns)
-            ->sortBy(fn (Good $good) => $rankByGoodId[$good->id] ?? 999)
             ->values()
-            ->map(function (Good $good) use ($statsByGoodId, $rankByGoodId): array {
-                $stats = $statsByGoodId[$good->id];
+            ->map(function (Good $good): array {
                 $mediaImage = $good->publishedMedia->first();
 
                 return [
@@ -152,12 +123,14 @@ class MainController extends Controller
                     'image' => $mediaImage?->url ?: $good->ava_image ?: $good->ava_thumb,
                     'country' => $good->relationLoaded('country') ? $good->country : null,
                     'products' => $good->products->take(3)->values(),
-                    'rank' => $rankByGoodId[$good->id] ?? null,
-                    'sales_count' => (int) $stats->sales_count,
-                    'quantity' => (float) $stats->quantity,
-                    'total' => (float) $stats->total,
-                    'average_price' => (float) $stats->average_price,
-                    'last_sale_date' => $stats->last_sale_date,
+                    'fields' => $good->fields
+                        ->take(3)
+                        ->map(fn ($field): array => [
+                            'id' => $field->id,
+                            'name' => $field->name,
+                            'description' => $field->description,
+                        ])
+                        ->values(),
                 ];
             })
             ->all();
