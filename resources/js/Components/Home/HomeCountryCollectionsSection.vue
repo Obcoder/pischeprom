@@ -107,11 +107,12 @@ function countryUrl(country) {
 
                         <div class="country-card__top">
                             <div class="country-card__flag">
-                                <v-img
+                                <img
                                     v-if="collection.country.flag"
                                     :src="collection.country.flag"
-                                    :alt="collection.country.name"
-                                    cover
+                                    :alt="`Флаг ${collection.country.name}`"
+                                    class="country-card__flag-image"
+                                    loading="lazy"
                                 />
                                 <span v-else>{{ collection.country.name?.slice(0, 1) }}</span>
                             </div>
@@ -247,6 +248,13 @@ function countryUrl(country) {
     color: #47765a;
     font-size: 1.8rem;
     font-weight: 900;
+}
+
+.country-card__flag-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .country-card__count {
