@@ -4,6 +4,7 @@ import { Link, router } from '@inertiajs/vue3'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { useAppRoute } from '@/Composables/useAppRoute'
+import HeroFlyingBee from '@/Components/Home/HeroFlyingBee.vue'
 
 const { route } = useAppRoute()
 
@@ -177,6 +178,7 @@ function applyQuickQuery(query) {
         <div class="hero-v2__grain" />
         <div class="hero-v2__orb hero-v2__orb--one" />
         <div class="hero-v2__orb hero-v2__orb--two" />
+        <HeroFlyingBee />
 
         <v-container class="py-7 py-md-11">
             <v-row align="center" class="hero-v2__row">
