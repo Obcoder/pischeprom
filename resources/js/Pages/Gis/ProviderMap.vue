@@ -575,13 +575,16 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="gis-page__links">
-                <v-btn href="/gis/2gis" :variant="provider === '2gis' ? 'flat' : 'tonal'" color="red-darken-4">
+                <v-btn href="/Ameise/gis" variant="outlined" color="red-darken-4">
+                    Управление
+                </v-btn>
+                <v-btn href="/Ameise/gis/2gis" :variant="provider === '2gis' ? 'flat' : 'tonal'" color="red-darken-4">
                     2ГИС
                 </v-btn>
-                <v-btn href="/gis/yandex" :variant="provider === 'yandex' ? 'flat' : 'tonal'" color="red-darken-4">
+                <v-btn href="/Ameise/gis/yandex" :variant="provider === 'yandex' ? 'flat' : 'tonal'" color="red-darken-4">
                     Яндекс
                 </v-btn>
-                <v-btn href="/gis/entities/no-location" variant="outlined" color="red-darken-4">
+                <v-btn href="/Ameise/gis/entities/no-location" variant="outlined" color="red-darken-4">
                     Без координат
                 </v-btn>
             </div>

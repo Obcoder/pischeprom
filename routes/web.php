@@ -220,6 +220,18 @@ Route::get('/Ameise/Geography/', function () {
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
 
+Route::get('/Ameise/gis', [GisPageController::class, 'dashboard'])
+    ->name('Ameise.gis');
+
+Route::get('/Ameise/gis/2gis', [GisPageController::class, 'twoGis'])
+    ->name('Ameise.gis.2gis');
+
+Route::get('/Ameise/gis/yandex', [GisPageController::class, 'yandex'])
+    ->name('Ameise.gis.yandex');
+
+Route::get('/Ameise/gis/entities/no-location', [GisPageController::class, 'noLocation'])
+    ->name('Ameise.gis.entities.no-location');
+
 Route::get('/gis/2gis', [GisPageController::class, 'twoGis'])
     ->name('gis.2gis');
 

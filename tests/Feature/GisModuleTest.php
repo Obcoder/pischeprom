@@ -22,6 +22,7 @@ class GisModuleTest extends TestCase
             'gis.default_provider' => '2gis',
             'gis.providers.2gis.api_key' => null,
             'gis.providers.yandex.api_key' => null,
+            'inertia.ssr.enabled' => false,
         ]);
 
         DB::purge('sqlite');
@@ -193,6 +194,49 @@ class GisModuleTest extends TestCase
         ])
             ->assertStatus(503)
             ->assertJsonPath('error.message', 'API-ключ Яндекс Карт не задан.');
+    }
+
+    public function test_gis_admin_dashboard_returns_overview(): void
+    {
+        $located = $this->createEntity('ООО На карте');
+        $this->createEntity('ООО Без точки');
+
+        EntityLocation::query()->create([
+            'entity_id' => $located->id,
+            'address_text' => 'Москва',
+            'lat' => 55.751244,
+            'lon' => 37.618423,
+            'source' => 'manual',
+            'precision_level' => 'exact',
+            'is_confirmed' => true,
+        ]);
+
+        DB::table('gis_route_drafts')->insert([
+            'name' => 'Пробный маршрут',
+            'provider' => '2gis',
+            'transport_mode' => 'car',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $version = file_exists(public_path('build/manifest.json'))
+            ? hash_file('xxh128', public_path('build/manifest.json'))
+            : '';
+
+        $this->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => $version,
+        ])
+            ->get('/Ameise/gis')
+            ->assertOk()
+            ->assertJsonPath('component', 'Gis/Dashboard')
+            ->assertJsonPath('props.overview.total_entities', 2)
+            ->assertJsonPath('props.overview.with_location', 1)
+            ->assertJsonPath('props.overview.without_location', 1)
+            ->assertJsonPath('props.overview.confirmed_locations', 1)
+            ->assertJsonPath('props.overview.route_drafts', 1)
+            ->assertJsonPath('props.providers.0.value', '2gis')
+            ->assertJsonPath('props.links.two_gis', route('Ameise.gis.2gis'));
     }
 
     private function createSchema(): void

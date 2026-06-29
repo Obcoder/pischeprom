@@ -103,6 +103,13 @@ useHead({
                     <v-col cols="3"><v-chip size="x-small">{{sales.length}}</v-chip></v-col>
                 </v-row>
             </v-col>
+            <v-col cols="12" md="3" lg="2">
+                <Link :href="route('Ameise.gis')" class="gis-admin-entry">
+                    <span>GIS CRM</span>
+                    <strong>Карты и координаты</strong>
+                    <small>2ГИС · Яндекс · routes</small>
+                </Link>
+            </v-col>
         </v-row>
         <v-row>
             <v-col cols="3">
@@ -146,3 +153,40 @@ useHead({
         </v-row>
     </v-container>
 </template>
+
+<style scoped>
+.gis-admin-entry {
+    display: grid;
+    gap: 3px;
+    min-height: 74px;
+    padding: 12px 14px;
+    border: 1px solid rgba(127, 29, 29, 0.16);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 86% 12%, rgba(14, 165, 233, 0.18), transparent 30%),
+        linear-gradient(135deg, #fff7ed, #fef2f2);
+    color: #450a0a;
+    text-decoration: none;
+    box-shadow: 0 12px 28px rgba(69, 10, 10, 0.08);
+}
+
+.gis-admin-entry span {
+    color: #991b1b;
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.gis-admin-entry strong {
+    font-size: 15px;
+    font-weight: 950;
+    letter-spacing: -0.03em;
+}
+
+.gis-admin-entry small {
+    color: #7f1d1d;
+    font-size: 11px;
+}
+</style>

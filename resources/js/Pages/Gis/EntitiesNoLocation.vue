@@ -164,8 +164,9 @@ onMounted(loadEntities)
                 <span>Геокодирование не перезаписывает координаты автоматически: вариант нужно подтвердить вручную.</span>
             </div>
             <div class="gis-missing-hero__actions">
-                <v-btn href="/gis/2gis" variant="outlined" color="red-darken-4">2ГИС</v-btn>
-                <v-btn href="/gis/yandex" variant="outlined" color="red-darken-4">Яндекс</v-btn>
+                <v-btn href="/Ameise/gis" variant="outlined" color="red-darken-4">Управление</v-btn>
+                <v-btn href="/Ameise/gis/2gis" variant="outlined" color="red-darken-4">2ГИС</v-btn>
+                <v-btn href="/Ameise/gis/yandex" variant="outlined" color="red-darken-4">Яндекс</v-btn>
             </div>
         </section>
 

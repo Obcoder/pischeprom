@@ -28,9 +28,12 @@ YANDEX_MAP_SCRIPT_URL=https://api-maps.yandex.ru/2.1/
 
 ## Страницы
 
-- `/gis/2gis` — карта CRM на 2ГИС.
-- `/gis/yandex` — карта CRM на Яндекс Картах на тех же backend endpoints и данных.
-- `/gis/entities/no-location` — entities без координат, геокодирование и ручной ввод точки.
+- `/Ameise/gis` — админ-панель GIS: статус провайдеров, покрытие entities координатами, черновики маршрутов и быстрые действия.
+- `/Ameise/gis/2gis` — карта CRM на 2ГИС.
+- `/Ameise/gis/yandex` — карта CRM на Яндекс Картах на тех же backend endpoints и данных.
+- `/Ameise/gis/entities/no-location` — entities без координат, геокодирование и ручной ввод точки.
+
+Legacy-прямые URL `/gis/2gis`, `/gis/yandex`, `/gis/entities/no-location` оставлены для совместимости.
 
 ## API
 

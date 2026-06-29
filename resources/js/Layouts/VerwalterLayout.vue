@@ -338,6 +338,17 @@ onMounted(fetchWorkingLeads)
             </v-app-bar-title>
             <v-app-bar-title>
                 <Link
+                    :href="route('Ameise.gis')"
+                    class="ameise-gis-link"
+                    title="GIS CRM"
+                    aria-label="GIS CRM"
+                >
+                    <v-icon icon="mdi-map-marker-radius" size="small" class="mx-1" />
+                    <span>GIS</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
+                <Link
                     :href="commercialOffersUrl()"
                     class="ameise-offers-link"
                     title="Коммерческие предложения"
@@ -560,6 +571,21 @@ onMounted(fetchWorkingLeads)
 }
 
 .ameise-offers-link:hover {
+    color: #ffffff;
+}
+
+.ameise-gis-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: #e0f2fe;
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+}
+
+.ameise-gis-link:hover {
     color: #ffffff;
 }
 
