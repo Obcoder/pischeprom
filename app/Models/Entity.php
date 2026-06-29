@@ -8,8 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\User;
-
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Entity extends Model
 {
@@ -90,10 +89,10 @@ class Entity extends Model
     {
         return $this->belongsToMany(User::class)
             ->withPivot([
-                            'role',
-                            'status',
-                            'is_primary',
-                        ])
+                'role',
+                'status',
+                'is_primary',
+            ])
             ->withTimestamps();
     }
 
@@ -102,9 +101,19 @@ class Entity extends Model
         return $this->hasMany(Lead::class);
     }
 
+    public function location(): HasOne
+    {
+        return $this->hasOne(EntityLocation::class);
+    }
+
     public function phoneCalls(): HasMany
     {
         return $this->hasMany(PhoneCall::class);
+    }
+
+    public function routePoints(): HasMany
+    {
+        return $this->hasMany(GisRoutePoint::class);
     }
 
     public function sales(): HasMany
@@ -115,15 +124,15 @@ class Entity extends Model
     public function scopeBaseRelations(Builder $query): Builder
     {
         return $query->with([
-                                'classification',
-                                'country',
-                                'buildings',
-                                'cities',
-                                'emails',
-                                'telephones',
-                                'units',
-                                'chats',
-                            ]);
+            'classification',
+            'country',
+            'buildings',
+            'cities',
+            'emails',
+            'telephones',
+            'units',
+            'chats',
+        ]);
     }
 
     public function scopeWithTableStats(Builder $query): Builder
@@ -135,7 +144,7 @@ class Entity extends Model
 
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
-        if (!$search) {
+        if (! $search) {
             return $query;
         }
 
@@ -157,28 +166,28 @@ class Entity extends Model
     public function scopeFilter(Builder $query, array $filters = []): Builder
     {
         return $query
-            ->when(!empty($filters['entity_classification_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['entity_classification_ids']), function (Builder $q) use ($filters) {
                 $q->whereIn('entity_classification_id', (array) $filters['entity_classification_ids']);
             })
-            ->when(!empty($filters['country_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['country_ids']), function (Builder $q) use ($filters) {
                 $q->whereIn('country_id', (array) $filters['country_ids']);
             })
-            ->when(!empty($filters['city_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['city_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('cities', fn (Builder $sq) => $sq->whereIn('cities.id', (array) $filters['city_ids']));
             })
-            ->when(!empty($filters['building_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['building_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('buildings', fn (Builder $sq) => $sq->whereIn('buildings.id', (array) $filters['building_ids']));
             })
-            ->when(!empty($filters['email_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['email_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('emails', fn (Builder $sq) => $sq->whereIn('emails.id', (array) $filters['email_ids']));
             })
-            ->when(!empty($filters['telephone_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['telephone_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('telephones', fn (Builder $sq) => $sq->whereIn('telephones.id', (array) $filters['telephone_ids']));
             })
-            ->when(!empty($filters['unit_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['unit_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('units', fn (Builder $sq) => $sq->whereIn('units.id', (array) $filters['unit_ids']));
             })
-            ->when(!empty($filters['chat_ids']), function (Builder $q) use ($filters) {
+            ->when(! empty($filters['chat_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('chats', fn (Builder $sq) => $sq->whereIn('chats.id', (array) $filters['chat_ids']));
             });
     }

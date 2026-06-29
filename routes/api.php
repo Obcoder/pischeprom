@@ -24,6 +24,8 @@ use App\Http\Controllers\API\FieldBoardController;
 use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
 use App\Http\Controllers\API\GenusController;
+use App\Http\Controllers\API\Gis\GisEntityController;
+use App\Http\Controllers\API\Gis\GisRouteController;
 use App\Http\Controllers\API\GoodController;
 use App\Http\Controllers\API\GoodMediaController;
 use App\Http\Controllers\API\GoodMediaFolderController;
@@ -199,6 +201,28 @@ Route::apiResource('mail-templates', MailTemplateController::class)
 Route::apiResource('entities', EntityController::class)->only(['store', 'update', 'destroy']);
 Route::get('/entities-meta', [EntityMetaController::class, 'index']);
 Route::apiResource('entities', EntityController::class);
+
+Route::prefix('gis')
+    ->name('api.gis.')
+    ->group(function () {
+        Route::get('/entities', [GisEntityController::class, 'index'])->name('entities.index');
+        Route::get('/entities/no-location', [GisEntityController::class, 'noLocation'])->name('entities.no-location');
+        Route::get('/entities/{entityId}/location', [GisEntityController::class, 'showLocation'])
+            ->whereNumber('entityId')
+            ->name('entities.location.show');
+        Route::put('/entities/{entityId}/location', [GisEntityController::class, 'updateLocation'])
+            ->whereNumber('entityId')
+            ->name('entities.location.update');
+        Route::post('/entities/{entityId}/geocode', [GisEntityController::class, 'geocode'])
+            ->whereNumber('entityId')
+            ->name('entities.geocode');
+
+        Route::post('/routes/preview', [GisRouteController::class, 'preview'])->name('routes.preview');
+        Route::post('/routes/distance-matrix', [GisRouteController::class, 'distanceMatrix'])->name('routes.distance-matrix');
+        Route::post('/routes/drafts', [GisRouteController::class, 'store'])->name('routes.drafts.store');
+        Route::get('/routes/drafts/{draft}', [GisRouteController::class, 'show'])->name('routes.drafts.show');
+        Route::delete('/routes/drafts/{draft}', [GisRouteController::class, 'destroy'])->name('routes.drafts.destroy');
+    });
 
 //  E N D  E N T I T I E S
 

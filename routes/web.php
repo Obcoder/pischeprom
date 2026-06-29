@@ -25,6 +25,7 @@ use App\Http\Controllers\Web\CustomerDashboardController;
 use App\Http\Controllers\Web\CustomerProfileController;
 use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\FieldController as WebFieldController;
+use App\Http\Controllers\Web\GisPageController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
 use App\Http\Controllers\Web\LegalPageController;
 use App\Http\Controllers\Web\LocationController;
@@ -218,6 +219,15 @@ Route::get('/Ameise/fields', function () {
 Route::get('/Ameise/Geography/', function () {
     return Inertia::render('Ameise/Geography');
 })->name('Ameise.geography');
+
+Route::get('/gis/2gis', [GisPageController::class, 'twoGis'])
+    ->name('gis.2gis');
+
+Route::get('/gis/yandex', [GisPageController::class, 'yandex'])
+    ->name('gis.yandex');
+
+Route::get('/gis/entities/no-location', [GisPageController::class, 'noLocation'])
+    ->name('gis.entities.no-location');
 
 Route::get('/Ameise/home-banners', function () {
     return Inertia::render('Ameise/HomeBanners');
