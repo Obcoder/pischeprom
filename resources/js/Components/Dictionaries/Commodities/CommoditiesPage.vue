@@ -24,6 +24,8 @@ const {
 } = useCommodities()
 
 const checks = ref([])
+const expenseArticles = ref([])
+const projects = ref([])
 
 const dialog = ref(false)
 const selectedCommodity = ref(null)
@@ -60,6 +62,18 @@ const headers = [
         title: 'Наименование',
         key: 'name',
         sortable: true,
+    },
+    {
+        title: 'Статья',
+        key: 'expense_article_id',
+        sortable: true,
+        width: 180,
+    },
+    {
+        title: 'Проект',
+        key: 'project_id',
+        sortable: true,
+        width: 180,
     },
     {
         title: 'Checks',
@@ -123,6 +137,26 @@ async function loadChecks() {
     }
 }
 
+async function loadExpenseArticles() {
+    try {
+        const response = await axios.get(route('expense-articles.index'))
+
+        expenseArticles.value = response.data.data || response.data || []
+    } catch (error) {
+        console.error('loadExpenseArticles error:', error)
+    }
+}
+
+async function loadProjects() {
+    try {
+        const response = await axios.get(route('projects.index'))
+
+        projects.value = response.data.data || response.data || []
+    } catch (error) {
+        console.error('loadProjects error:', error)
+    }
+}
+
 function openCreate() {
     selectedCommodity.value = null
     dialog.value = true
@@ -174,6 +208,8 @@ function resetFilters() {
 onMounted(async () => {
     await Promise.all([
         loadChecks(),
+        loadExpenseArticles(),
+        loadProjects(),
         indexCommodities(),
     ])
 })
@@ -317,6 +353,18 @@ onMounted(async () => {
                 </Link>
             </template>
 
+            <template #item.expense_article_id="{ item }">
+                <span class="text-caption">
+                    {{ item.expense_article?.name || '—' }}
+                </span>
+            </template>
+
+            <template #item.project_id="{ item }">
+                <span class="text-caption">
+                    {{ item.project?.name || '—' }}
+                </span>
+            </template>
+
             <template #item.created_at="{ item }">
                 <span class="text-caption">
                     {{ formatDate(item.created_at) }}
@@ -352,6 +400,8 @@ onMounted(async () => {
             v-model="dialog"
             :commodity="selectedCommodity"
             :saving="savingCommodity"
+            :expense-articles="expenseArticles"
+            :projects="projects"
             @save="saveCommodity"
         />
     </v-container>

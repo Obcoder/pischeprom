@@ -15,6 +15,14 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    expenseArticles: {
+        type: Array,
+        default: () => [],
+    },
+    projects: {
+        type: Array,
+        default: () => [],
+    },
 })
 
 const emit = defineEmits([
@@ -23,6 +31,8 @@ const emit = defineEmits([
 
 const form = ref({
     name: '',
+    expense_article_id: null,
+    project_id: null,
 })
 
 const isEdit = computed(() => Boolean(props.commodity?.id))
@@ -32,6 +42,8 @@ watch(
     (value) => {
         form.value = {
             name: value?.name || '',
+            expense_article_id: value?.expense_article_id || null,
+            project_id: value?.project_id || null,
         }
     },
     {
@@ -72,6 +84,32 @@ function submit() {
                                 variant="outlined"
                                 density="compact"
                                 autofocus
+                                hide-details
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-autocomplete
+                                v-model="form.expense_article_id"
+                                :items="expenseArticles"
+                                item-title="name"
+                                item-value="id"
+                                label="Статья расходов"
+                                variant="outlined"
+                                density="compact"
+                                clearable
+                                hide-details
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-autocomplete
+                                v-model="form.project_id"
+                                :items="projects"
+                                item-title="name"
+                                item-value="id"
+                                label="Проект"
+                                variant="outlined"
+                                density="compact"
+                                clearable
                                 hide-details
                             />
                         </v-col>

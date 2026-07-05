@@ -1016,7 +1016,7 @@ const formatBuildingTitle = (building) => {
                                                 <v-list-item v-for="check in checks"
                                                              class="hover:text-orange-600 hover:bg-zinc-700"
                                                 >
-                                                    <Link :href="route('checks.show', check.id)">
+                                                    <Link :href="route('Ameise.checks', { check: check.id })">
                                                         <v-row>
                                                             <v-col>
                                                                 {{check.date}}

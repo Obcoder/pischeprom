@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
 class Commodity extends Model
@@ -14,6 +15,8 @@ class Commodity extends Model
     protected $fillable = [
         'name',
         'ava',
+        'expense_article_id',
+        'project_id',
     ];
 
     protected $casts = [
@@ -29,8 +32,18 @@ class Commodity extends Model
     {
         return $this->belongsToMany(Check::class, 'check_commodity')
             ->using(CheckCommodity::class)
-            ->withPivot('quantity', 'measure_id', 'price', 'total_price')
+            ->withPivot('id', 'quantity', 'measure_id', 'expense_article_id', 'price', 'total_price')
             ->withTimestamps();
+    }
+
+    public function expenseArticle(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseArticle::class);
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function media()
@@ -49,7 +62,7 @@ class Commodity extends Model
 
     public function getAvaUrlAttribute(): ?string
     {
-        if (!$this->ava) {
+        if (! $this->ava) {
             return null;
         }
 
@@ -60,7 +73,7 @@ class Commodity extends Model
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
         return $query->when($search, function (Builder $query) use ($search) {
-            $query->where('commodities.name', 'like', '%' . trim($search) . '%');
+            $query->where('commodities.name', 'like', '%'.trim($search).'%');
         });
     }
 
@@ -118,6 +131,8 @@ class Commodity extends Model
             'id' => 'commodities.id',
             'name' => 'commodities.name',
             'ava' => 'commodities.ava',
+            'expense_article_id' => 'commodities.expense_article_id',
+            'project_id' => 'commodities.project_id',
             'created_at' => 'commodities.created_at',
             'updated_at' => 'commodities.updated_at',
             'checks_count' => 'checks_count',

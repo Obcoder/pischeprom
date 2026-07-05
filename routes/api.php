@@ -6,6 +6,7 @@ use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\BuildingTypeController;
 use App\Http\Controllers\API\CatalogController;
 use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\CheckCommodityController;
 use App\Http\Controllers\API\CheckController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CityPopulationController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\API\EmailRelationController;
 use App\Http\Controllers\API\EntitiesClassification;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\EntityMetaController;
+use App\Http\Controllers\API\ExpenseArticleController;
 use App\Http\Controllers\API\FieldBoardController;
 use App\Http\Controllers\API\FieldController;
 use App\Http\Controllers\API\FragranceController;
@@ -55,6 +57,7 @@ use App\Http\Controllers\API\PlantController;
 use App\Http\Controllers\API\PriceTypeController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\ProductSearchController;
+use App\Http\Controllers\API\ProjectController;
 use App\Http\Controllers\API\PurchaseController;
 use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\RegionController;
@@ -395,6 +398,12 @@ Route::apiResource('building-types', BuildingTypeController::class)
     ->parameters(['building-types' => 'buildingType']);
 Route::apiResource('catalogs', CatalogController::class);
 Route::apiResource('categories', CategoryController::class);
+Route::post('checks/{check}/commodities', [CheckCommodityController::class, 'store'])
+    ->name('checks.commodities.store');
+Route::patch('check-commodities/{checkCommodity}', [CheckCommodityController::class, 'update'])
+    ->name('check-commodities.update');
+Route::delete('check-commodities/{checkCommodity}', [CheckCommodityController::class, 'destroy'])
+    ->name('check-commodities.destroy');
 Route::apiResource('checks', CheckController::class);
 Route::apiResource('components', ComponentController::class);
 Route::apiResource('countries', CountryController::class);
@@ -405,6 +414,8 @@ Route::post('fields/{field}/matches', [FieldBoardController::class, 'store'])->n
 Route::patch('fields/{field}/matches/{match}', [FieldBoardController::class, 'update'])->name('api.fields.matches.update');
 Route::delete('fields/{field}/matches/{match}', [FieldBoardController::class, 'destroy'])->name('api.fields.matches.destroy');
 Route::apiResource('fields', FieldController::class);
+Route::apiResource('expense-articles', ExpenseArticleController::class)
+    ->parameters(['expense-articles' => 'expenseArticle']);
 Route::apiResource('fragrances', FragranceController::class);
 Route::apiResource('industries', IndustryController::class);
 // если нужно быстро получить units по industry:
@@ -429,6 +440,7 @@ Route::apiResource('messages', MessageController::class);
 Route::apiResource('notes', NoteController::class);
 Route::apiResource('plants', PlantController::class);
 Route::apiResource('price-types', PriceTypeController::class);
+Route::apiResource('projects', ProjectController::class);
 Route::apiResource('products', ProductController::class);
 Route::apiResource('purchases', PurchaseController::class);
 Route::apiResource('quotations', QuotationController::class);

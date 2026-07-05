@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Check extends Model
 {
@@ -33,7 +34,20 @@ class Check extends Model
     {
         return $this->belongsToMany(Commodity::class, 'check_commodity')
             ->using(CheckCommodity::class)
-            ->withPivot('quantity', 'measure_id', 'price', 'total_price')
+            ->withPivot('id', 'quantity', 'measure_id', 'expense_article_id', 'price', 'total_price')
             ->withTimestamps();
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(CheckCommodity::class)
+            ->with([
+                'commodity.avaMedia',
+                'commodity.expenseArticle',
+                'commodity.project',
+                'expenseArticle',
+                'measure',
+            ])
+            ->orderBy('id');
     }
 }

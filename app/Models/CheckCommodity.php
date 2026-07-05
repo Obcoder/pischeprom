@@ -16,8 +16,8 @@ class CheckCommodity extends Pivot
         'commodity_id',
         'quantity',
         'measure_id',
+        'expense_article_id',
         'price',
-        'total_price',
     ];
 
     protected $casts = [
@@ -34,6 +34,11 @@ class CheckCommodity extends Pivot
     public function commodity(): BelongsTo
     {
         return $this->belongsTo(Commodity::class);
+    }
+
+    public function expenseArticle(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseArticle::class);
     }
 
     public function measure(): BelongsTo

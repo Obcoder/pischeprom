@@ -17,7 +17,7 @@ class CommodityController extends Controller
         $perPage = max(1, min($perPage, 500));
 
         $query = Commodity::query()
-            ->with(['avaMedia'])
+            ->with(['avaMedia', 'expenseArticle', 'project'])
             ->withCount(['checks', 'media'])
             ->search($request->input('search'))
             ->byCheck($request->input('check_id'))
@@ -37,15 +37,18 @@ class CommodityController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-                                       'name' => ['required', 'string', 'max:255'],
-                                       'ava' => ['nullable', 'string', 'max:2048'],
-                                   ]);
+            'name' => ['required', 'string', 'max:255'],
+            'ava' => ['nullable', 'string', 'max:2048'],
+            'expense_article_id' => ['nullable', 'exists:expense_articles,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
+        ]);
 
         $commodity = Commodity::create($data);
 
         return new CommodityResource(
             $commodity
                 ->load(['media', 'avaMedia'])
+                ->load(['expenseArticle', 'project'])
                 ->loadCount(['checks', 'media'])
         );
     }
@@ -54,29 +57,37 @@ class CommodityController extends Controller
     {
         $commodity
             ->load(['media', 'avaMedia'])
+            ->load(['expenseArticle', 'project'])
             ->loadCount(['checks', 'media']);
 
         $history = DB::table('check_commodity as cc')
             ->join('checks as ch', 'ch.id', '=', 'cc.check_id')
+            ->join('commodities', 'commodities.id', '=', 'cc.commodity_id')
             ->leftJoin('entities as e', 'e.id', '=', 'ch.entity_id')
             ->leftJoin('measures as m', 'm.id', '=', 'cc.measure_id')
+            ->leftJoin('expense_articles as ea', 'ea.id', '=', 'cc.expense_article_id')
+            ->leftJoin('projects as p', 'p.id', '=', 'commodities.project_id')
             ->where('cc.commodity_id', $commodity->id)
             ->select([
-                         'cc.id',
-                         'cc.check_id',
-                         'cc.commodity_id',
-                         'cc.quantity',
-                         'cc.measure_id',
-                         'm.name as measure_name',
-                         'cc.price',
-                         'cc.total_price',
-                         'cc.created_at',
-                         'cc.updated_at',
-                         'ch.date as check_date',
-                         'ch.amount as check_amount',
-                         'ch.entity_id',
-                         'e.name as entity_name',
-                     ])
+                'cc.id',
+                'cc.check_id',
+                'cc.commodity_id',
+                'cc.quantity',
+                'cc.measure_id',
+                'm.name as measure_name',
+                'cc.expense_article_id',
+                'ea.name as expense_article_name',
+                'commodities.project_id',
+                'p.name as project_name',
+                'cc.price',
+                'cc.total_price',
+                'cc.created_at',
+                'cc.updated_at',
+                'ch.date as check_date',
+                'ch.amount as check_amount',
+                'ch.entity_id',
+                'e.name as entity_name',
+            ])
             ->orderByDesc('ch.date')
             ->orderByDesc('cc.id')
             ->get();
@@ -107,28 +118,31 @@ class CommodityController extends Controller
             ->get();
 
         return response()->json([
-                                    'data' => new CommodityResource($commodity),
-                                    'history' => $history,
-                                    'stats' => [
-                                        'weekly' => $weekly,
-                                        'monthly' => $monthly,
-                                        'yearly' => $yearly,
-                                    ],
-                                ]);
+            'data' => new CommodityResource($commodity),
+            'history' => $history,
+            'stats' => [
+                'weekly' => $weekly,
+                'monthly' => $monthly,
+                'yearly' => $yearly,
+            ],
+        ]);
     }
 
     public function update(Request $request, Commodity $commodity)
     {
         $data = $request->validate([
-                                       'name' => ['sometimes', 'required', 'string', 'max:255'],
-                                       'ava' => ['sometimes', 'nullable', 'string', 'max:2048'],
-                                   ]);
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'ava' => ['sometimes', 'nullable', 'string', 'max:2048'],
+            'expense_article_id' => ['sometimes', 'nullable', 'exists:expense_articles,id'],
+            'project_id' => ['sometimes', 'nullable', 'exists:projects,id'],
+        ]);
 
         $commodity->update($data);
 
         return new CommodityResource(
             $commodity
                 ->fresh(['media', 'avaMedia'])
+                ->load(['expenseArticle', 'project'])
                 ->loadCount(['checks', 'media'])
         );
     }
@@ -146,7 +160,7 @@ class CommodityController extends Controller
         $commodity->delete();
 
         return response()->json([
-                                    'message' => 'Commodity deleted',
-                                ]);
+            'message' => 'Commodity deleted',
+        ]);
     }
 }
