@@ -890,17 +890,16 @@ onMounted(async () => {
                                 <td class="cell-id" :title="`Check #${check.id}`">{{ check.id }}</td>
                                 <td class="cell-date">{{ formatDate(check.date) }}</td>
                                 <td>
-                                    <a
-                                        v-if="entityHref(check)"
-                                        :href="entityHref(check)"
-                                        class="entity-button entity-link"
-                                        @click.stop
-                                    >
-                                        <strong>{{ entityName(check) }}</strong>
-                                        <span>{{ entitySubtitle(check) }}</span>
-                                    </a>
-                                    <span v-else class="entity-button entity-button--static">
-                                        <strong>{{ entityName(check) }}</strong>
+                                    <span class="entity-button">
+                                        <a
+                                            v-if="entityHref(check)"
+                                            :href="entityHref(check)"
+                                            class="entity-link"
+                                            @click.stop
+                                        >
+                                            <strong>{{ entityName(check) }}</strong>
+                                        </a>
+                                        <strong v-else>{{ entityName(check) }}</strong>
                                         <span>{{ entitySubtitle(check) }}</span>
                                     </span>
                                 </td>
@@ -1722,21 +1721,24 @@ onMounted(async () => {
     border: 0;
     background: transparent;
     color: inherit;
-    cursor: pointer;
+    cursor: default;
     line-height: 1.15;
     text-align: left;
 }
 
 .entity-link {
+    align-self: flex-start;
+    color: inherit;
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     text-decoration: none;
+    white-space: nowrap;
 }
 
 .entity-link:hover strong {
     text-decoration: underline;
-}
-
-.entity-button--static {
-    cursor: default;
 }
 
 .entity-button strong,
