@@ -16,8 +16,9 @@ class TaxiShiftController extends Controller
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('date', '<=', $request->input('date_to')));
 
         $totalRevenue = (clone $baseQuery)->sum('revenue_amount');
+        $totalOrders = (clone $baseQuery)->sum('orders_count');
 
-        $sortBy = in_array($request->input('sort_by'), ['date', 'revenue_amount', 'id'], true)
+        $sortBy = in_array($request->input('sort_by'), ['date', 'orders_count', 'revenue_amount', 'id'], true)
             ? $request->input('sort_by')
             : 'date';
 
@@ -39,6 +40,7 @@ class TaxiShiftController extends Controller
             'data' => TaxiShiftResource::collection($shifts)->resolve($request),
             'meta' => [
                 'total_revenue' => (float) $totalRevenue,
+                'total_orders' => (int) $totalOrders,
                 'count' => $shifts->count(),
             ],
         ]);
@@ -75,9 +77,16 @@ class TaxiShiftController extends Controller
         $dateRule = $partial ? 'sometimes' : 'required';
         $revenueRule = $partial ? 'sometimes' : 'required';
 
-        return $request->validate([
+        $data = $request->validate([
             'date' => [$dateRule, 'date'],
+            'orders_count' => ['nullable', 'integer', 'min:0'],
             'revenue_amount' => [$revenueRule, 'numeric', 'min:0'],
         ]);
+
+        if (array_key_exists('orders_count', $data)) {
+            $data['orders_count'] = (int) ($data['orders_count'] ?? 0);
+        }
+
+        return $data;
     }
 }

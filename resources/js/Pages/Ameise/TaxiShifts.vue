@@ -24,16 +24,19 @@ const filters = reactive({
 
 const meta = reactive({
     total_revenue: 0,
+    total_orders: 0,
     count: 0,
 })
 
 const newShift = reactive({
     date: today(),
+    orders_count: 0,
     revenue_amount: 0,
 })
 
 const editShift = reactive({
     date: '',
+    orders_count: 0,
     revenue_amount: 0,
 })
 
@@ -52,8 +55,15 @@ function numeric(value) {
 function requestPayload(source) {
     return {
         date: source.date,
+        orders_count: Math.max(0, Math.trunc(numeric(source.orders_count))),
         revenue_amount: numeric(source.revenue_amount),
     }
+}
+
+function formatInteger(value) {
+    return new Intl.NumberFormat('ru-RU', {
+        maximumFractionDigits: 0,
+    }).format(Math.trunc(numeric(value)))
 }
 
 function formatMoney(value) {
@@ -81,18 +91,21 @@ function formatDate(value) {
 
 function resetNewShift() {
     newShift.date = today()
+    newShift.orders_count = 0
     newShift.revenue_amount = 0
 }
 
 function startEdit(shift) {
     editingId.value = shift.id
     editShift.date = shift.date
+    editShift.orders_count = shift.orders_count || 0
     editShift.revenue_amount = shift.revenue_amount
 }
 
 function cancelEdit() {
     editingId.value = null
     editShift.date = ''
+    editShift.orders_count = 0
     editShift.revenue_amount = 0
 }
 
@@ -122,6 +135,7 @@ async function loadShifts() {
 
         shifts.value = data.data || []
         meta.total_revenue = data.meta?.total_revenue || 0
+        meta.total_orders = data.meta?.total_orders || 0
         meta.count = data.meta?.count || shifts.value.length
     } catch (error) {
         console.error(error)
@@ -206,7 +220,7 @@ onMounted(() => {
         <section class="taxi-toolbar">
             <div>
                 <h1>Смены такси</h1>
-                <p>{{ meta.count }} смен · {{ formatMoney(meta.total_revenue) }}</p>
+                <p>{{ meta.count }} смен · {{ formatInteger(meta.total_orders) }} заказов · {{ formatMoney(meta.total_revenue) }}</p>
             </div>
 
             <div class="taxi-filters">
@@ -235,6 +249,12 @@ onMounted(() => {
                                 <v-icon v-if="filters.sort_by === 'date'" :icon="sortIcon" size="12" />
                             </button>
                         </th>
+                        <th class="orders-cell">
+                            <button type="button" class="sort-button" @click="toggleSort('orders_count')">
+                                Заказы
+                                <v-icon v-if="filters.sort_by === 'orders_count'" :icon="sortIcon" size="12" />
+                            </button>
+                        </th>
                         <th>
                             <button type="button" class="sort-button" @click="toggleSort('revenue_amount')">
                                 Выручка
@@ -250,6 +270,9 @@ onMounted(() => {
                         <td>
                             <input v-model="newShift.date" type="date">
                         </td>
+                        <td class="orders-cell">
+                            <input v-model="newShift.orders_count" type="number" min="0" step="1" inputmode="numeric">
+                        </td>
                         <td>
                             <input v-model="newShift.revenue_amount" type="number" min="0" step="0.01" inputmode="decimal">
                         </td>
@@ -261,11 +284,11 @@ onMounted(() => {
                     </tr>
 
                     <tr v-if="loading">
-                        <td colspan="4" class="state-cell">Загрузка...</td>
+                        <td colspan="5" class="state-cell">Загрузка...</td>
                     </tr>
 
                     <tr v-else-if="!shifts.length">
-                        <td colspan="4" class="state-cell">Смен пока нет.</td>
+                        <td colspan="5" class="state-cell">Смен пока нет.</td>
                     </tr>
 
                     <template v-else>
@@ -278,6 +301,17 @@ onMounted(() => {
                             <td>
                                 <input v-if="editingId === shift.id" v-model="editShift.date" type="date">
                                 <span v-else>{{ formatDate(shift.date) }}</span>
+                            </td>
+                            <td class="orders-cell">
+                                <input
+                                    v-if="editingId === shift.id"
+                                    v-model="editShift.orders_count"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    inputmode="numeric"
+                                >
+                                <span v-else>{{ formatInteger(shift.orders_count) }}</span>
                             </td>
                             <td class="money-cell">
                                 <input
@@ -319,6 +353,7 @@ onMounted(() => {
                 <tfoot>
                     <tr>
                         <td colspan="2">Итого</td>
+                        <td class="orders-cell">{{ formatInteger(meta.total_orders) }}</td>
                         <td class="money-cell">{{ formatMoney(meta.total_revenue) }}</td>
                         <td></td>
                     </tr>
@@ -390,7 +425,7 @@ onMounted(() => {
     color: #000;
     font-size: 11px;
     line-height: 1.1;
-    min-width: 520px;
+    min-width: 620px;
     table-layout: fixed;
     width: 100%;
 }
@@ -427,6 +462,11 @@ onMounted(() => {
 
 .col-actions {
     width: 64px;
+}
+
+.orders-cell {
+    text-align: right;
+    width: 86px;
 }
 
 .money-cell {

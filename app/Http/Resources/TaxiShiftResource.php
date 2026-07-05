@@ -12,6 +12,7 @@ class TaxiShiftResource extends JsonResource
         return [
             'id' => $this->id,
             'date' => optional($this->date)->toDateString(),
+            'orders_count' => $this->orders_count,
             'revenue_amount' => $this->revenue_amount,
             'created_at' => optional($this->created_at)->toISOString(),
             'updated_at' => optional($this->updated_at)->toISOString(),

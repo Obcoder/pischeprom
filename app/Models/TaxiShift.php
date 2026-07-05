@@ -11,11 +11,13 @@ class TaxiShift extends Model
 
     protected $fillable = [
         'date',
+        'orders_count',
         'revenue_amount',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'orders_count' => 'integer',
         'revenue_amount' => 'float',
     ];
 }
