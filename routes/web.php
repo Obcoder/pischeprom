@@ -137,6 +137,12 @@ Route::get('Ameise/checks', function () {
 })->name('Ameise.checks');
 //
 
+//   W A R E H O U S E S
+Route::get('Ameise/warehouses', function () {
+    return Inertia::render('Ameise/Warehouses');
+})->name('Ameise.warehouses');
+//
+
 //   C I T I E S
 Route::get('/Ameise/Cities', function () {
     return Inertia::render('Ameise/Cities');

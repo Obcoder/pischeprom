@@ -16,7 +16,7 @@ class CheckController extends Controller
     {
         $checks = Check::query()
             ->with(['entity.classification'])
-            ->withCount('items')
+            ->withCount(['items', 'serviceItems'])
             ->when($request->filled('entity_id'), fn ($query) => $query->where('entity_id', $request->input('entity_id')))
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('date', '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('date', '<=', $request->input('date_to')))
@@ -86,8 +86,9 @@ class CheckController extends Controller
             ->with([
                 'entity.classification',
                 'items',
+                'serviceItems',
             ])
-            ->withCount('items')
+            ->withCount(['items', 'serviceItems'])
             ->findOrFail($id);
     }
 }

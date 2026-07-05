@@ -2,31 +2,32 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class ExpenseArticle extends Model
+class Warehouse extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'name',
         'code',
-        'color',
+        'address',
         'description',
-        'sort_order',
         'is_active',
+        'sort_order',
     ];
 
     protected $casts = [
-        'sort_order' => 'integer',
         'is_active' => 'boolean',
+        'sort_order' => 'integer',
     ];
 
-    public function commodities(): HasMany
+    public function stockMovements(): HasMany
     {
-        return $this->hasMany(Commodity::class);
+        return $this->hasMany(StockMovement::class);
     }
 
     public function checkCommodities(): HasMany
@@ -34,13 +35,8 @@ class ExpenseArticle extends Model
         return $this->hasMany(CheckCommodity::class);
     }
 
-    public function services(): HasMany
+    public function scopeActive(Builder $query): Builder
     {
-        return $this->hasMany(Service::class);
-    }
-
-    public function checkServices(): HasMany
-    {
-        return $this->hasMany(CheckService::class);
+        return $query->where('is_active', true);
     }
 }

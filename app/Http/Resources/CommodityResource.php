@@ -32,6 +32,7 @@ class CommodityResource extends JsonResource
 
             'checks_count' => $this->whenCounted('checks'),
             'media_count' => $this->whenCounted('media'),
+            'stock_movements_count' => $this->whenCounted('stockMovements'),
 
             'media' => CommodityMediaResource::collection(
                 $this->whenLoaded('media')

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 class Commodity extends Model
@@ -32,8 +33,13 @@ class Commodity extends Model
     {
         return $this->belongsToMany(Check::class, 'check_commodity')
             ->using(CheckCommodity::class)
-            ->withPivot('id', 'quantity', 'measure_id', 'expense_article_id', 'price', 'total_price')
+            ->withPivot('id', 'quantity', 'measure_id', 'expense_article_id', 'warehouse_id', 'price', 'total_price')
             ->withTimestamps();
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
     }
 
     public function expenseArticle(): BelongsTo

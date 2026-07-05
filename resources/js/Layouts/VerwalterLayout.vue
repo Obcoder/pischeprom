@@ -291,6 +291,16 @@ onMounted(fetchWorkingLeads)
             </v-app-bar-title>
             <v-app-bar-title>
                 <Link
+                    :href="route('Ameise.warehouses')"
+                    title="Склады"
+                    aria-label="Склады"
+                >
+                    <v-icon icon="mdi-warehouse" size="small" class="mx-1" />
+                    <span>Склады</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
+                <Link
                     :href="route('Ameise.mail')"
                     class="ameise-mail-link"
                     title="Почта"

@@ -8,6 +8,7 @@ use App\Http\Controllers\API\CatalogController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CheckCommodityController;
 use App\Http\Controllers\API\CheckController;
+use App\Http\Controllers\API\CheckServiceController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CityPopulationController;
 use App\Http\Controllers\API\CommodityController;
@@ -64,7 +65,9 @@ use App\Http\Controllers\API\RegionController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\SegmentController;
 use App\Http\Controllers\API\SendingController;
+use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\StageController;
+use App\Http\Controllers\API\StockMovementController;
 use App\Http\Controllers\API\SupplierPipelineCardController;
 use App\Http\Controllers\API\SupplierPipelineController;
 use App\Http\Controllers\API\SupplierPipelineStageController;
@@ -76,6 +79,7 @@ use App\Http\Controllers\API\UnitFileController;
 use App\Http\Controllers\API\UnitMailController;
 use App\Http\Controllers\API\UnitRelationController;
 use App\Http\Controllers\API\UriController;
+use App\Http\Controllers\API\WarehouseController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\MailController;
@@ -404,6 +408,12 @@ Route::patch('check-commodities/{checkCommodity}', [CheckCommodityController::cl
     ->name('check-commodities.update');
 Route::delete('check-commodities/{checkCommodity}', [CheckCommodityController::class, 'destroy'])
     ->name('check-commodities.destroy');
+Route::post('checks/{check}/services', [CheckServiceController::class, 'store'])
+    ->name('checks.services.store');
+Route::patch('check-services/{checkService}', [CheckServiceController::class, 'update'])
+    ->name('check-services.update');
+Route::delete('check-services/{checkService}', [CheckServiceController::class, 'destroy'])
+    ->name('check-services.destroy');
 Route::apiResource('checks', CheckController::class);
 Route::apiResource('components', ComponentController::class);
 Route::apiResource('countries', CountryController::class);
@@ -441,6 +451,13 @@ Route::apiResource('notes', NoteController::class);
 Route::apiResource('plants', PlantController::class);
 Route::apiResource('price-types', PriceTypeController::class);
 Route::apiResource('projects', ProjectController::class);
+Route::apiResource('services', ServiceController::class);
+Route::apiResource('warehouses', WarehouseController::class);
+Route::get('warehouse-stock', [StockMovementController::class, 'stock'])
+    ->name('warehouse-stock.index');
+Route::apiResource('stock-movements', StockMovementController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->parameters(['stock-movements' => 'stockMovement']);
 Route::apiResource('products', ProductController::class);
 Route::apiResource('purchases', PurchaseController::class);
 Route::apiResource('quotations', QuotationController::class);

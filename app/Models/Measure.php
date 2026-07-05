@@ -17,4 +17,14 @@ class Measure extends Model
     {
         return $this->hasMany(CheckCommodity::class);
     }
+
+    public function checkServices()
+    {
+        return $this->hasMany(CheckService::class);
+    }
+
+    public function stockMovements()
+    {
+        return $this->hasMany(StockMovement::class);
+    }
 }

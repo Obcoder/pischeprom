@@ -13,6 +13,8 @@ defineOptions({
 const checks = ref([])
 const entities = ref([])
 const commodities = ref([])
+const services = ref([])
+const warehouses = ref([])
 const measures = ref([])
 const expenseArticles = ref([])
 const projects = ref([])
@@ -38,8 +40,11 @@ const checkForm = reactive({
 })
 
 const lineForm = reactive({
+    kind: 'commodity',
     id: null,
     commodity_id: null,
+    service_id: null,
+    warehouse_id: null,
     quantity: 1,
     measure_id: null,
     expense_article_id: null,
@@ -54,13 +59,45 @@ const dictionaryForm = reactive({
     description: '',
     sort_order: 500,
     is_active: true,
+    expense_article_id: null,
+    project_id: null,
 })
 
 const selectedCommodity = computed(() => (
     commodities.value.find((item) => item.id === lineForm.commodity_id) || null
 ))
 
-const selectedItems = computed(() => selectedCheck.value?.items || [])
+const selectedService = computed(() => (
+    services.value.find((item) => item.id === lineForm.service_id) || null
+))
+
+const defaultWarehouseId = computed(() => (
+    warehouses.value.find((item) => item.is_active)?.id || warehouses.value[0]?.id || null
+))
+
+const selectedCommodityItems = computed(() => selectedCheck.value?.items || [])
+
+const selectedServiceItems = computed(() => selectedCheck.value?.service_items || [])
+
+const receiptRows = computed(() => [
+    ...selectedCommodityItems.value.map((item) => ({
+        key: `commodity-${item.id}`,
+        kind: 'commodity',
+        item,
+        created_at: item.created_at,
+    })),
+    ...selectedServiceItems.value.map((item) => ({
+        key: `service-${item.id}`,
+        kind: 'service',
+        item,
+        created_at: item.created_at,
+    })),
+].sort((a, b) => {
+    const dateA = new Date(a.created_at || 0).getTime()
+    const dateB = new Date(b.created_at || 0).getTime()
+
+    return dateA === dateB ? a.item.id - b.item.id : dateA - dateB
+}))
 
 const stats = computed(() => {
     const total = checks.value.reduce((sum, check) => sum + numeric(check.amount), 0)
@@ -73,13 +110,53 @@ const stats = computed(() => {
     }
 })
 
-const dictionaryItems = computed(() => (
-    dictionaryType.value === 'articles' ? expenseArticles.value : projects.value
-))
+const dictionaryItems = computed(() => {
+    if (dictionaryType.value === 'articles') {
+        return expenseArticles.value
+    }
 
-const dictionaryTitle = computed(() => (
-    dictionaryType.value === 'articles' ? 'Статьи расходов' : 'Проекты'
-))
+    if (dictionaryType.value === 'services') {
+        return services.value
+    }
+
+    return projects.value
+})
+
+const dictionaryTitle = computed(() => {
+    if (dictionaryType.value === 'articles') {
+        return 'Статьи расходов'
+    }
+
+    if (dictionaryType.value === 'services') {
+        return 'Услуги'
+    }
+
+    return 'Проекты'
+})
+
+const dictionaryResource = computed(() => {
+    if (dictionaryType.value === 'articles') {
+        return 'expense-articles'
+    }
+
+    if (dictionaryType.value === 'services') {
+        return 'services'
+    }
+
+    return 'projects'
+})
+
+const dictionaryColspan = computed(() => {
+    if (dictionaryType.value === 'articles') {
+        return 6
+    }
+
+    if (dictionaryType.value === 'services') {
+        return 7
+    }
+
+    return 5
+})
 
 const checkDialogTitle = computed(() => (
     checkForm.id ? `Редактировать Check #${checkForm.id}` : 'Новый Check'
@@ -88,9 +165,29 @@ const checkDialogTitle = computed(() => (
 watch(
     () => lineForm.commodity_id,
     () => {
-        if (!lineForm.id) {
+        if (!lineForm.id && lineForm.kind === 'commodity') {
             lineForm.expense_article_id = selectedCommodity.value?.expense_article_id || null
         }
+    }
+)
+
+watch(
+    () => lineForm.service_id,
+    () => {
+        if (!lineForm.id && lineForm.kind === 'service') {
+            lineForm.expense_article_id = selectedService.value?.expense_article_id || null
+        }
+    }
+)
+
+watch(
+    () => lineForm.kind,
+    () => {
+        lineForm.id = null
+        lineForm.commodity_id = null
+        lineForm.service_id = null
+        lineForm.warehouse_id = lineForm.kind === 'commodity' ? defaultWarehouseId.value : null
+        lineForm.expense_article_id = null
     }
 )
 
@@ -159,6 +256,20 @@ function entityHref(check) {
     return entityId ? route('Ameise.entity.show', entityId) : null
 }
 
+function commodityHref(item) {
+    const commodityId = item.commodity?.id || item.commodity_id
+
+    return commodityId ? route('Ameise.commodity.show', commodityId) : null
+}
+
+function rowTitle(row) {
+    if (row.kind === 'service') {
+        return row.item.service?.name || `Услуга #${row.item.service_id}`
+    }
+
+    return row.item.commodity?.name || `Commodity #${row.item.commodity_id}`
+}
+
 async function loadChecks() {
     loadingChecks.value = true
 
@@ -177,6 +288,8 @@ async function loadDictionaries() {
     const [
         entitiesResponse,
         commoditiesResponse,
+        servicesResponse,
+        warehousesResponse,
         measuresResponse,
         articlesResponse,
         projectsResponse,
@@ -189,6 +302,8 @@ async function loadDictionaries() {
                 sort_desc: false,
             },
         }),
+        axios.get(route('services.index')),
+        axios.get(route('warehouses.index')),
         axios.get(route('measures.index')),
         axios.get(route('expense-articles.index')),
         axios.get(route('projects.index')),
@@ -196,9 +311,15 @@ async function loadDictionaries() {
 
     entities.value = unpack(entitiesResponse)
     commodities.value = unpack(commoditiesResponse)
+    services.value = unpack(servicesResponse)
+    warehouses.value = unpack(warehousesResponse)
     measures.value = unpack(measuresResponse)
     expenseArticles.value = unpack(articlesResponse)
     projects.value = unpack(projectsResponse)
+
+    if (!lineForm.warehouse_id) {
+        lineForm.warehouse_id = defaultWarehouseId.value
+    }
 }
 
 function resetCheckForm() {
@@ -290,21 +411,48 @@ async function openCheck(check) {
 }
 
 function resetLineForm() {
+    lineForm.kind = 'commodity'
     lineForm.id = null
     lineForm.commodity_id = null
+    lineForm.service_id = null
+    lineForm.warehouse_id = defaultWarehouseId.value
     lineForm.quantity = 1
     lineForm.measure_id = null
     lineForm.expense_article_id = null
     lineForm.price = 0
 }
 
-function editLine(item) {
+function editCommodityLine(item) {
+    lineForm.kind = 'commodity'
     lineForm.id = item.id
     lineForm.commodity_id = item.commodity_id
+    lineForm.service_id = null
+    lineForm.warehouse_id = item.warehouse_id || defaultWarehouseId.value
     lineForm.quantity = numeric(item.quantity)
     lineForm.measure_id = item.measure_id || null
     lineForm.expense_article_id = item.expense_article_id || item.commodity?.expense_article_id || null
     lineForm.price = numeric(item.price)
+}
+
+function editServiceLine(item) {
+    lineForm.kind = 'service'
+    lineForm.id = item.id
+    lineForm.commodity_id = null
+    lineForm.service_id = item.service_id
+    lineForm.warehouse_id = null
+    lineForm.quantity = numeric(item.quantity)
+    lineForm.measure_id = item.measure_id || null
+    lineForm.expense_article_id = item.expense_article_id || item.service?.expense_article_id || null
+    lineForm.price = numeric(item.price)
+}
+
+function editReceiptRow(row) {
+    if (row.kind === 'service') {
+        editServiceLine(row.item)
+        return
+    }
+
+    editCommodityLine(row.item)
 }
 
 async function saveLine() {
@@ -315,7 +463,6 @@ async function saveLine() {
     savingLine.value = true
 
     const payload = {
-        commodity_id: lineForm.commodity_id,
         quantity: numeric(lineForm.quantity),
         measure_id: lineForm.measure_id,
         expense_article_id: lineForm.expense_article_id,
@@ -323,10 +470,23 @@ async function saveLine() {
     }
 
     try {
-        if (lineForm.id) {
-            await axios.patch(route('check-commodities.update', lineForm.id), payload)
+        if (lineForm.kind === 'service') {
+            payload.service_id = lineForm.service_id
+
+            if (lineForm.id) {
+                await axios.patch(route('check-services.update', lineForm.id), payload)
+            } else {
+                await axios.post(route('checks.services.store', selectedCheck.value.id), payload)
+            }
         } else {
-            await axios.post(route('checks.commodities.store', selectedCheck.value.id), payload)
+            payload.commodity_id = lineForm.commodity_id
+            payload.warehouse_id = lineForm.warehouse_id || defaultWarehouseId.value
+
+            if (lineForm.id) {
+                await axios.patch(route('check-commodities.update', lineForm.id), payload)
+            } else {
+                await axios.post(route('checks.commodities.store', selectedCheck.value.id), payload)
+            }
         }
 
         resetLineForm()
@@ -341,13 +501,18 @@ async function saveLine() {
     }
 }
 
-async function deleteLine(item) {
-    if (!confirm(`Удалить строку "${item.commodity?.name || item.commodity_id}" из чека?`)) {
+async function deleteReceiptRow(row) {
+    if (!confirm(`Удалить строку "${rowTitle(row)}" из чека?`)) {
         return
     }
 
     try {
-        await axios.delete(route('check-commodities.destroy', item.id))
+        if (row.kind === 'service') {
+            await axios.delete(route('check-services.destroy', row.item.id))
+        } else {
+            await axios.delete(route('check-commodities.destroy', row.item.id))
+        }
+
         await Promise.all([
             loadCheck(selectedCheck.value.id),
             loadChecks(),
@@ -371,6 +536,8 @@ function resetDictionaryForm() {
     dictionaryForm.description = ''
     dictionaryForm.sort_order = 500
     dictionaryForm.is_active = true
+    dictionaryForm.expense_article_id = null
+    dictionaryForm.project_id = null
 }
 
 function editDictionary(item) {
@@ -381,12 +548,14 @@ function editDictionary(item) {
     dictionaryForm.description = item.description || ''
     dictionaryForm.sort_order = item.sort_order ?? 500
     dictionaryForm.is_active = item.is_active ?? true
+    dictionaryForm.expense_article_id = item.expense_article_id || null
+    dictionaryForm.project_id = item.project_id || null
 }
 
 async function saveDictionary() {
     savingDictionary.value = true
 
-    const resource = dictionaryType.value === 'articles' ? 'expense-articles' : 'projects'
+    const resource = dictionaryResource.value
     const payload = {
         name: dictionaryForm.name,
         code: dictionaryForm.code || null,
@@ -397,6 +566,11 @@ async function saveDictionary() {
     if (dictionaryType.value === 'articles') {
         payload.color = dictionaryForm.color || null
         payload.sort_order = numeric(dictionaryForm.sort_order)
+    }
+
+    if (dictionaryType.value === 'services') {
+        payload.expense_article_id = dictionaryForm.expense_article_id || null
+        payload.project_id = dictionaryForm.project_id || null
     }
 
     try {
@@ -420,7 +594,7 @@ async function deleteDictionary(item) {
         return
     }
 
-    const resource = dictionaryType.value === 'articles' ? 'expense-articles' : 'projects'
+    const resource = dictionaryResource.value
 
     try {
         await axios.delete(route(`${resource}.destroy`, item.id))
@@ -486,6 +660,13 @@ onMounted(async () => {
                         @click="openDictionary('projects')"
                     />
                     <v-btn
+                        icon="mdi-handshake-outline"
+                        variant="tonal"
+                        density="compact"
+                        title="Услуги"
+                        @click="openDictionary('services')"
+                    />
+                    <v-btn
                         icon="mdi-refresh"
                         variant="text"
                         density="compact"
@@ -538,7 +719,7 @@ onMounted(async () => {
                                 class="checks-grid__row"
                                 @click="openCheck(check)"
                             >
-                                <td class="cell-id">#{{ check.id }}</td>
+                                <td class="cell-id" :title="`Check #${check.id}`">{{ check.id }}</td>
                                 <td class="cell-date">{{ formatDate(check.date) }}</td>
                                 <td>
                                     <a
@@ -674,7 +855,19 @@ onMounted(async () => {
 
                     <div class="line-editor">
                         <v-row dense align="center">
-                            <v-col cols="12" md="4">
+                            <v-col cols="12" md="2">
+                                <v-btn-toggle
+                                    v-model="lineForm.kind"
+                                    mandatory
+                                    density="compact"
+                                    variant="outlined"
+                                    class="line-kind-toggle"
+                                >
+                                    <v-btn value="commodity" icon="mdi-package-variant-closed" title="Commodity" />
+                                    <v-btn value="service" icon="mdi-handshake-outline" title="Услуга" />
+                                </v-btn-toggle>
+                            </v-col>
+                            <v-col v-if="lineForm.kind === 'commodity'" cols="12" md="3">
                                 <v-autocomplete
                                     v-model="lineForm.commodity_id"
                                     :items="commodities"
@@ -699,6 +892,42 @@ onMounted(async () => {
                                         </v-list-item>
                                     </template>
                                 </v-autocomplete>
+                            </v-col>
+                            <v-col v-else cols="12" md="3">
+                                <v-autocomplete
+                                    v-model="lineForm.service_id"
+                                    :items="services"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Услуга"
+                                    variant="solo-filled"
+                                    density="compact"
+                                    hide-details
+                                >
+                                    <template #item="{ props, item }">
+                                        <v-list-item v-bind="props" :title="item.raw.name">
+                                            <template #prepend>
+                                                <v-icon icon="mdi-handshake-outline" size="22" />
+                                            </template>
+                                            <template #subtitle>
+                                                {{ item.raw.expense_article?.name || 'без статьи' }}
+                                                <span v-if="item.raw.project"> · {{ item.raw.project.name }}</span>
+                                            </template>
+                                        </v-list-item>
+                                    </template>
+                                </v-autocomplete>
+                            </v-col>
+                            <v-col v-if="lineForm.kind === 'commodity'" cols="6" md="2">
+                                <v-select
+                                    v-model="lineForm.warehouse_id"
+                                    :items="warehouses"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Склад"
+                                    variant="solo-filled"
+                                    density="compact"
+                                    hide-details
+                                />
                             </v-col>
                             <v-col cols="6" md="1">
                                 <v-text-field
@@ -777,7 +1006,7 @@ onMounted(async () => {
                                     <th class="avatar-col"></th>
                                     <th class="commodity-col">Commodity</th>
                                     <th>Статья расходов</th>
-                                    <th>Project</th>
+                                    <th>Склад / Project</th>
                                     <th>Кол-во</th>
                                     <th>Цена</th>
                                     <th>Итого</th>
@@ -785,34 +1014,50 @@ onMounted(async () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-if="!selectedItems.length">
-                                    <td colspan="8" class="state-cell">В этом check пока нет commodities.</td>
+                                <tr v-if="!receiptRows.length">
+                                    <td colspan="8" class="state-cell">В этом check пока нет строк.</td>
                                 </tr>
-                                <tr v-for="item in selectedItems" :key="item.id">
+                                <tr v-for="row in receiptRows" :key="row.key">
                                     <td>
-                                        <v-avatar size="38" rounded="lg">
-                                            <v-img :src="item.commodity?.ava_url || logo" cover />
+                                        <v-avatar v-if="row.kind === 'commodity'" size="38" rounded="lg">
+                                            <v-img :src="row.item.commodity?.ava_url || logo" cover />
+                                        </v-avatar>
+                                        <v-avatar v-else size="38" rounded="lg" color="#eef1e8">
+                                            <v-icon icon="mdi-handshake-outline" size="21" />
                                         </v-avatar>
                                     </td>
                                     <td class="receipt-commodity-cell">
-                                        <strong>{{ item.commodity?.name || `Commodity #${item.commodity_id}` }}</strong>
-                                        <small>#{{ item.commodity_id }}</small>
+                                        <a
+                                            v-if="row.kind === 'commodity' && commodityHref(row.item)"
+                                            :href="commodityHref(row.item)"
+                                            class="receipt-item-link"
+                                        >
+                                            {{ rowTitle(row) }}
+                                        </a>
+                                        <strong v-else>{{ rowTitle(row) }}</strong>
+                                        <small>
+                                            {{ row.kind === 'commodity' ? `Commodity #${row.item.commodity_id}` : `Услуга #${row.item.service_id}` }}
+                                        </small>
                                     </td>
                                     <td>
                                         <span
                                             class="article-pill"
-                                            :style="{ '--article-color': articleColor(item.expense_article || item.commodity?.expense_article) }"
+                                            :style="{ '--article-color': articleColor(row.item.expense_article || row.item.commodity?.expense_article || row.item.service?.expense_article) }"
                                         >
-                                            {{ item.expense_article?.name || item.commodity?.expense_article?.name || '-' }}
+                                            {{ row.item.expense_article?.name || row.item.commodity?.expense_article?.name || row.item.service?.expense_article?.name || '-' }}
                                         </span>
                                     </td>
-                                    <td>{{ item.commodity?.project?.name || '-' }}</td>
                                     <td>
-                                        {{ formatQty(item.quantity) }}
-                                        <span class="muted">{{ item.measure?.name || '' }}</span>
+                                        <strong v-if="row.kind === 'commodity'">{{ row.item.warehouse?.name || '-' }}</strong>
+                                        <strong v-else>{{ row.item.service?.project?.name || '-' }}</strong>
+                                        <small>{{ row.kind === 'commodity' ? row.item.commodity?.project?.name || 'без проекта' : 'проект услуги' }}</small>
                                     </td>
-                                    <td>{{ formatMoney(item.price) }}</td>
-                                    <td class="cell-money">{{ formatMoney(item.total_price || numeric(item.quantity) * numeric(item.price)) }}</td>
+                                    <td>
+                                        {{ formatQty(row.item.quantity) }}
+                                        <span class="muted">{{ row.item.measure?.name || '' }}</span>
+                                    </td>
+                                    <td>{{ formatMoney(row.item.price) }}</td>
+                                    <td class="cell-money">{{ formatMoney(row.item.total_price || numeric(row.item.quantity) * numeric(row.item.price)) }}</td>
                                     <td>
                                         <div class="row-actions">
                                             <v-btn
@@ -820,7 +1065,7 @@ onMounted(async () => {
                                                 size="small"
                                                 variant="text"
                                                 title="Редактировать строку"
-                                                @click="editLine(item)"
+                                                @click="editReceiptRow(row)"
                                             />
                                             <v-btn
                                                 icon="mdi-delete-outline"
@@ -828,7 +1073,7 @@ onMounted(async () => {
                                                 variant="text"
                                                 color="error"
                                                 title="Удалить строку"
-                                                @click="deleteLine(item)"
+                                                @click="deleteReceiptRow(row)"
                                             />
                                         </div>
                                     </td>
@@ -848,6 +1093,7 @@ onMounted(async () => {
                         <v-btn-toggle v-model="dictionaryType" mandatory density="compact" variant="outlined">
                             <v-btn value="articles" text="Статьи" />
                             <v-btn value="projects" text="Проекты" />
+                            <v-btn value="services" text="Услуги" />
                         </v-btn-toggle>
                     </div>
                     <v-btn icon="mdi-close" variant="text" density="compact" @click="dictionaryDialog = false" />
@@ -891,6 +1137,32 @@ onMounted(async () => {
                                     type="number"
                                     variant="outlined"
                                     density="compact"
+                                    hide-details
+                                />
+                            </v-col>
+                            <v-col v-if="dictionaryType === 'services'" cols="6" md="3">
+                                <v-autocomplete
+                                    v-model="dictionaryForm.expense_article_id"
+                                    :items="expenseArticles"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Статья"
+                                    variant="outlined"
+                                    density="compact"
+                                    clearable
+                                    hide-details
+                                />
+                            </v-col>
+                            <v-col v-if="dictionaryType === 'services'" cols="6" md="3">
+                                <v-autocomplete
+                                    v-model="dictionaryForm.project_id"
+                                    :items="projects"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Project"
+                                    variant="outlined"
+                                    density="compact"
+                                    clearable
                                     hide-details
                                 />
                             </v-col>
@@ -941,13 +1213,15 @@ onMounted(async () => {
                                 <th>Название</th>
                                 <th>Код</th>
                                 <th v-if="dictionaryType === 'articles'">Цвет</th>
+                                <th v-if="dictionaryType === 'services'">Статья</th>
+                                <th v-if="dictionaryType === 'services'">Project</th>
                                 <th>Active</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-if="!dictionaryItems.length">
-                                <td :colspan="dictionaryType === 'articles' ? 6 : 5" class="state-cell">
+                                <td :colspan="dictionaryColspan" class="state-cell">
                                     Справочник пуст.
                                 </td>
                             </tr>
@@ -958,6 +1232,8 @@ onMounted(async () => {
                                 <td v-if="dictionaryType === 'articles'">
                                     <span class="color-swatch" :style="{ backgroundColor: item.color || '#cbd5e1' }"></span>
                                 </td>
+                                <td v-if="dictionaryType === 'services'">{{ item.expense_article?.name || '-' }}</td>
+                                <td v-if="dictionaryType === 'services'">{{ item.project?.name || '-' }}</td>
                                 <td>{{ item.is_active ? 'да' : 'нет' }}</td>
                                 <td>
                                     <div class="row-actions">
@@ -1144,8 +1420,8 @@ onMounted(async () => {
 }
 
 .col-id {
-    width: 48px;
-    font-size: 11px;
+    width: 24px;
+    font-size: 10px;
 }
 
 .col-date {
@@ -1154,7 +1430,7 @@ onMounted(async () => {
 }
 
 .col-entity {
-    width: 34%;
+    width: 38%;
 }
 
 .col-money {
@@ -1172,8 +1448,11 @@ onMounted(async () => {
 .cell-id {
     color: #806100;
     font-family: "JetBrains Mono", monospace;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 900;
+    padding-right: 2px !important;
+    padding-left: 2px !important;
+    text-align: center;
 }
 
 .cell-date {
@@ -1274,6 +1553,10 @@ onMounted(async () => {
     background: #f7f0df;
 }
 
+.line-kind-toggle {
+    width: 100%;
+}
+
 .receipt-table {
     min-width: 1320px;
     table-layout: auto;
@@ -1311,6 +1594,20 @@ onMounted(async () => {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
+}
+
+.receipt-item-link {
+    display: block;
+    overflow: visible;
+    color: #1b4c8f;
+    font-weight: 900;
+    text-decoration: none;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+
+.receipt-item-link:hover {
+    text-decoration: underline;
 }
 
 .article-pill {

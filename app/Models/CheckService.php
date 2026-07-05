@@ -5,9 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
-class CheckCommodity extends Pivot
+class CheckService extends Pivot
 {
-    protected $table = 'check_commodity';
+    protected $table = 'check_service';
 
     public $timestamps = true;
 
@@ -15,8 +15,7 @@ class CheckCommodity extends Pivot
 
     protected $fillable = [
         'check_id',
-        'commodity_id',
-        'warehouse_id',
+        'service_id',
         'quantity',
         'measure_id',
         'expense_article_id',
@@ -34,14 +33,9 @@ class CheckCommodity extends Pivot
         return $this->belongsTo(Check::class);
     }
 
-    public function commodity(): BelongsTo
+    public function service(): BelongsTo
     {
-        return $this->belongsTo(Commodity::class);
-    }
-
-    public function warehouse(): BelongsTo
-    {
-        return $this->belongsTo(Warehouse::class);
+        return $this->belongsTo(Service::class);
     }
 
     public function expenseArticle(): BelongsTo
