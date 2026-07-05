@@ -687,6 +687,16 @@ onMounted(async () => {
 
             <div class="checks-table-wrap">
                 <table class="checks-grid">
+                    <colgroup>
+                        <col class="checks-col-id">
+                        <col class="checks-col-date">
+                        <col class="checks-col-entity">
+                        <col class="checks-col-money">
+                        <col class="checks-col-count">
+                        <col class="checks-col-article">
+                        <col class="checks-col-project">
+                        <col class="checks-col-actions">
+                    </colgroup>
                     <thead>
                         <tr class="checks-grid__groups">
                             <th colspan="3" class="group-check">Check</th>
@@ -1419,30 +1429,45 @@ onMounted(async () => {
     cursor: pointer;
 }
 
+.checks-col-id {
+    width: 64px;
+}
+
+.checks-col-date {
+    width: 148px;
+}
+
+.checks-col-money {
+    width: 160px;
+}
+
+.checks-col-count {
+    width: 72px;
+}
+
+.checks-col-article,
+.checks-col-project {
+    width: 136px;
+}
+
+.checks-col-actions {
+    width: 118px;
+}
+
+.checks-col-entity {
+    width: auto;
+}
+
 .col-id {
-    width: 24px;
     font-size: 10px;
 }
 
 .col-date {
-    width: 112px;
     font-size: 11px;
 }
 
 .col-entity {
-    width: 38%;
-}
-
-.col-money {
-    width: 116px;
-}
-
-.col-count {
-    width: 64px;
-}
-
-.col-edit {
-    width: 118px;
+    width: auto;
 }
 
 .cell-id {
