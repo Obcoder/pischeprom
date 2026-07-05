@@ -32,6 +32,21 @@ const dictionaryType = ref('articles')
 
 const selectedCheck = ref(null)
 
+const filters = reactive({
+    date_from: '',
+    date_to: '',
+    entity_id: null,
+    project_id: null,
+    sort_by: 'date',
+    sort_desc: true,
+})
+
+const checksMeta = reactive({
+    total_amount: 0,
+    items_count: 0,
+    project_totals: [],
+})
+
 const checkForm = reactive({
     id: null,
     date: today(),
@@ -100,8 +115,10 @@ const receiptRows = computed(() => [
 }))
 
 const stats = computed(() => {
-    const total = checks.value.reduce((sum, check) => sum + numeric(check.amount), 0)
-    const items = checks.value.reduce((sum, check) => sum + Number(check.items_count || check.items?.length || 0), 0)
+    const localTotal = checks.value.reduce((sum, check) => sum + numeric(check.amount), 0)
+    const localItems = checks.value.reduce((sum, check) => sum + Number(check.items_count || check.items?.length || 0), 0)
+    const total = checksMeta.total_amount || localTotal
+    const items = checksMeta.items_count || localItems
 
     return {
         total,
@@ -162,6 +179,18 @@ const checkDialogTitle = computed(() => (
     checkForm.id ? `Редактировать Check #${checkForm.id}` : 'Новый Check'
 ))
 
+const sortOptions = [
+    { title: 'Дата', value: 'date' },
+    { title: 'Сумма', value: 'amount' },
+]
+
+const activeFiltersCount = computed(() => [
+    filters.date_from,
+    filters.date_to,
+    filters.entity_id,
+    filters.project_id,
+].filter(Boolean).length)
+
 watch(
     () => lineForm.commodity_id,
     () => {
@@ -192,6 +221,17 @@ watch(
 )
 
 watch(dictionaryType, () => resetDictionaryForm())
+
+let filtersTimer = null
+
+watch(
+    filters,
+    () => {
+        window.clearTimeout(filtersTimer)
+        filtersTimer = window.setTimeout(() => loadChecks(), 250)
+    },
+    { deep: true }
+)
 
 function unpack(response) {
     return response?.data?.data || response?.data || []
@@ -270,13 +310,38 @@ function rowTitle(row) {
     return row.item.commodity?.name || `Commodity #${row.item.commodity_id}`
 }
 
+function checksFilterParams() {
+    return {
+        date_from: filters.date_from || undefined,
+        date_to: filters.date_to || undefined,
+        entity_id: filters.entity_id || undefined,
+        project_id: filters.project_id || undefined,
+        sort_by: filters.sort_by,
+        sort_desc: filters.sort_desc,
+    }
+}
+
+function resetFilters() {
+    filters.date_from = ''
+    filters.date_to = ''
+    filters.entity_id = null
+    filters.project_id = null
+    filters.sort_by = 'date'
+    filters.sort_desc = true
+}
+
 async function loadChecks() {
     loadingChecks.value = true
 
     try {
-        const response = await axios.get(route('checks.index'))
+        const response = await axios.get(route('checks.index'), {
+            params: checksFilterParams(),
+        })
 
         checks.value = unpack(response)
+        checksMeta.total_amount = numeric(response.data?.meta?.total_amount)
+        checksMeta.items_count = Number(response.data?.meta?.items_count || 0)
+        checksMeta.project_totals = response.data?.meta?.project_totals || []
     } catch (error) {
         console.error('loadChecks error:', error)
     } finally {
@@ -684,6 +749,89 @@ onMounted(async () => {
                     />
                 </div>
             </header>
+
+            <section class="checks-filter-panel">
+                <div class="checks-filter-grid">
+                    <v-text-field
+                        v-model="filters.date_from"
+                        type="date"
+                        label="Дата от"
+                        variant="solo-filled"
+                        density="compact"
+                        hide-details
+                    />
+                    <v-text-field
+                        v-model="filters.date_to"
+                        type="date"
+                        label="Дата до"
+                        variant="solo-filled"
+                        density="compact"
+                        hide-details
+                    />
+                    <v-autocomplete
+                        v-model="filters.entity_id"
+                        :items="entities"
+                        item-title="name"
+                        item-value="id"
+                        label="Контрагент"
+                        variant="solo-filled"
+                        density="compact"
+                        clearable
+                        hide-details
+                    />
+                    <v-autocomplete
+                        v-model="filters.project_id"
+                        :items="projects"
+                        item-title="name"
+                        item-value="id"
+                        label="Project"
+                        variant="solo-filled"
+                        density="compact"
+                        clearable
+                        hide-details
+                    />
+                    <v-select
+                        v-model="filters.sort_by"
+                        :items="sortOptions"
+                        item-title="title"
+                        item-value="value"
+                        label="Сортировка"
+                        variant="solo-filled"
+                        density="compact"
+                        hide-details
+                    />
+                    <v-btn
+                        :icon="filters.sort_desc ? 'mdi-sort-descending' : 'mdi-sort-ascending'"
+                        variant="tonal"
+                        density="comfortable"
+                        :title="filters.sort_desc ? 'По убыванию' : 'По возрастанию'"
+                        @click="filters.sort_desc = !filters.sort_desc"
+                    />
+                    <v-btn
+                        icon="mdi-filter-remove-outline"
+                        variant="text"
+                        density="comfortable"
+                        :disabled="!activeFiltersCount && filters.sort_by === 'date' && filters.sort_desc"
+                        title="Сбросить фильтры"
+                        @click="resetFilters"
+                    />
+                </div>
+
+                <div class="checks-project-totals">
+                    <button
+                        v-for="projectTotal in checksMeta.project_totals"
+                        :key="projectTotal.project_id || 'without-project'"
+                        type="button"
+                        class="project-total"
+                        :class="{ 'project-total--active': projectTotal.project_id && Number(filters.project_id) === Number(projectTotal.project_id) }"
+                        @click="filters.project_id = projectTotal.project_id"
+                    >
+                        <span>{{ projectTotal.project_name }}</span>
+                        <strong>{{ formatMoney(projectTotal.total) }}</strong>
+                    </button>
+                    <span v-if="!checksMeta.project_totals.length" class="muted">Нет сумм по проектам</span>
+                </div>
+            </section>
 
             <div class="checks-table-wrap">
                 <table class="checks-grid">
@@ -1344,6 +1492,61 @@ onMounted(async () => {
     gap: 4px;
 }
 
+.checks-filter-panel {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid #c7b894;
+    background: #f7f0df;
+}
+
+.checks-filter-grid {
+    display: grid;
+    grid-template-columns: 130px 130px minmax(220px, 1fr) minmax(180px, 260px) 138px auto auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.checks-project-totals {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.project-total {
+    display: inline-grid;
+    grid-template-columns: minmax(90px, 1fr) auto;
+    gap: 10px;
+    align-items: baseline;
+    min-width: 180px;
+    padding: 4px 8px;
+    border: 1px solid #c7b894;
+    background: #ffffff;
+    color: #24180f;
+    line-height: 1.15;
+    text-align: left;
+}
+
+.project-total span {
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-total strong {
+    color: #10913d;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.project-total--active {
+    border-color: #7f5f00;
+    background: #fff4cc;
+}
+
 .checks-table-wrap,
 .receipt-table-wrap {
     width: 100%;
@@ -1679,6 +1882,10 @@ onMounted(async () => {
     .checks-actions {
         justify-content: flex-start;
         flex-wrap: wrap;
+    }
+
+    .checks-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .dictionary-form {
