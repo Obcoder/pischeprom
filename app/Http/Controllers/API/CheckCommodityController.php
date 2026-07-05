@@ -43,7 +43,6 @@ class CheckCommodityController extends Controller
             ]);
 
             $this->syncStockMovement($item);
-            $check->refreshAmount();
 
             return $item->fresh($this->relations());
         });
@@ -85,7 +84,6 @@ class CheckCommodityController extends Controller
 
             $checkCommodity->update($data);
             $this->syncStockMovement($checkCommodity->fresh(['check']));
-            $checkCommodity->check->refreshAmount();
 
             return $checkCommodity->fresh($this->relations());
         });
@@ -99,13 +97,11 @@ class CheckCommodityController extends Controller
     public function destroy(CheckCommodity $checkCommodity)
     {
         DB::transaction(function () use ($checkCommodity) {
-            $check = $checkCommodity->check;
             StockMovement::query()
                 ->where('source_type', StockMovement::SOURCE_CHECK_COMMODITY)
                 ->where('source_id', $checkCommodity->id)
                 ->delete();
             $checkCommodity->delete();
-            $check->refreshAmount();
         });
 
         return response()->json(null, 204);

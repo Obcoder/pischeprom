@@ -25,6 +25,9 @@ class CheckResource extends JsonResource
             'items_count' => ($this->items_count ?? 0) + ($this->service_items_count ?? 0),
             'commodity_items_count' => $this->whenCounted('items'),
             'service_items_count' => $this->whenCounted('serviceItems'),
+            'commodity_items_total' => $this->relationLoaded('items')
+                ? (float) $this->items->sum(fn ($item) => (float) $item->quantity * (float) $item->price)
+                : null,
             'items' => CheckCommodityResource::collection($this->whenLoaded('items')),
             'service_items' => CheckServiceResource::collection($this->whenLoaded('serviceItems')),
             'commodities' => CommodityResource::collection($this->whenLoaded('commodities')),

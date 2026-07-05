@@ -94,6 +94,16 @@ const selectedCommodityItems = computed(() => selectedCheck.value?.items || [])
 
 const selectedServiceItems = computed(() => selectedCheck.value?.service_items || [])
 
+const registeredCommodityTotal = computed(() => {
+    if (selectedCheck.value?.commodity_items_total !== null && selectedCheck.value?.commodity_items_total !== undefined) {
+        return numeric(selectedCheck.value.commodity_items_total)
+    }
+
+    return selectedCommodityItems.value.reduce((sum, item) => (
+        sum + numeric(item.total_price || numeric(item.quantity) * numeric(item.price))
+    ), 0)
+})
+
 const receiptRows = computed(() => [
     ...selectedCommodityItems.value.map((item) => ({
         key: `commodity-${item.id}`,
@@ -998,7 +1008,10 @@ onMounted(async () => {
                         <span>Check #{{ selectedCheck?.id || '-' }}</span>
                         <small>{{ formatDate(selectedCheck?.date) }} · {{ selectedCheck?.entity?.name || 'Без entity' }}</small>
                     </div>
-                    <div class="receipt-total">{{ formatMoney(selectedCheck?.amount) }}</div>
+                    <div class="receipt-summary">
+                        <div class="receipt-total">{{ formatMoney(selectedCheck?.amount) }}</div>
+                        <small>товары: {{ formatMoney(registeredCommodityTotal) }}</small>
+                    </div>
                     <v-btn icon="mdi-close" variant="text" density="compact" @click="detailDialog = false" />
                 </v-card-title>
 
@@ -1771,6 +1784,19 @@ onMounted(async () => {
     color: #10913d;
     font-size: 22px;
     font-weight: 950;
+}
+
+.receipt-summary {
+    display: grid;
+    gap: 2px;
+    justify-items: end;
+}
+
+.receipt-summary small {
+    color: #756b59;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
 }
 
 .line-editor,

@@ -28,8 +28,6 @@ class CheckServiceController extends Controller
                 'price' => $data['price'] ?? 0,
             ]);
 
-            $check->refreshAmount();
-
             return $item->fresh($this->relations());
         });
 
@@ -53,7 +51,6 @@ class CheckServiceController extends Controller
             }
 
             $checkService->update($data);
-            $checkService->check->refreshAmount();
 
             return $checkService->fresh($this->relations());
         });
@@ -64,9 +61,7 @@ class CheckServiceController extends Controller
     public function destroy(CheckService $checkService)
     {
         DB::transaction(function () use ($checkService) {
-            $check = $checkService->check;
             $checkService->delete();
-            $check->refreshAmount();
         });
 
         return response()->json(null, 204);
