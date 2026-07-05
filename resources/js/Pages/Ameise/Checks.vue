@@ -122,11 +122,17 @@ function formatDate(value) {
         return '-'
     }
 
-    return new Intl.DateTimeFormat('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    }).format(new Date(`${value}T00:00:00`))
+    const date = new Date(`${value}T00:00:00`)
+
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    const month = new Intl.DateTimeFormat('ru-RU', {
+        month: 'long',
+    }).format(date)
+
+    return `${date.getFullYear()} ${month} ${date.getDate()}`
 }
 
 function formatQty(value) {
@@ -145,6 +151,12 @@ function entityName(check) {
 
 function entitySubtitle(check) {
     return check.entity?.classification?.name || `Entity #${check.entity_id || '-'}`
+}
+
+function entityHref(check) {
+    const entityId = check.entity?.id || check.entity_id
+
+    return entityId ? route('Ameise.entity.show', entityId) : null
 }
 
 async function loadChecks() {
@@ -499,40 +511,49 @@ onMounted(async () => {
                             <th colspan="3" class="group-check">Check</th>
                             <th colspan="2" class="group-budget">Бюджет</th>
                             <th colspan="2" class="group-links">Связи</th>
-                            <th colspan="2" class="group-actions">Действия</th>
+                            <th class="group-actions">Действия</th>
                         </tr>
                         <tr>
                             <th class="col-id">ID</th>
                             <th class="col-date">Дата</th>
-                            <th>Контрагент</th>
+                            <th class="col-entity">Контрагент</th>
                             <th class="col-money">Сумма</th>
                             <th class="col-count">Строк</th>
                             <th>Статья</th>
                             <th>Проект</th>
-                            <th class="col-open">Открыть</th>
                             <th class="col-edit">CRUD</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="loadingChecks">
-                            <td colspan="9" class="state-cell">Загрузка checks...</td>
+                            <td colspan="8" class="state-cell">Загрузка checks...</td>
                         </tr>
                         <tr v-else-if="!checks.length">
-                            <td colspan="9" class="state-cell">Checks пока не созданы.</td>
+                            <td colspan="8" class="state-cell">Checks пока не созданы.</td>
                         </tr>
                         <template v-else>
                             <tr
                                 v-for="check in checks"
                                 :key="check.id"
-                                @dblclick="openCheck(check)"
+                                class="checks-grid__row"
+                                @click="openCheck(check)"
                             >
                                 <td class="cell-id">#{{ check.id }}</td>
-                                <td>{{ formatDate(check.date) }}</td>
+                                <td class="cell-date">{{ formatDate(check.date) }}</td>
                                 <td>
-                                    <button type="button" class="entity-button" @click="openCheck(check)">
+                                    <a
+                                        v-if="entityHref(check)"
+                                        :href="entityHref(check)"
+                                        class="entity-button entity-link"
+                                        @click.stop
+                                    >
                                         <strong>{{ entityName(check) }}</strong>
                                         <span>{{ entitySubtitle(check) }}</span>
-                                    </button>
+                                    </a>
+                                    <span v-else class="entity-button entity-button--static">
+                                        <strong>{{ entityName(check) }}</strong>
+                                        <span>{{ entitySubtitle(check) }}</span>
+                                    </span>
                                 </td>
                                 <td class="cell-money">{{ formatMoney(check.amount) }}</td>
                                 <td class="cell-count">{{ check.items_count || check.items?.length || 0 }}</td>
@@ -543,22 +564,20 @@ onMounted(async () => {
                                     <span class="muted">commodity</span>
                                 </td>
                                 <td>
-                                    <v-btn
-                                        icon="mdi-eye-outline"
-                                        size="small"
-                                        variant="text"
-                                        title="Открыть чек"
-                                        @click="openCheck(check)"
-                                    />
-                                </td>
-                                <td>
                                     <div class="row-actions">
+                                        <v-btn
+                                            icon="mdi-eye-outline"
+                                            size="small"
+                                            variant="text"
+                                            title="Открыть чек"
+                                            @click.stop="openCheck(check)"
+                                        />
                                         <v-btn
                                             icon="mdi-pencil-outline"
                                             size="small"
                                             variant="text"
                                             title="Редактировать"
-                                            @click="openEditCheck(check)"
+                                            @click.stop="openEditCheck(check)"
                                         />
                                         <v-btn
                                             icon="mdi-delete-outline"
@@ -566,7 +585,7 @@ onMounted(async () => {
                                             variant="text"
                                             color="error"
                                             title="Удалить"
-                                            @click="deleteCheck(check)"
+                                            @click.stop="deleteCheck(check)"
                                         />
                                     </div>
                                 </td>
@@ -756,7 +775,7 @@ onMounted(async () => {
                             <thead>
                                 <tr>
                                     <th class="avatar-col"></th>
-                                    <th>Commodity</th>
+                                    <th class="commodity-col">Commodity</th>
                                     <th>Статья расходов</th>
                                     <th>Project</th>
                                     <th>Кол-во</th>
@@ -775,7 +794,7 @@ onMounted(async () => {
                                             <v-img :src="item.commodity?.ava_url || logo" cover />
                                         </v-avatar>
                                     </td>
-                                    <td>
+                                    <td class="receipt-commodity-cell">
                                         <strong>{{ item.commodity?.name || `Commodity #${item.commodity_id}` }}</strong>
                                         <small>#{{ item.commodity_id }}</small>
                                     </td>
@@ -1120,31 +1139,47 @@ onMounted(async () => {
     background: #e8f1df;
 }
 
+.checks-grid__row {
+    cursor: pointer;
+}
+
 .col-id {
-    width: 72px;
+    width: 48px;
+    font-size: 11px;
 }
 
 .col-date {
     width: 112px;
+    font-size: 11px;
+}
+
+.col-entity {
+    width: 34%;
 }
 
 .col-money {
-    width: 128px;
+    width: 116px;
 }
 
-.col-count,
-.col-open {
-    width: 76px;
+.col-count {
+    width: 64px;
 }
 
 .col-edit {
-    width: 108px;
+    width: 118px;
 }
 
 .cell-id {
     color: #806100;
     font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
     font-weight: 900;
+}
+
+.cell-date {
+    color: #5f574a;
+    font-size: 11px;
+    font-weight: 800;
 }
 
 .cell-money {
@@ -1170,6 +1205,18 @@ onMounted(async () => {
     cursor: pointer;
     line-height: 1.15;
     text-align: left;
+}
+
+.entity-link {
+    text-decoration: none;
+}
+
+.entity-link:hover strong {
+    text-decoration: underline;
+}
+
+.entity-button--static {
+    cursor: default;
 }
 
 .entity-button strong,
@@ -1228,11 +1275,17 @@ onMounted(async () => {
 }
 
 .receipt-table {
-    min-width: 1040px;
+    min-width: 1320px;
+    table-layout: auto;
 }
 
 .receipt-table .avatar-col {
     width: 52px;
+}
+
+.receipt-table .commodity-col {
+    width: 520px;
+    min-width: 520px;
 }
 
 .receipt-table td strong,
@@ -1244,6 +1297,20 @@ onMounted(async () => {
 
 .receipt-table td small {
     color: #756b59;
+}
+
+.receipt-table .receipt-commodity-cell {
+    min-width: 520px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+
+.receipt-table .receipt-commodity-cell strong,
+.receipt-table .receipt-commodity-cell small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
 }
 
 .article-pill {
