@@ -68,7 +68,7 @@ function formatInteger(value) {
 
 function formatMoney(value) {
     return new Intl.NumberFormat('ru-RU', {
-        minimumFractionDigits: 0,
+        minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(numeric(value))
 }
@@ -416,6 +416,7 @@ onMounted(() => {
 
 .taxi-sheet-wrap {
     border: 1px solid #000;
+    margin: 0 14px;
     overflow: auto;
 }
 
@@ -543,6 +544,10 @@ input[type="number"] {
 
     .taxi-filters {
         flex-wrap: wrap;
+    }
+
+    .taxi-sheet-wrap {
+        margin: 0 6px;
     }
 }
 </style>
