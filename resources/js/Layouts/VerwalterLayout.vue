@@ -301,6 +301,16 @@ onMounted(fetchWorkingLeads)
             </v-app-bar-title>
             <v-app-bar-title>
                 <Link
+                    :href="route('Ameise.taxi-shifts')"
+                    title="Такси"
+                    aria-label="Такси"
+                >
+                    <v-icon icon="mdi-taxi" size="small" class="mx-1" />
+                    <span>Такси</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
+                <Link
                     :href="route('Ameise.mail')"
                     class="ameise-mail-link"
                     title="Почта"

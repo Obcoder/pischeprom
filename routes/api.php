@@ -72,6 +72,7 @@ use App\Http\Controllers\API\SupplierPipelineCardController;
 use App\Http\Controllers\API\SupplierPipelineController;
 use App\Http\Controllers\API\SupplierPipelineStageController;
 use App\Http\Controllers\API\SupplierWorkBoardController;
+use App\Http\Controllers\API\TaxiShiftController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
@@ -452,6 +453,8 @@ Route::apiResource('plants', PlantController::class);
 Route::apiResource('price-types', PriceTypeController::class);
 Route::apiResource('projects', ProjectController::class);
 Route::apiResource('services', ServiceController::class);
+Route::apiResource('taxi-shifts', TaxiShiftController::class)
+    ->parameters(['taxi-shifts' => 'taxiShift']);
 Route::apiResource('warehouses', WarehouseController::class);
 Route::get('warehouse-stock', [StockMovementController::class, 'stock'])
     ->name('warehouse-stock.index');

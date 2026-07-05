@@ -143,6 +143,12 @@ Route::get('Ameise/warehouses', function () {
 })->name('Ameise.warehouses');
 //
 
+//   T A X I  S H I F T S
+Route::get('Ameise/taxi-shifts', function () {
+    return Inertia::render('Ameise/TaxiShifts');
+})->name('Ameise.taxi-shifts');
+//
+
 //   C I T I E S
 Route::get('/Ameise/Cities', function () {
     return Inertia::render('Ameise/Cities');
