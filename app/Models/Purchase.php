@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Facades\Schema;
 
 class Purchase extends Model
 {
@@ -35,16 +36,36 @@ class Purchase extends Model
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class, 'good_purchase')
-            ->withPivot([
-                            'id',
-                            'quantity',
-                            'measure_id',
-                            'price',
-                            'currency_id',
-                            'total',
-                            'created_at',
-                            'updated_at',
-                        ])
+            ->withPivot($this->goodPurchasePivotColumns())
             ->withTimestamps();
+    }
+
+    private function goodPurchasePivotColumns(): array
+    {
+        static $columns = null;
+
+        if ($columns !== null) {
+            return $columns;
+        }
+
+        $desired = [
+            'id',
+            'quantity',
+            'measure_id',
+            'price',
+            'currency_id',
+            'total',
+            'created_at',
+            'updated_at',
+        ];
+
+        $available = Schema::hasTable('good_purchase')
+            ? array_flip(Schema::getColumnListing('good_purchase'))
+            : [];
+
+        return $columns = array_values(array_filter(
+            $desired,
+            fn (string $column) => isset($available[$column])
+        ));
     }
 }
