@@ -195,10 +195,20 @@ function formatDate(value, long = false) {
         ? new Date(...String(value).slice(0, 10).split('-').map((part, index) => index === 1 ? Number(part) - 1 : Number(part)))
         : new Date(value)
 
-    return new Intl.DateTimeFormat('ru-RU', long
-        ? { day: 'numeric', month: 'long', year: 'numeric' }
-        : { day: '2-digit', month: 'short', year: 'numeric' }
-    ).format(date)
+    if (Number.isNaN(date.getTime())) {
+        return '-'
+    }
+
+    if (long) {
+        const month = new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(date)
+        return `${date.getDate()} ${month} ${date.getFullYear()}`
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    }).format(date)
 }
 
 function entityUnits(entity) {
@@ -392,7 +402,6 @@ onMounted(async () => {
             <div class="purchases-toolbar">
                 <div class="purchases-toolbar__title">
                     <span>Grossbuch / закупки</span>
-                    <h2>Закупки</h2>
                 </div>
 
                 <div class="purchases-toolbar__meta">
@@ -619,7 +628,7 @@ onMounted(async () => {
                                 </td>
 
                                 <td>
-                                    <div class="purchase-entity-cell">
+                                    <span class="purchase-entity-cell">
                                         <Link
                                             v-if="entityHref(purchase.entity)"
                                             :href="entityHref(purchase.entity)"
@@ -629,7 +638,7 @@ onMounted(async () => {
                                         </Link>
                                         <span v-else class="purchase-entity-cell__name">-</span>
                                         <span v-if="purchase.entity?.INN" class="purchase-entity-cell__meta">ИНН {{ purchase.entity.INN }}</span>
-                                    </div>
+                                    </span>
                                 </td>
 
                                 <td class="purchase-grid__unit">
@@ -1030,23 +1039,17 @@ onMounted(async () => {
 }
 
 .purchases-toolbar__title {
-    display: grid;
-    gap: 2px;
+    display: flex;
+    align-items: center;
+    min-height: 28px;
 }
 
 .purchases-toolbar__title span {
     color: #68736b;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-}
-
-.purchases-toolbar h2 {
-    margin: 0;
-    color: #1f3026;
-    font-size: 18px;
-    line-height: 1;
 }
 
 .purchases-toolbar__meta {
@@ -1171,14 +1174,20 @@ onMounted(async () => {
 
 .purchase-grid__id {
     width: 58px;
+    color: #26332b;
+    font-family: Arial, "Helvetica Neue", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
     text-align: right;
 }
 
 .purchase-grid__date {
-    width: 118px;
+    width: 132px;
     color: #26332b;
-    font-family: "Courier New", monospace;
-    font-weight: 700;
+    font-family: Arial, "Helvetica Neue", sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .purchase-grid__unit {
@@ -1191,9 +1200,9 @@ onMounted(async () => {
 }
 
 .purchase-grid__actions {
-    width: 78px;
-    padding-right: 2px !important;
-    padding-left: 2px !important;
+    width: 104px;
+    padding-right: 4px !important;
+    padding-left: 4px !important;
     text-align: center;
 }
 
@@ -1206,9 +1215,17 @@ onMounted(async () => {
 .purchase-id-link,
 .purchase-amount-button {
     color: #1c5f86;
-    font-family: "Courier New", monospace;
     font-weight: 800;
     text-decoration: none;
+}
+
+.purchase-id-link {
+    font-family: Arial, "Helvetica Neue", sans-serif;
+    font-size: 11px;
+}
+
+.purchase-amount-button {
+    font-family: "Courier New", monospace;
 }
 
 .purchase-id-link:hover,
@@ -1218,13 +1235,18 @@ onMounted(async () => {
 }
 
 .purchase-entity-cell {
-    display: grid;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 1px;
+    max-width: 100%;
     min-width: 0;
     line-height: 1.12;
 }
 
 .purchase-entity-cell__name {
+    display: inline-block;
+    max-width: 100%;
     overflow: hidden;
     color: #1f3026;
     font-weight: 800;
@@ -1273,7 +1295,18 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
+    gap: 3px;
+}
+
+.purchase-actions :deep(.v-btn) {
+    flex: 0 0 24px;
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+}
+
+.purchase-actions :deep(.v-icon) {
+    font-size: 17px;
 }
 
 .purchase-pages {
