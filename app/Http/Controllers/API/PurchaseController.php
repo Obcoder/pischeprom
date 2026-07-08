@@ -122,15 +122,15 @@ class PurchaseController extends Controller
         ]);
 
         return [
-            'entity' => fn (Builder $query) => $query
+            'entity' => fn ($query) => $query
                 ->without(['buildings', 'classification', 'country'])
                 ->select(array_map(fn (string $column) => "entities.{$column}", $entityColumns))
                 ->with([
-                    'units' => fn (Builder $unitQuery) => $unitQuery
+                    'units' => fn ($unitQuery) => $unitQuery
                         ->without(['fields', 'labels', 'telephones', 'uris'])
                         ->select(array_map(fn (string $column) => "units.{$column}", $unitColumns)),
                 ]),
-            'goods' => fn (Builder $query) => $query
+            'goods' => fn ($query) => $query
                 ->select(array_map(fn (string $column) => "goods.{$column}", $goodColumns)),
         ];
     }
