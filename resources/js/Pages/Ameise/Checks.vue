@@ -1,7 +1,7 @@
 <script setup>
 import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { logo } from '@/Pages/Helpers/consts.js'
@@ -31,6 +31,17 @@ const dictionaryDialog = ref(false)
 const dictionaryType = ref('articles')
 
 const selectedCheck = ref(null)
+const entityHeader = ref(null)
+const entityColumnWidth = ref(null)
+
+const ENTITY_COLUMN_MIN_WIDTH = 180
+const ENTITY_COLUMN_MAX_WIDTH = 760
+
+const entityColumnResize = reactive({
+    active: false,
+    startX: 0,
+    startWidth: 0,
+})
 
 const filters = reactive({
     date_from: '',
@@ -201,6 +212,12 @@ const activeFiltersCount = computed(() => [
     filters.project_id,
 ].filter(Boolean).length)
 
+const checksGridStyle = computed(() => (
+    entityColumnWidth.value
+        ? { '--checks-entity-col-width': `${entityColumnWidth.value}px` }
+        : {}
+))
+
 watch(
     () => lineForm.commodity_id,
     () => {
@@ -304,6 +321,53 @@ function entityHref(check) {
     const entityId = check.entity?.id || check.entity_id
 
     return entityId ? route('Ameise.entity.show', entityId) : null
+}
+
+function clampEntityColumnWidth(width) {
+    return Math.min(
+        Math.max(Math.round(width), ENTITY_COLUMN_MIN_WIDTH),
+        ENTITY_COLUMN_MAX_WIDTH
+    )
+}
+
+function startEntityColumnResize(event) {
+    if (event.button !== 0) {
+        return
+    }
+
+    const measuredWidth = entityHeader.value?.getBoundingClientRect().width
+
+    entityColumnResize.active = true
+    entityColumnResize.startX = event.clientX
+    entityColumnResize.startWidth = measuredWidth || entityColumnWidth.value || 320
+    entityColumnWidth.value = clampEntityColumnWidth(entityColumnResize.startWidth)
+
+    document.body.classList.add('checks-resizing-column')
+    window.addEventListener('mousemove', resizeEntityColumn)
+    window.addEventListener('mouseup', stopEntityColumnResize)
+    window.addEventListener('blur', stopEntityColumnResize)
+}
+
+function resizeEntityColumn(event) {
+    if (!entityColumnResize.active) {
+        return
+    }
+
+    entityColumnWidth.value = clampEntityColumnWidth(
+        entityColumnResize.startWidth + event.clientX - entityColumnResize.startX
+    )
+}
+
+function stopEntityColumnResize() {
+    if (!entityColumnResize.active) {
+        return
+    }
+
+    entityColumnResize.active = false
+    document.body.classList.remove('checks-resizing-column')
+    window.removeEventListener('mousemove', resizeEntityColumn)
+    window.removeEventListener('mouseup', stopEntityColumnResize)
+    window.removeEventListener('blur', stopEntityColumnResize)
 }
 
 function commodityHref(item) {
@@ -691,10 +755,18 @@ onMounted(async () => {
         await openCheck({ id: checkId })
     }
 })
+
+onBeforeUnmount(() => {
+    stopEntityColumnResize()
+})
 </script>
 
 <template>
-    <v-container fluid class="checks-page pa-0">
+    <v-container
+        fluid
+        class="checks-page pa-0"
+        :class="{ 'checks-page--resizing-column': entityColumnResize.active }"
+    >
         <Head title="Checks" />
 
         <div class="checks-shell">
@@ -844,7 +916,7 @@ onMounted(async () => {
             </section>
 
             <div class="checks-table-wrap">
-                <table class="checks-grid">
+                <table class="checks-grid" :style="checksGridStyle">
                     <colgroup>
                         <col class="checks-col-id">
                         <col class="checks-col-date">
@@ -865,7 +937,17 @@ onMounted(async () => {
                         <tr>
                             <th class="col-id">ID</th>
                             <th class="col-date">Дата</th>
-                            <th class="col-entity">Контрагент</th>
+                            <th ref="entityHeader" class="col-entity">
+                                <span class="col-entity__label">Контрагент</span>
+                                <span
+                                    class="column-resize-handle"
+                                    role="separator"
+                                    aria-orientation="vertical"
+                                    aria-label="Изменить ширину столбца Контрагент"
+                                    title="Потяните, чтобы изменить ширину"
+                                    @mousedown.stop.prevent="startEntityColumnResize"
+                                ></span>
+                            </th>
                             <th class="col-money">Сумма</th>
                             <th class="col-count">Строк</th>
                             <th>Статья</th>
@@ -1670,7 +1752,7 @@ onMounted(async () => {
 }
 
 .checks-col-entity {
-    width: auto;
+    width: var(--checks-entity-col-width, auto);
 }
 
 .col-id {
@@ -1682,7 +1764,53 @@ onMounted(async () => {
 }
 
 .col-entity {
+    position: relative;
     width: auto;
+    padding-right: 12px !important;
+}
+
+.col-entity__label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.column-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    width: 9px;
+    cursor: col-resize;
+    user-select: none;
+}
+
+.column-resize-handle::after {
+    position: absolute;
+    top: 5px;
+    right: 3px;
+    bottom: 5px;
+    width: 2px;
+    background: transparent;
+    content: "";
+}
+
+.col-entity:hover .column-resize-handle::after,
+.column-resize-handle:hover::after,
+.checks-page--resizing-column .column-resize-handle::after {
+    background: #7f5f00;
+}
+
+.checks-page--resizing-column {
+    cursor: col-resize;
+    user-select: none;
+}
+
+:global(body.checks-resizing-column) {
+    cursor: col-resize;
+    user-select: none;
 }
 
 .cell-id {
