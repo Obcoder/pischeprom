@@ -34,6 +34,7 @@ const selectedCheck = ref(null)
 const entityHeader = ref(null)
 const entityColumnWidth = ref(null)
 
+const ENTITY_COLUMN_WIDTH_STORAGE_KEY = 'ameise:checks:entity-column-width'
 const ENTITY_COLUMN_MIN_WIDTH = 180
 const ENTITY_COLUMN_MAX_WIDTH = 760
 
@@ -330,6 +331,37 @@ function clampEntityColumnWidth(width) {
     )
 }
 
+function readStoredEntityColumnWidth() {
+    if (typeof window === 'undefined') {
+        return
+    }
+
+    try {
+        const storedWidth = Number(window.localStorage.getItem(ENTITY_COLUMN_WIDTH_STORAGE_KEY))
+
+        if (Number.isFinite(storedWidth) && storedWidth > 0) {
+            entityColumnWidth.value = clampEntityColumnWidth(storedWidth)
+        }
+    } catch (error) {
+        console.warn('Unable to read checks entity column width:', error)
+    }
+}
+
+function storeEntityColumnWidth() {
+    if (typeof window === 'undefined' || !entityColumnWidth.value) {
+        return
+    }
+
+    try {
+        window.localStorage.setItem(
+            ENTITY_COLUMN_WIDTH_STORAGE_KEY,
+            String(clampEntityColumnWidth(entityColumnWidth.value))
+        )
+    } catch (error) {
+        console.warn('Unable to store checks entity column width:', error)
+    }
+}
+
 function startEntityColumnResize(event) {
     if (event.button !== 0) {
         return
@@ -364,6 +396,7 @@ function stopEntityColumnResize() {
     }
 
     entityColumnResize.active = false
+    storeEntityColumnWidth()
     document.body.classList.remove('checks-resizing-column')
     window.removeEventListener('mousemove', resizeEntityColumn)
     window.removeEventListener('mouseup', stopEntityColumnResize)
@@ -744,6 +777,8 @@ async function deleteDictionary(item) {
 }
 
 onMounted(async () => {
+    readStoredEntityColumnWidth()
+
     await Promise.all([
         loadChecks(),
         loadDictionaries(),
