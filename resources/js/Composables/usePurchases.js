@@ -8,7 +8,7 @@ export function usePurchases() {
     const errors = ref({})
     const pagination = ref({
         total: 0,
-        per_page: 15,
+        per_page: 100,
         current_page: 1,
         last_page: 1,
     })
@@ -17,13 +17,13 @@ export function usePurchases() {
         loading.value = true
         try {
             const { data } = await axios.get('/api/purchases', { params })
-            items.value = data.data
+            items.value = data.data || []
             if (data.meta) {
                 pagination.value = {
-                    total: data.meta.total,
-                    per_page: data.meta.per_page,
-                    current_page: data.meta.current_page,
-                    last_page: data.meta.last_page,
+                    total: data.meta.total || 0,
+                    per_page: data.meta.per_page || 100,
+                    current_page: data.meta.current_page || 1,
+                    last_page: data.meta.last_page || 1,
                 }
             }
         } finally {
