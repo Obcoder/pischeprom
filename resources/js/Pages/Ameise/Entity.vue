@@ -42,16 +42,44 @@ const error = ref(null)
 const dialog = ref(false)
 const isEdit = ref(false)
 const activeTab = ref('overview')
+const relatedChecks = ref([])
+const relatedChecksLoading = ref(false)
+const relatedChecksError = ref(null)
+const relatedChecksMeta = ref({
+    total_amount: 0,
+    items_count: 0,
+    project_totals: [],
+})
 
 const { getMeta, createOne, updateOne, deleteOne } = useEntityApi()
 const { form, resetForm, fillForm, toPayload } = useEntityForm()
 
 const pageTitle = computed(() => entity.value?.name || (props.entityId ? `Entity #${props.entityId}` : 'Новая Entity'))
 const emailsCount = computed(() => entity.value?.emails?.length || 0)
+const heroEyebrow = computed(() => {
+    if (entity.value?.id) {
+        return `Entity #${entity.value.id}`
+    }
+
+    return props.entityId ? `Entity #${props.entityId}` : 'Новая Entity'
+})
+const heroSubtitle = computed(() => {
+    if (entity.value?.full_name) {
+        return entity.value.full_name
+    }
+
+    if (entity.value?.classification?.name) {
+        return entity.value.classification.name
+    }
+
+    return props.entityId ? 'Загрузка карточки контрагента' : 'Создание карточки контрагента'
+})
+const heroClassification = computed(() => entity.value?.classification?.name || 'Без классификации')
 
 async function fetchEntity() {
     if (!props.entityId) {
         entity.value = null
+        resetRelatedChecks()
         openCreate()
         return
     }
@@ -62,6 +90,7 @@ async function fetchEntity() {
     try {
         const { data } = await axios.get(`/api/entities/${props.entityId}`)
         entity.value = data.data || data
+        await fetchRelatedChecks(entity.value?.id)
     } catch (err) {
         console.error(err)
         error.value = 'Не удалось загрузить Entity.'
@@ -80,6 +109,52 @@ async function loadMeta() {
         error.value = 'Не удалось загрузить справочники Entity.'
     } finally {
         metaLoading.value = false
+    }
+}
+
+function resetRelatedChecks() {
+    relatedChecks.value = []
+    relatedChecksError.value = null
+    relatedChecksMeta.value = {
+        total_amount: 0,
+        items_count: 0,
+        project_totals: [],
+    }
+}
+
+function unpackList(response) {
+    return response?.data?.data || response?.data || []
+}
+
+async function fetchRelatedChecks(entityId = entity.value?.id) {
+    if (!entityId) {
+        resetRelatedChecks()
+        return
+    }
+
+    relatedChecksLoading.value = true
+    relatedChecksError.value = null
+
+    try {
+        const response = await axios.get(route('checks.index'), {
+            params: {
+                entity_id: entityId,
+                sort_by: 'date',
+                sort_desc: true,
+            },
+        })
+
+        relatedChecks.value = unpackList(response)
+        relatedChecksMeta.value = {
+            total_amount: Number(response.data?.meta?.total_amount || 0),
+            items_count: Number(response.data?.meta?.items_count || 0),
+            project_totals: response.data?.meta?.project_totals || [],
+        }
+    } catch (err) {
+        console.error(err)
+        relatedChecksError.value = 'Не удалось загрузить связанные checks.'
+    } finally {
+        relatedChecksLoading.value = false
     }
 }
 
@@ -141,6 +216,7 @@ async function submit() {
             : await createOne(toPayload())
 
         entity.value = saved
+        await fetchRelatedChecks(saved?.id)
         dialog.value = false
         resetForm()
 
@@ -188,26 +264,46 @@ useHead({
 
 <template>
     <v-container fluid class="entity-page pa-4">
-        <header class="entity-page__header mb-4">
-            <div class="entity-page__heading">
-                <div v-if="entity" class="entity-page__kicker">
-                    Entity #{{ entity.id }}
-                </div>
-                <h1>{{ pageTitle }}</h1>
+        <header class="entity-page__maroon-header mb-4">
+            <div class="entity-page__maroon-main">
+                <div class="entity-page__heading">
+                    <div class="entity-page__eyebrow">
+                        {{ heroEyebrow }}
+                    </div>
 
-                <div class="entity-page__subtitle">
-                    {{ entity?.classification?.name || 'Карточка контрагента' }}
+                    <h1>{{ pageTitle }}</h1>
+
+                    <p class="entity-page__subtitle">
+                        {{ heroSubtitle }}
+                    </p>
                 </div>
+
+                <v-chip
+                    v-if="entity"
+                    color="#800000"
+                    variant="flat"
+                    size="small"
+                    class="entity-page__classification"
+                >
+                    {{ heroClassification }}
+                </v-chip>
             </div>
 
             <div class="entity-page__actions">
-                <v-btn color="#800000" rounded="lg" prepend-icon="mdi-plus" @click="openCreate">
+                <v-btn
+                    class="entity-page__action entity-page__action--primary"
+                    color="#fff7ed"
+                    rounded="lg"
+                    prepend-icon="mdi-plus"
+                    @click="openCreate"
+                >
                     Новая
                 </v-btn>
 
                 <v-btn
+                    class="entity-page__action entity-page__action--ghost"
                     variant="tonal"
-                    color="#800000"
+                    color="white"
                     rounded="lg"
                     prepend-icon="mdi-pencil"
                     :disabled="!entity"
@@ -217,8 +313,9 @@ useHead({
                 </v-btn>
 
                 <v-btn
+                    class="entity-page__action entity-page__action--ghost"
                     variant="tonal"
-                    color="error"
+                    color="white"
                     rounded="lg"
                     prepend-icon="mdi-delete"
                     :loading="deleting"
@@ -229,7 +326,13 @@ useHead({
                 </v-btn>
 
                 <Link :href="route('Ameise.großbuch')" class="entity-page__back">
-                    <v-btn variant="text" color="#800000" rounded="lg" prepend-icon="mdi-arrow-left">
+                    <v-btn
+                        class="entity-page__action entity-page__action--text"
+                        variant="text"
+                        color="white"
+                        rounded="lg"
+                        prepend-icon="mdi-arrow-left"
+                    >
                         Grossbuch
                     </v-btn>
                 </Link>
@@ -252,7 +355,15 @@ useHead({
 
         <v-tabs-window v-model="activeTab" class="entity-page__window">
             <v-tabs-window-item value="overview">
-                <EntityDetailCard :entity="entity" />
+                <EntityDetailCard
+                    :entity="entity"
+                    :show-hero="false"
+                    show-checks
+                    :checks="relatedChecks"
+                    :checks-loading="relatedChecksLoading"
+                    :checks-error="relatedChecksError"
+                    :checks-meta="relatedChecksMeta"
+                />
             </v-tabs-window-item>
 
             <v-tabs-window-item value="emails">
@@ -285,46 +396,61 @@ useHead({
         linear-gradient(135deg, #fffaf4 0%, #f7f2eb 48%, #fff 100%);
 }
 
-.entity-page__header {
+.entity-page__maroon-header {
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+    border: 1px solid rgba(128, 0, 0, 0.12);
+    border-radius: 22px;
+    background:
+        radial-gradient(circle at 92% 0%, rgba(128, 0, 0, 0.22), transparent 30%),
+        linear-gradient(135deg, #3f1d1d 0%, #7f1d1d 100%);
+    box-shadow: 0 18px 44px rgba(48, 20, 10, 0.12);
+    color: #fff;
+}
+
+.entity-page__maroon-main {
     display: flex;
     align-items: flex-start;
-    flex-direction: column;
     justify-content: space-between;
-    gap: 12px;
-    padding: 16px 18px;
-    border: 1px solid rgba(128, 0, 0, 0.08);
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.82);
-    box-shadow: 0 16px 36px rgba(48, 20, 10, 0.08);
-    backdrop-filter: blur(8px);
+    gap: 18px;
 }
 
 .entity-page__heading {
     min-width: 0;
 }
 
-.entity-page__kicker {
-    margin-bottom: 4px;
-    color: #8b6b61;
-    font-size: 0.72rem;
-    font-weight: 950;
+.entity-page__eyebrow {
+    margin-bottom: 8px;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.78rem;
+    font-weight: 900;
     letter-spacing: 0.12em;
     text-transform: uppercase;
 }
 
-.entity-page__header h1 {
+.entity-page__maroon-header h1 {
     margin: 0;
-    color: #35160d;
-    font-size: clamp(1.4rem, 2vw, 2.4rem);
+    color: #fff;
+    font-size: 2.25rem;
     font-weight: 950;
     line-height: 1.06;
+    overflow-wrap: anywhere;
 }
 
 .entity-page__subtitle {
-    margin-top: 4px;
-    color: #7c5148;
+    max-width: 860px;
+    margin: 10px 0 0;
+    color: rgba(255, 255, 255, 0.78);
     font-size: 0.86rem;
     font-weight: 800;
+    line-height: 1.55;
+}
+
+.entity-page__classification {
+    flex: 0 0 auto;
+    background: rgba(255, 255, 255, 0.16) !important;
+    color: #fff !important;
 }
 
 .entity-page__back {
@@ -336,6 +462,24 @@ useHead({
     flex-wrap: wrap;
     justify-content: flex-start;
     gap: 8px;
+}
+
+.entity-page__action {
+    font-weight: 900;
+    letter-spacing: 0.04em;
+}
+
+.entity-page__action--primary {
+    color: #800000 !important;
+}
+
+.entity-page__action--ghost {
+    background: rgba(255, 255, 255, 0.14) !important;
+    color: #fff !important;
+}
+
+.entity-page__action--text {
+    color: #fff !important;
 }
 
 .entity-page__tabs {
@@ -355,6 +499,18 @@ useHead({
 }
 
 @media (max-width: 760px) {
+    .entity-page__maroon-header {
+        padding: 18px;
+    }
+
+    .entity-page__maroon-main {
+        display: grid;
+    }
+
+    .entity-page__maroon-header h1 {
+        font-size: 1.7rem;
+    }
+
     .entity-page__actions {
         justify-content: flex-start;
     }

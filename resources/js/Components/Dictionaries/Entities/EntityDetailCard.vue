@@ -8,6 +8,33 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    showHero: {
+        type: Boolean,
+        default: true,
+    },
+    showChecks: {
+        type: Boolean,
+        default: false,
+    },
+    checks: {
+        type: Array,
+        default: () => [],
+    },
+    checksLoading: {
+        type: Boolean,
+        default: false,
+    },
+    checksError: {
+        type: String,
+        default: null,
+    },
+    checksMeta: {
+        type: Object,
+        default: () => ({
+            total_amount: 0,
+            items_count: 0,
+        }),
+    },
 })
 
 const { formatPhones } = usePhoneFormatter()
@@ -17,6 +44,16 @@ const cities = computed(() => props.entity?.cities || [])
 const buildings = computed(() => props.entity?.buildings || [])
 const units = computed(() => props.entity?.units || [])
 const chats = computed(() => props.entity?.chats || [])
+const checks = computed(() => props.checks || [])
+const checksSummary = computed(() => {
+    const localTotal = checks.value.reduce((sum, check) => sum + numeric(check?.amount), 0)
+    const localItems = checks.value.reduce((sum, check) => sum + numeric(checkItemCount(check)), 0)
+
+    return {
+        total: numeric(props.checksMeta?.total_amount) || localTotal,
+        items: numeric(props.checksMeta?.items_count) || localItems,
+    }
+})
 
 const requisites = computed(() => [
     { label: 'INN', value: props.entity?.INN },
@@ -113,12 +150,59 @@ function countText(value) {
 
     return Number.isFinite(Number(value)) ? Number(value) : '—'
 }
+
+function numeric(value) {
+    const number = Number(value)
+
+    return Number.isFinite(number) ? number : 0
+}
+
+function formatMoney(value) {
+    return new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    }).format(numeric(value))
+}
+
+function formatCheckDate(value) {
+    if (!value) {
+        return '—'
+    }
+
+    const date = new Date(`${value}T00:00:00`)
+
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+    }).format(date)
+}
+
+function checkUrl(check) {
+    return check?.id ? `/Ameise/checks?check=${encodeURIComponent(check.id)}` : '/Ameise/checks'
+}
+
+function checkItemCount(check) {
+    if (check?.items_count !== null && check?.items_count !== undefined) {
+        return check.items_count
+    }
+
+    return numeric(check?.commodity_items_count) + numeric(check?.service_items_count)
+}
 </script>
 
 <template>
-    <v-card min-height="520" class="entity-detail-card">
+    <v-card
+        min-height="520"
+        class="entity-detail-card"
+        :class="{ 'entity-detail-card--without-hero': !showHero }"
+    >
         <template v-if="entity">
-            <div class="entity-detail-card__hero">
+            <div v-if="showHero" class="entity-detail-card__hero">
                 <div>
                     <div class="entity-detail-card__eyebrow">
                         Entity #{{ entity.id }}
@@ -151,6 +235,84 @@ function countText(value) {
                         <strong>{{ lastPurchaseDate }}</strong>
                     </div>
                 </div>
+
+                <section v-if="showChecks" class="entity-panel entity-panel--checks">
+                    <div class="entity-checks-head">
+                        <div class="entity-panel__title">
+                            <v-icon icon="mdi-receipt-text-outline" size="18" />
+                            Checks
+                            <span class="entity-checks-count">{{ checks.length }}</span>
+                        </div>
+
+                        <div class="entity-checks-summary">
+                            <div>
+                                <span>Сумма</span>
+                                <strong>{{ formatMoney(checksSummary.total) }}</strong>
+                            </div>
+                            <div>
+                                <span>Строк</span>
+                                <strong>{{ checksSummary.items }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="entity-checks-table-wrap">
+                        <table class="entity-checks-table">
+                            <colgroup>
+                                <col class="entity-checks-col-id">
+                                <col class="entity-checks-col-date">
+                                <col class="entity-checks-col-money">
+                                <col class="entity-checks-col-count">
+                                <col class="entity-checks-col-count">
+                                <col class="entity-checks-col-count">
+                                <col class="entity-checks-col-action">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Дата</th>
+                                    <th>Сумма</th>
+                                    <th>Строк</th>
+                                    <th>Товары</th>
+                                    <th>Услуги</th>
+                                    <th>Открыть</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="checksLoading">
+                                    <td colspan="7" class="entity-checks-state">Загрузка checks...</td>
+                                </tr>
+                                <tr v-else-if="checksError">
+                                    <td colspan="7" class="entity-checks-state entity-checks-state--error">
+                                        {{ checksError }}
+                                    </td>
+                                </tr>
+                                <tr v-else-if="!checks.length">
+                                    <td colspan="7" class="entity-checks-state">Связанных checks пока нет.</td>
+                                </tr>
+                                <template v-else>
+                                    <tr
+                                        v-for="check in checks"
+                                        :key="check.id"
+                                        class="entity-checks-row"
+                                    >
+                                        <td class="cell-id">#{{ check.id }}</td>
+                                        <td>{{ formatCheckDate(check.date) }}</td>
+                                        <td class="cell-money">{{ formatMoney(check.amount) }}</td>
+                                        <td>{{ countText(checkItemCount(check)) }}</td>
+                                        <td>{{ countText(check.commodity_items_count) }}</td>
+                                        <td>{{ countText(check.service_items_count) }}</td>
+                                        <td>
+                                            <Link :href="checkUrl(check)" class="entity-checks-link">
+                                                Check
+                                            </Link>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
                 <div class="entity-detail-grid">
                     <section class="entity-panel entity-panel--requisites">
@@ -318,6 +480,10 @@ function countText(value) {
     box-shadow: 0 18px 44px rgba(48, 20, 10, 0.10);
 }
 
+.entity-detail-card--without-hero {
+    min-height: 0 !important;
+}
+
 .entity-detail-card__hero {
     display: flex;
     align-items: flex-start;
@@ -414,6 +580,12 @@ function countText(value) {
     background: #fff;
 }
 
+.entity-panel--checks {
+    min-height: 0;
+    padding: 12px;
+    gap: 10px;
+}
+
 .entity-panel--wide {
     grid-column: span 3;
 }
@@ -425,6 +597,155 @@ function countText(value) {
     color: #3f1d1d;
     font-size: 1rem;
     font-weight: 950;
+}
+
+.entity-checks-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.entity-checks-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: rgba(128, 0, 0, 0.10);
+    color: #800000;
+    font-size: 0.72rem;
+    font-weight: 950;
+}
+
+.entity-checks-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.entity-checks-summary div {
+    display: grid;
+    min-width: 92px;
+    gap: 2px;
+    padding: 6px 9px;
+    border: 1px solid rgba(128, 0, 0, 0.08);
+    border-radius: 8px;
+    background: #fff7ed;
+}
+
+.entity-checks-summary span {
+    color: #8b6b61;
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.entity-checks-summary strong {
+    color: #32140c;
+    font-size: 0.84rem;
+    font-weight: 950;
+    line-height: 1.15;
+}
+
+.entity-checks-table-wrap {
+    width: 100%;
+    overflow: auto;
+    border: 1px solid #d8cfb8;
+    background: #fff;
+}
+
+.entity-checks-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    color: #24180f;
+    font-size: 0.75rem;
+}
+
+.entity-checks-table th,
+.entity-checks-table td {
+    overflow: hidden;
+    padding: 4px 6px;
+    border: 1px solid #d8cfb8;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entity-checks-table thead th {
+    background: #d9d9d9;
+    color: #1f1b16;
+    font-weight: 950;
+    text-align: left;
+}
+
+.entity-checks-table tbody tr:nth-child(odd) {
+    background: #fff4cc;
+}
+
+.entity-checks-table tbody tr:nth-child(even) {
+    background: #fff;
+}
+
+.entity-checks-row:hover {
+    background: #e8f1df !important;
+}
+
+.entity-checks-col-id {
+    width: 72px;
+}
+
+.entity-checks-col-date {
+    width: 110px;
+}
+
+.entity-checks-col-money {
+    width: 132px;
+}
+
+.entity-checks-col-count {
+    width: 78px;
+}
+
+.entity-checks-col-action {
+    width: 96px;
+}
+
+.cell-id {
+    color: #6f4439;
+    font-weight: 950;
+}
+
+.cell-money {
+    color: #2d1a12;
+    font-weight: 950;
+    text-align: right;
+}
+
+.entity-checks-link {
+    color: #800000;
+    font-weight: 950;
+    text-decoration: none;
+}
+
+.entity-checks-link:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 2px;
+}
+
+.entity-checks-state {
+    color: #8b6b61;
+    font-weight: 800;
+    text-align: center;
+}
+
+.entity-checks-state--error {
+    color: #a20f0f;
 }
 
 .entity-facts {
@@ -706,11 +1027,16 @@ function countText(value) {
     .entity-detail-card__hero,
     .entity-detail-card__stats,
     .entity-detail-grid,
+    .entity-checks-head,
     .entity-relation-columns {
         grid-template-columns: 1fr;
     }
 
     .entity-detail-card__hero {
+        display: grid;
+    }
+
+    .entity-checks-head {
         display: grid;
     }
 
