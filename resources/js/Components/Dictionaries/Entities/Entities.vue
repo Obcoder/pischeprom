@@ -19,7 +19,7 @@ const saving = ref(false)
 const dialog = ref(false)
 const isEdit = ref(false)
 const selectedEntity = ref(null)
-const groupByCities = ref(false)
+const groupByMode = ref(null)
 const filtersOpened = ref(false)
 const detailDrawerOpened = ref(false)
 
@@ -27,6 +27,7 @@ const meta = ref({
     classifications: [],
     countries: [],
     cities: [],
+    regions: [],
     buildings: [],
     emails: [],
     telephones: [],
@@ -49,20 +50,73 @@ const tableItems = computed(() => {
         ...item,
         classification_name: item.classification?.name ?? '',
         country_name: item.country?.name ?? '',
-        city_names: item.cities?.map(c => c.name).join(', ') ?? '',
+        city_names: cityNames(item).join(', '),
+        region_names: Array.isArray(item.region_names)
+            ? item.region_names.join(', ')
+            : regionNames(item).join(', '),
         telephones_display: formatPhones(item.telephones ?? []),
+        created_at_display: formatDate(item.created_at),
+        purchases_max_date_display: formatDate(item.purchases_max_date || item.last_purchase_date),
+        sales_max_date_display: formatDate(item.sales_max_date || item.last_sale_date),
     }))
 
-    if (!groupByCities.value) {
+    if (!groupByMode.value) {
         return mapped
     }
 
+    const key = groupByMode.value === 'region' ? 'region_names' : 'city_names'
+    const fallback = groupByMode.value === 'region' ? 'Без региона' : 'Без города'
+
     return [...mapped].sort((a, b) => {
-        const aCity = a.city_names || 'Без города'
-        const bCity = b.city_names || 'Без города'
-        return aCity.localeCompare(bCity, 'ru')
+        const aGroup = a[key] || fallback
+        const bGroup = b[key] || fallback
+        const groupComparison = aGroup.localeCompare(bGroup, 'ru')
+
+        if (groupComparison !== 0) {
+            return groupComparison
+        }
+
+        return String(a.name || '').localeCompare(String(b.name || ''), 'ru')
     })
 })
+
+const regionNames = (item) => {
+    const regions = [
+        ...(item.cities || []).map(city => city.region),
+        ...(item.buildings || []).map(building => building.city?.region),
+    ].filter(region => region?.id || region?.name)
+
+    return [...new Map(regions.map(region => [region.id || region.name, region.name])).values()]
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, 'ru'))
+}
+
+const cityNames = (item) => {
+    const cities = [
+        ...(item.cities || []),
+        ...(item.buildings || []).map(building => building.city),
+    ].filter(city => city?.id || city?.name)
+
+    return [...new Map(cities.map(city => [city.id || city.name, city.name])).values()]
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, 'ru'))
+}
+
+const formatDate = (value) => {
+    if (!value) {
+        return ''
+    }
+
+    try {
+        return new Intl.DateTimeFormat('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit',
+        }).format(new Date(value))
+    } catch {
+        return String(value)
+    }
+}
 
 const loadMeta = async () => {
     try {
@@ -273,12 +327,12 @@ onMounted(async () => {
                     :page-markers="pageMarkers"
                     :filters="filters"
                     :meta="meta"
-                    :group-by-cities="groupByCities"
+                    :group-by-mode="groupByMode"
                     :filters-opened="filtersOpened"
                     @update:page="page = $event"
                     @update:itemsPerPage="itemsPerPage = $event"
                     @update:sortBy="sortBy = $event"
-                    @update:groupByCities="groupByCities = $event"
+                    @update:groupByMode="groupByMode = $event"
                     @update:filtersOpened="filtersOpened = $event"
                     @show="showEntity"
                     @create="openCreate"

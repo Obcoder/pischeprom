@@ -13,7 +13,7 @@ const props = defineProps({
     pageMarkers: { type: Array, default: () => [] },
     filters: { type: Object, required: true },
     meta: { type: Object, required: true },
-    groupByCities: Boolean,
+    groupByMode: { type: String, default: null },
     filtersOpened: Boolean,
 })
 
@@ -21,7 +21,7 @@ const emit = defineEmits([
     'update:page',
     'update:itemsPerPage',
     'update:sortBy',
-    'update:groupByCities',
+    'update:groupByMode',
     'update:filtersOpened',
     'show',
     'create',
@@ -34,20 +34,71 @@ const emit = defineEmits([
 const { formatPhones } = usePhoneFormatter()
 
 const headers = [
-    { title: 'Название', key: 'name', sortable: true },
-    { title: 'Классификация', key: 'classification_name', sortable: false },
-    { title: 'Города', key: 'city_names', sortable: false },
-    { title: 'Дом', key: 'buildings', sortable: true },
-    { title: 'Телефоны', key: 'telephones_display', sortable: false },
-    { title: 'Продаж', key: 'sales_count', sortable: true },
-    { title: 'Последний purchase', key: 'last_purchase_date', sortable: true },
-    { title: 'Страна', key: 'country_name', sortable: false },
-    { title: '', key: 'actions', sortable: false, width: 170 },
+    { title: 'Название', key: 'name', sortable: true, width: '18%' },
+    { title: 'Класс', key: 'classification_name', sortable: true, width: '11%' },
+    { title: 'Регион', key: 'region_names', sortable: true, width: '12%' },
+    { title: 'Города', key: 'city_names', sortable: true, width: '11%' },
+    { title: 'Дом', key: 'buildings', sortable: true, width: '13%' },
+    { title: 'Тел.', key: 'telephones_display', sortable: true, width: '10%' },
+    { title: 'Продаж', key: 'sales_count', sortable: true, width: 72 },
+    { title: 'Purchase', key: 'purchases_max_date', sortable: true, width: 92 },
+    { title: 'Sale', key: 'sales_max_date', sortable: true, width: 92 },
+    { title: 'Создан', key: 'created_at', sortable: true, width: 82 },
+    { title: 'Страна', key: 'country_name', sortable: true, width: '9%' },
+    { title: '', key: 'actions', sortable: false, width: 136 },
+]
+
+const sortOptions = [
+    { title: 'Количество продаж', value: 'sales_count' },
+    { title: 'Дата создания', value: 'created_at' },
+    { title: 'Последняя закупка', value: 'purchases_max_date' },
+    { title: 'Последняя продажа', value: 'sales_max_date' },
+    { title: 'Название', value: 'name' },
+    { title: 'Классификация', value: 'classification_name' },
+    { title: 'Регион', value: 'region_names' },
+    { title: 'Город', value: 'city_names' },
+    { title: 'Дом', value: 'buildings' },
+    { title: 'Телефон', value: 'telephones_display' },
+    { title: 'Страна', value: 'country_name' },
+    { title: 'ИНН', value: 'INN' },
+    { title: 'ОГРН', value: 'OGRN' },
+]
+
+const groupOptions = [
+    { title: 'Нет', value: null },
+    { title: 'Регионы', value: 'region' },
+    { title: 'Города', value: 'city' },
 ]
 
 const filterMenu = computed({
     get: () => props.filtersOpened,
     set: value => emit('update:filtersOpened', !!value),
+})
+
+const currentSortKey = computed({
+    get: () => props.sortBy?.[0]?.key || 'sales_count',
+    set: value => emit('update:sortBy', [{ key: value || 'sales_count', order: currentSortOrder.value }]),
+})
+
+const currentSortOrder = computed({
+    get: () => props.sortBy?.[0]?.order || 'desc',
+    set: value => emit('update:sortBy', [{ key: currentSortKey.value, order: value === 'asc' ? 'asc' : 'desc' }]),
+})
+
+const currentSortTitle = computed(() => {
+    return sortOptions.find(item => item.value === currentSortKey.value)?.title || 'Количество продаж'
+})
+
+const tableGroupBy = computed(() => {
+    if (props.groupByMode === 'region') {
+        return [{ key: 'region_names', order: 'asc' }]
+    }
+
+    if (props.groupByMode === 'city') {
+        return [{ key: 'city_names', order: 'asc' }]
+    }
+
+    return []
 })
 
 const activeFiltersCount = computed(() => {
@@ -82,11 +133,21 @@ const buildingTitle = (building) => {
         building.postcode,
     ].filter(Boolean).join(' · ')
 }
+
+const groupLabel = (item) => {
+    const value = item?.value ?? item?.title ?? item?.key ?? ''
+
+    if (value) {
+        return value
+    }
+
+    return props.groupByMode === 'region' ? 'Без региона' : 'Без города'
+}
 </script>
 
 <template>
     <v-card class="w-100 entities-table-card">
-        <v-card-title class="d-flex align-center flex-wrap ga-2">
+        <v-card-title class="entities-table-toolbar">
             <span>Entities</span>
 
             <v-chip size="small" variant="tonal" color="blue-grey-lighten-2">
@@ -94,6 +155,63 @@ const buildingTitle = (building) => {
             </v-chip>
 
             <v-spacer />
+
+            <v-menu
+                :close-on-content-click="false"
+                location="bottom end"
+                offset="12"
+                content-class="entity-sort-menu"
+            >
+                <template #activator="{ props: menuProps }">
+                    <v-btn
+                        v-bind="menuProps"
+                        color="blue-grey-lighten-2"
+                        variant="tonal"
+                        prepend-icon="mdi-sort"
+                    >
+                        {{ currentSortTitle }}
+                        <v-icon
+                            :icon="currentSortOrder === 'desc' ? 'mdi-sort-descending' : 'mdi-sort-ascending'"
+                            end
+                        />
+                    </v-btn>
+                </template>
+
+                <v-card class="entity-sort-card">
+                    <v-card-title class="entity-sort-card__title">
+                        Сортировка
+                    </v-card-title>
+
+                    <v-card-text>
+                        <v-select
+                            v-model="currentSortKey"
+                            :items="sortOptions"
+                            item-title="title"
+                            item-value="value"
+                            label="Поле"
+                            density="compact"
+                            variant="solo-filled"
+                            hide-details
+                        />
+
+                        <v-btn-toggle
+                            v-model="currentSortOrder"
+                            class="mt-3"
+                            density="compact"
+                            mandatory
+                            divided
+                        >
+                            <v-btn value="desc" prepend-icon="mdi-sort-descending">
+                                Убыв.
+                            </v-btn>
+
+                            <v-btn value="asc" prepend-icon="mdi-sort-ascending">
+                                Возр.
+                            </v-btn>
+                        </v-btn-toggle>
+                    </v-card-text>
+                </v-card>
+            </v-menu>
 
             <v-menu
                 v-model="filterMenu"
@@ -300,18 +418,27 @@ const buildingTitle = (building) => {
                 Добавить
             </v-btn>
 
-            <v-btn
-                :variant="groupByCities ? 'flat' : 'tonal'"
-                color="secondary"
-                @click="emit('update:groupByCities', !groupByCities)"
+            <v-btn-toggle
+                :model-value="groupByMode"
+                class="entity-group-toggle"
+                density="compact"
+                divided
+                @update:model-value="emit('update:groupByMode', $event ?? null)"
             >
-                {{ groupByCities ? 'Без группировки' : 'По городам' }}
-            </v-btn>
+                <v-btn
+                    v-for="option in groupOptions"
+                    :key="option.value || 'none'"
+                    :value="option.value"
+                    size="small"
+                >
+                    {{ option.title }}
+                </v-btn>
+            </v-btn-toggle>
         </v-card-title>
 
-        <v-card-text>
+        <v-card-text class="entities-table-body">
             <v-data-table-server
-                class="text-caption"
+                class="entities-data-table text-caption"
                 :headers="headers"
                 :items="items"
                 :items-length="totalItems"
@@ -319,13 +446,29 @@ const buildingTitle = (building) => {
                 :page="page"
                 :items-per-page="itemsPerPage"
                 :sort-by="sortBy"
+                :group-by="tableGroupBy"
                 fixed-header
                 hide-default-footer
                 item-value="id"
-                height="770"
+                height="100%"
+                density="compact"
                 hover
                 @update:options="onOptionsUpdate"
             >
+                <template #group-header="{ item, columns, toggleGroup, isGroupOpen }">
+                    <tr class="entity-group-row">
+                        <td :colspan="columns?.length || headers.length">
+                            <v-btn
+                                :icon="typeof isGroupOpen === 'function' && isGroupOpen(item) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                                size="x-small"
+                                variant="text"
+                                @click="typeof toggleGroup === 'function' && toggleGroup(item)"
+                            />
+                            <strong>{{ groupLabel(item) }}</strong>
+                        </td>
+                    </tr>
+                </template>
+
                 <template #item.name="{ item }">
                     <a
                         href="#"
@@ -336,8 +479,12 @@ const buildingTitle = (building) => {
                     </a>
                 </template>
 
+                <template #item.region_names="{ item }">
+                    <span>{{ item.region_names || '—' }}</span>
+                </template>
+
                 <template #item.city_names="{ item }">
-                    <div v-if="groupByCities" class="d-flex flex-column">
+                    <div v-if="groupByMode === 'city'" class="d-flex flex-column">
                         <strong>{{ item.city_names || 'Без города' }}</strong>
                         <span class="text-medium-emphasis">{{ item.name }}</span>
                     </div>
@@ -359,15 +506,23 @@ const buildingTitle = (building) => {
                     {{ item.telephones_display || formatPhones(item.telephones || []) || '—' }}
                 </template>
 
-                <template #item.last_purchase_date="{ item }">
-                    {{ item.last_purchase_date ? new Date(item.last_purchase_date).toLocaleDateString() : '—' }}
+                <template #item.purchases_max_date="{ item }">
+                    {{ item.purchases_max_date_display || '—' }}
+                </template>
+
+                <template #item.sales_max_date="{ item }">
+                    {{ item.sales_max_date_display || '—' }}
+                </template>
+
+                <template #item.created_at="{ item }">
+                    {{ item.created_at_display || '—' }}
                 </template>
 
                 <template #item.actions="{ item }">
-                    <div class="d-flex ga-1 justify-end">
+                    <div class="entity-row-actions">
                         <v-btn
                             icon="mdi-eye-outline"
-                            size="small"
+                            size="x-small"
                             variant="text"
                             title="Открыть панель"
                             @click="emit('show', item)"
@@ -375,7 +530,7 @@ const buildingTitle = (building) => {
 
                         <v-btn
                             icon="mdi-open-in-new"
-                            size="small"
+                            size="x-small"
                             variant="text"
                             title="Перейти в карточку"
                             :href="route('Ameise.entity.show', item.id)"
@@ -383,7 +538,7 @@ const buildingTitle = (building) => {
 
                         <v-btn
                             icon="mdi-pencil"
-                            size="small"
+                            size="x-small"
                             variant="text"
                             title="Редактировать"
                             @click="emit('edit', item)"
@@ -391,7 +546,7 @@ const buildingTitle = (building) => {
 
                         <v-btn
                             icon="mdi-delete-outline"
-                            size="small"
+                            size="x-small"
                             variant="text"
                             color="error"
                             title="Удалить"
@@ -401,7 +556,7 @@ const buildingTitle = (building) => {
                 </template>
             </v-data-table-server>
 
-            <div class="d-flex flex-wrap ga-2 pa-2 mt-2 border-t">
+            <div class="entity-page-strip">
                 <v-btn
                     v-for="p in pageMarkers"
                     :key="p.page"
@@ -422,7 +577,57 @@ const buildingTitle = (building) => {
 
 <style scoped>
 .entities-table-card {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 184px);
+    min-height: 520px;
     border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.entities-table-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 42px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+}
+
+.entities-table-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+}
+
+.entities-data-table {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.entities-data-table :deep(.v-table__wrapper) {
+    height: 100% !important;
+}
+
+.entities-data-table :deep(th),
+.entities-data-table :deep(td) {
+    height: 28px !important;
+    padding: 0 6px !important;
+    font-size: 0.7rem;
+    line-height: 1.15;
+    vertical-align: middle;
+}
+
+.entities-data-table :deep(th) {
+    white-space: nowrap;
+}
+
+.entity-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2px;
 }
 
 .entity-name-link {
@@ -439,15 +644,40 @@ const buildingTitle = (building) => {
 .entity-building-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    max-width: 240px;
+    gap: 1px;
+    max-width: 210px;
+    max-height: 32px;
+    overflow: hidden;
 }
 
 .entity-building-list span {
     color: rgba(255, 255, 255, 0.78);
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     line-height: 1.2;
+}
+
+.entity-sort-card {
+    width: min(360px, calc(100vw - 32px));
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #4d5354 0%, #626867 100%);
+    color: #f5f1e9;
+}
+
+.entity-sort-card__title {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 0.95rem;
+}
+
+.entity-group-toggle {
+    max-width: 100%;
+}
+
+.entity-group-row td {
+    background: rgba(128, 0, 0, 0.28) !important;
+    color: #fff8e9;
 }
 
 .entity-filter-card {
@@ -470,6 +700,17 @@ const buildingTitle = (building) => {
 
 .entity-page-chip {
     min-width: 48px;
+}
+
+.entity-page-strip {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    max-height: 46px;
+    padding: 6px 2px 0;
+    overflow-x: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .entity-page-marker {

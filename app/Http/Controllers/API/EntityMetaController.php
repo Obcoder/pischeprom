@@ -9,6 +9,7 @@ use App\Models\City;
 use App\Models\Country;
 use App\Models\Email;
 use App\Models\EntityClassification;
+use App\Models\Region;
 use App\Models\Telephone;
 use App\Models\Unit;
 
@@ -30,6 +31,11 @@ class EntityMetaController extends Controller
                                     'cities' => City::query()
                                         ->select('id', 'name')
                                         ->orderBy('population', 'desc')
+                                        ->get(),
+
+                                    'regions' => Region::query()
+                                        ->select('id', 'name')
+                                        ->orderBy('name')
                                         ->get(),
 
                                     'buildings' => Building::query()

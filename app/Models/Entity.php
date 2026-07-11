@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 
 class Entity extends Model
 {
@@ -121,13 +122,18 @@ class Entity extends Model
         return $this->hasMany(Sale::class)->orderByDesc('date');
     }
 
+    public function purchases(): HasMany
+    {
+        return $this->hasMany(Purchase::class)->orderByDesc('date');
+    }
+
     public function scopeBaseRelations(Builder $query): Builder
     {
         return $query->with([
             'classification',
             'country',
-            'buildings',
-            'cities',
+            'buildings.city.region',
+            'cities.region',
             'emails',
             'telephones',
             'units',
@@ -138,8 +144,9 @@ class Entity extends Model
     public function scopeWithTableStats(Builder $query): Builder
     {
         return $query
-            ->withCount('sales')
-            ->withMax('sales', 'date');
+            ->withCount(['sales', 'purchases'])
+            ->withMax('sales', 'date')
+            ->withMax('purchases', 'date');
     }
 
     public function scopeSearch(Builder $query, ?string $search): Builder
@@ -196,13 +203,71 @@ class Entity extends Model
     {
         $direction = $sortDesc ? 'desc' : 'asc';
 
-        return match ($sortBy) {
-            'name' => $query->orderBy('name', $direction),
-            'INN' => $query->orderBy('INN', $direction),
-            'OGRN' => $query->orderBy('OGRN', $direction),
+        $sorted = match ($sortBy) {
+            'name' => $query->orderBy('entities.name', $direction),
+            'created_at' => $query->orderBy('entities.created_at', $direction),
+            'INN' => $query->orderBy('entities.INN', $direction),
+            'OGRN' => $query->orderBy('entities.OGRN', $direction),
+            'classification_name' => $query->orderBy(
+                DB::table('entity_classifications')
+                    ->select('name')
+                    ->whereColumn('entity_classifications.id', 'entities.entity_classification_id')
+                    ->limit(1),
+                $direction
+            ),
+            'country_name' => $query->orderBy(
+                DB::table('countries')
+                    ->select('name')
+                    ->whereColumn('countries.id', 'entities.country_id')
+                    ->limit(1),
+                $direction
+            ),
+            'city_names' => $query->orderBy(
+                DB::table('city_entity')
+                    ->join('cities', 'cities.id', '=', 'city_entity.city_id')
+                    ->select('cities.name')
+                    ->whereColumn('city_entity.entity_id', 'entities.id')
+                    ->orderBy('cities.name')
+                    ->limit(1),
+                $direction
+            ),
+            'region_names' => $query->orderBy(
+                DB::table('city_entity')
+                    ->join('cities', 'cities.id', '=', 'city_entity.city_id')
+                    ->join('regions', 'regions.id', '=', 'cities.region_id')
+                    ->select('regions.name')
+                    ->whereColumn('city_entity.entity_id', 'entities.id')
+                    ->orderBy('regions.name')
+                    ->limit(1),
+                $direction
+            ),
+            'buildings' => $query->orderBy(
+                DB::table('building_entities')
+                    ->join('buildings', 'buildings.id', '=', 'building_entities.building_id')
+                    ->select('buildings.address')
+                    ->whereColumn('building_entities.entity_id', 'entities.id')
+                    ->orderBy('buildings.address')
+                    ->limit(1),
+                $direction
+            ),
+            'telephones_display' => $query->orderBy(
+                DB::table('entity_telephone')
+                    ->join('telephones', 'telephones.id', '=', 'entity_telephone.telephone_id')
+                    ->select('telephones.number')
+                    ->whereColumn('entity_telephone.entity_id', 'entities.id')
+                    ->orderBy('telephones.number')
+                    ->limit(1),
+                $direction
+            ),
             'sales_count' => $query->orderBy('sales_count', $direction),
+            'purchases_count' => $query->orderBy('purchases_count', $direction),
             'sales_max_date' => $query->orderBy('sales_max_date', $direction),
-            default => $query->orderByDesc('sales_count')->orderBy('name'),
+            'purchases_max_date' => $query->orderBy('purchases_max_date', $direction),
+            default => $query->orderByDesc('sales_count')->orderBy('entities.name'),
         };
+
+        return in_array($sortBy, ['name', null, ''], true)
+            ? $sorted
+            : $sorted->orderBy('entities.name');
     }
 }

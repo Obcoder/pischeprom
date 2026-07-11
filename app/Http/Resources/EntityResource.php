@@ -23,10 +23,16 @@ class EntityResource extends JsonResource
             'country_id' => $this->country_id,
             'dadata_raw' => $this->dadata_raw,
             'dadata_loaded_at' => $this->dadata_loaded_at,
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
 
             'cities' => $this->whenLoaded('cities', fn () => $this->cities->map(fn ($item) => [
                 'id' => $item->id,
                 'name' => $item->name,
+                'region' => [
+                    'id' => $item->region?->id,
+                    'name' => $item->region?->name,
+                ],
             ])),
 
             'classification' => $this->whenLoaded('classification', fn () => [
@@ -47,6 +53,10 @@ class EntityResource extends JsonResource
                 'city' => [
                     'id' => $item->city?->id,
                     'name' => $item->city?->name,
+                    'region' => [
+                        'id' => $item->city?->region?->id,
+                        'name' => $item->city?->region?->name,
+                    ],
                 ],
             ])),
 
@@ -79,8 +89,41 @@ class EntityResource extends JsonResource
             ])),
 
             'sales_count' => $this->whenCounted('sales', fn () => $this->sales_count),
-            'last_purchase_date' => $this->sales_max_date,
+            'purchases_count' => $this->whenCounted('purchases', fn () => $this->purchases_count),
+            'sales_max_date' => $this->sales_max_date,
+            'purchases_max_date' => $this->purchases_max_date,
+            'last_sale_date' => $this->sales_max_date,
+            'last_purchase_date' => $this->purchases_max_date,
+            'region_names' => $this->regionNames(),
         ];
+    }
+
+    private function regionNames(): array
+    {
+        $regions = collect();
+
+        if ($this->relationLoaded('cities')) {
+            $regions = $regions->merge(
+                $this->cities
+                    ->map(fn ($city) => $city->region)
+                    ->filter(fn ($region) => $region?->id)
+            );
+        }
+
+        if ($this->relationLoaded('buildings')) {
+            $regions = $regions->merge(
+                $this->buildings
+                    ->map(fn ($building) => $building->city?->region)
+                    ->filter(fn ($region) => $region?->id)
+            );
+        }
+
+        return $regions
+            ->unique('id')
+            ->sortBy('name')
+            ->pluck('name')
+            ->values()
+            ->all();
     }
 
     private function unitPayload($unit, bool $includeDetails): array
