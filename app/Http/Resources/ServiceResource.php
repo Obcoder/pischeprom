@@ -17,6 +17,7 @@ class ServiceResource extends JsonResource
             'project_id' => $this->project_id,
             'description' => $this->description,
             'is_active' => $this->is_active,
+            'checks_count' => $this->whenCounted('checks'),
             'expense_article' => $this->whenLoaded('expenseArticle', fn () => [
                 'id' => $this->expenseArticle?->id,
                 'name' => $this->expenseArticle?->name,

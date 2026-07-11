@@ -24,6 +24,7 @@ import GrossbuchSales from '@/Components/Grossbuch/GrossbuchSales.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
 import Products from '@/Components/Dictionaries/Products.vue';
 import Purchases from "@/Pages/Purchases/Purchases.vue";
+import ServicesPage from '@/Components/Dictionaries/Services/ServicesPage.vue';
 import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
 import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
@@ -45,6 +46,7 @@ const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
 const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
 const allowedTabs = ['units', 'contacts', 'products', 'segments', 'geography', 'purchases', 'sales']
 const allowedContactTabs = ['telephones', 'uris', 'emails']
+const allowedProductTabs = ['categories', 'categories_products', 'goods', 'components', 'commodities', 'services']
 
 function storedTab(key, fallback, allowed = null) {
     if (typeof window === 'undefined') {
@@ -72,7 +74,7 @@ function loadStoredTabs() {
     tab.value = storedTab(GROSSBUCH_TAB_KEY, 'units', allowedTabs)
     tabsContacts.value = storedTab(GROSSBUCH_CONTACTS_TAB_KEY, 'telephones', allowedContactTabs)
     tabsGeography.value = storedTab(GROSSBUCH_GEOGRAPHY_TAB_KEY, 'cities')
-    tabsProducts.value = storedTab(GROSSBUCH_PRODUCTS_TAB_KEY, 'categories')
+    tabsProducts.value = storedTab(GROSSBUCH_PRODUCTS_TAB_KEY, 'categories', allowedProductTabs)
     tabsSegments.value = storedTab(GROSSBUCH_SEGMENTS_TAB_KEY, 'industries')
     tabsUnits.value = storedTab(GROSSBUCH_UNITS_TAB_KEY, 'units_sub')
 }
@@ -676,6 +678,7 @@ const formatBuildingTitle = (building) => {
                                         <v-tab value="goods">Goods</v-tab>
                                         <v-tab value="components">Components</v-tab>
                                         <v-tab value="commodities">Commodities</v-tab>
+                                        <v-tab value="services">Услуги</v-tab>
                                     </v-tabs>
                                     <v-tabs-window v-model="tabsProducts">
                                         <v-tabs-window-item value="categories">
@@ -728,6 +731,10 @@ const formatBuildingTitle = (building) => {
 
                                         <v-tabs-window-item value="commodities">
                                             <CommoditiesPage />
+                                        </v-tabs-window-item>
+
+                                        <v-tabs-window-item value="services">
+                                            <ServicesPage />
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>

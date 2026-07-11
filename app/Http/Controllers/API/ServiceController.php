@@ -12,16 +12,31 @@ class ServiceController extends Controller
 {
     public function index(Request $request)
     {
+        $perPage = (int) $request->input('per_page', 0);
+        $perPage = max(0, min($perPage, 500));
+
         $services = Service::query()
             ->with(['expenseArticle', 'project'])
+            ->withCount('checks')
             ->search($request->input('search'))
-            ->when($request->has('is_active'), function ($query) use ($request) {
-                $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
-            })
-            ->orderBy('name')
-            ->get();
+            ->byCheck($request->input('check_id'))
+            ->byExpenseArticle($request->input('expense_article_id'))
+            ->byProject($request->input('project_id'))
+            ->activeState($request->input('is_active', $request->input('active', 'all')))
+            ->createdFrom($request->input('created_from'))
+            ->createdTo($request->input('created_to'))
+            ->applySort(
+                $request->input('sort_by', 'name'),
+                $request->input('sort_desc', false)
+            );
 
-        return response()->json(ServiceResource::collection($services)->resolve($request));
+        if ($perPage > 0) {
+            return ServiceResource::collection(
+                $services->paginate($perPage)->withQueryString()
+            );
+        }
+
+        return response()->json(ServiceResource::collection($services->get())->resolve($request));
     }
 
     public function store(Request $request)
@@ -66,7 +81,7 @@ class ServiceController extends Controller
             'expense_article_id' => ['nullable', 'exists:expense_articles,id'],
             'project_id' => ['nullable', 'exists:projects,id'],
             'description' => ['nullable', 'string'],
-            'is_active' => ['boolean'],
+            'is_active' => ['sometimes', 'boolean'],
         ]);
     }
 }
