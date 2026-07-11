@@ -1259,8 +1259,7 @@ onMounted(() => {
                     show-arrows
                 >
                     <v-tab value="overview">Обзор</v-tab>
-                    <v-tab value="quotations">Quotations</v-tab>
-                    <v-tab value="purchases">Закупки</v-tab>
+                    <v-tab value="quotations">Quotations / Закупки</v-tab>
                     <v-tab value="prices">Цены</v-tab>
                     <v-tab value="price-types">Виды цен</v-tab>
                     <v-tab value="recommendations">ОКВЭД-рекомендации</v-tab>
@@ -1589,106 +1588,99 @@ onMounted(() => {
                     </v-row>
                 </v-window-item>
 
-                <!-- QUOTATIONS -->
+                <!-- QUOTATIONS / PURCHASES -->
                 <v-window-item value="quotations">
-                    <v-card>
-                        <v-card-title class="d-flex align-center justify-space-between">
-                            <span>Quotations</span>
+                    <v-row dense>
+                        <v-col cols="12" xl="6">
+                            <v-card class="h-100">
+                                <v-card-title class="d-flex align-center justify-space-between">
+                                    <span>Quotations</span>
 
-                            <v-btn
-                                text="+ Q"
-                                color="indigo"
-                                variant="tonal"
-                                density="compact"
-                                @click="dialogFormQuotation = true"
-                            />
-                        </v-card-title>
+                                    <v-btn
+                                        text="+ Q"
+                                        color="indigo"
+                                        variant="tonal"
+                                        density="compact"
+                                        @click="dialogFormQuotation = true"
+                                    />
+                                </v-card-title>
 
-                        <v-card-text class="pa-0">
-                            <v-data-table
-                                :items="goodData.quotations || []"
-                                :headers="headerQuotations"
-                                items-per-page="100"
-                                fixed-header
-                                height="620px"
-                                density="compact"
-                                class="border rounded"
-                                hover
-                            >
-                                <template #item.denominator="{ item }">
-                                    <span>{{ item.denominator || 1 }}</span>
-                                </template>
+                                <v-card-text class="pa-0">
+                                    <v-data-table
+                                        :items="goodData.quotations || []"
+                                        :headers="headerQuotations"
+                                        items-per-page="100"
+                                        fixed-header
+                                        height="560px"
+                                        density="compact"
+                                        class="border rounded"
+                                        hover
+                                    >
+                                        <template #item.denominator="{ item }">
+                                            <span>{{ item.denominator || 1 }}</span>
+                                        </template>
 
-                                <template #item.created_at="{ item }">
-                                    <span>{{ formatDate(item.created_at) }}</span>
-                                </template>
+                                        <template #item.created_at="{ item }">
+                                            <span>{{ formatDate(item.created_at) }}</span>
+                                        </template>
 
-                                <template #item.price="{ item }">
-                                    <span>{{ formatMoney(item.price) }}</span>
-                                </template>
-                            </v-data-table>
-                        </v-card-text>
-                    </v-card>
-                </v-window-item>
+                                        <template #item.price="{ item }">
+                                            <span>{{ formatMoney(item.price) }}</span>
+                                        </template>
+                                    </v-data-table>
+                                </v-card-text>
+                            </v-card>
+                        </v-col>
 
-                <!-- PURCHASES -->
-                <v-window-item value="purchases">
-                    <v-card>
-                        <v-card-title>Закупки данного товара</v-card-title>
+                        <v-col cols="12" xl="6">
+                            <v-card class="h-100">
+                                <v-card-title>Закупки данного товара</v-card-title>
 
-                        <v-card-text>
-                            <v-alert
-                                type="info"
-                                variant="tonal"
-                                class="mb-4"
-                            >
-                                Здесь показываются закупки, связанные с этим good через pivot-таблицу
-                                <strong>good_purchase</strong>.
-                                На следующем этапе добавим автоматический расчёт продажной цены от закупки.
-                            </v-alert>
+                                <v-card-text class="pa-0">
+                                    <v-data-table
+                                        :items="goodData.purchases || []"
+                                        :headers="headerPurchases"
+                                        items-per-page="50"
+                                        fixed-header
+                                        height="560px"
+                                        density="compact"
+                                        class="border rounded"
+                                        hover
+                                    >
+                                        <template #item.date="{ item }">
+                                            {{ item.date || "-" }}
+                                        </template>
 
-                            <v-data-table
-                                :items="goodData.purchases || []"
-                                :headers="headerPurchases"
-                                items-per-page="50"
-                                fixed-header
-                                height="560px"
-                                density="compact"
-                                class="border rounded"
-                                hover
-                            >
-                                <template #item.date="{ item }">
-                                    {{ item.date || "-" }}
-                                </template>
+                                        <template #item.pivot.quantity="{ item }">
+                                            {{ item.pivot?.quantity || "—" }}
+                                        </template>
 
-                                <template #item.pivot.quantity="{ item }">
-                                    {{ item.pivot?.quantity || "—" }}
-                                </template>
+                                        <template #item.pivot.price="{ item }">
+                                            <strong>{{ formatMoney(item.pivot?.price) }}</strong>
 
-                                <template #item.pivot.price="{ item }">
-                                    <strong>{{ formatMoney(item.pivot?.price) }}</strong>
+                                            <span class="text-caption ml-1">
+                                                {{ purchaseCurrencyCode(item) }}
+                                            </span>
+                                        </template>
 
-                                    <span class="text-caption ml-1">
-                                        {{ purchaseCurrencyCode(item) }}
-                                    </span>
-                                </template>
+                                        <template #item.pivot.total="{ item }">
+                                            <strong>{{ formatMoney(item.pivot?.total) }}</strong>
 
-                                <template #item.pivot.total="{ item }">
-                                    <strong>{{ formatMoney(item.pivot?.total) }}</strong>
+                                            <span class="text-caption ml-1">
+                                                {{ purchaseCurrencyCode(item) }}
+                                            </span>
+                                        </template>
 
-                                    <span class="text-caption ml-1">
-                                        {{ purchaseCurrencyCode(item) }}
-                                    </span>
-                                </template>
-
-                                <template #no-data>
-                                    <div class="pa-6 text-center text-medium-emphasis">
-                                        Закупок по этому товару пока нет.
-                                    </div>
-                                </template>
-                            </v-data-table>
-                        </v-card-text>
-                    </v-card>
+                                        <template #no-data>
+                                            <div class="pa-6 text-center text-medium-emphasis">
+                                                Закупок по этому товару пока нет.
+                                            </div>
+                                        </template>
+                                    </v-data-table>
+                                </v-card-text>
+                            </v-card>
+                        </v-col>
+                    </v-row>
                 </v-window-item>
 
                 <!-- PRICES -->
@@ -1711,6 +1703,9 @@ onMounted(() => {
                                 class="prices-workspace__card"
                                 :good-id="goodData.id"
                                 :quotations="goodData.quotations || []"
+                                :purchases="goodData.purchases || []"
+                                :measures="measures"
+                                :currencies="currencies"
                                 :default-vat-rate="defaultVatRate"
                                 :default-box-weight-kg="goodBoxWeight"
                                 currency-code="RUB"

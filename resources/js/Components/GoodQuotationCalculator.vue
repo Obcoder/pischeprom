@@ -12,6 +12,18 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    purchases: {
+        type: Array,
+        default: () => [],
+    },
+    measures: {
+        type: Array,
+        default: () => [],
+    },
+    currencies: {
+        type: Array,
+        default: () => [],
+    },
     defaultVatRate: {
         type: Number,
         default: 20,
@@ -51,7 +63,9 @@ function formatMoney(value) {
 }
 
 const form = ref({
+    sourceType: "quotation",
     quotation_id: null,
+    purchase_id: null,
     vatRate: props.defaultVatRate,
     priceIncludesVat: true,
 
@@ -101,7 +115,9 @@ watch(
 );
 
 const { result } = useQuotationCalculator({
-    quotations: props.quotations,
+    quotations: computed(() => props.quotations),
+    purchases: computed(() => props.purchases),
+    measures: computed(() => props.measures),
     form,
 });
 
@@ -109,9 +125,78 @@ const selectedQuotation = computed(() => {
     return props.quotations.find((item) => Number(item.id) === Number(form.value.quotation_id)) || null;
 });
 
-const canSaveCalculation = computed(() => {
-    return !!result.value && !!form.value.quotation_id && !!props.goodId;
+const selectedPurchase = computed(() => {
+    return props.purchases.find((item) => Number(item.id) === Number(form.value.purchase_id)) || null;
 });
+
+const selectedSource = computed(() => {
+    if (form.value.sourceType === "purchase") {
+        return selectedPurchase.value
+            ? {
+                type: "purchase",
+                record: selectedPurchase.value,
+            }
+            : null;
+    }
+
+    return selectedQuotation.value
+        ? {
+            type: "quotation",
+            record: selectedQuotation.value,
+        }
+        : null;
+});
+
+const canSaveCalculation = computed(() => {
+    return !!result.value && !!selectedSource.value && !!props.goodId;
+});
+
+const sourceTypeItems = computed(() => [
+    {
+        title: `Quotation (${props.quotations.length})`,
+        value: "quotation",
+    },
+    {
+        title: `Закупка (${props.purchases.length})`,
+        value: "purchase",
+    },
+]);
+
+const currentSourceCurrencyId = computed(() => {
+    if (form.value.sourceType === "purchase") {
+        return selectedPurchase.value?.pivot?.currency_id || null;
+    }
+
+    return selectedQuotation.value?.currency_id || selectedQuotation.value?.currency?.id || null;
+});
+
+const currentSourceCurrencyCode = computed(() => {
+    const currencyId = currentSourceCurrencyId.value;
+
+    if (currencyId) {
+        const currency = props.currencies.find((item) => Number(item.id) === Number(currencyId));
+
+        return currency?.code || currency?.name || props.currencyCode;
+    }
+
+    if (form.value.sourceType === "quotation") {
+        return selectedQuotation.value?.currency?.code || selectedQuotation.value?.currency?.name || props.currencyCode;
+    }
+
+    return props.currencyCode;
+});
+
+watch(
+    () => form.value.sourceType,
+    (sourceType) => {
+        if (sourceType === "purchase") {
+            form.value.quotation_id = null;
+            return;
+        }
+
+        form.value.purchase_id = null;
+    }
+);
 
 const resultRows = computed(() => {
     const r = result.value;
@@ -165,8 +250,7 @@ const resultRows = computed(() => {
 });
 
 function defaultCalculationName() {
-    const quotation = selectedQuotation.value;
-    const source = quotation?.unit?.name || "quotation";
+    const source = sourceName();
 
     if (form.value.pricingMode === "targetMargin") {
         return `Расчёт от ${source}: маржа ${form.value.targetMarginPercent}%`;
@@ -176,7 +260,91 @@ function defaultCalculationName() {
         return `Расчёт от ${source}: наценка ${form.value.markupValue}%`;
     }
 
-    return `Расчёт от ${source}: наценка ${form.value.markupValue} ${props.currencyCode}/кг`;
+    return `Расчёт от ${source}: наценка ${form.value.markupValue} ${currentSourceCurrencyCode.value}/кг`;
+}
+
+function currencyCodeById(id) {
+    if (!id) return props.currencyCode;
+
+    const currency = props.currencies.find((item) => Number(item.id) === Number(id));
+
+    return currency?.code || currency?.name || props.currencyCode;
+}
+
+function measureNameById(id) {
+    if (!id) return "кг";
+
+    return props.measures.find((item) => Number(item.id) === Number(id))?.name || "кг";
+}
+
+function sourceName() {
+    if (form.value.sourceType === "purchase") {
+        const purchase = selectedPurchase.value;
+        const entity = purchase?.entity?.name || purchase?.entity?.full_name || "закупки";
+
+        return `закупки ${entity}`;
+    }
+
+    return selectedQuotation.value?.unit?.name || "quotation";
+}
+
+function purchaseTitle(purchase) {
+    const entity = purchase?.entity?.name || purchase?.entity?.full_name || "-";
+    const price = formatMoney(purchase?.pivot?.price);
+    const currency = currencyCodeById(purchase?.pivot?.currency_id);
+
+    return `${purchase?.date || "-"} | ${entity} | ${price} ${currency}`;
+}
+
+function purchaseSubtitle(purchase) {
+    const quantity = purchase?.pivot?.quantity ?? "—";
+    const measure = measureNameById(purchase?.pivot?.measure_id);
+    const total = formatMoney(purchase?.pivot?.total);
+    const currency = currencyCodeById(purchase?.pivot?.currency_id);
+
+    return `Кол-во: ${quantity} ${measure} | сумма: ${total} ${currency}`;
+}
+
+function sourceSnapshot() {
+    if (form.value.sourceType === "purchase") {
+        const purchase = selectedPurchase.value;
+
+        return {
+            quotation: null,
+            purchase: purchase
+                ? {
+                    id: purchase.id,
+                    date: purchase.date || null,
+                    entity_id: purchase.entity?.id || null,
+                    entity_name: purchase.entity?.name || purchase.entity?.full_name || null,
+                    quantity: purchase.pivot?.quantity ?? null,
+                    price: purchase.pivot?.price ?? null,
+                    total: purchase.pivot?.total ?? null,
+                    measure_id: purchase.pivot?.measure_id ?? null,
+                    measure_name: measureNameById(purchase.pivot?.measure_id),
+                    currency_id: purchase.pivot?.currency_id ?? null,
+                    currency_code: currencyCodeById(purchase.pivot?.currency_id),
+                }
+                : null,
+        };
+    }
+
+    return {
+        quotation: selectedQuotation.value
+            ? {
+                id: selectedQuotation.value.id,
+                unit_id: selectedQuotation.value.unit_id,
+                unit_name: selectedQuotation.value.unit?.name || null,
+                price: selectedQuotation.value.price,
+                measure_id: selectedQuotation.value.measure_id,
+                measure_name: selectedQuotation.value.measure?.name || null,
+                denominator: selectedQuotation.value.denominator || 1,
+                currency_id: selectedQuotation.value.currency_id || selectedQuotation.value.currency?.id || null,
+                currency_code: selectedQuotation.value.currency?.code || props.currencyCode,
+            }
+            : null,
+        purchase: null,
+    };
 }
 
 function openSaveDialog() {
@@ -192,28 +360,19 @@ function calculationPayload() {
     const r = result.value;
 
     return {
-        quotation_id: form.value.quotation_id,
-        purchase_id: null,
+        quotation_id: form.value.sourceType === "quotation" ? form.value.quotation_id : null,
+        purchase_id: form.value.sourceType === "purchase" ? form.value.purchase_id : null,
         price_type_id: null,
         formula_id: null,
-        currency_id: null,
+        currency_id: currentSourceCurrencyId.value,
 
         name: saveForm.name || defaultCalculationName(),
         comment: saveForm.comment || null,
 
         input: {
             ...form.value,
-            quotation: selectedQuotation.value
-                ? {
-                    id: selectedQuotation.value.id,
-                    unit_id: selectedQuotation.value.unit_id,
-                    unit_name: selectedQuotation.value.unit?.name || null,
-                    price: selectedQuotation.value.price,
-                    measure_id: selectedQuotation.value.measure_id,
-                    measure_name: selectedQuotation.value.measure?.name || null,
-                    denominator: selectedQuotation.value.denominator || 1,
-                }
-                : null,
+            source_type: form.value.sourceType,
+            ...sourceSnapshot(),
         },
 
         result: r,
@@ -263,7 +422,20 @@ async function saveCalculation() {
 
         <v-card-text class="quotation-calculator__body">
             <v-row dense>
-                <v-col cols="12" md="5">
+                <v-col cols="12" md="3">
+                    <v-select
+                        v-model="form.sourceType"
+                        :items="sourceTypeItems"
+                        item-title="title"
+                        item-value="value"
+                        label="Источник"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                    />
+                </v-col>
+
+                <v-col v-if="form.sourceType === 'quotation'" cols="12" md="5">
                     <v-select
                         v-model="form.quotation_id"
                         :items="quotations"
@@ -277,14 +449,41 @@ async function saveCalculation() {
                         <template #item="{ props, item }">
                             <v-list-item
                                 v-bind="props"
-                                :title="`${item.raw.unit?.name || '-'} | ${formatMoney(item.raw.price)} ${currencyCode}`"
+                                :title="`${item.raw.unit?.name || '-'} | ${formatMoney(item.raw.price)} ${item.raw.currency?.code || currencyCode}`"
                                 :subtitle="`${item.raw.measure?.name || '-'} | делитель: ${item.raw.denominator || 1}`"
                             />
                         </template>
 
                         <template #selection="{ item }">
                             <span>
-                                {{ item.raw.unit?.name || "-" }} | {{ formatMoney(item.raw.price) }} {{ currencyCode }}
+                                {{ item.raw.unit?.name || "-" }} | {{ formatMoney(item.raw.price) }} {{ item.raw.currency?.code || currencyCode }}
+                            </span>
+                        </template>
+                    </v-select>
+                </v-col>
+
+                <v-col v-else cols="12" md="5">
+                    <v-select
+                        v-model="form.purchase_id"
+                        :items="purchases"
+                        item-value="id"
+                        label="Закупка"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        clearable
+                    >
+                        <template #item="{ props, item }">
+                            <v-list-item
+                                v-bind="props"
+                                :title="purchaseTitle(item.raw)"
+                                :subtitle="purchaseSubtitle(item.raw)"
+                            />
+                        </template>
+
+                        <template #selection="{ item }">
+                            <span>
+                                {{ purchaseTitle(item.raw) }}
                             </span>
                         </template>
                     </v-select>
@@ -319,7 +518,7 @@ async function saveCalculation() {
                 <v-col cols="12" md="3" class="d-flex align-center">
                     <v-switch
                         v-model="form.priceIncludesVat"
-                        label="Quotation с НДС"
+                        :label="form.sourceType === 'purchase' ? 'Закупка с НДС' : 'Quotation с НДС'"
                         color="#47765a"
                         density="compact"
                         inset
@@ -392,7 +591,11 @@ async function saveCalculation() {
 
             <div v-if="result" class="quotation-calculator__meta">
                 <v-chip size="x-small" variant="tonal" color="blue-grey">
-                    База: {{ formatMoney(result.meta.sourcePricePerKg) }} {{ currencyCode }}/кг
+                    База: {{ formatMoney(result.meta.sourcePricePerKg) }} {{ currentSourceCurrencyCode }}/кг
+                </v-chip>
+
+                <v-chip size="x-small" variant="tonal" color="blue-grey">
+                    {{ form.sourceType === "purchase" ? "Источник: закупка" : "Источник: quotation" }}
                 </v-chip>
 
                 <v-chip size="x-small" variant="tonal" color="blue-grey">
@@ -437,7 +640,7 @@ async function saveCalculation() {
                 density="compact"
                 class="mt-2"
             >
-                Выберите quotation для расчета.
+                Выберите источник для расчета.
             </v-alert>
         </v-card-text>
 
@@ -472,12 +675,12 @@ async function saveCalculation() {
                     >
                         <div>
                             Продажа / 1 кг с НДС:
-                            <strong>{{ formatMoney(result.sale.perKg.gross) }} {{ currencyCode }}</strong>
+                            <strong>{{ formatMoney(result.sale.perKg.gross) }} {{ currentSourceCurrencyCode }}</strong>
                         </div>
 
                         <div>
                             Продажа / коробка с НДС:
-                            <strong>{{ formatMoney(result.sale.perBox.gross) }} {{ currencyCode }}</strong>
+                            <strong>{{ formatMoney(result.sale.perBox.gross) }} {{ currentSourceCurrencyCode }}</strong>
                         </div>
 
                         <div>

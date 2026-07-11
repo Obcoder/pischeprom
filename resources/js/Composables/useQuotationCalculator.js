@@ -1,7 +1,7 @@
 import { computed, unref } from "vue";
 
 export function useQuotationCalculator(options) {
-    const { quotations, form } = options;
+    const { quotations, purchases, measures, form } = options;
 
     function toNumber(value, fallback = 0) {
         const number = Number(value);
@@ -16,6 +16,44 @@ export function useQuotationCalculator(options) {
         return String(value || "").trim().toLowerCase();
     }
 
+    function kgFactorByMeasureName(value) {
+        const measureName = normalizeMeasureName(value);
+        let kgFactor = 1;
+
+        if (["кг", "килограмм", "килограммы", "kg", "kilogram", "kilograms"].includes(measureName)) {
+            kgFactor = 1;
+        } else if (["т", "тн", "тонна", "тонны", "тонн", "ton", "tons", "tonne", "tonnes"].includes(measureName)) {
+            kgFactor = 1000;
+        } else if (["г", "гр", "грамм", "граммы", "gram", "grams", "g"].includes(measureName)) {
+            kgFactor = 0.001;
+        } else {
+            // fallback: считаем, что measure уже в кг
+            kgFactor = 1;
+        }
+
+        return kgFactor;
+    }
+
+    function measureNameById(id) {
+        if (!id) return "";
+
+        const list = unref(measures) || [];
+        const measure = list.find((item) => Number(item.id) === Number(id));
+
+        return measure?.name || "";
+    }
+
+    function sourcePricePerKg(rawPriceValue, denominatorValue, measureNameValue) {
+        const rawPrice = toNumber(rawPriceValue, 0);
+        const denominator = Math.max(toNumber(denominatorValue, 1), 0.000001);
+        const kgFactor = kgFactorByMeasureName(measureNameValue);
+        const totalKg = denominator * kgFactor;
+
+        if (totalKg <= 0) return 0;
+
+        return rawPrice / totalKg;
+    }
+
     /**
      * Приведение quotation к цене за 1 кг.
      *
@@ -26,27 +64,21 @@ export function useQuotationCalculator(options) {
     function quotationPricePerKg(quotation) {
         if (!quotation) return 0;
 
-        const rawPrice = toNumber(quotation.price, 0);
-        const denominator = Math.max(toNumber(quotation.denominator, 1), 1);
-        const measureName = normalizeMeasureName(quotation.measure?.name);
+        return sourcePricePerKg(
+            quotation.price,
+            quotation.denominator || 1,
+            quotation.measure?.name || measureNameById(quotation.measure_id)
+        );
+    }
 
-        let kgFactor = 1;
+    function purchasePricePerKg(purchase) {
+        if (!purchase) return 0;
 
-        if (["кг", "kg", "kilogram"].includes(measureName)) {
-            kgFactor = 1;
-        } else if (["т", "тонна", "тонн", "ton", "tonne"].includes(measureName)) {
-            kgFactor = 1000;
-        } else if (["г", "гр", "gram", "g"].includes(measureName)) {
-            kgFactor = 0.001;
-        } else {
-            // fallback: считаем, что measure уже в кг
-            kgFactor = 1;
-        }
-
-        const totalKg = denominator * kgFactor;
-        if (totalKg <= 0) return 0;
-
-        return rawPrice / totalKg;
+        return sourcePricePerKg(
+            purchase.pivot?.price,
+            1,
+            purchase.pivot?.measure?.name || measureNameById(purchase.pivot?.measure_id)
+        );
     }
 
     function extractVatFromGross(grossPrice, vatRate) {
@@ -151,27 +183,53 @@ export function useQuotationCalculator(options) {
         if (!formValue?.quotation_id) return null;
 
         return list.find(
-            (quotation) => quotation.id === formValue.quotation_id
+            (quotation) => Number(quotation.id) === Number(formValue.quotation_id)
         ) || null;
     });
 
-    const result = computed(() => {
-        const quotation = selectedQuotation.value;
+    const selectedPurchase = computed(() => {
+        const list = unref(purchases) || [];
         const formValue = unref(form);
 
-        if (!quotation || !formValue) return null;
+        if (!formValue?.purchase_id) return null;
+
+        return list.find(
+            (purchase) => Number(purchase.id) === Number(formValue.purchase_id)
+        ) || null;
+    });
+
+    const selectedSource = computed(() => {
+        const formValue = unref(form);
+        const sourceType = formValue?.sourceType === "purchase" ? "purchase" : "quotation";
+        const record = sourceType === "purchase" ? selectedPurchase.value : selectedQuotation.value;
+
+        if (!record) return null;
+
+        return {
+            type: sourceType,
+            record,
+        };
+    });
+
+    const result = computed(() => {
+        const source = selectedSource.value;
+        const formValue = unref(form);
+
+        if (!source || !formValue) return null;
 
         const vatRate = Math.max(toNumber(formValue.vatRate, 0), 0);
         const boxWeightKg = Math.max(toNumber(formValue.boxWeightKg, 1), 0.001);
 
-        const sourcePricePerKg = quotationPricePerKg(quotation);
+        const sourcePricePerKgValue = source.type === "purchase"
+            ? purchasePricePerKg(source.record)
+            : quotationPricePerKg(source.record);
 
         let purchasePerKg;
 
         if (formValue.priceIncludesVat) {
-            purchasePerKg = extractVatFromGross(sourcePricePerKg, vatRate);
+            purchasePerKg = extractVatFromGross(sourcePricePerKgValue, vatRate);
         } else {
-            purchasePerKg = addVatToNet(sourcePricePerKg, vatRate);
+            purchasePerKg = addVatToNet(sourcePricePerKgValue, vatRate);
         }
 
         let saleNetPerKg = purchasePerKg.net;
@@ -213,7 +271,9 @@ export function useQuotationCalculator(options) {
         }
 
         return {
-            quotation,
+            source,
+            quotation: source.type === "quotation" ? source.record : null,
+            sourcePurchase: source.type === "purchase" ? source.record : null,
             purchase: {
                 perKg: purchasePerKg,
             },
@@ -223,7 +283,8 @@ export function useQuotationCalculator(options) {
                 perTon: buildScaledPrice(1000),
             },
             meta: {
-                sourcePricePerKg: round2(sourcePricePerKg),
+                sourceType: source.type,
+                sourcePricePerKg: round2(sourcePricePerKgValue),
                 vatRate,
                 boxWeightKg,
                 pricingMode: formValue.pricingMode,
@@ -237,8 +298,11 @@ export function useQuotationCalculator(options) {
 
     return {
         selectedQuotation,
+        selectedPurchase,
+        selectedSource,
         result,
         quotationPricePerKg,
+        purchasePricePerKg,
         extractVatFromGross,
         addVatToNet,
         applyMarkup,
