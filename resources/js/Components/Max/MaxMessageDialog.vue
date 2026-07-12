@@ -474,6 +474,48 @@ function formatDate(value) {
 
 .max-message-dialog__body {
     background: #fffdf8;
+    color: #24180f;
+}
+
+.max-message-dialog__body :deep(.v-field) {
+    background: #fffaf2;
+    color: #24180f;
+}
+
+.max-message-dialog__body :deep(.v-field__outline) {
+    color: rgba(128, 0, 0, 0.42);
+}
+
+.max-message-dialog__body :deep(.v-field:hover .v-field__outline) {
+    color: rgba(128, 0, 0, 0.70);
+}
+
+.max-message-dialog__body :deep(.v-field--focused .v-field__outline) {
+    color: #800000;
+}
+
+.max-message-dialog__body :deep(.v-label),
+.max-message-dialog__body :deep(.v-field-label),
+.max-message-dialog__body :deep(.v-select__selection-text),
+.max-message-dialog__body :deep(.v-field__input),
+.max-message-dialog__body :deep(input),
+.max-message-dialog__body :deep(textarea) {
+    color: #24180f !important;
+    opacity: 1;
+}
+
+.max-message-dialog__body :deep(input::placeholder),
+.max-message-dialog__body :deep(textarea::placeholder) {
+    color: #8b6b61 !important;
+    opacity: 1;
+}
+
+.max-message-dialog__body :deep(.v-counter),
+.max-message-dialog__body :deep(.v-messages),
+.max-message-dialog__body :deep(.v-field__append-inner),
+.max-message-dialog__body :deep(.v-field__clearable) {
+    color: #7a5d52;
+    opacity: 1;
 }
 
 .max-message-dialog__grid {
