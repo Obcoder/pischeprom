@@ -3,8 +3,10 @@ import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { useAppRoute } from "@/Composables/useAppRoute";
 import HeroFlyingBee from '@/Components/Home/HeroFlyingBee.vue'
+import { useHomeBeeAnimationSetting } from '@/Composables/useHomeBeeAnimationSetting'
 
 const { route } = useAppRoute();
+const { beeAnimationEnabled } = useHomeBeeAnimationSetting()
 
 const props = defineProps({
     fields: {
@@ -20,7 +22,7 @@ const visibleFields = computed(() => props.fields.slice(0, 3))
     <v-card class="home-welcome-banner" rounded="xl" elevation="0">
         <div class="home-welcome-banner__glow home-welcome-banner__glow--one" />
         <div class="home-welcome-banner__glow home-welcome-banner__glow--two" />
-        <HeroFlyingBee />
+        <HeroFlyingBee v-if="beeAnimationEnabled" />
 
         <v-row dense class="home-welcome-banner__row">
             <v-col cols="12" lg="6">
