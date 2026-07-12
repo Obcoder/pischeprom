@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Country;
+use App\Models\Field;
 use App\Models\Good;
 use App\Services\Seo\GoodSeoService;
 use App\Services\Seo\GoodStructuredDataService;
@@ -21,6 +22,7 @@ class GoodController extends Controller
         $country = $countryId
             ? Country::query()->select('id', 'name', 'flag')->find($countryId)
             : null;
+        $canSeePartnerPrices = $request->user() !== null;
 
         $goods = Good::query()
             ->where('is_published', true)
@@ -43,8 +45,44 @@ class GoodController extends Controller
             ->with([
                 'products.category',
                 'country:id,name,flag',
-                'priceTypeValues.priceType.currency',
-                'priceTypeValues.currency',
+                'priceTypeValues' => function ($query) use ($canSeePartnerPrices): void {
+                    $query
+                        ->where('is_published', true)
+                        ->whereHas('priceType', function ($priceTypeQuery) use ($canSeePartnerPrices): void {
+                            $priceTypeQuery
+                                ->where('is_active', true)
+                                ->where(function ($visibleQuery) use ($canSeePartnerPrices): void {
+                                    $visibleQuery
+                                        ->where('is_public', true)
+                                        ->orWhere('code', 'like', '%retail%')
+                                        ->orWhere('code', 'like', '%rozn%')
+                                        ->orWhere('name', 'like', '%рознич%')
+                                        ->orWhere('name', 'like', '%розница%');
+
+                                    if ($canSeePartnerPrices) {
+                                        $visibleQuery
+                                            ->orWhere('code', 'like', '%partner%')
+                                            ->orWhere('code', 'like', '%diler%')
+                                            ->orWhere('code', 'like', '%dealer%')
+                                            ->orWhere('name', 'like', '%партн%')
+                                            ->orWhere('name', 'like', '%дилер%');
+                                    }
+                                })
+                                ->when(! $canSeePartnerPrices, function ($visibleQuery): void {
+                                    $visibleQuery
+                                        ->where('code', 'not like', '%partner%')
+                                        ->where('code', 'not like', '%diler%')
+                                        ->where('code', 'not like', '%dealer%')
+                                        ->where('name', 'not like', '%партн%')
+                                        ->where('name', 'not like', '%дилер%');
+                                });
+                        })
+                        ->with([
+                            'priceType.currency',
+                            'currency',
+                        ])
+                        ->orderByDesc('updated_at');
+                },
                 'publishedMedia' => function ($query): void {
                     $query
                         ->where('type', 'image')
@@ -63,6 +101,7 @@ class GoodController extends Controller
                 'slug',
                 'ava_image',
                 'ava_thumb',
+                'denominator',
                 'description',
                 'created_at',
             ]);
@@ -74,6 +113,7 @@ class GoodController extends Controller
                 'country_id' => $country?->id,
             ],
             'country' => $country,
+            'fields' => $this->fieldFilters(),
         ]);
     }
 
@@ -189,5 +229,20 @@ class GoodController extends Controller
         }
 
         return $good->slug;
+    }
+
+    private function fieldFilters()
+    {
+        return Field::query()
+            ->published()
+            ->withCount(['publishedGoods as goods_count'])
+            ->orderBy('sort_order')
+            ->orderBy('title')
+            ->get([
+                'id',
+                'title',
+                'slug',
+                'description',
+            ]);
     }
 }

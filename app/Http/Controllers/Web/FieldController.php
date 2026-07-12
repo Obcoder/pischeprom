@@ -14,6 +14,7 @@ class FieldController extends Controller
     public function show(Request $request, string $field): Response|RedirectResponse
     {
         $search = trim((string) $request->query('search', ''));
+        $canSeePartnerPrices = $request->user() !== null;
 
         $fieldModel = Field::query()
             ->published()
@@ -49,8 +50,45 @@ class FieldController extends Controller
             })
             ->with([
                 'products.category',
-                'priceTypeValues.priceType.currency',
-                'priceTypeValues.currency',
+                'country:id,name,flag',
+                'priceTypeValues' => function ($query) use ($canSeePartnerPrices): void {
+                    $query
+                        ->where('is_published', true)
+                        ->whereHas('priceType', function ($priceTypeQuery) use ($canSeePartnerPrices): void {
+                            $priceTypeQuery
+                                ->where('is_active', true)
+                                ->where(function ($visibleQuery) use ($canSeePartnerPrices): void {
+                                    $visibleQuery
+                                        ->where('is_public', true)
+                                        ->orWhere('code', 'like', '%retail%')
+                                        ->orWhere('code', 'like', '%rozn%')
+                                        ->orWhere('name', 'like', '%рознич%')
+                                        ->orWhere('name', 'like', '%розница%');
+
+                                    if ($canSeePartnerPrices) {
+                                        $visibleQuery
+                                            ->orWhere('code', 'like', '%partner%')
+                                            ->orWhere('code', 'like', '%diler%')
+                                            ->orWhere('code', 'like', '%dealer%')
+                                            ->orWhere('name', 'like', '%партн%')
+                                            ->orWhere('name', 'like', '%дилер%');
+                                    }
+                                })
+                                ->when(! $canSeePartnerPrices, function ($visibleQuery): void {
+                                    $visibleQuery
+                                        ->where('code', 'not like', '%partner%')
+                                        ->where('code', 'not like', '%diler%')
+                                        ->where('code', 'not like', '%dealer%')
+                                        ->where('name', 'not like', '%партн%')
+                                        ->where('name', 'not like', '%дилер%');
+                                });
+                        })
+                        ->with([
+                            'priceType.currency',
+                            'currency',
+                        ])
+                        ->orderByDesc('updated_at');
+                },
                 'publishedMedia' => function ($query): void {
                     $query
                         ->where('type', 'image')
@@ -68,6 +106,8 @@ class FieldController extends Controller
                 'goods.slug',
                 'goods.ava_image',
                 'goods.ava_thumb',
+                'goods.denominator',
+                'goods.country_id',
                 'goods.description',
                 'goods.created_at',
             ]);
@@ -86,6 +126,22 @@ class FieldController extends Controller
                 'goods_count' => $fieldModel->publishedGoods()->count(),
                 'public_url' => route('public.fields.show', $fieldModel->slug),
             ],
+            'fields' => $this->fieldFilters(),
         ]);
+    }
+
+    private function fieldFilters()
+    {
+        return Field::query()
+            ->published()
+            ->withCount(['publishedGoods as goods_count'])
+            ->orderBy('sort_order')
+            ->orderBy('title')
+            ->get([
+                'id',
+                'title',
+                'slug',
+                'description',
+            ]);
     }
 }
