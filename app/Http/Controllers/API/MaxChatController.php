@@ -8,6 +8,7 @@ use App\Models\MaxMessage;
 use App\Services\MaxMessengerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class MaxChatController extends Controller
 {
@@ -31,6 +32,7 @@ class MaxChatController extends Controller
         if ($request->boolean('all')) {
             return response()->json([
                 'data' => $query->limit(500)->get()->map(fn (MaxChat $chat) => $this->chatPayload($chat)),
+                'invite' => $this->invitePayload($phone),
             ]);
         }
 
@@ -38,6 +40,7 @@ class MaxChatController extends Controller
 
         return response()->json([
             'data' => collect($paginator->items())->map(fn (MaxChat $chat) => $this->chatPayload($chat)),
+            'invite' => $this->invitePayload($phone),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
@@ -510,5 +513,89 @@ class MaxChatController extends Controller
             'created_at' => $message->created_at?->toISOString(),
             'updated_at' => $message->updated_at?->toISOString(),
         ];
+    }
+
+    private function invitePayload(?string $phone): array
+    {
+        $baseUrl = $this->botUrl();
+        $payload = $phone ? 'phone_'.$phone : 'crm';
+        $url = $baseUrl ? $this->withStartPayload($baseUrl, $payload) : null;
+
+        return [
+            'configured' => filled($url),
+            'url' => $url,
+            'payload' => $payload,
+            'text_template' => config('services.max.invite_text'),
+            'missing_message' => 'Добавьте MAX_BOT_URL или MAX_BOT_USERNAME в .env, чтобы CRM показывала ссылку приглашения в MAX.',
+        ];
+    }
+
+    private function botUrl(): ?string
+    {
+        $configuredUrl = trim((string) config('services.max.bot_url'));
+
+        if ($configuredUrl !== '') {
+            return $configuredUrl;
+        }
+
+        $configuredUsername = trim((string) config('services.max.bot_username'));
+
+        if ($configuredUsername !== '') {
+            return $this->botUrlFromUsername($configuredUsername);
+        }
+
+        $remoteUsername = $this->remoteBotUsername();
+
+        return $remoteUsername ? $this->botUrlFromUsername($remoteUsername) : null;
+    }
+
+    private function botUrlFromUsername(string $username): string
+    {
+        $username = trim($username);
+
+        if (str_starts_with($username, 'http://') || str_starts_with($username, 'https://')) {
+            return $username;
+        }
+
+        return 'https://max.ru/'.ltrim($username, '@');
+    }
+
+    private function remoteBotUsername(): ?string
+    {
+        $cachedUsername = Cache::get('max.bot_username');
+
+        if ($cachedUsername) {
+            return $cachedUsername;
+        }
+
+        if (! $this->max->configured()) {
+            return null;
+        }
+
+        $result = $this->max->getMe();
+        $username = $result['ok'] ? data_get($result['data'], 'username') : null;
+
+        if (filled($username)) {
+            Cache::put('max.bot_username', (string) $username, now()->addHours(6));
+
+            return (string) $username;
+        }
+
+        return null;
+    }
+
+    private function withStartPayload(string $url, string $payload): string
+    {
+        if ($payload === '' || str_contains($url, 'start=')) {
+            return $url;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        if (str_ends_with($url, '?') || str_ends_with($url, '&')) {
+            $separator = '';
+        }
+
+        return $url.$separator.'start='.rawurlencode($payload);
     }
 }

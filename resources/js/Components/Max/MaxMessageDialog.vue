@@ -27,6 +27,12 @@ const emit = defineEmits(['update:modelValue', 'sent'])
 const chats = ref([])
 const messages = ref([])
 const selectedChatId = ref(null)
+const invite = ref({
+    configured: false,
+    url: '',
+    text_template: '',
+    missing_message: '',
+})
 const loading = ref(false)
 const saving = ref(false)
 const sending = ref(false)
@@ -61,6 +67,17 @@ const targetStatus = computed(() => {
     }
 
     return 'MAX-чат не привязан'
+})
+const inviteUrl = computed(() => invite.value?.url || '')
+const inviteText = computed(() => {
+    const template = invite.value?.text_template
+        || 'Здравствуйте! Напишите нам в MAX: :url После первого сообщения менеджер сможет отвечать вам в этом чате.'
+
+    return template
+        .split(':url').join(inviteUrl.value)
+        .split(':phone').join(normalizedPhone.value ? `+${normalizedPhone.value}` : '')
+        .split(':name').join(form.contact_name || props.contextTitle || '')
+        .trim()
 })
 
 watch(
@@ -174,6 +191,7 @@ async function loadChats() {
 
         const responses = await Promise.all(requests)
         const items = responses.flatMap((response) => response.data?.data || [])
+        const responseInvite = responses.find((response) => response.data?.invite)?.data?.invite
 
         chats.value = uniqueChats(items).sort((a, b) => {
             if (samePhone(a) !== samePhone(b)) {
@@ -190,6 +208,7 @@ async function loadChats() {
         const exactTarget = chats.value.find((chat) => samePhone(chat) && hasChatTarget(chat))
         const exactAny = chats.value.find((chat) => samePhone(chat))
         selectedChatId.value = exactTarget?.id || exactAny?.id || null
+        invite.value = responseInvite || invite.value
 
         if (!selectedChatId.value) {
             messages.value = []
@@ -219,6 +238,21 @@ async function loadMessages() {
         messages.value = data.data || []
     } catch (err) {
         console.error(err)
+    }
+}
+
+async function copyInvite() {
+    if (!inviteUrl.value) {
+        error.value = invite.value?.missing_message || 'Ссылка на MAX-бота не настроена.'
+        return
+    }
+
+    try {
+        await navigator.clipboard.writeText(inviteText.value)
+        notice.value = 'Текст приглашения в MAX скопирован.'
+    } catch (err) {
+        console.error(err)
+        error.value = 'Не удалось скопировать приглашение. Скопируйте текст вручную.'
     }
 }
 
@@ -454,6 +488,52 @@ function formatDate(value) {
                     <span>{{ normalizedPhone ? `+${normalizedPhone}` : 'Телефон не указан' }} · {{ targetStatus }}</span>
                 </div>
 
+                <div
+                    v-if="!hasTarget"
+                    class="max-message-dialog__invite"
+                >
+                    <div>
+                        <strong>Новый собеседник в MAX</strong>
+                        <p v-if="inviteUrl">
+                            Отправьте клиенту приглашение. После первого сообщения в MAX приложение сохранит chat_id/user_id, и кнопка отправки станет активной.
+                        </p>
+                        <p v-else>
+                            {{ invite.missing_message || 'Ссылка на MAX-бота не настроена.' }}
+                        </p>
+                    </div>
+
+                    <div class="max-message-dialog__invite-actions">
+                        <v-btn
+                            v-if="inviteUrl"
+                            :href="inviteUrl"
+                            target="_blank"
+                            rel="noopener"
+                            color="#800000"
+                            variant="tonal"
+                            prepend-icon="mdi-open-in-new"
+                        >
+                            Открыть MAX
+                        </v-btn>
+
+                        <v-btn
+                            color="#800000"
+                            variant="text"
+                            prepend-icon="mdi-content-copy"
+                            :disabled="!inviteUrl"
+                            @click="copyInvite"
+                        >
+                            Скопировать приглашение
+                        </v-btn>
+                    </div>
+
+                    <div
+                        v-if="inviteUrl"
+                        class="max-message-dialog__invite-text"
+                    >
+                        {{ inviteText }}
+                    </div>
+                </div>
+
                 <v-textarea
                     v-model="form.text"
                     label="Сообщение в MAX"
@@ -605,6 +685,44 @@ function formatDate(value) {
     color: #7a5d52;
     font-size: 0.78rem;
     font-weight: 800;
+}
+
+.max-message-dialog__invite {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid rgba(128, 0, 0, 0.18);
+    background: #fff6e8;
+}
+
+.max-message-dialog__invite strong {
+    color: #3f1d1d;
+    font-size: 0.9rem;
+    font-weight: 950;
+}
+
+.max-message-dialog__invite p {
+    margin: 4px 0 0;
+    color: #6e4e43;
+    font-size: 0.86rem;
+    line-height: 1.4;
+}
+
+.max-message-dialog__invite-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.max-message-dialog__invite-text {
+    padding: 10px;
+    border: 1px dashed rgba(128, 0, 0, 0.24);
+    background: #fffdf8;
+    color: #24180f;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
 }
 
 .max-message-dialog__history {

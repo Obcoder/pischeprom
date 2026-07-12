@@ -77,6 +77,11 @@ class MaxMessengerService
         return $this->request('get', '/chats', $this->cleanQuery($query));
     }
 
+    public function getMe(): array
+    {
+        return $this->request('get', '/me');
+    }
+
     public function getMessages(array $query = []): array
     {
         return $this->request('get', '/messages', $this->cleanQuery($query));

@@ -190,6 +190,9 @@ return [
         'access_token' => env('MAX_ACCESS_TOKEN', env('MAX_BOT_TOKEN')),
         'ca_bundle' => env('MAX_CA_BUNDLE', base_path('certs/russian_trusted_ca_bundle.pem')),
         'ssl_verify' => filter_var(env('MAX_SSL_VERIFY', true), FILTER_VALIDATE_BOOLEAN),
+        'bot_url' => env('MAX_BOT_URL'),
+        'bot_username' => env('MAX_BOT_USERNAME'),
+        'invite_text' => env('MAX_INVITE_TEXT', 'Здравствуйте! Напишите нам в MAX: :url После первого сообщения менеджер сможет отвечать вам в этом чате.'),
         'webhook_secret' => env('MAX_WEBHOOK_SECRET'),
         'manager_chat_ids' => array_values(array_filter(array_map(
             'trim',
