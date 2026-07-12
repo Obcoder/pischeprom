@@ -65,6 +65,9 @@ const sendText = ref('')
 const selectedChat = computed(() => {
     return chats.value.find((chat) => Number(chat.id) === Number(selectedChatId.value)) || null
 })
+const selectedChatCanSend = computed(() => {
+    return Boolean(selectedChat.value && chatHasTarget(selectedChat.value) && sendText.value.trim())
+})
 
 const pageTitle = computed(() => 'MAX')
 
@@ -258,6 +261,11 @@ async function sendSelected() {
         return
     }
 
+    if (!chatHasTarget(selectedChat.value)) {
+        error.value = 'У выбранного MAX-чата нет chat_id или user_id. Откройте редактирование и сохраните привязку.'
+        return
+    }
+
     sending.value = true
     error.value = ''
     notice.value = ''
@@ -346,6 +354,10 @@ function maxTarget(chat) {
         chat.chat_id ? `chat ${chat.chat_id}` : null,
         chat.user_id ? `user ${chat.user_id}` : null,
     ].filter(Boolean).join(' · ') || '-'
+}
+
+function chatHasTarget(chat) {
+    return Boolean(chat?.chat_id || chat?.user_id)
 }
 
 function formatDate(value) {
@@ -520,7 +532,7 @@ function formatDate(value) {
                 <v-btn
                     color="#800000"
                     prepend-icon="mdi-send"
-                    :disabled="!selectedChat || !sendText.trim()"
+                    :disabled="!selectedChatCanSend"
                     :loading="sending"
                     @click="sendSelected"
                 >

@@ -146,7 +146,17 @@ class MaxChatController extends Controller
         $chat = $this->resolveChat($data);
         $attributes = $this->chatAttributes($data);
 
+        if (! $chat && ! $this->hasMessageTarget($attributes)) {
+            return response()->json([
+                'message' => 'У этого телефона нет привязанного MAX-чата. Выберите существующий MAX-чат или укажите MAX chat_id/user_id.',
+            ], 422);
+        }
+
         if ($chat) {
+            if (array_key_exists('phone_normalized', $attributes)) {
+                $this->guardUniquePhone($attributes['phone_normalized'], $chat);
+            }
+
             $chat->fill(array_filter($attributes, fn ($value) => filled($value) || is_bool($value)));
             $chat->save();
         } else {
@@ -160,7 +170,7 @@ class MaxChatController extends Controller
 
         if (empty($target)) {
             return response()->json([
-                'message' => 'Для этого телефона ещё не указан MAX chat_id или user_id. Сохраните привязку чата.',
+                'message' => 'У этого телефона нет привязанного MAX-чата. Выберите существующий MAX-чат или укажите MAX chat_id/user_id.',
                 'data' => $this->chatPayload($chat->fresh(['entity:id,name', 'unit:id,name'])),
             ], 422);
         }
@@ -338,14 +348,22 @@ class MaxChatController extends Controller
             return;
         }
 
-        abort_if(
-            MaxChat::query()
-                ->where('phone_normalized', $phone)
-                ->whereKeyNot($chat->getKey())
-                ->exists(),
-            422,
-            'Этот телефон уже привязан к другому MAX-чату.'
-        );
+        $existing = MaxChat::query()
+            ->where('phone_normalized', $phone)
+            ->whereKeyNot($chat->getKey())
+            ->first();
+
+        if (! $existing) {
+            return;
+        }
+
+        if ($this->canMergePhonePlaceholder($existing)) {
+            $this->mergePhonePlaceholder($existing, $chat);
+
+            return;
+        }
+
+        abort(422, 'Этот телефон уже привязан к другому MAX-чату.');
     }
 
     private function hasAnyTarget(array $attributes): bool
@@ -353,6 +371,34 @@ class MaxChatController extends Controller
         return filled($attributes['phone_normalized'] ?? null)
             || filled($attributes['chat_id'] ?? null)
             || filled($attributes['user_id'] ?? null);
+    }
+
+    private function hasMessageTarget(array $attributes): bool
+    {
+        return filled($attributes['chat_id'] ?? null)
+            || filled($attributes['user_id'] ?? null);
+    }
+
+    private function canMergePhonePlaceholder(MaxChat $chat): bool
+    {
+        return blank($chat->chat_id) && blank($chat->user_id);
+    }
+
+    private function mergePhonePlaceholder(MaxChat $placeholder, MaxChat $target): void
+    {
+        MaxMessage::query()
+            ->where('max_chat_id', $placeholder->getKey())
+            ->update([
+                'max_chat_id' => $target->getKey(),
+            ]);
+
+        $target->fill(array_filter([
+            'contact_name' => $target->contact_name ?: $placeholder->contact_name,
+            'entity_id' => $target->entity_id ?: $placeholder->entity_id,
+            'unit_id' => $target->unit_id ?: $placeholder->unit_id,
+        ], fn ($value) => filled($value)));
+
+        $placeholder->delete();
     }
 
     private function messageTarget(MaxChat $chat): array

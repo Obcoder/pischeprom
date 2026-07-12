@@ -79,12 +79,7 @@ class MaxWebhookController extends Controller
             'message.sender.user_id',
             'message.sender.id',
         ]);
-        $phone = MaxChat::normalizePhone($this->firstFilled($payload, [
-            'phone',
-            'user.phone',
-            'contact.phone',
-            'message.sender.phone',
-        ]));
+        $phone = $this->extractPhone($payload);
         $title = $this->firstFilled($payload, [
             'chat.title',
             'message.chat.title',
@@ -205,6 +200,76 @@ class MaxWebhookController extends Controller
 
             if (filled($value)) {
                 return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractPhone(array $payload): ?string
+    {
+        $directPhone = MaxChat::normalizePhone($this->firstFilled($payload, [
+            'phone',
+            'user.phone',
+            'contact.phone',
+            'message.sender.phone',
+            'message.attachments.*.payload.phone',
+            'message.attachments.*.payload.max_info.phone',
+            'attachments.*.payload.phone',
+            'attachments.*.payload.max_info.phone',
+        ]));
+
+        if ($directPhone) {
+            return $directPhone;
+        }
+
+        foreach ($this->filledValues($payload, [
+            'message.attachments.*.payload.vcf_info',
+            'attachments.*.payload.vcf_info',
+        ]) as $vcard) {
+            $phone = $this->phoneFromVcard($vcard);
+
+            if ($phone) {
+                return $phone;
+            }
+        }
+
+        return null;
+    }
+
+    private function filledValues(array $payload, array $paths): array
+    {
+        $values = [];
+
+        foreach ($paths as $path) {
+            array_push($values, ...$this->flattenFilled(data_get($payload, $path)));
+        }
+
+        return $values;
+    }
+
+    private function flattenFilled(mixed $value): array
+    {
+        if (is_array($value)) {
+            return collect($value)
+                ->flatMap(fn ($item) => $this->flattenFilled($item))
+                ->all();
+        }
+
+        return filled($value) ? [$value] : [];
+    }
+
+    private function phoneFromVcard(mixed $value): ?string
+    {
+        if (! preg_match_all('/^TEL[^:]*:(.+)$/mi', (string) $value, $matches)) {
+            return null;
+        }
+
+        foreach ($matches[1] as $phone) {
+            $normalized = MaxChat::normalizePhone($phone);
+
+            if ($normalized) {
+                return $normalized;
             }
         }
 

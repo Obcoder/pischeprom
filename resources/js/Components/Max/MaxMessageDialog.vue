@@ -47,8 +47,20 @@ const selectedChat = computed(() => {
 })
 
 const normalizedPhone = computed(() => normalizePhone(form.phone || props.phone))
+const hasTarget = computed(() => Boolean(form.chat_id || form.user_id))
 const canSend = computed(() => {
-    return Boolean(form.text.trim()) && Boolean(form.chat_id || form.user_id)
+    return Boolean(form.text.trim()) && hasTarget.value
+})
+const targetStatus = computed(() => {
+    if (form.chat_id) {
+        return `MAX chat ${form.chat_id}`
+    }
+
+    if (form.user_id) {
+        return `MAX user ${form.user_id}`
+    }
+
+    return 'MAX-чат не привязан'
 })
 
 watch(
@@ -101,6 +113,32 @@ function chatTitle(chat) {
     ].filter(Boolean).join(' · ')
 }
 
+function hasChatTarget(chat) {
+    return Boolean(chat?.chat_id || chat?.user_id)
+}
+
+function samePhone(chat) {
+    if (!normalizedPhone.value) {
+        return false
+    }
+
+    return normalizePhone(chat?.phone || chat?.phone_normalized) === normalizedPhone.value
+}
+
+function uniqueChats(items) {
+    const seen = new Set()
+
+    return items.filter((chat) => {
+        if (!chat?.id || seen.has(chat.id)) {
+            return false
+        }
+
+        seen.add(chat.id)
+
+        return true
+    })
+}
+
 function fillFromSelected() {
     const chat = selectedChat.value
 
@@ -122,13 +160,36 @@ async function loadChats() {
     loading.value = true
 
     try {
-        const params = normalizedPhone.value
-            ? { phone: normalizedPhone.value, all: 1 }
-            : { search: props.contextTitle, all: 1 }
-        const { data } = await axios.get('/api/max/chats', { params })
+        const requests = []
 
-        chats.value = data.data || []
-        selectedChatId.value = chats.value[0]?.id || null
+        if (normalizedPhone.value) {
+            requests.push(axios.get('/api/max/chats', {
+                params: { phone: normalizedPhone.value, all: 1 },
+            }))
+        }
+
+        requests.push(axios.get('/api/max/chats', {
+            params: { all: 1 },
+        }))
+
+        const responses = await Promise.all(requests)
+        const items = responses.flatMap((response) => response.data?.data || [])
+
+        chats.value = uniqueChats(items).sort((a, b) => {
+            if (samePhone(a) !== samePhone(b)) {
+                return samePhone(a) ? -1 : 1
+            }
+
+            if (hasChatTarget(a) !== hasChatTarget(b)) {
+                return hasChatTarget(a) ? -1 : 1
+            }
+
+            return Number(b.id) - Number(a.id)
+        })
+
+        const exactTarget = chats.value.find((chat) => samePhone(chat) && hasChatTarget(chat))
+        const exactAny = chats.value.find((chat) => samePhone(chat))
+        selectedChatId.value = exactTarget?.id || exactAny?.id || null
 
         if (!selectedChatId.value) {
             messages.value = []
@@ -162,6 +223,11 @@ async function loadMessages() {
 }
 
 async function saveBinding() {
+    if (!form.chat_id && !form.user_id) {
+        error.value = 'Выберите MAX-чат из списка или укажите MAX chat_id/user_id.'
+        return null
+    }
+
     saving.value = true
     error.value = ''
     notice.value = ''
@@ -205,7 +271,7 @@ async function sendMessage() {
     notice.value = ''
 
     if (!form.chat_id && !form.user_id) {
-        error.value = 'Укажите MAX chat_id или user_id для этого телефона.'
+        error.value = 'Выберите MAX-чат из списка или укажите MAX chat_id/user_id.'
         return
     }
 
@@ -327,15 +393,16 @@ function formatDate(value) {
                         hide-details
                     />
 
-                    <v-select
+                    <v-autocomplete
                         v-model="selectedChatId"
                         :items="chats"
                         :item-title="chatTitle"
                         item-value="id"
-                        label="Локальная привязка"
+                        label="MAX-чат"
                         density="compact"
                         variant="outlined"
                         clearable
+                        no-data-text="MAX-чаты не найдены"
                         hide-details
                     />
 
@@ -377,13 +444,14 @@ function formatDate(value) {
                         color="#800000"
                         variant="tonal"
                         prepend-icon="mdi-content-save-outline"
+                        :disabled="!hasTarget"
                         :loading="saving"
                         @click="saveBinding"
                     >
                         Сохранить привязку
                     </v-btn>
 
-                    <span v-if="normalizedPhone">Номер: +{{ normalizedPhone }}</span>
+                    <span>{{ normalizedPhone ? `+${normalizedPhone}` : 'Телефон не указан' }} · {{ targetStatus }}</span>
                 </div>
 
                 <v-textarea
