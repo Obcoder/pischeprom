@@ -26,9 +26,13 @@ class CustomerOrderController extends Controller
             'items' => ['required', 'array', 'min:1', 'max:60'],
             'items.*.good_id' => ['required', 'integer', 'exists:goods,id'],
             'items.*.quantity' => ['nullable', 'numeric', 'min:1', 'max:999'],
+            'delivery_address' => ['required', 'string', 'max:3000'],
+            'preferred_delivery_time' => ['required', 'string', 'max:255'],
+            'customer_phone' => ['required', 'string', 'max:64'],
+            'customer_phone_source' => ['nullable', 'string', 'in:profile,manual'],
         ]);
 
-        /** @var User $user */
+        /** @var User|null $user */
         $user = $request->user();
         $rawItems = collect($validated['items']);
         $goods = $this->publishedGoods($rawItems->pluck('good_id')->unique()->values());
@@ -39,23 +43,30 @@ class CustomerOrderController extends Controller
             ]);
         }
 
+        $canSeePartnerPrices = $user !== null;
+
         $lines = $rawItems
-            ->map(fn (array $item) => $this->makeOrderLine($goods[(int) $item['good_id']], (float) ($item['quantity'] ?? 1)))
+            ->map(fn (array $item) => $this->makeOrderLine(
+                $goods[(int) $item['good_id']],
+                (float) ($item['quantity'] ?? 1),
+                $canSeePartnerPrices,
+            ))
             ->values();
 
-        $order = DB::transaction(function () use ($request, $user, $lines): Order {
+        $order = DB::transaction(function () use ($request, $user, $lines, $validated): Order {
             $order = Order::query()->create([
                 'number' => $this->makeOrderNumber(),
-                'user_id' => $user->id,
+                'user_id' => $user?->id,
                 'status' => 'new',
-                'customer_name' => $user->name,
-                'customer_email' => $user->email,
-                'customer_phone' => $user->phone,
-                'customer_account_type' => $user->account_type,
-                'customer_city_name' => $user->relationLoaded('city')
-                    ? $user->city?->name
-                    : $user->city()->value('name'),
-                'customer_entity_name' => $this->primaryEntityName($user),
+                'customer_name' => $user?->name ?: 'Гость',
+                'customer_email' => $user?->email,
+                'customer_phone' => $validated['customer_phone'],
+                'customer_phone_source' => $validated['customer_phone_source'] ?? 'manual',
+                'customer_account_type' => $user?->account_type ?? 'guest',
+                'customer_city_name' => $this->customerCityName($user),
+                'customer_entity_name' => $user ? $this->primaryEntityName($user) : null,
+                'delivery_address' => $validated['delivery_address'],
+                'preferred_delivery_time' => $validated['preferred_delivery_time'],
                 'total_amount' => $lines->sum(fn (array $line) => (float) ($line['line_total'] ?? 0)),
                 'total_weight' => $lines->sum(fn (array $line) => (float) ($line['line_weight'] ?? 0)) ?: null,
                 'currency_code' => $lines->first()['currency_code'] ?? 'RUB',
@@ -82,7 +93,7 @@ class CustomerOrderController extends Controller
                 'total_weight' => $order->total_weight,
                 'currency_code' => $order->currency_code,
             ],
-            'redirect' => route('dashboard'),
+            'redirect' => $user ? route('dashboard') : null,
         ], 201);
     }
 
@@ -151,13 +162,24 @@ class CustomerOrderController extends Controller
         return $query->value('name');
     }
 
-    private function makeOrderLine(Good $good, float $quantity): array
+    private function customerCityName(?User $user): ?string
+    {
+        if (! $user || ! method_exists($user, 'city')) {
+            return null;
+        }
+
+        return $user->relationLoaded('city')
+            ? $user->city?->name
+            : $user->city()->value('name');
+    }
+
+    private function makeOrderLine(Good $good, float $quantity, bool $canSeePartnerPrices): array
     {
         $quantity = max(1, $quantity);
         $denominator = is_numeric($good->denominator) && (float) $good->denominator > 0
             ? (float) $good->denominator
             : null;
-        $price = $this->selectedPrice($good);
+        $price = $this->selectedPrice($good, $canSeePartnerPrices);
         $priceGross = $this->priceValue($price);
         $currencyCode = $this->currencyCode($price);
         $lineTotal = $priceGross !== null
@@ -192,17 +214,27 @@ class CustomerOrderController extends Controller
         ];
     }
 
-    private function selectedPrice(Good $good): ?GoodPriceTypeValue
+    private function selectedPrice(Good $good, bool $canSeePartnerPrices): ?GoodPriceTypeValue
     {
         $prices = $good->priceTypeValues
             ->filter(fn (GoodPriceTypeValue $price) => $price->is_published !== false)
             ->sortBy(fn (GoodPriceTypeValue $price) => $price->priceType?->sort_order ?? 100)
             ->values();
+        $visiblePrices = $canSeePartnerPrices
+            ? $prices
+            : $prices->reject(fn (GoodPriceTypeValue $price) => $this->isPartnerPrice($price))->values();
 
-        return $prices->first(fn (GoodPriceTypeValue $price) => $this->isPartnerPrice($price))
-            ?: $prices->first(fn (GoodPriceTypeValue $price) => $this->isRetailPrice($price))
-            ?: $prices->first(fn (GoodPriceTypeValue $price) => (bool) $price->priceType?->is_public)
-            ?: $prices->first();
+        if ($canSeePartnerPrices) {
+            $partnerPrice = $prices->first(fn (GoodPriceTypeValue $price) => $this->isPartnerPrice($price));
+
+            if ($partnerPrice) {
+                return $partnerPrice;
+            }
+        }
+
+        return $visiblePrices->first(fn (GoodPriceTypeValue $price) => $this->isRetailPrice($price))
+            ?: $visiblePrices->first(fn (GoodPriceTypeValue $price) => (bool) $price->priceType?->is_public)
+            ?: $visiblePrices->first();
     }
 
     private function isPartnerPrice(GoodPriceTypeValue $price): bool

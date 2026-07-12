@@ -40,6 +40,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'account_type',  // individual | organization
 
         'city_id',
+        'delivery_address',
 
         'profile_photo_path',
 

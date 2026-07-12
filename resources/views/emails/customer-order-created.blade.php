@@ -9,8 +9,13 @@
 
 <p>
     Клиент: <strong>{{ $order->customer_name }}</strong><br>
-    Email: <strong>{{ $order->customer_email }}</strong><br>
+    Email: <strong>{{ $order->customer_email ?: 'не указан' }}</strong><br>
     Телефон: <strong>{{ $order->customer_phone ?: 'не указан' }}</strong>
+</p>
+
+<p>
+    Адрес доставки: <strong>{{ $order->delivery_address ?: 'не указан' }}</strong><br>
+    Удобное время: <strong>{{ $order->preferred_delivery_time ?: 'не указано' }}</strong>
 </p>
 
 <p>

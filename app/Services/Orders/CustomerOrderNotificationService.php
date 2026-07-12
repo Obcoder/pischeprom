@@ -59,6 +59,8 @@ class CustomerOrderNotificationService
             "Клиент: {$order->customer_name}",
             "Email: {$order->customer_email}",
             "Телефон: " . ($order->customer_phone ?: 'не указан'),
+            "Адрес: " . ($order->delivery_address ?: 'не указан'),
+            "Время: " . ($order->preferred_delivery_time ?: 'не указано'),
             "Сумма: " . $this->money($order->total_amount, $order->currency_code),
             "Вес: " . $this->weight($order->total_weight),
             "Позиций: {$order->items->count()}",
@@ -71,6 +73,8 @@ class CustomerOrderNotificationService
     {
         return implode("\n", [
             "Заказ {$order->number} создан.",
+            "Адрес: " . ($order->delivery_address ?: 'не указан'),
+            "Время: " . ($order->preferred_delivery_time ?: 'не указано'),
             "Сумма: " . $this->money($order->total_amount, $order->currency_code),
             "Вес: " . $this->weight($order->total_weight),
             'Менеджер ПИЩЕПРОМ-СЕРВЕР скоро начнёт работу с заказом.',

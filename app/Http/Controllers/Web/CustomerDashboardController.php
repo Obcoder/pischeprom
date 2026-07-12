@@ -34,6 +34,7 @@ class CustomerDashboardController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone ?? null,
                 'max_chat_id' => $user->max_chat_id ?? null,
+                'delivery_address' => $user->delivery_address ?? null,
                 'type' => $user->type ?? null,
                 'status' => $user->status ?? null,
                 'account_type' => $user->account_type ?? 'individual',
@@ -82,6 +83,8 @@ class CustomerDashboardController extends Controller
                         'total_amount' => $order->total_amount,
                         'total_weight' => $order->total_weight,
                         'currency_code' => $order->currency_code,
+                        'delivery_address' => $order->delivery_address,
+                        'preferred_delivery_time' => $order->preferred_delivery_time,
                         'submitted_at' => $order->submitted_at?->toIso8601String(),
                         'items' => $order->items->map(fn ($item) => [
                             'id' => $item->id,

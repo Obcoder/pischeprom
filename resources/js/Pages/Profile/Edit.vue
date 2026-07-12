@@ -67,6 +67,7 @@ const form = useForm({
     email: props.profile.email || '',
     phone: props.profile.phone || '',
     max_chat_id: props.profile.max_chat_id || '',
+    delivery_address: props.profile.delivery_address || '',
     city_id: props.profile.city?.id || null,
 
     avatar: null,
@@ -379,6 +380,18 @@ function submit() {
                                             variant="outlined"
                                             rounded="lg"
                                             :error-messages="form.errors.city_id || cityHint"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12">
+                                        <v-textarea
+                                            v-model="form.delivery_address"
+                                            label="Адрес доставки"
+                                            variant="outlined"
+                                            rounded="lg"
+                                            rows="2"
+                                            auto-grow
+                                            :error-messages="form.errors.delivery_address"
                                         />
                                     </v-col>
 

@@ -65,10 +65,11 @@ Route::middleware([
 
     Route::post('/dashboard/profile', [CustomerProfileController::class, 'update'])
         ->name('customer.profile.update');
-
-    Route::post('/orders', [CustomerOrderController::class, 'store'])
-        ->name('customer.orders.store');
 });
+
+Route::post('/orders', [CustomerOrderController::class, 'store'])
+    ->middleware('throttle:20,1')
+    ->name('customer.orders.store');
 
 //  E N D  D A S H B O A R D
 

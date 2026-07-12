@@ -122,6 +122,11 @@ function formatDate(value) {
                             </div>
 
                             <div class="dashboard-field">
+                                <span>Адрес доставки</span>
+                                <strong>{{ profile.delivery_address || 'Не указан' }}</strong>
+                            </div>
+
+                            <div class="dashboard-field">
                                 <span>Email подтверждён</span>
                                 <strong>{{ profile.email_verified_at ? 'Да' : 'Нет' }}</strong>
                             </div>
@@ -219,6 +224,11 @@ function formatDate(value) {
                                     <div class="dashboard-order__totals">
                                         <span>{{ formatMoney(order.total_amount, order.currency_code) }}</span>
                                         <span>{{ formatWeight(order.total_weight) }}</span>
+                                    </div>
+
+                                    <div class="dashboard-order__delivery">
+                                        <span>{{ order.delivery_address || 'Адрес не указан' }}</span>
+                                        <span>{{ order.preferred_delivery_time || 'Время не указано' }}</span>
                                     </div>
 
                                     <div class="dashboard-order__items">
@@ -437,6 +447,22 @@ function formatDate(value) {
     color: #6b1b18;
     font-size: 0.82rem;
     font-weight: 900;
+}
+
+.dashboard-order__delivery {
+    display: grid;
+    gap: 4px;
+    padding: 9px 10px;
+    border: 1px solid rgba(71, 118, 90, 0.12);
+    border-radius: 8px;
+    background: rgba(71, 118, 90, 0.06);
+}
+
+.dashboard-order__delivery span {
+    color: #30463a;
+    font-size: 0.82rem;
+    font-weight: 850;
+    line-height: 1.35;
 }
 
 .dashboard-order__items {

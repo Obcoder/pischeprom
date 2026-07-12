@@ -32,6 +32,8 @@ class HandleInertiaRequests extends Middleware
                         'name' => $request->user()->name,
                         'email' => $request->user()->email,
                         'phone' => $request->user()->phone,
+                        'max_chat_id' => $request->user()->max_chat_id,
+                        'delivery_address' => $request->user()->delivery_address,
                         'type' => $request->user()->type,
                         'status' => $request->user()->status,
                         'account_type' => $request->user()->account_type,

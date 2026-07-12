@@ -209,6 +209,42 @@ onBeforeUnmount(() => {
         <div class="app-header__top">
             <v-container class="py-0">
                 <div class="app-header__top-inner">
+                    <Link
+                        :href="homeUrl"
+                        class="app-header__brand"
+                    >
+                        <div class="app-header__logo">
+                            <img
+                                v-if="showLogoImage"
+                                :src="logoUrl"
+                                :alt="siteName"
+                                width="40"
+                                height="40"
+                                class="app-header__logo-image"
+                                loading="eager"
+                                decoding="async"
+                                @error="markLogoFailed"
+                            >
+
+                            <div
+                                v-else
+                                class="app-header__logo-fallback"
+                            >
+                                ПС
+                            </div>
+                        </div>
+
+                        <div class="app-header__brand-text">
+                            <div class="app-header__brand-title">
+                                {{ siteName }}
+                            </div>
+
+                            <div class="app-header__brand-subtitle">
+                                {{ siteSubtitle }}
+                            </div>
+                        </div>
+                    </Link>
+
                     <div class="app-header__contacts">
                         <a
                             v-for="contact in contacts"
@@ -232,6 +268,83 @@ onBeforeUnmount(() => {
                         class="app-header__city"
                         compact
                     />
+
+                    <nav class="app-header__nav">
+                        <Link
+                            :href="goodsIndexUrl"
+                            class="app-header__nav-link app-header__nav-link--primary"
+                        >
+                            Все товары
+                        </Link>
+
+                        <v-menu
+                            v-model="categoryMenu"
+                            location="bottom"
+                            transition="scale-transition"
+                            :close-on-content-click="false"
+                        >
+                            <template #activator="{ props: menuProps }">
+                                <v-btn
+                                    v-bind="menuProps"
+                                    color="white"
+                                    variant="outlined"
+                                    rounded="lg"
+                                    size="small"
+                                >
+                                    Категории
+                                </v-btn>
+                            </template>
+
+                            <v-card
+                                min-width="280"
+                                max-width="420"
+                                rounded="xl"
+                            >
+                                <v-card-title class="text-subtitle-1 font-weight-bold">
+                                    Категории
+                                </v-card-title>
+
+                                <v-divider />
+
+                                <v-list
+                                    v-if="hasCategories"
+                                    density="compact"
+                                    nav
+                                >
+                                    <Link
+                                        v-for="category in visibleCategories"
+                                        :key="category.id"
+                                        :href="categoryUrl(category)"
+                                        class="app-header__category-link"
+                                        @click="categoryMenu = false"
+                                    >
+                                        <v-list-item
+                                            :title="category.name"
+                                            prepend-icon="mdi-shape-outline"
+                                        />
+                                    </Link>
+                                </v-list>
+
+                                <v-card-text
+                                    v-else
+                                    class="text-body-2 text-medium-emphasis"
+                                >
+                                    Категории скоро появятся.
+                                </v-card-text>
+                            </v-card>
+                        </v-menu>
+
+                        <div class="app-header__quick-links">
+                            <Link
+                                v-for="item in quickLinks"
+                                :key="item.label"
+                                :href="item.href"
+                                class="app-header__quick-link"
+                            >
+                                {{ item.label }}
+                            </Link>
+                        </div>
+                    </nav>
 
                     <div class="app-header__account">
                         <template v-if="user">
@@ -329,120 +442,7 @@ onBeforeUnmount(() => {
         <div class="app-header__main">
             <v-container class="app-header__main-container">
                 <div class="app-header__main-inner">
-                    <Link
-                        :href="homeUrl"
-                        class="app-header__brand"
-                    >
-                        <div class="app-header__logo">
-                            <img
-                                v-if="showLogoImage"
-                                :src="logoUrl"
-                                :alt="siteName"
-                                width="46"
-                                height="46"
-                                class="app-header__logo-image"
-                                loading="eager"
-                                decoding="async"
-                                @error="markLogoFailed"
-                            >
-
-                            <div
-                                v-else
-                                class="app-header__logo-fallback"
-                            >
-                                ПС
-                            </div>
-                        </div>
-
-                        <div class="app-header__brand-text">
-                            <div class="app-header__brand-title">
-                                {{ siteName }}
-                            </div>
-
-                            <div class="app-header__brand-subtitle">
-                                {{ siteSubtitle }}
-                            </div>
-                        </div>
-                    </Link>
-
                     <OrderCartStrip class="app-header__cart" />
-
-                    <nav class="app-header__nav">
-                        <Link
-                            :href="goodsIndexUrl"
-                            class="app-header__nav-link app-header__nav-link--primary"
-                        >
-                            Все товары
-                        </Link>
-
-                        <v-menu
-                            v-model="categoryMenu"
-                            location="bottom"
-                            transition="scale-transition"
-                            :close-on-content-click="false"
-                        >
-                            <template #activator="{ props: menuProps }">
-                                <v-btn
-                                    v-bind="menuProps"
-                                    color="#800000"
-                                    variant="tonal"
-                                    rounded="xl"
-                                    size="small"
-                                >
-                                    Категории
-                                </v-btn>
-                            </template>
-
-                            <v-card
-                                min-width="280"
-                                max-width="420"
-                                rounded="xl"
-                            >
-                                <v-card-title class="text-subtitle-1 font-weight-bold">
-                                    Категории
-                                </v-card-title>
-
-                                <v-divider />
-
-                                <v-list
-                                    v-if="hasCategories"
-                                    density="compact"
-                                    nav
-                                >
-                                    <Link
-                                        v-for="category in visibleCategories"
-                                        :key="category.id"
-                                        :href="categoryUrl(category)"
-                                        class="app-header__category-link"
-                                        @click="categoryMenu = false"
-                                    >
-                                        <v-list-item
-                                            :title="category.name"
-                                            prepend-icon="mdi-shape-outline"
-                                        />
-                                    </Link>
-                                </v-list>
-
-                                <v-card-text
-                                    v-else
-                                    class="text-body-2 text-medium-emphasis"
-                                >
-                                    Категории скоро появятся.
-                                </v-card-text>
-                            </v-card>
-                        </v-menu>
-
-                        <div class="app-header__quick-links">
-                            <Link
-                                v-for="item in quickLinks"
-                                :key="item.label"
-                                :href="item.href"
-                                class="app-header__quick-link"
-                            >
-                                {{ item.label }}
-                            </Link>
-                        </div>
-                    </nav>
                 </div>
             </v-container>
         </div>
@@ -585,17 +585,17 @@ onBeforeUnmount(() => {
 }
 
 .app-header__top-inner {
-    min-height: 42px;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    min-height: 54px;
+    display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
 }
 
 .app-header__contacts {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
     min-width: 0;
 }
 
@@ -605,7 +605,7 @@ onBeforeUnmount(() => {
     gap: 6px;
     color: #fff;
     text-decoration: none;
-    font-size: 0.88rem;
+    font-size: 0.78rem;
     white-space: nowrap;
     opacity: 0.95;
 }
@@ -620,11 +620,12 @@ onBeforeUnmount(() => {
 }
 
 .app-header__city {
-    justify-self: center;
+    flex: 0 0 auto;
 }
 
 .app-header__account {
     display: flex;
+    flex: 0 0 auto;
     justify-content: flex-end;
     align-items: center;
     gap: 12px;
@@ -673,22 +674,21 @@ onBeforeUnmount(() => {
 }
 
 .app-header__main {
-    background: rgba(255, 250, 248, 0.96);
+    background: #fffaf8;
     backdrop-filter: blur(10px);
     transition: padding 0.2s ease;
 }
 
 .app-header__main-container {
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding-top: 9px;
+    padding-bottom: 9px;
 }
 
 .app-header__main-inner {
     min-height: 64px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 22px;
+    justify-content: stretch;
     transition: min-height 0.2s ease;
 }
 
@@ -700,15 +700,16 @@ onBeforeUnmount(() => {
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 12px;
+    gap: 9px;
     text-decoration: none;
     min-width: 0;
+    max-width: 254px;
 }
 
 .app-header__logo {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
     overflow: hidden;
     background: #fff;
     box-shadow: 0 6px 16px rgba(128, 0, 0, 0.12);
@@ -723,8 +724,8 @@ onBeforeUnmount(() => {
 }
 
 .app-header__logo-fallback {
-    width: 46px;
-    height: 46px;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
     background: #800000;
@@ -733,45 +734,47 @@ onBeforeUnmount(() => {
 }
 
 .app-header__brand-title {
-    color: #8b1e1e;
+    color: #fff;
     font-weight: 900;
-    font-size: 0.96rem;
+    font-size: 0.82rem;
     line-height: 1.2;
     text-transform: uppercase;
 }
 
 .app-header__brand-subtitle {
     margin-top: 2px;
-    color: #756c67;
-    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.68rem;
     line-height: 1.2;
 }
 
 .app-header__nav {
     display: flex;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     flex-wrap: wrap;
     justify-content: flex-end;
+    min-width: 0;
 }
 
 .app-header__cart {
-    flex: 1 1 520px;
-    max-width: 660px;
+    width: 100%;
+    max-width: none;
 }
 
 .app-header__nav-link,
 .app-header__quick-link {
-    color: #1f1f1f;
+    color: rgba(255, 255, 255, 0.88);
     text-decoration: none;
-    font-weight: 600;
+    font-size: 0.82rem;
+    font-weight: 800;
     white-space: nowrap;
 }
 
 .app-header__nav-link--primary {
-    color: #7f1d1d;
-    font-weight: 800;
+    color: #fff;
+    font-weight: 950;
 }
 
 .app-header__quick-links {
@@ -782,7 +785,7 @@ onBeforeUnmount(() => {
 
 .app-header__quick-link:hover,
 .app-header__nav-link:hover {
-    color: #800000;
+    color: #fff;
 }
 
 .app-header__category-link {
@@ -883,7 +886,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 960px) {
     .app-header__top-inner {
-        grid-template-columns: 1fr auto;
+        min-height: 50px;
     }
 
     .app-header__contacts,
@@ -893,7 +896,7 @@ onBeforeUnmount(() => {
     }
 
     .app-header__city {
-        justify-self: start;
+        margin-left: auto;
     }
 
     .app-header__burger {
@@ -901,14 +904,10 @@ onBeforeUnmount(() => {
     }
 
     .app-header__main-inner {
-        min-height: 64px;
-        flex-wrap: wrap;
-        gap: 10px;
+        min-height: 62px;
     }
 
     .app-header__cart {
-        order: 3;
-        flex-basis: 100%;
         max-width: none;
     }
 
