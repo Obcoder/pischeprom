@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
 
 const props = defineProps({
@@ -119,6 +120,10 @@ function relationNames(items, key = 'name', limit = 2) {
 
 function unitPhones(unit) {
     return relationNames(unit?.telephones, 'number', 2)
+}
+
+function phoneNumber(telephone) {
+    return telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? ''
 }
 
 function unitEmails(unit) {
@@ -342,7 +347,25 @@ function checkItemCount(check) {
 
                         <div class="entity-contact-block">
                             <span>Телефоны</span>
-                            <strong>{{ formatPhones(phones) || '—' }}</strong>
+                            <div
+                                v-if="phones.length"
+                                class="entity-contact-phones"
+                            >
+                                <div
+                                    v-for="telephone in phones"
+                                    :key="telephone.id || phoneNumber(telephone)"
+                                >
+                                    <strong>{{ phoneNumber(telephone) }}</strong>
+                                    <MaxContactButton
+                                        :phone="phoneNumber(telephone)"
+                                        :entity-id="entity.id"
+                                        :context-title="entity.name"
+                                        size="x-small"
+                                        variant="tonal"
+                                    />
+                                </div>
+                            </div>
+                            <strong v-else>{{ formatPhones(phones) || '—' }}</strong>
                         </div>
                     </section>
 
@@ -413,6 +436,20 @@ function checkItemCount(check) {
                                             <div>
                                                 <span>Тел.</span>
                                                 <strong>{{ unitPhones(unit) }}</strong>
+                                                <div
+                                                    v-if="unit.telephones?.length"
+                                                    class="entity-unit-card__phone-actions"
+                                                >
+                                                    <MaxContactButton
+                                                        v-for="telephone in unit.telephones.slice(0, 2)"
+                                                        :key="telephone.id || phoneNumber(telephone)"
+                                                        :phone="phoneNumber(telephone)"
+                                                        :unit-id="unit.id"
+                                                        :context-title="unit.name"
+                                                        size="x-small"
+                                                        variant="tonal"
+                                                    />
+                                                </div>
                                             </div>
 
                                             <div>
@@ -561,6 +598,19 @@ function checkItemCount(check) {
     color: #32140c;
     font-size: 1.35rem;
     font-weight: 950;
+}
+
+.entity-contact-phones {
+    display: grid;
+    gap: 6px;
+}
+
+.entity-contact-phones > div,
+.entity-unit-card__phone-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 .entity-detail-grid {

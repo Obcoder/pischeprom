@@ -167,6 +167,9 @@ Route::apiResource('emails', EmailController::class);
 use App\Http\Controllers\API\MailboxController;
 use App\Http\Controllers\API\MailMessageActionController;
 use App\Http\Controllers\API\MailMessageController;
+use App\Http\Controllers\API\MaxChatController;
+use App\Http\Controllers\API\MaxSubscriptionController;
+use App\Http\Controllers\API\MaxWebhookController;
 
 Route::apiResource('mailboxes', MailboxController::class)
     ->only(['index', 'store', 'show', 'update', 'destroy']);
@@ -340,6 +343,37 @@ Route::prefix('telephones')->group(function () {
     Route::put('/{telephone}', [TelephoneController::class, 'update']);
 });
 //  E N D  T E L E P H O N E S
+
+/*
+ * ------------------
+ *  M A X
+ * __________________
+ */
+Route::post('/max/webhook', MaxWebhookController::class)
+    ->middleware('throttle:120,1')
+    ->name('api.max.webhook');
+
+Route::prefix('max')
+    ->name('api.max.')
+    ->middleware(['auth:sanctum', 'throttle:90,1'])
+    ->group(function () {
+        Route::get('/chats', [MaxChatController::class, 'index'])->name('chats.index');
+        Route::post('/chats', [MaxChatController::class, 'store'])->name('chats.store');
+        Route::get('/chats/{maxChat}', [MaxChatController::class, 'show'])->name('chats.show');
+        Route::put('/chats/{maxChat}', [MaxChatController::class, 'update'])->name('chats.update');
+        Route::delete('/chats/{maxChat}', [MaxChatController::class, 'destroy'])->name('chats.destroy');
+        Route::get('/chats/{maxChat}/messages', [MaxChatController::class, 'messages'])->name('chats.messages');
+        Route::post('/chats/{maxChat}/sync', [MaxChatController::class, 'sync'])->name('chats.sync');
+
+        Route::post('/messages/send', [MaxChatController::class, 'send'])->name('messages.send');
+        Route::put('/messages/{maxMessage}', [MaxChatController::class, 'updateMessage'])->name('messages.update');
+        Route::delete('/messages/{maxMessage}', [MaxChatController::class, 'destroyMessage'])->name('messages.destroy');
+
+        Route::get('/subscriptions', [MaxSubscriptionController::class, 'index'])->name('subscriptions.index');
+        Route::post('/subscriptions', [MaxSubscriptionController::class, 'store'])->name('subscriptions.store');
+        Route::delete('/subscriptions/{maxSubscription}', [MaxSubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
+    });
+//  E N D  M A X
 
 /*
  * ------------------

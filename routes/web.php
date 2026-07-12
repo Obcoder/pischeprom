@@ -190,6 +190,10 @@ Route::get('/Ameise/Mail', function () {
     return Inertia::render('Ameise/Mail');
 })->name('Ameise.mail');
 
+Route::get('/Ameise/Max', function () {
+    return Inertia::render('Ameise/Max');
+})->name('Ameise.max');
+
 //
 
 //      E N T I T I E S

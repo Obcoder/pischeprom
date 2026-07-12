@@ -320,6 +320,16 @@ onMounted(fetchWorkingLeads)
                 </Link>
             </v-app-bar-title>
             <v-app-bar-title>
+                <Link
+                    :href="route('Ameise.max')"
+                    title="MAX"
+                    aria-label="MAX"
+                >
+                    <v-icon icon="mdi-message-text-outline" size="small" class="mx-1" />
+                    <span>MAX</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
                 <Link :href="route('Ameise.fluxmonitor')">
                     <span>M</span>
                 </Link>

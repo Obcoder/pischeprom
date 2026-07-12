@@ -188,9 +188,14 @@ return [
     'max' => [
         'api_url' => env('MAX_API_URL', 'https://platform-api2.max.ru'),
         'access_token' => env('MAX_ACCESS_TOKEN', env('MAX_BOT_TOKEN')),
+        'webhook_secret' => env('MAX_WEBHOOK_SECRET'),
         'manager_chat_ids' => array_values(array_filter(array_map(
             'trim',
             explode(',', env('MAX_MANAGER_CHAT_IDS', ''))
+        ))),
+        'webhook_update_types' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', env('MAX_WEBHOOK_UPDATE_TYPES', 'bot_started,message_created,message_removed,message_edited,bot_added,bot_removed,user_added,user_removed,chat_title_changed,message_callback'))
         ))),
     ],
 

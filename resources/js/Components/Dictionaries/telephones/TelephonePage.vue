@@ -65,6 +65,18 @@
                     item-value="id"
                     class="mt-4"
                 >
+                    <template #item.number="{ item }">
+                        <div class="telephone-max-cell">
+                            <span>{{ item.number }}</span>
+                            <MaxContactButton
+                                :phone="item.number"
+                                :context-title="item.number"
+                                size="x-small"
+                                variant="tonal"
+                            />
+                        </div>
+                    </template>
+
                     <template #item.entities="{ item }">
                         <div class="d-flex flex-wrap ga-1">
                             <v-chip
@@ -137,6 +149,7 @@ import { useTelephoneForm } from '@/Composables/telephones/useTelephoneForm'
 import { useTelephoneMeta } from '@/Composables/telephones/useTelephoneMeta'
 import { formatDate, formatTime } from '@/utils/formatters/dateTime'
 import TelephoneFormDialog from '@/Components/Dictionaries/telephones/TelephoneFormDialog.vue'
+import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 
 const headers = [
     { title: 'ID', key: 'id', sortable: true },
@@ -181,3 +194,11 @@ onMounted(async () => {
     await fetchItems()
 })
 </script>
+
+<style scoped>
+.telephone-max-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+</style>

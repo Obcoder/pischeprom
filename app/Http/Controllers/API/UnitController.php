@@ -32,10 +32,12 @@ class UnitController extends Controller
             )
             ->with([
                        'buildings.city',
+                       'entities:id,name',
                        'labels',
                        'fields',
                        'cities',
                        'industries',
+                       'telephones:id,number',
                    ])
             ->latest()
             ->get();

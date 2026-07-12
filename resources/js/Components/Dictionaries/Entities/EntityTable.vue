@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { route } from 'ziggy-js'
+import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
 
 const props = defineProps({
@@ -142,6 +143,10 @@ const groupLabel = (item) => {
     }
 
     return props.groupByMode === 'region' ? 'Без региона' : 'Без города'
+}
+
+const phoneNumber = (telephone) => {
+    return telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? ''
 }
 </script>
 
@@ -503,7 +508,26 @@ const groupLabel = (item) => {
                 </template>
 
                 <template #item.telephones_display="{ item }">
-                    {{ item.telephones_display || formatPhones(item.telephones || []) || '—' }}
+                    <div
+                        v-if="item.telephones?.length"
+                        class="entity-phone-list"
+                    >
+                        <span
+                            v-for="telephone in item.telephones"
+                            :key="telephone.id || phoneNumber(telephone)"
+                            class="entity-phone-line"
+                        >
+                            <span>{{ phoneNumber(telephone) }}</span>
+                            <MaxContactButton
+                                :phone="phoneNumber(telephone)"
+                                :entity-id="item.id"
+                                :context-title="item.name"
+                                size="x-small"
+                                color="#fff7ed"
+                            />
+                        </span>
+                    </div>
+                    <span v-else>{{ item.telephones_display || formatPhones(item.telephones || []) || '—' }}</span>
                 </template>
 
                 <template #item.purchases_max_date="{ item }">
@@ -655,6 +679,20 @@ const groupLabel = (item) => {
     font-size: 9px;
     font-weight: 700;
     line-height: 1.2;
+}
+
+.entity-phone-list {
+    display: grid;
+    gap: 1px;
+    max-height: 42px;
+    overflow: hidden;
+}
+
+.entity-phone-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
 }
 
 .entity-sort-card {

@@ -11,6 +11,7 @@ import UnitAdminTab from '@/Components/Unit/UnitAdminTab.vue'
 import UnitUrisCard from '@/Components/Unit/UnitUrisCard.vue'
 import UnitRelationManagerDialog from '@/Components/Unit/UnitRelationManagerDialog.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
+import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 
 const MANAGER_PHONE = '79650160001'
 
@@ -625,8 +626,12 @@ function formatPhone(value) {
     return normalized ? `+${normalized.replace(/^\+/, '')}` : 'нет номера'
 }
 
+function phoneNumber(telephone) {
+    return telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? ''
+}
+
 async function dialEntityPhone(telephone, entity) {
-    const phone = normalizePhone(telephone?.number)
+    const phone = normalizePhone(phoneNumber(telephone))
 
     if (!phone) {
         return
@@ -874,15 +879,27 @@ function openQuickMail() {
                             </div>
 
                             <div v-if="unit.telephones?.length" class="d-flex flex-wrap ga-2">
-                                <v-chip
+                                <span
                                     v-for="telephone in unit.telephones"
                                     :key="telephone.id"
-                                    size="small"
-                                    color="indigo"
-                                    variant="tonal"
+                                    class="unit-overview__max-phone-chip"
                                 >
-                                    {{ telephone.number }}
-                                </v-chip>
+                                    <v-chip
+                                        size="small"
+                                        color="indigo"
+                                        variant="tonal"
+                                    >
+                                        {{ phoneNumber(telephone) }}
+                                    </v-chip>
+
+                                    <MaxContactButton
+                                        :phone="phoneNumber(telephone)"
+                                        :unit-id="unit.id"
+                                        :context-title="unit.name"
+                                        size="x-small"
+                                        variant="tonal"
+                                    />
+                                </span>
                             </div>
 
                             <div v-else class="text-caption text-disabled">
@@ -964,20 +981,33 @@ function openQuickMail() {
                                 v-if="entityTelephones(entity).length"
                                 class="unit-overview__entity-phones"
                             >
-                                <button
+                                <span
                                     v-for="telephone in entityTelephones(entity)"
                                     :key="telephone.id"
-                                    type="button"
-                                    class="unit-overview__entity-phone"
-                                    :disabled="dialingPhone === normalizePhone(telephone.number)"
-                                    @click="dialEntityPhone(telephone, entity)"
+                                    class="unit-overview__entity-phone-wrap"
                                 >
-                                    <span class="unit-overview__entity-phone-icon">call</span>
-                                    <span>{{ formatPhone(telephone.number) }}</span>
-                                    <small v-if="dialingPhone === normalizePhone(telephone.number)">
-                                        dialing
-                                    </small>
-                                </button>
+                                    <button
+                                        type="button"
+                                        class="unit-overview__entity-phone"
+                                        :disabled="dialingPhone === normalizePhone(phoneNumber(telephone))"
+                                        @click="dialEntityPhone(telephone, entity)"
+                                    >
+                                        <span class="unit-overview__entity-phone-icon">call</span>
+                                        <span>{{ formatPhone(phoneNumber(telephone)) }}</span>
+                                        <small v-if="dialingPhone === normalizePhone(phoneNumber(telephone))">
+                                            dialing
+                                        </small>
+                                    </button>
+
+                                    <MaxContactButton
+                                        :phone="phoneNumber(telephone)"
+                                        :entity-id="entity.id"
+                                        :unit-id="unit.id"
+                                        :context-title="entity.name"
+                                        size="x-small"
+                                        variant="tonal"
+                                    />
+                                </span>
                             </div>
 
                             <div
@@ -1646,6 +1676,13 @@ function openQuickMail() {
     flex-wrap: wrap;
     gap: 5px;
     margin-top: 7px;
+}
+
+.unit-overview__max-phone-chip,
+.unit-overview__entity-phone-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .unit-overview__entity-phone {

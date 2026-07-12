@@ -5,6 +5,7 @@ import {Link, useForm} from "@inertiajs/vue3";
 import axios from "axios";
 import {useHead} from "@vueuse/head";
 import {route} from "ziggy-js";
+import MaxContactButton from "@/Components/Max/MaxContactButton.vue";
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -58,6 +59,10 @@ const formatBuildingTitle = (building) => {
     if (!building) return '';
     return `${building.city?.name || ' - '} , ${building.address}`;
 };
+
+function phoneNumber(telephone) {
+    return telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? ''
+}
 
 const formUnit = useForm({
     name: null,
@@ -270,6 +275,24 @@ useHead({
                                 >
                                     {{label.name}}
                                 </div>
+                                <div
+                                    v-if="unit.telephones?.length"
+                                    class="unit-list__phones"
+                                >
+                                    <span
+                                        v-for="telephone in unit.telephones"
+                                        :key="telephone.id || phoneNumber(telephone)"
+                                    >
+                                        <span>{{ phoneNumber(telephone) }}</span>
+                                        <MaxContactButton
+                                            :phone="phoneNumber(telephone)"
+                                            :unit-id="unit.id"
+                                            :context-title="unit.name"
+                                            size="x-small"
+                                            variant="tonal"
+                                        />
+                                    </span>
+                                </div>
                             </v-col>
                             <v-col cols="4">
                                 <v-chip v-if="unit.entities.length > 0"
@@ -290,3 +313,21 @@ useHead({
         </v-row>
     </v-container>
 </template>
+
+<style scoped>
+.unit-list__phones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.unit-list__phones > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #29433f;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+</style>

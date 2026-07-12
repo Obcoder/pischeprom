@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { Link } from '@inertiajs/vue3'
+import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 
 const units = ref([])
 const fields = ref([])
@@ -30,6 +31,7 @@ const dialogFormUri = ref(false)
 const headerUnits = [
     { key: 'cities', title: 'Города', align: 'start', width: '13%' },
     { key: 'name', title: 'name' },
+    { key: 'telephones', title: 'MAX / Тел.', align: 'start', width: '13%' },
     { key: 'industries', title: 'ОКВЭД', align: 'start', width: '10%' },
     { key: 'sales_count', title: 'Sales', align: 'end', width: '7%' },
     { key: 'labels', title: 'labels', align: 'start', sortable: true },
@@ -216,6 +218,10 @@ function formatBuildingTitle(building) {
     return [building.address, building.city?.name].filter(Boolean).join(' / ')
 }
 
+function phoneNumber(telephone) {
+    return telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? ''
+}
+
 onMounted(() => {
     loadDictionaries()
     indexUnits()
@@ -284,6 +290,28 @@ watch(searchUnits, () => indexUnits())
                     <span v-if="item.is_customer">customer</span>
                     <span v-if="item.is_supplier">supplier</span>
                 </div>
+            </template>
+
+            <template #item.telephones="{ item }">
+                <div
+                    v-if="item.telephones?.length"
+                    class="units-max-phones"
+                >
+                    <span
+                        v-for="telephone in item.telephones"
+                        :key="telephone.id || phoneNumber(telephone)"
+                    >
+                        <span>{{ phoneNumber(telephone) }}</span>
+                        <MaxContactButton
+                            :phone="phoneNumber(telephone)"
+                            :unit-id="item.id"
+                            :context-title="item.name"
+                            size="x-small"
+                            color="#fff7ed"
+                        />
+                    </span>
+                </div>
+                <span v-else>-</span>
             </template>
 
             <template #item.industries="{ item }">
@@ -650,6 +678,23 @@ watch(searchUnits, () => indexUnits())
     color: #5f0f24;
     font-size: 0.8rem;
     font-weight: 950;
+}
+
+.units-max-phones {
+    display: grid;
+    gap: 2px;
+    max-height: 48px;
+    overflow: hidden;
+}
+
+.units-max-phones > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #f8fafc;
+    font-size: 0.7rem;
+    font-weight: 800;
+    white-space: nowrap;
 }
 
 .units-label-filter {
