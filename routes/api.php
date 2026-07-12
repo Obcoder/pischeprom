@@ -355,7 +355,7 @@ Route::post('/max/webhook', MaxWebhookController::class)
 
 Route::prefix('max')
     ->name('api.max.')
-    ->middleware(['auth:sanctum', 'throttle:90,1'])
+    ->middleware('throttle:90,1')
     ->group(function () {
         Route::get('/chats', [MaxChatController::class, 'index'])->name('chats.index');
         Route::post('/chats', [MaxChatController::class, 'store'])->name('chats.store');
