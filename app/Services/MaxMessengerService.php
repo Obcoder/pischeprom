@@ -123,6 +123,7 @@ class MaxMessengerService
                 ->timeout(10)
                 ->acceptJson()
                 ->asJson()
+                ->withOptions($this->tlsOptions())
                 ->withHeaders([
                     'Authorization' => $this->token(),
                 ]);
@@ -170,7 +171,7 @@ class MaxMessengerService
                 'query' => $query,
             ]);
 
-            return $this->failure($exception->getMessage());
+            return $this->failure($this->exceptionMessage($exception));
         }
     }
 
@@ -199,5 +200,35 @@ class MaxMessengerService
     private function apiUrl(): string
     {
         return rtrim((string) config('services.max.api_url', 'https://platform-api2.max.ru'), '/');
+    }
+
+    private function tlsOptions(): array
+    {
+        if (! (bool) config('services.max.ssl_verify', true)) {
+            return ['verify' => false];
+        }
+
+        $caBundle = trim((string) config('services.max.ca_bundle'));
+
+        return ['verify' => $caBundle !== '' ? $caBundle : true];
+    }
+
+    private function exceptionMessage(\Throwable $exception): string
+    {
+        $message = $exception->getMessage();
+
+        if (
+            str_contains($message, 'SSL certificate problem')
+            || str_contains($message, 'SSL CA bundle not found')
+        ) {
+            $caBundle = trim((string) config('services.max.ca_bundle'));
+            $bundleHint = $caBundle !== '' ? " ({$caBundle})" : '';
+
+            return 'MAX SSL: приложение не доверяет сертификату platform-api2.max.ru. '
+                .'Проверьте CA-bundle'.$bundleHint.' или установку сертификатов Минцифры. '
+                .$message;
+        }
+
+        return $message;
     }
 }

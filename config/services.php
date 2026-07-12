@@ -188,6 +188,8 @@ return [
     'max' => [
         'api_url' => env('MAX_API_URL', 'https://platform-api2.max.ru'),
         'access_token' => env('MAX_ACCESS_TOKEN', env('MAX_BOT_TOKEN')),
+        'ca_bundle' => env('MAX_CA_BUNDLE', base_path('certs/russian_trusted_ca_bundle.pem')),
+        'ssl_verify' => filter_var(env('MAX_SSL_VERIFY', true), FILTER_VALIDATE_BOOLEAN),
         'webhook_secret' => env('MAX_WEBHOOK_SECRET'),
         'manager_chat_ids' => array_values(array_filter(array_map(
             'trim',
