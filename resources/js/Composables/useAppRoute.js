@@ -66,6 +66,15 @@ function fallbackPath(name, params = {}) {
                 ? `/g/${encodeURIComponent(param)}`
                 : '/g'
 
+        case 'login':
+            return '/login'
+
+        case 'dashboard':
+            return '/dashboard'
+
+        case 'customer.orders.store':
+            return '/orders'
+
         case 'public.fields.show':
             return param
                 ? `/подборки/${encodeURIComponent(param)}`

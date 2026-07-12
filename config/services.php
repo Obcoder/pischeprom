@@ -178,4 +178,20 @@ return [
         'click_to_call_employee_phone' => env('BEELINE_PBX_CLICK_TO_CALL_EMPLOYEE_PHONE', '79650160001'),
     ],
 
+    'orders' => [
+        'manager_emails' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', env('ORDER_MANAGER_EMAILS', 'com@food-server.ru,office@180022.ru'))
+        ))),
+    ],
+
+    'max' => [
+        'api_url' => env('MAX_API_URL', 'https://platform-api2.max.ru'),
+        'access_token' => env('MAX_ACCESS_TOKEN', env('MAX_BOT_TOKEN')),
+        'manager_chat_ids' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', env('MAX_MANAGER_CHAT_IDS', ''))
+        ))),
+    ],
+
 ];

@@ -34,6 +34,7 @@ class CustomerProfileController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone ?? null,
+                'max_chat_id' => $user->max_chat_id ?? null,
                 'account_type' => $user->account_type ?? 'individual',
                 'profile_photo_url' => $user->profile_photo_url ?? null,
                 'city' => $user->relationLoaded('city') && $user->city
@@ -103,6 +104,12 @@ class CustomerProfileController extends Controller
                 'nullable',
                 'string',
                 'max:32',
+            ],
+
+            'max_chat_id' => [
+                'nullable',
+                'string',
+                'max:64',
             ],
 
             'city_id' => [
@@ -193,6 +200,7 @@ class CustomerProfileController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
+            'max_chat_id' => $data['max_chat_id'] ?? null,
             'account_type' => $data['account_type'],
             'city_id' => $data['city_id'],
         ];
@@ -388,6 +396,7 @@ class CustomerProfileController extends Controller
         $input['account_type'] = $input['account_type'] ?? 'individual';
 
         $input['phone'] = $this->nullableString($input['phone'] ?? null);
+        $input['max_chat_id'] = $this->nullableString($input['max_chat_id'] ?? null);
 
         $input['organization_inn'] = $this->digits(
             $input['organization_inn']

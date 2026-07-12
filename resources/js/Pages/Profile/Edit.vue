@@ -66,6 +66,7 @@ const form = useForm({
     name: props.profile.name || '',
     email: props.profile.email || '',
     phone: props.profile.phone || '',
+    max_chat_id: props.profile.max_chat_id || '',
     city_id: props.profile.city?.id || null,
 
     avatar: null,
@@ -350,6 +351,16 @@ function submit() {
                                             rounded="lg"
                                             :error-messages="form.errors.phone"
                                             autocomplete="tel"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12" md="6">
+                                        <v-text-field
+                                            v-model="form.max_chat_id"
+                                            label="MAX chat id"
+                                            variant="outlined"
+                                            rounded="lg"
+                                            :error-messages="form.errors.max_chat_id"
                                         />
                                     </v-col>
 

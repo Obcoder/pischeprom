@@ -12,11 +12,55 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    orders: {
+        type: Array,
+        default: () => [],
+    },
 })
 
 const accountTypeLabel = {
     individual: 'Физическое лицо',
     organization: 'Организация',
+}
+
+function formatMoney(value, currencyCode = 'RUB') {
+    const amount = Number(value)
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+        return 'по запросу'
+    }
+
+    const currency = currencyCode === 'RUB' ? '₽' : currencyCode
+
+    return `${amount.toLocaleString('ru-RU', {
+        maximumFractionDigits: 2,
+    })} ${currency}`
+}
+
+function formatWeight(value) {
+    const amount = Number(value)
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+        return 'уточняется'
+    }
+
+    return `${amount.toLocaleString('ru-RU', {
+        maximumFractionDigits: 3,
+    })} кг`
+}
+
+function formatDate(value) {
+    if (!value) {
+        return ''
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(value))
 }
 </script>
 
@@ -70,6 +114,11 @@ const accountTypeLabel = {
                             <div class="dashboard-field">
                                 <span>Телефон</span>
                                 <strong>{{ profile.phone || 'Не указан' }}</strong>
+                            </div>
+
+                            <div class="dashboard-field">
+                                <span>MAX</span>
+                                <strong>{{ profile.max_chat_id ? 'Подключён' : 'Не указан' }}</strong>
                             </div>
 
                             <div class="dashboard-field">
@@ -146,13 +195,56 @@ const accountTypeLabel = {
                 <v-col cols="12" md="6">
                     <v-card rounded="xl" elevation="2" class="h-100 dashboard-card">
                         <v-card-title class="font-weight-bold">
-                            Мои заявки
+                            Мои заказы
                         </v-card-title>
 
                         <v-card-text>
-                            <p class="dashboard-text mb-0">
-                                Раздел скоро появится. Здесь будут заявки, заказы,
-                                коммерческие предложения и история работы с менеджером.
+                            <div v-if="orders.length" class="dashboard-orders">
+                                <article
+                                    v-for="order in orders"
+                                    :key="order.id"
+                                    class="dashboard-order"
+                                >
+                                    <div class="dashboard-order__head">
+                                        <div>
+                                            <strong>{{ order.number }}</strong>
+                                            <span>{{ formatDate(order.submitted_at) }}</span>
+                                        </div>
+
+                                        <span class="dashboard-order__status">
+                                            {{ order.status_label }}
+                                        </span>
+                                    </div>
+
+                                    <div class="dashboard-order__totals">
+                                        <span>{{ formatMoney(order.total_amount, order.currency_code) }}</span>
+                                        <span>{{ formatWeight(order.total_weight) }}</span>
+                                    </div>
+
+                                    <div class="dashboard-order__items">
+                                        <div
+                                            v-for="item in order.items"
+                                            :key="item.id"
+                                            class="dashboard-order-item"
+                                        >
+                                            <img
+                                                v-if="item.image_url"
+                                                :src="item.image_url"
+                                                :alt="item.good_name"
+                                                loading="lazy"
+                                            >
+
+                                            <div>
+                                                <strong>{{ item.good_name }}</strong>
+                                                <span>{{ item.quantity }} шт. · {{ formatMoney(item.line_total, item.currency_code) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </article>
+                            </div>
+
+                            <p v-else class="dashboard-text mb-0">
+                                Здесь будут появляться заказы, созданные из корзины.
                             </p>
                         </v-card-text>
                     </v-card>
@@ -283,6 +375,108 @@ const accountTypeLabel = {
 .dashboard-actions {
     display: grid;
     gap: 12px;
+}
+
+.dashboard-orders {
+    display: grid;
+    gap: 12px;
+}
+
+.dashboard-order {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid rgba(128, 0, 0, 0.10);
+    border-radius: 8px;
+    background: #fffdf9;
+}
+
+.dashboard-order__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.dashboard-order__head div {
+    display: grid;
+    gap: 2px;
+}
+
+.dashboard-order__head strong {
+    color: #3f1d1d;
+    font-weight: 950;
+}
+
+.dashboard-order__head span {
+    color: #756c67;
+    font-size: 0.82rem;
+}
+
+.dashboard-order__status {
+    display: inline-flex;
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: rgba(71, 118, 90, 0.10);
+    color: #30463a !important;
+    font-size: 0.76rem !important;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.dashboard-order__totals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dashboard-order__totals span {
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: rgba(128, 0, 0, 0.07);
+    color: #6b1b18;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
+.dashboard-order__items {
+    display: grid;
+    gap: 7px;
+}
+
+.dashboard-order-item {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+}
+
+.dashboard-order-item img {
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #f7f1e8;
+}
+
+.dashboard-order-item div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.dashboard-order-item strong {
+    overflow: hidden;
+    color: #3f1d1d;
+    font-size: 0.86rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-order-item span {
+    color: #756c67;
+    font-size: 0.78rem;
 }
 
 .dashboard-link-button {

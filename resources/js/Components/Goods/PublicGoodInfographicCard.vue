@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
+import { useOrderCart } from '@/Composables/useOrderCart'
 
 const props = defineProps({
     good: {
@@ -16,6 +17,7 @@ const props = defineProps({
 })
 
 const { goodPublicUrl } = usePublicGoodUrl()
+const { addGood } = useOrderCart()
 
 const detailUrl = computed(() => goodPublicUrl(props.good))
 
@@ -119,16 +121,6 @@ const packageText = computed(() => {
 const countryName = computed(() => props.good.country?.name || 'страна уточняется')
 const countryFlag = computed(() => props.good.country?.flag || '')
 
-const orderHref = computed(() => {
-    const subject = `Заказ товара: ${props.good.name}`
-    const body = [
-        `Здравствуйте, хочу заказать: ${props.good.name}`,
-        `Ссылка: ${detailUrl.value}`,
-    ].join('\n')
-
-    return `mailto:office@180022.ru?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-})
-
 function priceType(price) {
     return price?.price_type || price?.priceType || null
 }
@@ -194,6 +186,10 @@ function priceDisplay(price) {
     }
 
     return `${formatMoney(value)} ${currencyText(price)}`
+}
+
+function orderGood() {
+    addGood(props.good)
 }
 </script>
 
@@ -275,9 +271,13 @@ function priceDisplay(price) {
             </div>
 
             <div class="good-info-card__actions">
-                <a :href="orderHref" class="good-info-card__order">
+                <button
+                    type="button"
+                    class="good-info-card__order"
+                    @click="orderGood"
+                >
                     Заказать
-                </a>
+                </button>
 
                 <Link :href="detailUrl" class="good-info-card__details">
                     Подробнее
@@ -520,8 +520,13 @@ function priceDisplay(price) {
 }
 
 .good-info-card__order {
+    border: 0;
     background: #8a100c;
     color: #fffaf6;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 950;
 }
 
 .good-info-card__details {

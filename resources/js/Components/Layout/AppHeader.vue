@@ -3,6 +3,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import CitySelector from '@/Components/Location/CitySelector.vue'
+import OrderCartStrip from '@/Components/Orders/OrderCartStrip.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
 
 const props = defineProps({
@@ -364,6 +365,8 @@ onBeforeUnmount(() => {
                         </div>
                     </Link>
 
+                    <OrderCartStrip class="app-header__cart" />
+
                     <nav class="app-header__nav">
                         <Link
                             :href="goodsIndexUrl"
@@ -695,6 +698,7 @@ onBeforeUnmount(() => {
 
 .app-header__brand {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: 12px;
     text-decoration: none;
@@ -745,10 +749,16 @@ onBeforeUnmount(() => {
 
 .app-header__nav {
     display: flex;
+    flex: 0 1 auto;
     align-items: center;
     gap: 14px;
     flex-wrap: wrap;
     justify-content: flex-end;
+}
+
+.app-header__cart {
+    flex: 1 1 520px;
+    max-width: 660px;
 }
 
 .app-header__nav-link,
@@ -892,6 +902,14 @@ onBeforeUnmount(() => {
 
     .app-header__main-inner {
         min-height: 64px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .app-header__cart {
+        order: 3;
+        flex-basis: 100%;
+        max-width: none;
     }
 
     .app-header__brand-subtitle {

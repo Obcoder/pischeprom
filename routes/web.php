@@ -22,6 +22,7 @@ use App\Http\Controllers\MainController;
 use App\Http\Controllers\Verwalter;
 use App\Http\Controllers\Web\CategoryController as WebCategoryController;
 use App\Http\Controllers\Web\CustomerDashboardController;
+use App\Http\Controllers\Web\CustomerOrderController;
 use App\Http\Controllers\Web\CustomerProfileController;
 use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\FieldController as WebFieldController;
@@ -64,6 +65,9 @@ Route::middleware([
 
     Route::post('/dashboard/profile', [CustomerProfileController::class, 'update'])
         ->name('customer.profile.update');
+
+    Route::post('/orders', [CustomerOrderController::class, 'store'])
+        ->name('customer.orders.store');
 });
 
 //  E N D  D A S H B O A R D

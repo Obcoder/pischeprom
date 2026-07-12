@@ -33,6 +33,7 @@ class CustomerDashboardController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone ?? null,
+                'max_chat_id' => $user->max_chat_id ?? null,
                 'type' => $user->type ?? null,
                 'status' => $user->status ?? null,
                 'account_type' => $user->account_type ?? 'individual',
@@ -65,6 +66,49 @@ class CustomerDashboardController extends Controller
                         : [],
                 ])->values()
                 : [],
+
+            'orders' => method_exists($user, 'orders')
+                ? $user->orders()
+                    ->with('items')
+                    ->latest('submitted_at')
+                    ->latest('id')
+                    ->limit(20)
+                    ->get()
+                    ->map(fn ($order) => [
+                        'id' => $order->id,
+                        'number' => $order->number,
+                        'status' => $order->status,
+                        'status_label' => $this->orderStatusLabel($order->status),
+                        'total_amount' => $order->total_amount,
+                        'total_weight' => $order->total_weight,
+                        'currency_code' => $order->currency_code,
+                        'submitted_at' => $order->submitted_at?->toIso8601String(),
+                        'items' => $order->items->map(fn ($item) => [
+                            'id' => $item->id,
+                            'good_id' => $item->good_id,
+                            'good_name' => $item->good_name,
+                            'image_url' => $item->image_url,
+                            'quantity' => $item->quantity,
+                            'denominator' => $item->denominator,
+                            'line_weight' => $item->line_weight,
+                            'price_gross' => $item->price_gross,
+                            'currency_code' => $item->currency_code,
+                            'line_total' => $item->line_total,
+                            'country_name' => $item->country_name,
+                        ])->values(),
+                    ])->values()
+                : [],
         ]);
+    }
+
+    private function orderStatusLabel(?string $status): string
+    {
+        return match ($status) {
+            'new' => 'Новый',
+            'processing' => 'В работе',
+            'completed' => 'Завершён',
+            'cancelled' => 'Отменён',
+            default => 'Создан',
+        };
     }
 }
