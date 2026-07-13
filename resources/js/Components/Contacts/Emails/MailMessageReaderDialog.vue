@@ -38,6 +38,7 @@ const leadDescription = ref('')
 const feedback = ref(null)
 const localMessage = ref(null)
 const savingAttachmentIndex = ref(null)
+const downloadingAttachmentIndex = ref(null)
 const selectedAttachmentIndex = ref(null)
 const storageFolders = ref([])
 const foldersLoading = ref(false)
@@ -180,6 +181,10 @@ function canSaveAttachment(attachment) {
     return Boolean(currentMessage.value?.id && attachment?.index !== null && attachment?.index !== undefined)
 }
 
+function canDownloadAttachment(attachment) {
+    return Boolean(currentMessage.value?.id && attachment?.index !== null && attachment?.index !== undefined)
+}
+
 function isAttachmentImage(attachment) {
     const mime = String(attachment?.mime_type || attachment?.mime || '').toLowerCase()
     const name = attachmentName(attachment)
@@ -232,6 +237,18 @@ function selectAttachment(attachment) {
     selectedAttachmentIndex.value = attachment?.index ?? null
 }
 
+function downloadAttachmentUrl(attachment) {
+    const params = new URLSearchParams()
+
+    if (attachment?.id) {
+        params.set('attachment_id', attachment.id)
+    }
+
+    const query = params.toString()
+
+    return `/api/mail-messages/${currentMessage.value.id}/attachments/${attachment.index}/download${query ? `?${query}` : ''}`
+}
+
 function plainBody() {
     return (currentMessage.value?.text || String(currentMessage.value?.html || '').replace(/<[^>]+>/g, ' ') || currentMessage.value?.preview || '').trim()
 }
@@ -248,6 +265,7 @@ function resetForms() {
     ].filter(Boolean).join('\n\n')
     feedback.value = null
     savingAttachmentIndex.value = null
+    downloadingAttachmentIndex.value = null
     selectedAttachmentIndex.value = imageAttachments.value[0]?.index ?? attachmentRows.value[0]?.index ?? null
     lastSavedAttachment.value = null
 }
@@ -426,6 +444,56 @@ async function saveAttachment(attachment) {
         }
     } finally {
         savingAttachmentIndex.value = null
+    }
+}
+
+async function downloadErrorMessage(error, fallback) {
+    const data = error?.response?.data
+
+    if (data instanceof Blob) {
+        const text = await data.text()
+
+        try {
+            return JSON.parse(text)?.message || fallback
+        } catch {
+            return fallback
+        }
+    }
+
+    return data?.message || fallback
+}
+
+async function downloadAttachment(attachment) {
+    if (!canDownloadAttachment(attachment)) {
+        return
+    }
+
+    downloadingAttachmentIndex.value = attachment.index
+    feedback.value = null
+
+    try {
+        const response = await axios.get(downloadAttachmentUrl(attachment), {
+            responseType: 'blob',
+        })
+        const blob = new Blob([response.data], {
+            type: response.headers?.['content-type'] || attachmentMime(attachment) || 'application/octet-stream',
+        })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+
+        link.href = url
+        link.download = attachmentName(attachment)
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+    } catch (error) {
+        feedback.value = {
+            type: 'error',
+            text: await downloadErrorMessage(error, 'Не удалось скачать файл.'),
+        }
+    } finally {
+        downloadingAttachmentIndex.value = null
     }
 }
 
@@ -709,6 +777,7 @@ watch(model, async (isOpen) => {
                                             <span>Файл</span>
                                             <span>Тип</span>
                                             <span>Размер</span>
+                                            <span>ПК</span>
                                             <span>S3</span>
                                         </div>
 
@@ -736,6 +805,18 @@ watch(model, async (isOpen) => {
                                             </span>
                                             <span>{{ attachmentMime(attachment) }}</span>
                                             <span>{{ formatSize(attachment.size) }}</span>
+                                            <span class="mail-attachments-sheet__download">
+                                                <v-btn
+                                                    icon="mdi-download"
+                                                    size="x-small"
+                                                    density="compact"
+                                                    variant="text"
+                                                    color="cyan"
+                                                    :loading="downloadingAttachmentIndex === attachment.index"
+                                                    :disabled="!canDownloadAttachment(attachment)"
+                                                    @click.stop="downloadAttachment(attachment)"
+                                                />
+                                            </span>
                                             <span class="mail-attachments-sheet__s3">
                                                 <template v-if="isAttachmentSaved(attachment)">
                                                     <span class="mail-attachments-sheet__saved">saved</span>
@@ -1112,7 +1193,7 @@ watch(model, async (isOpen) => {
 .mail-attachments-sheet__row {
     display: grid;
     width: 100%;
-    grid-template-columns: 30px minmax(130px, 1fr) 78px 58px 124px;
+    grid-template-columns: 30px minmax(130px, 1fr) 78px 58px 46px 124px;
     align-items: center;
     gap: 0;
     border: 0;
@@ -1192,6 +1273,12 @@ watch(model, async (isOpen) => {
     align-items: center;
     display: inline-flex;
     gap: 4px;
+    justify-content: center;
+}
+
+.mail-attachments-sheet__download {
+    align-items: center;
+    display: inline-flex;
     justify-content: center;
 }
 
@@ -1302,7 +1389,7 @@ watch(model, async (isOpen) => {
     }
 
     .mail-attachments-sheet__row {
-        grid-template-columns: 30px minmax(120px, 1fr) 68px 54px 112px;
+        grid-template-columns: 30px minmax(120px, 1fr) 68px 54px 42px 112px;
     }
 }
 </style>

@@ -186,6 +186,9 @@ Route::delete('mail-messages/{mailMessage}', [MailMessageController::class, 'des
     ->name('mail-messages.destroy');
 Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
     ->name('mail-messages.attachments.sync');
+Route::get('mail-messages/{mailMessage}/attachments/{index}/download', [MailMessageActionController::class, 'downloadAttachment'])
+    ->whereNumber('index')
+    ->name('mail-messages.attachments.download');
 Route::get('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'attachmentFolders'])
     ->name('mail-messages.attachment-folders.index');
 Route::post('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'storeAttachmentFolder'])

@@ -1063,6 +1063,78 @@ class YandexMailboxService
         }
     }
 
+    public function downloadAttachment(MailMessage $mailMessage, int $index): ?array
+    {
+        if (!$mailMessage->imap_uid) {
+            return null;
+        }
+
+        $mailbox = $mailMessage->mailbox
+            ? $this->mailboxes->find($mailMessage->mailbox)
+            : null;
+
+        if ($mailMessage->mailbox && !$mailbox) {
+            throw new RuntimeException('Почтовый ящик не настроен: ' . $mailMessage->mailbox);
+        }
+
+        $mailbox = $mailbox ?: $this->mailboxes->findOrDefault(null);
+        $client = $this->client($mailbox);
+
+        try {
+            $client->connect();
+
+            $folder = $this->resolveFolder($client, $mailMessage->folder);
+
+            if (!$folder) {
+                logger()->warning('Yandex download attachment folder not found', [
+                    'mailbox' => $mailbox['address'],
+                    'mail_message_id' => $mailMessage->id,
+                    'folder' => $mailMessage->folder,
+                    'imap_uid' => $mailMessage->imap_uid,
+                ]);
+
+                return null;
+            }
+
+            $query = $folder
+                ->query()
+                ->leaveUnread()
+                ->setFetchBody(true);
+
+            if (method_exists($query, 'setFetchAttachment')) {
+                $query->setFetchAttachment(true);
+            }
+
+            $message = $query->getMessageByUid((int) $mailMessage->imap_uid);
+            $attachment = $message ? (array_values($this->messageAttachments($message))[$index] ?? null) : null;
+
+            if (!$attachment) {
+                return null;
+            }
+
+            $content = $this->attachmentContent($attachment);
+
+            if ($content === null) {
+                throw new RuntimeException('Не удалось прочитать содержимое вложения.');
+            }
+
+            return [
+                'name' => $this->attachmentName($attachment, $index),
+                'mime_type' => $this->attachmentMimeType($attachment),
+                'size' => strlen($content),
+                'content' => $content,
+            ];
+        } finally {
+            $this->safeDisconnect($client, [
+                'operation' => 'download_attachment',
+                'mailbox' => $mailbox['address'],
+                'mail_message_id' => $mailMessage->id,
+                'folder' => $mailMessage->folder,
+                'attachment_index' => $index,
+            ]);
+        }
+    }
+
     protected function storeAttachments(MailMessage $mailMessage, $message): int
     {
         $attachments = array_values($this->messageAttachments($message));

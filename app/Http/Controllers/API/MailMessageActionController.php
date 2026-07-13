@@ -204,6 +204,68 @@ class MailMessageActionController extends Controller
         return response()->json($this->messagePayload($mailMessage), 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
+    public function downloadAttachment(
+        Request $request,
+        MailMessage $mailMessage,
+        int $index,
+        YandexMailboxService $service,
+    ) {
+        if ($request->filled('attachment_id')) {
+            $savedAttachment = MailMessageAttachment::query()
+                ->where('mail_message_id', $mailMessage->id)
+                ->find($request->integer('attachment_id'));
+
+            if (!$savedAttachment) {
+                return response()->json([
+                    'message' => 'Сохранённое вложение не найдено.',
+                ], 404);
+            }
+
+            return $this->downloadSavedAttachment($savedAttachment);
+        }
+
+        if (!$mailMessage->imap_uid) {
+            $savedAttachment = $mailMessage->attachments()
+                ->orderBy('id')
+                ->skip($index)
+                ->first();
+
+            if ($savedAttachment) {
+                return $this->downloadSavedAttachment($savedAttachment);
+            }
+        }
+
+        try {
+            $file = $service->downloadAttachment($mailMessage, $index);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'Не удалось скачать вложение: ' . $exception->getMessage(),
+            ], 500);
+        }
+
+        if (!$file) {
+            return response()->json([
+                'message' => 'Вложение не найдено.',
+            ], 404);
+        }
+
+        $name = $this->safeFileName($file['name'] ?? ('attachment-' . ($index + 1) . '.bin'));
+        $mimeType = $file['mime_type'] ?? 'application/octet-stream';
+
+        return response()->streamDownload(
+            static function () use ($file): void {
+                echo $file['content'];
+            },
+            $name,
+            [
+                'Content-Type' => $mimeType,
+                'Cache-Control' => 'private, no-store',
+            ]
+        );
+    }
+
     public function attachmentFolders(
         MailMessage $mailMessage,
         YandexMailboxService $service,
@@ -691,6 +753,40 @@ class MailMessageActionController extends Controller
         $name = preg_replace('/\s+/', ' ', $name) ?: '';
 
         return $name !== '' ? $name : 'attachment.bin';
+    }
+
+    private function downloadSavedAttachment(MailMessageAttachment $attachment)
+    {
+        if (!$attachment->disk || !$attachment->path) {
+            return response()->json([
+                'message' => 'У сохранённого вложения нет пути к файлу.',
+            ], 404);
+        }
+
+        try {
+            $disk = Storage::disk($attachment->disk);
+
+            if (!$disk->exists($attachment->path)) {
+                return response()->json([
+                    'message' => 'Файл вложения не найден на диске.',
+                ], 404);
+            }
+
+            return $disk->download(
+                $attachment->path,
+                $this->safeFileName($attachment->original_name ?: $attachment->file_name ?: basename($attachment->path)),
+                [
+                    'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
+                    'Cache-Control' => 'private, no-store',
+                ]
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'Не удалось скачать сохранённое вложение.',
+            ], 500);
+        }
     }
 
     private function messagePayload(MailMessage $mailMessage): MailMessage
