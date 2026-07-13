@@ -307,321 +307,326 @@ onMounted(loadCountries)
 </script>
 
 <template>
-    <section class="countries-admin">
-        <div class="countries-admin__header">
-            <div>
-                <div class="countries-admin__eyebrow">Geography / Countries</div>
-                <h2>Страны</h2>
-            </div>
-
-            <div class="countries-admin__actions">
-                <v-btn
-                    color="#800000"
-                    variant="tonal"
-                    prepend-icon="mdi-refresh"
-                    :loading="loading"
-                    @click="loadCountries"
-                >
-                    Обновить
-                </v-btn>
-                <v-btn
-                    color="#800000"
-                    variant="elevated"
-                    prepend-icon="mdi-plus"
-                    @click="openCreate"
-                >
-                    Страна
-                </v-btn>
-            </div>
-        </div>
-
-        <v-alert
-            v-if="notice"
-            type="success"
-            variant="tonal"
-            density="compact"
-            class="mb-3"
-        >
-            {{ notice }}
-        </v-alert>
-
-        <v-alert
-            v-if="error"
-            type="error"
-            variant="tonal"
-            density="compact"
-            class="mb-3"
-        >
-            {{ error }}
-        </v-alert>
-
-        <div class="countries-summary">
-            <div><span>Total</span><strong>{{ summary.total }}</strong></div>
-            <div><span>Filtered</span><strong>{{ summary.filtered }}</strong></div>
-            <div><span>Population</span><strong>{{ formatNumber(summary.population) }}</strong></div>
-            <div><span>Flags</span><strong>{{ summary.withFlag }}</strong></div>
-            <div><span>No flag</span><strong>{{ summary.withoutFlag }}</strong></div>
-            <div><span>Used</span><strong>{{ summary.used }}</strong></div>
-        </div>
-
-        <section class="countries-filters">
-            <v-text-field
-                v-model="filters.search"
-                label="Поиск"
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-                prepend-inner-icon="mdi-magnify"
-            />
-            <v-text-field
-                v-model="filters.codeISO"
-                label="ISO"
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-            />
-            <v-text-field
-                v-model="filters.codeTelefon"
-                label="Телефонный код"
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-            />
-            <v-text-field
-                v-model="filters.populationMin"
-                label="Population от"
-                type="number"
-                min="0"
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-            />
-            <v-text-field
-                v-model="filters.populationMax"
-                label="Population до"
-                type="number"
-                min="0"
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-            />
-            <v-select
-                v-model="filters.flag"
-                :items="flagFilterOptions"
-                label="Флаг"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
-            <v-select
-                v-model="filters.usage"
-                :items="usageFilterOptions"
-                label="Связи"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
-            <v-btn
-                variant="text"
-                color="#800000"
-                prepend-icon="mdi-filter-remove-outline"
-                @click="resetFilters"
-            >
-                Сбросить
-            </v-btn>
-        </section>
-
-        <v-data-table
-            v-model:sort-by="sortBy"
-            :headers="headers"
-            :items="filteredCountries"
-            :loading="loading"
-            :items-per-page="-1"
-            class="countries-table"
-            density="compact"
-            hover
-            hide-default-footer
-        >
-            <template #item.flag="{ item }">
-                <div class="country-flag-cell">
-                    <img
-                        v-if="item.flag"
-                        :src="item.flag"
-                        :alt="item.name"
-                    >
-                    <span v-else>{{ item.name?.slice(0, 1) || '?' }}</span>
+    <v-theme-provider theme="light">
+        <section class="countries-admin">
+            <div class="countries-admin__header">
+                <div>
+                    <div class="countries-admin__eyebrow">Geography / Countries</div>
+                    <h2>Страны</h2>
                 </div>
-            </template>
 
-            <template #item.name="{ item }">
-                <button
-                    type="button"
-                    class="country-name-button"
-                    @click="openEdit(item)"
-                >
-                    {{ item.name }}
-                </button>
-                <a
-                    v-if="item.flag"
-                    :href="item.flag"
-                    target="_blank"
-                    class="country-flag-link"
-                >
-                    flag url
-                </a>
-            </template>
-
-            <template #item.codeISO="{ item }">
-                <span class="country-code">{{ item.codeISO || item.сodeISO || '-' }}</span>
-            </template>
-
-            <template #item.codeTelefon="{ item }">
-                <span class="country-code">{{ item.codeTelefon || item.сodeTelefon || '-' }}</span>
-            </template>
-
-            <template #item.population="{ item }">
-                <span class="country-number">{{ formatNumber(item.population) }}</span>
-            </template>
-
-            <template #item.updated_at="{ item }">
-                <span class="country-date">{{ formatDate(item.updated_at) }}</span>
-            </template>
-
-            <template #item.actions="{ item }">
-                <div class="country-actions">
+                <div class="countries-admin__actions">
                     <v-btn
-                        icon="mdi-pencil"
-                        size="x-small"
-                        variant="text"
                         color="#800000"
-                        @click="openEdit(item)"
-                    />
-                    <v-btn
-                        icon="mdi-delete-outline"
-                        size="x-small"
-                        variant="text"
-                        color="red"
-                        :loading="deletingId === item.id"
-                        @click="deleteCountry(item)"
-                    />
-                </div>
-            </template>
-        </v-data-table>
-
-        <v-dialog v-model="dialog" max-width="720" persistent>
-            <v-card class="country-dialog">
-                <v-card-title class="country-dialog__title">
-                    <div>
-                        <span>{{ selectedCountry ? 'Редактирование страны' : 'Новая страна' }}</span>
-                        <small v-if="selectedCountry">#{{ selectedCountry.id }}</small>
-                    </div>
-                    <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
-                </v-card-title>
-
-                <v-card-text>
-                    <div class="country-form-grid">
-                        <v-text-field
-                            v-model="form.name"
-                            label="Название"
-                            density="compact"
-                            variant="outlined"
-                            hide-details
-                        />
-                        <v-text-field
-                            v-model="form.codeISO"
-                            label="ISO 2"
-                            density="compact"
-                            variant="outlined"
-                            hide-details
-                            maxlength="2"
-                            @update:model-value="form.codeISO = String(form.codeISO || '').toUpperCase()"
-                        />
-                        <v-text-field
-                            v-model="form.codeTelefon"
-                            label="Телефонный код"
-                            density="compact"
-                            variant="outlined"
-                            hide-details
-                        />
-                        <v-text-field
-                            v-model="form.population"
-                            label="Population"
-                            type="number"
-                            min="0"
-                            step="1"
-                            density="compact"
-                            variant="outlined"
-                            hide-details
-                            clearable
-                        />
-                        <v-text-field
-                            v-model="form.flag_url"
-                            label="Flag URL"
-                            density="compact"
-                            variant="outlined"
-                            hide-details
-                            clearable
-                            class="country-form-grid__wide"
-                        />
-                        <v-file-input
-                            v-model="form.flag_file"
-                            label="Загрузить flag image в Yandex S3"
-                            density="compact"
-                            variant="outlined"
-                            hide-details
-                            clearable
-                            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                            prepend-icon=""
-                            prepend-inner-icon="mdi-image-plus-outline"
-                            class="country-form-grid__wide"
-                        />
-                        <v-checkbox
-                            v-if="selectedCountry?.flag"
-                            v-model="form.remove_flag"
-                            label="Удалить текущий флаг"
-                            density="compact"
-                            hide-details
-                            class="country-form-grid__wide"
-                        />
-                    </div>
-
-                    <div v-if="selectedCountry?.flag || form.flag_url" class="country-dialog-preview">
-                        <span>Текущий флаг</span>
-                        <img
-                            :src="form.flag_url || selectedCountry?.flag"
-                            :alt="form.name"
-                        >
-                    </div>
-                </v-card-text>
-
-                <v-card-actions>
-                    <v-spacer />
-                    <v-btn variant="text" @click="dialog = false">Отмена</v-btn>
+                        variant="tonal"
+                        prepend-icon="mdi-refresh"
+                        :loading="loading"
+                        @click="loadCountries"
+                    >
+                        Обновить
+                    </v-btn>
                     <v-btn
                         color="#800000"
                         variant="elevated"
-                        prepend-icon="mdi-content-save-outline"
-                        :loading="saving"
-                        @click="saveCountry"
+                        prepend-icon="mdi-plus"
+                        @click="openCreate"
                     >
-                        Сохранить
+                        Страна
                     </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-    </section>
+                </div>
+            </div>
+
+            <v-alert
+                v-if="notice"
+                type="success"
+                variant="tonal"
+                density="compact"
+                class="mb-3"
+            >
+                {{ notice }}
+            </v-alert>
+
+            <v-alert
+                v-if="error"
+                type="error"
+                variant="tonal"
+                density="compact"
+                class="mb-3"
+            >
+                {{ error }}
+            </v-alert>
+
+            <div class="countries-summary">
+                <div><span>Total</span><strong>{{ summary.total }}</strong></div>
+                <div><span>Filtered</span><strong>{{ summary.filtered }}</strong></div>
+                <div><span>Population</span><strong>{{ formatNumber(summary.population) }}</strong></div>
+                <div><span>Flags</span><strong>{{ summary.withFlag }}</strong></div>
+                <div><span>No flag</span><strong>{{ summary.withoutFlag }}</strong></div>
+                <div><span>Used</span><strong>{{ summary.used }}</strong></div>
+            </div>
+
+            <section class="countries-filters">
+                <v-text-field
+                    v-model="filters.search"
+                    label="Поиск"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                    prepend-inner-icon="mdi-magnify"
+                />
+                <v-text-field
+                    v-model="filters.codeISO"
+                    label="ISO"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                />
+                <v-text-field
+                    v-model="filters.codeTelefon"
+                    label="Телефонный код"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                />
+                <v-text-field
+                    v-model="filters.populationMin"
+                    label="Population от"
+                    type="number"
+                    min="0"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                />
+                <v-text-field
+                    v-model="filters.populationMax"
+                    label="Population до"
+                    type="number"
+                    min="0"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                />
+                <v-select
+                    v-model="filters.flag"
+                    :items="flagFilterOptions"
+                    label="Флаг"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                />
+                <v-select
+                    v-model="filters.usage"
+                    :items="usageFilterOptions"
+                    label="Связи"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                />
+                <v-btn
+                    variant="text"
+                    color="#800000"
+                    prepend-icon="mdi-filter-remove-outline"
+                    @click="resetFilters"
+                >
+                    Сбросить
+                </v-btn>
+            </section>
+
+            <v-data-table
+                v-model:sort-by="sortBy"
+                :headers="headers"
+                :items="filteredCountries"
+                :loading="loading"
+                :items-per-page="-1"
+                class="countries-table"
+                density="compact"
+                hover
+                hide-default-footer
+            >
+                <template #item.flag="{ item }">
+                    <div class="country-flag-cell">
+                        <img
+                            v-if="item.flag"
+                            :src="item.flag"
+                            :alt="item.name"
+                        >
+                        <span v-else>{{ item.name?.slice(0, 1) || '?' }}</span>
+                    </div>
+                </template>
+
+                <template #item.name="{ item }">
+                    <button
+                        type="button"
+                        class="country-name-button"
+                        @click="openEdit(item)"
+                    >
+                        {{ item.name }}
+                    </button>
+                    <a
+                        v-if="item.flag"
+                        :href="item.flag"
+                        target="_blank"
+                        class="country-flag-link"
+                    >
+                        flag url
+                    </a>
+                </template>
+
+                <template #item.codeISO="{ item }">
+                    <span class="country-code">{{ item.codeISO || item.сodeISO || '-' }}</span>
+                </template>
+
+                <template #item.codeTelefon="{ item }">
+                    <span class="country-code">{{ item.codeTelefon || item.сodeTelefon || '-' }}</span>
+                </template>
+
+                <template #item.population="{ item }">
+                    <span class="country-number">{{ formatNumber(item.population) }}</span>
+                </template>
+
+                <template #item.updated_at="{ item }">
+                    <span class="country-date">{{ formatDate(item.updated_at) }}</span>
+                </template>
+
+                <template #item.actions="{ item }">
+                    <div class="country-actions">
+                        <v-btn
+                            icon="mdi-pencil"
+                            size="x-small"
+                            variant="text"
+                            color="#800000"
+                            @click="openEdit(item)"
+                        />
+                        <v-btn
+                            icon="mdi-delete-outline"
+                            size="x-small"
+                            variant="text"
+                            color="red"
+                            :loading="deletingId === item.id"
+                            @click="deleteCountry(item)"
+                        />
+                    </div>
+                </template>
+            </v-data-table>
+
+            <v-dialog v-model="dialog" max-width="720" persistent>
+                <v-card class="country-dialog">
+                    <v-card-title class="country-dialog__title">
+                        <div>
+                            <span>{{ selectedCountry ? 'Редактирование страны' : 'Новая страна' }}</span>
+                            <small v-if="selectedCountry">#{{ selectedCountry.id }}</small>
+                        </div>
+                        <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
+                    </v-card-title>
+
+                    <v-card-text>
+                        <div class="country-form-grid">
+                            <v-text-field
+                                v-model="form.name"
+                                label="Название"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                            />
+                            <v-text-field
+                                v-model="form.codeISO"
+                                label="ISO 2"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                maxlength="2"
+                                @update:model-value="form.codeISO = String(form.codeISO || '').toUpperCase()"
+                            />
+                            <v-text-field
+                                v-model="form.codeTelefon"
+                                label="Телефонный код"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                            />
+                            <v-text-field
+                                v-model="form.population"
+                                label="Population"
+                                type="number"
+                                min="0"
+                                step="1"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                clearable
+                            />
+                            <v-text-field
+                                v-model="form.flag_url"
+                                label="Flag URL"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                clearable
+                                class="country-form-grid__wide"
+                            />
+                            <v-file-input
+                                v-model="form.flag_file"
+                                label="Загрузить flag image в Yandex S3"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                clearable
+                                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                                prepend-icon=""
+                                prepend-inner-icon="mdi-image-plus-outline"
+                                class="country-form-grid__wide"
+                            />
+                            <v-checkbox
+                                v-if="selectedCountry?.flag"
+                                v-model="form.remove_flag"
+                                label="Удалить текущий флаг"
+                                density="compact"
+                                hide-details
+                                class="country-form-grid__wide"
+                            />
+                        </div>
+
+                        <div v-if="selectedCountry?.flag || form.flag_url" class="country-dialog-preview">
+                            <span>Текущий флаг</span>
+                            <img
+                                :src="form.flag_url || selectedCountry?.flag"
+                                :alt="form.name"
+                            >
+                        </div>
+                    </v-card-text>
+
+                    <v-card-actions>
+                        <v-spacer />
+                        <v-btn variant="text" @click="dialog = false">Отмена</v-btn>
+                        <v-btn
+                            color="#800000"
+                            variant="elevated"
+                            prepend-icon="mdi-content-save-outline"
+                            :loading="saving"
+                            @click="saveCountry"
+                        >
+                            Сохранить
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+        </section>
+    </v-theme-provider>
 </template>
 
 <style scoped>
 .countries-admin {
     display: grid;
     gap: 14px;
-    padding: 16px 4px 24px;
+    padding: 16px;
+    border: 1px solid rgba(128, 0, 0, 0.12);
+    border-radius: 8px;
+    background: #fffdf8;
     color: #2f160d;
 }
 
@@ -692,6 +697,80 @@ onMounted(loadCountries)
     grid-template-columns: minmax(220px, 1.4fr) repeat(6, minmax(106px, 0.72fr)) auto;
     gap: 8px;
     align-items: center;
+    padding: 10px;
+    border: 1px solid rgba(128, 0, 0, 0.10);
+    border-radius: 8px;
+    background: #fff8ef;
+}
+
+.countries-admin :deep(.v-field),
+.country-dialog :deep(.v-field) {
+    border-radius: 7px;
+    background: #ffffff;
+    color: #24180f;
+}
+
+.countries-admin :deep(.v-field__overlay),
+.country-dialog :deep(.v-field__overlay) {
+    opacity: 0;
+}
+
+.countries-admin :deep(.v-field__outline),
+.country-dialog :deep(.v-field__outline) {
+    color: rgba(128, 0, 0, 0.46);
+    --v-field-border-opacity: 1;
+}
+
+.countries-admin :deep(.v-field:hover .v-field__outline),
+.country-dialog :deep(.v-field:hover .v-field__outline) {
+    color: rgba(128, 0, 0, 0.74);
+}
+
+.countries-admin :deep(.v-field--focused .v-field__outline),
+.country-dialog :deep(.v-field--focused .v-field__outline) {
+    color: #800000;
+}
+
+.countries-admin :deep(.v-label),
+.countries-admin :deep(.v-field-label),
+.countries-admin :deep(.v-select__selection),
+.countries-admin :deep(.v-select__selection-text),
+.countries-admin :deep(.v-field__input),
+.countries-admin :deep(.v-field__input input),
+.countries-admin :deep(.v-field__input textarea),
+.country-dialog :deep(.v-label),
+.country-dialog :deep(.v-field-label),
+.country-dialog :deep(.v-select__selection),
+.country-dialog :deep(.v-select__selection-text),
+.country-dialog :deep(.v-field__input),
+.country-dialog :deep(.v-field__input input),
+.country-dialog :deep(.v-field__input textarea) {
+    color: #24180f !important;
+    opacity: 1;
+}
+
+.countries-admin :deep(input::placeholder),
+.countries-admin :deep(textarea::placeholder),
+.country-dialog :deep(input::placeholder),
+.country-dialog :deep(textarea::placeholder) {
+    color: #8b6b61 !important;
+    opacity: 1;
+}
+
+.countries-admin :deep(.v-field__prepend-inner),
+.countries-admin :deep(.v-field__append-inner),
+.countries-admin :deep(.v-field__clearable),
+.countries-admin :deep(.v-counter),
+.countries-admin :deep(.v-messages),
+.countries-admin :deep(.v-icon),
+.country-dialog :deep(.v-field__prepend-inner),
+.country-dialog :deep(.v-field__append-inner),
+.country-dialog :deep(.v-field__clearable),
+.country-dialog :deep(.v-counter),
+.country-dialog :deep(.v-messages),
+.country-dialog :deep(.v-icon) {
+    color: #7a3f2a;
+    opacity: 1;
 }
 
 .countries-table {
@@ -699,6 +778,16 @@ onMounted(loadCountries)
     border-radius: 8px;
     overflow: hidden;
     background: #ffffff;
+    color: #2f160d;
+}
+
+.countries-table :deep(.v-table__wrapper),
+.countries-table :deep(table),
+.countries-table :deep(tbody),
+.countries-table :deep(tr),
+.countries-table :deep(td) {
+    background: #ffffff;
+    color: #2f160d;
 }
 
 .countries-table :deep(th) {
@@ -706,6 +795,10 @@ onMounted(loadCountries)
     background: #fff8ef !important;
     font-size: 0.72rem;
     font-weight: 900;
+}
+
+.countries-table :deep(tbody tr:hover td) {
+    background: #fff8ef !important;
 }
 
 .country-flag-cell {
@@ -773,6 +866,11 @@ onMounted(loadCountries)
 .country-dialog__title {
     justify-content: space-between;
     gap: 12px;
+}
+
+.country-dialog {
+    background: #fffdf8;
+    color: #24180f;
 }
 
 .country-dialog__title div {
