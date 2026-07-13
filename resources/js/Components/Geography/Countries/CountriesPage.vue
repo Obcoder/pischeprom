@@ -17,6 +17,8 @@ const filters = reactive({
     search: '',
     codeISO: '',
     codeTelefon: '',
+    populationMin: '',
+    populationMax: '',
     flag: null,
     usage: null,
 })
@@ -25,6 +27,7 @@ const form = reactive({
     name: '',
     codeISO: '',
     codeTelefon: '',
+    population: '',
     flag_url: '',
     flag_file: null,
     remove_flag: false,
@@ -47,6 +50,7 @@ const headers = [
     { title: 'Страна', key: 'name', minWidth: 220 },
     { title: 'ISO', key: 'codeISO', width: 92 },
     { title: 'Телефон', key: 'codeTelefon', width: 120 },
+    { title: 'Population', key: 'population', align: 'end', width: 130 },
     { title: 'Regions', key: 'regions_count', align: 'end', width: 92 },
     { title: 'Goods', key: 'goods_count', align: 'end', width: 92 },
     { title: 'Entities', key: 'entities_count', align: 'end', width: 96 },
@@ -61,6 +65,7 @@ const summary = computed(() => {
     return {
         total: countries.value.length,
         filtered: filteredCountries.value.length,
+        population: countries.value.reduce((total, country) => total + Number(country.population || 0), 0),
         withFlag,
         withoutFlag: countries.value.length - withFlag,
         used,
@@ -71,17 +76,23 @@ const filteredCountries = computed(() => {
     const search = normalize(filters.search)
     const codeISO = normalize(filters.codeISO)
     const codeTelefon = normalize(filters.codeTelefon)
+    const populationMin = parseIntegerFilter(filters.populationMin)
+    const populationMax = parseIntegerFilter(filters.populationMax)
 
     return countries.value.filter((country) => {
+        const population = toInteger(country.population)
         const values = [
             country.name,
             country.codeISO,
             country.codeTelefon,
+            country.population,
         ].map(normalize)
 
         const matchesSearch = !search || values.some((value) => value.includes(search))
         const matchesISO = !codeISO || normalize(country.codeISO).includes(codeISO)
         const matchesPhone = !codeTelefon || normalize(country.codeTelefon).includes(codeTelefon)
+        const matchesPopulationMin = populationMin === null || (population !== null && population >= populationMin)
+        const matchesPopulationMax = populationMax === null || (population !== null && population <= populationMax)
         const matchesFlag = filters.flag === 'yes'
             ? Boolean(country.flag)
             : filters.flag === 'no'
@@ -93,7 +104,13 @@ const filteredCountries = computed(() => {
                 ? relationCount(country) === 0
                 : true
 
-        return matchesSearch && matchesISO && matchesPhone && matchesFlag && matchesUsage
+        return matchesSearch
+            && matchesISO
+            && matchesPhone
+            && matchesPopulationMin
+            && matchesPopulationMax
+            && matchesFlag
+            && matchesUsage
     })
 })
 
@@ -105,6 +122,38 @@ function relationCount(country) {
     return Number(country?.regions_count || 0)
         + Number(country?.goods_count || 0)
         + Number(country?.entities_count || 0)
+}
+
+function toInteger(value) {
+    if (value === null || value === undefined || value === '') {
+        return null
+    }
+
+    const number = Number(value)
+
+    return Number.isFinite(number) ? Math.trunc(number) : null
+}
+
+function parseIntegerFilter(value) {
+    const raw = String(value ?? '').replace(/\s/g, '')
+
+    if (raw === '') {
+        return null
+    }
+
+    const number = Number(raw)
+
+    return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : null
+}
+
+function formatNumber(value) {
+    const number = toInteger(value)
+
+    if (number === null) {
+        return '-'
+    }
+
+    return new Intl.NumberFormat('ru-RU').format(number)
 }
 
 function formatDate(value) {
@@ -136,6 +185,8 @@ function resetFilters() {
     filters.search = ''
     filters.codeISO = ''
     filters.codeTelefon = ''
+    filters.populationMin = ''
+    filters.populationMax = ''
     filters.flag = null
     filters.usage = null
 }
@@ -161,6 +212,7 @@ function resetForm() {
     form.name = ''
     form.codeISO = ''
     form.codeTelefon = ''
+    form.population = ''
     form.flag_url = ''
     form.flag_file = null
     form.remove_flag = false
@@ -178,6 +230,7 @@ function openEdit(country) {
     form.name = country.name || ''
     form.codeISO = country.codeISO || country.сodeISO || ''
     form.codeTelefon = country.codeTelefon || country.сodeTelefon || ''
+    form.population = country.population ?? ''
     form.flag_url = country.flag || ''
     form.flag_file = null
     form.remove_flag = false
@@ -195,6 +248,7 @@ function countryPayload() {
     payload.append('name', form.name || '')
     payload.append('codeISO', String(form.codeISO || '').toUpperCase())
     payload.append('codeTelefon', form.codeTelefon || '')
+    payload.append('population', String(form.population ?? '').trim())
     payload.append('flag_url', form.flag_url || '')
     payload.append('remove_flag', form.remove_flag ? '1' : '0')
 
@@ -304,6 +358,7 @@ onMounted(loadCountries)
         <div class="countries-summary">
             <div><span>Total</span><strong>{{ summary.total }}</strong></div>
             <div><span>Filtered</span><strong>{{ summary.filtered }}</strong></div>
+            <div><span>Population</span><strong>{{ formatNumber(summary.population) }}</strong></div>
             <div><span>Flags</span><strong>{{ summary.withFlag }}</strong></div>
             <div><span>No flag</span><strong>{{ summary.withoutFlag }}</strong></div>
             <div><span>Used</span><strong>{{ summary.used }}</strong></div>
@@ -330,6 +385,26 @@ onMounted(loadCountries)
             <v-text-field
                 v-model="filters.codeTelefon"
                 label="Телефонный код"
+                density="compact"
+                variant="outlined"
+                hide-details
+                clearable
+            />
+            <v-text-field
+                v-model="filters.populationMin"
+                label="Population от"
+                type="number"
+                min="0"
+                density="compact"
+                variant="outlined"
+                hide-details
+                clearable
+            />
+            <v-text-field
+                v-model="filters.populationMax"
+                label="Population до"
+                type="number"
+                min="0"
                 density="compact"
                 variant="outlined"
                 hide-details
@@ -409,6 +484,10 @@ onMounted(loadCountries)
                 <span class="country-code">{{ item.codeTelefon || item.сodeTelefon || '-' }}</span>
             </template>
 
+            <template #item.population="{ item }">
+                <span class="country-number">{{ formatNumber(item.population) }}</span>
+            </template>
+
             <template #item.updated_at="{ item }">
                 <span class="country-date">{{ formatDate(item.updated_at) }}</span>
             </template>
@@ -470,12 +549,24 @@ onMounted(loadCountries)
                             hide-details
                         />
                         <v-text-field
+                            v-model="form.population"
+                            label="Population"
+                            type="number"
+                            min="0"
+                            step="1"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            clearable
+                        />
+                        <v-text-field
                             v-model="form.flag_url"
                             label="Flag URL"
                             density="compact"
                             variant="outlined"
                             hide-details
                             clearable
+                            class="country-form-grid__wide"
                         />
                         <v-file-input
                             v-model="form.flag_file"
@@ -487,6 +578,7 @@ onMounted(loadCountries)
                             accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
                             prepend-icon=""
                             prepend-inner-icon="mdi-image-plus-outline"
+                            class="country-form-grid__wide"
                         />
                         <v-checkbox
                             v-if="selectedCountry?.flag"
@@ -494,6 +586,7 @@ onMounted(loadCountries)
                             label="Удалить текущий флаг"
                             density="compact"
                             hide-details
+                            class="country-form-grid__wide"
                         />
                     </div>
 
@@ -596,7 +689,7 @@ onMounted(loadCountries)
 
 .countries-filters {
     display: grid;
-    grid-template-columns: minmax(220px, 1.4fr) minmax(90px, 0.55fr) minmax(140px, 0.8fr) minmax(130px, 0.7fr) minmax(130px, 0.7fr) auto;
+    grid-template-columns: minmax(220px, 1.4fr) repeat(6, minmax(106px, 0.72fr)) auto;
     gap: 8px;
     align-items: center;
 }
@@ -664,6 +757,7 @@ onMounted(loadCountries)
 }
 
 .country-code,
+.country-number,
 .country-date {
     color: #4c3b2e;
     font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
@@ -698,13 +792,11 @@ onMounted(loadCountries)
 
 .country-form-grid {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 110px 150px;
+    grid-template-columns: minmax(220px, 1fr) 110px 150px 150px;
     gap: 10px;
 }
 
-.country-form-grid > :nth-child(4),
-.country-form-grid > :nth-child(5),
-.country-form-grid > :nth-child(6) {
+.country-form-grid__wide {
     grid-column: 1 / -1;
 }
 

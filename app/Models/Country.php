@@ -15,6 +15,11 @@ class Country extends Model
         'flag',
         'сodeTelefon',
         'сodeISO',
+        'population',
+    ];
+
+    protected $casts = [
+        'population' => 'integer',
     ];
 
     public function goods(): HasMany

@@ -28,6 +28,7 @@ class CountryController extends Controller
             'name' => 'name',
             'codeISO' => self::CODE_ISO,
             'codeTelefon' => self::CODE_TELEFON,
+            'population' => 'population',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at',
         ];
@@ -38,7 +39,8 @@ class CountryController extends Controller
                 $query->where(function ($query) use ($search) {
                     $query->where('name', 'like', "%{$search}%")
                         ->orWhere(self::CODE_ISO, 'like', "%{$search}%")
-                        ->orWhere(self::CODE_TELEFON, 'like', "%{$search}%");
+                        ->orWhere(self::CODE_TELEFON, 'like', "%{$search}%")
+                        ->orWhere('population', 'like', "%{$search}%");
                 });
             })
             ->when($hasFlag === 'yes', fn ($query) => $query->whereNotNull('flag')->where('flag', '<>', ''))
@@ -60,6 +62,7 @@ class CountryController extends Controller
             'name' => $data['name'],
             self::CODE_ISO => $data['codeISO'],
             self::CODE_TELEFON => $data['codeTelefon'] ?? null,
+            'population' => $data['population'] ?? null,
             'flag' => $data['flag_url'] ?? null,
         ]);
 
@@ -86,6 +89,7 @@ class CountryController extends Controller
             'name' => $data['name'],
             self::CODE_ISO => $data['codeISO'],
             self::CODE_TELEFON => $data['codeTelefon'] ?? null,
+            'population' => $data['population'] ?? null,
             'flag' => $request->boolean('remove_flag') ? null : ($data['flag_url'] ?? $country->flag),
         ]);
 
@@ -140,6 +144,7 @@ class CountryController extends Controller
                 Rule::unique('countries', self::CODE_ISO)->ignore($country?->id),
             ],
             'codeTelefon' => ['nullable', 'string', 'max:12'],
+            'population' => ['nullable', 'integer', 'min:0'],
             'flag_url' => ['nullable', 'string', 'max:2048'],
             'flag_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif,svg', 'max:5120'],
             'remove_flag' => ['nullable', 'boolean'],
@@ -147,6 +152,7 @@ class CountryController extends Controller
 
         $data['codeISO'] = strtoupper($data['codeISO']);
         $data['codeTelefon'] = isset($data['codeTelefon']) ? trim((string) $data['codeTelefon']) : null;
+        $data['population'] = isset($data['population']) ? (int) $data['population'] : null;
 
         return $data;
     }
@@ -161,6 +167,7 @@ class CountryController extends Controller
             self::CODE_TELEFON => $country->{self::CODE_TELEFON},
             'codeISO' => $country->{self::CODE_ISO},
             'codeTelefon' => $country->{self::CODE_TELEFON},
+            'population' => $country->population,
             'regions_count' => $country->regions_count ?? null,
             'goods_count' => $country->goods_count ?? null,
             'entities_count' => $country->entities_count ?? null,
