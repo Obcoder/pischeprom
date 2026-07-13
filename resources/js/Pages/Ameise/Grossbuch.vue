@@ -15,6 +15,7 @@ defineOptions({
 import CommoditiesPage from '@/Components/Dictionaries/Commodities/CommoditiesPage.vue';
 import Categories from '@/Components/Dictionaries/Categories.vue';
 import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue';
+import CountriesPage from '@/Components/Geography/Countries/CountriesPage.vue';
 import RegionsPage from '@/Components/Geography/Regions/RegionsPage.vue';
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
@@ -94,7 +95,6 @@ const checks = ref([])
 const cities = ref([])
 const commodities = ref([])
 const components = ref([])
-const countries = ref([])
 const emails = ref([])
 const entityClassifications = ref([])
 const good = ref(null)
@@ -130,17 +130,6 @@ const headersCatalogs = ref([
         key: 'rank',
     },
 ])
-const headerCountries = [
-    {
-        title: 'Флаг',
-        key: 'flag',
-    },
-    {
-        title: 'name',
-        key: 'name',
-    },
-]
-
 const headerTelephones = ref([
     {
         title: 'Number',
@@ -303,22 +292,6 @@ function storeComponent(){
     });
 }
 // E N D  C O M P O N E N T S
-
-
-
-//   C O U N T R I E S
-function indexCountries(){
-    axios.get(route('countries.index')).then(function (response) {
-        // handle success
-        countries.value = response.data
-    }).catch(function (error) {
-        // handle error
-        console.log(error);
-    }).finally(function () {
-        // always executed
-    })
-}
-// E N D  C O U N T R I E S
 
 
 
@@ -552,7 +525,6 @@ onMounted(()=>{
     indexCategories()
     indexChecks()
     indexComponents()
-    indexCountries()
     indexEntityClassifications()
     indexLabels()
     indexMeasures()
@@ -869,23 +841,7 @@ const formatBuildingTitle = (building) => {
                                             <RegionsPage />
                                         </v-tabs-window-item>
                                         <v-tabs-window-item value="countries">
-                                            <v-row>
-                                                <v-col>
-                                                    <v-data-table :items="countries"
-                                                                  :headers="headerCountries"
-                                                                  items-per-page="47"
-                                                                  density="compact"
-                                                                  hover="hover"
-                                                    >
-                                                        <template v-slot:item.flag="{item}">
-                                                            <v-img :src="item.flag"
-                                                                   width="51"
-                                                                   class="border border-1 border-gray-200"
-                                                            ></v-img>
-                                                        </template>
-                                                    </v-data-table>
-                                                </v-col>
-                                            </v-row>
+                                            <CountriesPage />
                                         </v-tabs-window-item>
                                     </v-tabs-window>
                                 </v-tabs-window-item>

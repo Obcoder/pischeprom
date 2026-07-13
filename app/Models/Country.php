@@ -21,4 +21,14 @@ class Country extends Model
     {
         return $this->hasMany(Good::class);
     }
+
+    public function regions(): HasMany
+    {
+        return $this->hasMany(Region::class);
+    }
+
+    public function entities(): HasMany
+    {
+        return $this->hasMany(Entity::class);
+    }
 }
