@@ -25,8 +25,10 @@ const loadingCalls = ref(false)
 const loadingLeads = ref(false)
 const savingLeadId = ref(null)
 const savingLeadDrawer = ref(false)
+const savingLeadDrawerStatus = ref(null)
 const creatingEntityCallId = ref(null)
 const dialingCallId = ref(null)
+const dialingLeadId = ref(null)
 const syncingBeeline = ref(false)
 const beelineSyncResult = ref(null)
 const tab = ref('calls')
@@ -37,6 +39,9 @@ const callsTableHeight = ref(560)
 const leadDrawerOpen = ref(false)
 const selectedLead = ref(null)
 const selectedLeadLoading = ref(false)
+const leadRelationOptionsLoading = ref(false)
+const entityOptions = ref([])
+const unitOptions = ref([])
 
 const snackbar = reactive({
     show: false,
@@ -48,6 +53,8 @@ const leadForm = reactive({
     title: '',
     status: 'open',
     description: '',
+    entity_id: null,
+    unit_id: null,
 })
 
 const callFilters = ref({
@@ -127,10 +134,19 @@ const leadStatusFilterItems = [
     ...leadStatusItems,
 ]
 
+const leadStatusActionItems = [
+    { title: 'Открыть', status: 'open', color: 'blue', icon: 'mdi-lock-open-outline' },
+    { title: 'В работу', status: 'in_progress', color: 'amber', icon: 'mdi-progress-clock' },
+    { title: 'Выигран', status: 'won', color: 'green', icon: 'mdi-check-circle-outline' },
+    { title: 'Потерян', status: 'lost', color: 'red', icon: 'mdi-close-circle-outline' },
+    { title: 'Архив', status: 'archived', color: 'grey', icon: 'mdi-archive-outline' },
+]
+
 const openLeadsCount = computed(() => leads.value.filter((lead) => ['open', 'in_progress'].includes(lead.status)).length)
 const missedCallsCount = computed(() => phoneCalls.value.filter((call) => call.status === 'missed' || call.direction === 'missed').length)
 const callPageCount = computed(() => Math.max(Math.ceil(phoneCallsTotal.value / Math.max(callFilters.value.per_page, 1)), 1))
 const selectedLeadCalls = computed(() => selectedLead.value?.phone_calls || [])
+const selectedLeadPhone = computed(() => leadPhone(selectedLead.value))
 
 function notify(text, color = 'success') {
     snackbar.text = text
@@ -289,6 +305,30 @@ async function dialClient(call) {
     }
 }
 
+async function dialLead(lead) {
+    const phone = leadPhone(lead)
+
+    if (!phone) {
+        notify('У лида нет номера клиента.', 'error')
+        return
+    }
+
+    dialingLeadId.value = lead.id
+
+    try {
+        await axios.post('/api/phone-calls/dial', {
+            client_phone: phone,
+            employee_phone: MANAGER_PHONE,
+        })
+        notify(`Билайн: звонок на ${formatPhone(phone)} запущен через менеджера +${MANAGER_PHONE}.`)
+    } catch (error) {
+        console.error(error)
+        notify(error.response?.data?.message || 'Не удалось запустить звонок через Билайн.', 'error')
+    } finally {
+        dialingLeadId.value = null
+    }
+}
+
 async function openLeadDrawer(lead) {
     if (!lead?.id) {
         return
@@ -296,9 +336,14 @@ async function openLeadDrawer(lead) {
 
     leadDrawerOpen.value = true
     selectedLeadLoading.value = true
+    selectedLead.value = lead
+    fillLeadForm(lead)
 
     try {
-        const { data } = await axios.get(`/api/leads/${lead.id}`)
+        const [{ data }] = await Promise.all([
+            axios.get(`/api/leads/${lead.id}`),
+            ensureLeadRelationOptions(lead),
+        ])
         selectedLead.value = data.data || data
         fillLeadForm(selectedLead.value)
     } catch (error) {
@@ -317,6 +362,10 @@ function fillLeadForm(lead) {
     leadForm.title = lead?.title || ''
     leadForm.status = lead?.status || 'open'
     leadForm.description = lead?.description || ''
+    leadForm.entity_id = lead?.entity_id || lead?.entity?.id || null
+    leadForm.unit_id = lead?.unit_id || lead?.unit?.id || null
+
+    mergeLeadRelationOptions(lead)
 }
 
 async function saveLeadDrawer() {
@@ -331,6 +380,8 @@ async function saveLeadDrawer() {
             title: leadForm.title,
             status: leadForm.status,
             description: leadForm.description,
+            entity_id: leadForm.entity_id || null,
+            unit_id: leadForm.unit_id || null,
         })
 
         selectedLead.value = data.data || data
@@ -343,6 +394,110 @@ async function saveLeadDrawer() {
     } finally {
         savingLeadDrawer.value = false
     }
+}
+
+async function updateSelectedLeadStatus(status) {
+    if (!selectedLead.value?.id || selectedLead.value.status === status) {
+        return
+    }
+
+    savingLeadDrawerStatus.value = status
+
+    try {
+        const { data } = await axios.patch(`/api/leads/${selectedLead.value.id}`, { status })
+        selectedLead.value = data.data || data
+        fillLeadForm(selectedLead.value)
+        await Promise.all([fetchLeads(), fetchPhoneCalls()])
+        notify(`Статус лида: ${statusLabel(status)}.`)
+    } catch (error) {
+        console.error(error)
+        notify('Не удалось обновить статус лида.', 'error')
+    } finally {
+        savingLeadDrawerStatus.value = null
+    }
+}
+
+async function ensureLeadRelationOptions(lead = null) {
+    const search = lead?.entity?.name || lead?.unit?.name || ''
+
+    if (entityOptions.value.length && unitOptions.value.length) {
+        mergeLeadRelationOptions(lead)
+        return
+    }
+
+    await Promise.all([
+        fetchEntityOptions(search),
+        fetchUnitOptions(search),
+    ])
+    mergeLeadRelationOptions(lead)
+}
+
+async function fetchEntityOptions(search = '') {
+    leadRelationOptionsLoading.value = true
+
+    try {
+        const { data } = await axios.get('/api/entities', {
+            params: {
+                search,
+                itemsPerPage: 25,
+            },
+        })
+
+        entityOptions.value = normalizeOptions(data.data || data)
+        mergeLeadRelationOptions(selectedLead.value)
+    } catch (error) {
+        console.error(error)
+        notify('Не удалось загрузить список Entity.', 'error')
+    } finally {
+        leadRelationOptionsLoading.value = false
+    }
+}
+
+async function fetchUnitOptions(search = '') {
+    leadRelationOptionsLoading.value = true
+
+    try {
+        const { data } = await axios.get('/api/units', {
+            params: { search },
+        })
+
+        unitOptions.value = normalizeOptions(data.data || data)
+        mergeLeadRelationOptions(selectedLead.value)
+    } catch (error) {
+        console.error(error)
+        notify('Не удалось загрузить список Unit.', 'error')
+    } finally {
+        leadRelationOptionsLoading.value = false
+    }
+}
+
+function normalizeOptions(items) {
+    return (Array.isArray(items) ? items : [])
+        .filter((item) => item?.id)
+        .map((item) => ({
+            id: item.id,
+            name: item.name || `#${item.id}`,
+        }))
+}
+
+function mergeLeadRelationOptions(lead) {
+    if (lead?.entity?.id) {
+        entityOptions.value = mergeOptions(entityOptions.value, [lead.entity])
+    }
+
+    if (lead?.unit?.id) {
+        unitOptions.value = mergeOptions(unitOptions.value, [lead.unit])
+    }
+}
+
+function mergeOptions(current, additions) {
+    const byId = new Map()
+
+    ;[...current, ...normalizeOptions(additions)].forEach((item) => {
+        byId.set(item.id, item)
+    })
+
+    return Array.from(byId.values()).sort((a, b) => String(a.name).localeCompare(String(b.name)))
 }
 
 function applyCallFilters() {
@@ -475,6 +630,10 @@ function formatPhone(value) {
     }
 
     return `+${value}`
+}
+
+function leadPhone(lead) {
+    return lead?.client_phone || lead?.telephone?.number || ''
 }
 
 function employeeTitle(call) {
@@ -622,6 +781,18 @@ function entityUrl(entityId) {
         return route('Ameise.entity.show', entityId)
     } catch (error) {
         return `/Ameise/entity/${entityId}`
+    }
+}
+
+function mailMessageUrl(mailMessageId) {
+    if (!mailMessageId) {
+        return null
+    }
+
+    try {
+        return `${route('Ameise.mail')}?mail_message_id=${mailMessageId}`
+    } catch (error) {
+        return `/Ameise/Mail?mail_message_id=${mailMessageId}`
     }
 }
 
@@ -960,107 +1131,6 @@ useHead({
                             </template>
                         </v-data-table-server>
 
-                        <transition name="lead-panel">
-                            <aside v-if="leadDrawerOpen" class="lead-side-panel">
-                                <div class="lead-side-panel__head">
-                                    <div>
-                                        <div class="text-caption text-medium-emphasis">Lead workspace</div>
-                                        <h2>{{ selectedLead?.title || 'Лид' }}</h2>
-                                    </div>
-                                    <v-btn icon="mdi-close" size="small" variant="text" @click="closeLeadDrawer" />
-                                </div>
-
-                                <v-progress-linear v-if="selectedLeadLoading" indeterminate color="#800000" class="mb-3" />
-
-                                <div v-if="selectedLead" class="lead-side-panel__body">
-                                    <section class="lead-section">
-                                        <h3>Update</h3>
-                                        <v-text-field
-                                            v-model="leadForm.title"
-                                            label="Название"
-                                            density="compact"
-                                            variant="outlined"
-                                        />
-                                        <v-select
-                                            v-model="leadForm.status"
-                                            :items="leadStatusItems"
-                                            label="Статус"
-                                            density="compact"
-                                            variant="outlined"
-                                        />
-                                        <v-textarea
-                                            v-model="leadForm.description"
-                                            label="Описание / работа с лидом"
-                                            rows="5"
-                                            variant="outlined"
-                                        />
-                                        <v-btn
-                                            color="#800000"
-                                            rounded="lg"
-                                            :loading="savingLeadDrawer"
-                                            @click="saveLeadDrawer"
-                                        >
-                                            Сохранить
-                                        </v-btn>
-                                    </section>
-
-                                    <section class="lead-section">
-                                        <h3>Данные</h3>
-                                        <dl class="lead-data-grid">
-                                            <dt>ID</dt><dd>#{{ selectedLead.id }}</dd>
-                                            <dt>Источник</dt><dd>{{ selectedLead.source || '-' }}</dd>
-                                            <dt>Номер</dt><dd>{{ formatPhone(selectedLead.client_phone || selectedLead.telephone?.number) }}</dd>
-                                            <dt>Активность</dt><dd>{{ formatDateTime(selectedLead.last_activity_at || selectedLead.created_at) }}</dd>
-                                            <dt>Закрыт</dt><dd>{{ selectedLead.closed_at ? formatDateTime(selectedLead.closed_at) : '-' }}</dd>
-                                            <dt>Ответственный</dt><dd>{{ selectedLead.assigned_user?.name || '-' }}</dd>
-                                        </dl>
-                                    </section>
-
-                                    <section class="lead-section">
-                                        <h3>Связи</h3>
-                                        <div class="lead-relation">
-                                            <strong>Entity</strong>
-                                            <button
-                                                v-if="selectedLead.entity"
-                                                type="button"
-                                                class="crm-link"
-                                                @click="goToEntity(selectedLead.entity.id)"
-                                            >
-                                                {{ selectedLead.entity.name }}
-                                            </button>
-                                            <span v-else>-</span>
-                                        </div>
-                                        <div class="lead-relation">
-                                            <strong>Unit</strong>
-                                            <Link v-if="selectedLead.unit" :href="route('web.unit.show', selectedLead.unit.id)">
-                                                {{ selectedLead.unit.name }}
-                                            </Link>
-                                            <span v-else>-</span>
-                                        </div>
-                                        <div class="lead-relation">
-                                            <strong>Telephone</strong>
-                                            <span>{{ selectedLead.telephone?.number ? formatPhone(selectedLead.telephone.number) : '-' }}</span>
-                                        </div>
-                                    </section>
-
-                                    <section class="lead-section">
-                                        <h3>Связанные звонки ({{ selectedLeadCalls.length }})</h3>
-                                        <div class="lead-calls-list">
-                                            <div v-for="call in selectedLeadCalls" :key="call.id" class="lead-call-card">
-                                                <div class="lead-call-card__top">
-                                                    <strong>{{ formatCallTime(call.started_at || call.created_at) }}</strong>
-                                                    <v-chip size="x-small" :color="statusColor(call.status)" variant="tonal">
-                                                        {{ statusLabel(call.status) }}
-                                                    </v-chip>
-                                                </div>
-                                                <div>{{ formatCompactDate(call.started_at || call.created_at) }} · {{ directionLabel(call.direction) }} · {{ formatSeconds(call.duration_seconds) }}</div>
-                                                <div class="text-caption text-medium-emphasis">{{ formatPhone(call.client_phone) }}</div>
-                                            </div>
-                                        </div>
-                                    </section>
-                                </div>
-                            </aside>
-                        </transition>
                     </div>
                 </v-window-item>
 
@@ -1235,6 +1305,202 @@ useHead({
                 </v-window-item>
             </v-window>
         </v-card>
+
+        <v-navigation-drawer
+            v-model="leadDrawerOpen"
+            location="right"
+            temporary
+            width="640"
+            class="lead-management-drawer"
+        >
+            <aside class="lead-side-panel">
+                <div class="lead-side-panel__head">
+                    <div>
+                        <div class="text-caption text-medium-emphasis">Lead workspace</div>
+                        <h2>{{ selectedLead?.title || 'Лид' }}</h2>
+                    </div>
+                    <v-btn icon="mdi-close" size="small" variant="text" @click="closeLeadDrawer" />
+                </div>
+
+                <v-progress-linear v-if="selectedLeadLoading" indeterminate color="#800000" class="mb-3" />
+
+                <div v-if="selectedLead" class="lead-side-panel__body">
+                    <section class="lead-section lead-section--tools">
+                        <div class="lead-section__title-row">
+                            <h3>Инструменты</h3>
+                            <v-chip size="small" :color="statusColor(selectedLead.status)" variant="tonal">
+                                {{ statusLabel(selectedLead.status) }}
+                            </v-chip>
+                        </div>
+
+                        <div class="lead-tools-grid">
+                            <v-btn
+                                v-for="action in leadStatusActionItems"
+                                :key="action.status"
+                                size="small"
+                                :color="action.color"
+                                :variant="selectedLead.status === action.status ? 'elevated' : 'tonal'"
+                                :prepend-icon="action.icon"
+                                :loading="savingLeadDrawerStatus === action.status"
+                                :disabled="savingLeadDrawer || selectedLead.status === action.status"
+                                @click="updateSelectedLeadStatus(action.status)"
+                            >
+                                {{ action.title }}
+                            </v-btn>
+                        </div>
+
+                        <div class="lead-tools-row">
+                            <v-btn
+                                size="small"
+                                color="green"
+                                variant="tonal"
+                                prepend-icon="mdi-phone-outgoing"
+                                :loading="dialingLeadId === selectedLead.id"
+                                :disabled="!selectedLeadPhone"
+                                @click="dialLead(selectedLead)"
+                            >
+                                Позвонить
+                            </v-btn>
+
+                            <v-btn
+                                v-if="mailMessageUrl(selectedLead.mail_message_id)"
+                                size="small"
+                                color="blue"
+                                variant="tonal"
+                                prepend-icon="mdi-email-open-outline"
+                                :href="mailMessageUrl(selectedLead.mail_message_id)"
+                            >
+                                Письмо
+                            </v-btn>
+
+                            <v-btn
+                                size="small"
+                                color="#800000"
+                                variant="text"
+                                prepend-icon="mdi-refresh"
+                                :loading="selectedLeadLoading"
+                                @click="openLeadDrawer(selectedLead)"
+                            >
+                                Обновить
+                            </v-btn>
+                        </div>
+                    </section>
+
+                    <section class="lead-section">
+                        <h3>Редактирование</h3>
+                        <v-text-field
+                            v-model="leadForm.title"
+                            label="Название"
+                            density="compact"
+                            variant="outlined"
+                        />
+                        <v-select
+                            v-model="leadForm.status"
+                            :items="leadStatusItems"
+                            label="Статус"
+                            density="compact"
+                            variant="outlined"
+                        />
+                        <v-textarea
+                            v-model="leadForm.description"
+                            label="Описание / работа с лидом"
+                            rows="5"
+                            variant="outlined"
+                        />
+                        <v-autocomplete
+                            v-model="leadForm.entity_id"
+                            :items="entityOptions"
+                            item-title="name"
+                            item-value="id"
+                            label="Entity"
+                            density="compact"
+                            variant="outlined"
+                            clearable
+                            hide-details
+                            :loading="leadRelationOptionsLoading"
+                            @update:search="fetchEntityOptions"
+                        />
+                        <v-autocomplete
+                            v-model="leadForm.unit_id"
+                            :items="unitOptions"
+                            item-title="name"
+                            item-value="id"
+                            label="Unit"
+                            density="compact"
+                            variant="outlined"
+                            clearable
+                            hide-details
+                            :loading="leadRelationOptionsLoading"
+                            @update:search="fetchUnitOptions"
+                        />
+                        <v-btn
+                            color="#800000"
+                            rounded="lg"
+                            prepend-icon="mdi-content-save-outline"
+                            :loading="savingLeadDrawer"
+                            @click="saveLeadDrawer"
+                        >
+                            Сохранить
+                        </v-btn>
+                    </section>
+
+                    <section class="lead-section">
+                        <h3>Данные</h3>
+                        <dl class="lead-data-grid">
+                            <dt>ID</dt><dd>#{{ selectedLead.id }}</dd>
+                            <dt>Источник</dt><dd>{{ selectedLead.source || '-' }}</dd>
+                            <dt>Номер</dt><dd>{{ formatPhone(selectedLead.client_phone || selectedLead.telephone?.number) }}</dd>
+                            <dt>Активность</dt><dd>{{ formatDateTime(selectedLead.last_activity_at || selectedLead.created_at) }}</dd>
+                            <dt>Закрыт</dt><dd>{{ selectedLead.closed_at ? formatDateTime(selectedLead.closed_at) : '-' }}</dd>
+                            <dt>Ответственный</dt><dd>{{ selectedLead.assigned_user?.name || '-' }}</dd>
+                        </dl>
+                    </section>
+
+                    <section class="lead-section">
+                        <h3>Связи</h3>
+                        <div class="lead-relation">
+                            <strong>Entity</strong>
+                            <button
+                                v-if="selectedLead.entity"
+                                type="button"
+                                class="crm-link"
+                                @click="goToEntity(selectedLead.entity.id)"
+                            >
+                                {{ selectedLead.entity.name }}
+                            </button>
+                            <span v-else>-</span>
+                        </div>
+                        <div class="lead-relation">
+                            <strong>Unit</strong>
+                            <Link v-if="selectedLead.unit" :href="route('web.unit.show', selectedLead.unit.id)">
+                                {{ selectedLead.unit.name }}
+                            </Link>
+                            <span v-else>-</span>
+                        </div>
+                        <div class="lead-relation">
+                            <strong>Telephone</strong>
+                            <span>{{ selectedLead.telephone?.number ? formatPhone(selectedLead.telephone.number) : '-' }}</span>
+                        </div>
+                    </section>
+
+                    <section class="lead-section">
+                        <h3>Связанные звонки ({{ selectedLeadCalls.length }})</h3>
+                        <div class="lead-calls-list">
+                            <div v-for="call in selectedLeadCalls" :key="call.id" class="lead-call-card">
+                                <div class="lead-call-card__top">
+                                    <strong>{{ formatCallTime(call.started_at || call.created_at) }}</strong>
+                                    <v-chip size="x-small" :color="statusColor(call.status)" variant="tonal">
+                                        {{ statusLabel(call.status) }}
+                                    </v-chip>
+                                </div>
+                                <div>{{ formatCompactDate(call.started_at || call.created_at) }} · {{ directionLabel(call.direction) }} · {{ formatSeconds(call.duration_seconds) }}</div>
+                                <div class="text-caption text-medium-emphasis">{{ formatPhone(call.client_phone) }}</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </aside>
+        </v-navigation-drawer>
 
         <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3500">
             {{ snackbar.text }}
@@ -1588,19 +1854,18 @@ useHead({
     white-space: pre-wrap;
 }
 
+.lead-management-drawer {
+    background: transparent !important;
+}
+
 .lead-side-panel {
-    position: absolute;
-    top: 0;
-    right: 16px;
-    z-index: 8;
-    width: min(40%, 620px);
-    height: calc(100% - 16px);
+    height: 100%;
     padding: 16px;
     border: 1px solid rgba(128, 0, 0, 0.14);
-    border-radius: 22px;
     background: rgba(255, 253, 248, 0.98);
     box-shadow: -22px 0 54px rgba(58, 28, 12, 0.16);
     backdrop-filter: blur(12px);
+    overflow: hidden;
 }
 
 .lead-panel-enter-active,
@@ -1645,6 +1910,32 @@ useHead({
     border: 1px solid rgba(128, 0, 0, 0.08);
     border-radius: 16px;
     background: #fffaf2;
+}
+
+.lead-section--tools {
+    border-color: rgba(21, 128, 61, 0.16);
+    background: #f7fff8;
+}
+
+.lead-section__title-row,
+.lead-tools-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.lead-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.lead-tools-grid :deep(.v-btn__content),
+.lead-tools-row :deep(.v-btn__content) {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .lead-section h3 {
@@ -1701,9 +1992,8 @@ useHead({
 }
 
 @media (max-width: 960px) {
-    .lead-side-panel {
-        right: 8px;
-        width: calc(100% - 16px);
+    .lead-management-drawer {
+        width: min(94vw, 640px) !important;
     }
 }
 </style>

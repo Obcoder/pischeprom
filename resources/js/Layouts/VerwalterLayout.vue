@@ -1,8 +1,10 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
+
+const MANAGER_PHONE = '79650160001'
 
 const workingLeads = ref([])
 const workingLeadsTotal = ref(0)
@@ -11,8 +13,39 @@ const selectedLead = ref(null)
 const selectedLeadLoading = ref(false)
 const leadInfoDrawerOpen = ref(false)
 const leadError = ref('')
+const savingLead = ref(false)
+const savingLeadStatus = ref(null)
+const dialingLeadId = ref(null)
+const relationOptionsLoading = ref(false)
+const entityOptions = ref([])
+const unitOptions = ref([])
+
+const leadForm = reactive({
+    title: '',
+    status: 'open',
+    description: '',
+    entity_id: null,
+    unit_id: null,
+})
+
+const leadStatusItems = [
+    { title: 'Открыт', value: 'open' },
+    { title: 'В работе', value: 'in_progress' },
+    { title: 'Выигран', value: 'won' },
+    { title: 'Потерян', value: 'lost' },
+    { title: 'Архив', value: 'archived' },
+]
+
+const leadStatusActionItems = [
+    { title: 'Открыть', status: 'open', color: 'blue', icon: 'mdi-lock-open-outline' },
+    { title: 'В работу', status: 'in_progress', color: 'amber', icon: 'mdi-progress-clock' },
+    { title: 'Выигран', status: 'won', color: 'green', icon: 'mdi-check-circle-outline' },
+    { title: 'Потерян', status: 'lost', color: 'red', icon: 'mdi-close-circle-outline' },
+    { title: 'Архив', status: 'archived', color: 'grey', icon: 'mdi-archive-outline' },
+]
 
 const selectedLeadCalls = computed(() => selectedLead.value?.phone_calls || [])
+const selectedLeadPhone = computed(() => leadPrimaryContact(selectedLead.value))
 
 async function fetchWorkingLeads() {
     loadingWorkingLeads.value = true
@@ -44,11 +77,16 @@ async function openLeadInfo(lead) {
     leadInfoDrawerOpen.value = true
     selectedLeadLoading.value = true
     selectedLead.value = lead
+    fillLeadForm(lead)
     leadError.value = ''
 
     try {
-        const { data } = await axios.get(`/api/leads/${lead.id}`)
+        const [{ data }] = await Promise.all([
+            axios.get(`/api/leads/${lead.id}`),
+            ensureRelationOptions(lead),
+        ])
         selectedLead.value = data.data || data
+        fillLeadForm(selectedLead.value)
     } catch (error) {
         console.error(error)
         leadError.value = 'Не удалось загрузить данные лида.'
@@ -59,6 +97,172 @@ async function openLeadInfo(lead) {
 
 function closeLeadInfo() {
     leadInfoDrawerOpen.value = false
+}
+
+function fillLeadForm(lead) {
+    leadForm.title = lead?.title || ''
+    leadForm.status = lead?.status || 'open'
+    leadForm.description = lead?.description || ''
+    leadForm.entity_id = lead?.entity_id || lead?.entity?.id || null
+    leadForm.unit_id = lead?.unit_id || lead?.unit?.id || null
+
+    mergeRelationOptions(lead)
+}
+
+async function saveLead() {
+    if (!selectedLead.value?.id) {
+        return
+    }
+
+    savingLead.value = true
+    leadError.value = ''
+
+    try {
+        const { data } = await axios.patch(`/api/leads/${selectedLead.value.id}`, {
+            title: leadForm.title,
+            status: leadForm.status,
+            description: leadForm.description,
+            entity_id: leadForm.entity_id || null,
+            unit_id: leadForm.unit_id || null,
+        })
+
+        selectedLead.value = data.data || data
+        fillLeadForm(selectedLead.value)
+        await fetchWorkingLeads()
+    } catch (error) {
+        console.error(error)
+        leadError.value = 'Не удалось сохранить лид.'
+    } finally {
+        savingLead.value = false
+    }
+}
+
+async function updateLeadStatus(status) {
+    if (!selectedLead.value?.id || selectedLead.value.status === status) {
+        return
+    }
+
+    savingLeadStatus.value = status
+    leadError.value = ''
+
+    try {
+        const { data } = await axios.patch(`/api/leads/${selectedLead.value.id}`, { status })
+        selectedLead.value = data.data || data
+        fillLeadForm(selectedLead.value)
+        await fetchWorkingLeads()
+    } catch (error) {
+        console.error(error)
+        leadError.value = 'Не удалось обновить статус лида.'
+    } finally {
+        savingLeadStatus.value = null
+    }
+}
+
+async function dialLead() {
+    const phone = selectedLeadPhone.value
+
+    if (!selectedLead.value?.id || !phone) {
+        leadError.value = 'У лида нет номера клиента.'
+        return
+    }
+
+    dialingLeadId.value = selectedLead.value.id
+    leadError.value = ''
+
+    try {
+        await axios.post('/api/phone-calls/dial', {
+            client_phone: phone,
+            employee_phone: MANAGER_PHONE,
+        })
+    } catch (error) {
+        console.error(error)
+        leadError.value = error.response?.data?.message || 'Не удалось запустить звонок через Билайн.'
+    } finally {
+        dialingLeadId.value = null
+    }
+}
+
+async function ensureRelationOptions(lead = null) {
+    const search = lead?.entity?.name || lead?.unit?.name || ''
+
+    if (entityOptions.value.length && unitOptions.value.length) {
+        mergeRelationOptions(lead)
+        return
+    }
+
+    await Promise.all([
+        fetchEntityOptions(search),
+        fetchUnitOptions(search),
+    ])
+    mergeRelationOptions(lead)
+}
+
+async function fetchEntityOptions(search = '') {
+    relationOptionsLoading.value = true
+
+    try {
+        const { data } = await axios.get('/api/entities', {
+            params: {
+                search,
+                itemsPerPage: 25,
+            },
+        })
+
+        entityOptions.value = normalizeOptions(data.data || data)
+        mergeRelationOptions(selectedLead.value)
+    } catch (error) {
+        console.error(error)
+        leadError.value = 'Не удалось загрузить список Entity.'
+    } finally {
+        relationOptionsLoading.value = false
+    }
+}
+
+async function fetchUnitOptions(search = '') {
+    relationOptionsLoading.value = true
+
+    try {
+        const { data } = await axios.get('/api/units', {
+            params: { search },
+        })
+
+        unitOptions.value = normalizeOptions(data.data || data)
+        mergeRelationOptions(selectedLead.value)
+    } catch (error) {
+        console.error(error)
+        leadError.value = 'Не удалось загрузить список Unit.'
+    } finally {
+        relationOptionsLoading.value = false
+    }
+}
+
+function normalizeOptions(items) {
+    return (Array.isArray(items) ? items : [])
+        .filter((item) => item?.id)
+        .map((item) => ({
+            id: item.id,
+            name: item.name || `#${item.id}`,
+        }))
+}
+
+function mergeRelationOptions(lead) {
+    if (lead?.entity?.id) {
+        entityOptions.value = mergeOptions(entityOptions.value, [lead.entity])
+    }
+
+    if (lead?.unit?.id) {
+        unitOptions.value = mergeOptions(unitOptions.value, [lead.unit])
+    }
+}
+
+function mergeOptions(current, additions) {
+    const byId = new Map()
+
+    ;[...current, ...normalizeOptions(additions)].forEach((item) => {
+        byId.set(item.id, item)
+    })
+
+    return Array.from(byId.values()).sort((a, b) => String(a.name).localeCompare(String(b.name)))
 }
 
 function parseDate(value) {
@@ -179,8 +383,20 @@ function commercialOffersUrl() {
     }
 }
 
+function mailMessageUrl(mailMessageId) {
+    if (!mailMessageId) {
+        return null
+    }
+
+    try {
+        return `${route('Ameise.mail')}?mail_message_id=${mailMessageId}`
+    } catch (error) {
+        return `/Ameise/Mail?mail_message_id=${mailMessageId}`
+    }
+}
+
 function leadPrimaryContact(lead) {
-    return lead.client_phone || lead.telephone?.number || ''
+    return lead?.client_phone || lead?.telephone?.number || ''
 }
 
 function leadRelationTitle(lead) {
@@ -464,7 +680,78 @@ onMounted(fetchWorkingLeads)
                     class="mb-4"
                 />
 
+                <v-alert
+                    v-if="leadError && !selectedLeadLoading"
+                    type="error"
+                    density="compact"
+                    variant="tonal"
+                    class="mb-3"
+                >
+                    {{ leadError }}
+                </v-alert>
+
                 <div v-if="selectedLead" class="lead-info__body">
+                    <section class="lead-info-section lead-info-section--tools">
+                        <div class="lead-info-section__top">
+                            <h3>Инструменты</h3>
+                            <v-chip size="small" :color="statusColor(selectedLead.status)" variant="tonal">
+                                {{ statusLabel(selectedLead.status) }}
+                            </v-chip>
+                        </div>
+
+                        <div class="lead-info-tools-grid">
+                            <v-btn
+                                v-for="action in leadStatusActionItems"
+                                :key="action.status"
+                                size="small"
+                                :color="action.color"
+                                :variant="selectedLead.status === action.status ? 'elevated' : 'tonal'"
+                                :prepend-icon="action.icon"
+                                :loading="savingLeadStatus === action.status"
+                                :disabled="savingLead || selectedLead.status === action.status"
+                                @click="updateLeadStatus(action.status)"
+                            >
+                                {{ action.title }}
+                            </v-btn>
+                        </div>
+
+                        <div class="lead-info-tools-row">
+                            <v-btn
+                                size="small"
+                                color="green"
+                                variant="tonal"
+                                prepend-icon="mdi-phone-outgoing"
+                                :loading="dialingLeadId === selectedLead.id"
+                                :disabled="!selectedLeadPhone"
+                                @click="dialLead"
+                            >
+                                Позвонить
+                            </v-btn>
+
+                            <v-btn
+                                v-if="mailMessageUrl(selectedLead.mail_message_id)"
+                                size="small"
+                                color="blue"
+                                variant="tonal"
+                                prepend-icon="mdi-email-open-outline"
+                                :href="mailMessageUrl(selectedLead.mail_message_id)"
+                            >
+                                Письмо
+                            </v-btn>
+
+                            <v-btn
+                                size="small"
+                                color="#8f1111"
+                                variant="text"
+                                prepend-icon="mdi-refresh"
+                                :loading="selectedLeadLoading"
+                                @click="openLeadInfo(selectedLead)"
+                            >
+                                Обновить
+                            </v-btn>
+                        </div>
+                    </section>
+
                     <section class="lead-info-section lead-info-section--accent">
                         <div class="lead-info-section__top">
                             <h3>Статус</h3>
@@ -473,6 +760,67 @@ onMounted(fetchWorkingLeads)
                             </v-chip>
                         </div>
                         <p>{{ selectedLead.description || 'Описание пока не заполнено.' }}</p>
+                    </section>
+
+                    <section class="lead-info-section">
+                        <h3>Редактирование</h3>
+                        <v-text-field
+                            v-model="leadForm.title"
+                            label="Название"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                        />
+                        <v-select
+                            v-model="leadForm.status"
+                            :items="leadStatusItems"
+                            label="Статус"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                        />
+                        <v-textarea
+                            v-model="leadForm.description"
+                            label="Описание / работа с лидом"
+                            rows="4"
+                            variant="outlined"
+                            hide-details
+                        />
+                        <v-autocomplete
+                            v-model="leadForm.entity_id"
+                            :items="entityOptions"
+                            item-title="name"
+                            item-value="id"
+                            label="Entity"
+                            density="compact"
+                            variant="outlined"
+                            clearable
+                            hide-details
+                            :loading="relationOptionsLoading"
+                            @update:search="fetchEntityOptions"
+                        />
+                        <v-autocomplete
+                            v-model="leadForm.unit_id"
+                            :items="unitOptions"
+                            item-title="name"
+                            item-value="id"
+                            label="Unit"
+                            density="compact"
+                            variant="outlined"
+                            clearable
+                            hide-details
+                            :loading="relationOptionsLoading"
+                            @update:search="fetchUnitOptions"
+                        />
+                        <v-btn
+                            color="#8f1111"
+                            rounded="lg"
+                            prepend-icon="mdi-content-save-outline"
+                            :loading="savingLead"
+                            @click="saveLead"
+                        >
+                            Сохранить
+                        </v-btn>
                     </section>
 
                     <section class="lead-info-section">
@@ -851,6 +1199,8 @@ onMounted(fetchWorkingLeads)
 }
 
 .lead-info-section {
+    display: grid;
+    gap: 9px;
     padding: 14px;
     border: 1px solid rgba(72, 42, 24, 0.12);
     border-radius: 18px;
@@ -862,11 +1212,34 @@ onMounted(fetchWorkingLeads)
     background: linear-gradient(135deg, #fff 0%, #fff3ea 100%);
 }
 
+.lead-info-section--tools {
+    border-color: rgba(21, 128, 61, 0.16);
+    background: linear-gradient(135deg, #ffffff 0%, #f4fff6 100%);
+}
+
 .lead-info-section__top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+}
+
+.lead-info-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.lead-info-tools-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.lead-info-tools-grid :deep(.v-btn__content),
+.lead-info-tools-row :deep(.v-btn__content) {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .lead-info-section h3 {

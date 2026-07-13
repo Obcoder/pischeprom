@@ -140,6 +140,21 @@ async function openMessage(message) {
     await readMessage(message)
 }
 
+async function openInitialMessageFromUrl() {
+    if (typeof window === 'undefined') {
+        return
+    }
+
+    const mailMessageId = new URLSearchParams(window.location.search).get('mail_message_id')
+
+    if (!mailMessageId) {
+        return
+    }
+
+    readerDialog.value = true
+    await readMessage({ id: mailMessageId })
+}
+
 async function forceReloadMessage() {
     if (selectedMessage.value) {
         await readMessage(selectedMessage.value, true)
@@ -261,6 +276,8 @@ onMounted(async () => {
         fetchMailboxes(),
         fetchMessages(),
     ])
+
+    await openInitialMessageFromUrl()
 
     autoRefreshTimer = window.setInterval(() => {
         fetchMessages()
