@@ -6,6 +6,7 @@ import MailMessagesToolbar from './MailMessagesToolbar.vue'
 import MailMessagesTable from './MailMessagesTable.vue'
 import MailMessageReaderDialog from './MailMessageReaderDialog.vue'
 import MailComposerDialog from './MailComposerDialog.vue'
+import MailTemplatesDialog from './MailTemplatesDialog.vue'
 import MailboxesManagerDialog from './MailboxesManagerDialog.vue'
 
 const props = defineProps({
@@ -36,6 +37,7 @@ const PRICE_REQUEST_SUBJECT = 'ПИЩЕПРОМ-СЕРВЕР: запрос пр�
 const readerDialog = ref(false)
 const composerDialog = ref(false)
 const mailboxesDialog = ref(false)
+const templatesDialog = ref(false)
 const replyContext = ref(null)
 const activeView = ref('all')
 let autoRefreshTimer = null
@@ -323,6 +325,16 @@ watch(activeView, (value) => {
                 </v-btn>
 
                 <v-btn
+                    size="small"
+                    color="blue-grey"
+                    variant="tonal"
+                    prepend-icon="mdi-file-document-edit-outline"
+                    @click="templatesDialog = true"
+                >
+                    Шаблоны
+                </v-btn>
+
+                <v-btn
                     class="mail-compose-launcher"
                     size="small"
                     variant="flat"
@@ -439,6 +451,8 @@ watch(activeView, (value) => {
         v-model="mailboxesDialog"
         @changed="afterMailboxesChanged"
     />
+
+    <MailTemplatesDialog v-model="templatesDialog" />
 </template>
 
 <style scoped>

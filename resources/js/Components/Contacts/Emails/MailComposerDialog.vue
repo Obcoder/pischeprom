@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import axios from 'axios'
+import MailTemplatesDialog from './MailTemplatesDialog.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -52,6 +53,11 @@ const selectedMailbox = ref(null)
 const availableMailboxes = ref([])
 const localFiles = ref([])
 const storageFiles = ref([])
+const templates = ref([])
+const selectedTemplateId = ref(null)
+const templatesDialog = ref(false)
+const loadingTemplates = ref(false)
+const templateLoadError = ref(null)
 const sending = ref(false)
 const error = ref(null)
 const fileInput = ref(null)
@@ -100,6 +106,21 @@ const storageFileItems = computed(() => {
     }))
 })
 
+async function fetchTemplates() {
+    loadingTemplates.value = true
+    templateLoadError.value = null
+
+    try {
+        const { data } = await axios.get('/api/mail-templates')
+        templates.value = (data ?? []).filter((template) => template.is_active !== false)
+    } catch (requestError) {
+        templates.value = []
+        templateLoadError.value = requestError?.response?.data?.message || 'Не удалось загрузить шаблоны.'
+    } finally {
+        loadingTemplates.value = false
+    }
+}
+
 async function fetchMailboxes() {
     if (props.mailboxes.length) {
         return
@@ -112,6 +133,15 @@ async function fetchMailboxes() {
         console.error('Mailboxes loading error:', error)
         availableMailboxes.value = []
     }
+}
+
+function applyTemplate(templateId) {
+    const template = templates.value.find((item) => item.id === templateId)
+
+    if (!template) return
+
+    subject.value = template.subject || subject.value
+    body.value = template.body || body.value
 }
 
 function stripHtml(value) {
@@ -184,6 +214,9 @@ function resetForm() {
     selectedMailbox.value = null
     localFiles.value = []
     storageFiles.value = [...props.initialStorageFiles]
+    selectedTemplateId.value = null
+    templatesDialog.value = false
+    templateLoadError.value = null
     error.value = null
 
     if (fileInput.value) {
@@ -269,12 +302,17 @@ async function submit() {
 
 watch(model, async (value) => {
     if (value) {
-        await fetchMailboxes()
+        await Promise.all([
+            fetchMailboxes(),
+            fetchTemplates(),
+        ])
         applyInitialState()
     } else {
         resetForm()
     }
 })
+
+watch(selectedTemplateId, applyTemplate)
 
 watch(() => props.replyContext, () => {
     if (model.value) {
@@ -294,7 +332,7 @@ watch(() => props.replyContext, () => {
                         {{ isReply ? 'Ответить на письмо' : 'Написать письмо' }}
                     </div>
                     <div class="mail-composer__subtitle">
-                        Локальные файлы и файлы Yandex S3 можно отправлять вместе.
+                        {{ isReply ? 'Ответ будет отправлен в той же почтовой ветке.' : 'Можно использовать шаблон и приложить локальные/S3 файлы.' }}
                     </div>
                 </div>
 
@@ -306,6 +344,16 @@ watch(() => props.replyContext, () => {
             <v-card-text>
                 <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">
                     {{ error }}
+                </v-alert>
+
+                <v-alert
+                    v-if="templateLoadError"
+                    type="warning"
+                    variant="tonal"
+                    density="compact"
+                    class="mb-3"
+                >
+                    {{ templateLoadError }}
                 </v-alert>
 
                 <v-row dense>
@@ -348,6 +396,33 @@ watch(() => props.replyContext, () => {
                             chips
                             closable-chips
                         />
+                    </v-col>
+
+                    <v-col cols="12" lg="5">
+                        <v-select
+                            v-model="selectedTemplateId"
+                            :items="templates"
+                            item-title="name"
+                            item-value="id"
+                            label="Шаблон"
+                            variant="outlined"
+                            density="compact"
+                            clearable
+                            :loading="loadingTemplates"
+                            no-data-text="Активных шаблонов нет"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" lg="3">
+                        <v-btn
+                            block
+                            variant="tonal"
+                            color="blue"
+                            prepend-icon="mdi-file-document-edit-outline"
+                            @click="templatesDialog = true"
+                        >
+                            Управлять шаблонами
+                        </v-btn>
                     </v-col>
 
                     <v-col cols="12">
@@ -438,6 +513,11 @@ watch(() => props.replyContext, () => {
             </v-card-actions>
         </v-card>
     </v-dialog>
+
+    <MailTemplatesDialog
+        v-model="templatesDialog"
+        @changed="fetchTemplates"
+    />
 </template>
 
 <style scoped>

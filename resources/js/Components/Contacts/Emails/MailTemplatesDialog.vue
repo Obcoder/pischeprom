@@ -7,35 +7,19 @@ const model = defineModel({
     default: false,
 })
 
+const emit = defineEmits(['changed'])
+
 const templates = ref([])
 const loading = ref(false)
 const saving = ref(false)
+const deletingId = ref(null)
 const editingId = ref(null)
+const error = ref(null)
 
-const form = ref({
-    name: '',
-    subject: '',
-    body: '',
-    is_active: true,
-})
+const form = ref(emptyForm())
 
-async function fetchTemplates() {
-    loading.value = true
-
-    try {
-        const { data } = await axios.get('/api/mail-templates')
-        templates.value = data ?? []
-    } catch (error) {
-        console.error('Templates loading error:', error)
-    } finally {
-        loading.value = false
-    }
-}
-
-function resetForm() {
-    editingId.value = null
-
-    form.value = {
+function emptyForm() {
+    return {
         name: '',
         subject: '',
         body: '',
@@ -43,9 +27,27 @@ function resetForm() {
     }
 }
 
+async function fetchTemplates() {
+    loading.value = true
+    error.value = null
+
+    try {
+        const { data } = await axios.get('/api/mail-templates')
+        templates.value = data ?? []
+    } catch (requestError) {
+        error.value = requestError?.response?.data?.message || 'Не удалось загрузить шаблоны.'
+    } finally {
+        loading.value = false
+    }
+}
+
+function resetForm() {
+    editingId.value = null
+    form.value = emptyForm()
+}
+
 function editTemplate(template) {
     editingId.value = template.id
-
     form.value = {
         name: template.name || '',
         subject: template.subject || '',
@@ -56,6 +58,7 @@ function editTemplate(template) {
 
 async function saveTemplate() {
     saving.value = true
+    error.value = null
 
     try {
         if (editingId.value) {
@@ -66,35 +69,49 @@ async function saveTemplate() {
 
         resetForm()
         await fetchTemplates()
-    } catch (error) {
-        console.error('Template saving error:', error)
+        emit('changed')
+    } catch (requestError) {
+        error.value = requestError?.response?.data?.message || 'Не удалось сохранить шаблон.'
     } finally {
         saving.value = false
     }
 }
 
 async function deleteTemplate(template) {
-    if (!confirm(`Удалить шаблон "${template.name}"?`)) return
+    if (!window.confirm(`Удалить шаблон "${template.name}"?`)) return
 
-    await axios.delete(`/api/mail-templates/${template.id}`)
+    deletingId.value = template.id
+    error.value = null
 
-    if (editingId.value === template.id) {
-        resetForm()
+    try {
+        await axios.delete(`/api/mail-templates/${template.id}`)
+
+        if (editingId.value === template.id) {
+            resetForm()
+        }
+
+        await fetchTemplates()
+        emit('changed')
+    } catch (requestError) {
+        error.value = requestError?.response?.data?.message || 'Не удалось удалить шаблон.'
+    } finally {
+        deletingId.value = null
     }
-
-    await fetchTemplates()
 }
 
 watch(model, (value) => {
     if (value) {
         fetchTemplates()
+    } else {
+        resetForm()
+        error.value = null
     }
 })
 </script>
 
 <template>
     <v-dialog v-model="model" max-width="1100" scrollable>
-        <v-card class="rounded border border-blue-900 bg-slate-950">
+        <v-card class="rounded border border-blue-900 bg-slate-950" theme="dark">
             <v-card-title class="d-flex justify-space-between align-center">
                 <div class="text-blue-lighten-3">
                     Шаблоны писем
@@ -110,6 +127,16 @@ watch(model, (value) => {
             <v-divider />
 
             <v-card-text>
+                <v-alert
+                    v-if="error"
+                    type="error"
+                    variant="tonal"
+                    density="compact"
+                    class="mb-3"
+                >
+                    {{ error }}
+                </v-alert>
+
                 <v-row>
                     <v-col cols="12" lg="5">
                         <v-card variant="tonal" class="pa-3">
@@ -137,13 +164,13 @@ watch(model, (value) => {
                                 variant="outlined"
                                 rows="12"
                                 auto-grow
-                                hint="Можно использовать: {{unit.name}}, {{unit.id}}, {{email.address}}"
+                                hint="Тема и текст будут подставлены в форму письма."
                                 persistent-hint
                             />
 
                             <v-switch
                                 v-model="form.is_active"
-                                label="Активен"
+                                label="Доступен для выбора"
                                 color="blue"
                                 hide-details
                             />
@@ -159,7 +186,7 @@ watch(model, (value) => {
                                 <v-btn
                                     color="blue"
                                     :loading="saving"
-                                    :disabled="!form.name"
+                                    :disabled="!form.name.trim()"
                                     @click="saveTemplate"
                                 >
                                     Сохранить
@@ -181,8 +208,16 @@ watch(model, (value) => {
                                 :key="template.id"
                             >
                                 <template #title>
-                                    <div class="text-blue-lighten-3">
-                                        {{ template.name }}
+                                    <div class="d-flex align-center ga-2 text-blue-lighten-3">
+                                        <span>{{ template.name }}</span>
+                                        <v-chip
+                                            v-if="!template.is_active"
+                                            size="x-small"
+                                            color="grey"
+                                            variant="tonal"
+                                        >
+                                            выключен
+                                        </v-chip>
                                     </div>
                                 </template>
 
@@ -207,10 +242,17 @@ watch(model, (value) => {
                                             size="x-small"
                                             variant="text"
                                             color="red"
+                                            :loading="deletingId === template.id"
                                             @click="deleteTemplate(template)"
                                         />
                                     </div>
                                 </template>
+                            </v-list-item>
+
+                            <v-list-item v-if="!loading && !templates.length">
+                                <v-list-item-title class="text-grey">
+                                    Шаблонов пока нет.
+                                </v-list-item-title>
                             </v-list-item>
                         </v-list>
                     </v-col>

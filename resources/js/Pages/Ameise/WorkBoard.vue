@@ -7,7 +7,6 @@ import axios from 'axios'
 import { VueDraggableNext as Draggable } from 'vue-draggable-next'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
-import UnitMailTemplatesDialog from '@/Components/Unit/Mail/UnitMailTemplatesDialog.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -36,7 +35,6 @@ const pipelineDialog = ref(false)
 const stageDialog = ref(false)
 const cardDialog = ref(false)
 const mailDialog = ref(false)
-const mailTemplatesDialog = ref(false)
 const editingPipeline = ref(null)
 const editingStage = ref(null)
 const editingCard = ref(null)
@@ -1154,10 +1152,7 @@ onMounted(async () => {
             :recipients="mailForm.recipients"
             :initial-to="mailForm.initialTo"
             @sent="afterMailSent"
-            @open-templates="mailTemplatesDialog = true"
         />
-
-        <UnitMailTemplatesDialog v-model="mailTemplatesDialog" />
 
         <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3500">
             {{ snackbar.text }}

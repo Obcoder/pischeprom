@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import axios from 'axios'
+import MailTemplatesDialog from '@/Components/Contacts/Emails/MailTemplatesDialog.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -39,10 +40,7 @@ const props = defineProps({
     sending: Boolean,
 })
 
-const emit = defineEmits([
-    'sent',
-    'open-templates',
-])
+const emit = defineEmits(['sent'])
 
 const to = ref([])
 const cc = ref([])
@@ -54,6 +52,7 @@ const localFiles = ref([])
 const storageFiles = ref([])
 const templates = ref([])
 const selectedTemplateId = ref(null)
+const templatesDialog = ref(false)
 const loadingTemplates = ref(false)
 const fileInput = ref(null)
 
@@ -121,7 +120,7 @@ async function fetchTemplates() {
 
     try {
         const { data } = await axios.get('/api/mail-templates')
-        templates.value = data ?? []
+        templates.value = (data ?? []).filter((template) => template.is_active !== false)
     } catch (error) {
         console.error('Templates loading error:', error)
     } finally {
@@ -294,6 +293,7 @@ function resetForm() {
     localFiles.value = []
     storageFiles.value = [...props.initialStorageFiles]
     selectedTemplateId.value = null
+    templatesDialog.value = false
 
     if (fileInput.value) {
         fileInput.value.value = ''
@@ -312,9 +312,7 @@ watch(model, async (value) => {
             to.value = normalizeInitialTo()
         }
 
-        if (!templates.value.length) {
-            await fetchTemplates()
-        }
+        await fetchTemplates()
     } else {
         resetForm()
     }
@@ -445,6 +443,7 @@ watch(() => props.initialTo, () => {
                             density="compact"
                             clearable
                             :loading="loadingTemplates"
+                            no-data-text="Активных шаблонов нет"
                         />
                     </v-col>
 
@@ -454,7 +453,7 @@ watch(() => props.initialTo, () => {
                             variant="tonal"
                             color="blue"
                             prepend-icon="mdi-file-document-edit-outline"
-                            @click="emit('open-templates')"
+                            @click="templatesDialog = true"
                         >
                             Управлять шаблонами
                         </v-btn>
@@ -476,8 +475,6 @@ watch(() => props.initialTo, () => {
                             variant="outlined"
                             rows="10"
                             auto-grow
-                            hint="Доступные переменные: {{unit.name}}, {{unit.id}}, {{email.address}}"
-                            persistent-hint
                         />
                     </v-col>
 
@@ -555,4 +552,9 @@ watch(() => props.initialTo, () => {
             </v-card-actions>
         </v-card>
     </v-dialog>
+
+    <MailTemplatesDialog
+        v-model="templatesDialog"
+        @changed="fetchTemplates"
+    />
 </template>

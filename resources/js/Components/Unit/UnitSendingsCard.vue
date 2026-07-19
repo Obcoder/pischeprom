@@ -2,8 +2,8 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import MailMessageReaderDialog from '@/Components/Contacts/Emails/MailMessageReaderDialog.vue'
+import MailTemplatesDialog from '@/Components/Contacts/Emails/MailTemplatesDialog.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
-import UnitMailTemplatesDialog from '@/Components/Unit/Mail/UnitMailTemplatesDialog.vue'
 import { useUnitMail } from '@/Composables/useUnitMail.js'
 import { useUnitFiles } from '@/Composables/useUnitFiles.js'
 
@@ -399,10 +399,9 @@ onUnmounted(() => {
             :reply-context="replyContext"
             :sending="sending"
             @sent="afterSent"
-            @open-templates="templatesDialog = true"
         />
 
-        <UnitMailTemplatesDialog v-model="templatesDialog" />
+        <MailTemplatesDialog v-model="templatesDialog" />
 
         <MailMessageReaderDialog
             v-model="readerDialog"
