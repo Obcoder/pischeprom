@@ -9,6 +9,7 @@ const MANAGER_PHONE = '79650160001'
 const workingLeads = ref([])
 const workingLeadsTotal = ref(0)
 const loadingWorkingLeads = ref(false)
+const workingLeadsDrawerOpen = ref(false)
 const selectedLead = ref(null)
 const selectedLeadLoading = ref(false)
 const leadInfoDrawerOpen = ref(false)
@@ -74,6 +75,7 @@ async function openLeadInfo(lead) {
         return
     }
 
+    workingLeadsDrawerOpen.value = false
     leadInfoDrawerOpen.value = true
     selectedLeadLoading.value = true
     selectedLead.value = lead
@@ -97,6 +99,14 @@ async function openLeadInfo(lead) {
 
 function closeLeadInfo() {
     leadInfoDrawerOpen.value = false
+}
+
+function toggleWorkingLeads() {
+    if (!workingLeadsDrawerOpen.value) {
+        leadInfoDrawerOpen.value = false
+    }
+
+    workingLeadsDrawerOpen.value = !workingLeadsDrawerOpen.value
 }
 
 function fillLeadForm(lead) {
@@ -408,21 +418,41 @@ onMounted(fetchWorkingLeads)
 
 <template>
     <v-layout class="rounded rounded-md verwalter-layout">
-        <v-navigation-drawer width="312" class="ameise-leads-drawer">
+        <v-navigation-drawer
+            id="working-leads-drawer"
+            v-model="workingLeadsDrawerOpen"
+            location="left"
+            temporary
+            width="312"
+            class="ameise-leads-drawer"
+        >
             <div class="working-leads">
                 <div class="working-leads__header">
                     <div>
                         <div class="working-leads__eyebrow">Ameise</div>
                         <h2>Лиды в работе</h2>
                     </div>
-                    <button
-                        type="button"
-                        class="working-leads__refresh"
-                        :disabled="loadingWorkingLeads"
-                        @click="fetchWorkingLeads"
-                    >
-                        <v-icon icon="mdi-refresh" size="16" />
-                    </button>
+                    <div class="working-leads__actions">
+                        <button
+                            type="button"
+                            class="working-leads__icon-button"
+                            aria-label="Обновить лиды в работе"
+                            title="Обновить"
+                            :disabled="loadingWorkingLeads"
+                            @click="fetchWorkingLeads"
+                        >
+                            <v-icon icon="mdi-refresh" size="16" />
+                        </button>
+                        <button
+                            type="button"
+                            class="working-leads__icon-button"
+                            aria-label="Закрыть лиды в работе"
+                            title="Закрыть"
+                            @click="workingLeadsDrawerOpen = false"
+                        >
+                            <v-icon icon="mdi-close" size="17" />
+                        </button>
+                    </div>
                 </div>
 
                 <div class="working-leads__meta">
@@ -483,6 +513,23 @@ onMounted(fetchWorkingLeads)
             image="https://picsum.photos/1920/1080?random"
         >
             <template v-slot:prepend>
+                <v-app-bar-nav-icon
+                    class="working-leads-trigger"
+                    :title="workingLeadsDrawerOpen ? 'Закрыть лиды в работе' : 'Открыть лиды в работе'"
+                    :aria-label="workingLeadsDrawerOpen ? 'Закрыть лиды в работе' : 'Открыть лиды в работе'"
+                    aria-controls="working-leads-drawer"
+                    :aria-expanded="workingLeadsDrawerOpen"
+                    @click="toggleWorkingLeads"
+                >
+                    <v-badge
+                        :content="workingLeadsTotal"
+                        :model-value="workingLeadsTotal > 0"
+                        color="#8f1111"
+                        max="99"
+                    >
+                        <v-icon icon="mdi-account-clock-outline" size="large" />
+                    </v-badge>
+                </v-app-bar-nav-icon>
                 <v-app-bar-nav-icon>
                     <Link :href="route('Ameise')">
                         <v-icon icon="mdi-halloween" size="large" />
@@ -1019,7 +1066,13 @@ onMounted(fetchWorkingLeads)
     line-height: 1.05;
 }
 
-.working-leads__refresh {
+.working-leads__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.working-leads__icon-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1032,13 +1085,17 @@ onMounted(fetchWorkingLeads)
     transition: transform 0.16s ease, background 0.16s ease;
 }
 
-.working-leads__refresh:hover:not(:disabled) {
+.working-leads__icon-button:hover:not(:disabled) {
     background: #ffffff;
     transform: translateY(-1px);
 }
 
-.working-leads__refresh:disabled {
+.working-leads__icon-button:disabled {
     opacity: 0.55;
+}
+
+.working-leads-trigger[aria-expanded="true"] {
+    background: rgba(143, 17, 17, 0.2);
 }
 
 .working-leads__meta {
