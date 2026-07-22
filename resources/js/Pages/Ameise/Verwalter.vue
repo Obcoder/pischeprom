@@ -1,192 +1,343 @@
 <script setup>
-import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {useHead} from "@vueuse/head";
-import {computed, onMounted, ref} from "vue";
-import axios from "axios";
-import {route} from "ziggy-js";
-import {useForm, Link} from "@inertiajs/vue3";
+import { Link } from '@inertiajs/vue3'
+import { useHead } from '@vueuse/head'
+import { route } from 'ziggy-js'
+import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 
 defineOptions({
     layout: VerwalterLayout,
 })
-const props = defineProps({
-    title: String,
-    entities: Object,
-})
 
-const fields = ref([])
-const goods = ref([])
-const sales = ref([])
-
-//      E N T I T I E S
-const filteredEntities = computed(()=>{
-    const searchLike = searchEntity.value.toLowerCase()
-    return props.entities.filter((entity) => entity.name.toLowerCase().includes(searchLike))
-})
-// E N D  E N T I T I E S
-
-
-
-//     F I E L D S
-function indexFields(){
-    axios.get(route('fields.index')).then(function (response){
-        fields.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-// E N D  F I E L D S
-
-
-
-//      G O O D S
-function indexGoods(){
-    axios.get(route('goods.index')).then(function (response){
-        goods.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
-}
-const headerGoods = ref([
-    {
-        key: 'name',
-        title: 'Name',
-        align: 'start',
-        sortable: true,
+defineProps({
+    activeLeads: {
+        type: Array,
+        default: () => [],
     },
-])
-const searchEntity = ref('')
-// E N D  G O O D S
-
-
-
-//      S A L E S
-function indexSales(){
-    axios.get(route('sales.index')).then(function (response){
-        sales.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-// E N D  S A L E S
-
-
-onMounted(()=>{
-    indexFields()
-    indexGoods()
-    indexSales()
 })
+
+function formatDateTime(value) {
+    if (!value) {
+        return '—'
+    }
+
+    const date = new Date(value)
+
+    if (Number.isNaN(date.getTime())) {
+        return '—'
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date)
+}
+
+function formatPhone(value) {
+    if (!value) {
+        return '—'
+    }
+
+    return String(value).startsWith('+') ? value : `+${value}`
+}
+
+function leadPhone(lead) {
+    return lead.client_phone || lead.telephone?.number
+}
+
+function statusLabel(status) {
+    return {
+        open: 'Открыт',
+        in_progress: 'В работе',
+    }[status] || status || '—'
+}
+
+function entityUrl(entityId) {
+    try {
+        return route('Ameise.entity.show', entityId)
+    } catch (error) {
+        return `/Ameise/entity/${entityId}`
+    }
+}
 
 useHead({
-    title: `Управление торговлей`,
+    title: 'Ameise — активные лиды',
     meta: [
         {
             name: 'description',
-            content: `Управление торговлей`,
-        }
-    ]
+            content: 'Сводная страница Ameise',
+        },
+    ],
 })
 </script>
 
 <template>
-    <v-container fluid>
-        <v-row>
-            <v-col cols="1">
-                <v-row>
-                    <v-col cols="9"><span class="text-xs">Товаров</span></v-col>
-                    <v-col cols="3">{{goods.length}}</v-col>
-                </v-row>
-            </v-col>
-            <v-col cols="1">
-                <v-row>
-                    <v-col cols="9"><span class="text-xs">Продаж</span></v-col>
-                    <v-col cols="3"><v-chip size="x-small">{{sales.length}}</v-chip></v-col>
-                </v-row>
-            </v-col>
-            <v-col cols="12" md="3" lg="2">
-                <Link :href="route('Ameise.gis')" class="gis-admin-entry">
-                    <span>GIS CRM</span>
-                    <strong>Карты и координаты</strong>
-                    <small>2ГИС · Яндекс · routes</small>
-                </Link>
-            </v-col>
-        </v-row>
-        <v-row>
-            <v-col cols="3">
-                <v-row>
-                    <v-col>
-                        <v-text-field v-model="searchEntity"
-                                      label="search"
-                                      variant="solo"
-                                      density="compact"
-                                      hide-details></v-text-field>
-                    </v-col>
-                </v-row>
-                <v-row>
-                    <v-col>
-                        <v-data-table :items="filteredEntities"
-                                      items-per-page="100"
-                                      :headers="headerGoods"
-                                      fixed-header
-                                      height="367px"
-                                      density="compact"
-                                      class="border rounded"
-                                      hover
-                        ></v-data-table>
-                    </v-col>
-                </v-row>
-            </v-col>
-            <v-col cols="9">
-                <div class="flex flex-row">
-                    <div v-for="field in fields"
-                         class="p-6 border border-slate-800 rounded text-center"
-                    >
-                        <div class="border-b"><span>{{field.title}}</span></div>
-                        <div v-for="unit in field.units"
-                             class="text-xs"
-                        >
-                            <Link :href="route('web.unit.show', unit.id)">{{unit.name}}</Link>
-                        </div>
-                    </div>
+    <main class="ameise-dashboard">
+        <section class="summary-block" aria-labelledby="active-leads-title">
+            <header class="summary-block__header">
+                <div>
+                    <div class="summary-block__eyebrow">Сводная таблица</div>
+                    <h1 id="active-leads-title">Активные лиды</h1>
                 </div>
-            </v-col>
-        </v-row>
-    </v-container>
+                <span class="summary-block__count" :aria-label="`Всего активных лидов: ${activeLeads.length}`">
+                    {{ activeLeads.length }}
+                </span>
+            </header>
+
+            <div class="lead-ledger">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">№</th>
+                            <th scope="col">Статус</th>
+                            <th scope="col">Лид</th>
+                            <th scope="col">Компания / подразделение</th>
+                            <th scope="col">Телефон</th>
+                            <th scope="col">Источник</th>
+                            <th scope="col" class="lead-ledger__numeric">Звонки</th>
+                            <th scope="col">Активность</th>
+                        </tr>
+                    </thead>
+                    <tbody v-if="activeLeads.length">
+                        <tr v-for="lead in activeLeads" :key="lead.id">
+                            <td class="lead-ledger__id">{{ lead.id }}</td>
+                            <td>
+                                <span class="lead-status" :class="`lead-status--${lead.status}`">
+                                    {{ statusLabel(lead.status) }}
+                                </span>
+                            </td>
+                            <td class="lead-ledger__title">{{ lead.title || 'Лид' }}</td>
+                            <td>
+                                <Link
+                                    v-if="lead.entity"
+                                    :href="entityUrl(lead.entity.id)"
+                                    class="lead-ledger__link"
+                                >
+                                    {{ lead.entity.name }}
+                                </Link>
+                                <Link
+                                    v-else-if="lead.unit"
+                                    :href="route('web.unit.show', lead.unit.id)"
+                                    class="lead-ledger__link"
+                                >
+                                    {{ lead.unit.name }}
+                                </Link>
+                                <span v-else class="lead-ledger__muted">Без CRM-связи</span>
+                            </td>
+                            <td class="lead-ledger__phone">{{ formatPhone(leadPhone(lead)) }}</td>
+                            <td>{{ lead.source || '—' }}</td>
+                            <td class="lead-ledger__numeric">{{ lead.phone_calls_count ?? 0 }}</td>
+                            <td class="lead-ledger__date">
+                                {{ formatDateTime(lead.last_activity_at || lead.created_at) }}
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tbody v-else>
+                        <tr>
+                            <td colspan="8" class="lead-ledger__empty">Активных лидов нет</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
 </template>
 
 <style scoped>
-.gis-admin-entry {
+.ameise-dashboard {
     display: grid;
-    gap: 3px;
-    min-height: 74px;
-    padding: 12px 14px;
-    border: 1px solid rgba(127, 29, 29, 0.16);
-    border-radius: 18px;
-    background:
-        radial-gradient(circle at 86% 12%, rgba(14, 165, 233, 0.18), transparent 30%),
-        linear-gradient(135deg, #fff7ed, #fef2f2);
-    color: #450a0a;
-    text-decoration: none;
-    box-shadow: 0 12px 28px rgba(69, 10, 10, 0.08);
+    align-self: stretch;
+    align-content: start;
+    gap: 18px;
+    width: 100%;
+    min-height: calc(100vh - 48px);
+    padding: 18px;
+    background: #f6f7f9;
 }
 
-.gis-admin-entry span {
-    color: #991b1b;
-    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+.summary-block {
+    overflow: hidden;
+    width: 100%;
+    border: 1px solid #d7dce2;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.summary-block__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 58px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #d7dce2;
+}
+
+.summary-block__eyebrow {
+    margin-bottom: 2px;
+    color: #7b8490;
     font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.14em;
+    font-weight: 800;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
 }
 
-.gis-admin-entry strong {
-    font-size: 15px;
-    font-weight: 950;
-    letter-spacing: -0.03em;
+.summary-block h1 {
+    margin: 0;
+    color: #20252b;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.2;
 }
 
-.gis-admin-entry small {
-    color: #7f1d1d;
+.summary-block__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid #c8ced6;
+    border-radius: 4px;
+    background: #f5f6f8;
+    color: #333941;
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
     font-size: 11px;
+    font-weight: 800;
+}
+
+.lead-ledger {
+    overflow-x: auto;
+}
+
+.lead-ledger table {
+    width: 100%;
+    min-width: 960px;
+    border-collapse: collapse;
+    color: #252a31;
+    font-size: 12px;
+}
+
+.lead-ledger th,
+.lead-ledger td {
+    height: 34px;
+    padding: 5px 10px;
+    border-right: 1px solid #e6e9ed;
+    border-bottom: 1px solid #e1e5e9;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.lead-ledger th:last-child,
+.lead-ledger td:last-child {
+    border-right: 0;
+}
+
+.lead-ledger tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.lead-ledger th {
+    height: 30px;
+    background: #f0f2f4;
+    color: #626b76;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.lead-ledger tbody tr:hover {
+    background: #faf4ee;
+}
+
+.lead-ledger__id,
+.lead-ledger__date,
+.lead-ledger__phone,
+.lead-ledger__numeric {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 11px;
+}
+
+.lead-ledger__id,
+.lead-ledger__date {
+    color: #6f7781;
+}
+
+.lead-ledger__numeric {
+    text-align: right !important;
+}
+
+.lead-ledger__title {
+    max-width: 280px;
+    overflow: hidden;
+    font-weight: 700;
+    text-overflow: ellipsis;
+}
+
+.lead-ledger__phone {
+    color: #7f1d1d;
+}
+
+.lead-ledger__link {
+    display: block;
+    max-width: 260px;
+    overflow: hidden;
+    color: #7f1d1d;
+    font-weight: 700;
+    text-decoration: none;
+    text-overflow: ellipsis;
+}
+
+.lead-ledger__link:hover {
+    text-decoration: underline;
+}
+
+.lead-ledger__muted {
+    color: #8a929c;
+}
+
+.lead-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.lead-status::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #64748b;
+    content: "";
+}
+
+.lead-status--open::before {
+    background: #2563eb;
+}
+
+.lead-status--in_progress::before {
+    background: #d97706;
+}
+
+.lead-ledger__empty {
+    height: 72px !important;
+    color: #737b85;
+    text-align: center !important;
+}
+
+@media (max-width: 700px) {
+    .ameise-dashboard {
+        padding: 10px;
+    }
+
+    .summary-block__header {
+        min-height: 54px;
+        padding: 9px 10px;
+    }
 }
 </style>

@@ -2,31 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Action;
-use App\Models\Entity;
-use App\Models\Good;
-use App\Models\Uri;
-use Illuminate\Http\Request;
+use App\Http\Resources\LeadResource;
+use App\Models\Lead;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class Verwalter extends Controller
 {
-    public function index()
+    public function index(): Response
     {
-        $entities = Entity::query()
-            ->whereIn('id', function ($query) {
-                $query->select('entity_id')
-                    ->from('sales');
-            })
-            ->distinct()
-            ->orderBy('name') // сортировка по имени
+        $activeLeads = Lead::query()
+            ->with(['telephone', 'entity', 'unit'])
+            ->withCount('phoneCalls')
+            ->open()
+            ->orderByDesc('last_activity_at')
+            ->orderByDesc('id')
             ->get();
 
-        $data = [
-            'title' => 'Verwalter',
-            'entities' => $entities,
-        ];
-
-        return Inertia::render('Ameise/Verwalter', $data);
+        return Inertia::render('Ameise/Verwalter', [
+            'activeLeads' => LeadResource::collection($activeLeads)->resolve(),
+        ]);
     }
 }
