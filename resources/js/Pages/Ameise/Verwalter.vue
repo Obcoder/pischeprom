@@ -29,7 +29,6 @@ function formatDateTime(value) {
     return new Intl.DateTimeFormat('ru-RU', {
         day: '2-digit',
         month: '2-digit',
-        year: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
     }).format(date)
@@ -90,45 +89,44 @@ useHead({
                 <table>
                     <thead>
                         <tr>
-                            <th scope="col">№</th>
                             <th scope="col">Статус</th>
                             <th scope="col">Лид</th>
-                            <th scope="col">Компания / подразделение</th>
-                            <th scope="col">Телефон</th>
-                            <th scope="col">Источник</th>
-                            <th scope="col" class="lead-ledger__numeric">Звонки</th>
                             <th scope="col">Активность</th>
                         </tr>
                     </thead>
                     <tbody v-if="activeLeads.length">
                         <tr v-for="lead in activeLeads" :key="lead.id">
-                            <td class="lead-ledger__id">{{ lead.id }}</td>
                             <td>
                                 <span class="lead-status" :class="`lead-status--${lead.status}`">
                                     {{ statusLabel(lead.status) }}
                                 </span>
                             </td>
-                            <td class="lead-ledger__title">{{ lead.title || 'Лид' }}</td>
                             <td>
-                                <Link
-                                    v-if="lead.entity"
-                                    :href="entityUrl(lead.entity.id)"
-                                    class="lead-ledger__link"
-                                >
-                                    {{ lead.entity.name }}
-                                </Link>
-                                <Link
-                                    v-else-if="lead.unit"
-                                    :href="route('web.unit.show', lead.unit.id)"
-                                    class="lead-ledger__link"
-                                >
-                                    {{ lead.unit.name }}
-                                </Link>
-                                <span v-else class="lead-ledger__muted">Без CRM-связи</span>
+                                <div class="lead-ledger__title" :title="lead.title || 'Лид'">
+                                    {{ lead.title || 'Лид' }}
+                                </div>
+                                <div class="lead-ledger__meta">
+                                    <span>#{{ lead.id }}</span>
+                                    <Link
+                                        v-if="lead.entity"
+                                        :href="entityUrl(lead.entity.id)"
+                                        class="lead-ledger__link"
+                                    >
+                                        {{ lead.entity.name }}
+                                    </Link>
+                                    <Link
+                                        v-else-if="lead.unit"
+                                        :href="route('web.unit.show', lead.unit.id)"
+                                        class="lead-ledger__link"
+                                    >
+                                        {{ lead.unit.name }}
+                                    </Link>
+                                    <span v-else>{{ lead.source || 'Без CRM-связи' }}</span>
+                                    <span v-if="leadPhone(lead)" class="lead-ledger__phone">
+                                        {{ formatPhone(leadPhone(lead)) }}
+                                    </span>
+                                </div>
                             </td>
-                            <td class="lead-ledger__phone">{{ formatPhone(leadPhone(lead)) }}</td>
-                            <td>{{ lead.source || '—' }}</td>
-                            <td class="lead-ledger__numeric">{{ lead.phone_calls_count ?? 0 }}</td>
                             <td class="lead-ledger__date">
                                 {{ formatDateTime(lead.last_activity_at || lead.created_at) }}
                             </td>
@@ -136,7 +134,7 @@ useHead({
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="8" class="lead-ledger__empty">Активных лидов нет</td>
+                            <td colspan="3" class="lead-ledger__empty">Активных лидов нет</td>
                         </tr>
                     </tbody>
                 </table>
@@ -150,6 +148,7 @@ useHead({
     display: grid;
     align-self: stretch;
     align-content: start;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 18px;
     width: 100%;
     min-height: calc(100vh - 48px);
@@ -158,8 +157,11 @@ useHead({
 }
 
 .summary-block {
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
     width: 100%;
+    height: 50vh;
     border: 1px solid #d7dce2;
     border-radius: 8px;
     background: #ffffff;
@@ -209,15 +211,25 @@ useHead({
 }
 
 .lead-ledger {
-    overflow-x: auto;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .lead-ledger table {
     width: 100%;
-    min-width: 960px;
     border-collapse: collapse;
+    table-layout: fixed;
     color: #252a31;
     font-size: 12px;
+}
+
+.lead-ledger th:first-child {
+    width: 78px;
+}
+
+.lead-ledger th:last-child {
+    width: 82px;
 }
 
 .lead-ledger th,
@@ -241,6 +253,9 @@ useHead({
 }
 
 .lead-ledger th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     height: 30px;
     background: #f0f2f4;
     color: #626b76;
@@ -254,28 +269,34 @@ useHead({
     background: #faf4ee;
 }
 
-.lead-ledger__id,
 .lead-ledger__date,
-.lead-ledger__phone,
-.lead-ledger__numeric {
+.lead-ledger__phone {
     font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
     font-size: 11px;
 }
 
-.lead-ledger__id,
 .lead-ledger__date {
     color: #6f7781;
-}
-
-.lead-ledger__numeric {
-    text-align: right !important;
+    white-space: normal !important;
 }
 
 .lead-ledger__title {
-    max-width: 280px;
     overflow: hidden;
     font-weight: 700;
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lead-ledger__meta {
+    display: flex;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+    margin-top: 2px;
+    color: #8a929c;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .lead-ledger__phone {
@@ -283,21 +304,16 @@ useHead({
 }
 
 .lead-ledger__link {
-    display: block;
-    max-width: 260px;
     overflow: hidden;
     color: #7f1d1d;
     font-weight: 700;
     text-decoration: none;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .lead-ledger__link:hover {
     text-decoration: underline;
-}
-
-.lead-ledger__muted {
-    color: #8a929c;
 }
 
 .lead-status {
@@ -332,6 +348,7 @@ useHead({
 
 @media (max-width: 700px) {
     .ameise-dashboard {
+        grid-template-columns: minmax(0, 1fr);
         padding: 10px;
     }
 

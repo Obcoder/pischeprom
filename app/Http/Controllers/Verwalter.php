@@ -13,7 +13,6 @@ class Verwalter extends Controller
     {
         $activeLeads = Lead::query()
             ->with(['telephone', 'entity', 'unit'])
-            ->withCount('phoneCalls')
             ->open()
             ->orderByDesc('last_activity_at')
             ->orderByDesc('id')
