@@ -73,20 +73,34 @@ function formatMoney(value) {
     }).format(numeric(value))
 }
 
-function formatDate(value) {
+function parseDate(value) {
     if (!value) {
-        return '-'
+        return null
     }
 
     const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00`)
 
-    return Number.isNaN(parsed.getTime())
-        ? value
-        : new Intl.DateTimeFormat('ru-RU', {
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatDate(value) {
+    const parsed = parseDate(value)
+
+    return parsed
+        ? new Intl.DateTimeFormat('ru-RU', {
             day: '2-digit',
             month: '2-digit',
             year: '2-digit',
         }).format(parsed)
+        : value || '-'
+}
+
+function formatWeekday(value) {
+    const parsed = parseDate(value)
+
+    return parsed
+        ? new Intl.DateTimeFormat('ru-RU', { weekday: 'short' }).format(parsed)
+        : ''
 }
 
 function resetNewShift() {
@@ -295,12 +309,16 @@ onMounted(() => {
                         <tr
                             v-for="shift in shifts"
                             :key="shift.id"
+                            class="shift-row"
                             :class="{ editing: editingId === shift.id }"
                         >
                             <td class="col-id">{{ shift.id }}</td>
                             <td>
                                 <input v-if="editingId === shift.id" v-model="editShift.date" type="date">
-                                <span v-else>{{ formatDate(shift.date) }}</span>
+                                <span v-else class="date-value">
+                                    <span>{{ formatDate(shift.date) }}</span>
+                                    <small class="date-weekday">{{ formatWeekday(shift.date) }}</small>
+                                </span>
                             </td>
                             <td class="orders-cell">
                                 <input
@@ -416,8 +434,10 @@ onMounted(() => {
 
 .taxi-sheet-wrap {
     border: 1px solid #000;
-    margin: 0 14px;
+    box-sizing: border-box;
+    margin: 0;
     overflow: auto;
+    width: 50%;
 }
 
 .taxi-sheet {
@@ -455,6 +475,25 @@ onMounted(() => {
 .taxi-sheet .new-row td,
 .taxi-sheet tr.editing td {
     background: #fff06c;
+}
+
+.taxi-sheet .shift-row:not(.editing):hover td {
+    background: #ffd52e;
+}
+
+.date-value {
+    align-items: baseline;
+    display: inline-flex;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.date-weekday {
+    font-size: 7px;
+    font-weight: 900;
+    line-height: 1;
+    opacity: 0.7;
+    text-transform: lowercase;
 }
 
 .col-id {
@@ -547,7 +586,7 @@ input[type="number"] {
     }
 
     .taxi-sheet-wrap {
-        margin: 0 6px;
+        width: 100%;
     }
 }
 </style>
