@@ -105,4 +105,54 @@ class BankingMigrationTest extends TestCase
             (string) DB::table('sales')->where('id', 1)->value('outstanding_amount')
         );
     }
+
+    public function test_empty_partial_banking_schema_is_rebuilt_safely(): void
+    {
+        Schema::create('bank_connections', function (Blueprint $table): void {
+            $table->id();
+        });
+        Schema::create('bank_transaction_allocations', function (Blueprint $table): void {
+            $table->id();
+        });
+
+        $migration = require database_path(
+            'migrations/2026_07_24_120000_create_banking_tables.php'
+        );
+
+        $migration->up();
+
+        $this->assertTrue(Schema::hasColumns('bank_connections', [
+            'provider',
+            'environment',
+            'status',
+        ]));
+        $this->assertTrue(Schema::hasColumns('bank_transaction_allocations', [
+            'bank_transaction_id',
+            'allocatable_type',
+            'allocatable_id',
+            'amount',
+        ]));
+        $this->assertTrue(Schema::hasTable('bank_audit_events'));
+    }
+
+    public function test_partial_banking_schema_with_data_is_never_dropped(): void
+    {
+        Schema::create('bank_connections', function (Blueprint $table): void {
+            $table->id();
+        });
+        DB::table('bank_connections')->insert(['id' => 1]);
+
+        $migration = require database_path(
+            'migrations/2026_07_24_120000_create_banking_tables.php'
+        );
+
+        try {
+            $migration->up();
+            $this->fail('A populated partial schema must block automatic recovery.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('contains data', $exception->getMessage());
+        }
+
+        $this->assertSame(1, DB::table('bank_connections')->count());
+    }
 }

@@ -2,12 +2,30 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    private const TABLES = [
+        'bank_connections',
+        'bank_oauth_attempts',
+        'bank_accounts',
+        'bank_account_balance_snapshots',
+        'bank_transactions',
+        'bank_transaction_revisions',
+        'bank_sync_runs',
+        'bank_sync_errors',
+        'bank_match_suggestions',
+        'bank_transaction_allocations',
+        'bank_payment_order_drafts',
+        'bank_audit_events',
+    ];
+
     public function up(): void
     {
+        $this->removeEmptyPartialSchema();
+
         Schema::create('bank_connections', function (Blueprint $table): void {
             $table->id();
             $table->string('provider', 32)->index();
@@ -190,7 +208,7 @@ return new class extends Migration
         Schema::create('bank_match_suggestions', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('bank_transaction_id')->constrained()->cascadeOnDelete();
-            $table->nullableMorphs('suggestable');
+            $table->nullableMorphs('suggestable', 'bank_suggestions_suggestable_index');
             $table->unsignedTinyInteger('score');
             $table->string('algorithm_version', 32);
             $table->json('rules');
@@ -206,7 +224,7 @@ return new class extends Migration
         Schema::create('bank_transaction_allocations', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('bank_transaction_id')->constrained()->restrictOnDelete();
-            $table->morphs('allocatable');
+            $table->morphs('allocatable', 'bank_allocations_allocatable_index');
             $table->decimal('amount', 20, 2);
             $table->string('source', 32);
             $table->string('matching_rule', 128)->nullable();
@@ -266,7 +284,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('action', 128)->index();
-            $table->nullableMorphs('auditable');
+            $table->nullableMorphs('auditable', 'bank_audit_auditable_index');
             $table->uuid('correlation_id')->index();
             $table->json('metadata')->nullable();
             $table->char('previous_hash', 64)->nullable();
@@ -277,17 +295,41 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('bank_audit_events');
-        Schema::dropIfExists('bank_payment_order_drafts');
-        Schema::dropIfExists('bank_transaction_allocations');
-        Schema::dropIfExists('bank_match_suggestions');
-        Schema::dropIfExists('bank_sync_errors');
-        Schema::dropIfExists('bank_sync_runs');
-        Schema::dropIfExists('bank_transaction_revisions');
-        Schema::dropIfExists('bank_transactions');
-        Schema::dropIfExists('bank_account_balance_snapshots');
-        Schema::dropIfExists('bank_accounts');
-        Schema::dropIfExists('bank_oauth_attempts');
-        Schema::dropIfExists('bank_connections');
+        $this->dropBankingTables();
+    }
+
+    private function removeEmptyPartialSchema(): void
+    {
+        $existingTables = array_values(array_filter(
+            self::TABLES,
+            static fn (string $table): bool => Schema::hasTable($table),
+        ));
+
+        if ($existingTables === []) {
+            return;
+        }
+
+        foreach ($existingTables as $table) {
+            if (DB::table($table)->exists()) {
+                throw new RuntimeException(
+                    "Cannot recover partial banking migration: table [{$table}] contains data."
+                );
+            }
+        }
+
+        $this->dropBankingTables();
+    }
+
+    private function dropBankingTables(): void
+    {
+        Schema::disableForeignKeyConstraints();
+
+        try {
+            foreach (array_reverse(self::TABLES) as $table) {
+                Schema::dropIfExists($table);
+            }
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
     }
 };
