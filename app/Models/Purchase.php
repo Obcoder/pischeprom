@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Schema;
 
 class Purchase extends Model
@@ -20,7 +21,7 @@ class Purchase extends Model
 
     protected $casts = [
         'date' => 'date:Y-m-d',
-        'amount' => 'float',
+        'amount' => 'decimal:2',
     ];
 
     protected $with = [
@@ -38,6 +39,11 @@ class Purchase extends Model
         return $this->belongsToMany(Good::class, 'good_purchase')
             ->withPivot($this->goodPurchasePivotColumns())
             ->withTimestamps();
+    }
+
+    public function bankPaymentDrafts(): HasMany
+    {
+        return $this->hasMany(BankPaymentOrderDraft::class);
     }
 
     private function goodPurchasePivotColumns(): array

@@ -393,6 +393,14 @@ function commercialOffersUrl() {
     }
 }
 
+function bankUrl() {
+    try {
+        return route('admin.bank.index')
+    } catch (error) {
+        return '/Ameise/bank'
+    }
+}
+
 function mailMessageUrl(mailMessageId) {
     if (!mailMessageId) {
         return null
@@ -659,6 +667,17 @@ onMounted(fetchWorkingLeads)
                 >
                     <v-icon icon="mdi-email-newsletter" size="small" class="mx-1" />
                     <span>КП</span>
+                </Link>
+            </v-app-bar-title>
+            <v-app-bar-title>
+                <Link
+                    :href="bankUrl()"
+                    class="ameise-bank-link"
+                    title="Банк"
+                    aria-label="Банк"
+                >
+                    <v-icon icon="mdi-bank-outline" size="small" class="mx-1" />
+                    <span>Банк</span>
                 </Link>
             </v-app-bar-title>
 

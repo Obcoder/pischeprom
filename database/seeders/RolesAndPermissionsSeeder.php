@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -29,33 +29,46 @@ class RolesAndPermissionsSeeder extends Seeder
 
             'users.view',
             'users.edit',
+
+            'bank.view',
+            'bank.view_sensitive',
+            'bank.sync',
+            'bank.reconcile',
+            'bank.manage_connection',
+            'bank.manage_payment_drafts',
+            'bank.view_audit',
         ];
 
         foreach ($permissions as $permission) {
             Permission::firstOrCreate([
-                                          'name' => $permission,
-                                          'guard_name' => 'crm',
-                                      ]);
+                'name' => $permission,
+                'guard_name' => 'crm',
+            ]);
         }
 
         $admin = Role::firstOrCreate([
-                                         'name' => 'admin',
-                                         'guard_name' => 'crm',
-                                     ]);
+            'name' => 'admin',
+            'guard_name' => 'crm',
+        ]);
 
-        $admin->syncPermissions($permissions);
+        $admin->givePermissionTo($permissions);
 
         $manager = Role::firstOrCreate([
-                                           'name' => 'manager',
-                                           'guard_name' => 'crm',
-                                       ]);
+            'name' => 'manager',
+            'guard_name' => 'crm',
+        ]);
 
-        $manager->syncPermissions([
-                                      'dashboard.view',
-                                      'orders.view',
-                                      'orders.create',
-                                      'orders.edit',
-                                      'products.view',
-                                  ]);
+        $manager->givePermissionTo([
+            'dashboard.view',
+            'orders.view',
+            'orders.create',
+            'orders.edit',
+            'products.view',
+            'bank.view',
+            'bank.view_sensitive',
+            'bank.sync',
+            'bank.reconcile',
+            'bank.manage_payment_drafts',
+        ]);
     }
 }

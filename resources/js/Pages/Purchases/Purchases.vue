@@ -227,6 +227,12 @@ function entityHref(entity) {
     return entity?.id ? route('Ameise.entity.show', entity.id) : null
 }
 
+function paymentDraftHref(purchase) {
+    return purchase?.id
+        ? `/Ameise/bank?draft_purchase_id=${encodeURIComponent(purchase.id)}`
+        : '/Ameise/bank'
+}
+
 function unitHref(unit) {
     return unit?.id ? route('web.unit.show', unit.id) : null
 }
@@ -693,6 +699,20 @@ onMounted(async () => {
                                             </template>
                                         </v-tooltip>
 
+                                        <v-tooltip text="Локальный черновик оплаты">
+                                            <template #activator="{ props }">
+                                                <v-btn
+                                                    v-bind="props"
+                                                    :href="paymentDraftHref(purchase)"
+                                                    icon="mdi-file-document-edit-outline"
+                                                    size="x-small"
+                                                    density="compact"
+                                                    variant="text"
+                                                    color="deep-purple-darken-2"
+                                                />
+                                            </template>
+                                        </v-tooltip>
+
                                         <v-tooltip text="Удалить">
                                             <template #activator="{ props }">
                                                 <v-btn
@@ -786,6 +806,17 @@ onMounted(async () => {
                                 </span>
                                 <strong v-else>-</strong>
                             </div>
+                        </div>
+
+                        <div v-if="selectedPurchase" class="purchase-details__draft-action">
+                            <v-btn
+                                :href="paymentDraftHref(selectedPurchase)"
+                                prepend-icon="mdi-file-document-edit-outline"
+                                color="deep-purple-darken-2"
+                                variant="tonal"
+                            >
+                                Создать локальный черновик оплаты
+                            </v-btn>
                         </div>
 
                         <div class="purchase-lines">
@@ -1397,6 +1428,11 @@ onMounted(async () => {
     display: grid;
     gap: 9px;
     padding: 10px !important;
+}
+
+.purchase-details__draft-action {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .purchase-details__summary {

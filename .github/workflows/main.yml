@@ -1,102 +1,250 @@
-name: Deploy to VPS
+name: Verify and deploy to production
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pischeprom-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  verify:
+    name: Verify application
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Check out the requested commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - name: Set up SSH
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          extensions: dom, libxml, mbstring, openssl, pdo_sqlite, simplexml, xmlwriter
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish --strict
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check banking PHP style
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p ${{ secrets.PORT }} -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          vendor/bin/pint --test \
+            app/Console/Commands/BankReconcileCommand.php \
+            app/Console/Commands/BankSberHealthCommand.php \
+            app/Console/Commands/BankSberSyncCommand.php \
+            app/Domain/Banking \
+            app/Http/Controllers/Banking \
+            app/Http/Requests/Banking \
+            app/Jobs/Banking \
+            app/Logging/RedactBankingContext.php \
+            app/Models/BankAccount.php \
+            app/Models/BankAccountBalanceSnapshot.php \
+            app/Models/BankAuditEvent.php \
+            app/Models/BankConnection.php \
+            app/Models/BankMatchSuggestion.php \
+            app/Models/BankOAuthAttempt.php \
+            app/Models/BankPaymentOrderDraft.php \
+            app/Models/BankSyncError.php \
+            app/Models/BankSyncRun.php \
+            app/Models/BankTransaction.php \
+            app/Models/BankTransactionAllocation.php \
+            app/Models/BankTransactionRevision.php \
+            app/Notifications/BankingAlertNotification.php \
+            app/Policies/BankAuditEventPolicy.php \
+            app/Policies/BankConnectionPolicy.php \
+            app/Policies/BankPaymentOrderDraftPolicy.php \
+            app/Policies/BankTransactionPolicy.php \
+            config/banking.php \
+            database/migrations/2026_07_24_120000_create_banking_tables.php \
+            database/migrations/2026_07_24_120100_add_banking_fields_to_sales_and_entities.php \
+            tests/Feature/Banking \
+            tests/Unit/Banking
 
-      - name: Deploy to VPS
+      - name: Run unit and banking feature tests
+        env:
+          APP_ENV: testing
+          APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          BANKING_ENABLED: 'false'
+          CACHE_STORE: array
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          QUEUE_CONNECTION: sync
+          SBER_API_ENABLED: 'false'
+          SBER_READ_ONLY: 'true'
+          SESSION_DRIVER: array
+        run: php artisan test tests/Unit tests/Feature/Banking --compact
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build client and SSR assets
+        env:
+          NODE_OPTIONS: --max-old-space-size=2048
+        run: npm run build
+
+      - name: Create verified frontend artifact
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p ${{ secrets.PORT }} ${{ secrets.USERNAME }}@${{ secrets.HOST }} << 'EOF'
-            set -e
+          if find public/build bootstrap/ssr -type l -print -quit | grep -q .; then
+            echo "::error::Frontend build must not contain symbolic links."
+            exit 1
+          fi
 
-            cd ${{ secrets.TARGET_DIR }}
+          mkdir -p deploy-artifact
+          tar -czf deploy-artifact/frontend-build.tar.gz public/build bootstrap/ssr
+          (
+            cd deploy-artifact
+            sha256sum frontend-build.tar.gz > frontend-build.tar.gz.sha256
+          )
 
-            git config --global --add safe.directory ${{ secrets.TARGET_DIR }}
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frontend-${{ github.sha }}
+          path: deploy-artifact/
+          if-no-files-found: error
+          retention-days: 1
 
-            git checkout -- bootstrap/ssr public/sitemap.xml storage bootstrap/cache || true
-            git clean -fd bootstrap/ssr || true
+  deploy:
+    name: Deploy exact commit
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: production
 
-            git fetch origin
-            git checkout main
-            git pull --ff-only origin main
+    steps:
+      - name: Check out deployment scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-            php artisan down || true
+      - name: Download verified frontend artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: frontend-${{ github.sha }}
+          path: deploy-artifact
 
-            trap 'php artisan up || true' EXIT
+      - name: Configure pinned SSH host identity
+        env:
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          set -Eeuo pipefail
 
-            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-
-            df -h /
-            free -m
-
-            rm -rf node_modules
-
-            if ! swapon --show=NAME --noheadings | grep -q '^/swapfile$' && [ "$(df --output=avail -m / | tail -1)" -gt 1400 ]; then
-              sudo fallocate -l 1G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=1024
-              sudo chmod 600 /swapfile
-              sudo mkswap /swapfile
-              sudo swapon /swapfile
+          for required_name in \
+            SSH_HOST SSH_KNOWN_HOSTS SSH_PORT SSH_PRIVATE_KEY SSH_USER TARGET_DIR
+          do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "::error::Required production secret ${required_name} is missing."
+              exit 1
             fi
+          done
 
-            npm ci --no-audit --no-fund
-            rm -rf bootstrap/ssr
-            NODE_OPTIONS="--max-old-space-size=768" npm run build
-            rm -rf node_modules
+          if [[ ! "$SSH_PORT" =~ ^[0-9]+$ ]] || (( SSH_PORT < 1 || SSH_PORT > 65535 )); then
+            echo "::error::PORT must be a valid TCP port."
+            exit 1
+          fi
 
-            php artisan migrate --force
+          if [[ "$TARGET_DIR" != /* || "$TARGET_DIR" == "/" ]]; then
+            echo "::error::TARGET_DIR must be an absolute non-root path."
+            exit 1
+          fi
 
-            php artisan optimize:clear
-            php artisan route:list --path=stock-alerts
-            php artisan route:list --path=Ameise/commercial-offers
-            php artisan route:list --path=unisender-go
-            php artisan route:list --path=unsubscribe
-            php artisan list mailings
-            php artisan max:webhook:ensure
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
 
-            if ! php artisan beeline:sync-calls --period=today --limit=500; then
-              echo "::warning::Beeline call sync failed during deploy; deployment continues."
-            fi
-            if ! php artisan beeline:rebuild-calls --limit=2000; then
-              echo "::warning::Beeline call rebuild failed during deploy; deployment continues."
-            fi
+          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null
 
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
+          if ! ssh-keygen -F "$SSH_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null \
+            && ! ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$HOME/.ssh/known_hosts" >/dev/null
+          then
+            echo "::error::SSH_KNOWN_HOSTS does not contain the configured host."
+            exit 1
+          fi
 
-            chown -R forge:www-data storage bootstrap/cache
-            chmod -R 775 storage bootstrap/cache
+      - name: Deploy on the Russian VPS
+        env:
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          set -Eeuo pipefail
 
-            php artisan queue:restart
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          scp_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -P "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          ssh_target="${SSH_USER}@${SSH_HOST}"
 
-            sudo systemctl daemon-reload
-            sudo systemctl restart pischeprom-mail-sync-worker
-            sudo systemctl restart pischeprom-ssr
+          ssh "${ssh_options[@]}" "$ssh_target" true
 
-            sleep 2
-            php artisan inertia:check-ssr
+          remote_dir="$(
+            ssh "${ssh_options[@]}" "$ssh_target" \
+              'umask 077 && mktemp -d /tmp/pischeprom-deploy.XXXXXXXXXX'
+          )"
 
-            php artisan up
-            php artisan app:deploy-smoke --path=/
-            php artisan app:deploy-smoke --path=/g
+          if [[ ! "$remote_dir" =~ ^/tmp/pischeprom-deploy\.[A-Za-z0-9]+$ ]]; then
+            echo "::error::The VPS returned an invalid temporary directory."
+            exit 1
+          fi
 
-            trap - EXIT
-          EOF
+          cleanup_remote() {
+            ssh "${ssh_options[@]}" "$ssh_target" \
+              "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+          }
+          trap cleanup_remote EXIT
+
+          scp "${scp_options[@]}" \
+            deploy-artifact/frontend-build.tar.gz \
+            deploy-artifact/frontend-build.tar.gz.sha256 \
+            "${ssh_target}:${remote_dir}/"
+
+          target_dir_base64="$(printf '%s' "$TARGET_DIR" | base64 -w 0)"
+
+          ssh "${ssh_options[@]}" "$ssh_target" \
+            "bash -se -- '$target_dir_base64' '$GITHUB_SHA' '$remote_dir/frontend-build.tar.gz'" \
+            < scripts/deploy-production.sh

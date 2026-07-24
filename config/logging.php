@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\RedactBankingContext;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -71,6 +72,16 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+        ],
+
+        'banking' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/banking.log'),
+            'level' => env('BANKING_LOG_LEVEL', 'info'),
+            'days' => env('BANKING_LOG_DAYS', 30),
+            'permission' => 0600,
+            'replace_placeholders' => true,
+            'tap' => [RedactBankingContext::class],
         ],
 
         'slack' => [

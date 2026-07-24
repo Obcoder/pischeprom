@@ -16,6 +16,15 @@ use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UriController;
+use App\Http\Controllers\Banking\BankDashboardController;
+use App\Http\Controllers\Banking\BankLogController;
+use App\Http\Controllers\Banking\BankPageController;
+use App\Http\Controllers\Banking\BankPaymentDraftController;
+use App\Http\Controllers\Banking\BankReceivableController;
+use App\Http\Controllers\Banking\BankReconciliationController;
+use App\Http\Controllers\Banking\BankSyncController;
+use App\Http\Controllers\Banking\BankTransactionController;
+use App\Http\Controllers\Banking\SberConnectionController;
 use App\Http\Controllers\EmailTrackingController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\MainController;
@@ -37,6 +46,7 @@ use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
 use App\Http\Controllers\Web\UnitRelationSyncController;
 use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
+use App\Http\Middleware\EnsureBankConnectionAdministrator;
 use App\Mail\TestEmail;
 use App\Models\City;
 use App\Models\Good;
@@ -533,6 +543,90 @@ Route::get('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\Mailin
     ->name('mailings.unsubscribe.show');
 Route::post('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\MailingUnsubscribeController::class, 'unsubscribe'])
     ->name('mailings.unsubscribe.submit');
+
+/*
+|--------------------------------------------------------------------------
+| B A N K  (Sber read-only)
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/banking/sber/oauth/callback', [SberConnectionController::class, 'callback'])
+    ->middleware('throttle:bank-oauth')
+    ->name('admin.bank.sber.callback');
+
+Route::prefix('Ameise/bank')
+    ->name('admin.bank.')
+    ->middleware([
+        'auth:sanctum',
+        config('jetstream.auth_session'),
+        'verified',
+        'can:bank.view',
+    ])
+    ->group(function () {
+        Route::get('/', BankPageController::class)->name('index');
+        Route::get('/dashboard', BankDashboardController::class)->name('dashboard');
+
+        Route::get('/transactions', [BankTransactionController::class, 'index'])
+            ->name('transactions.index');
+        Route::get('/transactions/{transaction}', [BankTransactionController::class, 'show'])
+            ->name('transactions.show');
+        Route::get('/receivables', BankReceivableController::class)
+            ->name('receivables.index');
+        Route::post('/transactions/{transaction}/allocations', [BankReconciliationController::class, 'allocate'])
+            ->middleware('throttle:bank-reconcile')
+            ->name('transactions.allocations.store');
+        Route::post('/transactions/{transaction}/allocations/{allocation}/reverse', [BankReconciliationController::class, 'reverse'])
+            ->middleware('throttle:bank-reconcile')
+            ->name('transactions.allocations.reverse');
+        Route::post('/transactions/{transaction}/suggestions/{suggestion}/reject', [BankReconciliationController::class, 'rejectSuggestion'])
+            ->middleware('throttle:bank-reconcile')
+            ->name('transactions.suggestions.reject');
+        Route::post('/transactions/{transaction}/not-required', [BankReconciliationController::class, 'markNotRequired'])
+            ->middleware('throttle:bank-reconcile')
+            ->name('transactions.not-required');
+
+        Route::get('/sync-runs', [BankLogController::class, 'syncRuns'])
+            ->name('sync-runs.index');
+        Route::post('/sync', [BankSyncController::class, 'store'])
+            ->middleware('throttle:bank-sync')
+            ->name('sync.store');
+        Route::get('/errors', [BankLogController::class, 'errors'])
+            ->name('errors.index');
+        Route::post('/errors/{error}/resolve', [BankLogController::class, 'resolve'])
+            ->middleware([EnsureBankConnectionAdministrator::class, 'throttle:bank-reconcile'])
+            ->name('errors.resolve');
+        Route::get('/audit', [BankLogController::class, 'audit'])
+            ->name('audit.index');
+
+        Route::get('/drafts', [BankPaymentDraftController::class, 'index'])
+            ->name('drafts.index');
+        Route::get('/drafts/options', [BankPaymentDraftController::class, 'options'])
+            ->name('drafts.options');
+        Route::post('/drafts', [BankPaymentDraftController::class, 'store'])
+            ->middleware('throttle:bank-drafts')
+            ->name('drafts.store');
+        Route::put('/drafts/{draft}', [BankPaymentDraftController::class, 'update'])
+            ->middleware('throttle:bank-drafts')
+            ->name('drafts.update');
+        Route::post('/drafts/{draft}/export', [BankPaymentDraftController::class, 'export'])
+            ->middleware('throttle:bank-drafts')
+            ->name('drafts.export');
+        Route::post('/drafts/{draft}/cancel', [BankPaymentDraftController::class, 'cancel'])
+            ->middleware('throttle:bank-drafts')
+            ->name('drafts.cancel');
+        Route::get('/drafts/{draft}/print', [BankPaymentDraftController::class, 'print'])
+            ->name('drafts.print');
+
+        Route::get('/sber/authorize', [SberConnectionController::class, 'authorizeRedirect'])
+            ->middleware([EnsureBankConnectionAdministrator::class, 'password.confirm', 'throttle:bank-oauth'])
+            ->name('sber.authorize');
+        Route::get('/sber/owners', [SberConnectionController::class, 'owners'])
+            ->middleware(EnsureBankConnectionAdministrator::class)
+            ->name('sber.owners');
+        Route::get('/sber/health', [SberConnectionController::class, 'health'])
+            ->middleware(EnsureBankConnectionAdministrator::class)
+            ->name('sber.health');
+    });
 
 Route::prefix('Ameise/commercial-offers')->name('admin.commercial-offers.')->group(function () {
     Route::get('/', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'index'])->name('index');

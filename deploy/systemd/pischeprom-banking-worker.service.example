@@ -1,0 +1,21 @@
+[Unit]
+Description=Pischeprom Laravel banking queue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=forge
+Group=www-data
+WorkingDirectory=/home/forge/pischeprom
+ExecStart=/usr/bin/php /home/forge/pischeprom/artisan queue:work redis --queue=banking --sleep=3 --tries=5 --timeout=1800 --max-time=3600
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=1830
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

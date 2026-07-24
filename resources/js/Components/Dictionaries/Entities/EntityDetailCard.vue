@@ -191,6 +191,12 @@ function checkUrl(check) {
     return check?.id ? `/Ameise/checks?check=${encodeURIComponent(check.id)}` : '/Ameise/checks'
 }
 
+function paymentDraftUrl() {
+    return props.entity?.id
+        ? `/Ameise/bank?draft_entity_id=${encodeURIComponent(props.entity.id)}`
+        : '/Ameise/bank'
+}
+
 function checkItemCount(check) {
     if (check?.items_count !== null && check?.items_count !== undefined) {
         return check.items_count
@@ -218,14 +224,21 @@ function checkItemCount(check) {
                     <p>{{ entity.full_name || 'Полное название не заполнено' }}</p>
                 </div>
 
-                <v-chip
-                    color="#800000"
-                    variant="flat"
-                    size="small"
-                    class="entity-detail-card__classification"
-                >
-                    {{ entity.classification?.name || 'Без классификации' }}
-                </v-chip>
+                <div class="entity-detail-card__hero-actions">
+                    <Link :href="paymentDraftUrl()" class="entity-detail-card__draft-link">
+                        <v-icon icon="mdi-file-document-edit-outline" size="17" />
+                        Черновик оплаты
+                    </Link>
+
+                    <v-chip
+                        color="#800000"
+                        variant="flat"
+                        size="small"
+                        class="entity-detail-card__classification"
+                    >
+                        {{ entity.classification?.name || 'Без классификации' }}
+                    </v-chip>
+                </div>
             </div>
 
             <v-card-text class="entity-detail-card__content">
@@ -560,6 +573,33 @@ function checkItemCount(check) {
     flex: 0 0 auto;
     background: rgba(255, 255, 255, 0.16) !important;
     color: #fff !important;
+}
+
+.entity-detail-card__hero-actions {
+    display: flex;
+    align-items: flex-end;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.entity-detail-card__draft-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.entity-detail-card__draft-link:hover {
+    background: rgba(255, 255, 255, 0.22);
 }
 
 .entity-detail-card__content {

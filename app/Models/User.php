@@ -13,18 +13,15 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
-use App\Models\Entity;
-use App\Models\City;
-
 
 class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens;
     use HasFactory;
     use HasProfilePhoto;
+    use HasRoles;
     use Notifiable;
     use TwoFactorAuthenticatable;
-    use HasRoles;
 
     protected $guard_name = 'crm';
 
@@ -80,10 +77,10 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->belongsToMany(Entity::class)
             ->withPivot([
-                            'role',
-                            'status',
-                            'is_primary',
-                        ])
+                'role',
+                'status',
+                'is_primary',
+            ])
             ->withTimestamps();
     }
 
@@ -96,5 +93,15 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->belongsToMany(EntityClassification::class, 'entity_classification_user')
             ->withTimestamps();
+    }
+
+    public function bankConnections(): HasMany
+    {
+        return $this->hasMany(BankConnection::class, 'connected_by');
+    }
+
+    public function bankPaymentDrafts(): HasMany
+    {
+        return $this->hasMany(BankPaymentOrderDraft::class, 'created_by');
     }
 }

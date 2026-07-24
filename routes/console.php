@@ -1,6 +1,11 @@
 <?php
 
+use App\Jobs\Banking\CheckSberCredentialsExpiryJob;
+use App\Jobs\Banking\RefreshSberTokenJob;
+use App\Jobs\Banking\SyncSberAccountsJob;
+use App\Jobs\Banking\SyncSberStatementsJob;
 use App\Jobs\SyncYandexMailboxJob;
+use App\Models\BankConnection;
 use App\Models\GoodStockAlert;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -72,4 +77,67 @@ Schedule::command('yandex:direct:ai:autopilot')
     ->name('yandex-direct-ai-autopilot')
     ->hourly()
     ->when(fn () => (bool) config('yandex.direct.ai_autopilot.enabled', true))
+    ->withoutOverlapping(60);
+
+$bankSyncMinutes = min(59, max(1, (int) config('banking.sber.sync_interval_minutes', 15)));
+
+Schedule::call(function (): void {
+    BankConnection::query()
+        ->where('provider', 'sber')
+        ->where('status', 'active')
+        ->pluck('id')
+        ->each(fn (int $id) => SyncSberStatementsJob::dispatch($id, 'incremental'));
+})
+    ->name('sber-incremental-statements')
+    ->cron("*/{$bankSyncMinutes} * * * *")
+    ->when(fn () => (bool) config('banking.enabled') && (bool) config('banking.sber.enabled'))
+    ->onOneServer()
+    ->withoutOverlapping(30);
+
+Schedule::call(function (): void {
+    BankConnection::query()
+        ->where('provider', 'sber')
+        ->where('status', 'active')
+        ->pluck('id')
+        ->each(fn (int $id) => SyncSberStatementsJob::dispatch($id, 'control'));
+})
+    ->name('sber-control-statements')
+    ->dailyAt('03:15')
+    ->when(fn () => (bool) config('banking.enabled') && (bool) config('banking.sber.enabled'))
+    ->onOneServer()
+    ->withoutOverlapping(120);
+
+Schedule::call(function (): void {
+    BankConnection::query()
+        ->where('provider', 'sber')
+        ->where('status', 'active')
+        ->pluck('id')
+        ->each(fn (int $id) => SyncSberAccountsJob::dispatch($id));
+})
+    ->name('sber-accounts-daily')
+    ->dailyAt('02:45')
+    ->when(fn () => (bool) config('banking.enabled') && (bool) config('banking.sber.enabled'))
+    ->onOneServer()
+    ->withoutOverlapping(60);
+
+Schedule::call(function (): void {
+    BankConnection::query()
+        ->where('provider', 'sber')
+        ->where('status', 'active')
+        ->whereNotNull('access_token_expires_at')
+        ->where('access_token_expires_at', '<=', now()->addMinutes(10))
+        ->pluck('id')
+        ->each(fn (int $id) => RefreshSberTokenJob::dispatch($id));
+})
+    ->name('sber-token-refresh')
+    ->everyThirtyMinutes()
+    ->when(fn () => (bool) config('banking.enabled') && (bool) config('banking.sber.enabled'))
+    ->onOneServer()
+    ->withoutOverlapping(20);
+
+Schedule::job(new CheckSberCredentialsExpiryJob, (string) config('banking.queue', 'banking'))
+    ->name('sber-credential-expiry')
+    ->dailyAt('08:00')
+    ->when(fn () => (bool) config('banking.enabled'))
+    ->onOneServer()
     ->withoutOverlapping(60);

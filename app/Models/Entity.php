@@ -23,6 +23,10 @@ class Entity extends Model
         'KPP',
         'OGRN',
         'legal_address',
+        'bank_account_number',
+        'bank_name',
+        'bank_bic',
+        'bank_corr_account',
         'country_id',
         'dadata_raw',
         'dadata_loaded_at',
@@ -31,6 +35,13 @@ class Entity extends Model
     protected $casts = [
         'dadata_raw' => 'array',
         'dadata_loaded_at' => 'datetime',
+    ];
+
+    protected $hidden = [
+        'bank_account_number',
+        'bank_name',
+        'bank_bic',
+        'bank_corr_account',
     ];
 
     protected $with = [
@@ -125,6 +136,21 @@ class Entity extends Model
     public function purchases(): HasMany
     {
         return $this->hasMany(Purchase::class)->orderByDesc('date');
+    }
+
+    public function bankConnections(): HasMany
+    {
+        return $this->hasMany(BankConnection::class, 'owner_entity_id');
+    }
+
+    public function bankTransactions(): HasMany
+    {
+        return $this->hasMany(BankTransaction::class);
+    }
+
+    public function bankPaymentDrafts(): HasMany
+    {
+        return $this->hasMany(BankPaymentOrderDraft::class, 'recipient_entity_id');
     }
 
     public function scopeBaseRelations(Builder $query): Builder
