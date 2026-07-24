@@ -25,6 +25,8 @@ abstract class BankingDatabaseTestCase extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+
         config([
             'database.default' => 'sqlite',
             'database.connections.sqlite.database' => ':memory:',
