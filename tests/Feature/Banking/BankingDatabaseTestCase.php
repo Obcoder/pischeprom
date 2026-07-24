@@ -39,6 +39,13 @@ abstract class BankingDatabaseTestCase extends TestCase
             'banking.sber.read_only' => true,
             'banking.sber.auto_match_enabled' => true,
             'banking.sber.auto_match_threshold' => 90,
+            'banking.sber.client_secret_file' => '',
+            'banking.sber.client_secret_expires_at' => '',
+            'banking.sber.mtls_cert_path' => '',
+            'banking.sber.mtls_key_path' => '',
+            'banking.sber.mtls_key_password_file' => '',
+            'banking.sber.ca_bundle_path' => '',
+            'banking.sber.jwt_public_key_path' => '',
             'banking.unidentified_notification_amount' => '100000.00',
         ]);
 

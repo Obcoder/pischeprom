@@ -251,11 +251,19 @@ class SberHealthService
         $path = config('banking.sber.mtls_cert_path');
         $resolved = is_string($path) ? realpath($path) : false;
 
-        if ($resolved === false || ! is_readable($resolved)) {
+        if ($resolved === false || ! is_file($resolved) || ! is_readable($resolved)) {
             return null;
         }
 
-        $parsed = openssl_x509_parse((string) file_get_contents($resolved));
+        try {
+            $contents = file_get_contents($resolved);
+            $parsed = is_string($contents) && $contents !== ''
+                ? openssl_x509_parse($contents)
+                : false;
+        } catch (\Throwable) {
+            return null;
+        }
+
         $timestamp = is_array($parsed) ? ($parsed['validTo_time_t'] ?? null) : null;
 
         return is_int($timestamp) ? CarbonImmutable::createFromTimestampUTC($timestamp) : null;

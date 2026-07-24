@@ -18,14 +18,14 @@ return [
         'throw_on_error' => env('INERTIA_SSR_THROW_ON_ERROR', false),
     ],
 
-    'testing' => [
-        'ensure_pages_exist' => true,
+    'pages' => [
+        'ensure_pages_exist' => false,
 
-        'page_paths' => [
+        'paths' => [
             resource_path('js/Pages'),
         ],
 
-        'page_extensions' => [
+        'extensions' => [
             'js',
             'jsx',
             'svelte',
@@ -33,6 +33,10 @@ return [
             'tsx',
             'vue',
         ],
+    ],
+
+    'testing' => [
+        'ensure_pages_exist' => true,
     ],
 
 ];
