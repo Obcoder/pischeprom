@@ -63,9 +63,9 @@ Deploy выполняется только после успешного verify 
 2. Build и checksum передаются во временный каталог VPS.
 3. Серверный deploy получает точный `GITHUB_SHA`.
 4. Проверяется, что commit входит в `origin/main`.
-5. Проверяется отсутствие изменённых или неожиданных untracked source-файлов
-   на сервере; server-side `.env`, `storage`, build и dependencies игнорируются
-   штатным `.gitignore`.
+5. Изменённые и неожиданные untracked-файлы на сервере сохраняются в отдельный
+   recoverable Git stash; его SHA выводится в deploy log. Server-side `.env`,
+   ignored `storage`, build и dependencies в stash не попадают.
 6. Берётся `flock`, исключающий параллельный deploy.
 7. Queue workers корректно останавливаются с ожиданием текущей job.
 8. Текущий scheduler прерывается, Laravel переводится в maintenance mode.
@@ -232,6 +232,18 @@ Workflow сам не вызывает Sber API и не запускает sandbo
 
 Для отката кода создать revert commit в `main`; он пройдёт те же проверки и
 deploy. Не выполнять `migrate:rollback` автоматически.
+
+Если preflight сохранил локальные server-side изменения, их stash SHA указан
+строкой `Server-side changes were preserved in Git stash ...`. Проверить его
+нужно на VPS без автоматического применения:
+
+```bash
+git stash show --stat <STASH_SHA>
+```
+
+Не выполнять `git stash pop` поверх нового production-кода без ручной проверки
+diff и совместимости. Stash остаётся только на российском VPS и не передаётся в
+GitHub Actions.
 
 Перед миграциями, меняющими или удаляющими данные, нужен отдельный backup и
 проверенный forward-fix/rollback plan. Текущие банковские миграции добавляют

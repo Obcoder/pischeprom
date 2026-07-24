@@ -74,10 +74,12 @@ done < <(tar -tzf "$frontend_archive")
 [[ -f "$target_dir/.env" ]] || fail 'Server-side .env is missing.'
 [[ -d "$target_dir/storage/framework" ]] || fail 'Laravel storage directory is missing.'
 
-exec 9> "$target_dir/storage/framework/deploy.lock"
+exec 9> "$target_dir/.git/pischeprom-deploy.lock"
 flock -n 9 || fail 'Another production deployment is already running.'
 
 cd "$target_dir"
+
+git restore --source=HEAD --staged --worktree -- public/sitemap.xml 2>/dev/null || true
 
 server_changes="$(
     LC_ALL=C git -c core.quotePath=true status --porcelain=v1 --untracked-files=normal \
@@ -91,10 +93,24 @@ if [[ -n "$server_changes" ]]; then
         printf '[deploy] Server-side change: %s\n' "$server_change" >&2
     done <<< "$server_changes"
 
-    fail 'Unexpected server-side source changes were detected; deployment was stopped.'
-fi
+    stash_message="automated pre-deploy preservation for ${commit_sha}"
+    git stash push --include-untracked --message "$stash_message" >/dev/null \
+        || fail 'Server-side changes could not be preserved in Git stash.'
 
-git restore --source=HEAD --staged --worktree -- public/sitemap.xml 2>/dev/null || true
+    preserved_stash_sha="$(git rev-parse refs/stash)"
+    [[ "$preserved_stash_sha" =~ ^[0-9a-f]{40}$ ]] \
+        || fail 'The preservation stash could not be verified.'
+
+    remaining_server_changes="$(
+        LC_ALL=C git status --porcelain=v1 --untracked-files=normal \
+            | grep -vE '^.. public/sitemap\.xml$' \
+            || true
+    )"
+    [[ -z "$remaining_server_changes" ]] \
+        || fail 'The server working tree remains dirty after preservation.'
+
+    log "Server-side changes were preserved in Git stash ${preserved_stash_sha}."
+fi
 
 log "Fetching commit ${commit_sha}."
 git fetch --no-tags --prune origin main
