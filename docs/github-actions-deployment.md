@@ -74,8 +74,11 @@ Deploy выполняется только после успешного verify 
 11. Выполняются миграции с `--isolated` и idempotent permission seeder.
 12. Кэшируются config/routes/views.
 13. `bank:sber:health --if-enabled` проверяет конфигурацию без HTTP-запроса.
-14. Запускаются queues, SSR и установленные systemd workers.
-15. Выполняются существующие deploy smoke checks.
+14. Запускаются queues, SSR и установленные systemd workers. Если SSR не
+    поднимается за 15 секунд, deployment продолжает работу в штатном
+    client-side fallback режиме и пишет warning.
+15. Выполняются обязательные HTTP deploy smoke checks; их ошибка остаётся
+    блокирующей.
 16. Временный архив удаляется.
 
 Если ошибка произошла до переключения кода, trap возвращает исходные сервисы и

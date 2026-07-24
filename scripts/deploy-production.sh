@@ -248,8 +248,19 @@ fi
 sudo systemctl start pischeprom-ssr
 ssr_stopped=0
 
-sleep 2
-php artisan inertia:check-ssr
+ssr_ready=0
+for attempt in 1 2 3 4 5; do
+    if php artisan inertia:check-ssr >/dev/null 2>&1; then
+        ssr_ready=1
+        break
+    fi
+
+    sleep 3
+done
+
+if (( ssr_ready == 0 )); then
+    log 'WARNING: Inertia SSR is unavailable; deployment continues with client-side rendering.'
+fi
 
 php artisan up
 maintenance_started=0
