@@ -80,12 +80,17 @@ flock -n 9 || fail 'Another production deployment is already running.'
 cd "$target_dir"
 
 server_changes="$(
-    git status --porcelain --untracked-files=normal \
+    LC_ALL=C git -c core.quotePath=true status --porcelain=v1 --untracked-files=normal \
         | grep -vE '^.. public/sitemap\.xml$' \
         || true
 )"
 
 if [[ -n "$server_changes" ]]; then
+    while IFS= read -r server_change; do
+        [[ -n "$server_change" ]] || continue
+        printf '[deploy] Server-side change: %s\n' "$server_change" >&2
+    done <<< "$server_changes"
+
     fail 'Unexpected server-side source changes were detected; deployment was stopped.'
 fi
 
