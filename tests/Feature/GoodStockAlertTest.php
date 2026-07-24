@@ -163,6 +163,17 @@ class GoodStockAlertTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/answers'));
     }
 
+    public function test_existing_max_webhook_remains_compatible_without_a_secret(): void
+    {
+        config()->set('services.max.webhook_secret');
+
+        $this->postJson(route('api.max.webhook'), [
+            'updates' => [],
+        ])
+            ->assertOk()
+            ->assertJsonPath('processed', 0);
+    }
+
     public function test_subscription_is_unavailable_when_max_api_is_not_configured(): void
     {
         config()->set('services.max.access_token');

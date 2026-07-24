@@ -20,12 +20,6 @@ class MaxWebhookController extends Controller
     {
         $secret = trim((string) config('services.max.webhook_secret'));
 
-        if ($secret === '' && app()->environment('production')) {
-            return response()->json([
-                'message' => 'MAX webhook secret is not configured.',
-            ], 503);
-        }
-
         if ($secret !== '' && ! hash_equals($secret, (string) $request->header('X-Max-Bot-Api-Secret'))) {
             return response()->json([
                 'message' => 'Invalid MAX webhook secret.',
