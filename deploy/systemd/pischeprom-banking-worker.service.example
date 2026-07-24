@@ -6,9 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=forge
-Group=www-data
-WorkingDirectory=/home/forge/pischeprom
-ExecStart=/usr/bin/php /home/forge/pischeprom/artisan queue:work redis --queue=banking --sleep=3 --tries=5 --timeout=1800 --max-time=3600
+Group=forge
+WorkingDirectory=/home/forge/xn----dtbhbbn3apgclecj7i.xn--p1ai
+ExecStart=/usr/bin/php artisan queue:work redis --queue=banking --sleep=3 --tries=5 --timeout=1800 --max-time=3600
 Restart=always
 RestartSec=5
 KillSignal=SIGTERM

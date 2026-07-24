@@ -224,15 +224,47 @@ Health command не выполняет сетевой запрос и не пе�
 5. Заполнить только выданные параметры; не добавлять payment scopes.
 6. Выполнить локальный health check.
 7. Запустить worker/scheduler.
-8. Войти администратором с включённой существующей 2FA, открыть `/Ameise/bank`, выбрать собственную `Entity`, подтвердить пароль и нажать «Подключить Сбер».
-9. Проверить queued account sync и initial 90-day import в UI.
-10. Только отдельным явным решением выполнить sandbox smoke:
+8. Для OAuth Authorization Code войти администратором с включённой существующей 2FA, открыть `/Ameise/bank`, выбрать собственную `Entity`, подтвердить пароль и нажать «Подключить Сбер».
+9. Для sandbox набора «Компаниям», если пара access/refresh token выпущена непосредственно в Личном кабинете Sber API, импортировать её только защищённой командой из временных файлов по инструкции ниже.
+10. Проверить queued account sync и initial 90-day import в UI.
+11. Только отдельным явным решением выполнить sandbox smoke:
 
    ```bash
    php artisan bank:sber:sync --connection=<ID> --incremental --sandbox-smoke
    ```
 
 Реальный Sber API не используется automated tests: все HTTP-ответы подменяются.
+
+### Однократный импорт sandbox-токенов из Личного кабинета
+
+Токены нельзя передавать аргументами команды, сохранять в `.env`, GitHub
+Actions, репозитории или shell history. Создайте на VPS два временных файла
+вне приложения, доступных только пользователю Laravel:
+
+```text
+/run/secrets/pischeprom/sber-import/access-token
+/run/secrets/pischeprom/sber-import/refresh-token
+```
+
+Оба файла должны иметь владельца `forge` и права `0600`. Импорт работает
+только при `SBER_ENVIRONMENT=sandbox`, `SBER_READ_ONLY=true`, точных scopes
+`openid,GET_STATEMENT_ACCOUNT` и от имени активного CRM-администратора.
+
+```bash
+php artisan bank:sber:import-sandbox-tokens \
+  --owner-entity=<ENTITY_ID> \
+  --connected-by=<ADMIN_USER_ID> \
+  --access-token-file=/run/secrets/pischeprom/sber-import/access-token \
+  --refresh-token-file=/run/secrets/pischeprom/sber-import/refresh-token \
+  --access-expires-at=<ISO-8601> \
+  --refresh-expires-at=<ISO-8601>
+```
+
+Команда не выполняет сетевой запрос, сохраняет токены только через Laravel
+encrypted casts, создаёт append-only audit event и после успешной транзакции
+удаляет оба plaintext-файла. Существующее sandbox-подключение заменяется
+только с явным `--replace`. Client secret и mTLS private key остаются в
+постоянном защищённом хранилище файлов, поскольку нужны для refresh и mTLS.
 
 ## Миграции, права, worker и scheduler
 
@@ -280,6 +312,7 @@ Laravel schedule:
 
 ```bash
 php artisan bank:sber:health
+php artisan bank:sber:import-sandbox-tokens --help
 php artisan bank:sber:sync --connection=<SANDBOX_ID> --from=2026-07-01 --to=2026-07-24 --sandbox-smoke
 php artisan bank:sber:sync --connection=<SANDBOX_ID> --incremental --sandbox-smoke
 php artisan bank:reconcile --from=2026-07-01 --to=2026-07-24

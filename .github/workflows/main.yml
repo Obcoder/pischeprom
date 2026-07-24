@@ -51,6 +51,7 @@ jobs:
           vendor/bin/pint --test \
             app/Console/Commands/BankReconcileCommand.php \
             app/Console/Commands/BankSberHealthCommand.php \
+            app/Console/Commands/BankSberImportSandboxTokensCommand.php \
             app/Console/Commands/BankSberSyncCommand.php \
             app/Domain/Banking \
             app/Http/Controllers/Banking \
