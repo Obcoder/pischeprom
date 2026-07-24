@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
+import GoodStockPanel from '@/Components/Warehouses/GoodStockPanel.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { logo } from '@/Pages/Helpers/consts.js'
 
@@ -525,6 +526,11 @@ onMounted(() => loadAll())
                     </div>
                 </section>
             </main>
+
+            <GoodStockPanel
+                :warehouses="warehouses"
+                :measures="measures"
+            />
         </div>
     </v-container>
 </template>

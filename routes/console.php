@@ -1,18 +1,18 @@
 <?php
 
+use App\Jobs\SyncYandexMailboxJob;
+use App\Models\GoodStockAlert;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
-use Spatie\Sitemap\SitemapGenerator;
-use App\Jobs\SyncYandexMailboxJob;
 use Illuminate\Support\Facades\Schedule;
+use Spatie\Sitemap\SitemapGenerator;
 
-//Artisan::command('sitemap:generate', function () {
+// Artisan::command('sitemap:generate', function () {
 //    SitemapGenerator::create('https://пищепром-сервер.рф')
 //        ->writeToFile(public_path('sitemap.xml'));
 //
 //    $this->info('Sitemap generated successfully!');
-//});
-
+// });
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -21,6 +21,19 @@ Artisan::command('inspire', function () {
 Schedule::job(new SyncYandexMailboxJob(50), 'mail-sync')
     ->name('sync-yandex-mailbox')
     ->everyMinute()
+    ->withoutOverlapping(10);
+
+Schedule::call(function (): void {
+    GoodStockAlert::query()
+        ->where('status', GoodStockAlert::STATUS_PENDING)
+        ->whereNotNull('expires_at')
+        ->where('expires_at', '<', now())
+        ->update([
+            'status' => GoodStockAlert::STATUS_EXPIRED,
+        ]);
+})
+    ->name('expire-pending-good-stock-alerts')
+    ->hourly()
     ->withoutOverlapping(10);
 
 Schedule::command('beeline:sync-calls --period=today --limit=500')

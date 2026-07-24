@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WarehouseResource;
+use App\Jobs\EvaluateGoodStockAvailabilityJob;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -44,7 +45,15 @@ class WarehouseController extends Controller
 
     public function destroy(Warehouse $warehouse)
     {
+        $goodIds = $warehouse->goodStockMovements()
+            ->distinct()
+            ->pluck('good_id');
+
         $warehouse->delete();
+
+        $goodIds->each(
+            fn (int $goodId) => EvaluateGoodStockAvailabilityJob::dispatch($goodId)
+        );
 
         return response()->json(null, 204);
     }

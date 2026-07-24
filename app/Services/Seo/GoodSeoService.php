@@ -3,10 +3,15 @@
 namespace App\Services\Seo;
 
 use App\Models\Good;
+use App\Services\Goods\GoodStockService;
 use Illuminate\Support\Str;
 
 class GoodSeoService
 {
+    public function __construct(
+        private readonly GoodStockService $stock,
+    ) {}
+
     public function publicUrl(Good $good): string
     {
         return route('public.goods.show', [
@@ -41,11 +46,11 @@ class GoodSeoService
 
     public function robots(Good $good): string
     {
-        if (!$good->is_published) {
+        if (! $good->is_published) {
             return 'noindex,nofollow';
         }
 
-        if ($good->seo && !$good->seo->is_active) {
+        if ($good->seo && ! $good->seo->is_active) {
             return 'noindex,follow';
         }
 
@@ -115,7 +120,7 @@ class GoodSeoService
 
     public function availability(Good $good): string
     {
-        return $good->seo?->availability_status ?: 'on_request';
+        return $this->stock->availabilityStatus($good);
     }
 
     public function schemaAvailability(Good $good): string

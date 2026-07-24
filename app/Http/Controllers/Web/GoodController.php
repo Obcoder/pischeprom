@@ -125,7 +125,7 @@ class GoodController extends Controller
         $requestedSlug = trim($good);
 
         $good = Good::query()
-            ->with('seo')
+            ->with(['seo', 'stockAvailability'])
             ->where(function ($query) use ($requestedSlug) {
                 $query
                     ->where('slug', $requestedSlug)
@@ -148,61 +148,69 @@ class GoodController extends Controller
         }
 
         $good->load([
-                        'products.category',
-                        'country:id,name,flag',
-                        'vatRate:id,title,rate',
-                        'seo',
-                        'publishedMedia' => function ($query) {
-                            $query
-                                ->where('is_published', true)
-                                ->orderByDesc('is_ava')
-                                ->orderBy('sort_order')
-                                ->orderBy('id');
-                        },
+            'products.category',
+            'country:id,name,flag',
+            'vatRate:id,title,rate',
+            'seo',
+            'stockAvailability',
+            'publishedMedia' => function ($query) {
+                $query
+                    ->where('is_published', true)
+                    ->orderByDesc('is_ava')
+                    ->orderBy('sort_order')
+                    ->orderBy('id');
+            },
 
-                        'priceTypeValues' => function ($query) {
-                            $query
-                                ->where('is_published', true)
-                                ->with([
-                                           'priceType.currency',
-                                           'currency',
-                                       ])
-                                ->orderByDesc('updated_at');
-                        },
-                    ]);
+            'priceTypeValues' => function ($query) {
+                $query
+                    ->where('is_published', true)
+                    ->with([
+                        'priceType.currency',
+                        'currency',
+                    ])
+                    ->orderByDesc('updated_at');
+            },
+        ]);
 
         $relatedGoods = Good::query()
             ->where('id', '!=', $good->id)
             ->where('is_published', true)
             ->with([
-                       'seo',
-                       'country:id,name,flag',
-                       'priceTypeValues.priceType.currency',
-                       'priceTypeValues.currency',
-                       'publishedMedia' => function ($query) {
-                           $query
-                               ->where('type', 'image')
-                               ->where('is_published', true)
-                               ->orderByDesc('is_ava')
-                               ->orderBy('sort_order')
-                               ->orderBy('id');
-                       },
-                   ])
+                'seo',
+                'country:id,name,flag',
+                'priceTypeValues.priceType.currency',
+                'priceTypeValues.currency',
+                'publishedMedia' => function ($query) {
+                    $query
+                        ->where('type', 'image')
+                        ->where('is_published', true)
+                        ->orderByDesc('is_ava')
+                        ->orderBy('sort_order')
+                        ->orderBy('id');
+                },
+            ])
             ->inRandomOrder()
             ->limit(8)
             ->get([
-                      'id',
-                      'country_id',
-                      'name',
-                      'slug',
-                      'ava_thumb',
-                      'ava_image',
-                      'description',
-                  ]);
+                'id',
+                'country_id',
+                'name',
+                'slug',
+                'ava_thumb',
+                'ava_image',
+                'description',
+            ]);
+
+        $availability = $seoService->availability($good);
 
         return Inertia::render('Goods/Show', [
             'good' => $good,
             'relatedGoods' => $relatedGoods,
+            'availability' => [
+                'status' => $availability,
+                'is_in_stock' => $availability === 'in_stock',
+                'can_subscribe' => $availability === 'out_of_stock',
+            ],
 
             'seo' => [
                 'title' => $seoService->title($good),

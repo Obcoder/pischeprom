@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -115,6 +116,55 @@ class MaxMessengerService
     public function getSubscriptions(): array
     {
         return $this->request('get', '/subscriptions');
+    }
+
+    public function answerCallback(string $callbackId, ?string $notification = null): array
+    {
+        if (trim($callbackId) === '') {
+            return $this->failure('Не указан MAX callback_id.');
+        }
+
+        return $this->request('post', '/answers', [
+            'callback_id' => $callbackId,
+        ], array_filter([
+            'notification' => $notification,
+        ], fn ($value) => filled($value)));
+    }
+
+    public function botDeepLink(string $payload): ?string
+    {
+        $payload = trim($payload);
+
+        if ($payload === '' || strlen($payload) > 128) {
+            return null;
+        }
+
+        $url = $this->botUrl();
+
+        if (! $url) {
+            return null;
+        }
+
+        $encodedPayload = rawurlencode($payload);
+        $urlWithPayload = preg_replace(
+            '/([?&])start=[^&#]*/',
+            '$1start='.$encodedPayload,
+            $url,
+            1,
+            $replacementCount,
+        );
+
+        if ($replacementCount > 0) {
+            return $urlWithPayload;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        if (str_ends_with($url, '?') || str_ends_with($url, '&')) {
+            $separator = '';
+        }
+
+        return $url.$separator.'start='.$encodedPayload;
     }
 
     private function request(string $method, string $path, array $query = [], array $payload = []): array
@@ -235,5 +285,45 @@ class MaxMessengerService
         }
 
         return $message;
+    }
+
+    private function botUrl(): ?string
+    {
+        $configuredUrl = trim((string) config('services.max.bot_url'));
+
+        if ($configuredUrl !== '') {
+            return $configuredUrl;
+        }
+
+        $username = trim((string) config('services.max.bot_username'));
+
+        if ($username === '') {
+            $username = (string) Cache::remember(
+                'max.bot_username',
+                now()->addHours(6),
+                function (): ?string {
+                    if (! $this->configured()) {
+                        return null;
+                    }
+
+                    $result = $this->getMe();
+                    $remoteUsername = $result['ok']
+                        ? data_get($result['data'], 'username')
+                        : null;
+
+                    return filled($remoteUsername) ? (string) $remoteUsername : null;
+                }
+            );
+        }
+
+        if ($username === '') {
+            return null;
+        }
+
+        if (str_starts_with($username, 'http://') || str_starts_with($username, 'https://')) {
+            return $username;
+        }
+
+        return 'https://max.ru/'.ltrim($username, '@');
     }
 }

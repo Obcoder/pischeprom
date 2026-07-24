@@ -93,9 +93,9 @@ return [
         ],
 
         'folders' => array_values(array_filter(array_map(
-                                                   'trim',
-                                                   explode(',', env('MAILBOX_1_IMAP_FOLDERS', env('YANDEX_IMAP_FOLDERS', 'INBOX,Sent')))
-                                               ))),
+            'trim',
+            explode(',', env('MAILBOX_1_IMAP_FOLDERS', env('YANDEX_IMAP_FOLDERS', 'INBOX,Sent')))
+        ))),
 
         'mailboxes' => [
             [
@@ -200,7 +200,7 @@ return [
         ))),
         'webhook_update_types' => array_values(array_filter(array_map(
             'trim',
-            explode(',', env('MAX_WEBHOOK_UPDATE_TYPES', 'bot_started,message_created,message_removed,message_edited,bot_added,bot_removed,user_added,user_removed,chat_title_changed,message_callback'))
+            explode(',', env('MAX_WEBHOOK_UPDATE_TYPES', 'bot_started,bot_stopped,dialog_removed,message_created,message_removed,message_edited,bot_added,bot_removed,user_added,user_removed,chat_title_changed,message_callback'))
         ))),
     ],
 

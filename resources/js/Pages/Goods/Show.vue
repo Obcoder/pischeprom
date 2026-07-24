@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch, onMounted } from "vue"
 import { Head, Link } from "@inertiajs/vue3"
+import axios from "axios"
 
 import LayoutDefault from "@/Layouts/LayoutDefault.vue"
 import { useYandexMetrica } from "@/Composables/useYandexMetrica"
@@ -33,6 +34,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    availability: {
+        type: Object,
+        default: () => ({}),
+    },
 })
 
 const metricaCounterId = import.meta.env.VITE_YANDEX_METRICA_COUNTER_ID;
@@ -47,6 +52,20 @@ const {
 } = usePhoneCallRegistration();
 
 const activeImageId = ref(null);
+const subscribingToStock = ref(false);
+const stockAlertError = ref("");
+
+const availabilityStatus = computed(() => {
+    return props.availability?.status
+        || props.good.seo?.availability_status
+        || "on_request";
+});
+
+const isInStock = computed(() => availabilityStatus.value === "in_stock");
+const canSubscribeToStock = computed(() => {
+    return props.availability?.can_subscribe
+        ?? availabilityStatus.value === "out_of_stock";
+});
 
 const mediaItems = computed(() => {
     return (props.good.published_media || [])
@@ -344,6 +363,35 @@ function clickEmail() {
     });
 }
 
+async function subscribeToStock() {
+    stockAlertError.value = "";
+    subscribingToStock.value = true;
+
+    reachGoal("max_stock_alert_click", {
+        good_id: props.good.id,
+        good_name: props.good.name,
+    });
+
+    try {
+        const response = await axios.post(
+            route("public.good-stock-alerts.store", { good: props.good.id })
+        );
+        const deepLink = response?.data?.deep_link;
+
+        if (!deepLink) {
+            throw new Error("MAX-ссылка не получена.");
+        }
+
+        window.location.assign(deepLink);
+    } catch (error) {
+        stockAlertError.value = error?.response?.data?.message
+            || error?.message
+            || "Не удалось оформить оповещение. Попробуйте ещё раз.";
+    } finally {
+        subscribingToStock.value = false;
+    }
+}
+
 /*
 |--------------------------------------------------------------------------
 | Mounted
@@ -592,6 +640,51 @@ onMounted(() => {
                 <h1 class="text-h3 font-weight-bold mb-4">
                     {{ pageH1 }}
                 </h1>
+
+                <v-alert
+                    v-if="canSubscribeToStock"
+                    type="warning"
+                    variant="tonal"
+                    rounded="xl"
+                    class="stock-alert mb-5"
+                >
+                    <div class="font-weight-bold">
+                        Сейчас товара нет в наличии
+                    </div>
+
+                    <div class="text-body-2 mt-1">
+                        Подпишитесь, и мы один раз сообщим в MAX сразу после поступления на склад.
+                    </div>
+
+                    <v-btn
+                        color="warning"
+                        variant="flat"
+                        rounded="xl"
+                        class="mt-3"
+                        :loading="subscribingToStock"
+                        prepend-icon="mdi-bell-outline"
+                        @click="subscribeToStock"
+                    >
+                        Сообщить о поступлении в MAX
+                    </v-btn>
+
+                    <div
+                        v-if="stockAlertError"
+                        class="stock-alert__error mt-2"
+                    >
+                        {{ stockAlertError }}
+                    </div>
+                </v-alert>
+
+                <v-chip
+                    v-else-if="isInStock"
+                    color="success"
+                    variant="tonal"
+                    prepend-icon="mdi-check-circle-outline"
+                    class="mb-5"
+                >
+                    В наличии
+                </v-chip>
 
                 <section
                     v-if="publicPrices.length"
@@ -896,6 +989,12 @@ onMounted(() => {
 
 .price-card {
     border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.stock-alert__error {
+    color: rgb(var(--v-theme-error));
+    font-size: 0.82rem;
+    font-weight: 700;
 }
 
 .related-card {

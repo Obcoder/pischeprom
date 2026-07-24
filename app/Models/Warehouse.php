@@ -30,6 +30,11 @@ class Warehouse extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function goodStockMovements(): HasMany
+    {
+        return $this->hasMany(GoodStockMovement::class);
+    }
+
     public function checkCommodities(): HasMany
     {
         return $this->hasMany(CheckCommodity::class);

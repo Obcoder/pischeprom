@@ -6,14 +6,25 @@ use App\Http\Controllers\Controller;
 use App\Models\MaxChat;
 use App\Models\MaxMessage;
 use App\Models\MaxWebhookEvent;
+use App\Services\Goods\GoodStockAlertManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MaxWebhookController extends Controller
 {
+    public function __construct(
+        private readonly GoodStockAlertManager $stockAlerts,
+    ) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         $secret = trim((string) config('services.max.webhook_secret'));
+
+        if ($secret === '' && app()->environment('production')) {
+            return response()->json([
+                'message' => 'MAX webhook secret is not configured.',
+            ], 503);
+        }
 
         if ($secret !== '' && ! hash_equals($secret, (string) $request->header('X-Max-Bot-Api-Secret'))) {
             return response()->json([
@@ -70,6 +81,9 @@ class MaxWebhookController extends Controller
             'message.chat_id',
             'message.chat.id',
             'message.recipient.chat_id',
+            'callback.message.chat_id',
+            'callback.message.recipient.chat_id',
+            'callback.chat_id',
         ]);
         $userId = $this->firstFilled($payload, [
             'user_id',
@@ -78,6 +92,10 @@ class MaxWebhookController extends Controller
             'sender.user_id',
             'message.sender.user_id',
             'message.sender.id',
+            'callback.user.user_id',
+            'callback.user.id',
+            'callback.message.sender.user_id',
+            'callback.message.sender.id',
         ]);
         $phone = $this->extractPhone($payload);
         $title = $this->firstFilled($payload, [
@@ -110,11 +128,24 @@ class MaxWebhookController extends Controller
             'processed_at' => now(),
         ]);
 
-        $chat = $this->upsertChat($phone, $chatId, $userId, $title, $payload);
+        $chat = $this->upsertChat(
+            $phone,
+            $chatId,
+            $userId,
+            $title,
+            $payload,
+            $updateType ? (string) $updateType : null,
+        );
 
         if ($chat && $text !== null) {
             $this->storeIncomingMessage($chat, $messageId, $text, $payload);
         }
+
+        $this->stockAlerts->handleMaxUpdate(
+            $updateType ? (string) $updateType : null,
+            $payload,
+            $chat,
+        );
     }
 
     private function upsertChat(
@@ -122,7 +153,8 @@ class MaxWebhookController extends Controller
         mixed $chatId,
         mixed $userId,
         mixed $title,
-        array $payload
+        array $payload,
+        ?string $updateType,
     ): ?MaxChat {
         $chat = null;
 
@@ -145,7 +177,7 @@ class MaxWebhookController extends Controller
             'user_id' => filled($userId) ? (string) $userId : null,
             'title' => filled($title) ? (string) $title : null,
             'source_type' => 'webhook',
-            'is_active' => true,
+            'is_active' => ! in_array($updateType, ['bot_stopped', 'dialog_removed'], true),
             'last_payload' => $payload,
         ];
 
