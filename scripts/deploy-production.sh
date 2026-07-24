@@ -21,7 +21,7 @@ frontend_archive="$3"
 
 [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]] || fail 'Commit SHA is invalid.'
 
-for required_command in awk base64 composer find flock git grep id php realpath sha256sum sudo systemctl tar; do
+for required_command in awk base64 composer find flock git grep id php realpath sha256sum stat sudo systemctl tar; do
     command -v "$required_command" >/dev/null \
         || fail "Required server command is unavailable: ${required_command}."
 done
@@ -35,6 +35,15 @@ target_dir="$(printf '%s' "$target_dir_encoded" | base64 --decode)" \
 
 target_dir="$(realpath -- "$target_dir")"
 [[ "$target_dir" != "/" ]] || fail 'Resolved TARGET_DIR must not be the filesystem root.'
+
+application_owner="$(stat -c '%U' "$target_dir")"
+runtime_group='www-data'
+[[ -n "$application_owner" && "$application_owner" != "UNKNOWN" && "$application_owner" != "root" ]] \
+    || fail 'TARGET_DIR must be owned by a non-root application user.'
+id "$application_owner" >/dev/null \
+    || fail 'TARGET_DIR application owner does not exist.'
+id "$runtime_group" >/dev/null \
+    || fail 'Runtime group does not exist.'
 
 [[ -f "$frontend_archive" ]] || fail 'Frontend archive is missing.'
 [[ -f "${frontend_archive}.sha256" ]] || fail 'Frontend checksum is missing.'
@@ -228,7 +237,7 @@ php artisan route:cache
 php artisan view:cache
 php artisan bank:sber:health --if-enabled
 
-sudo chown -R "$(id -un):www-data" storage bootstrap/cache
+sudo chown -R "${application_owner}:${runtime_group}" "$target_dir"
 sudo find storage bootstrap/cache -type d -exec chmod 2770 {} +
 sudo find storage bootstrap/cache -type f -exec chmod 0660 {} +
 
