@@ -669,19 +669,16 @@ onMounted(fetchWorkingLeads)
                     <span>КП</span>
                 </Link>
             </v-app-bar-title>
-            <v-app-bar-title>
+            <template v-slot:append>
                 <Link
                     :href="bankUrl()"
-                    class="ameise-bank-link"
+                    class="ameise-header-icon ameise-bank-icon"
                     title="Банк"
                     aria-label="Банк"
                 >
-                    <v-icon icon="mdi-bank-outline" size="small" class="mx-1" />
-                    <span>Банк</span>
+                    <v-icon icon="mdi-bank-outline" size="21" />
                 </Link>
-            </v-app-bar-title>
 
-            <template v-slot:append>
                 <a
                     href="https://пищепром-сервер.рф/"
                     target="_blank"
@@ -1239,6 +1236,16 @@ onMounted(fetchWorkingLeads)
 .ameise-header-icon:hover {
     background: rgba(143, 17, 17, 0.74);
     transform: translateY(-1px);
+}
+
+.ameise-bank-icon {
+    border-color: rgba(147, 197, 253, 0.7);
+    background: rgba(30, 64, 175, 0.68);
+    color: #eff6ff;
+}
+
+.ameise-bank-icon:hover {
+    background: rgba(29, 78, 216, 0.92);
 }
 
 .lead-info-drawer {
