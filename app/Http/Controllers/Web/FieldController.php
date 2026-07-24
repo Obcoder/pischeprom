@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Field;
+use App\Services\Goods\GoodStockService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,8 +12,11 @@ use Inertia\Response;
 
 class FieldController extends Controller
 {
-    public function show(Request $request, string $field): Response|RedirectResponse
-    {
+    public function show(
+        Request $request,
+        string $field,
+        GoodStockService $stock,
+    ): Response|RedirectResponse {
         $search = trim((string) $request->query('search', ''));
         $canSeePartnerPrices = $request->user() !== null;
 
@@ -34,6 +38,17 @@ class FieldController extends Controller
         }
 
         $goods = $fieldModel->goods()
+            ->select([
+                'goods.id',
+                'goods.name',
+                'goods.slug',
+                'goods.ava_image',
+                'goods.ava_thumb',
+                'goods.denominator',
+                'goods.country_id',
+                'goods.description',
+                'goods.created_at',
+            ])
             ->where('goods.is_published', true)
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($searchQuery) use ($search): void {
@@ -49,6 +64,8 @@ class FieldController extends Controller
                 });
             })
             ->with([
+                'seo',
+                'stockAvailability',
                 'products.category',
                 'country:id,name,flag',
                 'priceTypeValues' => function ($query) use ($canSeePartnerPrices): void {
@@ -98,19 +115,12 @@ class FieldController extends Controller
                         ->orderBy('id');
                 },
             ])
+            ->withExists('stockMovements')
             ->orderBy('goods.name')
             ->limit(96)
-            ->get([
-                'goods.id',
-                'goods.name',
-                'goods.slug',
-                'goods.ava_image',
-                'goods.ava_thumb',
-                'goods.denominator',
-                'goods.country_id',
-                'goods.description',
-                'goods.created_at',
-            ]);
+            ->get();
+
+        $stock->appendAvailability($goods);
 
         return Inertia::render('Goods', [
             'goods' => $goods,

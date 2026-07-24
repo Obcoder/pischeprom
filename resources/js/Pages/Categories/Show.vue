@@ -3,10 +3,12 @@ import { computed, ref } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import { useHead } from '@vueuse/head'
 
+import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
 import { usePhoneCallRegistration } from '@/Composables/usePhoneCallRegistration'
+import { canSubscribeToGoodStock } from '@/Pages/Helpers/goodAvailability'
 
 const { route } = useAppRoute()
 const { goodPublicUrl } = usePublicGoodUrl()
@@ -165,6 +167,10 @@ function priceText(good) {
 
 function productTitle(product) {
     return product.rus || product.name || `Product #${product.id}`
+}
+
+function canSubscribeToStock(good) {
+    return canSubscribeToGoodStock(good)
 }
 
 function requestCategoryPrice() {
@@ -339,8 +345,11 @@ function clickCategoryPhone() {
                         sm="6"
                         lg="4"
                     >
-                        <Link :href="goodPublicUrl(good, false)" class="text-decoration-none">
-                            <v-card rounded="xl" elevation="1" class="category-good-card h-100">
+                        <v-card rounded="xl" elevation="1" class="category-good-card h-100">
+                            <Link
+                                :href="goodPublicUrl(good, false)"
+                                class="category-good-card__link text-decoration-none"
+                            >
                                 <v-img
                                     v-if="goodImage(good)"
                                     :src="goodImage(good)"
@@ -367,8 +376,17 @@ function clickCategoryPhone() {
                                         <v-icon icon="mdi-arrow-right" size="18" />
                                     </div>
                                 </v-card-text>
-                            </v-card>
-                        </Link>
+                            </Link>
+
+                            <v-card-actions v-if="canSubscribeToStock(good)" class="px-4 pb-4 pt-0">
+                                <GoodStockAlertButton
+                                    :good="good"
+                                    label="Оповестить в MAX"
+                                    block
+                                    compact
+                                />
+                            </v-card-actions>
+                        </v-card>
                     </v-col>
                 </v-row>
 
@@ -619,6 +637,10 @@ function clickCategoryPhone() {
 .related-category-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 18px 42px rgba(47, 24, 15, 0.14);
+}
+
+.category-good-card__link {
+    display: block;
 }
 
 .category-good-card__empty {

@@ -7,6 +7,7 @@ use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Models\Good;
+use App\Services\Goods\GoodStockService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,16 +18,16 @@ class CategoryController extends Controller
     public function index(Request $request): Response
     {
         $validated = $request->validate([
-                                            'search' => ['nullable', 'string'],
-                                            'sortBy' => ['nullable', 'string', 'in:id,name'],
-                                            'sortDesc' => ['nullable', 'boolean'],
-                                            'page' => ['nullable', 'integer', 'min:1'],
-                                            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-                                        ]);
+            'search' => ['nullable', 'string'],
+            'sortBy' => ['nullable', 'string', 'in:id,name'],
+            'sortDesc' => ['nullable', 'boolean'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
 
         $perPage = $validated['per_page'] ?? 15;
         $sortBy = $validated['sortBy'] ?? 'name';
-        $sortDirection = !empty($validated['sortDesc']) ? 'desc' : 'asc';
+        $sortDirection = ! empty($validated['sortDesc']) ? 'desc' : 'asc';
 
         $categories = Category::query()
             ->withCount('products')
@@ -39,7 +40,7 @@ class CategoryController extends Controller
             'filters' => [
                 'search' => $validated['search'] ?? '',
                 'sortBy' => $sortBy,
-                'sortDesc' => !empty($validated['sortDesc']),
+                'sortDesc' => ! empty($validated['sortDesc']),
                 'per_page' => $perPage,
             ],
             'categories' => CategoryResource::collection($categories),
@@ -60,8 +61,10 @@ class CategoryController extends Controller
             ->with('success', 'Категория успешно создана');
     }
 
-    public function show(string $category): Response|RedirectResponse
-    {
+    public function show(
+        string $category,
+        GoodStockService $stock,
+    ): Response|RedirectResponse {
         $category = Category::query()
             ->where('slug', $category)
             ->orWhere(function ($query) use ($category): void {
@@ -71,7 +74,7 @@ class CategoryController extends Controller
             })
             ->firstOrFail();
 
-        if (!$category->is_published) {
+        if (! $category->is_published) {
             abort(404);
         }
 
@@ -90,10 +93,19 @@ class CategoryController extends Controller
             ->loadCount(['products', 'goods']);
 
         $goods = Good::query()
+            ->select([
+                'goods.id',
+                'goods.name',
+                'goods.slug',
+                'goods.ava_image',
+                'goods.ava_thumb',
+                'goods.description',
+            ])
             ->where('goods.is_published', true)
             ->whereHas('products', fn ($query) => $query->where('products.category_id', $category->id))
             ->with([
                 'seo',
+                'stockAvailability',
                 'priceTypeValues.priceType.currency',
                 'priceTypeValues.currency',
                 'products:id,rus,category_id',
@@ -106,15 +118,11 @@ class CategoryController extends Controller
                         ->orderBy('id');
                 },
             ])
+            ->withExists('stockMovements')
             ->orderBy('goods.name')
-            ->get([
-                'goods.id',
-                'goods.name',
-                'goods.slug',
-                'goods.ava_image',
-                'goods.ava_thumb',
-                'goods.description',
-            ]);
+            ->get();
+
+        $stock->appendAvailability($goods);
 
         $relatedCategories = Category::query()
             ->published()

@@ -4,6 +4,8 @@ import { Link } from "@inertiajs/vue3";
 import { useHead } from "@vueuse/head";
 import { computed } from "vue";
 import { route } from "ziggy-js";
+import GoodStockAlertButton from "@/Components/Goods/GoodStockAlertButton.vue";
+import { canSubscribeToGoodStock } from "@/Pages/Helpers/goodAvailability";
 
 defineOptions({
     layout: LayoutDefault,
@@ -38,6 +40,10 @@ function goodImage(item) {
     const mediaImage = (item.published_media || []).find((media) => media.type === "image");
 
     return mediaImage?.thumb_url || mediaImage?.url || item.ava_thumb || item.ava_image || null;
+}
+
+function canSubscribeToStock(good) {
+    return canSubscribeToGoodStock(good);
 }
 </script>
 
@@ -75,13 +81,13 @@ function goodImage(item) {
                 sm="6"
                 md="3"
             >
-                <Link
-                    :href="route('public.goods.show', { good: good.slug })"
-                    class="text-decoration-none"
+                <v-card
+                    rounded="xl"
+                    class="h-100 product-good-card"
                 >
-                    <v-card
-                        rounded="xl"
-                        class="h-100 product-good-card"
+                    <Link
+                        :href="route('public.goods.show', { good: good.slug })"
+                        class="product-good-card__link text-decoration-none"
                     >
                         <v-img
                             v-if="goodImage(good)"
@@ -112,8 +118,20 @@ function goodImage(item) {
                                 {{ good.description }}
                             </div>
                         </v-card-text>
-                    </v-card>
-                </Link>
+                    </Link>
+
+                    <v-card-actions
+                        v-if="canSubscribeToStock(good)"
+                        class="px-4 pb-4 pt-0"
+                    >
+                        <GoodStockAlertButton
+                            :good="good"
+                            label="Оповестить в MAX"
+                            block
+                            compact
+                        />
+                    </v-card-actions>
+                </v-card>
             </v-col>
         </v-row>
 
@@ -148,6 +166,10 @@ function goodImage(item) {
 
 .product-good-card:hover {
     transform: translateY(-2px);
+}
+
+.product-good-card__link {
+    display: block;
 }
 
 .product-good-empty {

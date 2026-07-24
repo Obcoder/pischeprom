@@ -33,7 +33,7 @@ class GoodStockAlertManager
         }
 
         if (
-            $this->stock->availabilityStatus($good) !== 'out_of_stock'
+            ! $this->stock->canSubscribe($good)
             || $this->stock->isInStock($good)
         ) {
             throw new RuntimeException('Товар уже есть в наличии.');

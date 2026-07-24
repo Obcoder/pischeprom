@@ -1,13 +1,17 @@
 <script setup>
 import { computed, ref, watch, onMounted } from "vue"
 import { Head, Link } from "@inertiajs/vue3"
-import axios from "axios"
 
+import GoodStockAlertButton from "@/Components/Goods/GoodStockAlertButton.vue"
 import LayoutDefault from "@/Layouts/LayoutDefault.vue"
 import { useYandexMetrica } from "@/Composables/useYandexMetrica"
 import { usePublicGoodUrl } from "@/Composables/usePublicGoodUrl"
 import { useAppRoute } from "@/Composables/useAppRoute"
 import { usePhoneCallRegistration } from "@/Composables/usePhoneCallRegistration"
+import {
+    canSubscribeToGoodStock,
+    goodAvailabilityStatus,
+} from "@/Pages/Helpers/goodAvailability"
 
 const {
     route,
@@ -52,19 +56,14 @@ const {
 } = usePhoneCallRegistration();
 
 const activeImageId = ref(null);
-const subscribingToStock = ref(false);
-const stockAlertError = ref("");
 
 const availabilityStatus = computed(() => {
-    return props.availability?.status
-        || props.good.seo?.availability_status
-        || "on_request";
+    return goodAvailabilityStatus(props.good, props.availability);
 });
 
 const isInStock = computed(() => availabilityStatus.value === "in_stock");
 const canSubscribeToStock = computed(() => {
-    return props.availability?.can_subscribe
-        ?? availabilityStatus.value === "out_of_stock";
+    return canSubscribeToGoodStock(props.good, props.availability);
 });
 
 const mediaItems = computed(() => {
@@ -363,35 +362,6 @@ function clickEmail() {
     });
 }
 
-async function subscribeToStock() {
-    stockAlertError.value = "";
-    subscribingToStock.value = true;
-
-    reachGoal("max_stock_alert_click", {
-        good_id: props.good.id,
-        good_name: props.good.name,
-    });
-
-    try {
-        const response = await axios.post(
-            route("public.good-stock-alerts.store", { good: props.good.id })
-        );
-        const deepLink = response?.data?.deep_link;
-
-        if (!deepLink) {
-            throw new Error("MAX-ссылка не получена.");
-        }
-
-        window.location.assign(deepLink);
-    } catch (error) {
-        stockAlertError.value = error?.response?.data?.message
-            || error?.message
-            || "Не удалось оформить оповещение. Попробуйте ещё раз.";
-    } finally {
-        subscribingToStock.value = false;
-    }
-}
-
 /*
 |--------------------------------------------------------------------------
 | Mounted
@@ -656,24 +626,12 @@ onMounted(() => {
                         Подпишитесь, и мы один раз сообщим в MAX сразу после поступления на склад.
                     </div>
 
-                    <v-btn
-                        color="warning"
-                        variant="flat"
-                        rounded="xl"
+                    <GoodStockAlertButton
+                        :good="good"
+                        :availability="availability"
+                        label="Оповестить о поступлении в MAX"
                         class="mt-3"
-                        :loading="subscribingToStock"
-                        prepend-icon="mdi-bell-outline"
-                        @click="subscribeToStock"
-                    >
-                        Сообщить о поступлении в MAX
-                    </v-btn>
-
-                    <div
-                        v-if="stockAlertError"
-                        class="stock-alert__error mt-2"
-                    >
-                        {{ stockAlertError }}
-                    </div>
+                    />
                 </v-alert>
 
                 <v-chip
@@ -989,12 +947,6 @@ onMounted(() => {
 
 .price-card {
     border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-.stock-alert__error {
-    color: rgb(var(--v-theme-error));
-    font-size: 0.82rem;
-    font-weight: 700;
 }
 
 .related-card {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\Field;
 use App\Models\Good;
+use App\Services\Goods\GoodStockService;
 use App\Services\Seo\GoodSeoService;
 use App\Services\Seo\GoodStructuredDataService;
 use Illuminate\Http\RedirectResponse;
@@ -15,8 +16,10 @@ use Inertia\Response;
 
 class GoodController extends Controller
 {
-    public function index(Request $request): Response
-    {
+    public function index(
+        Request $request,
+        GoodStockService $stock,
+    ): Response {
         $search = trim((string) $request->query('search', ''));
         $countryId = $request->integer('country_id') ?: null;
         $country = $countryId
@@ -25,6 +28,17 @@ class GoodController extends Controller
         $canSeePartnerPrices = $request->user() !== null;
 
         $goods = Good::query()
+            ->select([
+                'goods.id',
+                'goods.country_id',
+                'goods.name',
+                'goods.slug',
+                'goods.ava_image',
+                'goods.ava_thumb',
+                'goods.denominator',
+                'goods.description',
+                'goods.created_at',
+            ])
             ->where('is_published', true)
             ->when($country, function ($query) use ($country): void {
                 $query->where('country_id', $country->id);
@@ -43,6 +57,8 @@ class GoodController extends Controller
                 });
             })
             ->with([
+                'seo',
+                'stockAvailability',
                 'products.category',
                 'country:id,name,flag',
                 'priceTypeValues' => function ($query) use ($canSeePartnerPrices): void {
@@ -92,19 +108,12 @@ class GoodController extends Controller
                         ->orderBy('id');
                 },
             ])
+            ->withExists('stockMovements')
             ->orderBy('name')
             ->limit(96)
-            ->get([
-                'id',
-                'country_id',
-                'name',
-                'slug',
-                'ava_image',
-                'ava_thumb',
-                'denominator',
-                'description',
-                'created_at',
-            ]);
+            ->get();
+
+        $stock->appendAvailability($goods);
 
         return Inertia::render('Goods', [
             'goods' => $goods,
@@ -121,6 +130,7 @@ class GoodController extends Controller
         string $good,
         GoodSeoService $seoService,
         GoodStructuredDataService $structuredDataService,
+        GoodStockService $stock,
     ): Response|RedirectResponse {
         $requestedSlug = trim($good);
 
@@ -201,16 +211,10 @@ class GoodController extends Controller
                 'description',
             ]);
 
-        $availability = $seoService->availability($good);
-
         return Inertia::render('Goods/Show', [
             'good' => $good,
             'relatedGoods' => $relatedGoods,
-            'availability' => [
-                'status' => $availability,
-                'is_in_stock' => $availability === 'in_stock',
-                'can_subscribe' => $availability === 'out_of_stock',
-            ],
+            'availability' => $stock->availabilityPayload($good),
 
             'seo' => [
                 'title' => $seoService->title($good),

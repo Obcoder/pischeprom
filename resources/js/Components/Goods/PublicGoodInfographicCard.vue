@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { logo } from '@/Pages/Helpers/consts.js'
+import { canSubscribeToGoodStock } from '@/Pages/Helpers/goodAvailability'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
 import { useOrderCart } from '@/Composables/useOrderCart'
+import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
 
 const props = defineProps({
     good: {
@@ -20,6 +22,7 @@ const { goodPublicUrl } = usePublicGoodUrl()
 const { addGood } = useOrderCart()
 
 const detailUrl = computed(() => goodPublicUrl(props.good))
+const canSubscribeToStock = computed(() => canSubscribeToGoodStock(props.good))
 
 const orderedImages = computed(() => {
     const media = props.good.published_media || props.good.publishedMedia || []
@@ -271,7 +274,16 @@ function orderGood() {
             </div>
 
             <div class="good-info-card__actions">
+                <GoodStockAlertButton
+                    v-if="canSubscribeToStock"
+                    :good="good"
+                    label="Оповестить в MAX"
+                    block
+                    compact
+                />
+
                 <button
+                    v-else
                     type="button"
                     class="good-info-card__order"
                     @click="orderGood"

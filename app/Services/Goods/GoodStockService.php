@@ -11,6 +11,11 @@ class GoodStockService
 {
     private const EPSILON = 0.000001;
 
+    private const SUBSCRIBABLE_STATUSES = [
+        'out_of_stock',
+        'on_request',
+    ];
+
     public function isInStock(Good|int $good): bool
     {
         $goodId = $good instanceof Good ? $good->getKey() : $good;
@@ -33,11 +38,57 @@ class GoodStockService
             return $state->is_in_stock ? 'in_stock' : 'out_of_stock';
         }
 
-        if ($good->stockMovements()->exists()) {
+        $hasStockMovements = array_key_exists(
+            'stock_movements_exists',
+            $good->getAttributes(),
+        )
+            ? (bool) $good->getAttribute('stock_movements_exists')
+            : $good->stockMovements()->exists();
+
+        if ($hasStockMovements) {
             return $this->isInStock($good) ? 'in_stock' : 'out_of_stock';
         }
 
         return $good->seo?->availability_status ?: 'on_request';
+    }
+
+    public function canSubscribe(Good $good): bool
+    {
+        return in_array(
+            $this->availabilityStatus($good),
+            self::SUBSCRIBABLE_STATUSES,
+            true,
+        );
+    }
+
+    public function availabilityPayload(Good $good): array
+    {
+        $status = $this->availabilityStatus($good);
+
+        return [
+            'status' => $status,
+            'is_in_stock' => $status === 'in_stock',
+            'can_subscribe' => in_array(
+                $status,
+                self::SUBSCRIBABLE_STATUSES,
+                true,
+            ),
+        ];
+    }
+
+    public function appendAvailability(iterable $goods): void
+    {
+        foreach ($goods as $good) {
+            if (! $good instanceof Good) {
+                continue;
+            }
+
+            $good->setAttribute(
+                'availability',
+                $this->availabilityPayload($good),
+            );
+            $good->makeHidden('stock_movements_exists');
+        }
     }
 
     public function ensureUnavailableState(Good $good): GoodStockAvailability

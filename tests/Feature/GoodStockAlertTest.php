@@ -37,6 +37,7 @@ class GoodStockAlertTest extends TestCase
         $this->createTestSchema();
 
         config()->set([
+            'app.url' => 'https://shop.test',
             'services.max.api_url' => 'https://platform-api2.max.ru',
             'services.max.access_token' => 'test-token',
             'services.max.bot_url' => null,
@@ -68,6 +69,56 @@ class GoodStockAlertTest extends TestCase
             'good_id' => $good->id,
             'is_in_stock' => false,
         ]);
+    }
+
+    public function test_customer_can_start_max_alert_for_an_on_request_good(): void
+    {
+        $good = $this->outOfStockGood();
+        $good->seo->update([
+            'availability_status' => 'on_request',
+        ]);
+        $good->load('seo');
+
+        $this->assertTrue(
+            app(GoodStockService::class)->availabilityPayload($good)['can_subscribe']
+        );
+
+        $this->postJson(route('public.good-stock-alerts.store', $good))
+            ->assertCreated()
+            ->assertJsonStructure(['deep_link', 'expires_at']);
+
+        $this->assertDatabaseHas('good_stock_alerts', [
+            'good_id' => $good->id,
+            'status' => GoodStockAlert::STATUS_PENDING,
+        ]);
+    }
+
+    public function test_public_goods_payload_exposes_the_stock_alert_state(): void
+    {
+        $good = $this->outOfStockGood();
+        $good->seo->update([
+            'availability_status' => 'on_request',
+        ]);
+
+        $goods = Good::query()
+            ->select([
+                'goods.id',
+                'goods.name',
+            ])
+            ->with([
+                'seo',
+                'stockAvailability',
+            ])
+            ->withExists('stockMovements')
+            ->get();
+
+        app(GoodStockService::class)->appendAvailability($goods);
+
+        $payload = $goods->firstOrFail()->toArray();
+
+        $this->assertSame('on_request', $payload['availability']['status']);
+        $this->assertTrue($payload['availability']['can_subscribe']);
+        $this->assertArrayNotHasKey('stock_movements_exists', $payload);
     }
 
     public function test_bot_started_webhook_activates_alert_and_sends_confirmation(): void
@@ -187,6 +238,55 @@ class GoodStockAlertTest extends TestCase
             );
 
         $this->assertDatabaseCount('good_stock_alerts', 0);
+    }
+
+    public function test_deploy_command_ensures_required_max_webhook_events(): void
+    {
+        Http::fake([
+            'https://platform-api2.max.ru/subscriptions' => Http::response([
+                'success' => true,
+            ]),
+        ]);
+
+        $this->artisan('max:webhook:ensure', [
+            '--url' => 'https://shop.test/api/max/webhook',
+        ])
+            ->expectsOutput('Required events: bot_started, message_callback')
+            ->assertSuccessful();
+
+        $this->assertDatabaseHas('max_subscriptions', [
+            'url' => 'https://shop.test/api/max/webhook',
+            'is_active' => true,
+        ]);
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://platform-api2.max.ru/subscriptions'
+                && in_array('bot_started', $request->data()['update_types'], true)
+                && in_array('message_callback', $request->data()['update_types'], true);
+        });
+    }
+
+    public function test_deploy_command_fails_when_max_rejects_the_webhook(): void
+    {
+        Http::fake([
+            'https://platform-api2.max.ru/subscriptions' => Http::response([
+                'success' => false,
+                'message' => 'Webhook is unavailable.',
+            ]),
+        ]);
+
+        $this->artisan('max:webhook:ensure', [
+            '--url' => 'https://shop.test/api/max/webhook',
+        ])
+            ->expectsOutput(
+                'MAX rejected the webhook subscription: Webhook is unavailable.'
+            )
+            ->assertFailed();
+
+        $this->assertDatabaseHas('max_subscriptions', [
+            'url' => 'https://shop.test/api/max/webhook',
+            'is_active' => false,
+        ]);
     }
 
     public function test_stock_transition_sends_only_one_max_notification(): void
@@ -428,6 +528,18 @@ class GoodStockAlertTest extends TestCase
             $table->string('user_id')->nullable();
             $table->json('payload');
             $table->timestamp('processed_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('max_subscriptions', function (Blueprint $table): void {
+            $table->id();
+            $table->string('url')->unique();
+            $table->string('secret')->nullable();
+            $table->json('update_types')->nullable();
+            $table->boolean('is_active')->default(false);
+            $table->json('provider_response')->nullable();
+            $table->timestamp('subscribed_at')->nullable();
+            $table->timestamp('unsubscribed_at')->nullable();
             $table->timestamps();
         });
 

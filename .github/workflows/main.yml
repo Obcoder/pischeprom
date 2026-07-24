@@ -64,10 +64,12 @@ jobs:
             php artisan migrate --force
 
             php artisan optimize:clear
+            php artisan route:list --path=stock-alerts
             php artisan route:list --path=Ameise/commercial-offers
             php artisan route:list --path=unisender-go
             php artisan route:list --path=unsubscribe
             php artisan list mailings
+            php artisan max:webhook:ensure
 
             if ! php artisan beeline:sync-calls --period=today --limit=500; then
               echo "::warning::Beeline call sync failed during deploy; deployment continues."
@@ -94,6 +96,7 @@ jobs:
 
             php artisan up
             php artisan app:deploy-smoke --path=/
+            php artisan app:deploy-smoke --path=/g
 
             trap - EXIT
           EOF

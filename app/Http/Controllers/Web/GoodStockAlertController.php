@@ -23,7 +23,7 @@ class GoodStockAlertController extends Controller
         $good->loadMissing(['seo', 'stockAvailability']);
 
         if (
-            $stock->availabilityStatus($good) !== 'out_of_stock'
+            ! $stock->canSubscribe($good)
             || $stock->isInStock($good)
         ) {
             return response()->json([

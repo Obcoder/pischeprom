@@ -212,10 +212,31 @@ class MaxMessengerService
                 ];
             }
 
+            $data = $response->json() ?? [];
+
+            if (data_get($data, 'success') === false) {
+                $error = data_get($data, 'message') ?: 'MAX API returned success=false.';
+
+                Log::warning('MAX API rejected a successful HTTP response.', [
+                    'method' => $method,
+                    'path' => $path,
+                    'status' => $response->status(),
+                    'response' => $data,
+                    'query' => $query,
+                ]);
+
+                return [
+                    'ok' => false,
+                    'status' => $response->status(),
+                    'data' => $data,
+                    'error' => $error,
+                ];
+            }
+
             return [
                 'ok' => true,
                 'status' => $response->status(),
-                'data' => $response->json() ?? [],
+                'data' => $data,
                 'error' => null,
             ];
         } catch (\Throwable $exception) {
