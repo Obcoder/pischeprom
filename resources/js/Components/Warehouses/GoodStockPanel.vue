@@ -143,7 +143,8 @@ function errorMessage(error, fallback) {
 }
 
 function defaultWarehouseId() {
-    return props.warehouses.find((warehouse) => warehouse.is_active)?.id
+    return props.warehouses.find((warehouse) => warehouse.code === 'goods')?.id
+        || props.warehouses.find((warehouse) => warehouse.is_active)?.id
         || props.warehouses[0]?.id
         || null
 }

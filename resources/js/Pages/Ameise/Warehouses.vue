@@ -60,10 +60,42 @@ const movementForm = reactive({
     note: '',
 })
 
+const goodsWarehouse = computed(
+    () => warehouses.value.find((warehouse) => warehouse.code === 'goods') || null
+)
+
+const commodityWarehouses = computed(
+    () => warehouses.value.filter((warehouse) => warehouse.code !== 'goods')
+)
+
+const goodsMovementWarehouses = computed(() => {
+    if (!goodsWarehouse.value) {
+        return commodityWarehouses.value
+    }
+
+    return [
+        goodsWarehouse.value,
+        ...commodityWarehouses.value,
+    ]
+})
+
+const commodityStockRows = computed(() => {
+    const warehouseIds = new Set(
+        commodityWarehouses.value.map((warehouse) => Number(warehouse.id))
+    )
+
+    return stockRows.value.filter(
+        (row) => warehouseIds.has(Number(row.warehouse_id))
+    )
+})
+
 const stats = computed(() => ({
-    warehouses: warehouses.value.length,
-    rows: stockRows.value.length,
-    value: stockRows.value.reduce((sum, row) => sum + numeric(row.stock_value), 0),
+    warehouses: commodityWarehouses.value.length,
+    rows: commodityStockRows.value.length,
+    value: commodityStockRows.value.reduce(
+        (sum, row) => sum + numeric(row.stock_value),
+        0
+    ),
 }))
 
 const activeWarehouse = computed(() => {
@@ -73,7 +105,9 @@ const activeWarehouse = computed(() => {
 
     const warehouseId = Number(String(activeTab.value).replace('warehouse-', ''))
 
-    return warehouses.value.find((warehouse) => Number(warehouse.id) === warehouseId) || null
+    return commodityWarehouses.value.find(
+        (warehouse) => Number(warehouse.id) === warehouseId
+    ) || null
 })
 
 function unpack(response) {
@@ -144,7 +178,9 @@ function commodityHref(item) {
 }
 
 function defaultWarehouseId() {
-    return warehouses.value.find((item) => item.is_active)?.id || warehouses.value[0]?.id || null
+    return commodityWarehouses.value.find((item) => item.is_active)?.id
+        || commodityWarehouses.value[0]?.id
+        || null
 }
 
 function warehouseTabValue(warehouse) {
@@ -185,7 +221,11 @@ async function loadAll() {
             commoditiesResponse,
             measuresResponse,
         ] = await Promise.all([
-            axios.get(route('warehouses.index')),
+            axios.get(route('warehouses.index'), {
+                params: {
+                    include_goods: true,
+                },
+            }),
             axios.get(route('warehouse-stock.index')),
             axios.get(route('stock-movements.index'), { params: { limit: 250 } }),
             axios.get(route('commodities.index'), {
@@ -210,7 +250,7 @@ async function loadAll() {
 
         if (
             activeTab.value !== 'goods'
-            && !warehouses.value.some(
+            && !commodityWarehouses.value.some(
                 (warehouse) => warehouseTabValue(warehouse) === activeTab.value
             )
         ) {
@@ -561,7 +601,7 @@ onMounted(loadAll)
                         <v-select
                             v-model="movementForm.warehouse_id"
                             class="movement-field--warehouse"
-                            :items="warehouses"
+                            :items="commodityWarehouses"
                             item-title="name"
                             item-value="id"
                             label="Склад"
@@ -680,7 +720,7 @@ onMounted(loadAll)
                     </v-tab>
 
                     <v-tab
-                        v-for="warehouse in warehouses"
+                        v-for="warehouse in commodityWarehouses"
                         :key="warehouse.id"
                         :value="warehouseTabValue(warehouse)"
                         class="warehouse-tab"
@@ -698,14 +738,14 @@ onMounted(loadAll)
                     <v-tabs-window-item value="goods">
                         <GoodStockPanel
                             ref="goodsPanel"
-                            :warehouses="warehouses"
+                            :warehouses="goodsMovementWarehouses"
                             :measures="measures"
                             @stats-change="handleGoodsStats"
                         />
                     </v-tabs-window-item>
 
                     <v-tabs-window-item
-                        v-for="warehouse in warehouses"
+                        v-for="warehouse in commodityWarehouses"
                         :key="warehouse.id"
                         :value="warehouseTabValue(warehouse)"
                     >

@@ -11,6 +11,8 @@ class Warehouse extends Model
 {
     use HasFactory;
 
+    public const GOODS_CODE = 'goods';
+
     protected $fillable = [
         'name',
         'code',

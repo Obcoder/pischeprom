@@ -14,6 +14,14 @@ class WarehouseController extends Controller
     public function index(Request $request)
     {
         $warehouses = Warehouse::query()
+            ->when(
+                ! $request->boolean('include_goods'),
+                fn ($query) => $query->where(function ($query) {
+                    $query
+                        ->whereNull('code')
+                        ->orWhere('code', '!=', Warehouse::GOODS_CODE);
+                })
+            )
             ->when($request->has('is_active'), function ($query) use ($request) {
                 $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
             })

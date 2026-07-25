@@ -370,7 +370,12 @@ class GoodStockAlertTest extends TestCase
     public function test_goods_stock_api_uses_a_separate_ledger_from_commodities(): void
     {
         $good = $this->outOfStockGood();
-        $warehouse = Warehouse::query()->firstOrFail();
+        $warehouse = Warehouse::query()->create([
+            'name' => 'Склад goods',
+            'code' => Warehouse::GOODS_CODE,
+            'is_active' => true,
+            'sort_order' => 0,
+        ]);
 
         $this->postJson(route('good-stock-movements.store'), [
             'warehouse_id' => $warehouse->id,
@@ -390,6 +395,31 @@ class GoodStockAlertTest extends TestCase
             'good_id' => $good->id,
             'availability_status' => 'in_stock',
         ]);
+    }
+
+    public function test_goods_warehouse_is_only_returned_when_explicitly_requested(): void
+    {
+        $warehouse = Warehouse::query()->create([
+            'name' => 'Склад goods',
+            'code' => Warehouse::GOODS_CODE,
+            'is_active' => true,
+            'sort_order' => 0,
+        ]);
+
+        $this->getJson(route('warehouses.index'))
+            ->assertOk()
+            ->assertJsonMissing([
+                'id' => $warehouse->id,
+                'code' => Warehouse::GOODS_CODE,
+            ]);
+
+        $this->getJson(route('warehouses.index', ['include_goods' => true]))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $warehouse->id,
+                'name' => 'Склад goods',
+                'code' => Warehouse::GOODS_CODE,
+            ]);
     }
 
     public function test_goods_stock_read_routes_do_not_require_separate_authentication(): void
