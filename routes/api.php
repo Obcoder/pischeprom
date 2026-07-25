@@ -500,17 +500,15 @@ Route::get('warehouse-stock', [StockMovementController::class, 'stock'])
 Route::apiResource('stock-movements', StockMovementController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->parameters(['stock-movements' => 'stockMovement']);
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('good-warehouse-stock', [GoodStockMovementController::class, 'stock'])
-        ->name('good-warehouse-stock.index');
-    Route::apiResource('good-stock-movements', GoodStockMovementController::class)
-        ->only(['index', 'store', 'update', 'destroy'])
-        ->parameters(['good-stock-movements' => 'goodStockMovement']);
-    Route::get('good-stock-alerts', [GoodStockAlertAdminController::class, 'index'])
-        ->name('good-stock-alerts.index');
-    Route::delete('good-stock-alerts/{goodStockAlert}', [GoodStockAlertAdminController::class, 'destroy'])
-        ->name('good-stock-alerts.destroy');
-});
+Route::get('good-warehouse-stock', [GoodStockMovementController::class, 'stock'])
+    ->name('good-warehouse-stock.index');
+Route::apiResource('good-stock-movements', GoodStockMovementController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->parameters(['good-stock-movements' => 'goodStockMovement']);
+Route::get('good-stock-alerts', [GoodStockAlertAdminController::class, 'index'])
+    ->name('good-stock-alerts.index');
+Route::delete('good-stock-alerts/{goodStockAlert}', [GoodStockAlertAdminController::class, 'destroy'])
+    ->name('good-stock-alerts.destroy');
 Route::apiResource('products', ProductController::class);
 Route::apiResource('purchases', PurchaseController::class);
 Route::apiResource('quotations', QuotationController::class);

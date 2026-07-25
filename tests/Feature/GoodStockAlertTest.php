@@ -10,7 +10,6 @@ use App\Models\GoodStockAlert;
 use App\Models\GoodStockAvailability;
 use App\Models\GoodStockMovement;
 use App\Models\MaxChat;
-use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Goods\GoodStockAlertMessenger;
 use App\Services\Goods\GoodStockService;
@@ -19,7 +18,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
-use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Tests\TestCase;
 
 class GoodStockAlertTest extends TestCase
@@ -371,21 +369,19 @@ class GoodStockAlertTest extends TestCase
 
     public function test_goods_stock_api_uses_a_separate_ledger_from_commodities(): void
     {
-        $user = User::factory()->create();
         $good = $this->outOfStockGood();
         $warehouse = Warehouse::query()->firstOrFail();
 
-        $this->actingAs($user)
-            ->postJson(route('good-stock-movements.store'), [
-                'warehouse_id' => $warehouse->id,
-                'good_id' => $good->id,
-                'measure_id' => null,
-                'type' => GoodStockMovement::TYPE_RECEIPT,
-                'quantity' => 5,
-                'unit_price' => 100,
-                'moved_at' => today()->toDateString(),
-                'note' => 'Отдельный приход goods',
-            ])
+        $this->postJson(route('good-stock-movements.store'), [
+            'warehouse_id' => $warehouse->id,
+            'good_id' => $good->id,
+            'measure_id' => null,
+            'type' => GoodStockMovement::TYPE_RECEIPT,
+            'quantity' => 5,
+            'unit_price' => 100,
+            'moved_at' => today()->toDateString(),
+            'note' => 'Отдельный приход goods',
+        ])
             ->assertCreated();
 
         $this->assertDatabaseCount('good_stock_movements', 1);
@@ -396,41 +392,20 @@ class GoodStockAlertTest extends TestCase
         ]);
     }
 
-    public function test_internal_goods_stock_routes_accept_an_authenticated_first_party_session(): void
+    public function test_goods_stock_read_routes_do_not_require_separate_authentication(): void
     {
-        config()->set('sanctum.stateful', ['shop.test']);
-
-        $this->assertContains(
-            EnsureFrontendRequestsAreStateful::class,
-            app('router')->getMiddlewareGroups()['api']
-        );
-
-        $user = User::factory()->create();
-
-        $this->post('/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ])->assertRedirect();
-
-        app('auth')->forgetGuards();
-
-        $this->withHeader('Referer', 'https://shop.test/Ameise/warehouses')
-            ->getJson(route('good-warehouse-stock.index'))
+        $this->getJson(route('good-warehouse-stock.index'))
             ->assertOk();
 
-        $this->withHeader('Referer', 'https://shop.test/Ameise/warehouses')
-            ->getJson(route('good-stock-movements.index'))
+        $this->getJson(route('good-stock-movements.index'))
             ->assertOk();
 
-        $this->withHeader('Referer', 'https://shop.test/Ameise/warehouses')
-            ->getJson(route('good-stock-alerts.index'))
+        $this->getJson(route('good-stock-alerts.index'))
             ->assertOk();
     }
 
-    public function test_internal_goods_stock_and_max_routes_require_authentication(): void
+    public function test_internal_max_routes_still_require_authentication(): void
     {
-        $this->getJson(route('good-warehouse-stock.index'))->assertUnauthorized();
-        $this->getJson(route('good-stock-alerts.index'))->assertUnauthorized();
         $this->getJson(route('api.max.chats.index'))->assertUnauthorized();
     }
 
