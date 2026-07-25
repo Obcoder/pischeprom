@@ -234,7 +234,7 @@ useHead({
                 <table>
                     <thead>
                         <tr>
-                            <th scope="col">Заказ / Entity</th>
+                            <th scope="col">Entity / Заказ</th>
                             <th scope="col">Товары</th>
                             <th scope="col">Сумма</th>
                         </tr>
@@ -248,8 +248,10 @@ useHead({
                             @keydown.enter="openOrder(order)"
                         >
                             <td>
-                                <strong>{{ order.number }}</strong>
-                                <small>{{ order.entity?.name || 'Без Entity' }}</small>
+                                <strong class="order-ledger__entity">
+                                    {{ order.entity?.name || 'Без Entity' }}
+                                </strong>
+                                <small class="order-ledger__number">{{ order.number }}</small>
                             </td>
                             <td>
                                 <div class="order-ledger__goods">
@@ -599,6 +601,16 @@ useHead({
 .order-ledger td > strong {
     font-size: 10px;
     font-weight: 900;
+}
+
+.order-ledger__entity {
+    color: #20262d;
+}
+
+.order-ledger__number {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 650;
+    letter-spacing: 0.015em;
 }
 
 .order-ledger td > small,
