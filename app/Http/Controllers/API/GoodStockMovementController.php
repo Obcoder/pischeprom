@@ -130,6 +130,8 @@ class GoodStockMovementController extends Controller
         Request $request,
         GoodStockMovement $goodStockMovement
     ): GoodStockMovementResource {
+        $this->ensureManualMovement($goodStockMovement);
+
         $data = $this->validated($request);
         $data['quantity_delta'] = $this->quantityDelta($data['type'], $data['quantity']);
         $data['unit_price'] ??= 0;
@@ -148,6 +150,8 @@ class GoodStockMovementController extends Controller
 
     public function destroy(GoodStockMovement $goodStockMovement): JsonResponse
     {
+        $this->ensureManualMovement($goodStockMovement);
+
         $goodStockMovement->delete();
 
         return response()->json(null, 204);
@@ -180,5 +184,14 @@ class GoodStockMovementController extends Controller
             GoodStockMovement::TYPE_RECEIPT => abs($quantity),
             default => $quantity,
         };
+    }
+
+    private function ensureManualMovement(GoodStockMovement $goodStockMovement): void
+    {
+        abort_if(
+            filled($goodStockMovement->source_type),
+            422,
+            'Это движение создано закупкой и редактируется через Purchase.'
+        );
     }
 }

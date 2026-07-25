@@ -81,7 +81,7 @@ jobs:
             tests/Feature/Banking \
             tests/Unit/Banking
 
-      - name: Run unit and banking feature tests
+      - name: Run unit, banking, and goods stock tests
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -93,7 +93,13 @@ jobs:
           SBER_API_ENABLED: 'false'
           SBER_READ_ONLY: 'true'
           SESSION_DRIVER: array
-        run: php artisan test tests/Unit tests/Feature/Banking --compact
+        run: |
+          php artisan test \
+            tests/Unit \
+            tests/Feature/Banking \
+            tests/Feature/GoodStockAlertTest.php \
+            tests/Feature/PurchaseGoodsStockTest.php \
+            --compact
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6

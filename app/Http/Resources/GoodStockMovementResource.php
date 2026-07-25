@@ -19,6 +19,9 @@ class GoodStockMovementResource extends JsonResource
             'unit_price' => $this->unit_price,
             'total_price' => $this->total_price,
             'moved_at' => optional($this->moved_at)->toDateString(),
+            'source_type' => $this->source_type,
+            'source_id' => $this->source_id,
+            'purchase_id' => $this->purchase_id,
             'note' => $this->note,
             'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
             'good' => $this->whenLoaded('good', fn () => [

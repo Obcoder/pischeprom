@@ -16,6 +16,8 @@ class GoodStockMovement extends Model
 
     public const TYPE_ADJUSTMENT = 'adjustment';
 
+    public const SOURCE_GOOD_PURCHASE = 'good_purchase';
+
     protected $fillable = [
         'warehouse_id',
         'good_id',
@@ -24,6 +26,9 @@ class GoodStockMovement extends Model
         'quantity_delta',
         'unit_price',
         'moved_at',
+        'source_type',
+        'source_id',
+        'purchase_id',
         'note',
     ];
 
@@ -50,6 +55,11 @@ class GoodStockMovement extends Model
     public function measure(): BelongsTo
     {
         return $this->belongsTo(Measure::class);
+    }
+
+    public function purchase(): BelongsTo
+    {
+        return $this->belongsTo(Purchase::class);
     }
 
     public function getTotalPriceAttribute(): float

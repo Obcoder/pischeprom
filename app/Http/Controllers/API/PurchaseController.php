@@ -81,11 +81,11 @@ class PurchaseController extends Controller
 
     public function destroy(Purchase $purchase): JsonResponse
     {
-        $purchase->delete();
+        $this->purchaseService->delete($purchase);
 
         return response()->json([
-                                    'message' => 'Закупка удалена',
-                                ]);
+            'message' => 'Закупка удалена',
+        ]);
     }
 
     private function findForResponse(int $id): Purchase

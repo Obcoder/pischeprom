@@ -223,6 +223,10 @@ function closeMovementForm() {
 }
 
 function editMovement(movement) {
+    if (movement.source_type) {
+        return
+    }
+
     form.id = movement.id
     form.warehouse_id = movement.warehouse_id
     form.good_id = movement.good_id
@@ -277,7 +281,10 @@ async function saveMovement() {
 }
 
 async function deleteMovement(movement) {
-    if (!confirm('Удалить движение отдельного склада товаров?')) {
+    if (
+        movement.source_type
+        || !confirm('Удалить движение отдельного склада товаров?')
+    ) {
         return
     }
 
@@ -697,7 +704,10 @@ onMounted(loadAll)
                                         icon="mdi-pencil-outline"
                                         size="x-small"
                                         variant="text"
-                                        title="Редактировать"
+                                        :disabled="Boolean(movement.source_type)"
+                                        :title="movement.source_type
+                                            ? 'Редактируется через Purchase'
+                                            : 'Редактировать'"
                                         @click="editMovement(movement)"
                                     />
                                     <v-btn
@@ -705,7 +715,10 @@ onMounted(loadAll)
                                         size="x-small"
                                         variant="text"
                                         color="error"
-                                        title="Удалить"
+                                        :disabled="Boolean(movement.source_type)"
+                                        :title="movement.source_type
+                                            ? 'Удаляется вместе с Purchase'
+                                            : 'Удалить'"
                                         @click="deleteMovement(movement)"
                                     />
                                 </div>

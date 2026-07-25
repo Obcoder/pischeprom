@@ -3,11 +3,16 @@
 namespace App\Services;
 
 use App\Models\Purchase;
+use App\Services\Goods\GoodPurchaseStockSynchronizer;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseService
 {
+    public function __construct(
+        protected GoodPurchaseStockSynchronizer $stockSynchronizer
+    ) {}
+
     public function store(array $data): Purchase
     {
         return DB::transaction(function () use ($data) {
@@ -16,12 +21,13 @@ class PurchaseService
             $amount = $this->calculateAmount($items);
 
             $purchase = Purchase::create([
-                                             'date' => $data['date'],
-                                             'entity_id' => $data['entity_id'],
-                                             'amount' => $amount,
-                                         ]);
+                'date' => $data['date'],
+                'entity_id' => $data['entity_id'],
+                'amount' => $amount,
+            ]);
 
             $purchase->goods()->sync($this->prepareSyncData($items));
+            $this->stockSynchronizer->sync($purchase);
 
             return $purchase->load(['entity', 'goods']);
         });
@@ -35,14 +41,23 @@ class PurchaseService
             $amount = $this->calculateAmount($items);
 
             $purchase->update([
-                                  'date' => $data['date'],
-                                  'entity_id' => $data['entity_id'],
-                                  'amount' => $amount,
-                              ]);
+                'date' => $data['date'],
+                'entity_id' => $data['entity_id'],
+                'amount' => $amount,
+            ]);
 
             $purchase->goods()->sync($this->prepareSyncData($items));
+            $this->stockSynchronizer->sync($purchase);
 
             return $purchase->load(['entity', 'goods']);
+        });
+    }
+
+    public function delete(Purchase $purchase): void
+    {
+        DB::transaction(function () use ($purchase): void {
+            $this->stockSynchronizer->remove($purchase);
+            $purchase->delete();
         });
     }
 
@@ -65,9 +80,9 @@ class PurchaseService
 
             $syncData[$goodId] = [
                 'quantity' => (float) ($item['quantity'] ?? 0),
-                'measure_id' => !empty($item['measure_id']) ? (int) $item['measure_id'] : null,
+                'measure_id' => ! empty($item['measure_id']) ? (int) $item['measure_id'] : null,
                 'price' => (float) ($item['price'] ?? 0),
-                'currency_id' => !empty($item['currency_id']) ? (int) $item['currency_id'] : null,
+                'currency_id' => ! empty($item['currency_id']) ? (int) $item['currency_id'] : null,
             ];
         }
 
