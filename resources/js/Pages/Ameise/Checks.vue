@@ -206,6 +206,58 @@ const sortOptions = [
     { title: 'Сумма', value: 'amount' },
 ]
 
+const datePresets = [
+    {
+        key: 'today',
+        label: 'Сегодня',
+        startOffset: 0,
+        endOffset: 0,
+        title: 'Только сегодня',
+    },
+    {
+        key: 'yesterday',
+        label: 'Вчера',
+        startOffset: -1,
+        endOffset: -1,
+        title: 'Только вчера',
+    },
+    {
+        key: 'day-before-yesterday',
+        label: 'Позавчера',
+        startOffset: -2,
+        endOffset: -2,
+        title: 'Только позавчера',
+    },
+    {
+        key: 'previous-2-days',
+        label: 'Прошлые 2 дня',
+        startOffset: -2,
+        endOffset: -1,
+        title: 'Два предыдущих дня, без сегодня',
+    },
+    {
+        key: 'previous-3-days',
+        label: 'Прошлые 3 дня',
+        startOffset: -3,
+        endOffset: -1,
+        title: 'Три предыдущих дня, без сегодня',
+    },
+    {
+        key: 'previous-4-days',
+        label: 'Прошлые 4 дня',
+        startOffset: -4,
+        endOffset: -1,
+        title: 'Четыре предыдущих дня, без сегодня',
+    },
+    {
+        key: 'week',
+        label: 'Неделя',
+        startOffset: -7,
+        endOffset: -1,
+        title: 'Предыдущие семь дней, без сегодня',
+    },
+]
+
 const activeFiltersCount = computed(() => [
     filters.date_from,
     filters.date_to,
@@ -266,7 +318,44 @@ function unpack(response) {
 }
 
 function today() {
-    return new Date().toISOString().slice(0, 10)
+    return dateInputValue(new Date())
+}
+
+function dateInputValue(date) {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+
+    return `${year}-${month}-${day}`
+}
+
+function dateWithOffset(offset) {
+    const date = new Date()
+
+    date.setHours(12, 0, 0, 0)
+    date.setDate(date.getDate() + offset)
+
+    return dateInputValue(date)
+}
+
+function datePresetRange(preset) {
+    return {
+        from: dateWithOffset(preset.startOffset),
+        to: dateWithOffset(preset.endOffset),
+    }
+}
+
+function applyDatePreset(preset) {
+    const range = datePresetRange(preset)
+
+    filters.date_from = range.from
+    filters.date_to = range.to
+}
+
+function isDatePresetActive(preset) {
+    const range = datePresetRange(preset)
+
+    return filters.date_from === range.from && filters.date_to === range.to
 }
 
 function numeric(value) {
@@ -868,6 +957,21 @@ onBeforeUnmount(() => {
             </header>
 
             <section class="checks-filter-panel">
+                <div class="checks-date-presets" aria-label="Быстрый фильтр по дате">
+                    <button
+                        v-for="preset in datePresets"
+                        :key="preset.key"
+                        type="button"
+                        class="checks-date-preset"
+                        :class="{ 'checks-date-preset--active': isDatePresetActive(preset) }"
+                        :title="preset.title"
+                        :aria-pressed="isDatePresetActive(preset)"
+                        @click="applyDatePreset(preset)"
+                    >
+                        {{ preset.label }}
+                    </button>
+                </div>
+
                 <div class="checks-filter-grid">
                     <v-text-field
                         v-model="filters.date_from"
@@ -1627,6 +1731,46 @@ onBeforeUnmount(() => {
     padding: 8px;
     border: 1px solid #c7b894;
     background: #f7f0df;
+}
+
+.checks-date-presets {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.checks-date-preset {
+    flex: 0 0 auto;
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid #c7b894;
+    border-radius: 2px;
+    background: #fffdf7;
+    color: #625743;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 850;
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+.checks-date-preset:hover {
+    border-color: #927326;
+    background: #fff8df;
+    color: #493913;
+}
+
+.checks-date-preset--active {
+    border-color: #7f5f00;
+    background: #7f5f00;
+    color: #ffffff;
+}
+
+.checks-date-preset:focus-visible {
+    outline: 2px solid #17845f;
+    outline-offset: 1px;
 }
 
 .checks-filter-grid {
