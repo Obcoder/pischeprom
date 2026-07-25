@@ -15,7 +15,14 @@ class CustomerOrderCreatedMail extends Mailable
 
     public function __construct(public Order $order)
     {
-        $this->order->loadMissing('items');
+        $this->order->loadMissing([
+            'items',
+            'entity.emails',
+            'entity.telephones',
+            'createdBy',
+            'contactTelephone',
+            'buildings',
+        ]);
     }
 
     public function envelope(): Envelope

@@ -3,6 +3,7 @@
 use App\Models\Country;
 use App\Models\Good;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -16,7 +17,11 @@ return new class extends Migration
         $countries = Country::query()
             ->select(['id', 'name'])
             ->whereNotNull('name')
-            ->orderByRaw('CHAR_LENGTH(name) DESC')
+            ->orderByRaw(
+                DB::getDriverName() === 'sqlite'
+                    ? 'LENGTH(name) DESC'
+                    : 'CHAR_LENGTH(name) DESC'
+            )
             ->get();
 
         if ($countries->isEmpty()) {
@@ -57,7 +62,7 @@ return new class extends Migration
             return false;
         }
 
-        $pattern = '/(^|[^\p{L}\p{N}])' . preg_quote($countryName, '/') . '([^\p{L}\p{N}]|$)/iu';
+        $pattern = '/(^|[^\p{L}\p{N}])'.preg_quote($countryName, '/').'([^\p{L}\p{N}]|$)/iu';
 
         return preg_match($pattern, $haystack) === 1;
     }

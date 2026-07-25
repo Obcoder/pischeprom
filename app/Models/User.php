@@ -84,9 +84,9 @@ class User extends Authenticatable implements MustVerifyEmail
             ->withTimestamps();
     }
 
-    public function orders(): HasMany
+    public function createdOrders(): HasMany
     {
-        return $this->hasMany(Order::class);
+        return $this->hasMany(Order::class, 'created_by_user_id');
     }
 
     public function entityClassifications(): BelongsToMany

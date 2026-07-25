@@ -248,4 +248,22 @@ class Good extends Model
     {
         return $this->hasMany(GoodStockAlert::class);
     }
+
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function orders(): BelongsToMany
+    {
+        return $this->belongsToMany(Order::class, 'order_items')
+            ->withPivot([
+                'id',
+                'quantity',
+                'price_gross',
+                'currency_code',
+                'line_total',
+            ])
+            ->withTimestamps();
+    }
 }

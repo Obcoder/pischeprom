@@ -20,6 +20,15 @@ return new class extends Migration
         throw_if(empty($tableNames), Exception::class, 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
         throw_if($teams && empty($columnNames['team_foreign_key'] ?? null), Exception::class, 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
 
+        // The project originally shipped an unused, column-less `roles` table.
+        // Replace that legacy placeholder before installing Spatie's real schema.
+        if (
+            Schema::hasTable($tableNames['roles'])
+            && ! Schema::hasColumn($tableNames['roles'], 'guard_name')
+        ) {
+            Schema::drop($tableNames['roles']);
+        }
+
         Schema::create($tableNames['permissions'], static function (Blueprint $table) {
             // $table->engine('InnoDB');
             $table->bigIncrements('id'); // permission id

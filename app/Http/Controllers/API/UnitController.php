@@ -13,9 +13,9 @@ class UnitController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-                               'search' => 'nullable|string|max:255',
-                               'good_id' => 'nullable|integer|exists:goods,id',
-                           ]);
+            'search' => 'nullable|string|max:255',
+            'good_id' => 'nullable|integer|exists:goods,id',
+        ]);
 
         return Unit::query()
             ->select('units.*')
@@ -31,14 +31,14 @@ class UnitController extends Controller
                 fn ($q) => $q->forGood((int) $request->good_id)
             )
             ->with([
-                       'buildings.city',
-                       'entities:id,name',
-                       'labels',
-                       'fields',
-                       'cities',
-                       'industries',
-                       'telephones:id,number',
-                   ])
+                'buildings.city',
+                'entities:id,name',
+                'labels',
+                'fields',
+                'cities',
+                'industries',
+                'telephones:id,number',
+            ])
             ->latest()
             ->get();
     }
@@ -61,15 +61,18 @@ class UnitController extends Controller
         return response()->json($unit->fresh(), 201);
     }
 
-    public function show(Unit $unit, UnansweredOutgoingMailService $mailService)
-    {
-        $unit->load(Unit::DETAIL_RELATIONS);
+    public function show(
+        Request $request,
+        Unit $unit,
+        UnansweredOutgoingMailService $mailService
+    ) {
+        $unit->load(Unit::detailRelations($request->user()?->can('orders.view') ?? false));
         $this->attachConsumptionRequestCounts($unit);
         $this->attachMailFollowUp($unit, $mailService);
 
         return response()->json([
-                                    'data' => $unit,
-                                ]);
+            'data' => $unit,
+        ]);
     }
 
     public function create()
@@ -98,7 +101,7 @@ class UnitController extends Controller
             'is_supplier' => (bool) ($data['is_supplier'] ?? false),
         ]);
 
-        $unit->load(Unit::DETAIL_RELATIONS);
+        $unit->load(Unit::detailRelations($request->user()?->can('orders.view') ?? false));
 
         return response()->json([
             'data' => $unit,
@@ -117,7 +120,7 @@ class UnitController extends Controller
     {
         $path = "units/{$name}";
 
-        if (!Storage::disk('yandex')->exists($path)) {
+        if (! Storage::disk('yandex')->exists($path)) {
             return [];
         }
 

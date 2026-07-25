@@ -17,6 +17,14 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    canViewOrders: {
+        type: Boolean,
+        default: false,
+    },
+    canCreateOrders: {
+        type: Boolean,
+        default: false,
+    },
     goodsLoading: {
         type: Boolean,
         default: false,
@@ -58,6 +66,26 @@ const quotationForm = reactive({
 
 const consumptions = computed(() => props.unit?.consumptions || [])
 const quotations = computed(() => props.unit?.quotations || [])
+const orders = computed(() => {
+    const byId = new Map()
+
+    ;(props.unit?.entities || []).forEach((entity) => {
+        ;(entity.orders || []).forEach((order) => {
+            byId.set(order.id, {
+                ...order,
+                entity: order.entity || {
+                    id: entity.id,
+                    name: entity.name,
+                },
+            })
+        })
+    })
+
+    return Array.from(byId.values()).sort((left, right) => {
+        return new Date(right.submitted_at || right.created_at || 0)
+            - new Date(left.submitted_at || left.created_at || 0)
+    })
+})
 
 const consumptionHeaders = [
     { title: 'Product', key: 'product', sortable: false },
@@ -75,6 +103,7 @@ const currencies = computed(() => (props.dict.currencies || []).map((currency) =
 const tradeStats = computed(() => [
     { label: 'consumptions', value: consumptions.value.length },
     { label: 'quotations', value: quotations.value.length },
+    ...(props.canViewOrders ? [{ label: 'orders', value: orders.value.length }] : []),
     { label: 'requests', value: consumptions.value.reduce((sum, item) => sum + requestsCount(item), 0) },
 ])
 
@@ -305,6 +334,39 @@ function goodHref(good) {
         return `/Ameise/good/${good.id}`
     }
 }
+
+function orderHref(order) {
+    if (!order?.id) {
+        return '#'
+    }
+
+    try {
+        return route('Ameise.orders.show', order.id)
+    } catch (error) {
+        return `/Ameise/orders/${order.id}`
+    }
+}
+
+function orderStatus(order) {
+    return order?.status?.name || order?.status?.code || 'Без статуса'
+}
+
+function orderStatusColor(order) {
+    return order?.status?.color || '#64748b'
+}
+
+function orderBuildings(order) {
+    return (order?.buildings || []).map((building) => building.address).filter(Boolean).join(' · ') || 'Логистика не задана'
+}
+
+function orderMoney(order) {
+    const amount = Number(order?.total_amount)
+    const currency = order?.currency_code === 'RUB' ? '₽' : (order?.currency_code || 'RUB')
+
+    return Number.isFinite(amount)
+        ? `${formatNumber(amount)} ${currency}`
+        : '—'
+}
 </script>
 
 <template>
@@ -334,6 +396,9 @@ function goodHref(good) {
             </v-tab>
             <v-tab value="quotations">
                 Quotations
+            </v-tab>
+            <v-tab v-if="canViewOrders" value="orders">
+                Заказы
             </v-tab>
         </v-tabs>
 
@@ -507,6 +572,66 @@ function goodHref(good) {
                     Нет прайс-позиций. Добавьте товары, которые поставляет эта компания.
                 </div>
             </v-window-item>
+
+            <v-window-item v-if="canViewOrders" value="orders">
+                <div class="unit-trade-tabs__toolbar">
+                    <div class="unit-trade-tabs__caption">
+                        Заказы Entity, связанных с этим Unit
+                    </div>
+
+                    <Link
+                        v-if="canCreateOrders"
+                        :href="route('Ameise.orders.create')"
+                        class="unit-trade-tabs__action"
+                    >
+                        <v-icon icon="mdi-plus" size="14" />
+                        <span>order</span>
+                    </Link>
+                </div>
+
+                <div v-if="orders.length" class="unit-orders-list">
+                    <article
+                        v-for="order in orders"
+                        :key="order.id"
+                        class="unit-orders-list__item"
+                    >
+                        <div class="unit-orders-list__main">
+                            <Link :href="orderHref(order)" class="unit-orders-list__number">
+                                {{ order.number }}
+                            </Link>
+                            <small>{{ order.entity?.name || 'Entity' }} · {{ formatDate(order.submitted_at) }}</small>
+                        </div>
+
+                        <div class="unit-orders-list__goods">
+                            <Link
+                                v-for="item in (order.items || []).slice(0, 3)"
+                                :key="item.id"
+                                :href="goodHref(item.good || { id: item.good_id })"
+                            >
+                                {{ item.good_name || item.good?.name }} × {{ formatNumber(item.quantity, 3) }}
+                            </Link>
+                            <small v-if="(order.items || []).length > 3">
+                                + ещё {{ order.items.length - 3 }}
+                            </small>
+                        </div>
+
+                        <div class="unit-orders-list__logistics" :title="orderBuildings(order)">
+                            {{ orderBuildings(order) }}
+                        </div>
+
+                        <div class="unit-orders-list__summary">
+                            <span :style="{ '--order-status-color': orderStatusColor(order) }">
+                                {{ orderStatus(order) }}
+                            </span>
+                            <strong>{{ orderMoney(order) }}</strong>
+                        </div>
+                    </article>
+                </div>
+
+                <div v-else class="unit-trade-tabs__empty">
+                    У Entity этого Unit пока нет заказов.
+                </div>
+            </v-window-item>
         </v-window>
 
         <v-dialog v-model="dialogQuotation" max-width="920">
@@ -669,6 +794,10 @@ function goodHref(good) {
     line-height: 1;
     padding: 6px 9px;
     text-transform: uppercase;
+}
+
+.unit-trade-tabs__action {
+    text-decoration: none;
 }
 
 .unit-trade-tabs__form {
@@ -886,14 +1015,115 @@ function goodHref(good) {
     font-weight: 750;
 }
 
+.unit-orders-list {
+    display: grid;
+    gap: 6px;
+    max-height: 330px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.unit-orders-list__item {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.75fr) minmax(220px, 1.3fr) minmax(160px, 1fr) minmax(125px, 0.55fr);
+    gap: 9px;
+    align-items: center;
+    padding: 8px 9px;
+    border: 1px solid rgba(95, 15, 36, 0.11);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.unit-orders-list__main,
+.unit-orders-list__goods,
+.unit-orders-list__summary {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.unit-orders-list__number {
+    color: #35171f;
+    font-size: 0.78rem;
+    font-weight: 950;
+    text-decoration: none;
+}
+
+.unit-orders-list__main small,
+.unit-orders-list__goods small {
+    overflow: hidden;
+    color: #897b75;
+    font-size: 0.62rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unit-orders-list__goods a {
+    overflow: hidden;
+    color: #3155a4;
+    font-size: 0.68rem;
+    font-weight: 850;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unit-orders-list__number:hover,
+.unit-orders-list__goods a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.unit-orders-list__logistics {
+    display: -webkit-box;
+    overflow: hidden;
+    color: #69615c;
+    font-size: 0.66rem;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.unit-orders-list__summary {
+    justify-items: end;
+}
+
+.unit-orders-list__summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #746b65;
+    font-size: 0.61rem;
+    font-weight: 850;
+}
+
+.unit-orders-list__summary span::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--order-status-color);
+    content: "";
+}
+
+.unit-orders-list__summary strong {
+    color: #0f5f56;
+    font-size: 0.75rem;
+    font-weight: 950;
+}
+
 @media (max-width: 880px) {
     .unit-trade-tabs__form,
-    .unit-quotations-list__item {
+    .unit-quotations-list__item,
+    .unit-orders-list__item {
         grid-template-columns: 1fr;
     }
 
     .unit-quotations-list__price {
         text-align: left;
+    }
+
+    .unit-orders-list__summary {
+        justify-items: start;
     }
 
     .unit-trade-tabs__toolbar {

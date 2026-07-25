@@ -1,19 +1,34 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import { useHead } from '@vueuse/head'
 import { route } from 'ziggy-js'
+import { computed, ref } from 'vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 
 defineOptions({
     layout: VerwalterLayout,
 })
 
-defineProps({
+const props = defineProps({
     activeLeads: {
         type: Array,
         default: () => [],
     },
+    canViewOrders: {
+        type: Boolean,
+        default: false,
+    },
+    ordersByStatus: {
+        type: Object,
+        default: () => ({
+            open: [],
+            deferred: [],
+        }),
+    },
 })
+
+const orderTab = ref('open')
+const visibleOrders = computed(() => props.ordersByStatus?.[orderTab.value] || [])
 
 function formatDateTime(value) {
     if (!value) {
@@ -59,6 +74,42 @@ function entityUrl(entityId) {
     } catch (error) {
         return `/Ameise/entity/${entityId}`
     }
+}
+
+function orderUrl(orderId) {
+    try {
+        return route('Ameise.orders.show', orderId)
+    } catch (error) {
+        return `/Ameise/orders/${orderId}`
+    }
+}
+
+function goodUrl(good) {
+    if (!good?.id) {
+        return '#'
+    }
+
+    try {
+        return route('Ameise.good.show', good.id)
+    } catch (error) {
+        return `/Ameise/goods/${good.id}`
+    }
+}
+
+function openOrder(order) {
+    router.visit(orderUrl(order.id))
+}
+
+function formatMoney(value, currencyCode = 'RUB') {
+    const amount = Number(value)
+
+    if (!Number.isFinite(amount)) {
+        return '—'
+    }
+
+    return `${amount.toLocaleString('ru-RU', {
+        maximumFractionDigits: 2,
+    })} ${currencyCode === 'RUB' ? '₽' : currencyCode}`
 }
 
 useHead({
@@ -135,6 +186,96 @@ useHead({
                     <tbody v-else>
                         <tr>
                             <td colspan="3" class="lead-ledger__empty">Активных лидов нет</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section
+            v-if="canViewOrders"
+            class="summary-block order-summary"
+            aria-labelledby="orders-title"
+        >
+            <header class="summary-block__header order-summary__header">
+                <div>
+                    <div class="summary-block__eyebrow">Работа с заказами</div>
+                    <h1 id="orders-title">Заказы</h1>
+                </div>
+                <span class="summary-block__count">
+                    {{ visibleOrders.length }}
+                </span>
+            </header>
+
+            <div class="order-summary__tabs" role="tablist" aria-label="Статусы заказов">
+                <button
+                    type="button"
+                    role="tab"
+                    :aria-selected="orderTab === 'open'"
+                    :class="{ 'is-active': orderTab === 'open' }"
+                    @click="orderTab = 'open'"
+                >
+                    Открытые
+                    <span>{{ ordersByStatus.open?.length || 0 }}</span>
+                </button>
+                <button
+                    type="button"
+                    role="tab"
+                    :aria-selected="orderTab === 'deferred'"
+                    :class="{ 'is-active': orderTab === 'deferred' }"
+                    @click="orderTab = 'deferred'"
+                >
+                    Отложенные
+                    <span>{{ ordersByStatus.deferred?.length || 0 }}</span>
+                </button>
+            </div>
+
+            <div class="order-ledger">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Заказ / Entity</th>
+                            <th scope="col">Товары</th>
+                            <th scope="col">Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody v-if="visibleOrders.length">
+                        <tr
+                            v-for="order in visibleOrders"
+                            :key="order.id"
+                            tabindex="0"
+                            @click="openOrder(order)"
+                            @keydown.enter="openOrder(order)"
+                        >
+                            <td>
+                                <strong>{{ order.number }}</strong>
+                                <small>{{ order.entity?.name || 'Без Entity' }}</small>
+                            </td>
+                            <td>
+                                <div class="order-ledger__goods">
+                                    <Link
+                                        v-for="item in (order.items || []).slice(0, 2)"
+                                        :key="item.id"
+                                        :href="goodUrl(item.good)"
+                                        @click.stop
+                                    >
+                                        {{ item.good_name }} × {{ item.quantity }}
+                                    </Link>
+                                    <small v-if="(order.items || []).length > 2">
+                                        +{{ order.items.length - 2 }}
+                                    </small>
+                                </div>
+                            </td>
+                            <td class="order-ledger__amount">
+                                {{ formatMoney(order.total_amount, order.currency_code) }}
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tbody v-else>
+                        <tr>
+                            <td colspan="3" class="order-ledger__empty">
+                                {{ orderTab === 'open' ? 'Открытых заказов нет' : 'Отложенных заказов нет' }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -343,6 +484,161 @@ useHead({
 .lead-ledger__empty {
     height: 72px !important;
     color: #737b85;
+    text-align: center !important;
+}
+
+.order-summary__header {
+    min-height: 52px;
+}
+
+.order-summary__tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 36px;
+    border-bottom: 1px solid #d7dce2;
+}
+
+.order-summary__tabs button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-right: 1px solid #d7dce2;
+    background: #f5f6f7;
+    color: #69727c;
+    font-size: 10px;
+    font-weight: 850;
+}
+
+.order-summary__tabs button:last-child {
+    border-right: 0;
+}
+
+.order-summary__tabs button.is-active {
+    box-shadow: inset 0 -2px #7f1d1d;
+    background: #fff;
+    color: #7f1d1d;
+}
+
+.order-summary__tabs span {
+    min-width: 17px;
+    padding: 1px 4px;
+    border-radius: 8px;
+    background: #e4e7ea;
+    color: #4f5862;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 8px;
+}
+
+.order-ledger {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.order-ledger table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.order-ledger th,
+.order-ledger td {
+    height: 38px;
+    padding: 5px 8px;
+    border-right: 1px solid #e6e9ed;
+    border-bottom: 1px solid #e1e5e9;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.order-ledger th:last-child,
+.order-ledger td:last-child {
+    border-right: 0;
+}
+
+.order-ledger th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 29px;
+    background: #f0f2f4;
+    color: #626b76;
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.order-ledger th:nth-child(2) {
+    width: 40%;
+}
+
+.order-ledger th:last-child {
+    width: 82px;
+}
+
+.order-ledger tbody tr {
+    cursor: pointer;
+}
+
+.order-ledger tbody tr:hover,
+.order-ledger tbody tr:focus {
+    outline: none;
+    background: #faf4ee;
+}
+
+.order-ledger td > strong,
+.order-ledger td > small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.order-ledger td > strong {
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.order-ledger td > small,
+.order-ledger__goods small {
+    margin-top: 1px;
+    color: #89919a;
+    font-size: 8px;
+}
+
+.order-ledger__goods {
+    display: grid;
+    gap: 1px;
+}
+
+.order-ledger__goods a {
+    overflow: hidden;
+    color: #7f1d1d;
+    font-size: 9px;
+    font-weight: 750;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.order-ledger__goods a:hover {
+    text-decoration: underline;
+}
+
+.order-ledger__amount {
+    color: #185c4b;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.order-ledger__empty {
+    height: 72px !important;
+    color: #737b85;
+    font-size: 10px;
     text-align: center !important;
 }
 

@@ -81,7 +81,44 @@ jobs:
             tests/Feature/Banking \
             tests/Unit/Banking
 
-      - name: Run unit, banking, and goods stock tests
+      - name: Check orders PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Actions/Fortify/CreateNewUser.php \
+            app/Http/Controllers/API/OrderController.php \
+            app/Http/Controllers/API/UnitController.php \
+            app/Http/Controllers/Verwalter.php \
+            app/Http/Controllers/Web/CustomerDashboardController.php \
+            app/Http/Controllers/Web/CustomerOrderController.php \
+            app/Http/Controllers/Web/OrderPageController.php \
+            app/Http/Controllers/Web/UnitController.php \
+            app/Http/Middleware/HandleInertiaRequests.php \
+            app/Http/Resources/OrderResource.php \
+            app/Mail/CustomerOrderCreatedMail.php \
+            app/Models/Building.php \
+            app/Models/Entity.php \
+            app/Models/Good.php \
+            app/Models/Order.php \
+            app/Models/OrderItem.php \
+            app/Models/OrderStatus.php \
+            app/Models/Unit.php \
+            app/Models/User.php \
+            app/Services/Entities/UserEntityResolver.php \
+            app/Services/Orders/CustomerOrderNotificationService.php \
+            app/Services/Orders/OrderWriter.php \
+            database/migrations/2025_04_14_213002_add_columns_domain_and_is_in_abuse_i_p_d_b_to_emails_table.php \
+            database/migrations/2025_05_02_165318_drop_column_from_manufacturers_table.php \
+            database/migrations/2026_01_03_195751_create_permission_tables.php \
+            database/migrations/2026_04_26_003946_alter_wiki_thumbnail_column_in_cities_table.php \
+            database/migrations/2026_06_27_190000_backfill_good_country_ids_from_names.php \
+            database/migrations/2026_06_29_000004_add_geo_point_to_gis_tables.php \
+            database/migrations/2026_07_05_000010_create_stock_movements_table.php \
+            database/migrations/2026_07_25_130000_normalize_orders_architecture.php \
+            tests/Feature/OrderManagementTest.php \
+            tests/Feature/RegistrationTest.php \
+            tests/TestCase.php
+
+      - name: Run unit, banking, goods stock, and orders tests
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -89,6 +126,7 @@ jobs:
           CACHE_STORE: array
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'
+          INERTIA_SSR_ENABLED: 'false'
           QUEUE_CONNECTION: sync
           SBER_API_ENABLED: 'false'
           SBER_READ_ONLY: 'true'
@@ -99,6 +137,8 @@ jobs:
             tests/Feature/Banking \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
+            tests/Feature/OrderManagementTest.php \
+            tests/Feature/RegistrationTest.php \
             --compact
 
       - name: Set up Node.js

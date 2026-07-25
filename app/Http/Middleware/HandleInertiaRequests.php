@@ -4,9 +4,9 @@ namespace App\Http\Middleware;
 
 use App\Models\City;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route as LaravelRoute;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
-use Illuminate\Support\Facades\Route as LaravelRoute;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -44,6 +44,14 @@ class HandleInertiaRequests extends Middleware
                         'user' => fn () => $request->user(),
                     ]
                     : null,
+                'permissions' => fn () => [
+                    'orders' => [
+                        'view' => $request->user()?->can('orders.view') ?? false,
+                        'create' => $request->user()?->can('orders.create') ?? false,
+                        'edit' => $request->user()?->can('orders.edit') ?? false,
+                        'delete' => $request->user()?->can('orders.delete') ?? false,
+                    ],
+                ],
             ],
 
             'location' => fn () => [
@@ -77,7 +85,7 @@ class HandleInertiaRequests extends Middleware
                 'id' => $city->id,
                 'name' => $city->name,
                 'region' => $city->region?->name,
-                'label' => trim($city->name . ($city->region ? ', ' . $city->region->name : '')),
+                'label' => trim($city->name.($city->region ? ', '.$city->region->name : '')),
             ]
             : null;
     }

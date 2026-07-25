@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder;
-use App\Models\Quotation;
 
 class Unit extends Model
 {
@@ -43,6 +42,18 @@ class Unit extends Model
         'cities.region',
     ];
 
+    public static function detailRelations(bool $includeOrders = false): array
+    {
+        return $includeOrders
+            ? [
+                ...self::DETAIL_RELATIONS,
+                'entities.orders.status',
+                'entities.orders.items.good',
+                'entities.orders.buildings',
+            ]
+            : self::DETAIL_RELATIONS;
+    }
+
     protected $fillable = [
         'name',
         'is_customer',
@@ -63,15 +74,13 @@ class Unit extends Model
 
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
-        return $query->when($search, fn ($q) =>
-        $q->where('name', 'like', "%{$search}%")
+        return $query->when($search, fn ($q) => $q->where('name', 'like', "%{$search}%")
         );
     }
 
     public function scopeForGood(Builder $query, int $goodId): Builder
     {
-        return $query->whereHas('quotations', fn ($q) =>
-        $q->where('good_id', $goodId)
+        return $query->whereHas('quotations', fn ($q) => $q->where('good_id', $goodId)
         );
     }
 

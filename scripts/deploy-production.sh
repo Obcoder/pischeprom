@@ -216,6 +216,7 @@ php artisan db:seed --class=RolesAndPermissionsSeeder --force
 php artisan route:list --path=stock-alerts >/dev/null
 php artisan route:list --path=Ameise/commercial-offers >/dev/null
 php artisan route:list --path=Ameise/bank >/dev/null
+php artisan route:list --path=Ameise/orders >/dev/null
 php artisan route:list --path=unisender-go >/dev/null
 php artisan route:list --path=unsubscribe >/dev/null
 php artisan list mailings >/dev/null
@@ -281,6 +282,10 @@ fi
 
 if ! php artisan app:deploy-smoke --path=/g >/dev/null 2>&1; then
     fail 'Smoke check for /g failed; rerun the command locally on the VPS.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/Ameise/ >/dev/null 2>&1; then
+    fail 'Smoke check for /Ameise/ failed; rerun the command locally on the VPS.'
 fi
 
 log "Deployment completed: ${previous_sha} -> ${commit_sha}."

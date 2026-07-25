@@ -25,7 +25,16 @@ const props = defineProps({
     files: {
         type: Array,
         default: () => []
-    }
+    },
+    permissions: {
+        type: Object,
+        default: () => ({
+            orders: {
+                view: false,
+                create: false,
+            },
+        }),
+    },
 })
 
 const {
@@ -110,6 +119,8 @@ onMounted(async () => {
                 <UnitTradeTabsCard
                     :unit="unit"
                     :dict="dict"
+                    :can-view-orders="permissions.orders?.view"
+                    :can-create-orders="permissions.orders?.create"
                     :goods-loading="loading.goods"
                     :search-goods="searchGoods"
                     @refresh="refreshUnit"

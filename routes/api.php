@@ -55,6 +55,7 @@ use App\Http\Controllers\API\Marketing\YandexSyncLogController;
 use App\Http\Controllers\API\MeasureController;
 use App\Http\Controllers\API\MessageController;
 use App\Http\Controllers\API\NoteController;
+use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\PhoneCallController;
 use App\Http\Controllers\API\PlantController;
 use App\Http\Controllers\API\PriceTypeController;
@@ -488,6 +489,29 @@ Route::apiResource('labels', LabelController::class);
 Route::apiResource('measures', MeasureController::class);
 Route::apiResource('messages', MessageController::class);
 Route::apiResource('notes', NoteController::class);
+Route::prefix('orders')
+    ->name('orders.')
+    ->middleware('auth:sanctum')
+    ->group(function (): void {
+        Route::get('/options', [OrderController::class, 'options'])
+            ->middleware('can:orders.view')
+            ->name('options');
+        Route::get('/', [OrderController::class, 'index'])
+            ->middleware('can:orders.view')
+            ->name('index');
+        Route::post('/', [OrderController::class, 'store'])
+            ->middleware('can:orders.create')
+            ->name('store');
+        Route::get('/{order}', [OrderController::class, 'show'])
+            ->middleware('can:orders.view')
+            ->name('show');
+        Route::match(['put', 'patch'], '/{order}', [OrderController::class, 'update'])
+            ->middleware('can:orders.edit')
+            ->name('update');
+        Route::delete('/{order}', [OrderController::class, 'destroy'])
+            ->middleware('can:orders.delete')
+            ->name('destroy');
+    });
 Route::apiResource('plants', PlantController::class);
 Route::apiResource('price-types', PriceTypeController::class);
 Route::apiResource('projects', ProjectController::class);

@@ -113,6 +113,11 @@ class Entity extends Model
         return $this->hasMany(Lead::class);
     }
 
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class)->latest('submitted_at')->latest('id');
+    }
+
     public function location(): HasOne
     {
         return $this->hasOne(EntityLocation::class);

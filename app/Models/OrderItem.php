@@ -41,4 +41,14 @@ class OrderItem extends Model
     {
         return $this->belongsTo(Good::class);
     }
+
+    public function getUnitPriceAttribute(): ?float
+    {
+        return $this->price_gross;
+    }
+
+    public function getTotalAmountAttribute(): ?float
+    {
+        return $this->line_total;
+    }
 }

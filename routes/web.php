@@ -40,6 +40,7 @@ use App\Http\Controllers\Web\GoodController as WebGoodController;
 use App\Http\Controllers\Web\GoodStockAlertController;
 use App\Http\Controllers\Web\LegalPageController;
 use App\Http\Controllers\Web\LocationController;
+use App\Http\Controllers\Web\OrderPageController;
 use App\Http\Controllers\Web\ProductController as WebProductController;
 use App\Http\Controllers\Web\PurchaseController;
 use App\Http\Controllers\Web\SeoController;
@@ -79,7 +80,11 @@ Route::middleware([
 });
 
 Route::post('/orders', [CustomerOrderController::class, 'store'])
-    ->middleware('throttle:20,1')
+    ->middleware([
+        'auth:sanctum',
+        config('jetstream.auth_session'),
+        'throttle:20,1',
+    ])
     ->name('customer.orders.store');
 
 //  E N D  D A S H B O A R D
@@ -131,6 +136,24 @@ Route::get('/', [MainController::class, 'index'])
 Route::get('/Ameise/', [Verwalter::class, 'index'])
     ->name('Ameise');
 //   * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+Route::prefix('Ameise/orders')
+    ->name('Ameise.orders.')
+    ->middleware([
+        'auth:sanctum',
+        config('jetstream.auth_session'),
+    ])
+    ->group(function (): void {
+        Route::get('/', [OrderPageController::class, 'index'])
+            ->middleware('can:orders.view')
+            ->name('index');
+        Route::get('/create', [OrderPageController::class, 'create'])
+            ->middleware('can:orders.create')
+            ->name('create');
+        Route::get('/{order}', [OrderPageController::class, 'show'])
+            ->middleware('can:orders.view')
+            ->name('show');
+    });
 
 //     * * * * *   W O R K  B O A R D     * * * * *
 Route::get('/Ameise/workboard', function () {

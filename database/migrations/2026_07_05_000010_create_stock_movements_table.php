@@ -44,6 +44,10 @@ return new class extends Migration
             ->value('id');
 
         if ($defaultWarehouseId) {
+            $noteExpression = DB::getDriverName() === 'sqlite'
+                ? "('Check #' || cc.check_id)"
+                : "CONCAT('Check #', cc.check_id)";
+
             DB::statement(
                 "INSERT INTO stock_movements (
                     created_at,
@@ -71,7 +75,7 @@ return new class extends Migration
                     ch.date,
                     'check_commodity',
                     cc.id,
-                    CONCAT('Check #', cc.check_id)
+                    {$noteExpression}
                 FROM check_commodity cc
                 INNER JOIN checks ch ON ch.id = cc.check_id",
                 [$defaultWarehouseId]

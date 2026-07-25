@@ -8,13 +8,18 @@
 <h1 style="font-size: 22px; margin-bottom: 8px;">Новый заказ {{ $order->number }}</h1>
 
 <p>
-    Клиент: <strong>{{ $order->customer_name }}</strong><br>
-    Email: <strong>{{ $order->customer_email ?: 'не указан' }}</strong><br>
-    Телефон: <strong>{{ $order->customer_phone ?: 'не указан' }}</strong>
+    Клиент: <strong>{{ $order->entity?->name ?: $order->createdBy?->name ?: 'Клиент' }}</strong><br>
+    Email: <strong>{{ $order->createdBy?->email ?: $order->entity?->emails?->first()?->address ?: 'не указан' }}</strong><br>
+    Телефон: <strong>{{ $order->contactTelephone?->number ?: $order->entity?->telephones?->first()?->number ?: $order->createdBy?->phone ?: 'не указан' }}</strong>
 </p>
 
 <p>
-    Адрес доставки: <strong>{{ $order->delivery_address ?: 'не указан' }}</strong><br>
+    Адрес доставки:
+    <strong>
+        {{ $order->buildings->first(fn ($building) => $building->pivot?->role === 'delivery')?->address
+            ?: $order->buildings->first()?->address
+            ?: 'не указан' }}
+    </strong><br>
     Удобное время: <strong>{{ $order->preferred_delivery_time ?: 'не указано' }}</strong>
 </p>
 

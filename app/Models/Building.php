@@ -44,4 +44,17 @@ class Building extends Model
     {
         return $this->belongsToMany(Unit::class);
     }
+
+    public function entities(): BelongsToMany
+    {
+        return $this->belongsToMany(Entity::class, 'building_entities')
+            ->withTimestamps();
+    }
+
+    public function orders(): BelongsToMany
+    {
+        return $this->belongsToMany(Order::class)
+            ->withPivot(['role', 'position'])
+            ->withTimestamps();
+    }
 }

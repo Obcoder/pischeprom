@@ -25,8 +25,10 @@ return new class extends Migration
             }
         });
 
-        DB::statement("UPDATE entity_locations SET geo_point = ST_GeomFromText(CONCAT('POINT(', lon, ' ', lat, ')'), 4326) WHERE lat IS NOT NULL AND lon IS NOT NULL AND geo_point IS NULL");
-        DB::statement("UPDATE gis_route_points SET geo_point = ST_GeomFromText(CONCAT('POINT(', lon, ' ', lat, ')'), 4326) WHERE lat IS NOT NULL AND lon IS NOT NULL AND geo_point IS NULL");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("UPDATE entity_locations SET geo_point = ST_GeomFromText(CONCAT('POINT(', lon, ' ', lat, ')'), 4326) WHERE lat IS NOT NULL AND lon IS NOT NULL AND geo_point IS NULL");
+            DB::statement("UPDATE gis_route_points SET geo_point = ST_GeomFromText(CONCAT('POINT(', lon, ' ', lat, ')'), 4326) WHERE lat IS NOT NULL AND lon IS NOT NULL AND geo_point IS NULL");
+        }
     }
 
     public function down(): void

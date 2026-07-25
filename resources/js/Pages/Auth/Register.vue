@@ -67,6 +67,7 @@ const form = useForm({
 
     personal_data_consent: false,
     marketing_consent: false,
+    terms: false,
 
     organization_INN: '',
     organization_KPP: '',
@@ -97,7 +98,20 @@ const submit = () => {
 
         <form @submit.prevent="submit">
             <div>
-                <InputLabel for="name" value="Name" />
+                <InputLabel for="account_type" value="Тип покупателя" />
+                <select
+                    id="account_type"
+                    v-model="form.account_type"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                    <option value="individual">Физическое лицо</option>
+                    <option value="organization">Организация / ИП</option>
+                </select>
+                <InputError class="mt-2" :message="form.errors.account_type" />
+            </div>
+
+            <div class="mt-4">
+                <InputLabel for="name" value="Имя / контактное лицо" />
                 <TextInput
                     id="name"
                     v-model="form.name"
@@ -124,7 +138,71 @@ const submit = () => {
             </div>
 
             <div class="mt-4">
-                <InputLabel for="password" value="Password" />
+                <InputLabel for="phone" value="Телефон" />
+                <TextInput
+                    id="phone"
+                    v-model="form.phone"
+                    type="tel"
+                    class="mt-1 block w-full"
+                    autocomplete="tel"
+                    placeholder="+7"
+                />
+                <InputError class="mt-2" :message="form.errors.phone" />
+            </div>
+
+            <div
+                v-if="form.account_type === 'organization'"
+                class="mt-4 space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4"
+            >
+                <div>
+                    <InputLabel for="organization_INN" value="ИНН" />
+                    <div class="mt-1 flex gap-2">
+                        <TextInput
+                            id="organization_INN"
+                            v-model="form.organization_INN"
+                            type="text"
+                            class="block w-full"
+                            inputmode="numeric"
+                            @blur="lookupEntityByInn"
+                        />
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 px-3 text-sm font-semibold text-gray-700"
+                            :disabled="innLoading"
+                            @click="lookupEntityByInn"
+                        >
+                            Найти
+                        </button>
+                    </div>
+                    <InputError class="mt-2" :message="form.errors.organization_inn || form.errors.organization_INN" />
+                </div>
+
+                <div v-if="innSuggestions.length > 1" class="grid gap-2">
+                    <button
+                        v-for="suggestion in innSuggestions"
+                        :key="suggestion.entity?.INN || suggestion.value"
+                        type="button"
+                        class="rounded-md border border-gray-200 bg-white p-2 text-left text-sm"
+                        @click="applyEntitySuggestion(suggestion)"
+                    >
+                        {{ suggestion.entity?.name || suggestion.value }}
+                    </button>
+                </div>
+
+                <div>
+                    <InputLabel for="organization_name" value="Название организации" />
+                    <TextInput
+                        id="organization_name"
+                        v-model="form.organization_name"
+                        type="text"
+                        class="mt-1 block w-full"
+                    />
+                    <InputError class="mt-2" :message="form.errors.organization_name" />
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <InputLabel for="password" value="Пароль" />
                 <TextInput
                     id="password"
                     v-model="form.password"
@@ -137,7 +215,7 @@ const submit = () => {
             </div>
 
             <div class="mt-4">
-                <InputLabel for="password_confirmation" value="Confirm Password" />
+                <InputLabel for="password_confirmation" value="Подтверждение пароля" />
                 <TextInput
                     id="password_confirmation"
                     v-model="form.password_confirmation"
@@ -147,6 +225,30 @@ const submit = () => {
                     autocomplete="new-password"
                 />
                 <InputError class="mt-2" :message="form.errors.password_confirmation" />
+            </div>
+
+            <div class="mt-4">
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                    <Checkbox
+                        id="personal_data_consent"
+                        v-model:checked="form.personal_data_consent"
+                        name="personal_data_consent"
+                        required
+                    />
+                    <span>Согласен на обработку персональных данных</span>
+                </label>
+                <InputError class="mt-2" :message="form.errors.personal_data_consent" />
+            </div>
+
+            <div class="mt-4">
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                    <Checkbox
+                        id="marketing_consent"
+                        v-model:checked="form.marketing_consent"
+                        name="marketing_consent"
+                    />
+                    <span>Получать новости и специальные предложения</span>
+                </label>
             </div>
 
             <div v-if="$page.props.jetstream.hasTermsAndPrivacyPolicyFeature" class="mt-4">
@@ -164,11 +266,11 @@ const submit = () => {
 
             <div class="flex items-center justify-end mt-4">
                 <Link :href="route('login')" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Already registered?
+                    Уже зарегистрированы?
                 </Link>
 
                 <PrimaryButton class="ms-4" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
-                    Register
+                    Зарегистрироваться
                 </PrimaryButton>
             </div>
         </form>

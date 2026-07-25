@@ -1,11 +1,13 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
 
 const MANAGER_PHONE = '79650160001'
 
+const page = usePage()
+const canViewOrders = computed(() => Boolean(page.props.auth?.permissions?.orders?.view))
 const workingLeads = ref([])
 const workingLeadsTotal = ref(0)
 const loadingWorkingLeads = ref(false)
@@ -671,6 +673,16 @@ onMounted(fetchWorkingLeads)
             </v-app-bar-title>
             <template v-slot:append>
                 <Link
+                    v-if="canViewOrders"
+                    :href="route('Ameise.orders.index')"
+                    class="ameise-header-icon ameise-orders-icon"
+                    title="Заказы"
+                    aria-label="Панель заказов"
+                >
+                    <v-icon icon="mdi-clipboard-text-clock-outline" size="21" />
+                </Link>
+
+                <Link
                     :href="bankUrl()"
                     class="ameise-header-icon ameise-bank-icon"
                     title="Банк"
@@ -1242,6 +1254,16 @@ onMounted(fetchWorkingLeads)
     border-color: rgba(147, 197, 253, 0.7);
     background: rgba(30, 64, 175, 0.68);
     color: #eff6ff;
+}
+
+.ameise-orders-icon {
+    border-color: rgba(254, 215, 170, 0.72);
+    background: rgba(127, 29, 29, 0.76);
+    color: #fff7ed;
+}
+
+.ameise-orders-icon:hover {
+    background: rgba(153, 27, 27, 0.96);
 }
 
 .ameise-bank-icon:hover {

@@ -3,23 +3,28 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Building;
 use App\Models\Good;
 use App\Models\GoodPriceTypeValue;
 use App\Models\Order;
+use App\Models\OrderStatus;
 use App\Models\User;
+use App\Services\Entities\UserEntityResolver;
 use App\Services\Orders\CustomerOrderNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CustomerOrderController extends Controller
 {
-    public function store(Request $request, CustomerOrderNotificationService $notificationService): JsonResponse
-    {
+    public function store(
+        Request $request,
+        CustomerOrderNotificationService $notificationService,
+        UserEntityResolver $entityResolver
+    ): JsonResponse {
         $this->normalizeItems($request);
 
         $validated = $request->validate([
@@ -34,6 +39,8 @@ class CustomerOrderController extends Controller
 
         /** @var User|null $user */
         $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         $rawItems = collect($validated['items']);
         $goods = $this->publishedGoods($rawItems->pluck('good_id')->unique()->values());
 
@@ -43,43 +50,68 @@ class CustomerOrderController extends Controller
             ]);
         }
 
-        $canSeePartnerPrices = $user !== null;
-
         $lines = $rawItems
             ->map(fn (array $item) => $this->makeOrderLine(
                 $goods[(int) $item['good_id']],
                 (float) ($item['quantity'] ?? 1),
-                $canSeePartnerPrices,
+                true,
             ))
             ->values();
 
-        $order = DB::transaction(function () use ($request, $user, $lines, $validated): Order {
+        $entity = $user->entities()
+            ->wherePivot('is_primary', true)
+            ->first()
+            ?: $user->entities()->first()
+            ?: $entityResolver->resolve($user);
+        $contactTelephone = $entityResolver->attachPhone($entity, $validated['customer_phone']);
+        $statusId = OrderStatus::query()
+            ->where('code', OrderStatus::OPEN)
+            ->value('id');
+
+        $order = DB::transaction(function () use (
+            $user,
+            $entity,
+            $contactTelephone,
+            $lines,
+            $validated,
+            $statusId
+        ): Order {
+            $address = trim($validated['delivery_address']);
+            $building = Building::query()->firstOrCreate([
+                'city_id' => $user->city_id,
+                'address' => $address,
+            ]);
+
+            $entity->buildings()->syncWithoutDetaching([$building->id]);
+
             $order = Order::query()->create([
-                'number' => $this->makeOrderNumber(),
-                'user_id' => $user?->id,
-                'status' => 'new',
-                'customer_name' => $user?->name ?: 'Гость',
-                'customer_email' => $user?->email,
-                'customer_phone' => $validated['customer_phone'],
-                'customer_phone_source' => $validated['customer_phone_source'] ?? 'manual',
-                'customer_account_type' => $user?->account_type ?? 'guest',
-                'customer_city_name' => $this->customerCityName($user),
-                'customer_entity_name' => $user ? $this->primaryEntityName($user) : null,
-                'delivery_address' => $validated['delivery_address'],
+                'number' => Order::generateNumber(),
+                'entity_id' => $entity->id,
+                'order_status_id' => $statusId,
+                'created_by_user_id' => $user->id,
+                'contact_telephone_id' => $contactTelephone?->id,
                 'preferred_delivery_time' => $validated['preferred_delivery_time'],
                 'total_amount' => $lines->sum(fn (array $line) => (float) ($line['line_total'] ?? 0)),
                 'total_weight' => $lines->sum(fn (array $line) => (float) ($line['line_weight'] ?? 0)) ?: null,
                 'currency_code' => $lines->first()['currency_code'] ?? 'RUB',
                 'submitted_at' => now(),
-                'metadata' => [
-                    'ip' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ],
             ]);
 
             $order->items()->createMany($lines->all());
+            $order->buildings()->attach($building->id, [
+                'role' => 'delivery',
+                'position' => 0,
+            ]);
 
-            return $order->load('items');
+            return $order->load([
+                'status',
+                'entity.emails',
+                'entity.telephones',
+                'createdBy',
+                'contactTelephone',
+                'buildings',
+                'items',
+            ]);
         });
 
         $notificationService->notify($order);
@@ -88,12 +120,12 @@ class CustomerOrderController extends Controller
             'order' => [
                 'id' => $order->id,
                 'number' => $order->number,
-                'status' => $order->status,
+                'status' => $order->status?->code,
                 'total_amount' => $order->total_amount,
                 'total_weight' => $order->total_weight,
                 'currency_code' => $order->currency_code,
             ],
-            'redirect' => $user ? route('dashboard') : null,
+            'redirect' => route('dashboard'),
         ], 201);
     }
 
@@ -145,32 +177,6 @@ class CustomerOrderController extends Controller
                 'description',
             ])
             ->keyBy('id');
-    }
-
-    private function primaryEntityName(User $user): ?string
-    {
-        if (! method_exists($user, 'entities') || ! Schema::hasTable('entity_user')) {
-            return null;
-        }
-
-        $query = $user->entities();
-
-        if (Schema::hasColumn('entity_user', 'is_primary')) {
-            $query->wherePivot('is_primary', true);
-        }
-
-        return $query->value('name');
-    }
-
-    private function customerCityName(?User $user): ?string
-    {
-        if (! $user || ! method_exists($user, 'city')) {
-            return null;
-        }
-
-        return $user->relationLoaded('city')
-            ? $user->city?->name
-            : $user->city()->value('name');
     }
 
     private function makeOrderLine(Good $good, float $quantity, bool $canSeePartnerPrices): array
@@ -260,7 +266,7 @@ class CustomerOrderController extends Controller
 
     private function priceTypeText(GoodPriceTypeValue $price): string
     {
-        return Str::lower(trim(($price->priceType?->code ?? '') . ' ' . ($price->priceType?->name ?? '')));
+        return Str::lower(trim(($price->priceType?->code ?? '').' '.($price->priceType?->name ?? '')));
     }
 
     private function priceValue(?GoodPriceTypeValue $price): ?float
@@ -287,14 +293,5 @@ class CustomerOrderController extends Controller
             ?: $media?->thumb_url
             ?: $good->ava_thumb
             ?: $good->ava_image;
-    }
-
-    private function makeOrderNumber(): string
-    {
-        do {
-            $number = 'PP-' . now()->format('Ymd-His') . '-' . Str::upper(Str::random(4));
-        } while (Order::query()->where('number', $number)->exists());
-
-        return $number;
     }
 }

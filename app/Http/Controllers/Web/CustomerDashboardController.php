@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -68,50 +69,53 @@ class CustomerDashboardController extends Controller
                 ])->values()
                 : [],
 
-            'orders' => method_exists($user, 'orders')
-                ? $user->orders()
-                    ->with('items')
-                    ->latest('submitted_at')
-                    ->latest('id')
-                    ->limit(20)
-                    ->get()
-                    ->map(fn ($order) => [
-                        'id' => $order->id,
-                        'number' => $order->number,
-                        'status' => $order->status,
-                        'status_label' => $this->orderStatusLabel($order->status),
-                        'total_amount' => $order->total_amount,
-                        'total_weight' => $order->total_weight,
-                        'currency_code' => $order->currency_code,
-                        'delivery_address' => $order->delivery_address,
-                        'preferred_delivery_time' => $order->preferred_delivery_time,
-                        'submitted_at' => $order->submitted_at?->toIso8601String(),
-                        'items' => $order->items->map(fn ($item) => [
-                            'id' => $item->id,
-                            'good_id' => $item->good_id,
-                            'good_name' => $item->good_name,
-                            'image_url' => $item->image_url,
-                            'quantity' => $item->quantity,
-                            'denominator' => $item->denominator,
-                            'line_weight' => $item->line_weight,
-                            'price_gross' => $item->price_gross,
-                            'currency_code' => $item->currency_code,
-                            'line_total' => $item->line_total,
-                            'country_name' => $item->country_name,
-                        ])->values(),
-                    ])->values()
-                : [],
+            'orders' => Order::query()
+                ->whereHas(
+                    'entity.users',
+                    fn ($query) => $query->where('users.id', $user->id)
+                )
+                ->with([
+                    'status',
+                    'buildings',
+                    'items.good:id,name,slug',
+                ])
+                ->latest('submitted_at')
+                ->latest('id')
+                ->limit(20)
+                ->get()
+                ->map(fn ($order) => [
+                    'id' => $order->id,
+                    'number' => $order->number,
+                    'status' => $order->status?->code,
+                    'status_label' => $order->status?->name ?? 'Создан',
+                    'total_amount' => $order->total_amount,
+                    'total_weight' => $order->total_weight,
+                    'currency_code' => $order->currency_code,
+                    'delivery_address' => $order->buildings
+                        ->first(fn ($building) => $building->pivot?->role === 'delivery')
+                        ?->address
+                        ?: $order->buildings->first()?->address,
+                    'preferred_delivery_time' => $order->preferred_delivery_time,
+                    'submitted_at' => $order->submitted_at?->toIso8601String(),
+                    'items' => $order->items->map(fn ($item) => [
+                        'id' => $item->id,
+                        'good_id' => $item->good_id,
+                        'good_name' => $item->good_name,
+                        'image_url' => $item->image_url,
+                        'quantity' => $item->quantity,
+                        'denominator' => $item->denominator,
+                        'line_weight' => $item->line_weight,
+                        'price_gross' => $item->price_gross,
+                        'currency_code' => $item->currency_code,
+                        'line_total' => $item->line_total,
+                        'country_name' => $item->country_name,
+                        'good' => $item->good ? [
+                            'id' => $item->good->id,
+                            'name' => $item->good->name,
+                            'slug' => $item->good->slug,
+                        ] : null,
+                    ])->values(),
+                ])->values(),
         ]);
-    }
-
-    private function orderStatusLabel(?string $status): string
-    {
-        return match ($status) {
-            'new' => 'Новый',
-            'processing' => 'В работе',
-            'completed' => 'Завершён',
-            'cancelled' => 'Отменён',
-            default => 'Создан',
-        };
     }
 }

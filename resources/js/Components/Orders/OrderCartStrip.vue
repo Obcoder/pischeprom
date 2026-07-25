@@ -94,6 +94,12 @@ function openCheckout() {
         return
     }
 
+    if (!user.value) {
+        const loginUrl = route('login')
+        router.visit(loginUrl === '#' ? '/login' : loginUrl)
+        return
+    }
+
     fieldErrors.value = {}
     errorMessage.value = ''
     successMessage.value = ''
@@ -254,7 +260,7 @@ function submitOrder() {
                 @click="openCheckout"
             >
                 <v-icon icon="mdi-check-circle-outline" size="15" />
-                <span>Сделать заказ</span>
+                <span>{{ user ? 'Сделать заказ' : 'Войти и заказать' }}</span>
             </button>
         </div>
 
