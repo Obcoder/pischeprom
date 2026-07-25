@@ -4,42 +4,41 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class OrderPageController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(): Response
     {
         return Inertia::render('Ameise/Orders/Index', [
-            'permissions' => $this->permissions($request),
+            'permissions' => $this->permissions(),
         ]);
     }
 
-    public function create(Request $request): Response
+    public function create(): Response
     {
         return Inertia::render('Ameise/Orders/Show', [
             'orderId' => null,
-            'permissions' => $this->permissions($request),
+            'permissions' => $this->permissions(),
         ]);
     }
 
-    public function show(Request $request, Order $order): Response
+    public function show(Order $order): Response
     {
         return Inertia::render('Ameise/Orders/Show', [
             'orderId' => $order->id,
-            'permissions' => $this->permissions($request),
+            'permissions' => $this->permissions(),
         ]);
     }
 
-    private function permissions(Request $request): array
+    private function permissions(): array
     {
         return [
-            'view' => $request->user()?->can('orders.view') ?? false,
-            'create' => $request->user()?->can('orders.create') ?? false,
-            'edit' => $request->user()?->can('orders.edit') ?? false,
-            'delete' => $request->user()?->can('orders.delete') ?? false,
+            'view' => true,
+            'create' => true,
+            'edit' => true,
+            'delete' => true,
         ];
     }
 }

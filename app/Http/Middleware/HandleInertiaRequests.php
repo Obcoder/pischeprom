@@ -46,10 +46,10 @@ class HandleInertiaRequests extends Middleware
                     : null,
                 'permissions' => fn () => [
                     'orders' => [
-                        'view' => $request->user()?->can('orders.view') ?? false,
-                        'create' => $request->user()?->can('orders.create') ?? false,
-                        'edit' => $request->user()?->can('orders.edit') ?? false,
-                        'delete' => $request->user()?->can('orders.delete') ?? false,
+                        'view' => true,
+                        'create' => true,
+                        'edit' => true,
+                        'delete' => true,
                     ],
                 ],
             ],

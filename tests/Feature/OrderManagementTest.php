@@ -16,7 +16,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
-use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class OrderManagementTest extends TestCase
@@ -80,13 +79,6 @@ class OrderManagementTest extends TestCase
 
     public function test_order_crud_recalculates_goods_totals_and_syncs_logistics(): void
     {
-        $this->signInWithOrderPermissions(
-            'orders.view',
-            'orders.create',
-            'orders.edit',
-            'orders.delete',
-        );
-
         $entity = Entity::query()->create(['name' => 'ООО Покупатель']);
         $building = Building::query()->create(['address' => 'Складская, 10']);
         $firstGood = Good::query()->create([
@@ -259,8 +251,6 @@ class OrderManagementTest extends TestCase
 
     public function test_order_pages_dashboard_and_unit_expose_related_orders(): void
     {
-        $this->signInWithOrderPermissions('orders.view');
-
         $entity = Entity::query()->create(['name' => 'Связанная Entity']);
         $unit = Unit::query()->create(['name' => 'Unit покупателя']);
         $unit->entities()->attach($entity);
@@ -305,38 +295,27 @@ class OrderManagementTest extends TestCase
         $this->assertSame($good->id, $loadedUnit->entities->first()->orders->first()->items->first()->good->id);
     }
 
-    public function test_order_control_panel_and_api_require_order_permissions(): void
+    public function test_order_control_panel_and_api_are_available_without_authentication(): void
     {
-        $this->get('/Ameise/orders')->assertRedirect('/login');
-        $this->getJson('/api/orders')->assertUnauthorized();
-
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        $this->get('/Ameise/orders')->assertForbidden();
-        $this->getJson('/api/orders')->assertForbidden();
-        $this->get('/Ameise/')
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('canViewOrders', false)
-                ->where('ordersByStatus.open', [])
-                ->where('ordersByStatus.deferred', []));
-
-        $permission = Permission::query()->firstOrCreate([
-            'name' => 'orders.view',
-            'guard_name' => 'crm',
-        ]);
-        $user->givePermissionTo($permission);
-
         $this->get('/Ameise/orders')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Ameise/Orders/Index')
-                ->where('permissions.view', true));
+                ->where('permissions.view', true)
+                ->where('permissions.create', true)
+                ->where('auth.user', null)
+                ->where('auth.permissions.orders.view', true));
+        $this->get('/Ameise/orders/create')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Ameise/Orders/Show')
+                ->where('orderId', null)
+                ->where('permissions.create', true));
+        $this->getJson('/api/orders/options')->assertOk();
         $this->getJson('/api/orders')->assertOk();
 
         $order = Order::query()->create([
-            'entity_id' => Entity::query()->create(['name' => 'Protected Entity'])->id,
+            'entity_id' => Entity::query()->create(['name' => 'Public Ameise Entity'])->id,
             'order_status_id' => OrderStatus::query()
                 ->where('code', OrderStatus::OPEN)
                 ->value('id'),
@@ -344,25 +323,10 @@ class OrderManagementTest extends TestCase
             'currency_code' => 'RUB',
         ]);
 
-        $this->deleteJson('/api/orders/'.$order->id)->assertForbidden();
-        $this->assertDatabaseHas('orders', ['id' => $order->id]);
-    }
-
-    private function signInWithOrderPermissions(string ...$permissions): User
-    {
-        $user = User::factory()->create();
-
-        foreach ($permissions as $permission) {
-            $user->givePermissionTo(
-                Permission::query()->firstOrCreate([
-                    'name' => $permission,
-                    'guard_name' => 'crm',
-                ])
-            );
-        }
-
-        $this->actingAs($user);
-
-        return $user;
+        $this->getJson('/api/orders/'.$order->id)
+            ->assertOk()
+            ->assertJsonPath('data.id', $order->id);
+        $this->deleteJson('/api/orders/'.$order->id)->assertNoContent();
+        $this->assertDatabaseMissing('orders', ['id' => $order->id]);
     }
 }

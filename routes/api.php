@@ -491,25 +491,18 @@ Route::apiResource('messages', MessageController::class);
 Route::apiResource('notes', NoteController::class);
 Route::prefix('orders')
     ->name('orders.')
-    ->middleware('auth:sanctum')
     ->group(function (): void {
         Route::get('/options', [OrderController::class, 'options'])
-            ->middleware('can:orders.view')
             ->name('options');
         Route::get('/', [OrderController::class, 'index'])
-            ->middleware('can:orders.view')
             ->name('index');
         Route::post('/', [OrderController::class, 'store'])
-            ->middleware('can:orders.create')
             ->name('store');
         Route::get('/{order}', [OrderController::class, 'show'])
-            ->middleware('can:orders.view')
             ->name('show');
         Route::match(['put', 'patch'], '/{order}', [OrderController::class, 'update'])
-            ->middleware('can:orders.edit')
             ->name('update');
         Route::delete('/{order}', [OrderController::class, 'destroy'])
-            ->middleware('can:orders.delete')
             ->name('destroy');
     });
 Route::apiResource('plants', PlantController::class);

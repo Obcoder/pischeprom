@@ -20,20 +20,16 @@ use App\Models\Telephone;
 use App\Models\Unit;
 use App\Models\Uri;
 use App\Services\Mail\UnansweredOutgoingMailService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class UnitController extends Controller
 {
     public function show(
-        Request $request,
         Unit $unit,
         UnansweredOutgoingMailService $mailService
     ) {
-        $canViewOrders = $request->user()?->can('orders.view') ?? false;
-
-        $unit->load(Unit::detailRelations($canViewOrders));
+        $unit->load(Unit::detailRelations(true));
         $this->attachConsumptionRequestCounts($unit);
         $this->attachMailFollowUp($unit, $mailService);
 
@@ -62,8 +58,8 @@ class UnitController extends Controller
             'files' => $this->getUnitFiles($unit),
             'permissions' => [
                 'orders' => [
-                    'view' => $canViewOrders,
-                    'create' => $request->user()?->can('orders.create') ?? false,
+                    'view' => true,
+                    'create' => true,
                 ],
             ],
         ]);

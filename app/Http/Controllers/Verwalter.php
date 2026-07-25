@@ -7,13 +7,12 @@ use App\Http\Resources\OrderResource;
 use App\Models\Lead;
 use App\Models\Order;
 use App\Models\OrderStatus;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class Verwalter extends Controller
 {
-    public function index(Request $request): Response
+    public function index(): Response
     {
         $activeLeads = Lead::query()
             ->with(['telephone', 'entity', 'unit'])
@@ -21,18 +20,13 @@ class Verwalter extends Controller
             ->orderByDesc('last_activity_at')
             ->orderByDesc('id')
             ->get();
-        $canViewOrders = $request->user()?->can('orders.view') ?? false;
 
         return Inertia::render('Ameise/Verwalter', [
             'activeLeads' => LeadResource::collection($activeLeads)->resolve(),
-            'canViewOrders' => $canViewOrders,
+            'canViewOrders' => true,
             'ordersByStatus' => [
-                OrderStatus::OPEN => $canViewOrders
-                    ? $this->ordersForStatus(OrderStatus::OPEN)
-                    : [],
-                OrderStatus::DEFERRED => $canViewOrders
-                    ? $this->ordersForStatus(OrderStatus::DEFERRED)
-                    : [],
+                OrderStatus::OPEN => $this->ordersForStatus(OrderStatus::OPEN),
+                OrderStatus::DEFERRED => $this->ordersForStatus(OrderStatus::DEFERRED),
             ],
         ]);
     }

@@ -139,19 +139,12 @@ Route::get('/Ameise/', [Verwalter::class, 'index'])
 
 Route::prefix('Ameise/orders')
     ->name('Ameise.orders.')
-    ->middleware([
-        'auth:sanctum',
-        config('jetstream.auth_session'),
-    ])
     ->group(function (): void {
         Route::get('/', [OrderPageController::class, 'index'])
-            ->middleware('can:orders.view')
             ->name('index');
         Route::get('/create', [OrderPageController::class, 'create'])
-            ->middleware('can:orders.create')
             ->name('create');
         Route::get('/{order}', [OrderPageController::class, 'show'])
-            ->middleware('can:orders.view')
             ->name('show');
     });
 
