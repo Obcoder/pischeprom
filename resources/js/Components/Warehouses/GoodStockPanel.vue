@@ -26,6 +26,7 @@ const loadError = ref('')
 const formError = ref('')
 const movementFormOpen = ref(false)
 const stockToolsMenu = ref(false)
+const activeGoodsSection = ref('overview')
 
 const movementTypes = [
     { value: 'receipt', title: 'Приход' },
@@ -697,6 +698,32 @@ onMounted(loadAll)
             </form>
         </v-expand-transition>
 
+        <v-tabs
+            v-model="activeGoodsSection"
+            class="goods-stock__section-tabs"
+            color="#176b55"
+            density="compact"
+            show-arrows
+        >
+            <v-tab value="overview" class="goods-stock__section-tab">
+                <v-icon icon="mdi-package-variant-closed" size="16" />
+                <span>Остатки и оповещения</span>
+                <small>{{ stockRows.length }}</small>
+            </v-tab>
+
+            <v-tab value="movements" class="goods-stock__section-tab">
+                <v-icon icon="mdi-swap-horizontal" size="17" />
+                <span>Последние движения</span>
+                <small>{{ movements.length }}</small>
+            </v-tab>
+        </v-tabs>
+
+        <v-tabs-window
+            v-model="activeGoodsSection"
+            :touch="false"
+            class="goods-stock__section-window"
+        >
+            <v-tabs-window-item value="overview" class="goods-stock__section-panel">
         <div class="goods-stock__grid">
             <section class="goods-stock__card">
                 <div class="goods-stock__card-heading">
@@ -991,6 +1018,9 @@ onMounted(loadAll)
             </section>
         </div>
 
+            </v-tabs-window-item>
+
+            <v-tabs-window-item value="movements" class="goods-stock__section-panel">
         <section class="goods-stock__card">
             <h3>Последние движения goods</h3>
 
@@ -1077,6 +1107,8 @@ onMounted(loadAll)
                 </table>
             </div>
         </section>
+            </v-tabs-window-item>
+        </v-tabs-window>
     </section>
 </template>
 
@@ -1200,6 +1232,56 @@ onMounted(loadAll)
     color: #b42318;
     font-size: 11px;
     font-weight: 800;
+}
+
+.goods-stock__section-tabs {
+    min-height: 36px;
+    overflow: hidden;
+    border: 1px solid #8aaa9c;
+    border-radius: 9px;
+    background: #edf7f1;
+}
+
+.goods-stock__section-tabs :deep(.v-slide-group__content) {
+    gap: 2px;
+}
+
+.goods-stock__section-tab {
+    min-width: 210px;
+    min-height: 34px !important;
+    gap: 6px;
+    color: #43584e;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.goods-stock__section-tab small {
+    display: inline-flex;
+    min-width: 20px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #d4e7da;
+    color: #176b55;
+    font-size: 9px;
+    font-weight: 900;
+}
+
+.goods-stock__section-tab.v-tab--selected {
+    background: #ffffff;
+    color: #176b55;
+}
+
+.goods-stock__section-window {
+    overflow: visible;
+}
+
+.goods-stock__section-panel {
+    min-width: 0;
 }
 
 .goods-stock__grid {
