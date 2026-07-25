@@ -14,6 +14,8 @@ const props = defineProps({
     },
 })
 
+const emit = defineEmits(['stats-change'])
+
 const stockRows = ref([])
 const movements = ref([])
 const goods = ref([])
@@ -22,6 +24,7 @@ const loading = ref(false)
 const saving = ref(false)
 const loadError = ref('')
 const formError = ref('')
+const movementFormOpen = ref(false)
 
 const movementTypes = [
     { value: 'receipt', title: 'Приход' },
@@ -178,6 +181,13 @@ async function loadAll() {
         movements.value = unpack(movementsResponse)
         goods.value = unpack(goodsResponse)
         alerts.value = unpack(alertsResponse)
+        emit('stats-change', {
+            rows: stockRows.value.length,
+            value: stockRows.value.reduce(
+                (sum, row) => sum + numeric(row.stock_value),
+                0
+            ),
+        })
     } catch (error) {
         loadError.value = errorMessage(
             error,
@@ -201,6 +211,16 @@ function resetForm() {
     formError.value = ''
 }
 
+function openMovementForm() {
+    resetForm()
+    movementFormOpen.value = true
+}
+
+function closeMovementForm() {
+    movementFormOpen.value = false
+    resetForm()
+}
+
 function editMovement(movement) {
     form.id = movement.id
     form.warehouse_id = movement.warehouse_id
@@ -214,6 +234,7 @@ function editMovement(movement) {
     form.moved_at = movement.moved_at || today()
     form.note = movement.note || ''
     formError.value = ''
+    movementFormOpen.value = true
 }
 
 async function saveMovement() {
@@ -245,6 +266,7 @@ async function saveMovement() {
         }
 
         resetForm()
+        movementFormOpen.value = false
         await loadAll()
     } catch (error) {
         formError.value = errorMessage(error, 'Не удалось сохранить движение.')
@@ -288,6 +310,12 @@ watch(
     },
     { deep: true, immediate: true }
 )
+
+defineExpose({
+    closeMovementForm,
+    openMovementForm,
+    reload: loadAll,
+})
 
 onMounted(loadAll)
 </script>
@@ -344,119 +372,142 @@ onMounted(loadAll)
             {{ loadError }}
         </v-alert>
 
-        <form class="goods-stock__form" @submit.prevent="saveMovement">
-            <v-select
-                v-model="form.type"
-                :items="movementTypes"
-                item-title="title"
-                item-value="value"
-                label="Операция"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
+        <v-expand-transition>
+            <form
+                v-if="movementFormOpen"
+                class="goods-stock__form"
+                @submit.prevent="saveMovement"
+            >
+                <div class="goods-stock__form-heading">
+                    <div>
+                        <span>{{ form.id ? 'Редактирование движения' : 'Новое движение' }}</span>
+                        <strong>Склад goods</strong>
+                    </div>
 
-            <v-select
-                v-model="form.warehouse_id"
-                :items="warehouses"
-                item-title="name"
-                item-value="id"
-                label="Склад"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
+                    <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        density="compact"
+                        type="button"
+                        title="Закрыть форму"
+                        aria-label="Закрыть форму"
+                        @click="closeMovementForm"
+                    />
+                </div>
 
-            <v-autocomplete
-                v-model="form.good_id"
-                :items="goods"
-                item-title="name"
-                item-value="id"
-                label="Товар (goods)"
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-            />
-
-            <v-select
-                v-model="form.measure_id"
-                :items="measures"
-                item-title="name"
-                item-value="id"
-                label="Ед."
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-            />
-
-            <v-text-field
-                v-model.number="form.quantity"
-                label="Количество"
-                type="number"
-                step="0.001"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
-
-            <v-text-field
-                v-model.number="form.unit_price"
-                label="Цена / ед."
-                type="number"
-                min="0"
-                step="0.01"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
-
-            <v-text-field
-                v-model="form.moved_at"
-                label="Дата"
-                type="date"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
-
-            <v-text-field
-                v-model="form.note"
-                label="Примечание"
-                density="compact"
-                variant="outlined"
-                hide-details
-            />
-
-            <div class="goods-stock__form-actions">
-                <v-btn
-                    v-if="form.id"
-                    icon="mdi-close"
-                    variant="text"
+                <v-select
+                    v-model="form.type"
+                    :items="movementTypes"
+                    item-title="title"
+                    item-value="value"
+                    label="Операция"
                     density="compact"
-                    title="Отменить редактирование"
-                    @click="resetForm"
+                    variant="outlined"
+                    hide-details
                 />
 
-                <v-btn
-                    color="success"
-                    variant="flat"
-                    density="comfortable"
-                    type="submit"
-                    :loading="saving"
-                >
-                    {{ form.id ? 'Сохранить' : 'Добавить' }}
-                </v-btn>
-            </div>
+                <v-select
+                    v-model="form.warehouse_id"
+                    :items="warehouses"
+                    item-title="name"
+                    item-value="id"
+                    label="Склад"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                />
 
-            <div
-                v-if="formError"
-                class="goods-stock__form-error"
-            >
-                {{ formError }}
-            </div>
-        </form>
+                <v-autocomplete
+                    v-model="form.good_id"
+                    :items="goods"
+                    item-title="name"
+                    item-value="id"
+                    label="Товар (goods)"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                />
+
+                <v-select
+                    v-model="form.measure_id"
+                    :items="measures"
+                    item-title="name"
+                    item-value="id"
+                    label="Ед."
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                />
+
+                <v-text-field
+                    v-model.number="form.quantity"
+                    label="Количество"
+                    type="number"
+                    step="0.001"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                />
+
+                <v-text-field
+                    v-model.number="form.unit_price"
+                    label="Цена / ед."
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                />
+
+                <v-text-field
+                    v-model="form.moved_at"
+                    label="Дата"
+                    type="date"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                />
+
+                <v-text-field
+                    v-model="form.note"
+                    label="Примечание"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                />
+
+                <div class="goods-stock__form-actions">
+                    <v-btn
+                        text="Отмена"
+                        variant="text"
+                        density="comfortable"
+                        type="button"
+                        @click="closeMovementForm"
+                    />
+
+                    <v-btn
+                        :prepend-icon="form.id ? 'mdi-content-save-outline' : 'mdi-plus'"
+                        color="success"
+                        variant="flat"
+                        density="comfortable"
+                        type="submit"
+                        :loading="saving"
+                    >
+                        {{ form.id ? 'Сохранить' : 'Добавить' }}
+                    </v-btn>
+                </div>
+
+                <div
+                    v-if="formError"
+                    class="goods-stock__form-error"
+                >
+                    {{ formError }}
+                </div>
+            </form>
+        </v-expand-transition>
 
         <div class="goods-stock__grid">
             <section class="goods-stock__card">
@@ -464,6 +515,14 @@ onMounted(loadAll)
 
                 <div class="goods-stock__table-wrap">
                     <table class="goods-stock__table">
+                        <colgroup>
+                            <col class="goods-col-warehouse">
+                            <col class="goods-col-name">
+                            <col class="goods-col-quantity">
+                            <col class="goods-col-value">
+                            <col class="goods-col-date">
+                        </colgroup>
+
                         <thead>
                             <tr>
                                 <th>Склад</th>
@@ -517,6 +576,14 @@ onMounted(loadAll)
 
                 <div class="goods-stock__table-wrap">
                     <table class="goods-stock__table goods-stock__table--alerts">
+                        <colgroup>
+                            <col class="alerts-col-good">
+                            <col class="alerts-col-status">
+                            <col class="alerts-col-max">
+                            <col class="alerts-col-created">
+                            <col class="alerts-col-actions">
+                        </colgroup>
+
                         <thead>
                             <tr>
                                 <th>Товар</th>
@@ -572,6 +639,17 @@ onMounted(loadAll)
 
             <div class="goods-stock__table-wrap">
                 <table class="goods-stock__table goods-stock__table--movements">
+                    <colgroup>
+                        <col class="goods-movement-col-date">
+                        <col class="goods-movement-col-operation">
+                        <col class="goods-movement-col-warehouse">
+                        <col class="goods-movement-col-name">
+                        <col class="goods-movement-col-quantity">
+                        <col class="goods-movement-col-price">
+                        <col class="goods-movement-col-note">
+                        <col class="goods-movement-col-actions">
+                    </colgroup>
+
                     <thead>
                         <tr>
                             <th>Дата</th>
@@ -643,8 +721,7 @@ onMounted(loadAll)
 .goods-stock {
     display: grid;
     gap: 10px;
-    padding-top: 10px;
-    border-top: 3px solid #176b55;
+    padding: 12px;
 }
 
 .goods-stock__toolbar {
@@ -654,6 +731,7 @@ onMounted(loadAll)
     align-items: center;
     padding: 10px 12px;
     border: 1px solid #8aaa9c;
+    border-radius: 10px;
     background: #f2fbf6;
 }
 
@@ -717,7 +795,34 @@ onMounted(loadAll)
     align-items: start;
     padding: 8px;
     border: 1px solid #9fb8aa;
+    border-radius: 10px;
     background: #e8f3ec;
+}
+
+.goods-stock__form-heading {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.goods-stock__form-heading div {
+    display: flex;
+    gap: 7px;
+    align-items: baseline;
+}
+
+.goods-stock__form-heading span {
+    color: #607067;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.goods-stock__form-heading strong {
+    color: #176b55;
+    font-size: 14px;
 }
 
 .goods-stock__form-actions,
@@ -744,6 +849,7 @@ onMounted(loadAll)
     min-width: 0;
     padding: 8px;
     border: 1px solid #9fb8aa;
+    border-radius: 10px;
     background: #fafffb;
 }
 
@@ -757,6 +863,7 @@ onMounted(loadAll)
     width: 100%;
     overflow: auto;
     border: 1px solid #c0d0c7;
+    border-radius: 7px;
     background: #ffffff;
 }
 
@@ -774,6 +881,78 @@ onMounted(loadAll)
 
 .goods-stock__table--movements {
     min-width: 980px;
+}
+
+.goods-col-warehouse {
+    width: 17%;
+}
+
+.goods-col-name {
+    width: 37%;
+}
+
+.goods-col-quantity {
+    width: 14%;
+}
+
+.goods-col-value {
+    width: 14%;
+}
+
+.goods-col-date {
+    width: 18%;
+}
+
+.alerts-col-good {
+    width: 34%;
+}
+
+.alerts-col-status {
+    width: 20%;
+}
+
+.alerts-col-max {
+    width: 28%;
+}
+
+.alerts-col-created {
+    width: 13%;
+}
+
+.alerts-col-actions {
+    width: 5%;
+}
+
+.goods-movement-col-date {
+    width: 9%;
+}
+
+.goods-movement-col-operation {
+    width: 11%;
+}
+
+.goods-movement-col-warehouse {
+    width: 13%;
+}
+
+.goods-movement-col-name {
+    width: 28%;
+}
+
+.goods-movement-col-quantity {
+    width: 12%;
+}
+
+.goods-movement-col-price {
+    width: 10%;
+}
+
+.goods-movement-col-note {
+    width: 13%;
+}
+
+.goods-movement-col-actions {
+    width: 4%;
 }
 
 .goods-stock__table th,
