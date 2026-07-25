@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Tests\TestCase;
 
 class GoodStockAlertTest extends TestCase
@@ -393,6 +394,37 @@ class GoodStockAlertTest extends TestCase
             'good_id' => $good->id,
             'availability_status' => 'in_stock',
         ]);
+    }
+
+    public function test_internal_goods_stock_routes_accept_an_authenticated_first_party_session(): void
+    {
+        config()->set('sanctum.stateful', ['shop.test']);
+
+        $this->assertContains(
+            EnsureFrontendRequestsAreStateful::class,
+            app('router')->getMiddlewareGroups()['api']
+        );
+
+        $user = User::factory()->create();
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect();
+
+        app('auth')->forgetGuards();
+
+        $this->withHeader('Referer', 'https://shop.test/Ameise/warehouses')
+            ->getJson(route('good-warehouse-stock.index'))
+            ->assertOk();
+
+        $this->withHeader('Referer', 'https://shop.test/Ameise/warehouses')
+            ->getJson(route('good-stock-movements.index'))
+            ->assertOk();
+
+        $this->withHeader('Referer', 'https://shop.test/Ameise/warehouses')
+            ->getJson(route('good-stock-alerts.index'))
+            ->assertOk();
     }
 
     public function test_internal_goods_stock_and_max_routes_require_authentication(): void
