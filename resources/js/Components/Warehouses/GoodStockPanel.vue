@@ -25,11 +25,26 @@ const saving = ref(false)
 const loadError = ref('')
 const formError = ref('')
 const movementFormOpen = ref(false)
+const stockToolsMenu = ref(false)
 
 const movementTypes = [
     { value: 'receipt', title: 'Приход' },
     { value: 'write_off', title: 'Списание' },
     { value: 'adjustment', title: 'Корректировка' },
+]
+
+const stockBalanceOptions = [
+    { value: 'all', title: 'Все остатки' },
+    { value: 'available', title: 'В наличии (> 0)' },
+    { value: 'shortage', title: 'Дефицит (< 0)' },
+]
+
+const stockSortOptions = [
+    { value: 'good_name', title: 'Название товара' },
+    { value: 'warehouse_name', title: 'Название склада' },
+    { value: 'quantity', title: 'Остаток' },
+    { value: 'stock_value', title: 'Стоимость' },
+    { value: 'last_moved_at', title: 'Последнее движение' },
 ]
 
 const form = reactive({
@@ -42,6 +57,15 @@ const form = reactive({
     unit_price: 0,
     moved_at: today(),
     note: '',
+})
+
+const stockFilters = reactive({
+    search: '',
+    warehouse_id: null,
+    measure_key: null,
+    balance: 'all',
+    sort_by: 'good_name',
+    sort_direction: 'asc',
 })
 
 const stats = computed(() => {
@@ -58,6 +82,126 @@ const stats = computed(() => {
     }
 })
 
+const stockWarehouseOptions = computed(() => {
+    const options = new Map()
+
+    stockRows.value.forEach((row) => {
+        const id = Number(row.warehouse_id)
+
+        if (!Number.isFinite(id) || options.has(id)) {
+            return
+        }
+
+        options.set(id, {
+            id,
+            name: row.warehouse?.name || `Склад #${id}`,
+        })
+    })
+
+    return [...options.values()].sort((left, right) => (
+        compareText(left.name, right.name)
+    ))
+})
+
+const stockMeasureOptions = computed(() => {
+    const options = new Map()
+
+    stockRows.value.forEach((row) => {
+        const key = row.measure_id === null || row.measure_id === undefined
+            ? 'none'
+            : String(row.measure_id)
+
+        if (options.has(key)) {
+            return
+        }
+
+        options.set(key, {
+            key,
+            name: row.measure?.name || 'Без единицы',
+        })
+    })
+
+    return [...options.values()].sort((left, right) => (
+        compareText(left.name, right.name)
+    ))
+})
+
+const activeStockFilterCount = computed(() => [
+    normalizeSearch(stockFilters.search),
+    stockFilters.warehouse_id,
+    stockFilters.measure_key,
+    stockFilters.balance !== 'all' ? stockFilters.balance : null,
+].filter((value) => value !== null && value !== undefined && value !== '').length)
+
+const stockToolsChanged = computed(() => (
+    activeStockFilterCount.value > 0
+    || stockFilters.sort_by !== 'good_name'
+    || stockFilters.sort_direction !== 'asc'
+))
+
+const visibleStockRows = computed(() => {
+    const search = normalizeSearch(stockFilters.search)
+    const rows = stockRows.value.filter((row) => {
+        if (
+            stockFilters.warehouse_id !== null
+            && stockFilters.warehouse_id !== undefined
+            && Number(row.warehouse_id) !== Number(stockFilters.warehouse_id)
+        ) {
+            return false
+        }
+
+        const measureKey = row.measure_id === null || row.measure_id === undefined
+            ? 'none'
+            : String(row.measure_id)
+
+        if (
+            stockFilters.measure_key !== null
+            && stockFilters.measure_key !== undefined
+            && measureKey !== stockFilters.measure_key
+        ) {
+            return false
+        }
+
+        const quantity = numeric(row.quantity)
+
+        if (stockFilters.balance === 'available' && quantity <= 0) {
+            return false
+        }
+
+        if (stockFilters.balance === 'shortage' && quantity >= 0) {
+            return false
+        }
+
+        if (!search) {
+            return true
+        }
+
+        return normalizeSearch([
+            row.good?.name,
+            row.warehouse?.name,
+            row.measure?.name,
+            row.good_id,
+        ].filter(Boolean).join(' ')).includes(search)
+    })
+
+    return rows.sort((left, right) => {
+        const direction = stockFilters.sort_direction === 'desc' ? -1 : 1
+        const primaryResult = compareStockRows(left, right, stockFilters.sort_by)
+
+        if (primaryResult !== 0) {
+            return primaryResult * direction
+        }
+
+        let result = compareText(left.good?.name, right.good?.name)
+
+        if (result === 0) {
+            result = numeric(left.good_id) - numeric(right.good_id)
+        }
+
+        return result
+    })
+})
+
 function unpack(response) {
     return response?.data?.data || response?.data || []
 }
@@ -70,6 +214,42 @@ function numeric(value) {
     const number = Number(value)
 
     return Number.isFinite(number) ? number : 0
+}
+
+function normalizeSearch(value) {
+    return String(value || '').trim().toLocaleLowerCase('ru-RU')
+}
+
+function compareText(left, right) {
+    return String(left || '').localeCompare(String(right || ''), 'ru-RU', {
+        numeric: true,
+        sensitivity: 'base',
+    })
+}
+
+function compareStockRows(left, right, sortBy) {
+    if (sortBy === 'quantity' || sortBy === 'stock_value') {
+        return numeric(left[sortBy]) - numeric(right[sortBy])
+    }
+
+    if (sortBy === 'warehouse_name') {
+        return compareText(left.warehouse?.name, right.warehouse?.name)
+    }
+
+    if (sortBy === 'last_moved_at') {
+        return compareText(left.last_moved_at, right.last_moved_at)
+    }
+
+    return compareText(left.good?.name, right.good?.name)
+}
+
+function resetStockTools() {
+    stockFilters.search = ''
+    stockFilters.warehouse_id = null
+    stockFilters.measure_key = null
+    stockFilters.balance = 'all'
+    stockFilters.sort_by = 'good_name'
+    stockFilters.sort_direction = 'asc'
 }
 
 function formatQty(value) {
@@ -519,7 +699,170 @@ onMounted(loadAll)
 
         <div class="goods-stock__grid">
             <section class="goods-stock__card">
-                <h3>Текущие остатки goods</h3>
+                <div class="goods-stock__card-heading">
+                    <div class="goods-stock__card-heading-copy">
+                        <h3>Текущие остатки goods</h3>
+                        <span v-if="stockRows.length">
+                            {{ visibleStockRows.length }} из {{ stockRows.length }}
+                        </span>
+                    </div>
+
+                    <v-menu
+                        v-model="stockToolsMenu"
+                        :close-on-content-click="false"
+                        location="bottom end"
+                        offset="8"
+                        width="420"
+                        max-width="calc(100vw - 24px)"
+                    >
+                        <template #activator="{ props: menuProps }">
+                            <v-btn
+                                v-bind="menuProps"
+                                :variant="stockToolsChanged ? 'flat' : 'tonal'"
+                                color="#dcebe2"
+                                size="small"
+                                density="compact"
+                                prepend-icon="mdi-tune-variant"
+                                class="goods-stock__tools-button"
+                            >
+                                Сортировка и фильтры
+
+                                <span
+                                    v-if="activeStockFilterCount"
+                                    class="goods-stock__filter-count"
+                                >
+                                    {{ activeStockFilterCount }}
+                                </span>
+                            </v-btn>
+                        </template>
+
+                        <v-card class="goods-stock__tools-menu">
+                            <v-card-title class="goods-stock__tools-title">
+                                <div>
+                                    <strong>Остатки goods</strong>
+                                    <span>Сортировка и фильтрация таблицы</span>
+                                </div>
+
+                                <v-btn
+                                    icon="mdi-close"
+                                    variant="text"
+                                    size="x-small"
+                                    title="Закрыть"
+                                    @click="stockToolsMenu = false"
+                                />
+                            </v-card-title>
+
+                            <v-card-text class="goods-stock__tools-body">
+                                <v-text-field
+                                    v-model="stockFilters.search"
+                                    label="Поиск по товару"
+                                    prepend-inner-icon="mdi-magnify"
+                                    density="compact"
+                                    variant="solo-filled"
+                                    clearable
+                                    hide-details
+                                />
+
+                                <div class="goods-stock__tools-grid">
+                                    <v-select
+                                        v-model="stockFilters.warehouse_id"
+                                        :items="stockWarehouseOptions"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Склад"
+                                        density="compact"
+                                        variant="solo-filled"
+                                        clearable
+                                        hide-details
+                                    />
+
+                                    <v-select
+                                        v-model="stockFilters.measure_key"
+                                        :items="stockMeasureOptions"
+                                        item-title="name"
+                                        item-value="key"
+                                        label="Единица"
+                                        density="compact"
+                                        variant="solo-filled"
+                                        clearable
+                                        hide-details
+                                    />
+                                </div>
+
+                                <v-select
+                                    v-model="stockFilters.balance"
+                                    :items="stockBalanceOptions"
+                                    item-title="title"
+                                    item-value="value"
+                                    label="Состояние остатка"
+                                    density="compact"
+                                    variant="solo-filled"
+                                    hide-details
+                                />
+
+                                <div class="goods-stock__tools-section">
+                                    Сортировка
+                                </div>
+
+                                <v-select
+                                    v-model="stockFilters.sort_by"
+                                    :items="stockSortOptions"
+                                    item-title="title"
+                                    item-value="value"
+                                    label="Поле"
+                                    density="compact"
+                                    variant="solo-filled"
+                                    hide-details
+                                />
+
+                                <v-btn-toggle
+                                    v-model="stockFilters.sort_direction"
+                                    class="goods-stock__sort-direction"
+                                    density="compact"
+                                    color="#176b55"
+                                    mandatory
+                                    divided
+                                >
+                                    <v-btn
+                                        value="asc"
+                                        prepend-icon="mdi-sort-ascending"
+                                    >
+                                        По возрастанию
+                                    </v-btn>
+
+                                    <v-btn
+                                        value="desc"
+                                        prepend-icon="mdi-sort-descending"
+                                    >
+                                        По убыванию
+                                    </v-btn>
+                                </v-btn-toggle>
+                            </v-card-text>
+
+                            <v-card-actions class="goods-stock__tools-actions">
+                                <v-btn
+                                    variant="text"
+                                    density="compact"
+                                    :disabled="!stockToolsChanged"
+                                    @click="resetStockTools"
+                                >
+                                    Сбросить
+                                </v-btn>
+
+                                <v-spacer />
+
+                                <v-btn
+                                    color="#176b55"
+                                    variant="flat"
+                                    density="compact"
+                                    @click="stockToolsMenu = false"
+                                >
+                                    Готово
+                                </v-btn>
+                            </v-card-actions>
+                        </v-card>
+                    </v-menu>
+                </div>
 
                 <div class="goods-stock__table-wrap">
                     <table class="goods-stock__table">
@@ -550,8 +893,14 @@ onMounted(loadAll)
                                 <td colspan="5" class="goods-stock__state">Движений пока нет</td>
                             </tr>
 
+                            <tr v-else-if="!visibleStockRows.length">
+                                <td colspan="5" class="goods-stock__state">
+                                    По заданным фильтрам ничего не найдено
+                                </td>
+                            </tr>
+
                             <tr
-                                v-for="row in stockRows"
+                                v-for="row in visibleStockRows"
                                 :key="`${row.warehouse_id}-${row.good_id}-${row.measure_id || 0}`"
                                 :class="{ 'goods-stock__row--empty': numeric(row.quantity) <= 0 }"
                             >
@@ -868,9 +1217,119 @@ onMounted(loadAll)
 }
 
 .goods-stock__card h3 {
-    margin-bottom: 7px;
     font-size: 13px;
     font-weight: 900;
+}
+
+.goods-stock__card-heading {
+    display: flex;
+    min-height: 28px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.goods-stock__card-heading-copy {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 7px;
+}
+
+.goods-stock__card-heading-copy span {
+    flex: none;
+    color: #607067;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.goods-stock__tools-button {
+    flex: none;
+    color: #173b2e !important;
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.goods-stock__filter-count {
+    display: inline-flex;
+    min-width: 17px;
+    height: 17px;
+    align-items: center;
+    justify-content: center;
+    margin-left: 5px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: #176b55;
+    color: #ffffff;
+    font-size: 9px;
+}
+
+.goods-stock__tools-menu {
+    overflow: hidden;
+    border: 1px solid #8aaa9c;
+    border-radius: 10px !important;
+}
+
+.goods-stock__tools-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 12px 8px;
+    background: #e3f0e8;
+}
+
+.goods-stock__tools-title div {
+    display: grid;
+    gap: 1px;
+}
+
+.goods-stock__tools-title strong {
+    color: #173b2e;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.goods-stock__tools-title span {
+    color: #607067;
+    font-size: 10px;
+}
+
+.goods-stock__tools-body {
+    display: grid;
+    gap: 9px;
+    padding: 12px !important;
+}
+
+.goods-stock__tools-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.goods-stock__tools-section {
+    margin: 2px 0 -3px;
+    color: #176b55;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.goods-stock__sort-direction {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+}
+
+.goods-stock__sort-direction :deep(.v-btn) {
+    min-width: 0;
+}
+
+.goods-stock__tools-actions {
+    padding: 5px 12px 10px;
+    border-top: 1px solid #d5e0d9;
 }
 
 .goods-stock__table-wrap {
@@ -1060,6 +1519,30 @@ onMounted(loadAll)
 
     .goods-stock__form {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .goods-stock__card-heading {
+        align-items: flex-start;
+    }
+
+    .goods-stock__tools-button {
+        width: 34px;
+        min-width: 34px;
+        padding: 0 !important;
+        font-size: 0;
+    }
+
+    .goods-stock__filter-count {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        margin: 0;
+    }
+
+    .goods-stock__tools-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>
