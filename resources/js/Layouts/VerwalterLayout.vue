@@ -719,14 +719,6 @@ onMounted(fetchWorkingLeads)
                 >
                     <v-icon icon="mdi-cog-outline" size="21" />
                 </Link>
-
-                <v-btn icon="mdi-heart" />
-
-                <v-btn icon="mdi-magnify" />
-
-                <v-btn icon="mdi-dots-vertical" />
-
-                <v-icon icon="mdi-barn" size="x-small" />
             </template>
         </v-app-bar>
 
