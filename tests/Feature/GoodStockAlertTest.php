@@ -17,6 +17,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -434,9 +435,39 @@ class GoodStockAlertTest extends TestCase
             ->assertOk();
     }
 
-    public function test_internal_max_routes_still_require_authentication(): void
+    public function test_ameise_max_routes_do_not_require_authentication(): void
     {
-        $this->getJson(route('api.max.chats.index'))->assertUnauthorized();
+        $this->getJson(route('api.max.chats.index'))
+            ->assertOk()
+            ->assertJsonPath('data', []);
+
+        $this->getJson(route('api.max.subscriptions.index'))
+            ->assertOk()
+            ->assertJsonPath('data', []);
+
+        $routeNames = [
+            'Ameise.max',
+            'api.max.chats.index',
+            'api.max.chats.store',
+            'api.max.chats.show',
+            'api.max.chats.update',
+            'api.max.chats.destroy',
+            'api.max.chats.messages',
+            'api.max.chats.sync',
+            'api.max.messages.send',
+            'api.max.messages.update',
+            'api.max.messages.destroy',
+            'api.max.subscriptions.index',
+            'api.max.subscriptions.store',
+            'api.max.subscriptions.destroy',
+        ];
+
+        foreach ($routeNames as $routeName) {
+            $route = Route::getRoutes()->getByName($routeName);
+
+            $this->assertNotNull($route, "Route {$routeName} must exist.");
+            $this->assertNotContains('auth:sanctum', $route->gatherMiddleware());
+        }
     }
 
     private function outOfStockGood(): Good

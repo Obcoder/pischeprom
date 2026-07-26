@@ -24,6 +24,103 @@ class MaxMessengerService
         return $this->token() !== '' && $this->apiUrl() !== '';
     }
 
+    public function uploadAttachment(
+        string $content,
+        string $fileName,
+        string $mimeType = 'application/octet-stream',
+        string $type = 'file',
+    ): array {
+        $type = strtolower(trim($type));
+        $fileName = $this->safeFileName($fileName);
+        $mimeType = trim($mimeType) ?: 'application/octet-stream';
+
+        if (! in_array($type, ['image', 'video', 'audio', 'file'], true)) {
+            return $this->failure('MAX: указан неподдерживаемый тип вложения.');
+        }
+
+        if ($content === '') {
+            return $this->failure('MAX: вложение пустое.');
+        }
+
+        $slot = $this->request('post', '/uploads', ['type' => $type]);
+
+        if (! $slot['ok']) {
+            return $slot;
+        }
+
+        $uploadUrl = $this->firstString($slot['data'] ?: [], [
+            'url',
+            'upload_url',
+            'data.url',
+        ]);
+
+        if (! $this->validUploadUrl($uploadUrl)) {
+            return $this->failure('MAX не вернул безопасный HTTPS URL для загрузки вложения.');
+        }
+
+        try {
+            $response = Http::timeout(max(10, (int) config('services.max.upload_timeout', 120)))
+                ->acceptJson()
+                ->withOptions($this->tlsOptions())
+                ->withHeaders([
+                    'Authorization' => $this->token(),
+                ])
+                ->attach('data', $content, $fileName, [
+                    'Content-Type' => $mimeType,
+                ])
+                ->post($uploadUrl);
+
+            if ($response->failed()) {
+                Log::warning('MAX attachment upload failed.', [
+                    'endpoint' => $this->safeUploadEndpoint($uploadUrl),
+                    'status' => $response->status(),
+                    'response' => $response->body(),
+                    'file_name' => $fileName,
+                    'mime_type' => $mimeType,
+                    'size' => strlen($content),
+                ]);
+
+                return $this->failure(
+                    $response->json('message') ?: $response->body() ?: 'MAX не загрузил вложение.',
+                    $response->status(),
+                );
+            }
+
+            $data = $response->json() ?? [];
+            $token = $this->uploadToken($data)
+                ?: $this->uploadToken($slot['data'] ?: [])
+                ?: $this->uploadRetval($data)
+                ?: $this->uploadRetval($slot['data'] ?: []);
+
+            if (! $token) {
+                return $this->failure('MAX загрузил файл, но не вернул token вложения.', $response->status());
+            }
+
+            return [
+                'ok' => true,
+                'status' => $response->status(),
+                'data' => [
+                    'type' => $type,
+                    'token' => $token,
+                    'file_name' => $fileName,
+                    'mime_type' => $mimeType,
+                    'size' => strlen($content),
+                ],
+                'error' => null,
+            ];
+        } catch (\Throwable $exception) {
+            Log::warning('MAX attachment upload crashed.', [
+                'endpoint' => $this->safeUploadEndpoint($uploadUrl),
+                'message' => $exception->getMessage(),
+                'file_name' => $fileName,
+                'mime_type' => $mimeType,
+                'size' => strlen($content),
+            ]);
+
+            return $this->failure($this->exceptionMessage($exception));
+        }
+    }
+
     public function sendMessage(array $query, string $text, array $payload = []): array
     {
         $query = $this->cleanQuery($query);
@@ -346,5 +443,67 @@ class MaxMessengerService
         }
 
         return 'https://max.ru/'.ltrim($username, '@');
+    }
+
+    private function firstString(array $payload, array $paths): ?string
+    {
+        foreach ($paths as $path) {
+            $value = data_get($payload, $path);
+
+            if (is_string($value) && trim($value) !== '') {
+                return trim($value);
+            }
+        }
+
+        return null;
+    }
+
+    private function uploadToken(array $payload): ?string
+    {
+        return $this->firstString($payload, [
+            'token',
+            'payload.token',
+            'data.token',
+            'retval.token',
+            'result.token',
+        ]);
+    }
+
+    private function uploadRetval(array $payload): ?string
+    {
+        $retval = data_get($payload, 'retval');
+
+        return is_string($retval) && trim($retval) !== ''
+            ? trim($retval)
+            : null;
+    }
+
+    private function validUploadUrl(?string $url): bool
+    {
+        if (! $url || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return false;
+        }
+
+        return strtolower((string) parse_url($url, PHP_URL_SCHEME)) === 'https'
+            && filled(parse_url($url, PHP_URL_HOST));
+    }
+
+    private function safeUploadEndpoint(string $url): string
+    {
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        $host = parse_url($url, PHP_URL_HOST);
+        $path = parse_url($url, PHP_URL_PATH);
+
+        return ($scheme && $host)
+            ? "{$scheme}://{$host}{$path}"
+            : '[invalid upload URL]';
+    }
+
+    private function safeFileName(string $fileName): string
+    {
+        $fileName = basename(str_replace('\\', '/', trim($fileName)));
+        $fileName = preg_replace('/[\x00-\x1F\x7F]+/u', '_', $fileName) ?: '';
+
+        return $fileName !== '' ? $fileName : 'attachment.bin';
     }
 }

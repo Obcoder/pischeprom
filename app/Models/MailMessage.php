@@ -60,6 +60,11 @@ class MailMessage extends Model
         return $this->hasMany(MailMessageNote::class)->latest();
     }
 
+    public function maxDeliveries(): HasMany
+    {
+        return $this->hasMany(MailMessageMaxDelivery::class);
+    }
+
     public function leads(): HasMany
     {
         return $this->hasMany(Lead::class);

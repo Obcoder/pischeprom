@@ -132,9 +132,15 @@ previous_sha="$(git rev-parse HEAD)"
 maintenance_started=0
 code_switch_started=0
 mail_worker_stopped=0
+mail_notification_worker_stopped=0
 banking_worker_stopped=0
 ssr_stopped=0
+mail_notification_worker_installed=0
 banking_worker_installed=0
+
+if systemctl cat pischeprom-mail-notifications-worker.service >/dev/null 2>&1; then
+    mail_notification_worker_installed=1
+fi
 
 if systemctl cat pischeprom-banking-worker.service >/dev/null 2>&1; then
     banking_worker_installed=1
@@ -159,6 +165,10 @@ restore_application() {
         sudo systemctl start pischeprom-banking-worker >/dev/null 2>&1 || true
     fi
 
+    if (( mail_notification_worker_stopped == 1 )); then
+        sudo systemctl start pischeprom-mail-notifications-worker >/dev/null 2>&1 || true
+    fi
+
     if (( mail_worker_stopped == 1 )); then
         sudo systemctl start pischeprom-mail-sync-worker >/dev/null 2>&1 || true
     fi
@@ -179,6 +189,11 @@ trap restore_application EXIT
 log 'Stopping queue workers before changing application code.'
 sudo systemctl stop pischeprom-mail-sync-worker
 mail_worker_stopped=1
+
+if (( mail_notification_worker_installed == 1 )); then
+    sudo systemctl stop pischeprom-mail-notifications-worker
+    mail_notification_worker_stopped=1
+fi
 
 if (( banking_worker_installed == 1 )); then
     sudo systemctl stop pischeprom-banking-worker
@@ -225,6 +240,10 @@ if ! php artisan max:webhook:ensure >/dev/null 2>&1; then
     fail 'MAX webhook verification failed; rerun the command locally on the VPS.'
 fi
 
+if ! php artisan max:mail-notifications:health >/dev/null 2>&1; then
+    fail 'MAX mail notification health check failed; rerun the command locally on the VPS.'
+fi
+
 if ! php artisan beeline:sync-calls --period=today --limit=500 >/dev/null 2>&1; then
     log 'WARNING: Beeline call sync failed; deployment continues.'
 fi
@@ -247,6 +266,13 @@ php artisan queue:restart
 sudo systemctl daemon-reload
 sudo systemctl start pischeprom-mail-sync-worker
 mail_worker_stopped=0
+
+if (( mail_notification_worker_installed == 1 )); then
+    sudo systemctl start pischeprom-mail-notifications-worker
+    mail_notification_worker_stopped=0
+else
+    log 'WARNING: pischeprom-mail-notifications-worker.service is not installed.'
+fi
 
 if (( banking_worker_installed == 1 )); then
     sudo systemctl start pischeprom-banking-worker

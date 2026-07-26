@@ -1,0 +1,21 @@
+[Unit]
+Description=Pischeprom Laravel MAX mail notifications queue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=forge
+Group=forge
+WorkingDirectory=/home/forge/xn----dtbhbbn3apgclecj7i.xn--p1ai
+ExecStart=/usr/bin/php artisan queue:work --queue=mail-notifications --sleep=3 --tries=5 --timeout=600 --max-time=3600
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=630
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

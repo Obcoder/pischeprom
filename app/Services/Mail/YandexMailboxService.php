@@ -3,8 +3,8 @@
 namespace App\Services\Mail;
 
 use App\Models\Email;
-use App\Models\MailMessageAttachment;
 use App\Models\MailMessage;
+use App\Models\MailMessageAttachment;
 use Carbon\Carbon;
 use DateTimeInterface;
 use Illuminate\Support\Arr;
@@ -18,9 +18,10 @@ use Webklex\PHPIMAP\ClientManager;
 
 class YandexMailboxService
 {
-    public function __construct(private readonly MailboxRegistry $mailboxes)
-    {
-    }
+    public function __construct(
+        private readonly MailboxRegistry $mailboxes,
+        private readonly IncomingMailMaxNotificationDispatcher $maxNotifications,
+    ) {}
 
     public function mailboxes(): array
     {
@@ -32,8 +33,8 @@ class YandexMailboxService
         if ($mailboxAddress) {
             $mailbox = $this->mailboxes->find($mailboxAddress);
 
-            if (!$mailbox) {
-                throw new RuntimeException('Почтовый ящик не настроен: ' . $mailboxAddress);
+            if (! $mailbox) {
+                throw new RuntimeException('Почтовый ящик не настроен: '.$mailboxAddress);
             }
 
             $configuredMailboxes = [$mailbox];
@@ -45,7 +46,7 @@ class YandexMailboxService
 
         foreach ($configuredMailboxes as $mailbox) {
             foreach ($this->mailboxes->folders($mailbox) as $folder) {
-                $key = $mailbox['address'] . '/' . $folder;
+                $key = $mailbox['address'].'/'.$folder;
 
                 try {
                     $result[$key] = $this->syncFolder(
@@ -75,16 +76,15 @@ class YandexMailboxService
         ?string $direction = null,
         int $limit = 1000,
         array|string|null $mailbox = null,
-    ): int
-    {
+    ): int {
         if (is_array($mailbox)) {
             $mailbox = $mailbox;
         } elseif (is_string($mailbox) && trim($mailbox) !== '') {
             $mailboxAddress = $mailbox;
             $mailbox = $this->mailboxes->find($mailboxAddress);
 
-            if (!$mailbox) {
-                throw new RuntimeException('Почтовый ящик не настроен: ' . $mailboxAddress);
+            if (! $mailbox) {
+                throw new RuntimeException('Почтовый ящик не настроен: '.$mailboxAddress);
             }
         } else {
             $mailbox = $this->mailboxes->findOrDefault(null);
@@ -97,7 +97,7 @@ class YandexMailboxService
 
             $folder = $this->resolveFolder($client, $folderName);
 
-            if (!$folder) {
+            if (! $folder) {
                 logger()->warning('Yandex IMAP folder not found', [
                     'mailbox' => $mailbox['address'],
                     'requested_folder' => $folderName,
@@ -189,7 +189,7 @@ class YandexMailboxService
 
     protected function client(?array $mailbox = null)
     {
-        $manager = new ClientManager();
+        $manager = new ClientManager;
 
         return $manager->make(
             $this->mailboxes->imapClientConfig($mailbox ?: $this->mailboxes->findOrDefault(null))
@@ -228,7 +228,7 @@ class YandexMailboxService
 
         $imapUid = $this->uid($message);
 
-        if (!$imapUid) {
+        if (! $imapUid) {
             $imapUid = $this->fallbackUid(
                 folderName: $folderName,
                 direction: $direction,
@@ -242,29 +242,30 @@ class YandexMailboxService
         }
 
         $mailMessage = MailMessage::query()->firstOrNew([
-                                                            'mailbox' => $mailboxAddress,
-                                                            'folder' => $folderName,
-                                                            'imap_uid' => $imapUid,
-                                                        ]);
+            'mailbox' => $mailboxAddress,
+            'folder' => $folderName,
+            'imap_uid' => $imapUid,
+        ]);
+        $isNewMessage = ! $mailMessage->exists;
 
         $mailMessage->fill([
-                               'message_id' => $messageId,
-                               'direction' => $direction,
-                               'subject' => $subject,
-                               'message_date' => $messageDate,
-                               'from_address' => $from['address'] ?? null,
-                               'from_name' => $from['name'] ?? null,
-                               'to' => $to,
-                               'cc' => $cc,
-                               'preview' => $mailMessage->preview,
-                               'has_attachments' => (bool) ($mailMessage->has_attachments ?? false)
-                                   || $this->messageHeadersSuggestAttachments($message),
-                               'raw_headers' => $this->stringValue($message->header->raw ?? null),
-                           ]);
+            'message_id' => $messageId,
+            'direction' => $direction,
+            'subject' => $subject,
+            'message_date' => $messageDate,
+            'from_address' => $from['address'] ?? null,
+            'from_name' => $from['name'] ?? null,
+            'to' => $to,
+            'cc' => $cc,
+            'preview' => $mailMessage->preview,
+            'has_attachments' => (bool) ($mailMessage->has_attachments ?? false)
+                || $this->messageHeadersSuggestAttachments($message),
+            'raw_headers' => $this->stringValue($message->header->raw ?? null),
+        ]);
 
         $mailMessage->save();
 
-        if ($direction === 'incoming' && !empty($from['address'])) {
+        if ($direction === 'incoming' && ! empty($from['address'])) {
             $email = $this->findOrCreateEmail(
                 address: $from['address'],
                 name: $from['name'] ?? null,
@@ -291,6 +292,10 @@ class YandexMailboxService
 
                 $this->attachRole($mailMessage, $email, 'cc');
             }
+        }
+
+        if ($isNewMessage) {
+            $this->maxNotifications->safeRegister($mailMessage);
         }
     }
 
@@ -324,10 +329,10 @@ class YandexMailboxService
         }
 
         $email->forceFill([
-                              'last_seen_at' => now(),
-                              'name' => $email->name ?: $name,
-                              'source' => $email->source ?: 'yandex',
-                          ])->save();
+            'last_seen_at' => now(),
+            'name' => $email->name ?: $name,
+            'source' => $email->source ?: 'yandex',
+        ])->save();
 
         return $email;
     }
@@ -407,15 +412,15 @@ class YandexMailboxService
         array $cc,
     ): int {
         $fingerprint = json_encode([
-                                       'folder' => $folderName,
-                                       'direction' => $direction,
-                                       'message_id' => $messageId,
-                                       'subject' => $subject,
-                                       'message_date' => $messageDate,
-                                       'from' => $from,
-                                       'to' => $to,
-                                       'cc' => $cc,
-                                   ], JSON_UNESCAPED_UNICODE);
+            'folder' => $folderName,
+            'direction' => $direction,
+            'message_id' => $messageId,
+            'subject' => $subject,
+            'message_date' => $messageDate,
+            'from' => $from,
+            'to' => $to,
+            'cc' => $cc,
+        ], JSON_UNESCAPED_UNICODE);
 
         return (int) sprintf('%u', crc32($fingerprint));
     }
@@ -432,7 +437,7 @@ class YandexMailboxService
 
     protected function call($object, string $method)
     {
-        if (!is_object($object) || !method_exists($object, $method)) {
+        if (! is_object($object) || ! method_exists($object, $method)) {
             return null;
         }
 
@@ -485,13 +490,13 @@ class YandexMailboxService
         }
 
         foreach (['Windows-1251', 'ISO-8859-1', 'UTF-8'] as $encoding) {
-            if (!function_exists('mb_convert_encoding')) {
+            if (! function_exists('mb_convert_encoding')) {
                 continue;
             }
 
             $converted = @mb_convert_encoding($value, 'UTF-8', $encoding);
 
-            if (is_string($converted) && (!function_exists('mb_check_encoding') || mb_check_encoding($converted, 'UTF-8'))) {
+            if (is_string($converted) && (! function_exists('mb_check_encoding') || mb_check_encoding($converted, 'UTF-8'))) {
                 return trim($converted) ?: null;
             }
         }
@@ -515,7 +520,7 @@ class YandexMailboxService
 
         $date = $this->stringValue($value);
 
-        if (!$date) {
+        if (! $date) {
             return null;
         }
 
@@ -528,7 +533,7 @@ class YandexMailboxService
 
     protected function decodeMime(?string $value): ?string
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
 
@@ -555,7 +560,7 @@ class YandexMailboxService
 
     protected function attributeValues($attribute): array
     {
-        if (!$attribute) {
+        if (! $attribute) {
             return [];
         }
 
@@ -629,8 +634,8 @@ class YandexMailboxService
                     ?? $item['name']
                     ?? null;
 
-                if (!$address && !empty($item['mailbox']) && !empty($item['host'])) {
-                    $address = $item['mailbox'] . '@' . $item['host'];
+                if (! $address && ! empty($item['mailbox']) && ! empty($item['host'])) {
+                    $address = $item['mailbox'].'@'.$item['host'];
                 }
             }
 
@@ -644,20 +649,20 @@ class YandexMailboxService
                     ?? $item->name
                     ?? null;
 
-                if (!$address && !empty($item->mailbox) && !empty($item->host)) {
-                    $address = $item->mailbox . '@' . $item->host;
+                if (! $address && ! empty($item->mailbox) && ! empty($item->host)) {
+                    $address = $item->mailbox.'@'.$item->host;
                 }
 
-                if (!$address && !empty($item->full)) {
+                if (! $address && ! empty($item->full)) {
                     $address = $this->emailFromString($item->full);
                 }
             }
 
-            if (!$address && is_string($item)) {
+            if (! $address && is_string($item)) {
                 $address = $this->emailFromString($item);
             }
 
-            if (!$address || !filter_var($address, FILTER_VALIDATE_EMAIL)) {
+            if (! $address || ! filter_var($address, FILTER_VALIDATE_EMAIL)) {
                 continue;
             }
 
@@ -675,7 +680,7 @@ class YandexMailboxService
 
     protected function emailFromString(?string $value): ?string
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
 
@@ -732,8 +737,7 @@ class YandexMailboxService
         bool $force = false,
         bool $withAttachments = false,
         bool $includeAttachmentList = true,
-    ): MailMessage
-    {
+    ): MailMessage {
         $needsAttachmentList = $includeAttachmentList
             && (
                 $mailMessage->has_attachments
@@ -742,17 +746,17 @@ class YandexMailboxService
             );
 
         if (
-            !$force
+            ! $force
             && $mailMessage->body_loaded_at
-            && !$withAttachments
-            && !$needsAttachmentList
+            && ! $withAttachments
+            && ! $needsAttachmentList
         ) {
             return $this->withAvailableAttachments(
                 $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
             );
         }
 
-        if (!$mailMessage->imap_uid) {
+        if (! $mailMessage->imap_uid) {
             return $this->withAvailableAttachments(
                 $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
             );
@@ -762,8 +766,8 @@ class YandexMailboxService
             ? $this->mailboxes->find($mailMessage->mailbox)
             : null;
 
-        if ($mailMessage->mailbox && !$mailbox) {
-            throw new RuntimeException('Почтовый ящик не настроен: ' . $mailMessage->mailbox);
+        if ($mailMessage->mailbox && ! $mailbox) {
+            throw new RuntimeException('Почтовый ящик не настроен: '.$mailMessage->mailbox);
         }
 
         $mailbox = $mailbox ?: $this->mailboxes->findOrDefault(null);
@@ -774,7 +778,7 @@ class YandexMailboxService
 
             $folder = $this->resolveFolder($client, $mailMessage->folder);
 
-            if (!$folder) {
+            if (! $folder) {
                 logger()->warning('Yandex load body folder not found', [
                     'mailbox' => $mailbox['address'],
                     'mail_message_id' => $mailMessage->id,
@@ -798,7 +802,7 @@ class YandexMailboxService
 
             $message = $query->getMessageByUid((int) $mailMessage->imap_uid);
 
-            if (!$message) {
+            if (! $message) {
                 logger()->warning('Yandex message body not found by uid', [
                     'mailbox' => $mailbox['address'],
                     'mail_message_id' => $mailMessage->id,
@@ -821,7 +825,7 @@ class YandexMailboxService
                 $html = $this->replaceCidImageSources($html, $availableAttachments);
             }
 
-            if (!$text && $html) {
+            if (! $text && $html) {
                 $text = trim(strip_tags($html));
             }
 
@@ -957,7 +961,7 @@ class YandexMailboxService
         $createdDiskName = null;
 
         foreach ($this->attachmentUploadDisks($diskName, Storage::disk($diskName)) as [$candidateDiskName, $candidateDisk]) {
-            if ($this->putAttachmentContent($candidateDisk, "{$path}/.keep", 'created: ' . now()->toIso8601String(), 'text/plain')) {
+            if ($this->putAttachmentContent($candidateDisk, "{$path}/.keep", 'created: '.now()->toIso8601String(), 'text/plain')) {
                 $createdDiskName = $candidateDiskName;
                 break;
             }
@@ -972,7 +976,7 @@ class YandexMailboxService
 
     public function saveAttachment(MailMessage $mailMessage, int $index, ?string $folder = null): MailMessage
     {
-        if (!$mailMessage->imap_uid) {
+        if (! $mailMessage->imap_uid) {
             return $this->withAvailableAttachments(
                 $mailMessage->loadMissing(['attachments', 'notes.user', 'leads'])
             );
@@ -982,8 +986,8 @@ class YandexMailboxService
             ? $this->mailboxes->find($mailMessage->mailbox)
             : null;
 
-        if ($mailMessage->mailbox && !$mailbox) {
-            throw new RuntimeException('Почтовый ящик не настроен: ' . $mailMessage->mailbox);
+        if ($mailMessage->mailbox && ! $mailbox) {
+            throw new RuntimeException('Почтовый ящик не настроен: '.$mailMessage->mailbox);
         }
 
         $mailbox = $mailbox ?: $this->mailboxes->findOrDefault(null);
@@ -996,7 +1000,7 @@ class YandexMailboxService
 
             $folder = $this->resolveFolder($client, $mailMessage->folder);
 
-            if (!$folder) {
+            if (! $folder) {
                 logger()->warning('Yandex save attachment folder not found', [
                     'mailbox' => $mailbox['address'],
                     'mail_message_id' => $mailMessage->id,
@@ -1020,7 +1024,7 @@ class YandexMailboxService
             $attachments = $message ? array_values($this->messageAttachments($message)) : [];
             $attachment = $attachments[$index] ?? null;
 
-            if (!$attachment) {
+            if (! $attachment) {
                 return $this->withAvailableAttachments(
                     $mailMessage->fresh()->load(['attachments', 'notes.user', 'leads'])
                 );
@@ -1035,7 +1039,7 @@ class YandexMailboxService
                 folderPath: $targetFolder,
             );
 
-            if (!$savedAttachment) {
+            if (! $savedAttachment) {
                 throw new RuntimeException('Не удалось прочитать содержимое вложения.');
             }
 
@@ -1065,7 +1069,7 @@ class YandexMailboxService
 
     public function downloadAttachment(MailMessage $mailMessage, int $index): ?array
     {
-        if (!$mailMessage->imap_uid) {
+        if (! $mailMessage->imap_uid) {
             return null;
         }
 
@@ -1073,8 +1077,8 @@ class YandexMailboxService
             ? $this->mailboxes->find($mailMessage->mailbox)
             : null;
 
-        if ($mailMessage->mailbox && !$mailbox) {
-            throw new RuntimeException('Почтовый ящик не настроен: ' . $mailMessage->mailbox);
+        if ($mailMessage->mailbox && ! $mailbox) {
+            throw new RuntimeException('Почтовый ящик не настроен: '.$mailMessage->mailbox);
         }
 
         $mailbox = $mailbox ?: $this->mailboxes->findOrDefault(null);
@@ -1085,7 +1089,7 @@ class YandexMailboxService
 
             $folder = $this->resolveFolder($client, $mailMessage->folder);
 
-            if (!$folder) {
+            if (! $folder) {
                 logger()->warning('Yandex download attachment folder not found', [
                     'mailbox' => $mailbox['address'],
                     'mail_message_id' => $mailMessage->id,
@@ -1108,7 +1112,7 @@ class YandexMailboxService
             $message = $query->getMessageByUid((int) $mailMessage->imap_uid);
             $attachment = $message ? (array_values($this->messageAttachments($message))[$index] ?? null) : null;
 
-            if (!$attachment) {
+            if (! $attachment) {
                 return null;
             }
 
@@ -1167,8 +1171,7 @@ class YandexMailboxService
         ?string $diskName = null,
         $disk = null,
         ?string $folderPath = null,
-    ): ?MailMessageAttachment
-    {
+    ): ?MailMessageAttachment {
         $diskName = $diskName ?: $this->attachmentsDiskName();
         $disk = $disk ?: Storage::disk($diskName);
         $folderPath = $folderPath ?: $this->defaultAttachmentFolder($mailMessage);
@@ -1451,8 +1454,8 @@ class YandexMailboxService
                     return [
                         'id' => null,
                         'index' => $index,
-                        'original_name' => 'attachment-' . ($index + 1) . '.bin',
-                        'file_name' => 'attachment-' . ($index + 1) . '.bin',
+                        'original_name' => 'attachment-'.($index + 1).'.bin',
+                        'file_name' => 'attachment-'.($index + 1).'.bin',
                         'mime_type' => 'application/octet-stream',
                         'size' => null,
                         'content_id' => null,
@@ -1476,7 +1479,7 @@ class YandexMailboxService
 
     protected function savedAttachmentPayload(?MailMessageAttachment $attachment, int $index): ?array
     {
-        if (!$attachment) {
+        if (! $attachment) {
             return null;
         }
 
@@ -1508,12 +1511,12 @@ class YandexMailboxService
 
     protected function replaceCidImageSources(?string $html, array $attachments): ?string
     {
-        if (!$html || !str_contains($html, 'cid:')) {
+        if (! $html || ! str_contains($html, 'cid:')) {
             return $html;
         }
 
         $cidMap = collect($attachments)
-            ->filter(fn (array $attachment) => !empty($attachment['content_id']))
+            ->filter(fn (array $attachment) => ! empty($attachment['content_id']))
             ->mapWithKeys(function (array $attachment) {
                 $cid = $this->normalizeCid((string) $attachment['content_id']);
                 $url = $attachment['preview_url'] ?? $attachment['url'] ?? null;
@@ -1530,7 +1533,7 @@ class YandexMailboxService
                 $cid = $this->normalizeCid($matches[2]);
                 $url = $cidMap[$cid] ?? $emptyImage;
 
-                return $matches[1] . htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[3];
+                return $matches[1].htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').$matches[3];
             },
             $html
         );
@@ -1556,7 +1559,7 @@ class YandexMailboxService
 
     protected function defaultAttachmentFolder(MailMessage $mailMessage): string
     {
-        return $this->attachmentRootPath() . '/' . $mailMessage->id;
+        return $this->attachmentRootPath().'/'.$mailMessage->id;
     }
 
     protected function normalizeAttachmentFolder(?string $folder, ?MailMessage $mailMessage = null): string
@@ -1575,7 +1578,7 @@ class YandexMailboxService
 
     protected function mailMessageUnitFolders(?MailMessage $mailMessage, string $diskName): array
     {
-        if (!$mailMessage) {
+        if (! $mailMessage) {
             return [];
         }
 
@@ -1588,11 +1591,11 @@ class YandexMailboxService
             ->filter()
             ->flatMap(fn ($unit) => [
                 [
-                    'path' => 'units/' . $unit->id,
+                    'path' => 'units/'.$unit->id,
                     'disk' => $diskName,
                 ],
                 $unit->name ? [
-                    'path' => 'units/' . $this->safeAttachmentName((string) $unit->name),
+                    'path' => 'units/'.$this->safeAttachmentName((string) $unit->name),
                     'disk' => $diskName,
                 ] : null,
             ])
@@ -1665,8 +1668,8 @@ class YandexMailboxService
     {
         $path = trim($path, '/');
         $root = $this->attachmentRootPath();
-        $relative = Str::startsWith($path, $root . '/')
-            ? Str::after($path, $root . '/')
+        $relative = Str::startsWith($path, $root.'/')
+            ? Str::after($path, $root.'/')
             : ($path === $root ? '' : $path);
 
         return [
@@ -1681,7 +1684,7 @@ class YandexMailboxService
     protected function attachmentFolderUrl(string $path, string $diskName): ?string
     {
         try {
-            return Storage::disk($diskName)->url(rtrim($path, '/') . '/');
+            return Storage::disk($diskName)->url(rtrim($path, '/').'/');
         } catch (Throwable) {
             return null;
         }
@@ -1702,13 +1705,12 @@ class YandexMailboxService
         bool $isImage,
         bool $isPdf,
         ?MailMessageAttachment $saved
-    ): ?string
-    {
+    ): ?string {
         if ($saved?->url && ($isImage || $isPdf)) {
             return $saved->url;
         }
 
-        if ((!$isImage && !$isPdf) || !is_string($content) || $content === '') {
+        if ((! $isImage && ! $isPdf) || ! is_string($content) || $content === '') {
             return null;
         }
 
@@ -1751,7 +1753,7 @@ class YandexMailboxService
             $headers = $this->stringValue($source);
         }
 
-        if (!$headers) {
+        if (! $headers) {
             return false;
         }
 
@@ -1839,7 +1841,7 @@ class YandexMailboxService
             }
         }
 
-        if (!$structure && is_object($message)) {
+        if (! $structure && is_object($message)) {
             try {
                 $reflection = new ReflectionObject($message);
 
@@ -1864,7 +1866,7 @@ class YandexMailboxService
 
     protected function partLooksLikeAttachment($part): bool
     {
-        if (!is_object($part) && !is_array($part)) {
+        if (! is_object($part) && ! is_array($part)) {
             return false;
         }
 
@@ -1923,7 +1925,7 @@ class YandexMailboxService
     {
         $content = $this->partRawValue($part, 'content');
 
-        if (!is_string($content)) {
+        if (! is_string($content)) {
             return null;
         }
 
@@ -1933,7 +1935,7 @@ class YandexMailboxService
             return null;
         }
 
-        $name = $this->partAttachmentName($part, $index) ?: 'attachment-' . ($index + 1) . '.bin';
+        $name = $this->partAttachmentName($part, $index) ?: 'attachment-'.($index + 1).'.bin';
         $mimeType = $this->partMimeType($part, $name) ?: 'application/octet-stream';
 
         return [
@@ -1965,7 +1967,7 @@ class YandexMailboxService
             }
         }
 
-        return $index === null ? null : 'attachment-' . ($index + 1) . '.bin';
+        return $index === null ? null : 'attachment-'.($index + 1).'.bin';
     }
 
     protected function partMimeType($part, ?string $name = null): ?string
@@ -1974,7 +1976,7 @@ class YandexMailboxService
             ?: $this->partHeaderString($part, 'content_type')
             ?: $this->mimeTypeFromName($name);
 
-        if (!$mimeType) {
+        if (! $mimeType) {
             return null;
         }
 
@@ -2002,7 +2004,7 @@ class YandexMailboxService
             return $part[$property] ?? null;
         }
 
-        if (!is_object($part)) {
+        if (! is_object($part)) {
             return null;
         }
 
@@ -2015,14 +2017,14 @@ class YandexMailboxService
 
     protected function partHeaderString($part, string $header): ?string
     {
-        if (!is_object($part) || !method_exists($part, 'getHeader')) {
+        if (! is_object($part) || ! method_exists($part, 'getHeader')) {
             return null;
         }
 
         try {
             $partHeader = $part->getHeader();
 
-            if (!$partHeader || !method_exists($partHeader, 'get')) {
+            if (! $partHeader || ! method_exists($partHeader, 'get')) {
                 return null;
             }
 
@@ -2077,7 +2079,7 @@ class YandexMailboxService
         $unique = [];
 
         foreach ($attachments as $index => $attachment) {
-            if (!$attachment) {
+            if (! $attachment) {
                 continue;
             }
 
@@ -2099,20 +2101,20 @@ class YandexMailboxService
         $partNumber = $this->attachmentRawValue($attachment, 'part_number');
 
         if ($partNumber !== null && $partNumber !== '') {
-            return 'part:' . $partNumber;
+            return 'part:'.$partNumber;
         }
 
         $contentId = $this->attachmentContentId($attachment);
 
         if ($contentId) {
-            return 'cid:' . strtolower($contentId);
+            return 'cid:'.strtolower($contentId);
         }
 
         $name = strtolower($this->attachmentName($attachment, $index));
         $content = $this->attachmentContent($attachment);
         $size = is_string($content) ? strlen($content) : 'unknown';
 
-        return 'file:' . $name . ':' . $size;
+        return 'file:'.$name.':'.$size;
     }
 
     protected function attachmentRawValue($attachment, string $property)
@@ -2121,7 +2123,7 @@ class YandexMailboxService
             return $attachment[$property] ?? null;
         }
 
-        if (!is_object($attachment)) {
+        if (! is_object($attachment)) {
             return null;
         }
 
@@ -2220,7 +2222,7 @@ class YandexMailboxService
             }
         }
 
-        return 'attachment-' . ($index + 1) . '.bin';
+        return 'attachment-'.($index + 1).'.bin';
     }
 
     protected function attachmentContent($attachment): ?string
@@ -2326,17 +2328,17 @@ class YandexMailboxService
     protected function messageBody($message, string $type): ?string
     {
         foreach ([
-                     'getHTMLBody',
-                     'getHtmlBody',
-                     'getTextBody',
-                     'getPlainBody',
-                 ] as $method) {
+            'getHTMLBody',
+            'getHtmlBody',
+            'getTextBody',
+            'getPlainBody',
+        ] as $method) {
             if (
                 is_object($message)
                 && method_exists($message, $method)
                 && (
                     ($type === 'html' && str_contains(strtolower($method), 'html'))
-                    || ($type === 'text' && !str_contains(strtolower($method), 'html'))
+                    || ($type === 'text' && ! str_contains(strtolower($method), 'html'))
                 )
             ) {
                 $value = $message->{$method}();

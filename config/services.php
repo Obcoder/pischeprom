@@ -190,6 +190,7 @@ return [
         'access_token' => env('MAX_ACCESS_TOKEN', env('MAX_BOT_TOKEN')),
         'ca_bundle' => env('MAX_CA_BUNDLE', base_path('certs/russian_trusted_ca_bundle.pem')),
         'ssl_verify' => filter_var(env('MAX_SSL_VERIFY', true), FILTER_VALIDATE_BOOLEAN),
+        'upload_timeout' => (int) env('MAX_UPLOAD_TIMEOUT', 120),
         'bot_url' => env('MAX_BOT_URL'),
         'bot_username' => env('MAX_BOT_USERNAME'),
         'invite_text' => env('MAX_INVITE_TEXT', 'Здравствуйте! Напишите нам в MAX: :url После первого сообщения менеджер сможет отвечать вам в этом чате.'),
@@ -202,6 +203,31 @@ return [
             'trim',
             explode(',', env('MAX_WEBHOOK_UPDATE_TYPES', 'bot_started,bot_stopped,dialog_removed,message_created,message_removed,message_edited,bot_added,bot_removed,user_added,user_removed,chat_title_changed,message_callback'))
         ))),
+        'mail_notifications' => [
+            'enabled' => filter_var(env('MAX_MAIL_NOTIFICATIONS_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'mailboxes' => array_values(array_filter(array_map(
+                fn ($mailbox) => mb_strtolower(trim($mailbox)),
+                explode(',', env('MAX_MAIL_NOTIFICATION_MAILBOXES', 'com@food-server.ru'))
+            ))),
+            'folders' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', env('MAX_MAIL_NOTIFICATION_FOLDERS', 'INBOX'))
+            ))),
+            'chat_ids' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', env('MAX_MAIL_NOTIFICATION_CHAT_IDS', ''))
+            ))),
+            'user_ids' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', env('MAX_MAIL_NOTIFICATION_USER_IDS', ''))
+            ))),
+            'queue' => env('MAX_MAIL_NOTIFICATION_QUEUE', 'mail-notifications'),
+            'text_chunk_length' => min(3800, max(500, (int) env('MAX_MAIL_NOTIFICATION_TEXT_CHUNK_LENGTH', 3400))),
+            'send_interval_ms' => max(500, (int) env('MAX_MAIL_NOTIFICATION_SEND_INTERVAL_MS', 600)),
+            'upload_processing_delay_ms' => max(0, (int) env('MAX_MAIL_NOTIFICATION_UPLOAD_DELAY_MS', 1000)),
+            'max_attachment_bytes' => max(0, (int) env('MAX_MAIL_NOTIFICATION_MAX_ATTACHMENT_BYTES', 52428800)),
+            'max_message_age_hours' => max(0, (int) env('MAX_MAIL_NOTIFICATION_MAX_AGE_HOURS', 0)),
+        ],
     ],
 
 ];
