@@ -403,6 +403,28 @@ function bankUrl() {
     }
 }
 
+function normalizeRoutePath(value) {
+    try {
+        const path = new URL(String(value || '/'), 'http://localhost').pathname
+        const normalized = path.replace(/\/+$/, '')
+
+        return (normalized || '/').toLowerCase()
+    } catch (error) {
+        return '/'
+    }
+}
+
+function isActiveUrl(url, exact = false) {
+    const currentPath = normalizeRoutePath(page.url)
+    const targetPath = normalizeRoutePath(url)
+
+    if (exact || targetPath === '/') {
+        return currentPath === targetPath
+    }
+
+    return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`)
+}
+
 function mailMessageUrl(mailMessageId) {
     if (!mailMessageId) {
         return null
@@ -516,209 +538,266 @@ onMounted(fetchWorkingLeads)
         </v-navigation-drawer>
 
         <v-app-bar
-            :elevation="2"
-            rounded
-            density="compact"
-            scroll-behavior="fade-image elevate"
-            image="https://picsum.photos/1920/1080?random"
+            :elevation="0"
+            height="58"
+            class="ameise-app-bar"
         >
-            <template v-slot:prepend>
-                <v-app-bar-nav-icon
-                    class="working-leads-trigger"
-                    :title="workingLeadsDrawerOpen ? 'Закрыть лиды в работе' : 'Открыть лиды в работе'"
-                    :aria-label="workingLeadsDrawerOpen ? 'Закрыть лиды в работе' : 'Открыть лиды в работе'"
-                    aria-controls="working-leads-drawer"
-                    :aria-expanded="workingLeadsDrawerOpen"
-                    @click="toggleWorkingLeads"
-                >
-                    <v-badge
-                        :content="workingLeadsTotal"
-                        :model-value="workingLeadsTotal > 0"
-                        color="#8f1111"
-                        max="99"
+            <template #prepend>
+                <div class="ameise-header-brand">
+                    <button
+                        type="button"
+                        class="ameise-header-control ameise-header-control--lead working-leads-trigger"
+                        :title="workingLeadsDrawerOpen ? 'Закрыть лиды в работе' : 'Открыть лиды в работе'"
+                        :aria-label="workingLeadsDrawerOpen ? 'Закрыть лиды в работе' : 'Открыть лиды в работе'"
+                        aria-controls="working-leads-drawer"
+                        :aria-expanded="workingLeadsDrawerOpen"
+                        @click="toggleWorkingLeads"
                     >
-                        <v-icon icon="mdi-account-clock-outline" size="large" />
-                    </v-badge>
-                </v-app-bar-nav-icon>
-                <v-app-bar-nav-icon>
-                    <Link :href="route('Ameise')">
-                        <v-icon icon="mdi-halloween" size="large" />
+                        <v-badge
+                            :content="workingLeadsTotal"
+                            :model-value="workingLeadsTotal > 0"
+                            color="#8f1111"
+                            max="99"
+                        >
+                            <v-icon icon="mdi-account-clock-outline" size="20" />
+                        </v-badge>
+                    </button>
+
+                    <Link
+                        :href="route('Ameise')"
+                        class="ameise-header-control ameise-header-home"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise'), true) }"
+                        title="Ameise"
+                        aria-label="Главная Ameise"
+                    >
+                        <v-icon icon="mdi-halloween" size="21" />
+                        <span class="ameise-header-home__label">Ameise</span>
                     </Link>
-                </v-app-bar-nav-icon>
+                </div>
             </template>
-            <v-app-bar-title>
-                <Link :href="route('Ameise.großbuch')">
-                    <v-icon icon="mdi-access-point" size="x-small" />
-                    <span class="ml-1 text-xs">Großbuch</span>
+
+            <nav class="ameise-header-nav" aria-label="Основная навигация Ameise">
+                <Link
+                    :href="route('Ameise.großbuch')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.großbuch')) }"
+                    title="Großbuch"
+                    aria-label="Großbuch"
+                >
+                    <v-icon icon="mdi-book-open-variant" size="19" />
+                    <span class="ameise-nav-link__label">Großbuch</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.checks')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.checks')) }"
                     title="Checks"
                     aria-label="Checks"
                 >
-                    <v-icon icon="mdi-receipt-text-outline" size="small" class="mx-1" />
-                    <span>Checks</span>
+                    <v-icon icon="mdi-receipt-text-outline" size="19" />
+                    <span class="ameise-nav-link__label">Checks</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.warehouses')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.warehouses')) }"
                     title="Склады"
                     aria-label="Склады"
                 >
-                    <v-icon icon="mdi-warehouse" size="small" class="mx-1" />
-                    <span>Склады</span>
+                    <v-icon icon="mdi-warehouse" size="19" />
+                    <span class="ameise-nav-link__label">Склады</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.taxi-shifts')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.taxi-shifts')) }"
                     title="Такси"
                     aria-label="Такси"
                 >
-                    <v-icon icon="mdi-taxi" size="small" class="mx-1" />
-                    <span>Такси</span>
+                    <v-icon icon="mdi-taxi" size="19" />
+                    <span class="ameise-nav-link__label">Такси</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.mail')"
-                    class="ameise-mail-link"
+                    class="ameise-header-control ameise-nav-link ameise-nav-link--mail"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.mail')) }"
                     title="Почта"
                     aria-label="Почта"
                 >
-                    <v-icon icon="mdi-email-fast-outline" size="18" />
+                    <v-icon icon="mdi-email-fast-outline" size="19" />
+                    <span class="ameise-nav-link__label">Почта</span>
+                    <span class="ameise-mail-status" aria-hidden="true"></span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.max')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.max')) }"
                     title="MAX"
                     aria-label="MAX"
                 >
-                    <v-icon icon="mdi-message-text-outline" size="small" class="mx-1" />
-                    <span>MAX</span>
+                    <v-icon icon="mdi-message-text-outline" size="19" />
+                    <span class="ameise-nav-link__label">MAX</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
-                <Link :href="route('Ameise.fluxmonitor')">
-                    <span>M</span>
+
+                <Link
+                    :href="route('Ameise.fluxmonitor')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.fluxmonitor')) }"
+                    title="FluxMonitor"
+                    aria-label="FluxMonitor"
+                >
+                    <span class="ameise-nav-monogram">M</span>
+                    <span class="ameise-nav-link__label">Monitor</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.fields')"
-                    class="ameise-field-link"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.fields')) }"
                     title="Field matching"
                     aria-label="Field matching"
                 >
-                    <span>F</span>
+                    <span class="ameise-nav-monogram">F</span>
+                    <span class="ameise-nav-link__label">Fields</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.home-banners')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.home-banners')) }"
                     title="Баннеры главной"
                     aria-label="Баннеры главной"
                 >
-                    <v-icon icon="mdi-view-carousel-outline" size="small" class="mx-1" />
-                    <span>Баннеры</span>
+                    <v-icon icon="mdi-view-carousel-outline" size="19" />
+                    <span class="ameise-nav-link__label">Баннеры</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
-                <Link :href="route('ameise.workboard')">
-                    <span>WorkBoard</span>
+
+                <Link
+                    :href="route('ameise.workboard')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('ameise.workboard')) }"
+                    title="WorkBoard"
+                    aria-label="WorkBoard"
+                >
+                    <v-icon icon="mdi-view-dashboard-outline" size="19" />
+                    <span class="ameise-nav-link__label">WorkBoard</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
-                <Link :href="route('Ameise.botany')">
-                    <span>Botany</span>
+
+                <Link
+                    :href="route('Ameise.botany')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.botany')) }"
+                    title="Botany"
+                    aria-label="Botany"
+                >
+                    <v-icon icon="mdi-sprout" size="19" />
+                    <span class="ameise-nav-link__label">Botany</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
-                <Link :href="route('Ameise.perfume')">
-                    <v-icon icon="mdi-scent" size="small" class="mx-2" />
-                    <span>Perfume</span>
+
+                <Link
+                    :href="route('Ameise.perfume')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.perfume')) }"
+                    title="Perfume"
+                    aria-label="Perfume"
+                >
+                    <v-icon icon="mdi-scent" size="19" />
+                    <span class="ameise-nav-link__label">Perfume</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
-                <Link :href="route('Ameise.marketing.yandex-direct')">
-                    <v-icon icon="mdi-bullhorn-variant-outline" size="small" class="mx-1" />
-                    <span>Маркетинг</span>
+
+                <Link
+                    :href="route('Ameise.marketing.yandex-direct')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.marketing.yandex-direct')) }"
+                    title="Маркетинг"
+                    aria-label="Маркетинг"
+                >
+                    <v-icon icon="mdi-bullhorn-variant-outline" size="19" />
+                    <span class="ameise-nav-link__label">Маркетинг</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="route('Ameise.gis')"
-                    class="ameise-gis-link"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.gis')) }"
                     title="GIS CRM"
                     aria-label="GIS CRM"
                 >
-                    <v-icon icon="mdi-map-marker-radius" size="small" class="mx-1" />
-                    <span>GIS</span>
+                    <v-icon icon="mdi-map-marker-radius" size="19" />
+                    <span class="ameise-nav-link__label">GIS</span>
                 </Link>
-            </v-app-bar-title>
-            <v-app-bar-title>
+
                 <Link
                     :href="commercialOffersUrl()"
-                    class="ameise-offers-link"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(commercialOffersUrl()) }"
                     title="Коммерческие предложения"
                     aria-label="Коммерческие предложения"
                 >
-                    <v-icon icon="mdi-email-newsletter" size="small" class="mx-1" />
-                    <span>КП</span>
+                    <v-icon icon="mdi-email-newsletter" size="19" />
+                    <span class="ameise-nav-link__label">КП</span>
                 </Link>
-            </v-app-bar-title>
-            <template v-slot:append>
-                <Link
-                    v-if="canViewOrders"
-                    :href="route('Ameise.orders.index')"
-                    class="ameise-header-icon ameise-orders-icon"
-                    title="Заказы"
-                    aria-label="Панель заказов"
-                >
-                    <v-icon icon="mdi-clipboard-text-clock-outline" size="21" />
-                </Link>
+            </nav>
 
-                <Link
-                    :href="bankUrl()"
-                    class="ameise-header-icon ameise-bank-icon"
-                    title="Банк"
-                    aria-label="Банк"
-                >
-                    <v-icon icon="mdi-bank-outline" size="21" />
-                </Link>
+            <template #append>
+                <div class="ameise-header-actions">
+                    <Link
+                        v-if="canViewOrders"
+                        :href="route('Ameise.orders.index')"
+                        class="ameise-header-control ameise-header-icon ameise-orders-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.orders.index')) }"
+                        title="Заказы"
+                        aria-label="Панель заказов"
+                    >
+                        <v-icon icon="mdi-clipboard-text-clock-outline" size="21" />
+                    </Link>
 
-                <a
-                    href="https://пищепром-сервер.рф/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="ameise-header-icon"
-                    title="Пищепром-Сервер"
-                    aria-label="Пищепром-Сервер"
-                >
-                    <v-icon icon="mdi-server-network" size="21" />
-                </a>
+                    <Link
+                        :href="bankUrl()"
+                        class="ameise-header-control ameise-header-icon ameise-bank-icon"
+                        :class="{ 'is-active': isActiveUrl(bankUrl()) }"
+                        title="Банк"
+                        aria-label="Банк"
+                    >
+                        <v-icon icon="mdi-bank-outline" size="21" />
+                    </Link>
 
-                <Link
-                    :href="route('Ameise.contactsCentre')"
-                    class="ameise-header-icon"
-                    title="Contacts centre"
-                    aria-label="Contacts centre"
-                >
-                    <v-icon icon="mdi-phone-in-talk" size="21" />
-                </Link>
+                    <a
+                        href="https://пищепром-сервер.рф/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="ameise-header-control ameise-header-icon ameise-server-icon"
+                        title="Пищепром-Сервер"
+                        aria-label="Пищепром-Сервер"
+                    >
+                        <v-icon icon="mdi-server-network" size="21" />
+                    </a>
 
-                <Link
-                    :href="route('Ameise.settings')"
-                    class="ameise-header-icon"
-                    title="Настройки Ameise"
-                    aria-label="Настройки Ameise"
-                >
-                    <v-icon icon="mdi-cog-outline" size="21" />
-                </Link>
+                    <Link
+                        :href="route('Ameise.contactsCentre')"
+                        class="ameise-header-control ameise-header-icon ameise-contacts-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.contactsCentre')) }"
+                        title="Contacts centre"
+                        aria-label="Contacts centre"
+                    >
+                        <v-icon icon="mdi-phone-in-talk" size="21" />
+                    </Link>
+
+                    <Link
+                        :href="route('Ameise.settings')"
+                        class="ameise-header-control ameise-header-icon ameise-settings-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.settings')) }"
+                        title="Настройки Ameise"
+                        aria-label="Настройки Ameise"
+                    >
+                        <v-icon icon="mdi-cog-outline" size="21" />
+                    </Link>
+                </div>
             </template>
         </v-app-bar>
 
@@ -959,89 +1038,335 @@ onMounted(fetchWorkingLeads)
     text-decoration: none;
 }
 
-.ameise-field-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.32);
-    border-radius: 8px;
-    background: rgba(15, 23, 42, 0.24);
-    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
-    font-size: 13px;
-    font-weight: 900;
-    letter-spacing: 0.02em;
+.ameise-app-bar {
+    overflow: visible !important;
+    border-bottom: 1px solid rgba(96, 165, 250, 0.28) !important;
+    background: linear-gradient(105deg, #040714 0%, #07122d 48%, #050817 100%) !important;
+    box-shadow:
+        0 1px 0 rgba(125, 211, 252, 0.08),
+        0 12px 34px rgba(2, 6, 23, 0.58),
+        0 10px 44px rgba(37, 99, 235, 0.16) !important;
+    color: #dce9ff;
 }
 
-.ameise-field-link:hover {
-    background: rgba(255, 255, 255, 0.18);
-}
-
-.ameise-mail-link {
+.ameise-app-bar :deep(.v-toolbar__content) {
     position: relative;
+    isolation: isolate;
+    overflow: visible;
+    padding: 0 9px;
+    background:
+        radial-gradient(ellipse 210px 72px at 4% 50%, rgba(37, 99, 235, 0.28), transparent 72%),
+        radial-gradient(ellipse 240px 82px at 92% 50%, rgba(29, 78, 216, 0.18), transparent 76%);
+}
+
+.ameise-app-bar :deep(.v-toolbar__content)::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025), transparent 28%, rgba(59, 130, 246, 0.025) 72%, transparent),
+        repeating-linear-gradient(90deg, transparent 0 92px, rgba(148, 163, 184, 0.018) 93px);
+    content: "";
+    pointer-events: none;
+}
+
+.ameise-app-bar :deep(.v-toolbar__content)::after {
+    position: absolute;
+    z-index: 1;
+    right: 18px;
+    bottom: 0;
+    left: 18px;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(59, 130, 246, 0.58) 12%,
+        rgba(34, 211, 238, 0.82) 52%,
+        rgba(59, 130, 246, 0.48) 86%,
+        transparent 100%
+    );
+    box-shadow: 0 0 13px rgba(37, 99, 235, 0.95);
+    content: "";
+    pointer-events: none;
+}
+
+.ameise-app-bar :deep(.v-toolbar__prepend),
+.ameise-app-bar :deep(.v-toolbar__append) {
+    position: relative;
+    z-index: 3;
+    height: 100%;
+    margin-inline: 0;
+}
+
+.ameise-header-brand,
+.ameise-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 100%;
+}
+
+.ameise-header-brand {
+    padding-right: 9px;
+    border-right: 1px solid rgba(125, 211, 252, 0.1);
+}
+
+.ameise-header-actions {
+    padding-left: 9px;
+    border-left: 1px solid rgba(125, 211, 252, 0.1);
+}
+
+.ameise-header-nav {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    gap: 4px;
+    min-width: 0;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 10px;
+    scrollbar-width: none;
+}
+
+.ameise-header-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.ameise-header-control {
+    --ameise-glow: 59 130 246;
+    position: relative;
+    isolation: isolate;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    height: 32px;
-    border: 1px solid rgba(14, 165, 233, 0.42);
-    border-radius: 11px;
-    background:
-        radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.92), transparent 8%),
-        linear-gradient(135deg, rgba(3, 105, 161, 0.88), rgba(15, 23, 42, 0.62));
-    box-shadow: 0 8px 24px rgba(14, 165, 233, 0.28);
-    color: #e0f2fe;
+    flex: 0 0 auto;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 12px;
+    outline: none;
+    background: transparent;
+    color: #bfd0ee;
+    cursor: pointer;
+    font: inherit;
+    text-decoration: none;
+    transition: color 0.2s ease, transform 0.2s ease;
 }
 
-.ameise-mail-link::after {
+.ameise-header-control::before {
     position: absolute;
-    right: -4px;
-    bottom: -4px;
-    width: 12px;
-    height: 12px;
-    border: 2px solid rgba(255, 255, 255, 0.84);
-    border-radius: 50%;
-    background: #f97316;
+    z-index: 0;
+    inset: -7px;
+    border-radius: 17px;
+    background: radial-gradient(
+        circle at 50% 55%,
+        rgb(var(--ameise-glow) / 0.88) 0%,
+        rgb(var(--ameise-glow) / 0.48) 30%,
+        rgb(var(--ameise-glow) / 0.13) 54%,
+        transparent 72%
+    );
     content: "";
+    filter: blur(7px);
+    opacity: 0.14;
+    pointer-events: none;
+    transform: scale(0.82);
+    transition: opacity 0.22s ease, transform 0.22s ease;
 }
 
-.ameise-mail-link:hover {
-    background:
-        radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.95), transparent 8%),
-        linear-gradient(135deg, rgba(14, 165, 233, 0.96), rgba(29, 78, 216, 0.78));
-    color: #ffffff;
+.ameise-header-control::after {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border: 1px solid rgba(147, 197, 253, 0.08);
+    border-radius: inherit;
+    background: linear-gradient(145deg, rgba(30, 41, 79, 0.26), rgba(7, 12, 32, 0.2));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    content: "";
+    pointer-events: none;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ameise-header-control > * {
+    position: relative;
+    z-index: 2;
+}
+
+.ameise-header-control :deep(.v-icon) {
+    filter: drop-shadow(0 0 5px rgb(var(--ameise-glow) / 0.28));
+    transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.ameise-header-control:hover,
+.ameise-header-control.is-active {
+    color: #f4f8ff;
     transform: translateY(-1px);
 }
 
-.ameise-offers-link {
+.ameise-header-control:hover::before,
+.ameise-header-control.is-active::before {
+    opacity: 0.92;
+    transform: scale(1);
+}
+
+.ameise-header-control:hover::after,
+.ameise-header-control.is-active::after {
+    border-color: rgb(var(--ameise-glow) / 0.55);
+    background: linear-gradient(
+        145deg,
+        rgb(var(--ameise-glow) / 0.26),
+        rgba(13, 22, 55, 0.74)
+    );
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 0 18px rgb(var(--ameise-glow) / 0.1),
+        0 0 12px rgb(var(--ameise-glow) / 0.22);
+}
+
+.ameise-header-control:hover :deep(.v-icon),
+.ameise-header-control.is-active :deep(.v-icon) {
+    filter:
+        drop-shadow(0 0 4px rgb(var(--ameise-glow) / 0.92))
+        drop-shadow(0 0 10px rgb(var(--ameise-glow) / 0.46));
+    transform: scale(1.04);
+}
+
+.ameise-header-control:focus-visible {
+    outline: 2px solid #7dd3fc;
+    outline-offset: 2px;
+}
+
+.ameise-header-control.is-active::before {
+    animation: ameise-backlight 3.4s ease-in-out infinite;
+}
+
+.ameise-header-control--lead[aria-expanded="true"] {
+    --ameise-glow: 239 68 68;
+    color: #fff1f2;
+}
+
+.working-leads-trigger :deep(.v-badge__badge) {
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 0 9px rgba(239, 68, 68, 0.85);
+    font-size: 8px;
+}
+
+.ameise-header-home,
+.ameise-nav-link {
+    gap: 0;
+}
+
+.ameise-header-home__label,
+.ameise-nav-link__label {
+    display: block;
+    max-width: 0;
+    overflow: hidden;
+    margin-left: 0;
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: 0.015em;
+    line-height: 1;
+    opacity: 0;
+    text-overflow: clip;
+    white-space: nowrap;
+    transform: translateX(-4px);
+    transition:
+        max-width 0.24s ease,
+        margin-left 0.24s ease,
+        opacity 0.18s ease,
+        transform 0.24s ease;
+}
+
+.ameise-header-home.is-active .ameise-header-home__label,
+.ameise-nav-link.is-active .ameise-nav-link__label {
+    max-width: 104px;
+    margin-left: 7px;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.ameise-nav-monogram {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    color: #d9ffbf;
+    justify-content: center;
+    width: 19px;
+    height: 19px;
     font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 900;
-    letter-spacing: 0.04em;
+    line-height: 1;
+    text-shadow: 0 0 8px rgb(var(--ameise-glow) / 0.45);
 }
 
-.ameise-offers-link:hover {
-    color: #ffffff;
+.ameise-nav-link--mail {
+    --ameise-glow: 6 182 212;
 }
 
-.ameise-gis-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    color: #e0f2fe;
-    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
-    font-size: 12px;
-    font-weight: 950;
-    letter-spacing: 0.04em;
+.ameise-mail-status {
+    position: absolute !important;
+    z-index: 3 !important;
+    top: 6px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    margin: 0 !important;
+    border: 1px solid #07122d;
+    border-radius: 50%;
+    background: #fb923c;
+    box-shadow: 0 0 7px rgba(251, 146, 60, 0.9);
 }
 
-.ameise-gis-link:hover {
-    color: #ffffff;
+.ameise-orders-icon {
+    --ameise-glow: 249 115 22;
+    color: #fed7aa;
+}
+
+.ameise-bank-icon {
+    --ameise-glow: 59 130 246;
+    color: #dbeafe;
+}
+
+.ameise-server-icon {
+    --ameise-glow: 168 85 247;
+    color: #eadcff;
+}
+
+.ameise-contacts-icon {
+    --ameise-glow: 34 197 94;
+    color: #d1fae5;
+}
+
+.ameise-settings-icon {
+    --ameise-glow: 96 165 250;
+    color: #dbeafe;
+}
+
+.ameise-header-icon {
+    width: 38px;
+    padding: 0;
+}
+
+.ameise-header-icon::before {
+    opacity: 0.22;
+}
+
+@keyframes ameise-backlight {
+    0%,
+    100% {
+        opacity: 0.72;
+        transform: scale(0.93);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.04);
+    }
 }
 
 .ameise-leads-drawer {
@@ -1112,10 +1437,6 @@ onMounted(fetchWorkingLeads)
 
 .working-leads__icon-button:disabled {
     opacity: 0.55;
-}
-
-.working-leads-trigger[aria-expanded="true"] {
-    background: rgba(143, 17, 17, 0.2);
 }
 
 .working-leads__meta {
@@ -1220,46 +1541,6 @@ onMounted(fetchWorkingLeads)
     border-radius: 16px;
     color: #655445;
     font-size: 13px;
-}
-
-.ameise-header-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    margin-right: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.36);
-    border-radius: 13px;
-    background: rgba(255, 255, 255, 0.18);
-    color: #ffffff;
-    backdrop-filter: blur(5px);
-    transition: background 0.16s ease, transform 0.16s ease;
-}
-
-.ameise-header-icon:hover {
-    background: rgba(143, 17, 17, 0.74);
-    transform: translateY(-1px);
-}
-
-.ameise-bank-icon {
-    border-color: rgba(147, 197, 253, 0.7);
-    background: rgba(30, 64, 175, 0.68);
-    color: #eff6ff;
-}
-
-.ameise-orders-icon {
-    border-color: rgba(254, 215, 170, 0.72);
-    background: rgba(127, 29, 29, 0.76);
-    color: #fff7ed;
-}
-
-.ameise-orders-icon:hover {
-    background: rgba(153, 27, 27, 0.96);
-}
-
-.ameise-bank-icon:hover {
-    background: rgba(29, 78, 216, 0.92);
 }
 
 .lead-info-drawer {
@@ -1429,9 +1710,104 @@ onMounted(fetchWorkingLeads)
     font-size: 10px;
 }
 
+@media (max-width: 1180px) {
+    .ameise-app-bar :deep(.v-toolbar__content) {
+        padding: 0 6px;
+    }
+
+    .ameise-header-brand,
+    .ameise-header-actions {
+        gap: 3px;
+    }
+
+    .ameise-header-brand {
+        padding-right: 6px;
+    }
+
+    .ameise-header-actions {
+        padding-left: 6px;
+    }
+
+    .ameise-header-nav {
+        gap: 2px;
+        padding: 0 6px;
+    }
+
+    .ameise-header-control {
+        min-width: 36px;
+        height: 36px;
+        padding: 0 8px;
+    }
+
+    .ameise-header-icon {
+        width: 36px;
+        padding: 0;
+    }
+}
+
+@media (max-width: 720px) {
+    .ameise-app-bar :deep(.v-toolbar__content) {
+        padding: 0 4px;
+    }
+
+    .ameise-header-brand,
+    .ameise-header-actions {
+        gap: 2px;
+    }
+
+    .ameise-header-brand {
+        padding-right: 4px;
+    }
+
+    .ameise-header-actions {
+        padding-left: 4px;
+    }
+
+    .ameise-header-nav {
+        padding: 0 4px;
+    }
+
+    .ameise-header-control {
+        min-width: 34px;
+        height: 34px;
+        padding: 0 7px;
+        border-radius: 10px;
+    }
+
+    .ameise-header-control::before {
+        inset: -5px;
+    }
+
+    .ameise-header-icon {
+        width: 34px;
+        padding: 0;
+    }
+
+    .ameise-header-home.is-active .ameise-header-home__label,
+    .ameise-nav-link.is-active .ameise-nav-link__label {
+        max-width: 76px;
+        margin-left: 5px;
+    }
+}
+
 @media (max-width: 960px) {
     .lead-info-drawer {
         width: min(92vw, 520px) !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ameise-header-control,
+    .ameise-header-control::before,
+    .ameise-header-control::after,
+    .ameise-header-control :deep(.v-icon),
+    .ameise-header-home__label,
+    .ameise-nav-link__label {
+        transition: none;
+    }
+
+    .ameise-header-control.is-active::before {
+        animation: none;
     }
 }
 </style>
