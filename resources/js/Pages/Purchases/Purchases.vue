@@ -188,6 +188,14 @@ function formatMoney(value) {
     }).format(toNumber(value))
 }
 
+function formatOptionalMoney(value, emptyValue = '—') {
+    if (value === '' || value === null || value === undefined) {
+        return emptyValue
+    }
+
+    return formatMoney(value)
+}
+
 function formatDate(value, long = false) {
     if (!value) return '-'
 
@@ -869,173 +877,255 @@ onMounted(async () => {
 
             <v-dialog
                 v-model="dialog"
-                width="calc(100vw - 24px)"
-                max-width="1400"
+                width="calc(100vw - 32px)"
+                max-width="1280"
                 scrollable
                 class="purchase-form-dialog"
             >
                 <v-card class="purchase-form">
                     <v-card-title class="purchase-form__title">
-                        <div>
-                            <span>{{ isEdit ? 'Редактирование закупки' : 'Создание закупки' }}</span>
-                            <strong>{{ formatMoney(form.amount) }}</strong>
+                        <div class="purchase-form__heading">
+                            <span class="purchase-form__heading-icon">
+                                <v-icon icon="mdi-cart-arrow-down" size="21" />
+                            </span>
+                            <div>
+                                <span>{{ isEdit ? 'Редактирование закупки' : 'Новая закупка' }}</span>
+                                <small>Основные данные и товарные позиции</small>
+                            </div>
                         </div>
-                        <v-btn icon="mdi-close" variant="text" @click="closeDialog" />
+                        <v-btn
+                            icon="mdi-close"
+                            variant="text"
+                            size="small"
+                            aria-label="Закрыть форму"
+                            class="purchase-form__close"
+                            @click="closeDialog"
+                        />
                     </v-card-title>
 
                     <v-card-text class="purchase-form__body">
-                        <v-row dense>
-                            <v-col cols="12" md="3">
+                        <div class="purchase-form__summary">
+                            <div class="purchase-form__field purchase-form__field--date">
+                                <label for="purchase-date">
+                                    Дата закупки
+                                    <span>*</span>
+                                </label>
                                 <v-text-field
+                                    id="purchase-date"
                                     v-model="form.date"
                                     type="date"
-                                    label="Дата"
-                                    variant="solo-filled"
+                                    variant="outlined"
                                     density="compact"
                                     hide-details="auto"
+                                    color="#0f766e"
+                                    bg-color="#ffffff"
                                     :error-messages="serverErrors.date"
                                 />
-                            </v-col>
+                            </div>
 
-                            <v-col cols="12" md="7">
+                            <div class="purchase-form__field purchase-form__field--entity">
+                                <label for="purchase-entity">
+                                    Контрагент
+                                    <span>*</span>
+                                </label>
                                 <v-autocomplete
+                                    id="purchase-entity"
                                     v-model="form.entity_id"
                                     :items="entities"
                                     :item-title="entityTitle"
                                     :custom-filter="entitySearchFilter"
                                     item-value="id"
-                                    label="Контрагент"
-                                    variant="solo-filled"
+                                    placeholder="Название, ИНН или Unit"
+                                    variant="outlined"
                                     density="compact"
                                     hide-details="auto"
+                                    color="#0f766e"
+                                    bg-color="#ffffff"
+                                    clearable
+                                    no-data-text="Контрагенты не найдены"
                                     :error-messages="serverErrors.entity_id"
                                 />
-                            </v-col>
-
-                            <v-col cols="12" md="2">
-                                <v-text-field
-                                    :model-value="formatMoney(form.amount)"
-                                    label="Итого"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details
-                                    readonly
-                                />
-                            </v-col>
-                        </v-row>
-
-                        <div class="purchase-form-lines">
-                            <div class="purchase-form-lines__head">
-                                <span></span>
-                                <span>Товар</span>
-                                <span>Кол-во</span>
-                                <span>Ед.</span>
-                                <span>Цена</span>
-                                <span>Валюта</span>
-                                <span>Сумма</span>
-                                <span></span>
                             </div>
 
-                            <div
-                                v-for="(itemRow, index) in form.items"
-                                :key="index"
-                                class="purchase-form-line"
-                            >
-                                <span class="purchase-form-line__thumb">
-                                    <img
-                                        v-if="goodThumbnail(selectedGood(itemRow))"
-                                        :src="goodThumbnail(selectedGood(itemRow))"
-                                        :alt="selectedGood(itemRow)?.name || 'Товар'"
-                                    >
-                                    <v-icon v-else icon="mdi-image-outline" size="16" />
-                                </span>
+                            <div class="purchase-form__total" aria-live="polite">
+                                <span>Итого</span>
+                                <strong>{{ formatOptionalMoney(form.amount) }}</strong>
+                                <small>по всем позициям</small>
+                            </div>
+                        </div>
 
-                                <v-autocomplete
-                                    v-model="itemRow.good_id"
-                                    :items="goodsOptions"
-                                    :item-title="goodTitle"
-                                    item-value="id"
-                                    placeholder="Товар"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details="auto"
-                                    :error-messages="serverErrors[`items.${index}.good_id`]"
-                                />
+                        <section class="purchase-form-lines">
+                            <div class="purchase-form-lines__bar">
+                                <div>
+                                    <strong>Товары</strong>
+                                    <span>{{ form.items.length }} поз.</span>
+                                </div>
+                                <span>Сумма рассчитывается автоматически</span>
+                            </div>
 
-                                <v-text-field
-                                    v-model="itemRow.quantity"
-                                    type="number"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details="auto"
-                                    :error-messages="serverErrors[`items.${index}.quantity`]"
-                                    @update:model-value="onItemChanged(itemRow)"
-                                />
+                            <div class="purchase-form-lines__scroller">
+                                <div class="purchase-form-lines__head">
+                                    <span>Фото</span>
+                                    <span>Товар</span>
+                                    <span>Кол-во</span>
+                                    <span>Ед.</span>
+                                    <span>Цена</span>
+                                    <span>Валюта</span>
+                                    <span>Сумма</span>
+                                    <span></span>
+                                </div>
 
-                                <v-select
-                                    v-model="itemRow.measure_id"
-                                    :items="measures"
-                                    item-title="name"
-                                    item-value="id"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details="auto"
-                                    :error-messages="serverErrors[`items.${index}.measure_id`]"
-                                />
+                                <div
+                                    v-for="(itemRow, index) in form.items"
+                                    :key="index"
+                                    class="purchase-form-line"
+                                >
+                                    <span class="purchase-form-line__thumb">
+                                        <img
+                                            v-if="goodThumbnail(selectedGood(itemRow))"
+                                            :src="goodThumbnail(selectedGood(itemRow))"
+                                            :alt="selectedGood(itemRow)?.name || 'Товар'"
+                                        >
+                                        <v-icon v-else icon="mdi-image-outline" size="17" />
+                                    </span>
 
-                                <v-text-field
-                                    v-model="itemRow.price"
-                                    type="number"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details="auto"
-                                    :error-messages="serverErrors[`items.${index}.price`]"
-                                    @update:model-value="onItemChanged(itemRow)"
-                                />
+                                    <v-autocomplete
+                                        v-model="itemRow.good_id"
+                                        :items="goodsOptions"
+                                        :item-title="goodTitle"
+                                        item-value="id"
+                                        placeholder="Выберите товар"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details="auto"
+                                        color="#0f766e"
+                                        bg-color="#ffffff"
+                                        no-data-text="Товары не найдены"
+                                        :aria-label="`Товар, позиция ${index + 1}`"
+                                        :error-messages="serverErrors[`items.${index}.good_id`]"
+                                    />
 
-                                <v-select
-                                    v-model="itemRow.currency_id"
-                                    :items="currencies"
-                                    :item-title="(currency) => currency.code || currency.name"
-                                    item-value="id"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details="auto"
-                                    :error-messages="serverErrors[`items.${index}.currency_id`]"
-                                />
+                                    <v-text-field
+                                        v-model="itemRow.quantity"
+                                        type="number"
+                                        min="0.0001"
+                                        step="any"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details="auto"
+                                        color="#0f766e"
+                                        bg-color="#ffffff"
+                                        :aria-label="`Количество, позиция ${index + 1}`"
+                                        :error-messages="serverErrors[`items.${index}.quantity`]"
+                                        @update:model-value="onItemChanged(itemRow)"
+                                    />
 
-                                <v-text-field
-                                    :model-value="formatMoney(itemRow.total)"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details="auto"
-                                    readonly
-                                    :error-messages="serverErrors[`items.${index}.total`]"
-                                />
+                                    <v-select
+                                        v-model="itemRow.measure_id"
+                                        :items="measures"
+                                        item-title="name"
+                                        item-value="id"
+                                        placeholder="—"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details="auto"
+                                        color="#0f766e"
+                                        bg-color="#ffffff"
+                                        :aria-label="`Единица измерения, позиция ${index + 1}`"
+                                        :error-messages="serverErrors[`items.${index}.measure_id`]"
+                                    />
 
+                                    <v-text-field
+                                        v-model="itemRow.price"
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        placeholder="Введите"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details="auto"
+                                        color="#0f766e"
+                                        bg-color="#ffffff"
+                                        :aria-label="`Цена, позиция ${index + 1}`"
+                                        :error-messages="serverErrors[`items.${index}.price`]"
+                                        @update:model-value="onItemChanged(itemRow)"
+                                    />
+
+                                    <v-select
+                                        v-model="itemRow.currency_id"
+                                        :items="currencies"
+                                        :item-title="(currency) => currency.code || currency.name"
+                                        item-value="id"
+                                        placeholder="—"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details="auto"
+                                        color="#0f766e"
+                                        bg-color="#ffffff"
+                                        :aria-label="`Валюта, позиция ${index + 1}`"
+                                        :error-messages="serverErrors[`items.${index}.currency_id`]"
+                                    />
+
+                                    <v-text-field
+                                        :model-value="formatOptionalMoney(itemRow.total, '')"
+                                        placeholder="—"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details="auto"
+                                        bg-color="#f8fafc"
+                                        readonly
+                                        :aria-label="`Сумма, позиция ${index + 1}`"
+                                        :error-messages="serverErrors[`items.${index}.total`]"
+                                    />
+
+                                    <v-tooltip text="Удалить позицию">
+                                        <template #activator="{ props }">
+                                            <v-btn
+                                                v-bind="props"
+                                                icon="mdi-delete-outline"
+                                                size="small"
+                                                density="compact"
+                                                variant="text"
+                                                color="#be123c"
+                                                :aria-label="`Удалить позицию ${index + 1}`"
+                                                @click="removeItemRow(index)"
+                                            />
+                                        </template>
+                                    </v-tooltip>
+                                </div>
+                            </div>
+
+                            <div class="purchase-form-lines__footer">
                                 <v-btn
-                                    icon="mdi-delete-outline"
-                                    size="small"
-                                    density="compact"
-                                    variant="text"
-                                    color="red-darken-3"
-                                    @click="removeItemRow(index)"
-                                />
-                            </div>
-                        </div>
+                                    color="#0f766e"
+                                    variant="tonal"
+                                    density="comfortable"
+                                    prepend-icon="mdi-plus"
+                                    class="purchase-form__add"
+                                    @click="addItemRow"
+                                >
+                                    Добавить позицию
+                                </v-btn>
 
-                        <div class="purchase-form__line-actions">
-                            <v-btn color="green-darken-2" variant="flat" density="compact" prepend-icon="mdi-plus" @click="addItemRow">
-                                Позиция
-                            </v-btn>
-                            <span>Итого: <strong>{{ formatMoney(form.amount) }}</strong></span>
-                        </div>
+                                <div>
+                                    <span>Итого по товарам</span>
+                                    <strong>{{ formatOptionalMoney(form.amount) }}</strong>
+                                </div>
+                            </div>
+                        </section>
                     </v-card-text>
 
-                    <v-card-actions>
+                    <v-card-actions class="purchase-form__actions">
                         <v-spacer />
-                        <v-btn variant="text" @click="closeDialog">Отмена</v-btn>
-                        <v-btn color="green-darken-2" variant="flat" :loading="saving" :disabled="!canSubmit" @click="submit">
+                        <v-btn variant="outlined" color="#475569" @click="closeDialog">Отмена</v-btn>
+                        <v-btn
+                            color="#0f766e"
+                            variant="flat"
+                            prepend-icon="mdi-check"
+                            :loading="saving"
+                            :disabled="!canSubmit"
+                            @click="submit"
+                        >
                             Сохранить
                         </v-btn>
                     </v-card-actions>
@@ -1395,8 +1485,7 @@ onMounted(async () => {
     color: #202622;
 }
 
-.purchase-details__title,
-.purchase-form__title {
+.purchase-details__title {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1405,21 +1494,18 @@ onMounted(async () => {
     color: #fff;
 }
 
-.purchase-details__title div,
-.purchase-form__title div {
+.purchase-details__title div {
     display: flex;
     align-items: baseline;
     gap: 14px;
 }
 
-.purchase-details__title span,
-.purchase-form__title span {
+.purchase-details__title span {
     font-size: 14px;
     font-weight: 800;
 }
 
-.purchase-details__title strong,
-.purchase-form__title strong {
+.purchase-details__title strong {
     font-family: "Courier New", monospace;
     font-size: 15px;
 }
@@ -1560,100 +1646,399 @@ onMounted(async () => {
 }
 
 .purchase-form {
-    min-height: calc(100vh - 42px);
-    background: #f7f8f4;
-    color: #202622;
+    --purchase-accent: #0f766e;
+    --purchase-accent-soft: #ccfbf1;
+    --purchase-border: #d7e0eb;
+    --purchase-ink: #172033;
+    flex: 0 1 auto;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.16);
+    border-radius: 14px !important;
+    background: #f4f7fb;
+    color: var(--purchase-ink);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3) !important;
 }
 
 .purchase-form-dialog :deep(.v-overlay__content) {
-    margin: 12px;
-    max-height: calc(100vh - 24px);
+    margin: 16px;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+}
+
+.purchase-form__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    min-height: 64px;
+    padding: 11px 16px !important;
+    border-bottom: 3px solid #14b8a6;
+    background: linear-gradient(135deg, #111c31 0%, #1d3657 100%);
+    color: #fff;
+}
+
+.purchase-form__heading {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+
+.purchase-form__heading-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(94, 234, 212, 0.35);
+    border-radius: 9px;
+    background: rgba(20, 184, 166, 0.16);
+    color: #5eead4;
+}
+
+.purchase-form__heading > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.purchase-form__heading > div > span {
+    overflow: hidden;
+    font-size: 17px;
+    font-weight: 750;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.purchase-form__heading small {
+    color: #b8c7dc;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.purchase-form__close {
+    color: #dbeafe !important;
 }
 
 .purchase-form__body {
     display: grid;
-    gap: 10px;
-    padding: 10px 12px !important;
+    gap: 13px;
+    min-height: 0;
+    padding: 13px 16px 12px !important;
+    background:
+        radial-gradient(circle at 100% 0, rgba(20, 184, 166, 0.06), transparent 260px),
+        #f4f7fb;
+}
+
+.purchase-form__summary {
+    display: grid;
+    grid-template-columns: 190px minmax(300px, 1fr) 190px;
+    align-items: start;
+    gap: 12px;
+}
+
+.purchase-form__field {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.purchase-form__field > label,
+.purchase-form__total > span {
+    color: #526079;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.purchase-form__field > label span {
+    color: #e11d48;
+}
+
+.purchase-form__total {
+    display: grid;
+    align-content: center;
+    gap: 1px;
+    min-height: 65px;
+    padding: 8px 13px;
+    border: 1px solid #8dd9cf;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #f0fdfa 0%, #e6f8f7 100%);
+    box-shadow: 0 4px 14px rgba(15, 118, 110, 0.08);
+}
+
+.purchase-form__total strong {
+    overflow: hidden;
+    color: #0f5f59;
+    font-family: "Courier New", monospace;
+    font-size: 21px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.12;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.purchase-form__total small {
+    color: #66807e;
+    font-size: 9px;
+    line-height: 1.15;
 }
 
 .purchase-form-lines {
-    overflow-x: auto;
-    border: 1px solid #c7d0c8;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--purchase-border);
+    border-radius: 10px;
     background: #fff;
+    box-shadow: 0 5px 18px rgba(30, 41, 59, 0.05);
+}
+
+.purchase-form-lines__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 41px;
+    padding: 7px 11px;
+    border-bottom: 1px solid var(--purchase-border);
+    background: #fff;
+}
+
+.purchase-form-lines__bar > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.purchase-form-lines__bar strong {
+    color: #1e293b;
+    font-size: 14px;
+}
+
+.purchase-form-lines__bar > div span {
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: #e8eef7;
+    color: #53627a;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.purchase-form-lines__bar > span {
+    color: #7b879a;
+    font-size: 10px;
+}
+
+.purchase-form-lines__scroller {
+    max-height: min(44vh, 440px);
+    overflow: auto;
+    scrollbar-color: #b8c4d4 #edf2f7;
+    scrollbar-width: thin;
 }
 
 .purchase-form-lines__head,
 .purchase-form-line {
     display: grid;
-    grid-template-columns: 42px minmax(280px, 1fr) 92px 126px 110px 104px 118px 42px;
-    align-items: center;
-    min-width: 1000px;
+    grid-template-columns: 46px minmax(290px, 1fr) 92px 116px 116px 104px 124px 44px;
+    min-width: 1060px;
 }
 
 .purchase-form-lines__head {
-    min-height: 28px;
-    background: #dfe7dd;
-    color: #26332b;
-    font-size: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    align-items: center;
+    min-height: 30px;
+    border-bottom: 1px solid #ccd7e5;
+    background: #e8eef7;
+    color: #46566f;
+    font-size: 9px;
     font-weight: 800;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.075em;
     text-transform: uppercase;
 }
 
-.purchase-form-lines__head span,
-.purchase-form-line > * {
+.purchase-form-lines__head span {
     min-width: 0;
-    padding: 4px;
-    border-right: 1px solid #d8ded6;
+    padding: 0 6px;
+    border-right: 1px solid #d4deea;
+}
+
+.purchase-form-lines__head span:first-child,
+.purchase-form-lines__head span:last-child {
+    text-align: center;
 }
 
 .purchase-form-line {
-    min-height: 46px;
-    border-top: 1px solid #d8ded6;
+    align-items: start;
+    min-height: 54px;
+    padding: 6px 0;
+    border-bottom: 1px solid #e4eaf1;
+    background: #fff;
+}
+
+.purchase-form-line:last-child {
+    border-bottom: 0;
+}
+
+.purchase-form-line:nth-child(odd) {
+    background: #fbfcfe;
+}
+
+.purchase-form-line > * {
+    min-width: 0;
+    margin: 0 5px;
 }
 
 .purchase-form-line__thumb {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #6b766f;
+    width: 34px;
+    height: 38px;
+    margin-right: auto;
+    margin-left: auto;
+    overflow: hidden;
+    border: 1px solid #d5deea;
+    border-radius: 7px;
+    background: #f1f5f9;
+    color: #7c8ca4;
 }
 
 .purchase-form-line__thumb img {
-    width: 30px;
-    height: 30px;
-    border: 1px solid #cbd8cc;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
 }
 
-.purchase-form__line-actions {
+.purchase-form-line > :deep(.v-btn) {
+    align-self: start;
+    justify-self: center;
+    margin-top: 1px;
+}
+
+.purchase-form-lines__footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 12px;
+    min-height: 49px;
+    padding: 7px 11px;
+    border-top: 1px solid var(--purchase-border);
+    background: #fbfcfe;
 }
 
-.purchase-form__line-actions span {
+.purchase-form-lines__footer > div {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.purchase-form-lines__footer > div span {
+    color: #68758a;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.purchase-form-lines__footer > div strong {
+    min-width: 88px;
+    color: #0f5f59;
     font-family: "Courier New", monospace;
+    font-size: 17px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
-.purchase-filter-panel :deep(.v-field),
-.purchase-form :deep(.v-field) {
+.purchase-form__add {
+    border-radius: 8px !important;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0 !important;
+    text-transform: none;
+}
+
+.purchase-form__actions {
+    flex: 0 0 auto;
+    gap: 8px;
+    min-height: 58px;
+    padding: 9px 16px !important;
+    border-top: 1px solid var(--purchase-border);
+    background: #fff;
+}
+
+.purchase-form__actions :deep(.v-btn) {
+    min-width: 104px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.purchase-filter-panel :deep(.v-field) {
     border-radius: 3px;
     font-size: 12px;
 }
 
-.purchase-filter-panel :deep(.v-field__input),
-.purchase-form :deep(.v-field__input) {
+.purchase-filter-panel :deep(.v-field__input) {
     min-height: 34px;
     padding-top: 0;
     padding-bottom: 0;
     font-size: 12px;
 }
 
-.purchase-filter-panel :deep(.v-label.v-field-label),
-.purchase-form :deep(.v-label.v-field-label) {
+.purchase-filter-panel :deep(.v-label.v-field-label) {
     font-size: 11px;
+}
+
+.purchase-form :deep(.v-field) {
+    border-radius: 8px;
+    font-size: 12px;
+    box-shadow: none;
+}
+
+.purchase-form :deep(.v-field__input) {
+    min-height: 40px;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 12px;
+}
+
+.purchase-form :deep(.v-field__outline) {
+    --v-field-border-opacity: 0.72;
+    color: #9aa9bd;
+}
+
+.purchase-form :deep(.v-field--focused .v-field__outline) {
+    --v-field-border-opacity: 1;
+}
+
+.purchase-form :deep(.v-input__details) {
+    min-height: 0;
+    padding-top: 3px;
+    padding-right: 2px;
+    padding-left: 2px;
+    font-size: 10px;
+}
+
+.purchase-form :deep(input[type="date"]) {
+    min-width: 0;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.purchase-form :deep(input[type="number"]) {
+    font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 900px) {
@@ -1677,6 +2062,83 @@ onMounted(async () => {
 
     .purchase-details__summary {
         grid-template-columns: 1fr;
+    }
+
+    .purchase-form__summary {
+        grid-template-columns: 180px minmax(0, 1fr);
+    }
+
+    .purchase-form__total {
+        grid-column: 1 / -1;
+        grid-template-columns: auto minmax(80px, 1fr) auto;
+        align-items: center;
+        min-height: 48px;
+        gap: 10px;
+    }
+
+    .purchase-form__total strong {
+        justify-self: end;
+    }
+}
+
+@media (max-width: 640px) {
+    .purchase-form-dialog :deep(.v-overlay__content) {
+        margin: 8px;
+        max-height: calc(100vh - 16px);
+        max-height: calc(100dvh - 16px);
+    }
+
+    .purchase-form {
+        max-height: calc(100vh - 16px);
+        max-height: calc(100dvh - 16px);
+        border-radius: 11px !important;
+    }
+
+    .purchase-form__title {
+        min-height: 56px;
+        padding: 8px 11px !important;
+    }
+
+    .purchase-form__heading-icon {
+        flex-basis: 34px;
+        width: 34px;
+        height: 34px;
+    }
+
+    .purchase-form__heading small,
+    .purchase-form-lines__bar > span {
+        display: none;
+    }
+
+    .purchase-form__body {
+        gap: 10px;
+        padding: 10px !important;
+    }
+
+    .purchase-form__summary {
+        grid-template-columns: 1fr;
+        gap: 9px;
+    }
+
+    .purchase-form__total {
+        grid-column: auto;
+    }
+
+    .purchase-form-lines__scroller {
+        max-height: 38vh;
+    }
+
+    .purchase-form-lines__footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .purchase-form-lines__footer > div {
+        justify-content: space-between;
+    }
+
+    .purchase-form__actions {
+        padding: 8px 10px !important;
     }
 }
 </style>

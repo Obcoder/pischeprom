@@ -4,9 +4,9 @@ const emptyItem = () => ({
     good_id: null,
     quantity: 1,
     measure_id: null,
-    price: 0,
+    price: '',
     currency_id: null,
-    total: 0,
+    total: '',
 })
 
 export function usePurchaseForm() {
@@ -14,29 +14,49 @@ export function usePurchaseForm() {
         id: null,
         date: '',
         entity_id: null,
-        amount: 0,
+        amount: '',
         items: [emptyItem()],
     })
 
     const isEdit = computed(() => Boolean(form.id))
 
     const recalcItem = (item) => {
-        const quantity = Number(item.quantity || 0)
-        const price = Number(item.price || 0)
+        const hasQuantity = item.quantity !== '' && item.quantity !== null && item.quantity !== undefined
+        const hasPrice = item.price !== '' && item.price !== null && item.price !== undefined
+
+        if (!hasQuantity || !hasPrice) {
+            item.total = ''
+            return
+        }
+
+        const quantity = Number(item.quantity)
+        const price = Number(item.price)
+
+        if (!Number.isFinite(quantity) || !Number.isFinite(price)) {
+            item.total = ''
+            return
+        }
+
         item.total = +(quantity * price).toFixed(2)
     }
 
     const recalcAmount = () => {
-        form.amount = +form.items
-            .reduce((sum, item) => sum + Number(item.total || 0), 0)
-            .toFixed(2)
+        const totals = form.items
+            .map(item => item.total)
+            .filter(total => total !== '' && total !== null && total !== undefined)
+            .map(Number)
+            .filter(Number.isFinite)
+
+        form.amount = totals.length
+            ? +totals.reduce((sum, total) => sum + total, 0).toFixed(2)
+            : ''
     }
 
     const resetForm = () => {
         form.id = null
         form.date = ''
         form.entity_id = null
-        form.amount = 0
+        form.amount = ''
         form.items = [emptyItem()]
     }
 
@@ -44,14 +64,14 @@ export function usePurchaseForm() {
         form.id = purchase.id
         form.date = purchase.date
         form.entity_id = purchase.entity?.id ?? null
-        form.amount = purchase.amount ?? 0
+        form.amount = purchase.amount ?? ''
         form.items = (purchase.items?.length ? purchase.items : [emptyItem()]).map(item => ({
             good_id: item.good_id,
             quantity: Number(item.quantity ?? 1),
             measure_id: item.measure_id ?? null,
-            price: Number(item.price ?? 0),
+            price: item.price === null || item.price === undefined ? '' : Number(item.price),
             currency_id: item.currency_id ?? null,
-            total: Number(item.total ?? 0),
+            total: item.total === null || item.total === undefined ? '' : Number(item.total),
         }))
     }
 
