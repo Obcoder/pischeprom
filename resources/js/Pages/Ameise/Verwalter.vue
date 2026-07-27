@@ -291,7 +291,7 @@ useHead({
     display: grid;
     align-self: stretch;
     align-content: start;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 25%) minmax(0, 30%);
     gap: 18px;
     width: 100%;
     min-height: calc(100vh - 48px);
