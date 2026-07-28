@@ -75,7 +75,7 @@ class CityDistanceMatrixService
 
         if (count($cityIds) < 2) {
             throw ValidationException::withMessages([
-                'full_matrix' => 'Для полной матрицы нужны минимум два включённых города с проверенными routing-координатами.',
+                'full_matrix' => 'Для полной матрицы нужны минимум два включённых города с подтверждёнными точками маршрутизации.',
             ]);
         }
 
@@ -544,7 +544,9 @@ class CityDistanceMatrixService
                 throw ValidationException::withMessages(['city_ids' => "Город «{$setting->city?->name}» отключён от матрицы."]);
             }
             if (! $setting->hasRoutingPoint() || ! $setting->coordinates_verified_at) {
-                throw ValidationException::withMessages(['city_ids' => "У города «{$setting->city?->name}» нет проверенной routing-точки."]);
+                throw ValidationException::withMessages([
+                    'city_ids' => "У города «{$setting->city?->name}» не подтверждена точка маршрутизации. Укажите координаты на доступной автомобильной дороге и подтвердите их в настройках города.",
+                ]);
             }
         }
 

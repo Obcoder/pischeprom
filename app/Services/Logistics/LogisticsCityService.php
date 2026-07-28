@@ -29,7 +29,7 @@ class LogisticsCityService
 
                 if ($latitude === null || $longitude === null) {
                     throw ValidationException::withMessages([
-                        'routing_latitude' => 'Нельзя подтвердить routing-точку без обеих координат.',
+                        'routing_latitude' => 'Нельзя подтвердить точку маршрутизации без широты и долготы.',
                     ]);
                 }
 

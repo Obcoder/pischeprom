@@ -62,6 +62,36 @@ class LogisticsRoutingTest extends LogisticsTestCase
         ]);
     }
 
+    public function test_matrix_calculation_rejects_an_unverified_city_with_an_actionable_error(): void
+    {
+        $user = $this->logisticsUser();
+        $ready = $this->verifiedCity('Москва-проверенная', 55.7558, 37.6173, $user->id);
+        $unverified = $this->city('Воронеж-непроверенный', 51.6608, 39.2003);
+        LogisticsCity::query()->create([
+            'city_id' => $unverified->id,
+            'routing_latitude' => 51.6608,
+            'routing_longitude' => 39.2003,
+            'coordinate_source' => 'existing',
+            'is_matrix_enabled' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/api/logistics/matrix/calculate', [
+                'city_ids' => [$ready->id, $unverified->id],
+                'routing_profile' => 'truck',
+                'refresh' => true,
+                'missing_only' => false,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('city_ids')
+            ->assertJsonPath(
+                'errors.city_ids.0',
+                'У города «Воронеж-непроверенный» не подтверждена точка маршрутизации. Укажите координаты на доступной автомобильной дороге и подтвердите их в настройках города.',
+            );
+
+        $this->assertDatabaseCount('logistics_routing_runs', 0);
+    }
+
     public function test_matrix_persists_no_route_without_using_a_straight_line_fallback(): void
     {
         $user = $this->logisticsUser();
