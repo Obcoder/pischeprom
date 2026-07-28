@@ -9,7 +9,7 @@
 - Добавлены строковые enums, четыре additive-миграции, девять моделей/связей, factories и идемпотентный seeder девяти категорий расходов.
 - Реализованы CRUD авто/рейсов, транзакционные остановки, архивирование, валидация дат/одометра/ёмкости и policy завершённого рейса.
 - Реализована сущность распределения чека, физический delete guard чека, decimal snapshot, мультивалютные метрики и отображение рейсов в карточке чека.
-- Реализованы Form Requests, API Resources, policies, шесть прав и 31 защищённый API route.
+- Реализованы Form Requests, API Resources, policies, шесть прав и 31 API route с переключаемой авторизацией.
 - Реализованы routing interface/DTO/typed exceptions, Valhalla provider, fake provider, профиль грузовика, polyline6 и request hashes.
 - Реализованы версионные маршруты рейса, направленная матрица, manual/stale/no_route/failed, cache locks, unique queue jobs, batching и polling runs.
 - Добавлены пять Artisan-команд: health, выбранная матрица, refresh stale/expired, mark stale и CSV import.
@@ -18,14 +18,14 @@
 - Добавлен отдельный `redis-routing` connection, systemd worker example, интеграция worker/seeder/routes в production deploy и logistics checks в CI.
 - Созданы все пять обязательных документов.
 - По последующему решению владельца добавлен явный полный расчёт всех включённых и проверенных городов (`--all` и UI) без лимита выбранного фрагмента.
-- С `/Ameise/logistics` снят отдельный middleware авторизации и ссылка постоянно отображается в Ameise; защищённые API и permission model сохранены до общей авторизации всего раздела.
+- С `/Ameise/logistics` и `/api/logistics/*` временно снята обязательная авторизация; permission model сохранена и возвращается единым `LOGISTICS_AUTHORIZATION_ENABLED=true` после внедрения общей авторизации всего раздела.
 
 ## Проверено фактически
 
 - Четыре миграции успешно применялись к отдельной временной SQLite test database; рабочая MySQL не изменялась.
-- Targeted backend suite: `29 passed, 1 skipped, 181 assertions`; пропущен только opt-in smoke с живой Valhalla.
-- Полный regression suite: `229 tests, 1352 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
-- Все 121 затронутых PHP-файла прошли `vendor/bin/pint --test`; общий legacy-код проекта вне задачи по-прежнему содержит 163 style issue и не переформатировался массово.
+- Targeted backend suite: `30 passed, 1 skipped, 205 assertions`; пропущен только opt-in smoke с живой Valhalla.
+- Полный regression suite: `230 tests, 1376 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
+- Все затронутые PHP-файлы прошли `vendor/bin/pint --test`; общий legacy-код проекта вне задачи по-прежнему содержит style issues и не переформатировался массово.
 - Production client + SSR build успешно выполнен на Node.js 22.18.0; остались только предупреждения о старой базе Browserslist и размере существующих общих chunks.
 - Все Valhalla shell scripts прошли `bash -n`.
 - `docker compose ... config --quiet` успешно проверен с example env и staging volume.

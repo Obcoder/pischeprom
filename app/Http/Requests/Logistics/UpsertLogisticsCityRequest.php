@@ -11,6 +11,10 @@ class UpsertLogisticsCityRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        if (! config('logistics.authorization_enabled')) {
+            return true;
+        }
+
         $setting = LogisticsCity::query()->where('city_id', $this->route('city')?->id)->first();
 
         return $setting

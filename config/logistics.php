@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'authorization_enabled' => filter_var(
+        env('LOGISTICS_AUTHORIZATION_ENABLED', false),
+        FILTER_VALIDATE_BOOL
+    ),
     'currency_code' => env('LOGISTICS_CURRENCY_CODE', 'RUB'),
     'routing_driver' => env('LOGISTICS_ROUTING_DRIVER', 'valhalla'),
     'default_routing_profile' => env('LOGISTICS_DEFAULT_ROUTING_PROFILE', 'truck'),

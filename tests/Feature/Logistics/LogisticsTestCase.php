@@ -24,6 +24,7 @@ abstract class LogisticsTestCase extends TestCase
         config([
             'cache.default' => 'array',
             'queue.default' => 'sync',
+            'logistics.authorization_enabled' => true,
             'logistics.routing_driver' => 'fake',
             'logistics.queue_connection' => null,
             'logistics.lock_store' => null,

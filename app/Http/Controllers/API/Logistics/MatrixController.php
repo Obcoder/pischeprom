@@ -12,7 +12,6 @@ use App\Models\LogisticsCityDistance;
 use App\Services\Logistics\CityDistanceMatrixService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -22,7 +21,7 @@ class MatrixController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('viewAny', LogisticsCityDistance::class);
+        $this->authorizeLogistics('viewAny', LogisticsCityDistance::class);
         [$cityIds, $profile] = $this->validatedSelection($request);
 
         $cities = City::query()
@@ -102,7 +101,7 @@ class MatrixController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
-        Gate::authorize('viewAny', LogisticsCityDistance::class);
+        $this->authorizeLogistics('viewAny', LogisticsCityDistance::class);
         [$cityIds, $profile] = $this->validatedSelection($request);
         $cities = City::query()->whereIn('id', $cityIds)->pluck('name', 'id');
         $rows = LogisticsCityDistance::query()

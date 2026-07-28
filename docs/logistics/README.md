@@ -4,7 +4,7 @@
 
 Основная БД остаётся MySQL. Дорожный граф не загружается в MySQL: маршруты и матрицу считает отдельный self-hosted Valhalla на данных OpenStreetMap. Laravel обращается к нему только через `RoutingProviderInterface`; расстояние по прямой не используется как автомобильное.
 
-Интерфейс доступен по `/Ameise/logistics` без отдельного middleware авторизации страницы, как и остальные страницы Ameise. В нём есть вкладки «Обзор», «Рейсы», «Авто», «Матрица» и «Диагностика». API логистики пока сохраняет собственную защиту; общая авторизация всего `/Ameise` будет отдельным этапом.
+Интерфейс доступен по `/Ameise/logistics` без авторизации, как и его API. В нём есть вкладки «Обзор», «Рейсы», «Авто», «Матрица» и «Диагностика». Это временный режим до общей авторизации всего `/Ameise`; прежняя permission model сохранена и включается параметром `LOGISTICS_AUTHORIZATION_ENABLED=true`.
 
 ## Возможности первой версии
 
@@ -33,7 +33,7 @@ Seeder выдаёт все права роли `admin`. Роль `manager` по�
 
 ## HTTP/API
 
-Все маршруты `/api/logistics/*` защищены `auth:sanctum`, `verified` и `logistics.view`; изменяющие методы дополнительно проверяют policy/permission.
+По умолчанию `LOGISTICS_AUTHORIZATION_ENABLED=false`, поэтому все маршруты `/api/logistics/*`, включая изменяющие, доступны без пользователя. При `LOGISTICS_AUTHORIZATION_ENABLED=true` единый middleware снова требует `auth:sanctum`, подтверждённый email и `logistics.view`, а изменяющие методы дополнительно проверяют policy/permission.
 
 | Метод и URI | Назначение |
 |---|---|
@@ -60,7 +60,7 @@ Seeder выдаёт все права роли `admin`. Роль `manager` по�
 | `PUT /api/logistics/matrix/manual` | ручная направленная пара с комментарием |
 | `GET /api/logistics/matrix/export` | CSV выбранного фрагмента |
 | `GET /api/logistics/routing-runs[/{run}]` | список/прогресс запусков |
-| `GET /api/logistics/routing-status` | защищённый health Valhalla |
+| `GET /api/logistics/routing-status` | health Valhalla |
 
 Список из приложения: `php artisan route:list --path=api/logistics`.
 

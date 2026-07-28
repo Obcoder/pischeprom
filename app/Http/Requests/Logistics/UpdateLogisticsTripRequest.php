@@ -6,6 +6,10 @@ class UpdateLogisticsTripRequest extends StoreLogisticsTripRequest
 {
     public function authorize(): bool
     {
+        if (! config('logistics.authorization_enabled')) {
+            return true;
+        }
+
         $trip = $this->route('trip');
 
         return $trip && (bool) $this->user()?->can('update', $trip);

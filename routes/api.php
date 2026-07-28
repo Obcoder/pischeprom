@@ -703,11 +703,7 @@ Route::prefix('products/{product}')->group(function () {
 
 Route::prefix('logistics')
     ->name('api.logistics.')
-    ->middleware([
-        'auth:sanctum',
-        'verified',
-        'can:logistics.view',
-    ])
+    ->middleware(\App\Http\Middleware\EnforceLogisticsAuthorization::class)
     ->scopeBindings()
     ->group(function () {
         Route::get('/dashboard', LogisticsDashboardController::class)->name('dashboard');
@@ -719,51 +715,41 @@ Route::prefix('logistics')
         Route::get('/checks', LogisticsCheckLookupController::class)->name('checks.index');
 
         Route::get('/vehicles', [LogisticsVehicleController::class, 'index'])->name('vehicles.index');
-        Route::post('/vehicles', [LogisticsVehicleController::class, 'store'])
-            ->middleware('can:logistics.vehicles.manage')->name('vehicles.store');
+        Route::post('/vehicles', [LogisticsVehicleController::class, 'store'])->name('vehicles.store');
         Route::get('/vehicles/{vehicle}', [LogisticsVehicleController::class, 'show'])->name('vehicles.show');
-        Route::put('/vehicles/{vehicle}', [LogisticsVehicleController::class, 'update'])
-            ->middleware('can:logistics.vehicles.manage')->name('vehicles.update');
-        Route::delete('/vehicles/{vehicle}', [LogisticsVehicleController::class, 'destroy'])
-            ->middleware('can:logistics.vehicles.manage')->name('vehicles.destroy');
+        Route::put('/vehicles/{vehicle}', [LogisticsVehicleController::class, 'update'])->name('vehicles.update');
+        Route::delete('/vehicles/{vehicle}', [LogisticsVehicleController::class, 'destroy'])->name('vehicles.destroy');
         Route::post('/vehicles/{vehicle}/restore', [LogisticsVehicleController::class, 'restore'])
-            ->whereNumber('vehicle')->middleware('can:logistics.vehicles.manage')->name('vehicles.restore');
+            ->whereNumber('vehicle')->name('vehicles.restore');
 
         Route::get('/trips', [LogisticsTripController::class, 'index'])->name('trips.index');
-        Route::post('/trips', [LogisticsTripController::class, 'store'])
-            ->middleware('can:logistics.trips.manage')->name('trips.store');
+        Route::post('/trips', [LogisticsTripController::class, 'store'])->name('trips.store');
         Route::get('/trips/{trip}', [LogisticsTripController::class, 'show'])->name('trips.show');
-        Route::put('/trips/{trip}', [LogisticsTripController::class, 'update'])
-            ->middleware('can:logistics.trips.manage')->name('trips.update');
-        Route::delete('/trips/{trip}', [LogisticsTripController::class, 'destroy'])
-            ->middleware('can:logistics.trips.manage')->name('trips.destroy');
+        Route::put('/trips/{trip}', [LogisticsTripController::class, 'update'])->name('trips.update');
+        Route::delete('/trips/{trip}', [LogisticsTripController::class, 'destroy'])->name('trips.destroy');
         Route::post('/trips/{trip}/stops/{stop}/move', [LogisticsTripStopController::class, 'move'])
-            ->middleware('can:logistics.trips.manage')->name('trips.stops.move');
+            ->name('trips.stops.move');
 
         Route::get('/trips/{trip}/expenses', [LogisticsTripExpenseController::class, 'index'])
             ->name('trips.expenses.index');
         Route::post('/trips/{trip}/expenses', [LogisticsTripExpenseController::class, 'store'])
-            ->middleware('can:logistics.expenses.manage')->name('trips.expenses.store');
+            ->name('trips.expenses.store');
         Route::put('/trips/{trip}/expenses/{expense}', [LogisticsTripExpenseController::class, 'update'])
-            ->middleware('can:logistics.expenses.manage')->name('trips.expenses.update');
+            ->name('trips.expenses.update');
         Route::delete('/trips/{trip}/expenses/{expense}', [LogisticsTripExpenseController::class, 'destroy'])
-            ->middleware('can:logistics.expenses.manage')->name('trips.expenses.destroy');
+            ->name('trips.expenses.destroy');
         Route::get('/trips/{trip}/routes', [LogisticsTripRoutingController::class, 'index'])
             ->name('trips.routes.index');
         Route::post('/trips/{trip}/routes/calculate', [LogisticsTripRoutingController::class, 'store'])
-            ->middleware('can:logistics.trips.manage')->name('trips.routes.calculate');
+            ->name('trips.routes.calculate');
 
         Route::get('/cities', [LogisticsCityController::class, 'index'])->name('cities.index');
-        Route::put('/cities/{city}', [LogisticsCityController::class, 'update'])
-            ->middleware('can:logistics.matrix.manage')->name('cities.update');
+        Route::put('/cities/{city}', [LogisticsCityController::class, 'update'])->name('cities.update');
         Route::get('/matrix', [LogisticsMatrixController::class, 'index'])->name('matrix.index');
         Route::get('/matrix/export', [LogisticsMatrixController::class, 'export'])->name('matrix.export');
-        Route::post('/matrix/calculate', [LogisticsMatrixController::class, 'calculate'])
-            ->middleware('can:logistics.matrix.manage')->name('matrix.calculate');
-        Route::put('/matrix/manual', [LogisticsMatrixController::class, 'manual'])
-            ->middleware('can:logistics.matrix.manage')->name('matrix.manual');
+        Route::post('/matrix/calculate', [LogisticsMatrixController::class, 'calculate'])->name('matrix.calculate');
+        Route::put('/matrix/manual', [LogisticsMatrixController::class, 'manual'])->name('matrix.manual');
         Route::get('/routing-runs', [LogisticsRoutingRunController::class, 'index'])->name('routing-runs.index');
         Route::get('/routing-runs/{run}', [LogisticsRoutingRunController::class, 'show'])->name('routing-runs.show');
-        Route::get('/routing-status', LogisticsRoutingStatusController::class)
-            ->middleware('can:logistics.technical.view')->name('routing-status');
+        Route::get('/routing-status', LogisticsRoutingStatusController::class)->name('routing-status');
     });

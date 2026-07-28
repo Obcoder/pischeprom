@@ -52,12 +52,18 @@ class HandleInertiaRequests extends Middleware
                         'delete' => true,
                     ],
                     'logistics' => [
-                        'view' => (bool) $request->user()?->can('logistics.view'),
-                        'trips_manage' => (bool) $request->user()?->can('logistics.trips.manage'),
-                        'vehicles_manage' => (bool) $request->user()?->can('logistics.vehicles.manage'),
-                        'expenses_manage' => (bool) $request->user()?->can('logistics.expenses.manage'),
-                        'matrix_manage' => (bool) $request->user()?->can('logistics.matrix.manage'),
-                        'technical_view' => (bool) $request->user()?->can('logistics.technical.view'),
+                        'view' => ! config('logistics.authorization_enabled')
+                            || (bool) $request->user()?->can('logistics.view'),
+                        'trips_manage' => ! config('logistics.authorization_enabled')
+                            || (bool) $request->user()?->can('logistics.trips.manage'),
+                        'vehicles_manage' => ! config('logistics.authorization_enabled')
+                            || (bool) $request->user()?->can('logistics.vehicles.manage'),
+                        'expenses_manage' => ! config('logistics.authorization_enabled')
+                            || (bool) $request->user()?->can('logistics.expenses.manage'),
+                        'matrix_manage' => ! config('logistics.authorization_enabled')
+                            || (bool) $request->user()?->can('logistics.matrix.manage'),
+                        'technical_view' => ! config('logistics.authorization_enabled')
+                            || (bool) $request->user()?->can('logistics.technical.view'),
                     ],
                 ],
             ],

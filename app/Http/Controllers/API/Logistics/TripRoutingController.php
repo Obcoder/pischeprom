@@ -16,7 +16,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Gate;
 
 class TripRoutingController extends Controller
 {
@@ -24,7 +23,7 @@ class TripRoutingController extends Controller
 
     public function index(LogisticsTrip $trip): AnonymousResourceCollection
     {
-        Gate::authorize('view', $trip);
+        $this->authorizeLogistics('view', $trip);
 
         return TripRouteResource::collection(
             $trip->routes()->with('creator:id,name')->paginate(25)
@@ -33,7 +32,7 @@ class TripRoutingController extends Controller
 
     public function store(Request $request, LogisticsTrip $trip): JsonResponse
     {
-        Gate::authorize('update', $trip);
+        $this->authorizeLogistics('update', $trip);
         $validated = $request->validate(['force' => ['nullable', 'boolean']]);
         $force = (bool) ($validated['force'] ?? false);
         $cache = config('logistics.lock_store')

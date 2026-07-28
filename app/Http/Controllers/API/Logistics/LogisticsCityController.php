@@ -11,7 +11,6 @@ use App\Services\Logistics\LogisticsCityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class LogisticsCityController extends Controller
 {
@@ -19,7 +18,7 @@ class LogisticsCityController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('viewAny', LogisticsCity::class);
+        $this->authorizeLogistics('viewAny', LogisticsCity::class);
         $perPage = max(1, min((int) $request->input('per_page', 50), 200));
 
         $query = City::query()

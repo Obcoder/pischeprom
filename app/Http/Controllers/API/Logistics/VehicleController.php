@@ -10,13 +10,12 @@ use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class VehicleController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('viewAny', Vehicle::class);
+        $this->authorizeLogistics('viewAny', Vehicle::class);
 
         $perPage = max(1, min((int) $request->input('per_page', 25), 100));
         $query = Vehicle::query()
@@ -66,7 +65,7 @@ class VehicleController extends Controller
 
     public function show(Vehicle $vehicle): VehicleResource
     {
-        Gate::authorize('view', $vehicle);
+        $this->authorizeLogistics('view', $vehicle);
 
         return new VehicleResource($vehicle->load('owner')->loadCount('trips'));
     }
@@ -83,7 +82,7 @@ class VehicleController extends Controller
 
     public function destroy(Vehicle $vehicle): JsonResponse
     {
-        Gate::authorize('delete', $vehicle);
+        $this->authorizeLogistics('delete', $vehicle);
         $vehicle->delete();
 
         return response()->json(['message' => 'Автомобиль перемещён в архив.']);
@@ -92,7 +91,7 @@ class VehicleController extends Controller
     public function restore(Request $request, int $vehicle): VehicleResource
     {
         $model = Vehicle::withTrashed()->findOrFail($vehicle);
-        Gate::authorize('restore', $model);
+        $this->authorizeLogistics('restore', $model);
         $model->restore();
 
         return new VehicleResource($model->refresh()->load('owner')->loadCount('trips'));

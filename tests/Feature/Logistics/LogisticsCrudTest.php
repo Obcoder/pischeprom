@@ -21,8 +21,32 @@ class LogisticsCrudTest extends LogisticsTestCase
             ->assertInertia(fn (Assert $page) => $page->component('Ameise/Logistics'));
     }
 
+    public function test_logistics_page_and_api_are_fully_available_without_authentication_when_disabled(): void
+    {
+        config(['logistics.authorization_enabled' => false]);
+
+        $this->get('/Ameise/logistics')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Ameise/Logistics')
+                ->where('auth.permissions.logistics.view', true)
+                ->where('auth.permissions.logistics.trips_manage', true)
+                ->where('auth.permissions.logistics.vehicles_manage', true)
+                ->where('auth.permissions.logistics.expenses_manage', true)
+                ->where('auth.permissions.logistics.matrix_manage', true)
+                ->where('auth.permissions.logistics.technical_view', true));
+
+        $this->getJson('/api/logistics/dashboard')->assertOk();
+
+        $this->postJson('/api/logistics/vehicles', $this->vehiclePayload())
+            ->assertCreated()
+            ->assertJsonPath('data.registration_number', 'А123АА78');
+    }
+
     public function test_vehicle_crud_is_authorized_normalized_and_archived_safely(): void
     {
+        $this->getJson('/api/logistics/vehicles')->assertUnauthorized();
+
         $this->actingAs(User::factory()->create(['status' => 'active']))
             ->getJson('/api/logistics/vehicles')
             ->assertForbidden();

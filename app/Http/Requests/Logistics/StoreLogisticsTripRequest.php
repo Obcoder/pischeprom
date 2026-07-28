@@ -17,6 +17,10 @@ class StoreLogisticsTripRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        if (! config('logistics.authorization_enabled')) {
+            return true;
+        }
+
         return (bool) $this->user()?->can('create', LogisticsTrip::class);
     }
 

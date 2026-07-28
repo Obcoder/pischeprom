@@ -123,8 +123,10 @@ jobs:
           vendor/bin/pint --test \
             app/Console/Commands/Logistics*.php \
             app/Enums/Logistics \
+            app/Http/Controllers/Controller.php \
             app/Http/Controllers/API/CheckController.php \
             app/Http/Controllers/API/Logistics \
+            app/Http/Middleware/EnforceLogisticsAuthorization.php \
             app/Http/Middleware/HandleInertiaRequests.php \
             app/Http/Requests/Logistics \
             app/Http/Resources/CheckResource.php \

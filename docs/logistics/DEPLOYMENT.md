@@ -15,6 +15,7 @@
 ```dotenv
 APP_TIMEZONE=Europe/Moscow
 
+LOGISTICS_AUTHORIZATION_ENABLED=false
 LOGISTICS_CURRENCY_CODE=RUB
 LOGISTICS_ROUTING_DRIVER=valhalla
 LOGISTICS_DEFAULT_ROUTING_PROFILE=truck
@@ -125,4 +126,4 @@ sudo systemctl status pischeprom-routing-worker
 sudo journalctl -u pischeprom-routing-worker -n 100 --no-pager
 ```
 
-Затем откройте `/Ameise/logistics`: сама страница не имеет отдельного auth middleware, однако API-операции требуют пользователя с соответствующими logistics permissions. Проверьте diagnostics, создайте тестовый рейс с двумя остановками и поставьте маршрут в очередь. Не утверждайте успешность live-маршрута до положительного результата health/smoke на production-графе.
+Затем откройте `/Ameise/logistics` в анонимном окне: при `LOGISTICS_AUTHORIZATION_ENABLED=false` должны работать страница, чтение и изменяющие API-операции. Проверьте diagnostics, создайте тестовый рейс с двумя остановками и поставьте маршрут в очередь. Когда будет готова общая авторизация `/Ameise`, установите `LOGISTICS_AUTHORIZATION_ENABLED=true`, пересоберите config cache и проверьте Sanctum, подтверждение email и logistics permissions. Не утверждайте успешность live-маршрута до положительного результата health/smoke на production-графе.

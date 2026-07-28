@@ -12,7 +12,6 @@ use App\Services\Logistics\TripExpenseService;
 use App\Services\Logistics\TripMetricsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class TripExpenseController extends Controller
 {
@@ -23,7 +22,7 @@ class TripExpenseController extends Controller
 
     public function index(Request $request, LogisticsTrip $trip): JsonResponse
     {
-        Gate::authorize('view', $trip);
+        $this->authorizeLogistics('view', $trip);
         $items = $trip->expenses()->with(['category', 'check.entity'])->latest('occurred_at')->latest('id')->get();
         $trip->setRelation('expenses', $items)->loadMissing('vehicle');
 
@@ -56,7 +55,7 @@ class TripExpenseController extends Controller
             abort(404);
         }
 
-        Gate::authorize('delete', $expense);
+        $this->authorizeLogistics('delete', $expense);
         $expense->delete();
 
         return response()->json(['message' => 'Расход отвязан. Чек не изменён.']);

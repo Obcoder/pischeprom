@@ -18,6 +18,8 @@ class RoutingStatusController extends Controller
 {
     public function __invoke(RoutingProviderInterface $provider): JsonResponse
     {
+        $this->authorizeLogistics('logistics.technical.view');
+
         $health = $provider->health();
         $lastMatrixSuccessAt = LogisticsCityDistance::query()
             ->whereIn('status', [DistanceStatus::Calculated->value, DistanceStatus::Manual->value])

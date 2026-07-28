@@ -11,7 +11,6 @@ use App\Services\Logistics\TripWriterService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class TripController extends Controller
 {
@@ -19,7 +18,7 @@ class TripController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('viewAny', LogisticsTrip::class);
+        $this->authorizeLogistics('viewAny', LogisticsTrip::class);
         $perPage = max(1, min((int) $request->input('per_page', 25), 100));
 
         $query = LogisticsTrip::query()
@@ -75,7 +74,7 @@ class TripController extends Controller
 
     public function show(LogisticsTrip $trip): LogisticsTripResource
     {
-        Gate::authorize('view', $trip);
+        $this->authorizeLogistics('view', $trip);
 
         return new LogisticsTripResource($this->writer->load($trip));
     }
@@ -89,7 +88,7 @@ class TripController extends Controller
 
     public function destroy(LogisticsTrip $trip): JsonResponse
     {
-        Gate::authorize('delete', $trip);
+        $this->authorizeLogistics('delete', $trip);
         $trip->delete();
 
         return response()->json(['message' => 'Рейс перемещён в архив. Чеки сохранены.']);

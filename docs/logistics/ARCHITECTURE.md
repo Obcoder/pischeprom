@@ -6,7 +6,7 @@ Laravel хранит бизнес-сущности, снимки результ�
 
 ```text
 Vue/Inertia admin
-       │ authenticated /api/logistics
+       │ /api/logistics (temporarily open; auth switch retained)
        ▼
 Controllers → Form Requests / Policies → domain services → MySQL
                                              │
@@ -98,7 +98,8 @@ users ──< logistics_routing_runs
 ## Безопасность
 
 - внутренний URL Valhalla читается только из server-side config/env;
-- API требует Sanctum, verified user, permission и policies;
+- при `LOGISTICS_AUTHORIZATION_ENABLED=false` UI и API временно открыты до общей авторизации `/Ameise`;
+- при `LOGISTICS_AUTHORIZATION_ENABLED=true` API требует Sanctum, verified user, permission и policies;
 - для завершённого рейса существенные изменения разрешены только с техническим правом;
 - провайдер логирует действие, код и длительность без координат, URL и payload;
 - клиент получает типизированные безопасные domain errors;
