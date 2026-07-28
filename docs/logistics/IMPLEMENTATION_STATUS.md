@@ -31,8 +31,11 @@
 - Все Valhalla shell scripts прошли `bash -n`.
 - `docker compose ... config --quiet` успешно проверен с example env и staging volume.
 - `composer validate --no-check-publish --strict`, `git diff HEAD --check`, регистрация 31 API route и scheduler прошли успешно.
-
-Живой OSM/PBF build и opt-in вызов Valhalla не выполнялись в этой сессии: они требуют загрузки региональных данных и запущенного routing-контейнера. Рабочая MySQL и фактический `.env` не изменялись.
+- Production CI после исправления: `147 passed, 2 skipped, 992 assertions`, PHP style, client build и SSR build; [deploy run 30403630659](https://github.com/Obcoder/pischeprom/actions/runs/30403630659).
+- На GitHub-hosted runner собран и проверен граф из checksum-verified PBF Центрального и Северо-Западного федеральных округов, snapshot `260725`; на VPS запущен Valhalla `3.6.3`, доступный Laravel только через `127.0.0.1:8002`.
+- Production health возвращает `healthy=true`, OSM `260725`; Redis routing worker активен. Provisioning, route/matrix smoke и production API E2E прошли в [routing run 30403764857](https://github.com/Obcoder/pischeprom/actions/runs/30403764857).
+- Полный auto-расчёт `8ff7407e-a2ff-45f8-86c4-89e3407bdedb` завершил `2/2` направленных пар без ошибок: Санкт-Петербург → Воронеж `1 255,502 км`, Воронеж → Санкт-Петербург `1 326,100 км`.
+- Production `.env` синхронизирован с Redis queue, loopback Valhalla и версиями engine/OSM; перед изменением workflow сохранил закрытую резервную копию.
 
 ## Архитектурные решения аудита
 
@@ -53,10 +56,7 @@
 - отдельная полная матрица для каждого автомобиля;
 - миграция MySQL на PostgreSQL/PostGIS.
 
-## Перед production enable
+## Оставшиеся эксплуатационные задачи
 
 - Выполнить backup/restore drill MySQL и additive migrations.
-- Собрать реальный граф из обоих PBF, зафиксировать ресурсы/время и получить положительные route + matrix smoke.
-- Настроить server-side env, private connectivity и синхронизировать `LOGISTICS_OSM_DATA_VERSION`.
-- Установить/запустить `pischeprom-routing-worker`, проверить Redis retry_after и scheduler.
 - Выдать права ролям, проверить реальные routing-точки и выполнить приёмочный рейс Санкт-Петербург → Москва.
