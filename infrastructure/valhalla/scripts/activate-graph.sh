@@ -29,9 +29,31 @@ fi
 ln -s "${graph_dir}" "${next_link}"
 atomic_replace_symlink "${next_link}" "${current_link}"
 
-if ! compose up --detach --force-recreate valhalla || ! "${SCRIPT_DIR}/smoke-test.sh" "" "http://127.0.0.1:${VALHALLA_PORT:-8002}"; then
+runtime_diagnostics() {
+    echo "Valhalla runtime diagnostics:" >&2
+    compose ps --all >&2 || true
+
+    local container_id=""
+    container_id="$(compose ps --quiet valhalla 2>/dev/null || true)"
+    if [[ -n "${container_id}" ]]; then
+        docker inspect \
+            --format 'configured_ports={{json .HostConfig.PortBindings}} effective_ports={{json .NetworkSettings.Ports}} state={{json .State}}' \
+            "${container_id}" >&2 || true
+        docker logs --tail 200 "${container_id}" >&2 || true
+    fi
+}
+
+# Recreate the project network as well as the container. This migrates hosts
+# that used the former Docker-internal network, where Engine accepted the
+# loopback PortBinding but did not install an effective host port mapping.
+if ! compose down --remove-orphans \
+    || ! compose up --detach --force-recreate valhalla \
+    || ! "${SCRIPT_DIR}/smoke-test.sh" "" "http://127.0.0.1:${VALHALLA_PORT:-8002}"
+then
+    runtime_diagnostics
     echo "Activation failed; restoring the previous graph." >&2
     if [[ -n "${old_target}" ]]; then
+        compose down --remove-orphans || true
         rollback_next="${DATA_DIR}/.rollback.next"
         ln -s "${old_target}" "${rollback_next}"
         atomic_replace_symlink "${rollback_next}" "${current_link}"

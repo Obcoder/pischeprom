@@ -44,5 +44,5 @@ services:
 
 networks:
   routing_private:
-    internal: true
+    driver: bridge
   routing_build: {}

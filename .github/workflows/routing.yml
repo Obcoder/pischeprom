@@ -64,6 +64,9 @@ jobs:
         with:
           path: .routing-build-cache
           key: ${{ steps.routing-build-cache-key.outputs.key }}
+          # The runtime-only network migration does not change graph bytes.
+          restore-keys: |
+            production-routing-${{ runner.os }}-${{ inputs.snapshot }}-d03985b631729c9db6daac7f6c297ac74d4bebc4f9283627df64b8284c7aee9c
 
       - name: Validate builder and snapshot
         run: |
@@ -90,17 +93,17 @@ jobs:
             infrastructure/valhalla/.env
 
       - name: Download checksum-verified OSM extracts
-        if: steps.routing-build-cache.outputs.cache-hit != 'true'
+        if: steps.routing-build-cache.outputs.cache-matched-key == ''
         working-directory: infrastructure/valhalla
         run: ./scripts/download-osm.sh "$OSM_SNAPSHOT"
 
       - name: Build and smoke-test the Valhalla graph
-        if: steps.routing-build-cache.outputs.cache-hit != 'true'
+        if: steps.routing-build-cache.outputs.cache-matched-key == ''
         working-directory: infrastructure/valhalla
         run: ./scripts/build-graph.sh "$OSM_SNAPSHOT"
 
       - name: Package the verified graph
-        if: steps.routing-build-cache.outputs.cache-hit != 'true'
+        if: steps.routing-build-cache.outputs.cache-matched-key == ''
         run: |
           set -Eeuo pipefail
 
