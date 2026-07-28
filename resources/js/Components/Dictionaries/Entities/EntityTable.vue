@@ -104,7 +104,6 @@ const tableGroupBy = computed(() => {
 
 const activeFiltersCount = computed(() => {
     return [
-        props.filters.search,
         ...(props.filters.entity_classification_ids || []),
         ...(props.filters.country_ids || []),
         ...(props.filters.city_ids || []),
@@ -158,6 +157,18 @@ const phoneNumber = (telephone) => {
             <v-chip size="small" variant="tonal" color="blue-grey-lighten-2">
                 {{ totalItems }}
             </v-chip>
+
+            <v-text-field
+                v-model="filters.search"
+                class="entities-table-search"
+                label="Поиск"
+                prepend-inner-icon="mdi-magnify"
+                density="compact"
+                clearable
+                hide-details
+                single-line
+                variant="solo-filled"
+            />
 
             <v-spacer />
 
@@ -260,17 +271,6 @@ const phoneNumber = (telephone) => {
 
                     <v-card-text>
                         <v-row dense>
-                            <v-col cols="12" md="4">
-                                <v-text-field
-                                    v-model="filters.search"
-                                    label="Поиск"
-                                    density="compact"
-                                    clearable
-                                    hide-details
-                                    variant="solo-filled"
-                                />
-                            </v-col>
-
                             <v-col cols="12" md="4">
                                 <v-select
                                     v-model="filters.entity_classification_ids"
@@ -616,6 +616,18 @@ const phoneNumber = (telephone) => {
     min-height: 42px;
     padding: 6px 10px;
     font-size: 0.9rem;
+}
+
+.entities-table-search {
+    flex: 0 1 260px;
+    width: 260px;
+    min-width: 180px;
+    max-width: 260px;
+    margin-left: 10px;
+}
+
+.entities-table-search :deep(.v-field) {
+    min-height: 36px;
 }
 
 .entities-table-body {
