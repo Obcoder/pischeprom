@@ -8,7 +8,7 @@
 - scheduler Laravel раз в минуту;
 - backup MySQL и проверенная процедура восстановления перед production-миграцией.
 
-Граф Northwestern + Central строится отдельно от deploy Laravel. Для первой сборки закладывайте отдельный staging-каталог, несколько часов окна, ориентировочно 8–16 CPU, от 32 ГБ RAM и 100–150 ГБ свободного места; реальные требования измерьте на своём host и сохраните из `build-metadata.json`. Исходные PBF остаются отдельной копией в `data/sources`.
+Граф Northwestern + Central строится отдельно от deploy Laravel. Production workflow собирает его на GitHub runner и передаёт на routing host проверенный runtime-граф вместе с отдельной checksum-verified копией исходных PBF, поэтому маломощный web VPS не участвует в ресурсоёмкой сборке. Для ручной сборки на собственном build host закладывайте отдельный staging-каталог, несколько часов окна, ориентировочно 8–16 CPU, от 32 ГБ RAM и 100–150 ГБ свободного места; реальные требования измерьте и сохраните из `build-metadata.json`. Исходные PBF сохраняются в `data/sources` и не заменяются сгенерированными tiles.
 
 ## Laravel env
 
@@ -44,6 +44,30 @@ VALHALLA_RETRY_DELAY_MS=250
 ## Первоначальная сборка Valhalla
 
 Инфраструктура находится в `infrastructure/valhalla`. Образ закреплён как `ghcr.io/valhalla/valhalla-scripted:3.6.3`, runtime-порт — только `127.0.0.1`.
+
+### Production через GitHub Actions
+
+Запустите вручную workflow `Build and deploy production routing`, указав общий immutable snapshot:
+
+```bash
+gh workflow run routing.yml -f snapshot=260725
+```
+
+Workflow:
+
+1. загружает оба PBF и проверяет опубликованные Geofabrik MD5;
+2. строит граф на GitHub runner в staging-каталоге;
+3. выполняет route и matrix smoke до упаковки;
+4. передаёт на VPS архивы графа и исходных PBF с SHA-256;
+5. устанавливает через системные пакеты Docker Compose и PHP Redis, если они отсутствуют;
+6. атомарно активирует граф на loopback-порту, обновляет только routing-параметры Laravel `.env` с резервной копией;
+7. устанавливает и запускает `pischeprom-routing-worker`;
+8. освобождает старые `queued/pending` записи, оставшиеся после неработавшей очереди;
+9. запускает матрицу через production HTTP API и ждёт успешного завершения всех направленных пар.
+
+Обычный workflow `Verify and deploy to production` не перестраивает граф и только перезапускает уже установленный worker.
+
+### Ручная сборка
 
 ```bash
 cd infrastructure/valhalla

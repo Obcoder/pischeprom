@@ -74,6 +74,7 @@ php artisan logistics:matrix-calculate --all --profile=truck --dry-run
 php artisan logistics:matrix-calculate --all --profile=truck
 php artisan logistics:matrix-refresh-stale --profile=truck --limit=500 --dry-run
 php artisan logistics:matrix-refresh-stale --profile=truck --limit=500
+php artisan logistics:routing-recover-stuck --older-than=15 --dry-run
 php artisan logistics:routing-mark-stale --old-osm-version=260725 --dry-run
 php artisan logistics:import-city-coordinates /absolute/path/cities.csv --dry-run
 ```

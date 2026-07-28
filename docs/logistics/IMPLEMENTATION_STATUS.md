@@ -12,9 +12,10 @@
 - Реализованы Form Requests, API Resources, policies, шесть прав и 31 API route с переключаемой авторизацией.
 - Реализованы routing interface/DTO/typed exceptions, Valhalla provider, fake provider, профиль грузовика, polyline6 и request hashes.
 - Реализованы версионные маршруты рейса, направленная матрица, manual/stale/no_route/failed, cache locks, unique queue jobs, batching и polling runs.
-- Добавлены пять Artisan-команд: health, выбранная матрица, refresh stale/expired, mark stale и CSV import.
+- Добавлены шесть Artisan-команд: health, выбранная матрица, refresh stale/expired, восстановление зависших routing jobs, mark stale и CSV import.
 - Добавлен отдельный раздел Vue/Vuetify с пятью вкладками, server-side таблицами, формами, validation/errors/loading, CSV и OSM attribution.
 - Добавлена воспроизводимая Valhalla-инфраструктура: pinned image 3.6.3, loopback/private network, immutable two-region download с checksum, staging build, route/matrix smoke, atomic activate и rollback.
+- Добавлен отдельный ручной GitHub Actions workflow: ресурсоёмкая сборка графа выполняется на runner, а VPS получает только проверенный архив; workflow также устанавливает runtime, PHP Redis и routing worker и выполняет production API smoke.
 - Добавлен отдельный `redis-routing` connection, systemd worker example, интеграция worker/seeder/routes в production deploy и logistics checks в CI.
 - Созданы все пять обязательных документов.
 - По последующему решению владельца добавлен явный полный расчёт всех включённых и проверенных городов (`--all` и UI) без лимита выбранного фрагмента.
@@ -23,8 +24,8 @@
 ## Проверено фактически
 
 - Четыре миграции успешно применялись к отдельной временной SQLite test database; рабочая MySQL не изменялась.
-- Targeted backend suite: `32 passed, 1 skipped, 221 assertions`; пропущен только opt-in smoke с живой Valhalla.
-- Полный regression suite: `232 tests, 1392 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
+- Targeted backend suite: `35 passed, 1 skipped, 243 assertions`; пропущен только opt-in smoke с живой Valhalla.
+- Полный regression suite: `235 tests, 1414 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
 - Все затронутые PHP-файлы прошли `vendor/bin/pint --test`; общий legacy-код проекта вне задачи по-прежнему содержит style issues и не переформатировался массово.
 - Production client + SSR build успешно выполнен на Node.js 22.18.0; остались только предупреждения о старой базе Browserslist и размере существующих общих chunks.
 - Все Valhalla shell scripts прошли `bash -n`.

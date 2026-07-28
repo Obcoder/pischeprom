@@ -37,7 +37,10 @@ done
 
 {
     for region in "${regions[@]}"; do
-        local_sha256 "${target_dir}/${region}-${snapshot}.osm.pbf"
+        (
+            cd "${target_dir}"
+            local_sha256 "${region}-${snapshot}.osm.pbf"
+        )
     done
 } > "${target_dir}/SHA256SUMS"
 

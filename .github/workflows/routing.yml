@@ -1,0 +1,327 @@
+name: Build and deploy production routing
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Immutable Geofabrik snapshot in YYMMDD format
+        required: true
+        default: '260725'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pischeprom-production-routing
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-and-deploy:
+    name: Build graph and provision routing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    environment:
+      name: production
+    env:
+      OSM_SNAPSHOT: ${{ inputs.snapshot }}
+
+    steps:
+      - name: Check out the requested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate builder and snapshot
+        run: |
+          set -Eeuo pipefail
+
+          [[ "$OSM_SNAPSHOT" =~ ^[0-9]{6}$ ]] || {
+            echo "::error::snapshot must use YYMMDD format."
+            exit 1
+          }
+
+          docker --version
+          docker compose version
+          nproc
+          free -h
+          df -h /
+
+          install -m 600 \
+            infrastructure/valhalla/.env.example \
+            infrastructure/valhalla/.env
+          sed -i \
+            -e "s/^OSM_SNAPSHOT=.*/OSM_SNAPSHOT=${OSM_SNAPSHOT}/" \
+            -e 's/^VALHALLA_SERVER_THREADS=.*/VALHALLA_SERVER_THREADS=2/' \
+            -e 's/^VALHALLA_BUILD_THREADS=.*/VALHALLA_BUILD_THREADS=2/' \
+            infrastructure/valhalla/.env
+
+      - name: Download checksum-verified OSM extracts
+        working-directory: infrastructure/valhalla
+        run: ./scripts/download-osm.sh "$OSM_SNAPSHOT"
+
+      - name: Build and smoke-test the Valhalla graph
+        working-directory: infrastructure/valhalla
+        run: ./scripts/build-graph.sh "$OSM_SNAPSHOT"
+
+      - name: Package the verified graph
+        run: |
+          set -Eeuo pipefail
+
+          graph_dir="infrastructure/valhalla/data/graphs/${OSM_SNAPSHOT}"
+          [[ -s "$graph_dir/valhalla_tiles.tar" ]] || {
+            echo "::error::Verified Valhalla tile archive is missing."
+            exit 1
+          }
+          [[ -s "$graph_dir/build-metadata.json" ]] || {
+            echo "::error::Verified graph metadata is missing."
+            exit 1
+          }
+          if find "$graph_dir" -type l -print -quit | grep -q .; then
+            echo "::error::Graph package must not contain symbolic links."
+            exit 1
+          fi
+
+          graph_archive="$RUNNER_TEMP/valhalla-graph-${OSM_SNAPSHOT}.tar.gz"
+          source_archive="$RUNNER_TEMP/osm-sources-${OSM_SNAPSHOT}.tar.gz"
+          tar -C infrastructure/valhalla/data/graphs \
+            -czf "$graph_archive" \
+            "$OSM_SNAPSHOT"
+          tar -C infrastructure/valhalla/data/sources \
+            -czf "$source_archive" \
+            "$OSM_SNAPSHOT"
+          graph_checksum="$(sha256sum "$graph_archive" | awk '{print $1}')"
+          source_checksum="$(sha256sum "$source_archive" | awk '{print $1}')"
+
+          printf 'GRAPH_ARCHIVE=%s\n' "$graph_archive" >> "$GITHUB_ENV"
+          printf 'GRAPH_CHECKSUM=%s\n' "$graph_checksum" >> "$GITHUB_ENV"
+          printf 'SOURCE_ARCHIVE=%s\n' "$source_archive" >> "$GITHUB_ENV"
+          printf 'SOURCE_CHECKSUM=%s\n' "$source_checksum" >> "$GITHUB_ENV"
+          du -h "$graph_archive" "$source_archive"
+          df -h /
+
+      - name: Configure pinned SSH host identity
+        env:
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          set -Eeuo pipefail
+
+          for required_name in \
+            SSH_HOST SSH_KNOWN_HOSTS SSH_PORT SSH_PRIVATE_KEY SSH_USER TARGET_DIR
+          do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "::error::Required production secret ${required_name} is missing."
+              exit 1
+            fi
+          done
+
+          if [[ ! "$SSH_PORT" =~ ^[0-9]+$ ]] || (( SSH_PORT < 1 || SSH_PORT > 65535 )); then
+            echo "::error::PORT must be a valid TCP port."
+            exit 1
+          fi
+
+          if [[ "$TARGET_DIR" != /* || "$TARGET_DIR" == "/" ]]; then
+            echo "::error::TARGET_DIR must be an absolute non-root path."
+            exit 1
+          fi
+
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null
+
+          if ! ssh-keygen -F "$SSH_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null \
+            && ! ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$HOME/.ssh/known_hosts" >/dev/null
+          then
+            echo "::error::SSH_KNOWN_HOSTS does not contain the configured host."
+            exit 1
+          fi
+
+      - name: Transfer and activate the verified graph
+        env:
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          set -Eeuo pipefail
+
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          scp_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -P "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          ssh_target="${SSH_USER}@${SSH_HOST}"
+          remote_dir="$(
+            ssh "${ssh_options[@]}" "$ssh_target" \
+              'umask 077 && mktemp -d /tmp/pischeprom-routing.XXXXXXXXXX'
+          )"
+
+          if [[ ! "$remote_dir" =~ ^/tmp/pischeprom-routing\.[A-Za-z0-9]+$ ]]; then
+            echo "::error::The VPS returned an invalid temporary directory."
+            exit 1
+          fi
+
+          cleanup_remote() {
+            ssh "${ssh_options[@]}" "$ssh_target" \
+              "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+          }
+          trap cleanup_remote EXIT
+
+          remote_archive="$remote_dir/$(basename "$GRAPH_ARCHIVE")"
+          remote_sources="$remote_dir/$(basename "$SOURCE_ARCHIVE")"
+          scp "${scp_options[@]}" \
+            "$GRAPH_ARCHIVE" \
+            "$SOURCE_ARCHIVE" \
+            "${ssh_target}:${remote_dir}/"
+
+          target_dir_base64="$(printf '%s' "$TARGET_DIR" | base64 -w 0)"
+          ssh "${ssh_options[@]}" "$ssh_target" \
+            "bash -se -- '$target_dir_base64' '$OSM_SNAPSHOT' '$remote_archive' '$GRAPH_CHECKSUM' '$remote_sources' '$SOURCE_CHECKSUM'" \
+            < scripts/provision-production-routing.sh
+
+      - name: Verify the production API calculation end to end
+        run: |
+          set -Eeuo pipefail
+
+          production_url='https://xn----dtbhbbn3apgclecj7i.xn--p1ai'
+          curl --fail --silent --show-error \
+            "$production_url/api/logistics/routing-status" \
+            | php -r '
+          $response = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
+          if (($response["data"]["healthy"] ?? false) !== true) {
+              fwrite(STDERR, "Production routing health is not green.\n");
+              exit(1);
+          }
+          '
+
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --header 'Content-Type: application/json' \
+              --data '{"full_matrix":true,"routing_profile":"auto","refresh":true,"missing_only":false}' \
+              "$production_url/api/logistics/matrix/calculate"
+          )"
+          run_id="$(
+            printf '%s' "$response" \
+              | php -r '$data=json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR); echo $data["data"]["id"] ?? "";'
+          )"
+          [[ "$run_id" =~ ^[0-9a-f-]{36}$ ]] || {
+            echo "::error::Production matrix API did not return a routing run UUID."
+            exit 1
+          }
+
+          terminal_status=''
+          for attempt in $(seq 1 120); do
+            run_json="$(
+              curl --fail --silent --show-error \
+                "$production_url/api/logistics/routing-runs/$run_id"
+            )"
+            terminal_status="$(
+              printf '%s' "$run_json" \
+                | php -r '$data=json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR); echo $data["data"]["status"] ?? "";'
+            )"
+            case "$terminal_status" in
+              completed)
+                break
+                ;;
+              failed|partial|cancelled)
+                printf '%s\n' "$run_json"
+                echo "::error::Production matrix run ended with ${terminal_status}."
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+
+          [[ "$terminal_status" == 'completed' ]] || {
+            echo "::error::Production matrix run did not finish within 10 minutes."
+            exit 1
+          }
+
+          printf '%s' "$run_json" | php -r '
+          $response = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
+          $run = $response["data"] ?? [];
+          if (($run["total_pairs"] ?? 0) < 2
+              || ($run["completed_pairs"] ?? 0) !== ($run["total_pairs"] ?? -1)
+              || ($run["failed_pairs"] ?? -1) !== 0) {
+              fwrite(STDERR, "Production matrix run counters are invalid.\n");
+              exit(1);
+          }
+          printf(
+              "Production matrix run %s completed: %d directed pairs.\n",
+              $run["id"],
+              $run["completed_pairs"],
+          );
+          '
+
+          mapfile -t city_ids < <(
+            printf '%s' "$run_json" \
+              | php -r '$data=json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR); foreach (($data["data"]["parameters"]["city_ids"] ?? []) as $id) { echo (int) $id, PHP_EOL; }'
+          )
+          (( ${#city_ids[@]} >= 2 )) || {
+            echo "::error::Production run did not retain at least two city IDs."
+            exit 1
+          }
+
+          matrix_args=(
+            --fail
+            --silent
+            --show-error
+            --get
+            --data-urlencode 'routing_profile=auto'
+          )
+          for city_id in "${city_ids[@]}"; do
+            matrix_args+=(--data-urlencode "city_ids[]=${city_id}")
+          done
+          matrix_json="$(
+            curl "${matrix_args[@]}" "$production_url/api/logistics/matrix"
+          )"
+          printf '%s' "$matrix_json" | php -r '
+          $response = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
+          $cells = $response["data"]["cells"] ?? [];
+          $checked = 0;
+          foreach ($cells as $cell) {
+              if (!is_array($cell)
+                  || ($cell["from_city_id"] ?? null) === ($cell["to_city_id"] ?? null)) {
+                  continue;
+              }
+              if (($cell["status"] ?? null) !== "calculated"
+                  || !is_numeric($cell["distance_m"] ?? null)
+                  || (int) $cell["distance_m"] <= 0) {
+                  fwrite(STDERR, "Production matrix contains an uncalculated directed pair.\n");
+                  exit(1);
+              }
+              $checked++;
+          }
+          if ($checked < 2) {
+              fwrite(STDERR, "Production matrix did not return two directed distances.\n");
+              exit(1);
+          }
+          printf("Production matrix contains %d positive directed distances.\n", $checked);
+          '

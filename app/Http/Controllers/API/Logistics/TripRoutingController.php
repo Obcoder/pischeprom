@@ -10,12 +10,14 @@ use App\Http\Resources\Logistics\TripRouteResource;
 use App\Jobs\Logistics\CalculateTripRouteJob;
 use App\Models\LogisticsRoutingRun;
 use App\Models\LogisticsTrip;
+use App\Services\Logistics\Routing\Exceptions\RoutingQueueUnavailableException;
 use App\Services\Logistics\RoutingRunService;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Cache;
+use Throwable;
 
 class TripRoutingController extends Controller
 {
@@ -35,11 +37,11 @@ class TripRoutingController extends Controller
         $this->authorizeLogistics('update', $trip);
         $validated = $request->validate(['force' => ['nullable', 'boolean']]);
         $force = (bool) ($validated['force'] ?? false);
-        $cache = config('logistics.lock_store')
-            ? Cache::store((string) config('logistics.lock_store'))
-            : Cache::getFacadeRoot();
 
         try {
+            $cache = config('logistics.lock_store')
+                ? Cache::store((string) config('logistics.lock_store'))
+                : Cache::getFacadeRoot();
             $run = $cache->lock("logistics:queue-trip-route:{$trip->id}", 10)
                 ->block(3, function () use ($trip, $request, $force): LogisticsRoutingRun {
                     $active = LogisticsRoutingRun::query()
@@ -64,12 +66,22 @@ class TripRoutingController extends Controller
                         ['trip_id' => $trip->id, 'force' => $force],
                     );
 
-                    CalculateTripRouteJob::dispatch(
-                        $trip->id,
-                        $run->id,
-                        $request->user()?->id,
-                        $force,
-                    );
+                    try {
+                        CalculateTripRouteJob::dispatch(
+                            $trip->id,
+                            $run->id,
+                            $request->user()?->id,
+                            $force,
+                        );
+                    } catch (Throwable $exception) {
+                        $this->runs->failRun(
+                            $run,
+                            'Расчёт не поставлен в очередь из-за временной ошибки инфраструктуры.',
+                        );
+                        report($exception);
+
+                        throw new RoutingQueueUnavailableException(previous: $exception);
+                    }
 
                     return $run;
                 });
@@ -78,6 +90,12 @@ class TripRoutingController extends Controller
                 'message' => 'Маршрут этого рейса уже ставится в очередь. Повторите запрос через несколько секунд.',
                 'code' => 'route_queue_locked',
             ], 409);
+        } catch (RoutingQueueUnavailableException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw new RoutingQueueUnavailableException(previous: $exception);
         }
 
         return (new RoutingRunResource($run->refresh()))

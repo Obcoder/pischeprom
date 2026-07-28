@@ -22,6 +22,7 @@ use App\Services\Logistics\Routing\Exceptions\NoRouteException;
 use App\Services\Logistics\Routing\Providers\FakeRoutingProvider;
 use App\Services\Logistics\RoutingRunService;
 use App\Services\Logistics\TripRouteService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
 class LogisticsRoutingTest extends LogisticsTestCase
@@ -92,6 +93,39 @@ class LogisticsRoutingTest extends LogisticsTestCase
         $this->assertDatabaseCount('logistics_routing_runs', 0);
     }
 
+    public function test_matrix_queue_failure_returns_a_safe_503_and_does_not_leave_pending_pairs(): void
+    {
+        config([
+            'logistics.queue_connection' => 'unavailable-routing-test',
+            'queue.connections.unavailable-routing-test' => ['driver' => 'unavailable-routing-test'],
+        ]);
+        $user = $this->logisticsUser();
+        $from = $this->verifiedCity('Очередь-1', 59.9343, 30.3351, $user->id);
+        $to = $this->verifiedCity('Очередь-2', 55.7558, 37.6173, $user->id);
+
+        $this->actingAs($user)
+            ->postJson('/api/logistics/matrix/calculate', [
+                'city_ids' => [$from->id, $to->id],
+                'routing_profile' => 'auto',
+                'refresh' => true,
+                'missing_only' => false,
+            ])
+            ->assertServiceUnavailable()
+            ->assertJsonPath('code', 'routing_queue_unavailable')
+            ->assertJsonPath('retryable', true);
+
+        $run = LogisticsRoutingRun::query()->sole();
+        $this->assertSame(RoutingRunStatus::Failed, $run->status);
+        $this->assertNotNull($run->finished_at);
+        $this->assertSame(
+            2,
+            LogisticsCityDistance::query()
+                ->where('status', DistanceStatus::Failed->value)
+                ->where('error_code', 'routing_queue_unavailable')
+                ->count(),
+        );
+    }
+
     public function test_matrix_persists_no_route_without_using_a_straight_line_fallback(): void
     {
         $user = $this->logisticsUser();
@@ -109,6 +143,56 @@ class LogisticsRoutingTest extends LogisticsTestCase
         $this->assertSame(
             RoutingRunStatus::Failed,
             LogisticsRoutingRun::query()->sole()->status,
+        );
+    }
+
+    public function test_stuck_matrix_work_can_be_recovered_for_a_clean_retry(): void
+    {
+        Queue::fake();
+        $user = $this->logisticsUser();
+        $from = $this->verifiedCity('Зависший-1', 59.9343, 30.3351, $user->id);
+        $to = $this->verifiedCity('Зависший-2', 55.7558, 37.6173, $user->id);
+        $run = app(CityDistanceMatrixService::class)
+            ->enqueue([$from->id, $to->id], 'auto', true, false, $user->id);
+        $stuckAt = now()->subHour();
+
+        DB::table('logistics_city_distances')->update(['updated_at' => $stuckAt]);
+        DB::table('logistics_routing_runs')->where('id', $run->id)->update(['updated_at' => $stuckAt]);
+        $this->assertSame(
+            2,
+            LogisticsCityDistance::query()->where('updated_at', '<=', now()->subMinutes(15))->count(),
+        );
+        $this->assertSame(
+            1,
+            LogisticsRoutingRun::query()->where('updated_at', '<=', now()->subMinutes(15))->count(),
+        );
+
+        $this->artisan('logistics:routing-recover-stuck', [
+            '--older-than' => 15,
+            '--dry-run' => true,
+        ])->expectsOutput('Dry run: stuck_runs=1, pending_pairs=2. No rows were changed.')
+            ->assertSuccessful();
+
+        $this->assertSame(RoutingRunStatus::Queued, $run->refresh()->status);
+        $this->assertSame(
+            2,
+            LogisticsCityDistance::query()->where('status', DistanceStatus::Pending->value)->count(),
+        );
+
+        $this->artisan('logistics:routing-recover-stuck', ['--older-than' => 15])
+            ->expectsOutput('Recovered stuck routing work: runs=1, matrix_pairs=2.')
+            ->assertSuccessful();
+
+        $run->refresh();
+        $this->assertSame(RoutingRunStatus::Failed, $run->status);
+        $this->assertSame(2, $run->failed_pairs);
+        $this->assertNotNull($run->finished_at);
+        $this->assertSame(
+            2,
+            LogisticsCityDistance::query()
+                ->where('status', DistanceStatus::Failed->value)
+                ->where('error_code', 'stuck_run_recovered')
+                ->count(),
         );
     }
 
@@ -244,6 +328,21 @@ class LogisticsRoutingTest extends LogisticsTestCase
         $trip->stops()->firstOrFail()->update(['address' => 'Новый адрес погрузки']);
         $this->assertSame(RouteStatus::Stale, $second->refresh()->status);
         $this->assertNull($trip->refresh()->route_calculated_at);
+    }
+
+    public function test_trip_route_queue_failure_is_returned_as_a_safe_503(): void
+    {
+        config(['logistics.lock_store' => 'unavailable-routing-test']);
+        $user = $this->logisticsUser();
+        $trip = LogisticsTrip::factory()->create();
+
+        $this->actingAs($user)
+            ->postJson("/api/logistics/trips/{$trip->id}/routes/calculate", ['force' => false])
+            ->assertServiceUnavailable()
+            ->assertJsonPath('code', 'routing_queue_unavailable')
+            ->assertJsonPath('retryable', true);
+
+        $this->assertDatabaseCount('logistics_routing_runs', 0);
     }
 
     public function test_no_route_creates_a_safe_auditable_route_version(): void

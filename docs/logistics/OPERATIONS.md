@@ -44,6 +44,15 @@ php artisan logistics:matrix-calculate --all --profile=truck
 
 `--dry-run` обязательно показывает число городов и верхнюю границу направленных пар до постановки. Полный режим не ограничен лимитом UI-фрагмента, выполняется через routing queue и никогда не перезаписывает ручные пары. В UI перед запуском показывается отдельное подтверждение с объёмом `N × (N − 1)`.
 
+Если постановка job была прервана недоступной очередью и остались старые `queued` runs / `pending` пары, сначала проверьте объём восстановления, затем освободите их для чистого повторного расчёта:
+
+```bash
+php artisan logistics:routing-recover-stuck --older-than=15 --dry-run
+php artisan logistics:routing-recover-stuck --older-than=15
+```
+
+Команда не трогает свежие задачи и ручные расстояния. После неё явно повторите расчёт выбранного фрагмента или полной матрицы.
+
 Для рейса вызовите из UI «Рассчитать маршрут» или аутентифицированный `POST /api/logistics/trips/{trip}/routes/calculate` с JSON `{"force":false}`. Ответ `202` содержит UUID run; polling выполняется через `GET /api/logistics/routing-runs/{uuid}`. Успех проверяется по `status=completed`, текущей версии маршрута и положительным `planned_distance_m`/`planned_duration_s`.
 
 ## Routing-точки городов

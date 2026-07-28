@@ -11,11 +11,13 @@ use App\Models\LogisticsRoutingRun;
 use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
 use App\Services\Logistics\Routing\DTO\MatrixRequest;
 use App\Services\Logistics\Routing\DTO\RoutingPoint;
+use App\Services\Logistics\Routing\Exceptions\RoutingQueueUnavailableException;
 use App\Services\Logistics\Routing\Support\RoutingHash;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class CityDistanceMatrixService
 {
@@ -60,7 +62,16 @@ class CityDistanceMatrixService
             return $run;
         }
 
-        $this->dispatchPairs($run, $pairs, $routingProfile);
+        try {
+            $this->dispatchPairs($run, $pairs, $routingProfile);
+        } catch (Throwable $exception) {
+            $message = 'Расчёт не поставлен в очередь из-за временной ошибки инфраструктуры.';
+            $this->markPairsFailed($pairs, $routingProfile, 'routing_queue_unavailable', $message);
+            $this->runs->failRun($run, $message);
+            report($exception);
+
+            throw new RoutingQueueUnavailableException(previous: $exception);
+        }
 
         return $run->refresh();
     }
