@@ -36,6 +36,35 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Calculate the routing build cache key
+        id: routing-build-cache-key
+        run: |
+          set -Eeuo pipefail
+
+          definition_hash="$(
+            sha256sum \
+              infrastructure/valhalla/.env.example \
+              infrastructure/valhalla/compose.yml \
+              infrastructure/valhalla/scripts/common.sh \
+              infrastructure/valhalla/scripts/download-osm.sh \
+              infrastructure/valhalla/scripts/build-graph.sh \
+              infrastructure/valhalla/scripts/smoke-test.sh \
+              | sha256sum \
+              | awk '{print $1}'
+          )"
+          printf 'key=production-routing-%s-%s-%s\n' \
+            "$RUNNER_OS" \
+            "$OSM_SNAPSHOT" \
+            "$definition_hash" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Restore a previously verified routing build
+        id: routing-build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .routing-build-cache
+          key: ${{ steps.routing-build-cache-key.outputs.key }}
+
       - name: Validate builder and snapshot
         run: |
           set -Eeuo pipefail
@@ -61,14 +90,17 @@ jobs:
             infrastructure/valhalla/.env
 
       - name: Download checksum-verified OSM extracts
+        if: steps.routing-build-cache.outputs.cache-hit != 'true'
         working-directory: infrastructure/valhalla
         run: ./scripts/download-osm.sh "$OSM_SNAPSHOT"
 
       - name: Build and smoke-test the Valhalla graph
+        if: steps.routing-build-cache.outputs.cache-hit != 'true'
         working-directory: infrastructure/valhalla
         run: ./scripts/build-graph.sh "$OSM_SNAPSHOT"
 
       - name: Package the verified graph
+        if: steps.routing-build-cache.outputs.cache-hit != 'true'
         run: |
           set -Eeuo pipefail
 
@@ -86,8 +118,10 @@ jobs:
             exit 1
           fi
 
-          graph_archive="$RUNNER_TEMP/valhalla-graph-${OSM_SNAPSHOT}.tar.gz"
-          source_archive="$RUNNER_TEMP/osm-sources-${OSM_SNAPSHOT}.tar.gz"
+          cache_dir="$GITHUB_WORKSPACE/.routing-build-cache"
+          install -d "$cache_dir"
+          graph_archive="$cache_dir/valhalla-graph-${OSM_SNAPSHOT}.tar.gz"
+          source_archive="$cache_dir/osm-sources-${OSM_SNAPSHOT}.tar.gz"
           tar -C infrastructure/valhalla/data/graphs \
             -czf "$graph_archive" \
             "$OSM_SNAPSHOT"
@@ -97,12 +131,53 @@ jobs:
           graph_checksum="$(sha256sum "$graph_archive" | awk '{print $1}')"
           source_checksum="$(sha256sum "$source_archive" | awk '{print $1}')"
 
+          printf '%s\n' "$graph_checksum" > "$cache_dir/graph.sha256"
+          printf '%s\n' "$source_checksum" > "$cache_dir/source.sha256"
+          du -h "$graph_archive" "$source_archive"
+          df -h /
+
+      - name: Load the verified routing archives
+        run: |
+          set -Eeuo pipefail
+
+          cache_dir="$GITHUB_WORKSPACE/.routing-build-cache"
+          graph_archive="$cache_dir/valhalla-graph-${OSM_SNAPSHOT}.tar.gz"
+          source_archive="$cache_dir/osm-sources-${OSM_SNAPSHOT}.tar.gz"
+          [[ -f "$graph_archive" && ! -L "$graph_archive" ]] || {
+            echo "::error::Verified graph archive is missing from the build cache."
+            exit 1
+          }
+          [[ -f "$source_archive" && ! -L "$source_archive" ]] || {
+            echo "::error::Verified source archive is missing from the build cache."
+            exit 1
+          }
+
+          graph_checksum="$(tr -d '[:space:]' < "$cache_dir/graph.sha256")"
+          source_checksum="$(tr -d '[:space:]' < "$cache_dir/source.sha256")"
+          [[ "$graph_checksum" =~ ^[0-9a-f]{64}$ ]] || {
+            echo "::error::Cached graph checksum is invalid."
+            exit 1
+          }
+          [[ "$source_checksum" =~ ^[0-9a-f]{64}$ ]] || {
+            echo "::error::Cached source checksum is invalid."
+            exit 1
+          }
+          printf '%s  %s\n' "$graph_checksum" "$graph_archive" | sha256sum --check
+          printf '%s  %s\n' "$source_checksum" "$source_archive" | sha256sum --check
+
           printf 'GRAPH_ARCHIVE=%s\n' "$graph_archive" >> "$GITHUB_ENV"
           printf 'GRAPH_CHECKSUM=%s\n' "$graph_checksum" >> "$GITHUB_ENV"
           printf 'SOURCE_ARCHIVE=%s\n' "$source_archive" >> "$GITHUB_ENV"
           printf 'SOURCE_CHECKSUM=%s\n' "$source_checksum" >> "$GITHUB_ENV"
           du -h "$graph_archive" "$source_archive"
-          df -h /
+
+      - name: Cache the verified routing build
+        if: steps.routing-build-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .routing-build-cache
+          key: ${{ steps.routing-build-cache.outputs.cache-primary-key }}
 
       - name: Configure pinned SSH host identity
         env:

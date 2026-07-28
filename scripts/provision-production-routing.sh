@@ -91,7 +91,7 @@ sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
     php8.4-redis
 sudo systemctl enable --now docker
 
-"$php_binary" -m | grep -qi '^redis$' \
+"$php_binary" -r 'exit(class_exists("Redis") ? 0 : 1);' \
     || fail 'The PHP Redis extension is not active for CLI PHP.'
 sudo docker version >/dev/null
 sudo docker compose version >/dev/null
