@@ -187,6 +187,7 @@ $updates = [
     "VALHALLA_BUILD_THREADS" => "2",
     "OSM_SNAPSHOT" => $snapshot,
     "VALHALLA_ACTIVE_GRAPH" => "./data/current",
+    "VALHALLA_BUILD_GRAPH" => "./data/.build-not-configured",
 ];
 $contents = file_get_contents($path);
 foreach ($updates as $key => $value) {
