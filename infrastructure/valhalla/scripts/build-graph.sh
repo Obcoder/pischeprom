@@ -41,6 +41,7 @@ VALHALLA_BUILD_GRAPH="${staging_dir}" compose --profile build run --rm valhalla-
 # including Saint Petersburg ↔ Voronezh. Keep route and matrix limits aligned.
 CONFIG_PATH="${staging_dir}/valhalla.json" php -r '
 $path = (string) getenv("CONFIG_PATH");
+$nextPath = $path.".next";
 $config = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
 foreach (["auto", "truck"] as $profile) {
     if (!isset($config["service_limits"][$profile])
@@ -50,10 +51,15 @@ foreach (["auto", "truck"] as $profile) {
     }
     $config["service_limits"][$profile]["max_matrix_distance"] = 5000000.0;
 }
-file_put_contents(
-    $path,
-    json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).PHP_EOL,
-);
+$json = json_encode(
+    $config,
+    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+).PHP_EOL;
+if (file_put_contents($nextPath, $json, LOCK_EX) === false || !rename($nextPath, $path)) {
+    @unlink($nextPath);
+    fwrite(STDERR, "Unable to atomically update Valhalla service limits.\n");
+    exit(1);
+}
 '
 
 # The verified PBF source archive stays under data/sources; runtime graphs do not duplicate it.
