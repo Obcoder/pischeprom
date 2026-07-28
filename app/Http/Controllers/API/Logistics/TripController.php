@@ -45,8 +45,8 @@ class TripController extends Controller
             ->when($request->filled('vehicle_id'), fn (Builder $query) => $query->where('vehicle_id', $request->input('vehicle_id')))
             ->when($request->filled('carrier_entity_id'), fn (Builder $query) => $query->where('carrier_entity_id', $request->input('carrier_entity_id')))
             ->when($request->filled('city_id'), fn (Builder $query) => $query->whereHas('stops', fn (Builder $q) => $q->where('city_id', $request->input('city_id'))))
-            ->when($request->filled('date_from'), fn (Builder $query) => $query->where('planned_departure_at', '>=', $request->date('date_from')?->startOfDay()))
-            ->when($request->filled('date_to'), fn (Builder $query) => $query->where('planned_departure_at', '<=', $request->date('date_to')?->endOfDay()))
+            ->when($request->filled('date_from'), fn (Builder $query) => $query->where('actual_departure_at', '>=', $request->date('date_from')?->startOfDay()))
+            ->when($request->filled('date_to'), fn (Builder $query) => $query->where('actual_departure_at', '<=', $request->date('date_to')?->endOfDay()))
             ->when($request->input('has_route') === '0', fn (Builder $query) => $query->whereNull('route_calculated_at'))
             ->when($request->input('has_route') === '1', fn (Builder $query) => $query->whereNotNull('route_calculated_at'))
             ->when($request->boolean('expenses_without_check'), fn (Builder $query) => $query->whereHas('expenses', fn (Builder $q) => $q->whereNull('check_id')));
@@ -99,7 +99,7 @@ class TripController extends Controller
         $sort = in_array($request->input('sort_by'), [
             'number', 'status', 'planned_departure_at', 'actual_departure_at',
             'cargo_weight_kg', 'planned_distance_m', 'actual_distance_m', 'created_at',
-        ], true) ? $request->input('sort_by') : 'planned_departure_at';
+        ], true) ? $request->input('sort_by') : 'actual_departure_at';
         $direction = strtolower((string) $request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
         $query->orderByRaw($sort.' IS NULL')->orderBy($sort, $direction)->orderByDesc('id');

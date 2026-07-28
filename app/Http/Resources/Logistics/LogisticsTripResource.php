@@ -42,6 +42,9 @@ class LogisticsTripResource extends JsonResource
             'planned_distance_m' => $this->planned_distance_m,
             'planned_duration_s' => $this->planned_duration_s,
             'actual_distance_m' => $this->actual_distance_m,
+            'actual_distance_km' => $this->actual_distance_m !== null
+                ? round($this->actual_distance_m / 1000, 3)
+                : null,
             'actual_distance_source' => $this->actual_distance_source?->value,
             'odometer_start_km' => $this->odometer_start_km !== null ? (float) $this->odometer_start_km : null,
             'odometer_end_km' => $this->odometer_end_km !== null ? (float) $this->odometer_end_km : null,
@@ -78,10 +81,6 @@ class LogisticsTripResource extends JsonResource
 
         $names = $this->stops->map(fn ($stop) => $stop->city?->name)->filter()->values();
 
-        if ($names->count() <= 2) {
-            return $names->join(' → ');
-        }
-
-        return $names->first().' → … → '.$names->last();
+        return $names->join(' → ');
     }
 }

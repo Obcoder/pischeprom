@@ -90,6 +90,8 @@ class LogisticsCrudTest extends LogisticsTestCase
 
         $response = $this->postJson('/api/logistics/trips', $this->tripPayload($from, $to, [
             'vehicle_id' => $vehicle->id,
+            'actual_departure_at' => '2026-08-01 08:15:00',
+            'actual_arrival_at' => '2026-08-01 17:45:00',
             'odometer_start_km' => 1000.0,
             'odometer_end_km' => 1050.5,
             'stops' => [
@@ -99,7 +101,9 @@ class LogisticsCrudTest extends LogisticsTestCase
             ],
         ]))->assertCreated()
             ->assertJsonPath('data.actual_distance_m', 50_500)
+            ->assertJsonPath('data.actual_distance_km', 50.5)
             ->assertJsonPath('data.actual_distance_source', 'odometer')
+            ->assertJsonPath('data.route_summary', 'Санкт-Петербург → Тверь → Москва')
             ->assertJsonPath('data.stops.0.stop_type', 'origin')
             ->assertJsonPath('data.stops.1.stop_type', 'waypoint')
             ->assertJsonPath('data.stops.2.stop_type', 'destination');
@@ -112,6 +116,39 @@ class LogisticsCrudTest extends LogisticsTestCase
             ->assertOk()
             ->assertJsonPath('data.stops.0.id', $middleStopId)
             ->assertJsonPath('data.stops.0.stop_type', 'origin');
+    }
+
+    public function test_trip_list_defaults_to_actual_departure_and_filters_by_actual_dates(): void
+    {
+        $withoutActualDate = LogisticsTrip::factory()->create([
+            'planned_departure_at' => '2026-08-30 08:00:00',
+            'actual_departure_at' => null,
+            'actual_arrival_at' => null,
+        ]);
+        $olderActualDate = LogisticsTrip::factory()->create([
+            'planned_departure_at' => '2026-08-20 08:00:00',
+            'actual_departure_at' => '2026-08-01 08:00:00',
+            'actual_arrival_at' => '2026-08-01 18:00:00',
+        ]);
+        $newerActualDate = LogisticsTrip::factory()->create([
+            'planned_departure_at' => '2026-07-01 08:00:00',
+            'actual_departure_at' => '2026-08-03 09:00:00',
+            'actual_arrival_at' => '2026-08-03 19:00:00',
+        ]);
+
+        $this->actingAs($this->logisticsUser())
+            ->getJson('/api/logistics/trips')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $newerActualDate->id)
+            ->assertJsonPath('data.1.id', $olderActualDate->id)
+            ->assertJsonPath('data.2.id', $withoutActualDate->id)
+            ->assertJsonPath('data.0.actual_departure_at', '2026-08-03T06:00:00.000000Z')
+            ->assertJsonPath('data.0.actual_arrival_at', '2026-08-03T16:00:00.000000Z');
+
+        $this->getJson('/api/logistics/trips?date_from=2026-08-03&date_to=2026-08-03')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $newerActualDate->id);
     }
 
     public function test_vehicle_in_maintenance_requires_explicit_trip_acknowledgement(): void

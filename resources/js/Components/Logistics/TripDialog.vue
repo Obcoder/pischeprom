@@ -52,7 +52,7 @@ function emptyForm() {
         planned_departure_at: '', planned_arrival_at: '', actual_departure_at: '', actual_arrival_at: '',
         cargo_description: '', cargo_weight_kg: null, cargo_volume_m3: null, pallet_count: null,
         temperature_mode: null, temperature_min_c: null, temperature_max_c: null,
-        actual_distance_m: null, odometer_start_km: null, odometer_end_km: null,
+        actual_distance_km: null, odometer_start_km: null, odometer_end_km: null,
         routing_profile: 'truck', notes: '', acknowledge_vehicle_warning: false,
         stops: [emptyStop(), emptyStop()],
     }
@@ -64,6 +64,11 @@ function toLocal(value) {
     return local.toISOString().slice(0, 16)
 }
 function nullable(value) { return value === '' ? null : value }
+function kilometersToMeters(value) {
+    if (value === '' || value == null) return null
+    const kilometers = Number(value)
+    return Number.isFinite(kilometers) ? Math.round(kilometers * 1000) : null
+}
 function formatKm(value) { return value == null ? '—' : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(value / 1000)} км` }
 function formatDuration(value) { if (value == null) return '—'; const minutes = Math.round(value / 60); return `${Math.floor(minutes / 60)} ч ${minutes % 60} мин` }
 function formatDate(value) { return value ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—' }
@@ -84,6 +89,8 @@ function hydrate(trip) {
             : (trip?.[key] ?? blank[key])
     }
     form.number = trip?.number || ''
+    form.actual_distance_km = trip?.actual_distance_km
+        ?? (trip?.actual_distance_m == null ? null : trip.actual_distance_m / 1000)
     form.acknowledge_vehicle_warning = false
     form.stops = trip?.stops?.length
         ? trip.stops.map((stop) => ({
@@ -150,7 +157,7 @@ function payload() {
         cargo_description: form.cargo_description || null, cargo_weight_kg: form.cargo_weight_kg,
         cargo_volume_m3: form.cargo_volume_m3, pallet_count: form.pallet_count,
         temperature_mode: form.temperature_mode, temperature_min_c: form.temperature_min_c,
-        temperature_max_c: form.temperature_max_c, actual_distance_m: form.actual_distance_m,
+        temperature_max_c: form.temperature_max_c, actual_distance_m: kilometersToMeters(form.actual_distance_km),
         odometer_start_km: form.odometer_start_km, odometer_end_km: form.odometer_end_km,
         routing_profile: form.routing_profile, notes: form.notes || null,
         acknowledge_vehicle_warning: form.acknowledge_vehicle_warning,
@@ -266,7 +273,7 @@ onBeforeUnmount(stopPolling)
                                         <v-col cols="12"><v-divider class="my-2" /></v-col>
                                         <v-col cols="6" md="3"><v-text-field v-model.number="form.odometer_start_km" type="number" min="0" step="0.1" label="Одометр старт, км" /></v-col>
                                         <v-col cols="6" md="3"><v-text-field v-model.number="form.odometer_end_km" type="number" min="0" step="0.1" label="Одометр финиш, км" :error-messages="api.firstError('odometer_end_km')" /></v-col>
-                                        <v-col cols="6" md="3"><v-text-field v-model.number="form.actual_distance_m" type="number" min="0" label="Фактический пробег, м" hint="Будет пересчитан из одометра, если заполнены оба значения" persistent-hint /></v-col>
+                                        <v-col cols="6" md="3"><v-text-field v-model.number="form.actual_distance_km" type="number" min="0" step="0.1" label="Фактический пробег, км" hint="Будет пересчитан из одометра, если заполнены оба значения" persistent-hint :error-messages="api.firstError('actual_distance_m')" /></v-col>
                                         <v-col cols="6" md="3"><v-select v-model="form.routing_profile" :items="[{title:'Грузовой',value:'truck'},{title:'Легковой',value:'auto'}]" label="Routing-профиль" /></v-col>
                                         <v-col cols="12"><v-textarea v-model="form.notes" label="Примечание" rows="2" /></v-col>
                                     </v-row></v-card-text>

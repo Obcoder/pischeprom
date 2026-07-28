@@ -23,8 +23,8 @@
 ## Проверено фактически
 
 - Четыре миграции успешно применялись к отдельной временной SQLite test database; рабочая MySQL не изменялась.
-- Targeted backend suite: `30 passed, 1 skipped, 205 assertions`; пропущен только opt-in smoke с живой Valhalla.
-- Полный regression suite: `230 tests, 1376 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
+- Targeted backend suite: `31 passed, 1 skipped, 216 assertions`; пропущен только opt-in smoke с живой Valhalla.
+- Полный regression suite: `231 tests, 1387 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
 - Все затронутые PHP-файлы прошли `vendor/bin/pint --test`; общий legacy-код проекта вне задачи по-прежнему содержит style issues и не переформатировался массово.
 - Production client + SSR build успешно выполнен на Node.js 22.18.0; остались только предупреждения о старой базе Browserslist и размере существующих общих chunks.
 - Все Valhalla shell scripts прошли `bash -n`.

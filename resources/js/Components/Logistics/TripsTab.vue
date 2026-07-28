@@ -13,7 +13,7 @@ const archiveTarget = ref(null)
 const vehicles = ref([])
 const cities = ref([])
 const entities = ref([])
-const table = reactive({ page: 1, itemsPerPage: 25, sortBy: [{ key: 'planned_departure_at', order: 'desc' }] })
+const table = reactive({ page: 1, itemsPerPage: 25, sortBy: [{ key: 'actual_departure_at', order: 'desc' }] })
 const filters = reactive({ search: '', status: [], vehicle_id: null, city_id: null, carrier_entity_id: null, date_from: '', date_to: '', has_route: null, expenses_without_check: false })
 let timer = null
 let referenceTimer = null
@@ -25,10 +25,10 @@ const statuses = [
 ]
 const routeFilters = [{ title: 'С маршрутом', value: '1' }, { title: 'Без маршрута', value: '0' }]
 const headers = [
-    { title: 'Номер / статус', key: 'number' }, { title: 'Отправление', key: 'planned_departure_at' },
+    { title: 'Номер / статус', key: 'number' }, { title: 'Факт: выезд / прибытие', key: 'actual_departure_at' },
     { title: 'Маршрут', key: 'route_summary', sortable: false }, { title: 'Авто', key: 'vehicle', sortable: false },
-    { title: 'Вес', key: 'cargo_weight_kg', align: 'end' }, { title: 'План', key: 'planned_distance_m', align: 'end' },
-    { title: 'Факт', key: 'actual_distance_m', align: 'end' }, { title: 'Расходы', key: 'expenses', align: 'end', sortable: false },
+    { title: 'Вес', key: 'cargo_weight_kg', align: 'end' }, { title: 'План, км', key: 'planned_distance_m', align: 'end' },
+    { title: 'Факт, км', key: 'actual_distance_m', align: 'end' }, { title: 'Расходы', key: 'expenses', align: 'end', sortable: false },
     { title: 'Стоимость/км', key: 'cost_per_km', align: 'end', sortable: false }, { title: 'Ответственный', key: 'responsible', sortable: false },
     { title: '', key: 'actions', align: 'end', sortable: false },
 ]
@@ -37,7 +37,8 @@ const canManage = computed(() => Boolean(permissions.value?.trips_manage))
 function statusTitle(value) { return statuses.find((item) => item.value === value)?.title || value }
 function statusColor(value) { return ({ draft: 'grey', planned: 'blue', in_progress: 'orange', completed: 'green', cancelled: 'red' })[value] || 'grey' }
 function formatDate(value) { return value ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—' }
-function formatKm(value) { return value == null ? '—' : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(value / 1000)} км` }
+function formatMetersAsKm(value) { return value == null ? '—' : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(value / 1000)} км` }
+function formatKm(value) { return value == null ? '—' : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(value)} км` }
 function formatKg(value) { return value == null ? '—' : `${new Intl.NumberFormat('ru-RU').format(value)} кг` }
 function money(value, currency = 'RUB') { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value || 0)) }
 function totals(metrics) { const entries = Object.entries(metrics?.totals_by_currency || {}); return entries.length ? entries.map(([c, v]) => money(v, c)).join(' · ') : '—' }
@@ -48,7 +49,7 @@ function openTrip(item) { selected.value = item; dialog.value = true }
 
 async function load(options = null) {
     if (options?.page) Object.assign(table, options)
-    const sort = table.sortBy?.[0] || { key: 'planned_departure_at', order: 'desc' }
+    const sort = table.sortBy?.[0] || { key: 'actual_departure_at', order: 'desc' }
     try {
         const response = await api.request('trips-load', { method: 'get', url: '/api/logistics/trips', params: {
             page: table.page, per_page: table.itemsPerPage, sort_by: sort.key, sort_direction: sort.order,
@@ -95,8 +96,8 @@ onActivated(() => { if (!loaded.value) load() })
                 <v-autocomplete v-model="filters.vehicle_id" :items="vehicles" :item-title="item => `${item.name} · ${item.registration_number}`" item-value="id" label="Авто" density="compact" variant="outlined" hide-details clearable style="min-width: 210px" />
                 <v-autocomplete v-model="filters.city_id" :items="cities" item-title="label" item-value="id" label="Город" density="compact" variant="outlined" hide-details clearable style="min-width: 200px" @update:search="delayedReference('cities', $event)" />
                 <v-autocomplete v-model="filters.carrier_entity_id" :items="entities" item-title="name" item-value="id" label="Перевозчик" density="compact" variant="outlined" hide-details clearable style="min-width: 200px" @update:search="delayedReference('entities', $event)" />
-                <v-text-field v-model="filters.date_from" type="date" label="С" density="compact" variant="outlined" hide-details style="max-width: 165px" />
-                <v-text-field v-model="filters.date_to" type="date" label="По" density="compact" variant="outlined" hide-details style="max-width: 165px" />
+                <v-text-field v-model="filters.date_from" type="date" label="Факт с" density="compact" variant="outlined" hide-details style="max-width: 165px" />
+                <v-text-field v-model="filters.date_to" type="date" label="Факт по" density="compact" variant="outlined" hide-details style="max-width: 165px" />
                 <v-select v-model="filters.has_route" :items="routeFilters" label="Маршрут" density="compact" variant="outlined" hide-details clearable style="max-width: 180px" />
                 <v-checkbox v-model="filters.expenses_without_check" label="Есть расходы без чека" density="compact" hide-details />
             </div>
@@ -110,12 +111,26 @@ onActivated(() => { if (!loaded.value) load() })
             <v-data-table-server v-model:page="table.page" v-model:items-per-page="table.itemsPerPage" v-model:sort-by="table.sortBy"
                 :headers="headers" :items="items" :items-length="total" :loading="api.isPending('trips-load')" item-value="id" @update:options="load" @click:row="(_, row) => openTrip(row.item)">
                 <template #item.number="{ item }"><strong>{{ item.number }}</strong><div><v-chip :color="statusColor(item.status)" variant="tonal" size="x-small">{{ statusTitle(item.status) }}</v-chip></div></template>
-                <template #item.planned_departure_at="{ item }">{{ formatDate(item.planned_departure_at) }}</template>
-                <template #item.route_summary="{ item }"><span class="text-no-wrap">{{ item.route_summary || '—' }}</span><div class="text-caption">{{ item.stops_count || 0 }} ост.</div></template>
+                <template #item.actual_departure_at="{ item }">
+                    <div class="logistics-trip-date"><span>Выезд</span>{{ formatDate(item.actual_departure_at) }}</div>
+                    <div class="logistics-trip-date"><span>Прибытие</span>{{ formatDate(item.actual_arrival_at) }}</div>
+                </template>
+                <template #item.route_summary="{ item }">
+                    <div v-if="item.stops?.length" class="logistics-trip-route">
+                        <div v-for="(stop, index) in item.stops" :key="stop.id || `${item.id}-${index}`" class="logistics-trip-route__stop">
+                            <span class="logistics-trip-route__number">{{ index + 1 }}</span>
+                            <span>
+                                <strong>{{ stop.city?.name || `Точка ${index + 1}` }}</strong>
+                                <small v-if="stop.address">{{ stop.address }}</small>
+                            </span>
+                        </div>
+                    </div>
+                    <span v-else>—</span>
+                </template>
                 <template #item.vehicle="{ item }">{{ item.vehicle?.registration_number || '—' }}<div class="text-caption">{{ item.vehicle?.name }}</div></template>
                 <template #item.cargo_weight_kg="{ item }">{{ formatKg(item.cargo_weight_kg) }}</template>
-                <template #item.planned_distance_m="{ item }">{{ formatKm(item.planned_distance_m) }}</template>
-                <template #item.actual_distance_m="{ item }">{{ formatKm(item.actual_distance_m) }}</template>
+                <template #item.planned_distance_m="{ item }">{{ formatMetersAsKm(item.planned_distance_m) }}</template>
+                <template #item.actual_distance_m="{ item }">{{ formatKm(item.actual_distance_km) }}</template>
                 <template #item.expenses="{ item }">{{ totals(item.metrics) }}<div class="text-caption">{{ item.expenses_count || 0 }} поз.</div></template>
                 <template #item.cost_per_km="{ item }">{{ costKm(item.metrics) }}</template>
                 <template #item.responsible="{ item }">{{ item.responsible?.name || '—' }}</template>
@@ -130,3 +145,52 @@ onActivated(() => { if (!loaded.value) load() })
         </v-dialog>
     </section>
 </template>
+
+<style scoped>
+.logistics-trip-date {
+    display: grid;
+    grid-template-columns: 62px minmax(112px, 1fr);
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.logistics-trip-date span {
+    color: #738078;
+    font-size: .72rem;
+}
+
+.logistics-trip-route {
+    display: grid;
+    min-width: 190px;
+    gap: 5px;
+    padding-block: 5px;
+    white-space: normal;
+}
+
+.logistics-trip-route__stop {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 6px;
+    line-height: 1.2;
+}
+
+.logistics-trip-route__number {
+    display: inline-grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border-radius: 50%;
+    background: #e5f1e8;
+    color: #2f7044;
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+.logistics-trip-route__stop small {
+    display: block;
+    margin-top: 2px;
+    color: #738078;
+    overflow-wrap: anywhere;
+}
+</style>
