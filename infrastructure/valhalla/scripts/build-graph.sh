@@ -37,6 +37,25 @@ VALHALLA_BUILD_GRAPH="${staging_dir}" compose --profile build run --rm valhalla-
 [[ -s "${staging_dir}/valhalla_tiles.tar" ]] || { echo "valhalla_tiles.tar was not created." >&2; exit 1; }
 [[ -s "${staging_dir}/valhalla.json" ]] || { echo "valhalla.json was not created." >&2; exit 1; }
 
+# The upstream default (400 km) rejects ordinary interregional matrix requests,
+# including Saint Petersburg ↔ Voronezh. Keep route and matrix limits aligned.
+CONFIG_PATH="${staging_dir}/valhalla.json" php -r '
+$path = (string) getenv("CONFIG_PATH");
+$config = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+foreach (["auto", "truck"] as $profile) {
+    if (!isset($config["service_limits"][$profile])
+        || !is_array($config["service_limits"][$profile])) {
+        fwrite(STDERR, "Missing Valhalla service limits for {$profile}.\n");
+        exit(1);
+    }
+    $config["service_limits"][$profile]["max_matrix_distance"] = 5000000.0;
+}
+file_put_contents(
+    $path,
+    json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).PHP_EOL,
+);
+'
+
 # The verified PBF source archive stays under data/sources; runtime graphs do not duplicate it.
 for region in central-fed-district northwestern-fed-district; do
     rm -- "${staging_dir}/${region}-${snapshot}.osm.pbf"

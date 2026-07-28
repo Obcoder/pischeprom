@@ -54,14 +54,22 @@ for attempt in $(seq 1 60); do
     sleep 2
 done
 
-route_response="$(curl --fail --silent --show-error \
+if ! route_response="$(curl --fail-with-body --silent --show-error \
     --header 'Content-Type: application/json' \
-    --data '{"locations":[{"lat":59.9343,"lon":30.3351},{"lat":55.7558,"lon":37.6173}],"costing":"truck","units":"kilometers"}' \
+    --data '{"locations":[{"lat":59.938784,"lon":30.314997},{"lat":51.660781,"lon":39.200296}],"costing":"auto","units":"kilometers"}' \
     "${base_url}/route")"
-matrix_response="$(curl --fail --silent --show-error \
+then
+    printf 'Valhalla route smoke failed: %s\n' "${route_response}" >&2
+    exit 1
+fi
+if ! matrix_response="$(curl --fail-with-body --silent --show-error \
     --header 'Content-Type: application/json' \
-    --data '{"sources":[{"lat":59.9343,"lon":30.3351}],"targets":[{"lat":55.7558,"lon":37.6173}],"costing":"truck","units":"kilometers","verbose":false}' \
+    --data '{"sources":[{"lat":59.938784,"lon":30.314997}],"targets":[{"lat":51.660781,"lon":39.200296}],"costing":"auto","units":"kilometers","verbose":false}' \
     "${base_url}/sources_to_targets")"
+then
+    printf 'Valhalla matrix smoke failed: %s\n' "${matrix_response}" >&2
+    exit 1
+fi
 
 ROUTE_JSON="${route_response}" MATRIX_JSON="${matrix_response}" php -r '
 $route = json_decode((string) getenv("ROUTE_JSON"), true, flags: JSON_THROW_ON_ERROR);
@@ -72,5 +80,5 @@ if (!is_numeric($length) || $length <= 0 || !is_numeric($distance) || $distance 
     fwrite(STDERR, "Smoke route or matrix has no positive automobile distance.\n");
     exit(1);
 }
-printf("Truck smoke passed: route=%.1f km, matrix=%.1f km\n", $length, $distance);
+printf("Auto smoke passed: route=%.1f km, matrix=%.1f km\n", $length, $distance);
 '
