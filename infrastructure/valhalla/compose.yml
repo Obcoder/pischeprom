@@ -4,20 +4,10 @@ services:
   valhalla:
     image: ${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:3.6.3}
     restart: unless-stopped
+    entrypoint: ["valhalla_service"]
+    command: ["/custom_files/valhalla.json", "${VALHALLA_SERVER_THREADS:-4}"]
     ports:
       - "127.0.0.1:${VALHALLA_PORT:-8002}:8002"
-    environment:
-      use_tiles_ignore_pbf: "True"
-      force_rebuild: "False"
-      serve_tiles: "True"
-      build_admins: "False"
-      build_time_zones: "False"
-      build_transit: "False"
-      build_elevation: "False"
-      build_tar: "False"
-      update_existing_config: "False"
-      use_default_speeds_config: "False"
-      server_threads: ${VALHALLA_SERVER_THREADS:-4}
     volumes:
       - ${VALHALLA_ACTIVE_GRAPH:-./data/current}:/custom_files:ro
     healthcheck:

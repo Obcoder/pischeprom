@@ -22,19 +22,14 @@ if [[ -z "${base_url}" ]]; then
     require_command docker
     smoke_port="${VALHALLA_SMOKE_PORT:-18002}"
     container_name="pischeprom-valhalla-smoke-$$_${RANDOM}"
-    docker run --detach --rm \
+    docker run --detach \
         --name "${container_name}" \
         --publish "127.0.0.1:${smoke_port}:8002" \
         --volume "${graph_dir}:/custom_files:ro" \
-        --env use_tiles_ignore_pbf=True \
-        --env force_rebuild=False \
-        --env serve_tiles=True \
-        --env build_admins=False \
-        --env build_time_zones=False \
-        --env build_tar=False \
-        --env update_existing_config=False \
-        --env use_default_speeds_config=False \
-        "${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:3.6.3}" >/dev/null
+        --entrypoint valhalla_service \
+        "${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:3.6.3}" \
+        /custom_files/valhalla.json \
+        "${VALHALLA_SERVER_THREADS:-2}" >/dev/null
     base_url="http://127.0.0.1:${smoke_port}"
 fi
 
@@ -42,8 +37,18 @@ for attempt in $(seq 1 60); do
     if curl --fail --silent "${base_url}/status" >/dev/null; then
         break
     fi
+    if [[ -n "${container_name}" ]] \
+        && [[ "$(docker inspect --format '{{.State.Running}}' "${container_name}" 2>/dev/null || true)" != "true" ]]
+    then
+        echo "Valhalla smoke container exited before becoming healthy." >&2
+        docker logs "${container_name}" >&2 || true
+        exit 1
+    fi
     if [[ "${attempt}" -eq 60 ]]; then
         echo "Valhalla did not become healthy within 120 seconds." >&2
+        if [[ -n "${container_name}" ]]; then
+            docker logs "${container_name}" >&2 || true
+        fi
         exit 1
     fi
     sleep 2
