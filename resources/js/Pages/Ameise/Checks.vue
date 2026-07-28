@@ -1,5 +1,5 @@
 <script setup>
-import { Head } from '@inertiajs/vue3'
+import { Head, Link, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { route } from 'ziggy-js'
@@ -10,6 +10,8 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
+const page = usePage()
+const canViewLogistics = computed(() => Boolean(page.props.auth?.permissions?.logistics?.view))
 const checks = ref([])
 const entities = ref([])
 const commodities = ref([])
@@ -1472,6 +1474,37 @@ onBeforeUnmount(() => {
                             </tbody>
                         </table>
                     </div>
+
+                    <v-card
+                        v-if="selectedCheck?.logistics_trips?.length || selectedCheck?.logistics_expenses?.length"
+                        class="mt-4"
+                        variant="outlined"
+                    >
+                        <v-card-title class="d-flex align-center justify-space-between">
+                            <span>Связи с логистикой</span>
+                            <Link v-if="canViewLogistics" :href="route('Ameise.logistics')" class="text-decoration-none">
+                                <v-btn size="small" variant="tonal" color="green-darken-2" prepend-icon="mdi-truck-fast-outline">Открыть логистику</v-btn>
+                            </Link>
+                        </v-card-title>
+                        <v-card-text>
+                            <div class="d-flex flex-wrap ga-2 mb-3">
+                                <v-chip v-for="trip in selectedCheck.logistics_trips" :key="trip.id" color="green" variant="tonal">
+                                    {{ trip.number }} · {{ trip.status }}
+                                </v-chip>
+                            </div>
+                            <v-table density="compact">
+                                <thead><tr><th>Рейс</th><th>Категория</th><th>Дата snapshot</th><th class="text-right">Распределено</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="expense in selectedCheck.logistics_expenses" :key="expense.id">
+                                        <td>{{ selectedCheck.logistics_trips?.find(trip => trip.id === expense.trip_id)?.number || `#${expense.trip_id}` }}</td>
+                                        <td>{{ expense.category?.name || '—' }}</td>
+                                        <td>{{ formatDate(expense.occurred_at) }}</td>
+                                        <td class="text-right">{{ formatMoney(expense.allocated_amount) }} {{ expense.currency_code }}</td>
+                                    </tr>
+                                </tbody>
+                            </v-table>
+                        </v-card-text>
+                    </v-card>
                 </v-card-text>
             </v-card>
         </v-dialog>

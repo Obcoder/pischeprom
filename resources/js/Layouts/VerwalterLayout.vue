@@ -622,6 +622,17 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
+                    :href="route('Ameise.logistics')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.logistics')) }"
+                    title="Логистика"
+                    aria-label="Логистика"
+                >
+                    <v-icon icon="mdi-truck-fast-outline" size="19" />
+                    <span class="ameise-nav-link__label">Логистика</span>
+                </Link>
+
+                <Link
                     :href="route('Ameise.mail')"
                     class="ameise-header-control ameise-nav-link ameise-nav-link--mail"
                     :class="{ 'is-active': isActiveUrl(route('Ameise.mail')) }"

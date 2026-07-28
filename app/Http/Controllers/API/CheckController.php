@@ -71,6 +71,12 @@ class CheckController extends Controller
      */
     public function destroy(Check $check)
     {
+        if ($check->logisticsExpenses()->exists()) {
+            return response()->json([
+                'message' => 'Нельзя удалить чек, связанный с расходами рейса. Сначала отвяжите его от рейсов.',
+            ], 409);
+        }
+
         $check->delete();
 
         return response()->json(null, 204);
@@ -197,6 +203,8 @@ class CheckController extends Controller
                 'entity.classification',
                 'items',
                 'serviceItems',
+                'logisticsExpenses.category',
+                'logisticsExpenses.trip',
             ])
             ->withCount(['items', 'serviceItems'])
             ->findOrFail($id);

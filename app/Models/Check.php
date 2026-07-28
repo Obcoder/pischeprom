@@ -73,6 +73,11 @@ class Check extends Model
             ->orderBy('id');
     }
 
+    public function logisticsExpenses(): HasMany
+    {
+        return $this->hasMany(LogisticsTripExpense::class, 'check_id');
+    }
+
     public function refreshAmount(): void
     {
         $commoditiesAmount = CheckCommodity::query()
@@ -93,6 +98,10 @@ class Check extends Model
     protected static function booted(): void
     {
         static::deleting(function (Check $check) {
+            if ($check->logisticsExpenses()->exists()) {
+                throw new \LogicException('Нельзя удалить чек, связанный с расходами рейса. Сначала отвяжите его от рейсов.');
+            }
+
             $itemIds = $check->items()->pluck('id');
 
             if ($itemIds->isNotEmpty()) {

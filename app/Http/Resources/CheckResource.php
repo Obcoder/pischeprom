@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Logistics\TripExpenseResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,6 +33,17 @@ class CheckResource extends JsonResource
             'service_items' => CheckServiceResource::collection($this->whenLoaded('serviceItems')),
             'commodities' => CommodityResource::collection($this->whenLoaded('commodities')),
             'services' => ServiceResource::collection($this->whenLoaded('services')),
+            'logistics_expenses' => TripExpenseResource::collection($this->whenLoaded('logisticsExpenses')),
+            'logistics_trips' => $this->whenLoaded('logisticsExpenses', fn () => $this->logisticsExpenses
+                ->map(fn ($expense) => $expense->trip)
+                ->filter()
+                ->unique('id')
+                ->values()
+                ->map(fn ($trip) => [
+                    'id' => $trip->id,
+                    'number' => $trip->number,
+                    'status' => $trip->status?->value,
+                ])),
             'created_at' => optional($this->created_at)->toISOString(),
             'updated_at' => optional($this->updated_at)->toISOString(),
         ];

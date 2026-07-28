@@ -83,6 +83,26 @@ class City extends Model
             ->latestOfMany('year');
     }
 
+    public function logisticsSetting(): HasOne
+    {
+        return $this->hasOne(LogisticsCity::class, 'city_id');
+    }
+
+    public function logisticsTripStops(): HasMany
+    {
+        return $this->hasMany(LogisticsTripStop::class, 'city_id');
+    }
+
+    public function outgoingLogisticsDistances(): HasMany
+    {
+        return $this->hasMany(LogisticsCityDistance::class, 'from_city_id');
+    }
+
+    public function incomingLogisticsDistances(): HasMany
+    {
+        return $this->hasMany(LogisticsCityDistance::class, 'to_city_id');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Scopes
@@ -92,9 +112,9 @@ class City extends Model
     public function scopeForCitiesTable(Builder $query): Builder
     {
         return $query->with([
-                                'region.country',
-                                'latestPopulation',
-                            ]);
+            'region.country',
+            'latestPopulation',
+        ]);
     }
 
     public function scopeSearch(Builder $query, ?string $search): Builder

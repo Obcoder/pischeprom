@@ -185,6 +185,12 @@ Route::get('Ameise/taxi-shifts', function () {
 })->name('Ameise.taxi-shifts');
 //
 
+//   L O G I S T I C S
+Route::get('Ameise/logistics', function () {
+    return Inertia::render('Ameise/Logistics');
+})->name('Ameise.logistics');
+//
+
 //   C I T I E S
 Route::get('/Ameise/Cities', function () {
     return Inertia::render('Ameise/Cities');

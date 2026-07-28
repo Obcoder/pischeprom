@@ -158,6 +158,16 @@ class Entity extends Model
         return $this->hasMany(BankPaymentOrderDraft::class, 'recipient_entity_id');
     }
 
+    public function ownedLogisticsVehicles(): HasMany
+    {
+        return $this->hasMany(Vehicle::class, 'owner_entity_id');
+    }
+
+    public function carrierLogisticsTrips(): HasMany
+    {
+        return $this->hasMany(LogisticsTrip::class, 'carrier_entity_id');
+    }
+
     public function scopeBaseRelations(Builder $query): Builder
     {
         return $query->with([

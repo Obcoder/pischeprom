@@ -104,4 +104,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(BankPaymentOrderDraft::class, 'created_by');
     }
+
+    public function responsibleLogisticsTrips(): HasMany
+    {
+        return $this->hasMany(LogisticsTrip::class, 'responsible_user_id');
+    }
+
+    public function createdLogisticsTrips(): HasMany
+    {
+        return $this->hasMany(LogisticsTrip::class, 'created_by');
+    }
 }

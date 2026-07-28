@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Banking\Exceptions\BankingException;
+use App\Services\Logistics\Routing\Exceptions\RoutingException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -26,6 +27,19 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->dontReport(BankingException::class);
+        $exceptions->dontReport(RoutingException::class);
+
+        $exceptions->render(function (RoutingException $exception, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'code' => $exception->domainCode,
+                'retryable' => $exception->retryable,
+            ], $exception->httpStatus);
+        });
 
         $exceptions->render(function (BankingException $exception, Request $request) {
             if (! $request->expectsJson()) {

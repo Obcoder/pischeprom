@@ -72,6 +72,15 @@ return [
             'after_commit' => false,
         ],
 
+        'redis-routing' => [
+            'driver' => 'redis',
+            'connection' => env('LOGISTICS_ROUTING_REDIS_CONNECTION', 'default'),
+            'queue' => env('LOGISTICS_ROUTING_QUEUE', 'routing'),
+            'retry_after' => (int) env('LOGISTICS_ROUTING_RETRY_AFTER', 180),
+            'block_for' => 5,
+            'after_commit' => true,
+        ],
+
     ],
 
     /*

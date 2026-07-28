@@ -134,9 +134,11 @@ code_switch_started=0
 mail_worker_stopped=0
 mail_notification_worker_stopped=0
 banking_worker_stopped=0
+routing_worker_stopped=0
 ssr_stopped=0
 mail_notification_worker_installed=0
 banking_worker_installed=0
+routing_worker_installed=0
 
 if systemctl cat pischeprom-mail-notifications-worker.service >/dev/null 2>&1; then
     mail_notification_worker_installed=1
@@ -144,6 +146,10 @@ fi
 
 if systemctl cat pischeprom-banking-worker.service >/dev/null 2>&1; then
     banking_worker_installed=1
+fi
+
+if systemctl cat pischeprom-routing-worker.service >/dev/null 2>&1; then
+    routing_worker_installed=1
 fi
 
 restore_application() {
@@ -163,6 +169,10 @@ restore_application() {
 
     if (( banking_worker_stopped == 1 )); then
         sudo systemctl start pischeprom-banking-worker >/dev/null 2>&1 || true
+    fi
+
+    if (( routing_worker_stopped == 1 )); then
+        sudo systemctl start pischeprom-routing-worker >/dev/null 2>&1 || true
     fi
 
     if (( mail_notification_worker_stopped == 1 )); then
@@ -200,6 +210,11 @@ if (( banking_worker_installed == 1 )); then
     banking_worker_stopped=1
 fi
 
+if (( routing_worker_installed == 1 )); then
+    sudo systemctl stop pischeprom-routing-worker
+    routing_worker_stopped=1
+fi
+
 php artisan schedule:interrupt
 php artisan down --retry=60 --refresh=15
 maintenance_started=1
@@ -227,11 +242,14 @@ tar -xzf "$frontend_archive" \
 php artisan optimize:clear
 php artisan migrate --force --isolated
 php artisan db:seed --class=RolesAndPermissionsSeeder --force
+php artisan db:seed --class=LogisticsExpenseCategorySeeder --force
 
 php artisan route:list --path=stock-alerts >/dev/null
 php artisan route:list --path=Ameise/commercial-offers >/dev/null
 php artisan route:list --path=Ameise/bank >/dev/null
 php artisan route:list --path=Ameise/orders >/dev/null
+php artisan route:list --path=api/logistics >/dev/null
+php artisan route:list --path=Ameise/logistics >/dev/null
 php artisan route:list --path=unisender-go >/dev/null
 php artisan route:list --path=unsubscribe >/dev/null
 php artisan list mailings >/dev/null
@@ -279,6 +297,13 @@ if (( banking_worker_installed == 1 )); then
     banking_worker_stopped=0
 else
     log 'WARNING: pischeprom-banking-worker.service is not installed.'
+fi
+
+if (( routing_worker_installed == 1 )); then
+    sudo systemctl start pischeprom-routing-worker
+    routing_worker_stopped=0
+else
+    log 'WARNING: pischeprom-routing-worker.service is not installed; routing jobs will remain queued.'
 fi
 
 sudo systemctl start pischeprom-ssr

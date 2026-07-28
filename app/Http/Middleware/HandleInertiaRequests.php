@@ -51,6 +51,14 @@ class HandleInertiaRequests extends Middleware
                         'edit' => true,
                         'delete' => true,
                     ],
+                    'logistics' => [
+                        'view' => (bool) $request->user()?->can('logistics.view'),
+                        'trips_manage' => (bool) $request->user()?->can('logistics.trips.manage'),
+                        'vehicles_manage' => (bool) $request->user()?->can('logistics.vehicles.manage'),
+                        'expenses_manage' => (bool) $request->user()?->can('logistics.expenses.manage'),
+                        'matrix_manage' => (bool) $request->user()?->can('logistics.matrix.manage'),
+                        'technical_view' => (bool) $request->user()?->can('logistics.technical.view'),
+                    ],
                 ],
             ],
 

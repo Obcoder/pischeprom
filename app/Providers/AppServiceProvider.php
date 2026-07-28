@@ -14,11 +14,24 @@ use App\Models\BankConnection;
 use App\Models\BankPaymentOrderDraft;
 use App\Models\BankTransaction;
 use App\Models\GoodStockMovement;
+use App\Models\LogisticsCity;
+use App\Models\LogisticsCityDistance;
+use App\Models\LogisticsTrip;
+use App\Models\LogisticsTripExpense;
+use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
 use App\Policies\BankAuditEventPolicy;
 use App\Policies\BankConnectionPolicy;
 use App\Policies\BankPaymentOrderDraftPolicy;
 use App\Policies\BankTransactionPolicy;
+use App\Policies\LogisticsCityDistancePolicy;
+use App\Policies\LogisticsCityPolicy;
+use App\Policies\LogisticsTripExpensePolicy;
+use App\Policies\LogisticsTripPolicy;
+use App\Policies\VehiclePolicy;
+use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
+use App\Services\Logistics\Routing\Providers\FakeRoutingProvider;
+use App\Services\Logistics\Routing\Providers\ValhallaRoutingProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -39,6 +52,14 @@ class AppServiceProvider extends ServiceProvider
             BankProviderInterface::class,
             fn ($app) => $app->make(BankProviderManager::class)->driver()
         );
+
+        $this->app->singleton(RoutingProviderInterface::class, function ($app) {
+            return match (config('logistics.routing_driver')) {
+                'fake' => $app->make(FakeRoutingProvider::class),
+                'valhalla' => $app->make(ValhallaRoutingProvider::class),
+                default => throw new \LogicException('Unsupported logistics routing driver.'),
+            };
+        });
     }
 
     /**
@@ -58,6 +79,23 @@ class AppServiceProvider extends ServiceProvider
             ->by((string) ($request->user()?->id ?? $request->ip())));
 
         Gate::before(function ($user, string $ability) {
+            if (Str::startsWith($ability, 'logistics.')) {
+                if (($user->status ?? 'active') === 'blocked') {
+                    return false;
+                }
+
+                try {
+                    if (method_exists($user, 'hasRole') && $user->hasRole('admin', 'crm')) {
+                        return true;
+                    }
+
+                    return method_exists($user, 'hasPermissionTo')
+                        && $user->hasPermissionTo($ability, 'crm');
+                } catch (Throwable) {
+                    return false;
+                }
+            }
+
             if (Str::startsWith($ability, 'bank.')) {
                 if (($user->status ?? 'active') === 'blocked') {
                     return false;
@@ -100,6 +138,11 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(BankTransaction::class, BankTransactionPolicy::class);
         Gate::policy(BankPaymentOrderDraft::class, BankPaymentOrderDraftPolicy::class);
         Gate::policy(BankAuditEvent::class, BankAuditEventPolicy::class);
+        Gate::policy(Vehicle::class, VehiclePolicy::class);
+        Gate::policy(LogisticsTrip::class, LogisticsTripPolicy::class);
+        Gate::policy(LogisticsTripExpense::class, LogisticsTripExpensePolicy::class);
+        Gate::policy(LogisticsCity::class, LogisticsCityPolicy::class);
+        Gate::policy(LogisticsCityDistance::class, LogisticsCityDistancePolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

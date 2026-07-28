@@ -118,7 +118,49 @@ jobs:
             tests/Feature/RegistrationTest.php \
             tests/TestCase.php
 
-      - name: Run unit, banking, goods stock, and orders tests
+      - name: Check logistics PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Console/Commands/Logistics*.php \
+            app/Enums/Logistics \
+            app/Http/Controllers/API/CheckController.php \
+            app/Http/Controllers/API/Logistics \
+            app/Http/Middleware/HandleInertiaRequests.php \
+            app/Http/Requests/Logistics \
+            app/Http/Resources/CheckResource.php \
+            app/Http/Resources/Logistics \
+            app/Jobs/Logistics \
+            app/Models/Logistics*.php \
+            app/Models/Vehicle.php \
+            app/Models/Check.php \
+            app/Models/City.php \
+            app/Models/Entity.php \
+            app/Models/User.php \
+            app/Policies/Concerns/ChecksLogisticsPermissions.php \
+            app/Policies/Logistics*.php \
+            app/Providers/AppServiceProvider.php \
+            app/Services/Logistics \
+            bootstrap/app.php \
+            config/logistics.php \
+            config/queue.php \
+            database/factories/LogisticsTripFactory.php \
+            database/factories/VehicleFactory.php \
+            database/migrations/2026_07_28_000001_create_logistics_vehicles_table.php \
+            database/migrations/2026_07_28_000002_create_logistics_trips_and_expenses_tables.php \
+            database/migrations/2026_07_28_000003_create_logistics_city_matrix_tables.php \
+            database/migrations/2026_07_28_000004_create_logistics_routing_history_tables.php \
+            database/seeders/DatabaseSeeder.php \
+            database/seeders/LogisticsExpenseCategorySeeder.php \
+            database/seeders/RolesAndPermissionsSeeder.php \
+            routes/api.php \
+            routes/console.php \
+            routes/web.php \
+            tests/Feature/Logistics \
+            tests/Unit/LogisticsTripMetricsTest.php \
+            tests/Unit/LogisticsRoutingSupportTest.php \
+            tests/Unit/ValhallaRoutingProviderTest.php
+
+      - name: Run unit, logistics, banking, goods stock, and orders tests
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -134,6 +176,7 @@ jobs:
         run: |
           php artisan test \
             tests/Unit \
+            tests/Feature/Logistics \
             tests/Feature/Banking \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \

@@ -1,0 +1,58 @@
+name: pischeprom-routing
+
+services:
+  valhalla:
+    image: ${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:3.6.3}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${VALHALLA_PORT:-8002}:8002"
+    environment:
+      use_tiles_ignore_pbf: "True"
+      force_rebuild: "False"
+      serve_tiles: "True"
+      build_admins: "False"
+      build_time_zones: "False"
+      build_transit: "False"
+      build_elevation: "False"
+      build_tar: "False"
+      update_existing_config: "False"
+      use_default_speeds_config: "False"
+      server_threads: ${VALHALLA_SERVER_THREADS:-4}
+    volumes:
+      - ${VALHALLA_ACTIVE_GRAPH:-./data/current}:/custom_files:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8002/status >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks:
+      - routing_private
+    security_opt:
+      - no-new-privileges:true
+
+  valhalla-build:
+    profiles: ["build"]
+    image: ${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:3.6.3}
+    restart: "no"
+    environment:
+      use_tiles_ignore_pbf: "False"
+      force_rebuild: "True"
+      serve_tiles: "False"
+      build_admins: "True"
+      build_time_zones: "True"
+      build_transit: "False"
+      build_elevation: "False"
+      build_tar: "True"
+      update_existing_config: "True"
+      use_default_speeds_config: "True"
+      server_threads: ${VALHALLA_BUILD_THREADS:-4}
+    volumes:
+      - ${VALHALLA_BUILD_GRAPH:?Set VALHALLA_BUILD_GRAPH to an absolute staging directory}:/custom_files
+    networks:
+      - routing_build
+
+networks:
+  routing_private:
+    internal: true
+  routing_build: {}

@@ -141,3 +141,9 @@ Schedule::job(new CheckSberCredentialsExpiryJob, (string) config('banking.queue'
     ->when(fn () => (bool) config('banking.enabled'))
     ->onOneServer()
     ->withoutOverlapping(60);
+
+Schedule::command('logistics:routing-mark-stale --expired-only')
+    ->name('logistics-mark-expired-matrix-stale')
+    ->dailyAt('01:35')
+    ->onOneServer()
+    ->withoutOverlapping(30);

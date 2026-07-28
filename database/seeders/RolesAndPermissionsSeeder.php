@@ -37,6 +37,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'bank.manage_connection',
             'bank.manage_payment_drafts',
             'bank.view_audit',
+
+            'logistics.view',
+            'logistics.trips.manage',
+            'logistics.vehicles.manage',
+            'logistics.expenses.manage',
+            'logistics.matrix.manage',
+            'logistics.technical.view',
         ];
 
         foreach ($permissions as $permission) {
@@ -69,6 +76,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'bank.sync',
             'bank.reconcile',
             'bank.manage_payment_drafts',
+            'logistics.view',
+            'logistics.trips.manage',
+            'logistics.vehicles.manage',
+            'logistics.expenses.manage',
         ]);
     }
 }

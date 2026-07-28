@@ -1,0 +1,21 @@
+[Unit]
+Description=Pischeprom Laravel logistics routing queue worker
+After=network-online.target redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=forge
+Group=forge
+WorkingDirectory=/home/forge/xn----dtbhbbn3apgclecj7i.xn--p1ai
+ExecStart=/usr/bin/php artisan queue:work redis-routing --queue=routing --sleep=2 --tries=3 --timeout=120 --max-time=3600
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=150
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
