@@ -291,6 +291,18 @@ validate_private_bucket() {
         ' "$bucket_file" >/dev/null
 }
 
+print_safe_bucket_configuration() {
+    local bucket_file="$1"
+    jq '{
+        name,
+        folderId,
+        defaultStorageClass,
+        maxSize,
+        anonymousAccessFlags,
+        cors
+    }' "$bucket_file"
+}
+
 public_exists=false
 private_exists=false
 bucket_exists_in_folder "$YC_MAP_BUCKET" && public_exists=true
@@ -304,6 +316,7 @@ if [[ "$YC_STORAGE_ACTION" == 'plan' ]]; then
             log "PLAN: public map bucket ${YC_MAP_BUCKET} already matches the desired configuration."
         else
             log "PLAN: public map bucket ${YC_MAP_BUCKET} exists and would be reconciled."
+            print_safe_bucket_configuration "$public_file"
         fi
     else
         log "PLAN: public map bucket ${YC_MAP_BUCKET} would be created and configured."
@@ -316,6 +329,7 @@ if [[ "$YC_STORAGE_ACTION" == 'plan' ]]; then
             log "PLAN: private GIS bucket ${YC_GIS_PRIVATE_BUCKET} already matches the desired configuration."
         else
             log "PLAN: private GIS bucket ${YC_GIS_PRIVATE_BUCKET} exists and would be reconciled."
+            print_safe_bucket_configuration "$private_file"
         fi
     else
         log "PLAN: private GIS bucket ${YC_GIS_PRIVATE_BUCKET} would be created and configured."
@@ -339,8 +353,14 @@ public_file="$work_dir/public-final.json"
 private_file="$work_dir/private-final.json"
 get_bucket "$YC_MAP_BUCKET" "$public_file"
 get_bucket "$YC_GIS_PRIVATE_BUCKET" "$private_file"
-validate_public_bucket "$public_file" || fail 'Public map bucket configuration does not match the desired state.'
-validate_private_bucket "$private_file" || fail 'Private GIS bucket configuration does not match the desired state.'
+if ! validate_public_bucket "$public_file"; then
+    print_safe_bucket_configuration "$public_file"
+    fail 'Public map bucket configuration does not match the desired state.'
+fi
+if ! validate_private_bucket "$private_file"; then
+    print_safe_bucket_configuration "$private_file"
+    fail 'Private GIS bucket configuration does not match the desired state.'
+fi
 log 'Both bucket configurations match the desired state.'
 
 fixture_file="$work_dir/range-fixture-v1.bin"
