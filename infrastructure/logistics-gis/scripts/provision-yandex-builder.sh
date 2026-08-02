@@ -214,7 +214,12 @@ install -m 0644 -o root -g root -- \
 systemctl daemon-reload
 
 preflight_output="$(mktemp)"
-trap 'rm -f -- "$source_manifest" "$existing_manifest" "$preflight_output"; if [[ -n "${release_stage:-}" && -d "$release_stage" && ! -L "$release_stage" ]]; then rm -r -- "$release_stage"; fi' EXIT
+preflight_stderr="$(mktemp)"
+preflight_state="${gis_base}/state/last-preflight.json"
+trap 'rm -f -- "$source_manifest" "$existing_manifest" "$preflight_output" "$preflight_stderr"; if [[ -n "${release_stage:-}" && -d "$release_stage" && ! -L "$release_stage" ]]; then rm -r -- "$release_stage"; fi' EXIT
+[[ ! -e "$preflight_state" || ( -f "$preflight_state" && ! -L "$preflight_state" ) ]] \
+    || fail 'Existing target-host preflight state is not a managed regular file.'
+rm -f -- "$preflight_state"
 set +e
 sudo -u "$service_user" -- bash -c '
     set -Eeuo pipefail
@@ -222,17 +227,29 @@ sudo -u "$service_user" -- bash -c '
     source /etc/pischeprom-gis.env
     set +a
     exec /opt/pischeprom-gis-operations/current/scripts/preflight.sh --mode full --json
-' > "$preflight_output"
+' > "$preflight_output" 2> "$preflight_stderr"
 preflight_exit=$?
 set -e
+if [[ ! -s "$preflight_state" || ! -f "$preflight_state" || -L "$preflight_state" ]]; then
+    if [[ -s "$preflight_stderr" ]]; then
+        printf '[logistics-gis] Target-host preflight stderr follows:\n' >&2
+        sed -n '1,80p' "$preflight_stderr" >&2
+    fi
+    fail "Target-host full preflight produced no trusted state with exit code ${preflight_exit}."
+fi
 php -r '
     $value=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);
+    if (($value["mode"]??null)!=="full"
+        || !in_array($value["result"]??null,["PASS","WARN","FAIL"],true)
+        || !is_int($value["exit_code"]??null)) {
+        throw new RuntimeException("Target-host preflight state has an invalid schema.");
+    }
     echo json_encode($value,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),PHP_EOL;
-' "$preflight_output"
+' "$preflight_state"
 [[ "$preflight_exit" -eq 0 ]] \
     || fail "Target-host full preflight blocked provisioning with exit code ${preflight_exit}."
 
 trap - EXIT
-rm -f -- "$source_manifest" "$existing_manifest" "$preflight_output"
+rm -f -- "$source_manifest" "$existing_manifest" "$preflight_output" "$preflight_stderr"
 log "Provisioned checksum-pinned GIS builder operations from commit ${source_commit}; full target-host preflight PASS."
 log 'Valhalla is loopback-only and remains disabled until a paired release passes smoke and activation checks.'
