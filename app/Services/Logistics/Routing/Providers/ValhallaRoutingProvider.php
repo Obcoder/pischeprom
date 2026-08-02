@@ -2,6 +2,7 @@
 
 namespace App\Services\Logistics\Routing\Providers;
 
+use App\Services\Logistics\Map\GisReleaseMetadataService;
 use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
 use App\Services\Logistics\Routing\DTO\MatrixCell;
 use App\Services\Logistics\Routing\DTO\MatrixRequest;
@@ -23,6 +24,8 @@ use Throwable;
 class ValhallaRoutingProvider implements RoutingProviderInterface
 {
     private ?string $engineVersion = null;
+
+    public function __construct(private readonly ?GisReleaseMetadataService $releaseMetadata = null) {}
 
     public function code(): string
     {
@@ -273,6 +276,7 @@ class ValhallaRoutingProvider implements RoutingProviderInterface
 
     private function osmDataVersion(): ?string
     {
-        return config('logistics.osm_data_version') ?: null;
+        return $this->releaseMetadata?->osmDataVersion()
+            ?? (config('logistics.osm_data_version') ?: null);
     }
 }

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import TripExpensesPanel from './TripExpensesPanel.vue'
+import TripRouteMap from './TripRouteMap.vue'
 
 const props = defineProps({ modelValue: Boolean, trip: { type: Object, default: null } })
 const emit = defineEmits(['update:modelValue', 'saved'])
@@ -13,6 +14,7 @@ const cities = ref([])
 const entities = ref([])
 const users = ref([])
 const routes = ref([])
+const selectedRouteId = ref(null)
 const routeRun = ref(null)
 const formRef = ref(null)
 const form = reactive(emptyForm())
@@ -134,8 +136,10 @@ async function loadRoutes() {
     if (!current.value?.id && !props.trip?.id) return
     const id = current.value?.id || props.trip.id
     try {
-        const response = await api.request(`trip-routes-${id}`, { method: 'get', url: `/api/logistics/trips/${id}/routes` }, { error: 'Не удалось загрузить историю маршрута.' })
+        const response = await api.request(`trip-routes-${id}`, { method: 'get', url: `/api/logistics/trips/${id}/routes`, params: { summary: 1, per_page: 100 } }, { error: 'Не удалось загрузить историю маршрута.' })
         routes.value = response?.data || []
+        const selectedStillExists = routes.value.some((route) => route.id === selectedRouteId.value)
+        if (!selectedStillExists) selectedRouteId.value = routes.value.find((route) => route.is_current)?.id || routes.value[0]?.id || null
     } catch { /* global snackbar */ }
 }
 
@@ -212,6 +216,7 @@ async function pollRun() {
         if (['completed', 'partial', 'failed', 'cancelled'].includes(routeRun.value.status)) {
             stopPolling()
             await loadTrip()
+            await loadRoutes()
             emit('saved', current.value)
         }
     } catch { stopPolling() }
@@ -220,8 +225,11 @@ function stopPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = nu
 
 watch(() => props.modelValue, async (open) => {
     if (!open) { stopPolling(); return }
-    tab.value = 'general'; routeRun.value = null; routes.value = []
+    tab.value = 'general'; routeRun.value = null; routes.value = []; selectedRouteId.value = null
     await Promise.allSettled([loadTrip(), loadVehicles(), loadReferences('cities'), loadReferences('entities'), loadReferences('users')])
+})
+watch(tab, (value) => {
+    if (value === 'routes' && current.value?.id && !routes.value.length) loadRoutes()
 })
 onBeforeUnmount(stopPolling)
 </script>
@@ -330,8 +338,33 @@ onBeforeUnmount(stopPolling)
                                         <v-col cols="6" md="3"><v-card variant="tonal"><v-card-text><div class="text-caption">Провайдер</div><strong>{{ current.current_route.provider }}</strong></v-card-text></v-card></v-col>
                                         <v-col cols="6" md="3"><v-card variant="tonal"><v-card-text><div class="text-caption">OSM-граф</div><strong>{{ current.current_route.osm_data_version || 'не задан' }}</strong></v-card-text></v-card></v-col>
                                     </v-row>
+                                    <v-card variant="tonal" class="mb-4">
+                                        <v-card-text>
+                                            <div class="d-flex align-center justify-space-between flex-wrap ga-3 mb-3">
+                                                <v-select
+                                                    v-model="selectedRouteId"
+                                                    :items="routes"
+                                                    :item-title="route => `#${route.id} · ${route.is_current ? 'текущая' : 'история'} · ${formatDate(route.calculated_at)}`"
+                                                    item-value="id"
+                                                    label="Версия на карте"
+                                                    density="compact"
+                                                    variant="outlined"
+                                                    hide-details
+                                                    :disabled="!routes.length"
+                                                    style="max-width: 520px"
+                                                />
+                                                <div class="text-caption text-medium-emphasis">Зелёная линия — текущая версия, фиолетовая пунктирная — историческая.</div>
+                                            </div>
+                                            <TripRouteMap
+                                                v-if="tab === 'routes'"
+                                                :trip-id="current.id"
+                                                :route-id="selectedRouteId"
+                                                :active="tab === 'routes'"
+                                            />
+                                        </v-card-text>
+                                    </v-card>
                                     <v-table density="compact" class="border rounded"><thead><tr><th>Версия</th><th>Статус</th><th>Расстояние</th><th>Время</th><th>Engine / OSM</th><th>Дата</th></tr></thead><tbody>
-                                        <tr v-for="route in routes" :key="route.id"><td>#{{ route.id }} <v-chip v-if="route.is_current" size="x-small" color="green">текущая</v-chip></td><td><v-chip :color="routeStatusColor(route.status)" variant="tonal" size="x-small">{{ route.status }}</v-chip><div v-if="route.routing_options?.error_message" class="text-caption text-error mt-1">{{ route.routing_options.error_message }}</div></td><td>{{ formatKm(route.distance_m) }}</td><td>{{ formatDuration(route.duration_s) }}</td><td>{{ route.routing_engine_version || '—' }} / {{ route.osm_data_version || '—' }}</td><td>{{ formatDate(route.calculated_at) }}</td></tr>
+                                        <tr v-for="route in routes" :key="route.id" class="trip-route-version-row" :class="{ 'trip-route-version-row--selected': route.id === selectedRouteId }" @click="selectedRouteId = route.id"><td>#{{ route.id }} <v-chip v-if="route.is_current" size="x-small" color="green">текущая</v-chip></td><td><v-chip :color="routeStatusColor(route.status)" variant="tonal" size="x-small">{{ route.status }}</v-chip><div v-if="route.routing_options?.error_message" class="text-caption text-error mt-1">{{ route.routing_options.error_message }}</div></td><td>{{ formatKm(route.distance_m) }}</td><td>{{ formatDuration(route.duration_s) }}</td><td>{{ route.routing_engine_version || '—' }} / {{ route.osm_data_version || '—' }}</td><td>{{ formatDate(route.calculated_at) }}</td></tr>
                                         <tr v-if="!routes.length"><td colspan="6" class="logistics-empty">Маршрут ещё не рассчитывался.</td></tr>
                                     </tbody></v-table>
                                 </v-card-text>
@@ -346,4 +379,6 @@ onBeforeUnmount(stopPolling)
 
 <style scoped>
 .trip-dialog-window { min-height: calc(100vh - 120px); }
+.trip-route-version-row { cursor: pointer; }
+.trip-route-version-row--selected { background: #edf7f0; }
 </style>

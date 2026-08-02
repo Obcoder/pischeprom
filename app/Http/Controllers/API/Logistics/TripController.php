@@ -20,16 +20,28 @@ class TripController extends Controller
     {
         $this->authorizeLogistics('viewAny', LogisticsTrip::class);
         $perPage = max(1, min((int) $request->input('per_page', 25), 100));
+        $relations = [
+            'vehicle.owner:id,name',
+            'carrier:id,name',
+            'responsible:id,name',
+            'stops.city.region',
+            'expenses.category',
+        ];
+        if ($request->boolean('summary')) {
+            $relations['currentRoute'] = fn ($query) => $query
+                ->select([
+                    'id', 'trip_id', 'is_current', 'status', 'routing_profile',
+                    'vehicle_profile_hash', 'request_hash', 'distance_m', 'duration_s',
+                    'routing_options', 'provider', 'routing_engine_version',
+                    'osm_data_version', 'calculated_at', 'created_by', 'created_at',
+                ])
+                ->selectRaw("CASE WHEN shape_polyline6 IS NOT NULL AND shape_polyline6 <> '' THEN 1 ELSE 0 END AS geometry_available");
+        } else {
+            $relations[] = 'currentRoute';
+        }
 
         $query = LogisticsTrip::query()
-            ->with([
-                'vehicle.owner:id,name',
-                'carrier:id,name',
-                'responsible:id,name',
-                'stops.city.region',
-                'expenses.category',
-                'currentRoute',
-            ])
+            ->with($relations)
             ->withCount(['stops', 'expenses'])
             ->when($request->filled('search'), function (Builder $query) use ($request) {
                 $search = trim((string) $request->input('search'));

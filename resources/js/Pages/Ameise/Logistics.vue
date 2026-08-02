@@ -7,6 +7,7 @@ import TripsTab from '@/Components/Logistics/TripsTab.vue'
 import VehiclesTab from '@/Components/Logistics/VehiclesTab.vue'
 import MatrixTab from '@/Components/Logistics/MatrixTab.vue'
 import DiagnosticsTab from '@/Components/Logistics/DiagnosticsTab.vue'
+import MapTab from '@/Components/Logistics/MapTab.vue'
 import { useLogisticsApi } from '@/Composables/logistics/useLogisticsApi.js'
 
 defineOptions({ layout: VerwalterLayout })
@@ -18,6 +19,7 @@ const permissions = computed(() => page.props.auth?.permissions?.logistics || {}
 const tabs = computed(() => [
     { value: 'overview', title: 'Обзор', icon: 'mdi-view-dashboard-outline', component: OverviewTab },
     { value: 'trips', title: 'Рейсы', icon: 'mdi-map-marker-path', component: TripsTab },
+    { value: 'map', title: 'Карта', icon: 'mdi-map-outline', component: MapTab },
     { value: 'vehicles', title: 'Авто', icon: 'mdi-truck-outline', component: VehiclesTab },
     { value: 'matrix', title: 'Матрица', icon: 'mdi-grid', component: MatrixTab },
     ...(permissions.value.technical_view

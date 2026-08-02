@@ -20,6 +20,7 @@ class TripRouteResource extends JsonResource
             'distance_m' => $this->distance_m,
             'duration_s' => $this->duration_s,
             'shape_polyline6' => $this->shape_polyline6,
+            'geometry_available' => filled($this->shape_polyline6),
             'legs' => $this->legs,
             'routing_options' => $this->routing_options,
             'provider' => $this->provider,
@@ -31,6 +32,10 @@ class TripRouteResource extends JsonResource
                 'id' => $this->creator->id,
                 'name' => $this->creator->name,
             ] : null),
+            'map_url' => route('api.logistics.trips.routes.map', [
+                'trip' => $this->trip_id,
+                'route' => $this->id,
+            ], false),
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

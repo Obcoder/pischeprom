@@ -1,0 +1,151 @@
+{
+    "version": 8,
+    "name": "Пищепром — Россия",
+    "glyphs": "/maps/logistics/fonts/{fontstack}/{range}.pbf",
+    "sprite": "/maps/logistics/sprites/basic",
+    "sources": {
+        "logistics-basemap": {
+            "type": "vector",
+            "url": "pmtiles:///maps/logistics/russia.pmtiles",
+            "attribution": "© <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap contributors</a> · © <a href=\"https://openmaptiles.org/\">OpenMapTiles</a>"
+        }
+    },
+    "layers": [
+        {
+            "id": "background",
+            "type": "background",
+            "paint": { "background-color": "#f4f2ea" }
+        },
+        {
+            "id": "landcover",
+            "type": "fill",
+            "source": "logistics-basemap",
+            "source-layer": "landcover",
+            "paint": { "fill-color": "#dfead9", "fill-opacity": 0.7 }
+        },
+        {
+            "id": "landuse",
+            "type": "fill",
+            "source": "logistics-basemap",
+            "source-layer": "landuse",
+            "paint": { "fill-color": "#e7eadf", "fill-opacity": 0.55 }
+        },
+        {
+            "id": "water",
+            "type": "fill",
+            "source": "logistics-basemap",
+            "source-layer": "water",
+            "paint": { "fill-color": "#a9d5e8" }
+        },
+        {
+            "id": "boundaries",
+            "type": "line",
+            "source": "logistics-basemap",
+            "source-layer": "boundary",
+            "paint": {
+                "line-color": "#9b9b8f",
+                "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.45, 8, 1.2],
+                "line-dasharray": [3, 2]
+            }
+        },
+        {
+            "id": "minor-roads",
+            "type": "line",
+            "source": "logistics-basemap",
+            "source-layer": "transportation",
+            "minzoom": 7,
+            "filter": ["in", ["get", "class"], ["literal", ["minor", "service", "track"]]],
+            "paint": {
+                "line-color": "#ffffff",
+                "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.4, 14, 2.2]
+            }
+        },
+        {
+            "id": "major-roads-casing",
+            "type": "line",
+            "source": "logistics-basemap",
+            "source-layer": "transportation",
+            "filter": ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary", "secondary", "tertiary"]]],
+            "paint": {
+                "line-color": "#c7bca6",
+                "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.7, 12, 5.2]
+            }
+        },
+        {
+            "id": "major-roads",
+            "type": "line",
+            "source": "logistics-basemap",
+            "source-layer": "transportation",
+            "filter": ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary", "secondary", "tertiary"]]],
+            "paint": {
+                "line-color": [
+                    "match", ["get", "class"],
+                    "motorway", "#f2b56b",
+                    "trunk", "#f4c884",
+                    "#fff6df"
+                ],
+                "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.35, 12, 3.8]
+            }
+        },
+        {
+            "id": "buildings",
+            "type": "fill",
+            "source": "logistics-basemap",
+            "source-layer": "building",
+            "minzoom": 13,
+            "paint": { "fill-color": "#d7d1c7", "fill-outline-color": "#c5beb2" }
+        },
+        {
+            "id": "road-labels",
+            "type": "symbol",
+            "source": "logistics-basemap",
+            "source-layer": "transportation_name",
+            "minzoom": 9,
+            "layout": {
+                "symbol-placement": "line",
+                "text-field": ["coalesce", ["get", "name:ru"], ["get", "name"]],
+                "text-font": ["Noto Sans Regular"],
+                "text-size": 11
+            },
+            "paint": {
+                "text-color": "#5f5b53",
+                "text-halo-color": "#ffffff",
+                "text-halo-width": 1.2
+            }
+        },
+        {
+            "id": "water-labels",
+            "type": "symbol",
+            "source": "logistics-basemap",
+            "source-layer": "water_name",
+            "layout": {
+                "text-field": ["coalesce", ["get", "name:ru"], ["get", "name"]],
+                "text-font": ["Noto Sans Regular"],
+                "text-size": 11
+            },
+            "paint": {
+                "text-color": "#397995",
+                "text-halo-color": "#dceff6",
+                "text-halo-width": 1
+            }
+        },
+        {
+            "id": "place-labels",
+            "type": "symbol",
+            "source": "logistics-basemap",
+            "source-layer": "place",
+            "layout": {
+                "text-field": ["coalesce", ["get", "name:ru"], ["get", "name"]],
+                "text-font": ["Noto Sans Regular"],
+                "text-size": ["interpolate", ["linear"], ["zoom"], 3, 10, 9, 15],
+                "text-variable-anchor": ["top", "bottom", "left", "right"],
+                "text-radial-offset": 0.4
+            },
+            "paint": {
+                "text-color": "#2e3731",
+                "text-halo-color": "#f7f5ee",
+                "text-halo-width": 1.4
+            }
+        }
+    ]
+}

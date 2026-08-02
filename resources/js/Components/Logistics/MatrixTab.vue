@@ -1,5 +1,6 @@
 <script setup>
 import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import MatrixRoutePreviewDialog from './MatrixRoutePreviewDialog.vue'
 
 const api = inject('logisticsApi')
 const permissions = inject('logisticsPermissions')
@@ -16,6 +17,8 @@ const fullMatrixRefresh = ref(false)
 const citySettingsDialog = ref(false)
 const citySettings = reactive({ city_id: null, name: '', routing_latitude: null, routing_longitude: null, coordinate_source: 'manual', source_reference: '', is_matrix_enabled: true, mark_verified: false })
 const manualDialog = ref(false)
+const previewDialog = ref(false)
+const preview = reactive({ distance: null, fromCity: null, toCity: null })
 const manual = reactive({ from_city_id: null, to_city_id: null, distance_km: null, duration_min: null, manual_note: '' })
 let pollTimer = null
 let searchTimer = null
@@ -126,6 +129,20 @@ function openManual(fromId, toId) {
     const current = cell(fromId, toId)
     Object.assign(manual, { from_city_id: fromId, to_city_id: toId, distance_km: current?.distance_m == null ? null : current.distance_m / 1000, duration_min: current?.duration_s == null ? null : Math.round(current.duration_s / 60), manual_note: current?.manual_note || '' })
     manualDialog.value = true
+}
+function openPreview(fromId, toId) {
+    if (fromId === toId) return
+    const distance = cell(fromId, toId)
+    if (!distance) {
+        api.notify('Для этой пары ещё нет сохранённого значения и route preview.', 'info')
+        return
+    }
+    Object.assign(preview, {
+        distance,
+        fromCity: selectedCities.value.find((city) => city.city_id === fromId) || null,
+        toCity: selectedCities.value.find((city) => city.city_id === toId) || null,
+    })
+    previewDialog.value = true
 }
 async function saveManual() {
     try {
@@ -263,13 +280,13 @@ onBeforeUnmount(stopPolling)
             <div v-else class="matrix-scroll">
                 <table class="matrix-table">
                     <thead><tr><th class="matrix-table__corner">Откуда ↓ / Куда →</th><th v-for="city in selectedCities" :key="city.city_id">{{ city.name }}</th></tr></thead>
-                    <tbody><tr v-for="from in selectedCities" :key="from.city_id"><th>{{ from.name }}</th><td v-for="to in selectedCities" :key="to.city_id" :class="`matrix-cell matrix-cell--${cell(from.city_id,to.city_id)?.status || 'missing'}`" :title="cellHint(cell(from.city_id,to.city_id))" @dblclick="canManage && pairIsReady(from.city_id,to.city_id) && from.city_id !== to.city_id && openManual(from.city_id,to.city_id)">
-                        <template v-if="cell(from.city_id,to.city_id)"><strong>{{ km(cell(from.city_id,to.city_id).distance_m) }}</strong><small>{{ duration(cell(from.city_id,to.city_id).duration_s) }}</small><v-chip :color="statusColor(cell(from.city_id,to.city_id).status)" size="x-small" variant="tonal">{{ statusTitle(cell(from.city_id,to.city_id).status) }}</v-chip></template>
-                        <template v-else><span>—</span><small>не рассчитано</small><v-btn v-if="canManage && pairIsReady(from.city_id,to.city_id)" icon="mdi-pencil-outline" variant="text" size="x-small" @click="openManual(from.city_id,to.city_id)" /></template>
+                    <tbody><tr v-for="from in selectedCities" :key="from.city_id"><th>{{ from.name }}</th><td v-for="to in selectedCities" :key="to.city_id" :class="`matrix-cell matrix-cell--${cell(from.city_id,to.city_id)?.status || 'missing'}`" :title="cellHint(cell(from.city_id,to.city_id))" @click="openPreview(from.city_id,to.city_id)">
+                        <template v-if="cell(from.city_id,to.city_id)"><strong>{{ km(cell(from.city_id,to.city_id).distance_m) }}</strong><small>{{ duration(cell(from.city_id,to.city_id).duration_s) }}</small><div class="d-flex align-center justify-center ga-1"><v-chip :color="statusColor(cell(from.city_id,to.city_id).status)" size="x-small" variant="tonal">{{ statusTitle(cell(from.city_id,to.city_id).status) }}</v-chip><v-btn v-if="from.city_id !== to.city_id" icon="mdi-map-search-outline" variant="text" size="x-small" @click.stop="openPreview(from.city_id,to.city_id)" /><v-btn v-if="canManage && pairIsReady(from.city_id,to.city_id) && from.city_id !== to.city_id" icon="mdi-pencil-outline" variant="text" size="x-small" @click.stop="openManual(from.city_id,to.city_id)" /></div></template>
+                        <template v-else><span>—</span><small>не рассчитано</small><v-btn v-if="canManage && pairIsReady(from.city_id,to.city_id)" icon="mdi-pencil-outline" variant="text" size="x-small" @click.stop="openManual(from.city_id,to.city_id)" /></template>
                     </td></tr></tbody>
                 </table>
             </div>
-            <v-card-text class="text-caption text-medium-emphasis">Двойной щелчок по направленной ячейке открывает ручное значение. A → B и B → A хранятся раздельно; диагональ 0 не записывается в БД.</v-card-text>
+            <v-card-text class="text-caption text-medium-emphasis">Щелчок по рассчитанной направленной ячейке открывает картографический preview; карандаш — ручное значение. A → B и B → A хранятся раздельно; диагональ 0 не записывается в БД.</v-card-text>
         </v-card>
 
         <v-dialog v-model="fullMatrixDialog" max-width="620" persistent>
@@ -314,6 +331,8 @@ onBeforeUnmount(stopPolling)
         </v-card>
 
         <v-dialog v-model="manualDialog" max-width="600" persistent><v-card title="Ручное направленное расстояние"><v-card-text><v-alert type="warning" variant="tonal" density="compact" class="mb-4">Автоматическое обновление никогда не перезапишет ручное значение.</v-alert><v-row dense><v-col cols="12" md="6"><v-text-field v-model.number="manual.distance_km" type="number" min="0.001" step="0.1" label="Расстояние, км *" :error-messages="api.firstError('distance_m')" /></v-col><v-col cols="12" md="6"><v-text-field v-model.number="manual.duration_min" type="number" min="1" label="Время, минут" /></v-col><v-col cols="12"><v-textarea v-model="manual.manual_note" label="Обязательный комментарий *" :error-messages="api.firstError('manual_note')" /></v-col></v-row></v-card-text><v-card-actions class="justify-end"><v-btn @click="manualDialog=false">Отмена</v-btn><v-btn color="purple" variant="flat" :loading="api.isPending('matrix-manual')" @click="saveManual">Сохранить</v-btn></v-card-actions></v-card></v-dialog>
+
+        <MatrixRoutePreviewDialog v-model="previewDialog" :distance="preview.distance" :from-city="preview.fromCity" :to-city="preview.toCity" />
 
         <v-dialog v-model="citySettingsDialog" max-width="680" persistent>
             <v-card :title="`Точка маршрутизации: ${citySettings.name}`">

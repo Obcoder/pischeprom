@@ -16,6 +16,43 @@ return [
     'lock_store' => env('LOGISTICS_ROUTING_LOCK_STORE'),
     'osm_data_version' => env('LOGISTICS_OSM_DATA_VERSION'),
 
+    'map' => [
+        'enabled' => filter_var(env('LOGISTICS_MAP_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'coverage' => 'Russia',
+        'style_version' => env('LOGISTICS_MAP_STYLE_VERSION', '1'),
+        'style_url' => env('LOGISTICS_MAP_STYLE_URL', '/api/logistics/map/style'),
+        'pmtiles_url' => env('LOGISTICS_MAP_PMTILES_URL', '/maps/logistics/russia.pmtiles'),
+        'glyphs_url' => env('LOGISTICS_MAP_GLYPHS_URL', '/maps/logistics/fonts/{fontstack}/{range}.pbf'),
+        'sprite_url' => env('LOGISTICS_MAP_SPRITE_URL', '/maps/logistics/sprites/basic'),
+        'attribution' => '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · © <a href="https://openmaptiles.org/">OpenMapTiles</a>',
+        'default_center' => [94.0, 66.0],
+        'default_zoom' => (float) env('LOGISTICS_MAP_DEFAULT_ZOOM', 2.3),
+        'max_features' => (int) env('LOGISTICS_MAP_MAX_FEATURES', 1000),
+        'max_trips' => (int) env('LOGISTICS_MAP_MAX_TRIPS', 100),
+        'max_selected_trips' => (int) env('LOGISTICS_MAP_MAX_SELECTED_TRIPS', 20),
+        'matrix_preview_ttl' => (int) env('LOGISTICS_MAP_MATRIX_PREVIEW_TTL', 21600),
+        'release_manifest_path' => env(
+            'LOGISTICS_GIS_RELEASE_MANIFEST',
+            '/srv/pischeprom-gis/current/release-manifest.json'
+        ),
+        'preflight_status_path' => env(
+            'LOGISTICS_GIS_PREFLIGHT_STATUS',
+            '/srv/pischeprom-gis/state/last-preflight.json'
+        ),
+        'range_status_path' => env(
+            'LOGISTICS_GIS_RANGE_STATUS',
+            '/srv/pischeprom-gis/state/last-range-check.json'
+        ),
+        'activation_status_path' => env(
+            'LOGISTICS_GIS_ACTIVATION_STATUS',
+            '/srv/pischeprom-gis/state/last-activation.json'
+        ),
+        'production_smoke_status_path' => env(
+            'LOGISTICS_GIS_PRODUCTION_SMOKE_STATUS',
+            '/srv/pischeprom-gis/state/last-production-smoke.json'
+        ),
+    ],
+
     'valhalla' => [
         'engine_version' => env('VALHALLA_ENGINE_VERSION', '3.6.3'),
         'base_url' => env('VALHALLA_BASE_URL', 'http://valhalla:8002'),

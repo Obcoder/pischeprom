@@ -47,12 +47,16 @@ use App\Http\Controllers\API\Logistics\CheckLookupController as LogisticsCheckLo
 use App\Http\Controllers\API\Logistics\ExpenseCategoryController as LogisticsExpenseCategoryController;
 use App\Http\Controllers\API\Logistics\LogisticsCityController;
 use App\Http\Controllers\API\Logistics\LogisticsDashboardController;
+use App\Http\Controllers\API\Logistics\MapConfigurationController as LogisticsMapConfigurationController;
+use App\Http\Controllers\API\Logistics\MapController as LogisticsMapController;
 use App\Http\Controllers\API\Logistics\MatrixController as LogisticsMatrixController;
+use App\Http\Controllers\API\Logistics\MatrixPreviewController as LogisticsMatrixPreviewController;
 use App\Http\Controllers\API\Logistics\ReferenceController as LogisticsReferenceController;
 use App\Http\Controllers\API\Logistics\RoutingRunController as LogisticsRoutingRunController;
 use App\Http\Controllers\API\Logistics\RoutingStatusController as LogisticsRoutingStatusController;
 use App\Http\Controllers\API\Logistics\TripController as LogisticsTripController;
 use App\Http\Controllers\API\Logistics\TripExpenseController as LogisticsTripExpenseController;
+use App\Http\Controllers\API\Logistics\TripMapController as LogisticsTripMapController;
 use App\Http\Controllers\API\Logistics\TripRoutingController as LogisticsTripRoutingController;
 use App\Http\Controllers\API\Logistics\TripStopController as LogisticsTripStopController;
 use App\Http\Controllers\API\Logistics\VehicleController as LogisticsVehicleController;
@@ -707,6 +711,13 @@ Route::prefix('logistics')
     ->scopeBindings()
     ->group(function () {
         Route::get('/dashboard', LogisticsDashboardController::class)->name('dashboard');
+        Route::get('/map/config', [LogisticsMapConfigurationController::class, 'show'])
+            ->name('map.config');
+        Route::get('/map/style', [LogisticsMapConfigurationController::class, 'style'])
+            ->name('map.style');
+        Route::get('/map/features', LogisticsMapController::class)
+            ->middleware('throttle:120,1')
+            ->name('map.features');
         Route::get('/references/{type}', LogisticsReferenceController::class)
             ->whereIn('type', ['cities', 'entities', 'users'])
             ->name('references.index');
@@ -740,6 +751,10 @@ Route::prefix('logistics')
             ->name('trips.expenses.destroy');
         Route::get('/trips/{trip}/routes', [LogisticsTripRoutingController::class, 'index'])
             ->name('trips.routes.index');
+        Route::get('/trips/{trip}/map', [LogisticsTripMapController::class, 'current'])
+            ->name('trips.map');
+        Route::get('/trips/{trip}/routes/{route}/map', [LogisticsTripMapController::class, 'version'])
+            ->name('trips.routes.map');
         Route::post('/trips/{trip}/routes/calculate', [LogisticsTripRoutingController::class, 'store'])
             ->name('trips.routes.calculate');
 
@@ -749,6 +764,10 @@ Route::prefix('logistics')
         Route::get('/matrix/export', [LogisticsMatrixController::class, 'export'])->name('matrix.export');
         Route::post('/matrix/calculate', [LogisticsMatrixController::class, 'calculate'])->name('matrix.calculate');
         Route::put('/matrix/manual', [LogisticsMatrixController::class, 'manual'])->name('matrix.manual');
+        Route::get('/matrix/{distance}/preview', LogisticsMatrixPreviewController::class)
+            ->whereNumber('distance')
+            ->middleware('throttle:60,1')
+            ->name('matrix.preview');
         Route::get('/routing-runs', [LogisticsRoutingRunController::class, 'index'])->name('routing-runs.index');
         Route::get('/routing-runs/{run}', [LogisticsRoutingRunController::class, 'show'])->name('routing-runs.show');
         Route::get('/routing-status', LogisticsRoutingStatusController::class)->name('routing-status');

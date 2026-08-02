@@ -1,0 +1,33 @@
+# Include inside the existing HTTPS server block. Nginx serves only files from
+# the verified `current` release; PBF, graphs, staging, manifests and logs stay private.
+
+location = /maps/logistics/russia.pmtiles {
+    alias /srv/pischeprom-gis/current/map/russia.pmtiles;
+    types { application/vnd.pmtiles pmtiles; }
+    default_type application/vnd.pmtiles;
+    add_header Accept-Ranges bytes always;
+    add_header Cache-Control "public, max-age=3600, must-revalidate" always;
+    etag on;
+    autoindex off;
+    limit_except GET { deny all; }
+}
+
+location ^~ /maps/logistics/fonts/ {
+    alias /srv/pischeprom-gis/current/map/assets/fonts/;
+    types { application/x-protobuf pbf; }
+    default_type application/x-protobuf;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    autoindex off;
+    limit_except GET { deny all; }
+}
+
+location ^~ /maps/logistics/sprites/ {
+    alias /srv/pischeprom-gis/current/map/assets/sprites/;
+    types {
+        application/json json;
+        image/png png;
+    }
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    autoindex off;
+    limit_except GET { deny all; }
+}

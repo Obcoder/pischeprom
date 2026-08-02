@@ -1,0 +1,9 @@
+*.osm.pbf
+*.osm.pbf.*
+*.pmtiles
+sources/
+staging/
+releases/
+logs/
+state/
+locks/

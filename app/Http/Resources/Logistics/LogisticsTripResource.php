@@ -55,8 +55,11 @@ class LogisticsTripResource extends JsonResource
             'stops' => TripStopResource::collection($this->whenLoaded('stops')),
             'expenses' => TripExpenseResource::collection($this->whenLoaded('expenses')),
             'current_route' => $this->whenLoaded('currentRoute', fn () => $this->currentRoute
-                ? (new TripRouteResource($this->currentRoute))->resolve($request)
+                ? ($request->boolean('summary')
+                    ? (new TripRouteSummaryResource($this->currentRoute))->resolve($request)
+                    : (new TripRouteResource($this->currentRoute))->resolve($request))
                 : null),
+            'map_url' => route('api.logistics.trips.map', ['trip' => $this->id], false),
             'stops_count' => $this->whenCounted('stops'),
             'expenses_count' => $this->whenCounted('expenses'),
             'route_summary' => $this->when(

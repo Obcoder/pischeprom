@@ -4,7 +4,7 @@
 
 Основная БД остаётся MySQL. Дорожный граф не загружается в MySQL: маршруты и матрицу считает отдельный self-hosted Valhalla на данных OpenStreetMap. Laravel обращается к нему только через `RoutingProviderInterface`; расстояние по прямой не используется как автомобильное.
 
-Интерфейс доступен по `/Ameise/logistics` без авторизации, как и его API. В нём есть вкладки «Обзор», «Рейсы», «Авто», «Матрица» и «Диагностика». Это временный режим до общей авторизации всего `/Ameise`; прежняя permission model сохранена и включается параметром `LOGISTICS_AUTHORIZATION_ENABLED=true`.
+Интерфейс доступен по `/Ameise/logistics` без авторизации, как и его API. В нём есть вкладки «Обзор», «Рейсы», «Карта», «Авто», «Матрица» и «Диагностика». Это временный режим до общей авторизации всего `/Ameise`; прежняя permission model сохранена и включается параметром `LOGISTICS_AUTHORIZATION_ENABLED=true`.
 
 ## Возможности первой версии
 
@@ -16,7 +16,10 @@
 - история версий маршрута рейса, `polyline6`, legs и параметры расчёта;
 - направленная матрица `A → B`, отдельная от `B → A`, с состояниями `pending`, `calculated`, `manual`, `stale`, `no_route`, `failed`;
 - расчёт выбранного фрагмента или полной матрицы всех готовых городов, polling прогресса, ручные значения и CSV-экспорт;
-- диагностический экран Valhalla и фоновых запусков.
+- диагностический экран Valhalla и фоновых запусков;
+- интерактивная MapLibre/PMTiles-карта России, сохранённые дорожные линии,
+  пронумерованные остановки, история маршрутов, preview матрицы и выключаемый
+  слой существующих `entity_locations`.
 
 ## Права
 
@@ -61,6 +64,12 @@ Seeder выдаёт все права роли `admin`. Роль `manager` по�
 | `GET /api/logistics/matrix/export` | CSV выбранного фрагмента |
 | `GET /api/logistics/routing-runs[/{run}]` | список/прогресс запусков |
 | `GET /api/logistics/routing-status` | health Valhalla |
+| `GET /api/logistics/map/config` | безопасная same-origin конфигурация карты |
+| `GET /api/logistics/map/style` | versioned MapLibre style |
+| `GET /api/logistics/map/features` | bbox/zoom слои городов, рейсов и контрагентов |
+| `GET /api/logistics/trips/{trip}/map` | текущая route geometry и остановки GeoJSON |
+| `GET /api/logistics/trips/{trip}/routes/{route}/map` | выбранная историческая geometry |
+| `GET /api/logistics/matrix/{distance}/preview` | точечный cached route preview пары |
 
 Список из приложения: `php artisan route:list --path=api/logistics`.
 
@@ -89,5 +98,7 @@ php artisan logistics:import-city-coordinates /absolute/path/cities.csv --dry-ru
 - [DEPLOYMENT.md](DEPLOYMENT.md) — первый и production deploy;
 - [OPERATIONS.md](OPERATIONS.md) — health, расчёты, обновление OSM и troubleshooting;
 - [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — выполненное, проверки и ограничения.
+- [MAP_RUSSIA.md](MAP_RUSSIA.md) — аудит, интерактивная карта и безопасный
+  full-Russia GIS release/runbook.
 
 Результаты основаны на данных © OpenStreetMap contributors и распространяемых по ODbL. В пользовательском разделе присутствует обязательная атрибуция; условия: <https://www.openstreetmap.org/copyright>.

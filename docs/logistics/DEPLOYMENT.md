@@ -1,14 +1,28 @@
 # Развёртывание логистики
 
+> Для нового полного покрытия России и PMTiles источником истины является
+> [MAP_RUSSIA.md](MAP_RUSSIA.md) и `infrastructure/logistics-gis/README.md`.
+> Описанная ниже двухрегиональная Docker-инфраструктура сохранена как история
+> уже задеплоенного контура и для совместимости/rollback. Она не является
+> способом построения новой карты России. Workflow `routing.yml` теперь делает
+> только лёгкие проверки и не принимает snapshot/не строит GIS-артефакты.
+
 ## Предварительные условия
 
 - текущие поддерживаемые проектом PHP/Composer, Node.js 22.18.0 и MySQL;
 - Redis для cache locks и отдельной очереди `routing`;
-- Docker Engine с Compose v2 на routing host;
+- Docker Engine с Compose v2 нужен только уже работающему legacy
+  двухрегиональному routing runtime, если production действительно использует
+  сохранённую compose-конфигурацию;
 - scheduler Laravel раз в минуту;
 - backup MySQL и проверенная процедура восстановления перед production-миграцией.
 
-Граф Northwestern + Central строится отдельно от deploy Laravel. Production workflow собирает его на GitHub runner и передаёт на routing host проверенный runtime-граф вместе с отдельной checksum-verified копией исходных PBF, поэтому маломощный web VPS не участвует в ресурсоёмкой сборке. Для ручной сборки на собственном build host закладывайте отдельный staging-каталог, несколько часов окна, ориентировочно 8–16 CPU, от 32 ГБ RAM и 100–150 ГБ свободного места; реальные требования измерьте и сохраните из `build-metadata.json`. Исходные PBF сохраняются в `data/sources` и не заменяются сгенерированными tiles.
+Исторический граф Northwestern + Central был построен отдельно от Laravel и
+остаётся действующим до проверенной активации full-Russia release. Новый граф и
+PMTiles нельзя собирать на GitHub runner: фактические требования сначала
+рассчитывает `infrastructure/logistics-gis/scripts/preflight.sh`, после чего
+оператор использует production host только при `PASS` либо отдельную временную
+Linux-машину достаточного размера. Исходные PBF не заменяются generated tiles.
 
 ## Laravel env
 
@@ -41,31 +55,19 @@ VALHALLA_RETRY_DELAY_MS=250
 
 `LOGISTICS_ROUTING_RETRY_AFTER` должен быть больше job timeout `120`; после изменения env выполните `php artisan config:clear`/`config:cache` и перезапустите worker.
 
-## Первоначальная сборка Valhalla
+## Историческая двухрегиональная сборка (не для full Russia)
 
 Инфраструктура находится в `infrastructure/valhalla`. Образ закреплён как `ghcr.io/valhalla/valhalla-scripted:3.6.3`, runtime-порт — только `127.0.0.1`.
 
-### Production через GitHub Actions
+### GitHub Actions
 
-Запустите вручную workflow `Build and deploy production routing`, указав общий immutable snapshot:
+Workflow `routing.yml` теперь выполняет только syntax, calculator и boundary
+checks. Он не принимает OSM snapshot, ничего не скачивает, не собирает, не
+передаёт на сервер и не активирует. Обычный workflow приложения также не
+перестраивает GIS и только обслуживает уже установленный routing worker.
 
-```bash
-gh workflow run routing.yml -f snapshot=260725
-```
-
-Workflow:
-
-1. загружает оба PBF и проверяет опубликованные Geofabrik MD5;
-2. строит граф на GitHub runner в staging-каталоге;
-3. выполняет route и matrix smoke до упаковки;
-4. передаёт на VPS архивы графа и исходных PBF с SHA-256;
-5. устанавливает через системные пакеты Docker Compose и PHP Redis, если они отсутствуют;
-6. атомарно активирует граф на loopback-порту, обновляет только routing-параметры Laravel `.env` с резервной копией;
-7. устанавливает и запускает `pischeprom-routing-worker`;
-8. освобождает старые `queued/pending` записи, оставшиеся после неработавшей очереди;
-9. запускает матрицу через production HTTP API и ждёт успешного завершения всех направленных пар.
-
-Обычный workflow `Verify and deploy to production` не перестраивает граф и только перезапускает уже установленный worker.
+Full-Russia обновление выполняется исключительно вручную по
+[production runbook](MAP_RUSSIA.md#production-runbook).
 
 ### Ручная сборка
 

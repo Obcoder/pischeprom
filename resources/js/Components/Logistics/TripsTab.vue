@@ -52,7 +52,7 @@ async function load(options = null) {
     const sort = table.sortBy?.[0] || { key: 'actual_departure_at', order: 'desc' }
     try {
         const response = await api.request('trips-load', { method: 'get', url: '/api/logistics/trips', params: {
-            page: table.page, per_page: table.itemsPerPage, sort_by: sort.key, sort_direction: sort.order,
+            page: table.page, per_page: table.itemsPerPage, sort_by: sort.key, sort_direction: sort.order, summary: 1,
             search: filters.search || undefined, status: filters.status?.length ? filters.status : undefined,
             vehicle_id: filters.vehicle_id || undefined, city_id: filters.city_id || undefined,
             carrier_entity_id: filters.carrier_entity_id || undefined, date_from: filters.date_from || undefined,

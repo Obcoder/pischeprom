@@ -6,6 +6,7 @@ use App\Enums\Logistics\RouteStatus;
 use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripRoute;
 use App\Models\LogisticsTripStop;
+use App\Services\Logistics\Map\GisReleaseMetadataService;
 use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
 use App\Services\Logistics\Routing\DTO\RouteRequest;
 use App\Services\Logistics\Routing\DTO\RoutingPoint;
@@ -22,6 +23,7 @@ class TripRouteService
     public function __construct(
         private readonly RoutingProviderInterface $provider,
         private readonly VehicleRoutingProfileFactory $profiles,
+        private readonly GisReleaseMetadataService $releaseMetadata,
     ) {}
 
     public function calculate(LogisticsTrip $trip, ?int $createdBy = null, bool $force = false): LogisticsTripRoute
@@ -32,7 +34,7 @@ class TripRouteService
             'points' => array_map(fn (RoutingPoint $point) => $point->toArray(), $points),
             'profile' => $profile->toArray(),
             'provider' => $this->provider->code(),
-            'osm_data_version' => config('logistics.osm_data_version'),
+            'osm_data_version' => $this->releaseMetadata->osmDataVersion(),
         ]);
 
         $request = new RouteRequest($points, $profile, $requestHash);
@@ -180,7 +182,7 @@ class TripRouteService
                 ],
                 'provider' => $this->provider->code(),
                 'routing_engine_version' => config('logistics.valhalla.engine_version'),
-                'osm_data_version' => config('logistics.osm_data_version'),
+                'osm_data_version' => $this->releaseMetadata->osmDataVersion(),
                 'calculated_at' => now(),
                 'created_by' => $createdBy,
             ];

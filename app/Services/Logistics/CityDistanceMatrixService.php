@@ -8,6 +8,7 @@ use App\Jobs\Logistics\CalculateDistanceMatrixBatchJob;
 use App\Models\LogisticsCity;
 use App\Models\LogisticsCityDistance;
 use App\Models\LogisticsRoutingRun;
+use App\Services\Logistics\Map\GisReleaseMetadataService;
 use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
 use App\Services\Logistics\Routing\DTO\MatrixRequest;
 use App\Services\Logistics\Routing\DTO\RoutingPoint;
@@ -25,6 +26,7 @@ class CityDistanceMatrixService
         private readonly RoutingProviderInterface $provider,
         private readonly VehicleRoutingProfileFactory $profiles,
         private readonly RoutingRunService $runs,
+        private readonly GisReleaseMetadataService $releaseMetadata,
     ) {}
 
     public function enqueue(
@@ -240,7 +242,7 @@ class CityDistanceMatrixService
                 'sources' => $sourceIds->all(),
                 'targets' => $targetIds->all(),
                 'profile' => $profile->toArray(),
-                'osm_data_version' => config('logistics.osm_data_version'),
+                'osm_data_version' => $this->releaseMetadata->osmDataVersion(),
             ]);
 
             $result = $this->provider->matrix(new MatrixRequest($sources, $targets, $profile, $requestHash));
@@ -354,7 +356,7 @@ class CityDistanceMatrixService
                 'to_longitude_snapshot' => $to->routing_longitude,
                 'provider' => 'manual',
                 'routing_engine_version' => null,
-                'osm_data_version' => config('logistics.osm_data_version'),
+                'osm_data_version' => $this->releaseMetadata->osmDataVersion(),
                 'request_hash' => $requestHash,
                 'calculated_at' => now(),
                 'expires_at' => null,
@@ -581,7 +583,7 @@ class CityDistanceMatrixService
             'profile' => $profile,
             'vehicle_profile_hash' => 'default',
             'provider' => $this->provider->code(),
-            'osm_data_version' => config('logistics.osm_data_version'),
+            'osm_data_version' => $this->releaseMetadata->osmDataVersion(),
         ]);
     }
 

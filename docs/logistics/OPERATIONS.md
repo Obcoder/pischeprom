@@ -1,14 +1,24 @@
 # Эксплуатация Valhalla и матрицы
 
+> Full-Russia graph + PMTiles обновляются только ручным native Linux pipeline из
+> [MAP_RUSSIA.md](MAP_RUSSIA.md). Старые команды `infrastructure/valhalla`
+> относятся к сохранённому двухрегиональному deployment и не обеспечивают карту
+> всей России. GitHub Actions больше не скачивает, не строит и не активирует GIS.
+
 ## Ежедневные проверки
 
 ```bash
 php artisan logistics:routing-health
 sudo systemctl is-active pischeprom-routing-worker
 sudo systemctl --no-pager --full status pischeprom-routing-worker
-cd infrastructure/valhalla
-docker compose --env-file .env -f compose.yml ps
+curl --fail --silent http://127.0.0.1:8002/status
+infrastructure/logistics-gis/scripts/check-pmtiles-range.sh \
+  https://PRODUCTION_HOST/maps/logistics/russia.pmtiles
 ```
+
+Status самого Valhalla проверяйте через фактически аудированный runtime:
+`systemctl` для native unit либо `docker compose ps` только пока production
+остаётся на сохранённом legacy compose deployment.
 
 Техническая вкладка `/Ameise/logistics` показывает provider/engine/OSM version, latency, количество активных городов, состояния матрицы, города без координат и последние routing runs. Endpoint health требует `logistics.technical.view` и не раскрывает внутренний URL.
 
@@ -105,6 +115,11 @@ php artisan logistics:matrix-refresh-stale --profile=truck --limit=500 --include
 
 ## Обновление OSM-графа
 
+> Для новой согласованной пары Valhalla + PMTiles используйте раздел
+> `Production runbook` в [MAP_RUSSIA.md](MAP_RUSSIA.md#production-runbook).
+> Приведённая ниже команда оставлена только для исторического двухрегионального
+> контура и не должна использоваться для выполнения full-Russia ТЗ.
+
 Выберите одну доступную immutable дату для обоих Geofabrik extracts. Не смешивайте даты.
 
 ```bash
@@ -146,14 +161,14 @@ php artisan schedule:list | grep logistics
 
 | Симптом | Проверка | Действие |
 |---|---|---|
-| health `unavailable` | `curl 127.0.0.1:8002/status`, `docker compose ps/logs` | проверить active symlink, volume, память и loopback URL |
+| health `unavailable` | `curl 127.0.0.1:8002/status`, status/log фактического runtime | проверить active symlink, runtime adapter, память и loopback URL |
 | jobs стоят `queued` | systemd status/journal, Redis | запустить worker именно `redis-routing --queue=routing` |
 | job выполняется повторно | config cache и `queue.connections.redis-routing.retry_after` | установить значение больше `120`, перезапустить worker |
-| `no_route` | проверенные точки, покрытие двух PBF, truck limits | исправить точку/профиль или задать документированное manual-значение |
-| `failed`/timeout | latency, память Valhalla, container logs | устранить ресурсную/сетевую причину и limited refresh `--include-failed` |
+| `no_route` | проверенные точки, покрытие активного graph, truck limits | исправить точку/профиль или задать документированное manual-значение |
+| `failed`/timeout | latency, память Valhalla, логи фактического runtime | устранить ресурсную/сетевую причину и limited refresh `--include-failed` |
 | город не считается | `is_matrix_enabled`, обе координаты, verification | проверить точку администратором |
-| неверная версия в UI | `LOGISTICS_OSM_DATA_VERSION`, config cache, worker env | синхронизировать env с активным каталогом и restart |
-| build не активирован | `.staging`, `build-metadata.json`, smoke output | не переключать symlink; исправить и собрать новый точный snapshot |
+| неверная версия в UI | active release manifest, activation state, config cache, worker env | восстановить согласованный `current`/activation state; legacy env использовать только как fallback |
+| build не активирован | `staging`, component/release manifests, smoke output | не переключать symlink; исправить и собрать новый точный snapshot |
 
 Не помещайте секреты, PBF и generated tiles в Git. Valhalla остаётся на loopback/private network; при отдельном host доступ ограничивается private firewall.
 
