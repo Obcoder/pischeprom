@@ -137,7 +137,9 @@ else
         disk_probe="$(dirname "$disk_probe")"
     done
     disk_free="$( (df -B1 --output=avail "$disk_probe" 2>/dev/null | awk 'NR==2 {print $1}') || true)"
-    free_inodes="$( (df -i --output=iavail "$disk_probe" 2>/dev/null | awk 'NR==2 {print $1}') || true)"
+    # GNU df treats --inodes (-i) and --output as mutually exclusive. Asking
+    # for the inode-specific field is sufficient and keeps the probe truthful.
+    free_inodes="$( (df --output=iavail "$disk_probe" 2>/dev/null | awk 'NR==2 {print $1}') || true)"
     filesystem="$(findmnt -n -o FSTYPE --target "$disk_probe" 2>/dev/null || true)"
     mount_source="$(findmnt -n -o SOURCE --target "$disk_probe" 2>/dev/null || true)"
     storage_kind="unknown"
