@@ -27,10 +27,10 @@
   общей авторизации через `LOGISTICS_AUTHORIZATION_ENABLED=true`.
 
 В репозитории до дополнения была инфраструктура Valhalla только для двух ФО,
-собираемая Docker-based workflow. Документация проекта утверждает Valhalla
-`3.6.3`, loopback `127.0.0.1:8002` и OSM snapshot `260725`, но live production
-в этой сессии не проверялся. MapLibre, PMTiles, Planetiler, glyphs/sprites и
-проверка Nginx Range отсутствовали.
+собираемая Docker-based workflow. Production-аудит `2026-08-02` подтвердил
+работающую Valhalla `3.6.3` на loopback `127.0.0.1:8002`; legacy OSM fallback
+приложения — `260725`. MapLibre, PMTiles, Planetiler, glyphs/sprites и проверка
+Nginx Range до дополнения отсутствовали.
 
 Доступная локальная MySQL из `.env` не содержала применённых таблиц логистики,
 поэтому production-счётчики и browser-проверка данных из неё не выдавались за
@@ -222,22 +222,35 @@ infrastructure/logistics-gis/tests/preflight-calculator-test.sh
 - preview матрицы является ограниченным runtime cache, а не новой массовой
   таблицей геометрий.
 
-## Фактический read-only preflight этой сессии
+## Фактический production preflight и deploy
 
-Запуск `preflight.sh --mode full --json` на доступной рабочей машине завершён
-`FAIL` (exit 3), поэтому скачивание и обе сборки не запускались. Это Darwin
-x86_64, а не production Linux; скрипт намеренно не выдаёт локальные метрики за
-server evidence:
+Приложение доставлено штатным GitHub Actions workflow exact-commit deploy:
 
-- CPU/RAM/swap/disk/inode production: не измерены;
-- staging `/srv/pischeprom-gis`: отсутствует/не writable локально;
-- локальная Java: 14, тогда как Planetiler требует 21+;
-- native Valhalla/PMTiles/build tools: отсутствуют;
-- текущий Valhalla: health не пройден;
-- результат: `FAIL`.
+- основной релиз `50bc03d897fc27cea711743e2fd6934a7851da71` —
+  [run 30755487539](https://github.com/Obcoder/pischeprom/actions/runs/30755487539),
+  verify и deploy успешны;
+- исправление Linux inode-пробы
+  `6ed3b476b1fd359e74a3efc2b49ed12451e64998` —
+  [run 30755634948](https://github.com/Obcoder/pischeprom/actions/runs/30755634948),
+  verify и deploy успешны;
+- production working tree после deploy чистый, фактический SHA совпадает;
+- подтверждённые владельцем `LOGISTICS_AUTHORIZATION_ENABLED=false` и защитный
+  `LOGISTICS_MAP_ENABLED=false` действуют в cached production config.
 
-Удалённые read-only метаданные официального Geofabrik на момент последней
-проверки `2026-08-02T15:22:44Z`:
+Повторный `preflight.sh --mode full --json` на production Linux выполнен
+`2026-08-02T16:02:41Z` и вернул `FAIL` (exit 3):
+
+- Ubuntu 22.04, kernel `5.15.0-181-generic`, x86_64;
+- AMD EPYC 7773X, 2 physical / 2 logical cores, load/core `0.195`;
+- RAM total `4 101 832 704`, available `2 573 320 192` bytes; swap total
+  `1 073 737 728` bytes;
+- ext4/HDD: free `24 794 128 384` bytes и `4 938 096` свободных inode;
+- staging `/srv/pischeprom-gis` отсутствует и не writable;
+- действующая Valhalla отвечает healthy, версия `3.6.3`;
+- native Java 21, PMTiles CLI, Valhalla build tools и закреплённый Planetiler
+  отсутствуют; host-specific restart adapter и version pins не настроены.
+
+Read-only метаданные официального Geofabrik в этом production preflight:
 
 - alias: `https://download.geofabrik.de/russia-latest.osm.pbf`;
 - immutable resolved URL: `https://download.geofabrik.de/russia-260801.osm.pbf`;
@@ -249,8 +262,17 @@ server evidence:
   коэффициентами и 20 GiB app reserve: `89 688 021 740` bytes;
 - рассчитанный RAM threshold с 2 GiB app reserve: `6 442 450 944` bytes.
 
+Фактических ресурсов недостаточно: дефицит к blocking threshold составляет
+`64 893 893 356` bytes диска и `3 869 130 752` bytes доступной RAM. Поэтому в
+соответствии с ТЗ после `FAIL` не запускались PBF download, build, smoke,
+Range/206 и activate. Территория не уменьшалась; текущий routing release не
+переключался и не удалялся. Для продолжения нужен отдельный временный Linux
+build host либо расширение production с запасом сверх указанных thresholds и
+проверенным native toolchain.
+
 Это metadata probe, а не скачанный/проверенный локальный PBF. Значения
-`russia-latest` меняются, поэтому production preflight обязан получить их заново.
+`russia-latest` меняются, поэтому новый preflight обязан получить их заново
+непосредственно перед продолжением.
 
 ## Проверки реализации
 
@@ -268,10 +290,13 @@ server evidence:
 - `npm audit` сообщил о 9 проблемах в общем дереве зависимостей проекта
   (`2 low`, `3 moderate`, `4 high`, `0 critical`); автоматический потенциально
   ломающий `audit fix` не выполнялся.
+- production HTTP smoke после deploy: `/` — 200,
+  `/api/logistics/map/config` — 200 с `enabled=false`,
+  `/api/logistics/map/style` — 200; release metadata корректно сообщает
+  `status=unavailable`, пока paired GIS release не активирован.
 
-Локальная MySQL из рабочего `.env` не содержит таблиц логистики, live Valhalla
-недоступен, а production host не был предоставлен. Поэтому локальные тесты не
-подменяют обязательные production preflight, smoke, Range и browser-приёмку.
+Локальная MySQL из рабочего `.env` не содержит таблиц логистики, поэтому
+production-счётчики данных и browser-приёмка не подменялись локальными данными.
 
 ## Production runbook
 
@@ -337,12 +362,12 @@ service group либо точные read-only bind mounts, если прилож
 процессов проекта. `LOGISTICS_OSM_DATA_VERSION` остаётся legacy fallback;
 активный verified manifest является источником версии для новых расчётов.
 
-## Что не выполнялось на production
+## Что заблокировано production preflight
 
-SSH/sudo-доступа к production в этой сессии не было. Поэтому не выполнены и не
-заявляются выполненными:
+Production SSH-аудит, exact-commit deploy, blocking preflight и безопасный HTTP
+smoke выполнены. Из-за документированного `FAIL` не выполнялись и не заявляются
+выполненными:
 
-- production CPU/RAM/swap/load/disk/inode preflight;
 - скачивание 4.13 GB PBF;
 - native install/provisioning Valhalla, Java, Planetiler, PMTiles/assets;
 - staging graph и PMTiles build, их duration/peak RSS/paths/sizes;

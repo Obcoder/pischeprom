@@ -14,8 +14,10 @@
   checksum/version locks, staging smoke, paired current/previous activation и
   rollback. Он не запускается из Laravel/queue/deploy/CI.
 - Ресурсоёмкий routing GitHub workflow заменён лёгкой статической проверкой.
-- Production heavy operations не выполнялись без SSH/sudo; точный статус и
-  runbook зафиксированы в [MAP_RUSSIA.md](MAP_RUSSIA.md).
+- Код развернут штатным exact-commit GitHub Actions deploy. Production preflight
+  выполнен по SSH и остановил heavy operations из-за недостатка диска/RAM и
+  отсутствующего native toolchain; точные метрики и runbook зафиксированы в
+  [MAP_RUSSIA.md](MAP_RUSSIA.md).
 
 ## Выполнено
 
@@ -53,6 +55,18 @@
 - Production health возвращает `healthy=true`, OSM `260725`; Redis routing worker активен. Provisioning, route/matrix smoke и production API E2E прошли в [routing run 30403764857](https://github.com/Obcoder/pischeprom/actions/runs/30403764857).
 - Полный auto-расчёт `8ff7407e-a2ff-45f8-86c4-89e3407bdedb` завершил `2/2` направленных пар без ошибок: Санкт-Петербург → Воронеж `1 255,502 км`, Воронеж → Санкт-Петербург `1 326,100 км`.
 - Production `.env` синхронизирован с Redis queue, loopback Valhalla и версиями engine/OSM; перед изменением workflow сохранил закрытую резервную копию.
+- Дополнение карты развернуто на production: основной
+  [run 30755487539](https://github.com/Obcoder/pischeprom/actions/runs/30755487539)
+  и inode-fix
+  [run 30755634948](https://github.com/Obcoder/pischeprom/actions/runs/30755634948)
+  прошли verify/deploy; фактический SHA `6ed3b476b1fd359e74a3efc2b49ed12451e64998`.
+- Production full preflight `2026-08-02T16:02:41Z` вернул `FAIL`: свободно
+  `24 794 128 384` из требуемых `89 688 021 740` bytes диска и доступно
+  `2 573 320 192` из требуемых `6 442 450 944` bytes RAM. Inode достаточно
+  (`4 938 096`); действующая Valhalla `3.6.3` healthy и не переключалась.
+- Production HTTP smoke успешен: главная страница, map config и same-origin
+  style отвечают 200; карта преднамеренно остаётся `enabled=false` до paired
+  full-Russia release, Range/206 и activation.
 
 ## Архитектурные решения аудита
 
@@ -74,5 +88,9 @@
 
 ## Оставшиеся эксплуатационные задачи
 
+- Предоставить отдельный Linux build host либо расширить production минимум до
+  рассчитанных blocking thresholds с дополнительным запасом, установить и
+  закрепить native Java 21/Planetiler/PMTiles/Valhalla toolchain, затем повторить
+  `preflight → build → smoke → Range/206 → activate` без сокращения территории.
 - Выполнить backup/restore drill MySQL и additive migrations.
 - Выдать права ролям, проверить реальные routing-точки и выполнить приёмочный рейс Санкт-Петербург → Москва.
