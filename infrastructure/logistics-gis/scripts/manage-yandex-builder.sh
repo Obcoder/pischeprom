@@ -19,8 +19,8 @@ for command_name in head php tr wc yc; do
 done
 
 action="${YC_GIS_COMPUTE_ACTION:-plan}"
-[[ "$action" =~ ^(plan|apply|close-ssh|destroy)$ ]] \
-    || fail 'YC_GIS_COMPUTE_ACTION must be plan, apply, close-ssh or destroy.'
+[[ "$action" =~ ^(plan|apply|open-ssh|close-ssh|destroy)$ ]] \
+    || fail 'YC_GIS_COMPUTE_ACTION must be plan, apply, open-ssh, close-ssh or destroy.'
 
 required_variables=(
     YC_FOLDER_ID
@@ -354,6 +354,27 @@ if [[ "$action" == 'close-ssh' ]]; then
     [[ "$security_group_id" =~ ^[a-z0-9]{20}$ ]] || fail 'Managed security-group ID is invalid.'
     update_security_group_rules "$security_group_id"
     log 'Managed security group now has egress only; public SSH ingress is closed.'
+    exit 0
+fi
+
+if [[ "$action" == 'open-ssh' ]]; then
+    [[ "${YC_GIS_COMPUTE_CONFIRMATION:-}" == 'OPEN_GIS_BUILDER_SSH' ]] \
+        || fail 'Open SSH requires exact confirmation OPEN_GIS_BUILDER_SSH.'
+    [[ "${YC_GIS_SSH_CIDR:-}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/32$ ]] \
+        || fail 'Open SSH requires a single validated runner IPv4 /32 in YC_GIS_SSH_CIDR.'
+    ssh_ipv4="${YC_GIS_SSH_CIDR%/32}"
+    SSH_IPV4="$ssh_ipv4" php -r '
+        exit(filter_var((string)getenv("SSH_IPV4"),FILTER_VALIDATE_IP,FILTER_FLAG_IPV4)!==false?0:1);
+    ' || fail 'YC_GIS_SSH_CIDR contains an invalid IPv4 address.'
+    ! is_null_json "$vm_json" && ! is_null_json "$security_group_json" \
+        || fail 'The exact managed builder VM and security group must already exist before opening SSH.'
+    vm_status="$(VM="$vm_json" php -r '$v=json_decode((string)getenv("VM"),true,flags:JSON_THROW_ON_ERROR);echo $v["status"]??"";')"
+    [[ "$vm_status" == 'RUNNING' ]] \
+        || fail 'The managed builder must already be RUNNING before opening SSH.'
+    security_group_id="$(SECURITY_GROUP="$security_group_json" php -r '$v=json_decode((string)getenv("SECURITY_GROUP"),true,flags:JSON_THROW_ON_ERROR);echo $v["id"]??"";')"
+    [[ "$security_group_id" =~ ^[a-z0-9]{20}$ ]] || fail 'Managed security-group ID is invalid.'
+    update_security_group_rules "$security_group_id" "$YC_GIS_SSH_CIDR"
+    log 'Managed SSH ingress is open only to the validated active runner /32.'
     exit 0
 fi
 

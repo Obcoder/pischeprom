@@ -237,6 +237,15 @@ shell text.
 Every `WARN` and `FAIL` is blocking. Only exit code `0` permits the next heavy
 step (`2` is WARN, `3` is FAIL).
 
+On the temporary Yandex builder the same sequence is wrapped by the static
+`pischeprom-gis-build.service`. The manual `yandex-gis-builder.yml` workflow
+uses `action=build-start` plus the exact `START_GIS_BUILD` confirmation to
+provision the audited commit and start that oneshot unit with `--no-block`.
+The download/build then runs entirely on the VM and survives the GitHub runner
+and SSH session ending. `action=build-status` reopens SSH only to that active
+runner's `/32`, downloads the sanitized `builder-pipeline.json`, and closes
+ingress again. Neither action exposes Valhalla or SSH publicly after the job.
+
 ```bash
 # 1. Read-only resource/toolchain inspection.
 infrastructure/logistics-gis/scripts/preflight.sh --mode full --json

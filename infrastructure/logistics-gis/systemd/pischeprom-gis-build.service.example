@@ -1,0 +1,31 @@
+[Unit]
+Description=Pischeprom supervised full-Russia GIS release build
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pischeprom-gis
+Group=pischeprom-gis
+EnvironmentFile=/etc/pischeprom-gis.env
+WorkingDirectory=/srv/pischeprom-gis
+ExecStart=@GIS_OPERATIONS_RELEASE@/scripts/run-builder-pipeline.sh
+UMask=0027
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=infinity
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/pischeprom-gis
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
+LockPersonality=true
+

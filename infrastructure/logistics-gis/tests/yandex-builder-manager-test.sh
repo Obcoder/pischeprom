@@ -73,6 +73,9 @@ case "$1 $2 $3" in
         printf '{"id":"%s","folder_id":"%s","name":"pischeprom-gis-builder-sg","network_id":"%s","labels":{"managed-by":"pischeprom-gis","lifecycle":"ephemeral"},"rules":[{"description":"builder-egress","direction":"EGRESS","protocol_name":"ANY","protocol_number":"-1","ports":{"to_port":"65535"},"cidr_blocks":{"v4_cidr_blocks":["0.0.0.0/0"]}}%s]}\n' \
             "$security_group" "$folder" "$network" "$extra_rule"
         ;;
+    'vpc security-group update')
+        printf '{}\n'
+        ;;
     *)
         printf 'Unexpected fake yc invocation: %s\n' "$*" >&2
         exit 64
@@ -96,6 +99,13 @@ grep -F 'Plan completed without mutating cloud state.' "${work_dir}/absent.log" 
 
 TEST_SCENARIO=complete env "${common_env[@]}" "$manager" > "${work_dir}/complete.log"
 grep -F 'status=RUNNING' "${work_dir}/complete.log" >/dev/null
+
+TEST_SCENARIO=complete env "${common_env[@]}" \
+    YC_GIS_COMPUTE_ACTION=open-ssh \
+    YC_GIS_COMPUTE_CONFIRMATION=OPEN_GIS_BUILDER_SSH \
+    YC_GIS_SSH_CIDR=203.0.113.7/32 \
+    "$manager" > "${work_dir}/open-ssh.log"
+grep -F 'active runner /32' "${work_dir}/open-ssh.log" >/dev/null
 
 if TEST_SCENARIO=unexpected-rule env "${common_env[@]}" "$manager" > /dev/null 2>&1; then
     printf 'Builder manager accepted an unexpected public firewall rule.\n' >&2

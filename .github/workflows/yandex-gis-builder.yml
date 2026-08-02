@@ -4,16 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Plan is read-only; apply creates/provisions; destroy removes the exact managed VM, disk and security group
+        description: Plan is read-only; apply provisions; build-start launches the detached build; build-status inspects it; destroy removes managed compute
         required: true
         default: plan
         type: choice
         options:
           - plan
           - apply
+          - build-start
+          - build-status
           - destroy
       confirmation:
-        description: For apply enter CREATE_GIS_BUILDER; for destroy enter DESTROY_GIS_BUILDER
+        description: CREATE_GIS_BUILDER for apply; START_GIS_BUILD for build-start; DESTROY_GIS_BUILDER for destroy
         required: false
         type: string
 
@@ -218,7 +220,7 @@ jobs:
             plan|destroy)
               "$manager"
               ;;
-            apply)
+            apply|build-start|build-status)
               [[ -n "$BUILDER_PRIVATE_KEY" ]] || {
                 echo '::error::Production secret YC_GIS_BUILDER_SSH_PRIVATE_KEY is missing.'
                 exit 1
@@ -255,6 +257,28 @@ jobs:
               export YC_GIS_SSH_PUBLIC_KEY_FILE="$public_key"
               close_ssh=true
 
+              case "$REQUESTED_ACTION" in
+                apply)
+                  [[ "$REQUESTED_CONFIRMATION" == 'CREATE_GIS_BUILDER' ]] || {
+                    echo '::error::Apply requires exact confirmation CREATE_GIS_BUILDER.'
+                    exit 1
+                  }
+                  export YC_GIS_COMPUTE_ACTION=apply
+                  export YC_GIS_COMPUTE_CONFIRMATION=CREATE_GIS_BUILDER
+                  ;;
+                build-start)
+                  [[ "$REQUESTED_CONFIRMATION" == 'START_GIS_BUILD' ]] || {
+                    echo '::error::Build start requires exact confirmation START_GIS_BUILD.'
+                    exit 1
+                  }
+                  export YC_GIS_COMPUTE_ACTION=apply
+                  export YC_GIS_COMPUTE_CONFIRMATION=CREATE_GIS_BUILDER
+                  ;;
+                build-status)
+                  export YC_GIS_COMPUTE_ACTION=open-ssh
+                  export YC_GIS_COMPUTE_CONFIRMATION=OPEN_GIS_BUILDER_SSH
+                  ;;
+              esac
               "$manager"
               YC_GIS_COMPUTE_ACTION=plan "$manager"
 
@@ -335,45 +359,80 @@ jobs:
               )
               ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" true
 
-              source_archive="${work_dir}/pischeprom-gis-${GITHUB_SHA}.tar.gz"
-              git archive \
-                --format=tar.gz \
-                --prefix=pischeprom-gis-source/ \
-                --output="$source_archive" \
-                "$GITHUB_SHA" \
-                infrastructure/logistics-gis
-              [[ -s "$source_archive" ]] || {
-                echo '::error::Audited GIS source archive is empty.'
-                exit 1
-              }
-              remote_archive="/tmp/pischeprom-gis-${GITHUB_SHA}.tar.gz"
-              scp "${ssh_options[@]}" "$source_archive" "yc-user@${public_ipv4}:${remote_archive}"
+              if [[ "$REQUESTED_ACTION" != 'build-status' ]]; then
+                source_archive="${work_dir}/pischeprom-gis-${GITHUB_SHA}.tar.gz"
+                git archive \
+                  --format=tar.gz \
+                  --prefix=pischeprom-gis-source/ \
+                  --output="$source_archive" \
+                  "$GITHUB_SHA" \
+                  infrastructure/logistics-gis
+                [[ -s "$source_archive" ]] || {
+                  echo '::error::Audited GIS source archive is empty.'
+                  exit 1
+                }
+                remote_archive="/tmp/pischeprom-gis-${GITHUB_SHA}.tar.gz"
+                scp "${ssh_options[@]}" "$source_archive" "yc-user@${public_ipv4}:${remote_archive}"
 
-              remote_command="$(printf '%s' \
-                'set -Eeuo pipefail; ' \
-                'provision_root=$(mktemp -d /tmp/pischeprom-gis-provision.XXXXXXXX); ' \
-                "archive='${remote_archive}'; " \
-                'cleanup(){ rm -rf -- "$provision_root" "$archive"; }; trap cleanup EXIT; ' \
-                'tar --no-same-owner -xzf "$archive" -C "$provision_root"; ' \
-                "sudo env GIS_PROVISION_SOURCE_DIR=\"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis\" GIS_PROVISION_SOURCE_COMMIT='${GITHUB_SHA}' YC_MAP_BUCKET='${YC_MAP_BUCKET}' YC_GIS_PRIVATE_BUCKET='${YC_GIS_PRIVATE_BUCKET}' LOGISTICS_APP_ORIGIN='${LOGISTICS_APP_ORIGIN}' \"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis/scripts/provision-yandex-builder.sh\"")"
-              ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" "$remote_command"
+                remote_command="$(printf '%s' \
+                  'set -Eeuo pipefail; ' \
+                  'provision_root=$(mktemp -d /tmp/pischeprom-gis-provision.XXXXXXXX); ' \
+                  "archive='${remote_archive}'; " \
+                  'cleanup(){ rm -rf -- "$provision_root" "$archive"; }; trap cleanup EXIT; ' \
+                  'tar --no-same-owner -xzf "$archive" -C "$provision_root"; ' \
+                  "sudo env GIS_PROVISION_SOURCE_DIR=\"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis\" GIS_PROVISION_SOURCE_COMMIT='${GITHUB_SHA}' YC_MAP_BUCKET='${YC_MAP_BUCKET}' YC_GIS_PRIVATE_BUCKET='${YC_GIS_PRIVATE_BUCKET}' LOGISTICS_APP_ORIGIN='${LOGISTICS_APP_ORIGIN}' \"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis/scripts/provision-yandex-builder.sh\"")"
+                ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" "$remote_command"
 
-              preflight_artifact="${RUNNER_TEMP}/yandex-gis-builder-preflight.json"
-              ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
-                "sudo -u pischeprom-gis php -r 'readfile(\"/srv/pischeprom-gis/state/last-preflight.json\");'" \
-                > "$preflight_artifact"
-              php -r '
-                $v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);
-                exit(($v["result"]??null)==="PASS"&&($v["exit_code"]??null)===0?0:1);
-              ' "$preflight_artifact" || {
-                echo '::error::Downloaded target-host preflight evidence is not PASS.'
-                exit 1
-              }
+                preflight_artifact="${RUNNER_TEMP}/yandex-gis-builder-preflight.json"
+                ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  "sudo -u pischeprom-gis php -r 'readfile(\"/srv/pischeprom-gis/state/last-preflight.json\");'" \
+                  > "$preflight_artifact"
+                php -r '
+                  $v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);
+                  exit(($v["result"]??null)==="PASS"&&($v["exit_code"]??null)===0?0:1);
+                ' "$preflight_artifact" || {
+                  echo '::error::Downloaded target-host preflight evidence is not PASS.'
+                  exit 1
+                }
+              fi
+
+              if [[ "$REQUESTED_ACTION" == 'build-start' ]]; then
+                ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  'set -Eeuo pipefail; if sudo systemctl is-active --quiet pischeprom-gis-build.service; then echo "The supervised GIS build is already active." >&2; exit 1; fi; state=/srv/pischeprom-gis/state/builder-pipeline.json; if sudo test -e "$state"; then sudo test -f "$state" && sudo test ! -L "$state"; fi; sudo rm -f -- "$state"; sudo systemctl reset-failed pischeprom-gis-build.service >/dev/null 2>&1 || true; sudo systemctl start --no-block pischeprom-gis-build.service'
+              fi
+
+              if [[ "$REQUESTED_ACTION" == 'build-start' || "$REQUESTED_ACTION" == 'build-status' ]]; then
+                pipeline_artifact="${RUNNER_TEMP}/yandex-gis-builder-pipeline.json"
+                for attempt in $(seq 1 20); do
+                  ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                    "sudo -u pischeprom-gis php -r '\$path=\"/srv/pischeprom-gis/state/builder-pipeline.json\";if(is_file(\$path)&&!is_link(\$path))readfile(\$path);'" \
+                    > "$pipeline_artifact"
+                  [[ -s "$pipeline_artifact" ]] && break
+                  sleep 1
+                done
+                php -r '
+                  $v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);
+                  $valid=in_array($v["status"]??null,["running","completed","failed","interrupted"],true)
+                    &&is_string($v["stage"]??null)
+                    &&isset($v["updated_at"])
+                    &&is_int($v["exit_code"]??null);
+                  if(!$valid)exit(1);
+                  echo "Builder pipeline: status=",$v["status"],", stage=",$v["stage"],", release=",($v["release"]??"pending"),PHP_EOL;
+                  exit(in_array($v["status"],["failed","interrupted"],true)?1:0);
+                ' "$pipeline_artifact" || {
+                  echo '::error::Builder pipeline state is missing, malformed or failed.'
+                  exit 1
+                }
+              fi
 
               YC_GIS_COMPUTE_ACTION=close-ssh "$manager"
               close_ssh=false
               YC_GIS_COMPUTE_ACTION=plan "$manager"
-              echo 'Temporary GIS builder is provisioned; public SSH ingress is closed.'
+              case "$REQUESTED_ACTION" in
+                apply) echo 'Temporary GIS builder is provisioned; public SSH ingress is closed.' ;;
+                build-start) echo 'Detached full-Russia build was started; public SSH ingress is closed.' ;;
+                build-status) echo 'Builder pipeline status was inspected; public SSH ingress is closed.' ;;
+              esac
               ;;
             *)
               echo "::error::Unsupported action ${REQUESTED_ACTION}."
@@ -385,11 +444,20 @@ jobs:
           rm -rf -- "$work_dir"
 
       - name: Upload sanitized target-host preflight evidence
-        if: ${{ always() && inputs.action == 'apply' }}
+        if: ${{ always() && (inputs.action == 'apply' || inputs.action == 'build-start') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: yandex-gis-builder-preflight-${{ github.sha }}
           path: ${{ runner.temp }}/yandex-gis-builder-preflight.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload sanitized builder pipeline state
+        if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status') }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yandex-gis-builder-pipeline-${{ github.sha }}
+          path: ${{ runner.temp }}/yandex-gis-builder-pipeline.json
           if-no-files-found: ignore
           retention-days: 14
 

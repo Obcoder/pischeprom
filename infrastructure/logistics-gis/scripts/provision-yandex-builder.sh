@@ -17,7 +17,7 @@ log() {
     || fail 'Yandex builder provisioning supports Linux x86_64 only.'
 [[ "$EUID" -eq 0 ]] || fail 'Yandex builder provisioning must run as root.'
 
-for command_name in apt-get awk bash chmod chown cmp cp find getent install ln mktemp mv readlink rm sha256sum sort sudo systemctl uname useradd xargs; do
+for command_name in apt-get awk bash chmod chown cmp cp find getent grep install ln mktemp mv readlink rm sed sha256sum sort sudo systemctl uname useradd xargs; do
     command -v "$command_name" >/dev/null 2>&1 \
         || fail "Required builder provisioning command is unavailable: ${command_name}"
 done
@@ -42,7 +42,9 @@ source_dir="$(readlink -f -- "$source_dir")"
 [[ -x "$source_dir/scripts/install-gis-toolchain.sh" \
     && -x "$source_dir/scripts/install-map-assets.sh" \
     && -x "$source_dir/scripts/preflight.sh" \
-    && -f "$source_dir/systemd/pischeprom-valhalla.service.example" ]] \
+    && -x "$source_dir/scripts/run-builder-pipeline.sh" \
+    && -f "$source_dir/systemd/pischeprom-valhalla.service.example" \
+    && -f "$source_dir/systemd/pischeprom-gis-build.service.example" ]] \
     || fail 'The audited GIS source bundle is incomplete.'
 [[ -z "$(find "$source_dir" -type l -print -quit)" ]] \
     || fail 'The audited GIS source bundle must not contain symlinks.'
@@ -211,6 +213,17 @@ rm -f -- "$environment_stage"
 install -m 0644 -o root -g root -- \
     "$operations_release/systemd/pischeprom-valhalla.service.example" \
     /etc/systemd/system/pischeprom-valhalla.service
+build_unit_stage="$(mktemp /etc/systemd/system/.pischeprom-gis-build.service.XXXXXXXX)"
+trap 'rm -f -- "$source_manifest" "$existing_manifest" "$build_unit_stage"; if [[ -n "${release_stage:-}" && -d "$release_stage" && ! -L "$release_stage" ]]; then rm -r -- "$release_stage"; fi' EXIT
+sed "s|@GIS_OPERATIONS_RELEASE@|${operations_release}|g" \
+    "$operations_release/systemd/pischeprom-gis-build.service.example" \
+    > "$build_unit_stage"
+[[ "$(grep -cF -- "$operations_release" "$build_unit_stage")" == '1' \
+    && "$(grep -cF -- '@GIS_OPERATIONS_RELEASE@' "$build_unit_stage")" == '0' ]] \
+    || fail 'Unable to render the commit-pinned GIS build systemd unit.'
+install -m 0644 -o root -g root -- \
+    "$build_unit_stage" /etc/systemd/system/pischeprom-gis-build.service
+rm -f -- "$build_unit_stage"
 systemctl daemon-reload
 
 preflight_output="$(mktemp)"
