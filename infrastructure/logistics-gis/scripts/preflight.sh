@@ -214,10 +214,17 @@ else
         gis_assert_inside_base "$current_pbf" >/dev/null
         [[ -f "$current_pbf" ]] || failures+=('Выбранный для preflight PBF не является обычным файлом.')
     elif [[ -d "$GIS_SOURCE_DIR" ]]; then
-        current_pbf="$(find "$GIS_SOURCE_DIR" -maxdepth 1 -type f -name 'russia-[0-9]*.osm.pbf' -print 2>/dev/null | sort | tail -n1)"
+        current_pbf="$(
+            find "$GIS_SOURCE_DIR" -maxdepth 1 -type f -name 'russia-[0-9]*.osm.pbf' -print 2>/dev/null \
+                | sort \
+                | tail -n1 \
+                || true
+        )"
     fi
     current_pbf_size=0
-    [[ -n "$current_pbf" ]] && current_pbf_size="$(gis_file_size "$current_pbf")"
+    if [[ -n "$current_pbf" ]]; then
+        current_pbf_size="$(gis_file_size "$current_pbf")"
+    fi
     active_graph_size="$(gis_directory_size "${GIS_BASE_DIR}/current/valhalla")"
     previous_graph_size="$(gis_directory_size "${GIS_BASE_DIR}/previous/valhalla")"
     active_pmtiles_size="$(gis_file_size "${GIS_BASE_DIR}/current/map/russia.pmtiles")"
