@@ -175,10 +175,21 @@ install_versioned_file \
     "$valhalla_extract_sha256" \
     0555
 
+build_config_module="$(
+    "${valhalla_root}/bin/python3" -c '
+import pathlib
+import valhalla
+print(pathlib.Path(valhalla.__file__).resolve().with_name("valhalla_build_config.py"))
+'
+)"
+[[ "$build_config_module" == "${valhalla_root}/"* \
+    && -f "$build_config_module" \
+    && ! -L "$build_config_module" ]] \
+    || fail 'Pinned pyvalhalla package is missing its configuration builder.'
 build_config_wrapper="${work_root}/valhalla_build_config"
 printf '%s\n' \
     '#!/usr/bin/env bash' \
-    "exec '${valhalla_root}/bin/python3' -m valhalla.valhalla_build_config \"\$@\"" \
+    "exec '${valhalla_root}/bin/python3' '${build_config_module}' \"\$@\"" \
     > "$build_config_wrapper"
 build_config_sha="$(sha256sum -- "$build_config_wrapper" | awk '{print $1}')"
 install_versioned_file \

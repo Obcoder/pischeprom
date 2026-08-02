@@ -219,21 +219,24 @@ jobs:
           echo 'Sanitized compute inventory:'
           jq -r '
             (.networks // [])[]
-            | "network id=\(.id) name=\(.name) default_security_group=\(.defaultSecurityGroupId // "none")"
+            | "network id=" + .id + " name=" + .name
+              + " default_security_group=" + (.defaultSecurityGroupId // "none")
           ' "$work_dir/networks.json"
           if [[ "$(jq '(.networks // []) | length' "$work_dir/networks.json")" == '0' ]]; then
             echo 'network none'
           fi
           jq -r '
             (.subnets // [])[]
-            | "subnet id=\(.id) name=\(.name) network=\(.networkId) zone=\(.zoneId) cidr=\((.v4CidrBlocks // []) | join(\",\"))"
+            | "subnet id=" + .id + " name=" + .name + " network=" + .networkId
+              + " zone=" + .zoneId + " cidr=" + ((.v4CidrBlocks // []) | join(","))
           ' "$work_dir/subnets.json"
           if [[ "$(jq '(.subnets // []) | length' "$work_dir/subnets.json")" == '0' ]]; then
             echo 'subnet none'
           fi
           jq -r '
             (.securityGroups // [])[]
-            | "security_group id=\(.id) name=\(.name) network=\(.networkId) status=\(.status) default=\(.defaultForNetwork // false)"
+            | "security_group id=" + .id + " name=" + .name + " network=" + .networkId
+              + " status=" + .status + " default=" + ((.defaultForNetwork // false) | tostring)
           ' "$work_dir/security-groups.json"
           if [[ "$(jq '(.securityGroups // []) | length' "$work_dir/security-groups.json")" == '0' ]]; then
             echo 'security_group none'
@@ -241,11 +244,12 @@ jobs:
           jq -er '
             (.zones // [])[]
             | select(.status == "UP")
-            | "zone id=\(.id) region=\(.regionId) status=\(.status)"
+            | "zone id=" + .id + " region=" + .regionId + " status=" + .status
           ' "$work_dir/zones.json"
           jq -er '
             select(.status == "READY" and .family == "ubuntu-2404-lts")
-            | "image id=\(.id) name=\(.name) family=\(.family) min_disk_bytes=\(.minDiskSize) status=\(.status)"
+            | "image id=" + .id + " name=" + .name + " family=" + .family
+              + " min_disk_bytes=" + (.minDiskSize | tostring) + " status=" + .status
           ' "$work_dir/ubuntu-image.json"
 
           echo 'Yandex Cloud OIDC preflight passed without mutating cloud state.'
