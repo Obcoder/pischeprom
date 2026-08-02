@@ -29,7 +29,9 @@ last_modified="$(printf '%s\n' "$headers" | awk '{line=tolower($0)} line ~ /^las
 [[ -n "$last_modified" ]] || gis_fail 'Geofabrik did not provide Last-Modified for the extract.'
 [[ "$resolved_source_url" =~ ^https://download\.geofabrik\.de/russia-[0-9]{6}\.osm\.pbf$ ]] \
     || gis_fail 'Latest Russia extract did not resolve to an immutable Geofabrik PBF URL.'
-resolved_checksum_url="${resolved_source_url}.md5"
+resolved_checksum_url="$GIS_PBF_MD5_URL"
+[[ "$resolved_checksum_url" == 'https://download.geofabrik.de/russia-latest.osm.pbf.md5' ]] \
+    || gis_fail 'The Geofabrik checksum alias URL is not the approved Russia endpoint.'
 osm_data_timestamp="$(curl --fail --silent --show-error --location --max-time 30 "$GIS_PBF_INDEX_URL" | php -r '$html=stream_get_contents(STDIN);if(preg_match("/russia-latest\\.osm\\.pbf.*?contains\\s+all\\s+OSM\\s+data\\s+up\\s+to\\s+([0-9T:+-]+Z)/si",$html,$m))echo $m[1];')"
 [[ "$osm_data_timestamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] \
     || gis_fail 'Unable to determine the OSM data timestamp from the official Geofabrik index.'
@@ -54,6 +56,21 @@ done
 curl --fail --silent --show-error --location --max-time 60 "$resolved_checksum_url" --output "$checksum_part"
 expected_md5="$(awk 'NR==1 {print tolower($1)}' "$checksum_part")"
 [[ "$expected_md5" =~ ^[0-9a-f]{32}$ ]] || gis_fail 'Published Geofabrik MD5 is invalid.'
+
+# Geofabrik publishes the checksum under the `latest` alias while the data
+# request resolves to a dated immutable object. Re-resolve that alias after
+# reading the checksum so a midnight rollover can never pair two snapshots.
+verification_probe="$(curl --fail --silent --show-error --location --max-time 60 --range 0-0 --dump-header - --output /dev/null --write-out $'\nGIS_EFFECTIVE_URL=%{url_effective}\n' "$GIS_PBF_URL")"
+verification_url="$(printf '%s\n' "$verification_probe" | awk -F= '/^GIS_EFFECTIVE_URL=/{value=substr($0,index($0,"=")+1)} END{print value}')"
+verification_headers="$(printf '%s\n' "$verification_probe" | sed '/^GIS_EFFECTIVE_URL=/d')"
+verification_size="$(printf '%s\n' "$verification_headers" | awk '
+    {line=tolower($0)}
+    line ~ /^content-range:/ {sub(/\r$/, ""); split($0, parts, "/"); value=parts[length(parts)]}
+    line ~ /^content-length:/ && value == "" {sub(/\r$/, ""); value=$2}
+    END {gsub(/[^0-9]/, "", value); if (value == "") print 0; else print value}
+')"
+[[ "$verification_url" == "$resolved_source_url" && "$verification_size" == "$remote_size" ]] \
+    || gis_fail 'Geofabrik latest alias changed while binding the checksum; retry the supervised download.'
 
 if [[ -s "$pbf" && -s "$manifest" ]]; then
     existing_size="$(gis_file_size "$pbf")"
