@@ -403,6 +403,8 @@ jobs:
 
               if [[ "$REQUESTED_ACTION" == 'build-start' || "$REQUESTED_ACTION" == 'build-status' ]]; then
                 pipeline_artifact="${RUNNER_TEMP}/yandex-gis-builder-pipeline.json"
+                pipeline_journal_artifact="${RUNNER_TEMP}/yandex-gis-builder-pipeline-journal.log"
+                pipeline_failed=false
                 for attempt in $(seq 1 20); do
                   ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
                     "sudo -u pischeprom-gis php -r '\$path=\"/srv/pischeprom-gis/state/builder-pipeline.json\";if(is_file(\$path)&&!is_link(\$path))readfile(\$path);'" \
@@ -418,9 +420,19 @@ jobs:
                     &&is_int($v["exit_code"]??null);
                   if(!$valid)exit(1);
                   echo "Builder pipeline: status=",$v["status"],", stage=",$v["stage"],", release=",($v["release"]??"pending"),PHP_EOL;
-                  exit(in_array($v["status"],["failed","interrupted"],true)?1:0);
                 ' "$pipeline_artifact" || {
-                  echo '::error::Builder pipeline state is missing, malformed or failed.'
+                  echo '::error::Builder pipeline state is missing or malformed.'
+                  exit 1
+                }
+                pipeline_status="$(php -r '$v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);echo $v["status"]??"";' "$pipeline_artifact")"
+                if [[ "$pipeline_status" == 'failed' || "$pipeline_status" == 'interrupted' ]]; then
+                  pipeline_failed=true
+                fi
+                ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  'sudo journalctl --unit=pischeprom-gis-build.service --no-pager --no-hostname --output=short-iso-precise --lines=200' \
+                  > "$pipeline_journal_artifact"
+                [[ -s "$pipeline_journal_artifact" && "$(wc -c < "$pipeline_journal_artifact")" -le 2097152 ]] || {
+                  echo '::error::Builder pipeline journal is missing or unexpectedly large.'
                   exit 1
                 }
               fi
@@ -433,6 +445,10 @@ jobs:
                 build-start) echo 'Detached full-Russia build was started; public SSH ingress is closed.' ;;
                 build-status) echo 'Builder pipeline status was inspected; public SSH ingress is closed.' ;;
               esac
+              if [[ "${pipeline_failed:-false}" == 'true' ]]; then
+                echo '::error::The detached builder pipeline reported a failed or interrupted state; inspect its sanitized journal artifact.'
+                exit 1
+              fi
               ;;
             *)
               echo "::error::Unsupported action ${REQUESTED_ACTION}."
@@ -460,6 +476,15 @@ jobs:
           path: ${{ runner.temp }}/yandex-gis-builder-pipeline.json
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Upload bounded builder pipeline journal
+        if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status') }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yandex-gis-builder-journal-${{ github.sha }}
+          path: ${{ runner.temp }}/yandex-gis-builder-pipeline-journal.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Remove short-lived credentials
         if: ${{ always() }}

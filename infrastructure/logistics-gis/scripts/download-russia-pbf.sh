@@ -2,6 +2,7 @@
 
 set -Eeuo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+trap 'download_status=$?; trap - ERR; printf "[logistics-gis] ERROR: PBF download aborted unexpectedly at line %s (exit %s).\n" "$LINENO" "$download_status" >&2; exit "$download_status"' ERR
 
 "${GIS_SCRIPT_DIR}/preflight.sh" --mode download
 for directory in "$GIS_SOURCE_DIR" "$GIS_LOCK_DIR" "$GIS_LOG_DIR"; do
