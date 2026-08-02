@@ -17,7 +17,7 @@ log() {
     || fail 'Yandex builder provisioning supports Linux x86_64 only.'
 [[ "$EUID" -eq 0 ]] || fail 'Yandex builder provisioning must run as root.'
 
-for command_name in apt-get awk bash chmod chown cmp cp find getent install ln mktemp mv php readlink rm sha256sum sort sudo systemctl uname useradd xargs; do
+for command_name in apt-get awk bash chmod chown cmp cp find getent install ln mktemp mv readlink rm sha256sum sort sudo systemctl uname useradd xargs; do
     command -v "$command_name" >/dev/null 2>&1 \
         || fail "Required builder provisioning command is unavailable: ${command_name}"
 done
@@ -60,6 +60,11 @@ apt-get install --yes --no-install-recommends \
     spatialite-bin \
     time \
     unzip
+
+for command_name in curl git java jq php python3 spatialite spatialite_tool unzip; do
+    command -v "$command_name" >/dev/null 2>&1 \
+        || fail "Installed builder prerequisite is unavailable: ${command_name}"
+done
 
 service_user='pischeprom-gis'
 service_group='pischeprom-gis'
