@@ -14,9 +14,6 @@ defineOptions({
 
 import CommoditiesPage from '@/Components/Dictionaries/Commodities/CommoditiesPage.vue';
 import Categories from '@/Components/Dictionaries/Categories.vue';
-import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue';
-import CountriesPage from '@/Components/Geography/Countries/CountriesPage.vue';
-import RegionsPage from '@/Components/Geography/Regions/RegionsPage.vue';
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Fields from "@/Components/Dictionaries/Fields.vue";
@@ -41,11 +38,10 @@ const date = useDate()
 
 const GROSSBUCH_TAB_KEY = 'ameise:grossbuch:tab'
 const GROSSBUCH_CONTACTS_TAB_KEY = 'ameise:grossbuch:contacts-tab'
-const GROSSBUCH_GEOGRAPHY_TAB_KEY = 'ameise:grossbuch:geography-tab'
 const GROSSBUCH_PRODUCTS_TAB_KEY = 'ameise:grossbuch:products-tab'
 const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
 const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
-const allowedTabs = ['units', 'contacts', 'products', 'segments', 'geography', 'purchases', 'sales']
+const allowedTabs = ['units', 'contacts', 'products', 'segments', 'purchases', 'sales']
 const allowedContactTabs = ['telephones', 'uris', 'emails']
 const allowedProductTabs = ['categories', 'categories_products', 'goods', 'components', 'commodities', 'services']
 
@@ -74,7 +70,6 @@ function rememberTab(key, value) {
 function loadStoredTabs() {
     tab.value = storedTab(GROSSBUCH_TAB_KEY, 'units', allowedTabs)
     tabsContacts.value = storedTab(GROSSBUCH_CONTACTS_TAB_KEY, 'telephones', allowedContactTabs)
-    tabsGeography.value = storedTab(GROSSBUCH_GEOGRAPHY_TAB_KEY, 'cities')
     tabsProducts.value = storedTab(GROSSBUCH_PRODUCTS_TAB_KEY, 'categories', allowedProductTabs)
     tabsSegments.value = storedTab(GROSSBUCH_SEGMENTS_TAB_KEY, 'industries')
     tabsUnits.value = storedTab(GROSSBUCH_UNITS_TAB_KEY, 'units_sub')
@@ -82,17 +77,14 @@ function loadStoredTabs() {
 
 const tab = ref('units')
 const tabsContacts = ref('telephones')
-const tabsGeography = ref('cities')
 const tabsProducts = ref('categories')
 const tabsSegments = ref('industries')
 const tabsUnits = ref('units_sub')
 
 const brands = ref([])
-const buildings = ref([])
 const catalogs = ref([])
 const categories = ref([])
 const checks = ref([])
-const cities = ref([])
 const commodities = ref([])
 const components = ref([])
 const emails = ref([])
@@ -111,7 +103,6 @@ let manufacturers = ref();
 
 let searchComponents = ref('');
 
-const dialogFormBuilding = ref(false)
 const dialogFormCheck = ref(false)
 
 const selectedCategoriesIDs = ref([])
@@ -163,69 +154,6 @@ const filteredBrands = computed(() => {
         item.name.toLowerCase().includes(searchRequest)
     )
 })
-
-
-
-//   B U I L D I N G S
-function indexBuildings(){
-    axios.get(route('buildings.index')).then(function (response){
-        buildings.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
-}
-const searchBuildings = ref('')
-const filteredBuildings = computed(()=>{
-    const search = searchBuildings.value.toLowerCase();
-    return buildings.value.filter(i => i.address.toLowerCase().includes(search))
-})
-const headerBuildings = ref([
-    {
-        title: 'Карта',
-        key: 'city.yandexmapsgeo',
-        align: 'center',
-    },
-    {
-        title: 'Город',
-        key: 'city.name',
-        align: 'start',
-    },
-    {
-        title: 'Адрес',
-        key: 'address',
-        align: 'start',
-    },
-    {
-        title: 'Индекс',
-        key: 'postcode',
-        align: 'start',
-    },
-    {
-        title: 'Units',
-        key: 'units',
-        align: 'start',
-    },
-])
-const formBuilding = useForm({
-    city_id: null,
-    address: null,
-    postcode: null,
-})
-function storeBuilding(){
-    formBuilding.post(route('web.building.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formBuilding.reset()
-            indexBuildings(searchBuildings.value)
-        },
-        onError: (errors) => {
-            console.error('Form errors:', errors); // Log validation or server errors
-        },
-    })
-}
-// E N D  B U I L D I N G S
 
 
 
@@ -520,7 +448,6 @@ async function sendMail() {
 onMounted(()=>{
     loadStoredTabs()
     indexBrands()
-    indexBuildings()
     indexCatalogs()
     indexCategories()
     indexChecks()
@@ -538,7 +465,6 @@ onMounted(()=>{
 
 watch(tab, (value) => rememberTab(GROSSBUCH_TAB_KEY, value))
 watch(tabsContacts, (value) => rememberTab(GROSSBUCH_CONTACTS_TAB_KEY, value))
-watch(tabsGeography, (value) => rememberTab(GROSSBUCH_GEOGRAPHY_TAB_KEY, value))
 watch(tabsProducts, (value) => rememberTab(GROSSBUCH_PRODUCTS_TAB_KEY, value))
 watch(tabsSegments, (value) => rememberTab(GROSSBUCH_SEGMENTS_TAB_KEY, value))
 watch(tabsUnits, (value) => rememberTab(GROSSBUCH_UNITS_TAB_KEY, value))
@@ -569,11 +495,6 @@ const style = `
   }
 `;
 
-// Функция для корректного отображения "Город - Адрес"
-const formatBuildingTitle = (building) => {
-    if (!building) return '';
-    return `${building.city?.name || ' - '} , ${building.address}`;
-};
 </script>
 
 <template>
@@ -587,7 +508,6 @@ const formatBuildingTitle = (building) => {
                             <v-tab value="contacts">Контакты</v-tab>
                             <v-tab value="products">Products</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
-                            <v-tab value="geography">География</v-tab>
                             <v-tab value="purchases">Закупки</v-tab>
                             <v-tab value="sales">Продажи</v-tab>
                         </v-tabs>
@@ -718,135 +638,6 @@ const formatBuildingTitle = (building) => {
                                     <GrossbuchSales />
                                 </v-tabs-window-item>
                                 <!--      E N D  S A L E S      -->
-
-
-
-
-
-
-
-                                <!--           G E O G R A P H Y           -->
-                                <v-tabs-window-item value="geography">
-                                    <v-tabs v-model="tabsGeography">
-                                        <v-tab value="cities">Cities</v-tab>
-                                        <v-tab value="buildings">Buildings</v-tab>
-                                        <v-tab value="regions">Regions</v-tab>
-                                        <v-tab value="countries">Countries</v-tab>
-                                    </v-tabs>
-                                    <v-tabs-window v-model="tabsGeography">
-
-                                        <v-tabs-window-item value="cities">
-                                            <CitiesPage />
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="buildings">
-                                            <v-row>
-                                                <v-col cols="1">
-                                                    <div class="flex flex-row justify-center font-sans text-sm">{{ filteredBuildings.length }}</div>
-                                                </v-col>
-                                                <v-col lg="3">
-                                                    <v-text-field v-model="searchBuildings"
-                                                                  label="Искать по адресам"
-                                                                  variant="solo"
-                                                                  density="compact"
-                                                                  hide-details
-                                                    ></v-text-field>
-                                                </v-col>
-                                                <v-col cols="1">
-                                                    <v-btn text="+ 🛣️"
-                                                           @click="dialogFormBuilding = !dialogFormBuilding"
-                                                           variant="tonal"
-                                                           density="compact"></v-btn>
-                                                    <v-dialog v-model="dialogFormBuilding"
-                                                              width="750"
-                                                    >
-                                                        <v-card>
-                                                            <v-card-title>Form Building</v-card-title>
-                                                            <v-card-text>
-                                                                <v-form @submit.prevent>
-                                                                    <v-row>
-                                                                        <v-col>
-                                                                            <v-text-field v-model="formBuilding.address"
-                                                                                          label="Адрес здания"
-                                                                                          variant="outlined"
-                                                                                          density="comfortable"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                    </v-row>
-                                                                    <v-row>
-                                                                        <v-col>
-                                                                            <v-autocomplete :items="cities"
-                                                                                            :item-value="'id'"
-                                                                                            :item-title="'name'"
-                                                                                            v-model="formBuilding.city_id"
-                                                                                            label="Населенный пункт"
-                                                                                            variant="solo"
-                                                                                            density="comfortable"
-                                                                            ></v-autocomplete>
-                                                                        </v-col>
-                                                                        <v-col>
-                                                                            <v-text-field v-model="formBuilding.postcode"
-                                                                                          label="Postcode"
-                                                                                          variant="solo"
-                                                                                          density="comfortable"
-                                                                                          color="grey"
-                                                                            ></v-text-field>
-                                                                        </v-col>
-                                                                    </v-row>
-                                                                </v-form>
-                                                            </v-card-text>
-                                                            <v-card-actions>
-                                                                <v-divider vertical
-                                                                           thickness="1"
-                                                                           opacity="1"
-                                                                ></v-divider>
-                                                                <v-btn text="store"
-                                                                       @click="storeBuilding"
-                                                                       variant="elevated"
-                                                                       density="compact"></v-btn>
-                                                            </v-card-actions>
-                                                        </v-card>
-                                                    </v-dialog>
-                                                </v-col>
-                                            </v-row>
-                                            <v-row>
-                                                <v-col>
-                                                    <v-data-table :items="filteredBuildings"
-                                                                  items-per-page="100"
-                                                                  :headers="headerBuildings"
-                                                                  fixed-header
-                                                                  height="900px"
-                                                                  density="compact"
-                                                                  hover>
-                                                        <template v-slot:item.city.yandexmapsgeo="{item}">
-                                                            <a :href="item.city.yandexmapsgeo" target="_blank"
-                                                               class="inline-flex items-center justify-center mr-1 bg-teal-500 text-white rounded-full text-[6px] font-bold w-3 h-3"
-                                                            >Y</a>
-                                                        </template>
-                                                        <template v-slot:item.postcode="{item}">
-                                                            <span class="font-Screpka text-xl">{{item.postcode}}</span>
-                                                        </template>
-                                                        <template v-slot:item.units="{item}">
-                                                            <div v-for="unit in item.units"
-                                                                 class="text-xs"
-                                                            >
-                                                                {{unit.name}}
-                                                            </div>
-                                                        </template>
-                                                    </v-data-table>
-                                                </v-col>
-                                            </v-row>
-                                        </v-tabs-window-item>
-                                        <v-tabs-window-item value="regions">
-                                            <RegionsPage />
-                                        </v-tabs-window-item>
-                                        <v-tabs-window-item value="countries">
-                                            <CountriesPage />
-                                        </v-tabs-window-item>
-                                    </v-tabs-window>
-                                </v-tabs-window-item>
-                                <!--      E N D  G E O G R A P H Y      -->
-
 
                                 <v-tabs-window-item value="purchases">
                                     <Purchases />

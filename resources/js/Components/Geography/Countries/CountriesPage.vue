@@ -311,7 +311,7 @@ onMounted(loadCountries)
         <section class="countries-admin">
             <div class="countries-admin__header">
                 <div>
-                    <div class="countries-admin__eyebrow">Geography / Countries</div>
+                    <div class="countries-admin__eyebrow">Логистика / Countries</div>
                     <h2>Страны</h2>
                 </div>
 

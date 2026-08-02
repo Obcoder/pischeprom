@@ -21,7 +21,6 @@ const grossbuchTabs = [
     { value: 'contacts', title: 'Контакты', subtitle: 'Телефоны / Uris / Emails / Письма' },
     { value: 'products', title: 'Products', subtitle: 'Categories / Products / Goods / Components' },
     { value: 'segments', title: 'Классификаторы', subtitle: 'Industries / Catalogs / Fields / Segments' },
-    { value: 'geography', title: 'География', subtitle: 'Cities / Buildings / Regions / Countries' },
     { value: 'purchases', title: 'Закупки', subtitle: 'Purchases' },
     { value: 'sales', title: 'Продажи', subtitle: 'Sales' },
 ]

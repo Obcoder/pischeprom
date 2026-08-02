@@ -191,13 +191,12 @@ onMounted(async () => {
         <v-row>
             <v-col>
                 <div class="mb-3">
-                    <button
-                        type="button"
+                    <Link
+                        :href="route('Ameise.logistics', { tab: 'cities' })"
                         class="text-teal-lighten-3 hover:text-white text-sm"
-                        @click="window.history.back()"
                     >
-                        ← Grossbuch / Geography / Cities
-                    </button>
+                        ← Логистика / Cities
+                    </Link>
                 </div>
 
                 <v-skeleton-loader

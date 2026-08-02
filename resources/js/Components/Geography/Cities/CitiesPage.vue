@@ -198,7 +198,7 @@ onMounted(async () => {
                                 Cities
                             </div>
                             <div class="text-caption text-teal-darken-1">
-                                География / города / население / Wikipedia
+                                Логистика / города / население / Wikipedia
                             </div>
                         </div>
 

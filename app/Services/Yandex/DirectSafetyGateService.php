@@ -86,7 +86,7 @@ class DirectSafetyGateService
 
         $regionIds = $this->regionResolver->regionIds();
         if (!filled($regionIds)) {
-            $message = 'Не заданы регионы показа: включите регионы в Geography / Regions или заполните YANDEX_DIRECT_DEFAULT_REGION_IDS / YANDEX_DIRECT_AUTO_REGION_IDS.';
+            $message = 'Не заданы регионы показа: включите регионы в Логистика / Regions или заполните YANDEX_DIRECT_DEFAULT_REGION_IDS / YANDEX_DIRECT_AUTO_REGION_IDS.';
             $dryRun ? $warnings[] = $message : $errors[] = $message;
         }
 
