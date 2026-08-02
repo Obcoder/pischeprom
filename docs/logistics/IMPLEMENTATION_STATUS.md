@@ -75,8 +75,18 @@
 - Реализованы возобновляемая immutable S3-публикация без overwrite, строгие
   CDN Range/206+CORS проверки, отдельные export/install application-state
   scripts, private/VPN bind для Valhalla и раздельная диагностика карты/routing.
-  Реальный bucket/CDN и отдельный GIS VPS ещё не созданы: для этого нужны
-  выбранный cloud account, DNS/TLS и credentials вне Git.
+- Настроена GitHub workload identity federation без статических ключей;
+  [OIDC preflight 30765038381](https://github.com/Obcoder/pischeprom/actions/runs/30765038381)
+  подтвердил доступ к Object Storage, Compute Cloud и VPC.
+- Созданы отдельные Yandex Object Storage бакеты: публичный read-only для карты
+  и приватный для GIS build-артефактов. Успешный
+  [storage apply 30765628840](https://github.com/Obcoder/pischeprom/actions/runs/30765628840)
+  подтвердил exact production CORS, immutable 64 KiB fixture, HTTPS HEAD 200,
+  Range 206 и запрет anonymous listing. Статические access keys, CDN, DNS,
+  Certificate Manager, VM и disks не создавались.
+- Карта остаётся `enabled=false`: fixture доказывает готовность транспортного
+  контура Object Storage, но не заменяет настоящий full-Russia PMTiles,
+  согласованный release manifest, application state и activation.
 
 ## Архитектурные решения аудита
 

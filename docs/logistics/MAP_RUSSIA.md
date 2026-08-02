@@ -290,6 +290,37 @@ build host либо расширение production с запасом сверх
 `russia-latest` меняются, поэтому новый preflight обязан получить их заново
 непосредственно перед продолжением.
 
+### Yandex Cloud Object Storage foundation
+
+`2026-08-02` настроена GitHub workload identity без статических ключей.
+Ручной GET-only [OIDC preflight run 30765038381](https://github.com/Obcoder/pischeprom/actions/runs/30765038381)
+успешно обменял GitHub OIDC на краткоживущий IAM token и подтвердил доступ к
+Object Storage, Compute Cloud и VPC.
+
+После отдельного безопасного
+[storage plan 30765458792](https://github.com/Obcoder/pischeprom/actions/runs/30765458792)
+созданы и повторно проверены идемпотентным
+[storage apply 30765628840](https://github.com/Obcoder/pischeprom/actions/runs/30765628840):
+
+- публичный read-only origin карты
+  `https://pischeprom-gis-map-8as88kt.storage.yandexcloud.net`, с лимитом
+  размера бакета 50 GiB;
+- полностью приватный бакет GIS build-артефактов с лимитом 100 GiB;
+- anonymous object listing и чтение конфигурации запрещены на обоих бакетах;
+- CORS разрешает только production application origin, методы `GET`/`HEAD` и
+  нужные карте Range/cache headers;
+- deterministic 64 KiB fixture доступен по HTTPS с immutable cache policy;
+  HEAD вернул `200`, `Range: bytes=0-15` — `206` и корректный
+  `Content-Range: bytes 0-15/65536`;
+- независимая локальная проверка повторила `200/206`, точный CORS и `403` для
+  anonymous listing обоих бакетов.
+
+50/100 GiB — верхние safety limits, а не заранее выделенное или оплаченное
+место. В бакете карты пока находится только 64 KiB fixture, настоящего
+`russia.pmtiles` нет. CDN, Certificate Manager и DNS для первого эксперимента
+намеренно не создавались: используется отдельный HTTPS hostname Object Storage.
+Compute VM и диски этим этапом не создавались.
+
 ## Проверки реализации
 
 - релевантный backend suite: `42 tests`, `341 assertions`, `1 skipped`;
@@ -400,13 +431,16 @@ smoke выполнены. Из-за документированного `FAIL` 
 - скачивание 4.13 GB PBF;
 - native install/provisioning Valhalla, Java, Planetiler, PMTiles/assets;
 - создание отдельного GIS compute VPS, private/VPN-сети и firewall allowlist;
-- создание Object Storage bucket/CDN/TLS/DNS, CORS и billing alerts;
 - staging graph и PMTiles build, их duration/peak RSS/paths/sizes;
 - публикация immutable map release и перенос application-state bundle;
 - staging/production routing smoke;
-- Nginx HEAD/Range 206 на production;
+- HEAD/Range 206 настоящего `russia.pmtiles` (storage fixture уже прошёл);
 - переключение current/previous и rollback drill;
 - browser screenshots и регрессия посторонних production-страниц.
+
+Отдельно ещё не настроены billing budget alerts. CDN/TLS/DNS не являются
+блокером первого релиза через прямой bucket-specific HTTPS origin и могут быть
+добавлены позднее без изменения структуры immutable object keys.
 
 Старый рабочий release не затрагивался и не удалялся. До PASS и успешных smoke
 карта остаётся с `LOGISTICS_MAP_ENABLED=false`: прикладные точки могут работать
