@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/routing.yml'
+      - '.github/workflows/yandex-cloud-preflight.yml'
       - 'infrastructure/logistics-gis/**'
       - 'app/Services/Logistics/Map/**'
       - 'config/logistics.php'

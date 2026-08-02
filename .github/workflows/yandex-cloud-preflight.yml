@@ -1,0 +1,180 @@
+name: Verify Yandex Cloud OIDC access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pischeprom-yandex-cloud-preflight
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preflight:
+    name: Exchange OIDC token and probe read access
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: production
+
+    steps:
+      - name: Validate non-secret cloud metadata
+        env:
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+        run: |
+          set -Eeuo pipefail
+
+          for required_name in \
+            YC_FOLDER_ID YC_OIDC_AUDIENCE YC_SERVICE_ACCOUNT_ID
+          do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "::error::Required production variable ${required_name} is missing."
+              exit 1
+            fi
+          done
+
+          if [[ ! "$YC_FOLDER_ID" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "::error::YC_FOLDER_ID has an unexpected format."
+            exit 1
+          fi
+
+          if [[ ! "$YC_SERVICE_ACCOUNT_ID" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "::error::YC_SERVICE_ACCOUNT_ID has an unexpected format."
+            exit 1
+          fi
+
+          expected_audience="https://github.com/${GITHUB_REPOSITORY_OWNER}"
+          if [[ "$YC_OIDC_AUDIENCE" != "$expected_audience" ]]; then
+            echo "::error::YC_OIDC_AUDIENCE must equal ${expected_audience}."
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REPOSITORY" != 'Obcoder/pischeprom' ]]; then
+            echo "::error::This federation is restricted to Obcoder/pischeprom."
+            exit 1
+          fi
+
+          echo "Cloud metadata is present and matches the bound repository."
+
+      - name: Exchange GitHub OIDC token and run GET-only probes
+        env:
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+        run: |
+          set -Eeuo pipefail
+
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+
+          request_json() {
+            local label="$1"
+            local url="$2"
+            local output_file="$3"
+            shift 3
+
+            local http_code
+            http_code="$(
+              curl \
+                --silent \
+                --show-error \
+                --retry 3 \
+                --retry-all-errors \
+                --output "$output_file" \
+                --write-out '%{http_code}' \
+                "$@" \
+                "$url"
+            )"
+
+            if [[ ! "$http_code" =~ ^2[0-9]{2}$ ]]; then
+              local api_message
+              api_message="$(
+                jq -r \
+                  '.error_description // .message // .error // "No API error message"' \
+                  "$output_file" 2>/dev/null || printf '%s' 'Unreadable API response'
+              )"
+              api_message="${api_message//$'\n'/ }"
+              echo "::error::${label} failed with HTTP ${http_code}: ${api_message}"
+              return 1
+            fi
+          }
+
+          oidc_response="$work_dir/github-oidc.json"
+          request_json \
+            'GitHub OIDC request' \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL" \
+            "$oidc_response" \
+            --get \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            --data-urlencode "audience=${YC_OIDC_AUDIENCE}"
+
+          oidc_token="$(jq -er '.value | select(type == "string" and length > 0)' "$oidc_response")"
+          echo "::add-mask::${oidc_token}"
+
+          iam_response="$work_dir/yandex-iam.json"
+          request_json \
+            'Yandex Cloud token exchange' \
+            'https://auth.yandex.cloud/oauth/token' \
+            "$iam_response" \
+            --request POST \
+            --header 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+            --data-urlencode 'requested_token_type=urn:ietf:params:oauth:token-type:access_token' \
+            --data-urlencode "audience=${YC_SERVICE_ACCOUNT_ID}" \
+            --data-urlencode "subject_token=${oidc_token}" \
+            --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token'
+
+          iam_token="$(jq -er '.access_token | select(type == "string" and length > 0)' "$iam_response")"
+          expires_in="$(jq -er '.expires_in | tonumber' "$iam_response")"
+          echo "::add-mask::${iam_token}"
+          echo "OIDC exchange succeeded; IAM token lifetime is ${expires_in} seconds."
+
+          probe_api() {
+            local label="$1"
+            local url="$2"
+            local collection="$3"
+            local output_file="$work_dir/${collection}.json"
+
+            request_json \
+              "$label" \
+              "$url" \
+              "$output_file" \
+              --get \
+              --header "Authorization: Bearer ${iam_token}" \
+              --data-urlencode "folderId=${YC_FOLDER_ID}" \
+              --data-urlencode 'pageSize=100'
+
+            local returned_count
+            returned_count="$(
+              jq -er \
+                --arg collection "$collection" \
+                '(.[$collection] // []) | if type == "array" then length else error("not an array") end' \
+                "$output_file"
+            )"
+            echo "${label}: access OK (${returned_count} resources returned)."
+          }
+
+          # These are deliberately list-only requests. No cloud resources are
+          # created, updated, stopped, started, or deleted by this workflow.
+          probe_api \
+            'Object Storage bucket list' \
+            'https://storage.api.cloud.yandex.net/storage/v1/buckets' \
+            'buckets'
+          probe_api \
+            'Compute instance list' \
+            'https://compute.api.cloud.yandex.net/compute/v1/instances' \
+            'instances'
+          probe_api \
+            'VPC network list' \
+            'https://vpc.api.cloud.yandex.net/vpc/v1/networks' \
+            'networks'
+
+          echo 'Yandex Cloud OIDC preflight passed without mutating cloud state.'
