@@ -1,9 +1,11 @@
 # Эксплуатация Valhalla и матрицы
 
 > Full-Russia graph + PMTiles обновляются только ручным native Linux pipeline из
-> [MAP_RUSSIA.md](MAP_RUSSIA.md). Старые команды `infrastructure/valhalla`
-> относятся к сохранённому двухрегиональному deployment и не обеспечивают карту
-> всей России. GitHub Actions больше не скачивает, не строит и не активирует GIS.
+> [MAP_RUSSIA.md](MAP_RUSSIA.md). PMTiles постоянно доступны из Object
+> Storage/CDN; Valhalla работает на отдельном отключаемом compute VPS через
+> private/VPN address. Старые команды `infrastructure/valhalla` относятся к
+> сохранённому двухрегиональному deployment. GitHub Actions не скачивает, не
+> строит, не публикует и не активирует GIS.
 
 ## Ежедневные проверки
 
@@ -11,16 +13,21 @@
 php artisan logistics:routing-health
 sudo systemctl is-active pischeprom-routing-worker
 sudo systemctl --no-pager --full status pischeprom-routing-worker
-curl --fail --silent http://127.0.0.1:8002/status
+curl --fail --silent http://PRIVATE_GIS_IP:8002/status
 infrastructure/logistics-gis/scripts/check-pmtiles-range.sh \
-  https://PRODUCTION_HOST/maps/logistics/russia.pmtiles
+  https://MAP_HOST/logistics/releases/russia-YYYYMMDD/russia.pmtiles
 ```
 
 Status самого Valhalla проверяйте через фактически аудированный runtime:
 `systemctl` для native unit либо `docker compose ps` только пока production
 остаётся на сохранённом legacy compose deployment.
 
-Техническая вкладка `/Ameise/logistics` показывает provider/engine/OSM version, latency, количество активных городов, состояния матрицы, города без координат и последние routing runs. Endpoint health требует `logistics.technical.view` и не раскрывает внутренний URL.
+Техническая вкладка `/Ameise/logistics` независимо показывает постоянную
+публикацию карты и доступность Valhalla, а также provider/engine/OSM version,
+latency, состояние матрицы, города без координат и последние routing runs.
+Выключенная Valhalla даёт degraded GIS status, но не должна выключать карту.
+Endpoint health требует `logistics.technical.view` и не раскрывает внутренний
+URL.
 
 ## Тестовая пара и рейс
 
@@ -168,6 +175,8 @@ php artisan schedule:list | grep logistics
 | `failed`/timeout | latency, память Valhalla, логи фактического runtime | устранить ресурсную/сетевую причину и limited refresh `--include-failed` |
 | город не считается | `is_matrix_enabled`, обе координаты, verification | проверить точку администратором |
 | неверная версия в UI | active release manifest, activation state, config cache, worker env | восстановить согласованный `current`/activation state; legacy env использовать только как fallback |
+| карта работает, routing недоступен | status отдельного GIS VPS и private/VPN route | это штатный режим при выключенном compute; включить VPS перед новыми расчётами |
+| пустая карта при healthy CDN | `map_publication`, allowlisted origin, browser CORS, HEAD/206 | установить проверенный JSON bundle, исправить exact origin/CORS и пересобрать config cache |
 | build не активирован | `staging`, component/release manifests, smoke output | не переключать symlink; исправить и собрать новый точный snapshot |
 
 Не помещайте секреты, PBF и generated tiles в Git. Valhalla остаётся на loopback/private network; при отдельном host доступ ограничивается private firewall.

@@ -8,12 +8,17 @@
   polyline6, stale, policies, `cities`, `logistics_cities` и `entity_locations`.
 - Добавлена шестая вкладка «Карта», карта в карточке рейса, история версий,
   preview матрицы, bbox/cluster layers и расширенная диагностика.
-- Закреплены `maplibre-gl 6.1.0` и `pmtiles 4.4.1`; production CDN/public OSM
-  tile servers не используются.
+- Закреплены `maplibre-gl 6.1.0` и `pmtiles 4.4.1`; чужие публичные OSM tile
+  servers не используются. Для собственной карты добавлена allowlisted HTTPS
+  доставка через S3-compatible Object Storage/CDN.
 - Добавлен native full-Russia release pipeline с blocking preflight,
   checksum/version locks, staging smoke, paired current/previous activation и
   rollback. Он не запускается из Laravel/queue/deploy/CI.
 - Ресурсоёмкий routing GitHub workflow заменён лёгкой статической проверкой.
+- По решению владельца PMTiles, glyphs и sprites вынесены в постоянно
+  доступный Object Storage/CDN, а отдельный Valhalla/GIS compute VPS сделан
+  отключаемым. На основном VPS хранится только атомарный checksum-verified JSON
+  state; выключение Valhalla не выключает карту и сохранённые геометрии.
 - Код развернут штатным exact-commit GitHub Actions deploy. Production preflight
   выполнен по SSH и остановил heavy operations из-за недостатка диска/RAM и
   отсутствующего native toolchain; точные метрики и runbook зафиксированы в
@@ -43,10 +48,10 @@
 ## Проверено фактически
 
 - Четыре миграции успешно применялись к отдельной временной SQLite test database; рабочая MySQL не изменялась.
-- Targeted backend suite после дополнения карты: `42 tests, 341 assertions, 1 skipped`; пропущен только opt-in smoke с живой Valhalla.
-- Полный regression suite после дополнения карты: `241 tests, 1512 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
+- Targeted backend suite после разделения карты и Valhalla: `43 passed, 359 assertions, 1 skipped`; пропущен только opt-in smoke с живой Valhalla.
+- Полный regression suite после разделения карты и Valhalla: `243 tests, 1530 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
 - Все затронутые PHP-файлы прошли `vendor/bin/pint --test`; общий legacy-код проекта вне задачи по-прежнему содержит style issues и не переформатировался массово.
-- Production client + SSR build успешно выполнен на Node.js 22.14.0; остались только предупреждения о старой базе Browserslist и размере существующих общих chunks.
+- Production client + SSR build успешно выполнен на Node.js 22.18.0; остались только предупреждения о старой базе Browserslist и размере существующих общих chunks.
 - Все shell scripts нового full-Russia pipeline прошли `bash -n`; calculator и map-assets fixtures прошли.
 - `docker compose ... config --quiet` успешно проверен с example env и staging volume.
 - `composer validate --no-check-publish --strict`, `git diff HEAD --check`, регистрация 31 API route и scheduler прошли успешно.
@@ -67,6 +72,11 @@
 - Production HTTP smoke успешен: главная страница, map config и same-origin
   style отвечают 200; карта преднамеренно остаётся `enabled=false` до paired
   full-Russia release, Range/206 и activation.
+- Реализованы возобновляемая immutable S3-публикация без overwrite, строгие
+  CDN Range/206+CORS проверки, отдельные export/install application-state
+  scripts, private/VPN bind для Valhalla и раздельная диагностика карты/routing.
+  Реальный bucket/CDN и отдельный GIS VPS ещё не созданы: для этого нужны
+  выбранный cloud account, DNS/TLS и credentials вне Git.
 
 ## Архитектурные решения аудита
 

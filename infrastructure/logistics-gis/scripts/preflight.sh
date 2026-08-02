@@ -57,11 +57,17 @@ else
             required+=(ionice nice pmtiles valhalla_service)
             ;;
         activate)
-            required+=(ionice nginx nice pmtiles)
+            required+=(ionice nice pmtiles)
+            if [[ "${GIS_REQUIRE_LOCAL_MAP_NGINX:-true}" == "true" ]]; then
+                required+=(nginx)
+            fi
             ;;
         full)
             required+=(ionice java nice pmtiles valhalla_build_admins valhalla_build_config valhalla_build_extract valhalla_build_tiles valhalla_build_timezones valhalla_service)
-            if [[ "${GIS_REQUIRE_CURRENT_VALHALLA_HEALTH:-true}" != "false" ]]; then
+            if [[ "${GIS_REQUIRE_OBJECT_STORAGE_PUBLICATION:-false}" == "true" ]]; then
+                required+=(aws)
+            fi
+            if [[ "${GIS_REQUIRE_LOCAL_MAP_NGINX:-true}" == "true" ]]; then
                 required+=(nginx)
             fi
             ;;
@@ -98,6 +104,17 @@ else
         then
             configured_port="${BASH_REMATCH[1]}"
             notices+=('Valhalla wildcard bind явно разрешён; внешний firewall/publish должен оставлять порт private/loopback.')
+        elif [[ "$configured_listen" =~ ^tcp://([0-9.]+):([0-9]{1,5})$ \
+            && "${VALHALLA_ALLOW_PRIVATE_NETWORK_LISTEN:-false}" == "true" ]]
+        then
+            configured_host="${BASH_REMATCH[1]}"
+            configured_port="${BASH_REMATCH[2]}"
+            if [[ "$(gis_is_private_ipv4 "$configured_host")" == "yes" ]]; then
+                notices+=('Valhalla использует явно разрешённый private/VPN bind; firewall должен допускать только application VPS.')
+            else
+                configured_port=0
+                failures+=('VALHALLA private bind не входит в RFC1918 или 100.64.0.0/10.')
+            fi
         else
             configured_port=0
             failures+=('VALHALLA_SERVICE_LISTEN не является безопасным явно разрешённым TCP bind.')

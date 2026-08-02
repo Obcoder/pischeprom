@@ -51,8 +51,9 @@ Baseline до изменений:
 - MapLibre GL JS `6.1.0` и PMTiles client `4.4.1`, закреплённые в npm lockfile;
 - однократная регистрация PMTiles protocol и динамическая загрузка JS/CSS только
   при инициализации карты;
-- собственный same-origin style, русский OpenMapTiles-compatible слой, локальные
-  sprites/glyphs и видимая атрибуция OpenStreetMap/OpenMapTiles;
+- собственный same-origin style, русский OpenMapTiles-compatible слой,
+  allowlisted HTTPS Object Storage/CDN для immutable PMTiles/sprites/glyphs и
+  видимая атрибуция OpenStreetMap/OpenMapTiles;
 - bbox/zoom API с серверными лимитами для подтверждённых логистических городов,
   рейсов и `entity_locations`; точки кластеризуются, старые viewport-запросы
   отменяются;
@@ -162,13 +163,20 @@ infrastructure/logistics-gis/scripts/common.sh
 infrastructure/logistics-gis/scripts/download-russia-pbf.sh
 infrastructure/logistics-gis/scripts/finalize-release.sh
 infrastructure/logistics-gis/scripts/preflight.sh
+infrastructure/logistics-gis/scripts/publish-map-assets.sh
 infrastructure/logistics-gis/scripts/rollback-release.sh
 infrastructure/logistics-gis/scripts/smoke-test-legacy-current.sh
 infrastructure/logistics-gis/scripts/smoke-test-release.sh
+infrastructure/logistics-gis/scripts/export-application-state.sh
+infrastructure/logistics-gis/scripts/install-application-state.sh
 infrastructure/logistics-gis/scripts/validate-map-assets.php
 infrastructure/logistics-gis/systemd/pischeprom-valhalla.service.example
+infrastructure/logistics-gis/object-storage/cors.example.json
+infrastructure/logistics-gis/tests/application-state-bundle-test.sh
 infrastructure/logistics-gis/tests/map-assets-validator-test.sh
 infrastructure/logistics-gis/tests/preflight-calculator-test.sh
+infrastructure/logistics-gis/tests/private-listen-test.sh
+infrastructure/logistics-gis/tests/range-cors-test.sh
 ```
 
 ### GIS release pipeline
@@ -198,11 +206,19 @@ infrastructure/logistics-gis/tests/preflight-calculator-test.sh
    map assets, принимает только согласованную пару одного PBF и гоняет
    на loopback отдельный временный Valhalla: `/status`, пять региональных,
    длинный, truck и 3×3 matrix smoke с geometry/time/distance.
-7. `activate-release.sh` атомарно хранит `previous`, переключает `current`,
+7. `publish-map-assets.sh` возобновляемо публикует immutable PMTiles, glyphs и
+   sprites в S3-compatible Object Storage/CDN, не перезаписывает существующие
+   объекты и требует публичные HEAD, Range/206, CORS и SHA-256.
+8. `activate-release.sh` атомарно хранит `previous`, переключает `current`,
    перезапускает фактически настроенный существующий runtime, повторяет smoke,
-   проверяет PMTiles Range/206 и только затем помечает старые автоматические
-   значения stale существующей командой. Ошибка возвращает прежний symlink.
-8. `rollback-release.sh` доступен даже при нездоровом current и восстанавливает
+   проверяет CDN PMTiles Range/206/CORS и только затем помечает старые
+   автоматические значения stale существующей командой. На отдельном GIS host
+   используется ограниченный helper к application VPS. Ошибка возвращает
+   прежний symlink.
+9. `export-application-state.sh` и `install-application-state.sh` переносят на
+   основной VPS только checksum-verified JSON state. Поэтому выключение
+   Valhalla/GIS VPS не выключает карту.
+10. `rollback-release.sh` доступен даже при нездоровом current и восстанавливает
    согласованную previous-пару; для первого legacy rollback без прежнего
    PMTiles выполняется только явно помеченный legacy route/matrix smoke
    Санкт-Петербург → Москва, восстанавливается routing, а карта честно
@@ -324,8 +340,18 @@ infrastructure/logistics-gis/scripts/build-valhalla.sh \
 infrastructure/logistics-gis/scripts/build-pmtiles.sh \
   /srv/pischeprom-gis/sources/russia-YYYYMMDD.osm.pbf
 infrastructure/logistics-gis/scripts/finalize-release.sh russia-YYYYMMDD
-sudo nginx -t
+infrastructure/logistics-gis/scripts/publish-map-assets.sh russia-YYYYMMDD
 infrastructure/logistics-gis/scripts/activate-release.sh russia-YYYYMMDD
+infrastructure/logistics-gis/scripts/export-application-state.sh \
+  russia-YYYYMMDD /tmp/pischeprom-gis-state-russia-YYYYMMDD
+```
+
+После защищённой передачи JSON bundle на основной VPS:
+
+```bash
+infrastructure/logistics-gis/scripts/install-application-state.sh \
+  /absolute/path/pischeprom-gis-state-russia-YYYYMMDD \
+  /srv/pischeprom-gis-state
 ```
 
 Health и rollback:
@@ -334,7 +360,7 @@ Health и rollback:
 curl --fail --silent http://127.0.0.1:8002/status
 php artisan logistics:routing-health --json
 infrastructure/logistics-gis/scripts/check-pmtiles-range.sh \
-  https://PRODUCTION_HOST/maps/logistics/russia.pmtiles
+  https://MAP_HOST/logistics/releases/russia-YYYYMMDD/russia.pmtiles
 infrastructure/logistics-gis/scripts/rollback-release.sh
 ```
 
@@ -343,14 +369,17 @@ Laravel env после проверенной активации (без сек�
 ```dotenv
 LOGISTICS_MAP_ENABLED=true
 LOGISTICS_MAP_STYLE_URL=/api/logistics/map/style
-LOGISTICS_MAP_PMTILES_URL=/maps/logistics/russia.pmtiles
-LOGISTICS_MAP_GLYPHS_URL=/maps/logistics/fonts/{fontstack}/{range}.pbf
-LOGISTICS_MAP_SPRITE_URL=/maps/logistics/sprites/basic
-LOGISTICS_GIS_RELEASE_MANIFEST=/srv/pischeprom-gis/current/release-manifest.json
-LOGISTICS_GIS_PREFLIGHT_STATUS=/srv/pischeprom-gis/state/last-preflight.json
-LOGISTICS_GIS_RANGE_STATUS=/srv/pischeprom-gis/state/last-range-check.json
-LOGISTICS_GIS_ACTIVATION_STATUS=/srv/pischeprom-gis/state/last-activation.json
-LOGISTICS_GIS_PRODUCTION_SMOKE_STATUS=/srv/pischeprom-gis/state/last-production-smoke.json
+LOGISTICS_MAP_ASSET_ORIGINS=https://MAP_HOST
+LOGISTICS_MAP_PMTILES_URL=https://MAP_HOST/logistics/releases/{release}/russia.pmtiles
+LOGISTICS_MAP_GLYPHS_URL=https://MAP_HOST/logistics/releases/{release}/assets/fonts/{fontstack}/{range}.pbf
+LOGISTICS_MAP_SPRITE_URL=https://MAP_HOST/logistics/releases/{release}/assets/sprites/basic
+LOGISTICS_GIS_RELEASE_MANIFEST=/srv/pischeprom-gis-state/current/release-manifest.json
+LOGISTICS_GIS_PREFLIGHT_STATUS=/srv/pischeprom-gis-state/current/last-preflight.json
+LOGISTICS_GIS_RANGE_STATUS=/srv/pischeprom-gis-state/current/last-range-check.json
+LOGISTICS_GIS_ACTIVATION_STATUS=/srv/pischeprom-gis-state/current/last-activation.json
+LOGISTICS_GIS_PRODUCTION_SMOKE_STATUS=/srv/pischeprom-gis-state/current/last-production-smoke.json
+LOGISTICS_GIS_MAP_PUBLICATION_STATUS=/srv/pischeprom-gis-state/current/last-map-publication.json
+VALHALLA_BASE_URL=http://PRIVATE_GIS_IP:8002
 ```
 
 PHP должен видеть указанные manifest/state JSON read-only (через существующую
@@ -370,7 +399,10 @@ smoke выполнены. Из-за документированного `FAIL` 
 
 - скачивание 4.13 GB PBF;
 - native install/provisioning Valhalla, Java, Planetiler, PMTiles/assets;
+- создание отдельного GIS compute VPS, private/VPN-сети и firewall allowlist;
+- создание Object Storage bucket/CDN/TLS/DNS, CORS и billing alerts;
 - staging graph и PMTiles build, их duration/peak RSS/paths/sizes;
+- публикация immutable map release и перенос application-state bundle;
 - staging/production routing smoke;
 - Nginx HEAD/Range 206 на production;
 - переключение current/previous и rollback drill;
@@ -387,5 +419,10 @@ smoke выполнены. Из-за документированного `FAIL` 
 - Planetiler requirements: <https://github.com/onthegomap/planetiler>
 - MapLibre + PMTiles: <https://maplibre.org/maplibre-gl-js/docs/examples/pmtiles/>
 - PMTiles concepts/Range: <https://docs.protomaps.com/pmtiles/>
+- Yandex Object Storage Range API: <https://yandex.cloud/en/docs/storage/s3/api-ref/object/get>
+- Yandex Object Storage pricing: <https://yandex.cloud/en/docs/storage/pricing>
+- Yandex Cloud CDN large-file segmentation: <https://yandex.cloud/en/docs/cdn/concepts/slicing>
+- Cloudflare R2 pricing: <https://developers.cloudflare.com/r2/pricing/>
+- Cloudflare R2 CORS: <https://developers.cloudflare.com/r2/buckets/cors/>
 - OpenMapTiles: <https://openmaptiles.org/>
 - OpenStreetMap attribution: <https://www.openstreetmap.org/copyright>

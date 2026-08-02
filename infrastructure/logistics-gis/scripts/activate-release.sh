@@ -41,14 +41,55 @@ expected_assets_sha="$(MANIFEST="$manifest" php -r '$v=json_decode((string)file_
     || gis_fail 'Release map assets manifest checksum mismatch.'
 php "${GIS_SCRIPT_DIR}/validate-map-assets.php" "${target}/map/assets"
 gis_low_priority pmtiles verify "${target}/map/russia.pmtiles"
-nginx -t
+if [[ "${GIS_REQUIRE_LOCAL_MAP_NGINX:-true}" == "true" ]]; then
+    nginx -t
+fi
 
 gis_validate_valhalla_restart
 public_pmtiles_url="${GIS_PUBLIC_PMTILES_URL:-}"
-[[ "$public_pmtiles_url" =~ ^https?:// ]] || gis_fail 'GIS_PUBLIC_PMTILES_URL is required for the production Range/206 check.'
+[[ "$public_pmtiles_url" =~ ^https:// ]] || gis_fail 'GIS_PUBLIC_PMTILES_URL must be the public HTTPS object/CDN release URL.'
+check_public_pmtiles() {
+    GIS_EXPECTED_CORS_ORIGIN="${GIS_MAP_APPLICATION_ORIGIN:-}" \
+        "${GIS_SCRIPT_DIR}/check-pmtiles-range.sh" "$public_pmtiles_url"
+}
+if [[ "${GIS_REQUIRE_OBJECT_STORAGE_PUBLICATION:-false}" == "true" ]]; then
+    publication_state="${GIS_STATE_DIR}/last-map-publication.json"
+    [[ -s "$publication_state" && ! -L "$publication_state" ]] \
+        || gis_fail 'Verified object-storage publication state is required before activation.'
+    publication_matches="$(PUBLICATION="$publication_state" EXPECTED_RELEASE="$release" EXPECTED_URL="$public_pmtiles_url" EXPECTED_ORIGIN="${GIS_MAP_APPLICATION_ORIGIN:-}" EXPECTED_SHA="$expected_sha" EXPECTED_SIZE="$(gis_file_size "${target}/map/russia.pmtiles")" php -r '
+        $v=json_decode((string)file_get_contents(getenv("PUBLICATION")),true,flags:JSON_THROW_ON_ERROR);
+        $pmtiles=$v["pmtiles"]??[];
+        echo (($v["status"]??null)==="verified"
+            &&($v["release"]??null)===getenv("EXPECTED_RELEASE")
+            &&($v["application_origin"]??null)===getenv("EXPECTED_ORIGIN")
+            &&($pmtiles["url"]??null)===getenv("EXPECTED_URL")
+            &&($pmtiles["sha256"]??null)===getenv("EXPECTED_SHA")
+            &&(int)($pmtiles["size_bytes"]??0)===(int)getenv("EXPECTED_SIZE")
+            &&($pmtiles["range_requests"]??null)==="passed"
+            &&($pmtiles["cors"]??null)==="passed")?"yes":"no";
+    ')"
+    [[ "$publication_matches" == "yes" ]] \
+        || gis_fail 'Object-storage publication state does not match the verified paired release.'
+fi
 laravel_dir="${GIS_LARAVEL_APP_DIR:-}"
-[[ "$laravel_dir" == /* && -f "$laravel_dir/artisan" ]] \
-    || gis_fail 'GIS_LARAVEL_APP_DIR must point to the deployed Laravel application.'
+stale_helper="${GIS_LARAVEL_STALE_MARK_HELPER:-}"
+if [[ "$laravel_dir" == /* && -f "$laravel_dir/artisan" ]]; then
+    stale_mode='local'
+elif [[ "$stale_helper" == /* && -x "$stale_helper" && ! -L "$stale_helper" ]]; then
+    stale_mode='helper'
+else
+    gis_fail 'Set GIS_LARAVEL_APP_DIR or an audited absolute GIS_LARAVEL_STALE_MARK_HELPER.'
+fi
+mark_old_routing_stale() {
+    if [[ "$stale_mode" == "local" ]]; then
+        (
+            cd "$laravel_dir"
+            php artisan logistics:routing-mark-stale --old-osm-version="$old_osm_version"
+        )
+    else
+        "$stale_helper" "$old_osm_version"
+    fi
+}
 
 current_link="${GIS_BASE_DIR}/current"
 previous_link="${GIS_BASE_DIR}/previous"
@@ -82,7 +123,7 @@ old_release_status="$(MANIFEST="$old_manifest" php -r '$v=json_decode((string)fi
     || gis_fail 'Current rollback manifest must describe a verified or explicitly audited legacy release.'
 if [[ "$old_target" == "$target" ]]; then
     "${GIS_SCRIPT_DIR}/smoke-test-release.sh" "$target" "${VALHALLA_STATUS_URL%/status}"
-    "${GIS_SCRIPT_DIR}/check-pmtiles-range.sh" "$public_pmtiles_url"
+    check_public_pmtiles
     previous_name="none"
     if [[ -L "$previous_link" ]]; then
         previous_target="$(realpath -- "$previous_link")"
@@ -129,14 +170,11 @@ trap rollback_on_error ERR
 gis_atomic_symlink "$target" "$current_link"
 gis_restart_valhalla
 "${GIS_SCRIPT_DIR}/smoke-test-release.sh" "$target" "${VALHALLA_STATUS_URL%/status}"
-"${GIS_SCRIPT_DIR}/check-pmtiles-range.sh" "$public_pmtiles_url"
+check_public_pmtiles
 
 activation_state_part="${activation_state}.next.$$"
 prepare_activation_state "$(basename "$old_target")" "$activation_state_part"
-(
-    cd "$laravel_dir"
-    php artisan logistics:routing-mark-stale --old-osm-version="$old_osm_version"
-)
+mark_old_routing_stale
 
 mv -- "$activation_state_part" "$activation_state"
 activation_state_part=""

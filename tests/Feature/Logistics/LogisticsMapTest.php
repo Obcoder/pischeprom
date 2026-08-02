@@ -12,6 +12,7 @@ use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripRoute;
 use App\Models\Vehicle;
 use App\Services\Logistics\Map\GisReleaseMetadataService;
+use App\Services\Logistics\Map\MapConfigurationService;
 use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
 use App\Services\Logistics\Routing\DTO\RouteResult;
 use App\Services\Logistics\Routing\Providers\FakeRoutingProvider;
@@ -80,6 +81,106 @@ class LogisticsMapTest extends LogisticsTestCase
         } finally {
             @unlink($manifest);
             @unlink($activation);
+            @rmdir($directory);
+        }
+    }
+
+    public function test_map_assets_support_an_immutable_allowlisted_https_cdn_origin(): void
+    {
+        $user = $this->logisticsUser(['logistics.view']);
+        $directory = storage_path('framework/testing/logistics-cdn-'.bin2hex(random_bytes(5)));
+        mkdir($directory, 0700, true);
+        $manifest = $directory.'/release.json';
+        $activation = $directory.'/activation.json';
+        $publication = $directory.'/publication.json';
+        file_put_contents($manifest, json_encode([
+            'release' => 'russia-20260801',
+            'status' => 'verified',
+            'coverage' => 'Russia',
+            'osm_data_version' => '20260801',
+            'pmtiles' => [
+                'size_bytes' => 2_000_000_000,
+                'sha256' => str_repeat('a', 64),
+            ],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($activation, json_encode([
+            'release' => 'russia-20260801',
+            'status' => 'active',
+            'activated_at' => '2026-08-02T11:00:00Z',
+            'production_smoke' => 'passed',
+        ], JSON_THROW_ON_ERROR));
+        config([
+            'logistics.map.enabled' => true,
+            'logistics.map.release_manifest_path' => $manifest,
+            'logistics.map.activation_status_path' => $activation,
+            'logistics.map.publication_status_path' => $publication,
+            'logistics.map.asset_origins' => ['https://maps.example.test'],
+            'logistics.map.pmtiles_url' => 'https://maps.example.test/logistics/releases/{release}/russia.pmtiles',
+            'logistics.map.glyphs_url' => 'https://maps.example.test/logistics/releases/{release}/assets/fonts/{fontstack}/{range}.pbf',
+            'logistics.map.sprite_url' => 'https://maps.example.test/logistics/releases/{release}/assets/sprites/basic',
+        ]);
+
+        try {
+            $this->actingAs($user)->getJson('/api/logistics/map/config')
+                ->assertOk()
+                ->assertJsonPath('data.enabled', false)
+                ->assertJsonPath('data.delivery', 'object_storage_cdn');
+
+            file_put_contents($publication, json_encode([
+                'status' => 'verified',
+                'release' => 'russia-20260801',
+                'published_at' => '2026-08-02T11:30:00Z',
+                'public_base_url' => 'https://maps.example.test/logistics',
+                'pmtiles' => [
+                    'url' => 'https://maps.example.test/logistics/releases/russia-20260801/russia.pmtiles',
+                    'size_bytes' => 2_000_000_000,
+                    'sha256' => str_repeat('a', 64),
+                    'range_requests' => 'passed',
+                    'cors' => 'passed',
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->actingAs($user)->getJson('/api/logistics/map/config')
+                ->assertOk()
+                ->assertJsonPath('data.enabled', true)
+                ->assertJsonPath('data.delivery', 'object_storage_cdn')
+                ->assertJsonPath(
+                    'data.pmtiles_url',
+                    'https://maps.example.test/logistics/releases/russia-20260801/russia.pmtiles?v=1-russia-20260801'
+                );
+
+            $this->getJson('/api/logistics/map/style')
+                ->assertOk()
+                ->assertJsonPath(
+                    'sources.logistics-basemap.url',
+                    'pmtiles://https://maps.example.test/logistics/releases/russia-20260801/russia.pmtiles?v=1-russia-20260801'
+                )
+                ->assertJsonPath(
+                    'glyphs',
+                    'https://maps.example.test/logistics/releases/russia-20260801/assets/fonts/{fontstack}/{range}.pbf?v=1-russia-20260801'
+                )
+                ->assertJsonPath(
+                    'sprite',
+                    'https://maps.example.test/logistics/releases/russia-20260801/assets/sprites/basic?v=1-russia-20260801'
+                );
+
+            config([
+                'logistics.map.glyphs_url' => 'https://maps.example.test/unpublished/fonts/{fontstack}/{range}.pbf',
+            ]);
+            $this->getJson('/api/logistics/map/config')
+                ->assertOk()
+                ->assertJsonPath('data.enabled', false);
+
+            config([
+                'logistics.map.glyphs_url' => 'https://maps.example.test/logistics/releases/{release}/assets/fonts/{fontstack}/{range}.pbf',
+            ]);
+            config(['logistics.map.asset_origins' => ['https://other.example.test']]);
+            $this->expectException(\RuntimeException::class);
+            app(MapConfigurationService::class)->style();
+        } finally {
+            @unlink($manifest);
+            @unlink($activation);
+            @unlink($publication);
             @rmdir($directory);
         }
     }
@@ -331,6 +432,51 @@ class LogisticsMapTest extends LogisticsTestCase
             ->json('data');
         $this->assertSame($healthy['last_successful_healthcheck_at'], $unavailable['last_successful_healthcheck_at']);
         $this->assertNotSame($healthy['last_healthcheck_at'], $unavailable['last_healthcheck_at']);
+    }
+
+    public function test_diagnostics_report_persistent_map_as_available_while_valhalla_is_offline(): void
+    {
+        $user = $this->logisticsUser(['logistics.view', 'logistics.technical.view']);
+        $provider = $this->fakeProvider();
+        $provider->healthy = false;
+        $directory = storage_path('framework/testing/logistics-map-status-'.bin2hex(random_bytes(5)));
+        mkdir($directory, 0700, true);
+        $manifest = $directory.'/release.json';
+        $activation = $directory.'/activation.json';
+        file_put_contents($manifest, json_encode([
+            'release' => 'russia-20260801',
+            'status' => 'verified',
+            'coverage' => 'Russia',
+            'osm_data_version' => '20260801',
+            'pmtiles' => [
+                'size_bytes' => 2_000_000_000,
+                'sha256' => str_repeat('a', 64),
+            ],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($activation, json_encode([
+            'release' => 'russia-20260801',
+            'status' => 'active',
+            'activated_at' => '2026-08-02T11:00:00Z',
+            'production_smoke' => 'passed',
+        ], JSON_THROW_ON_ERROR));
+        config([
+            'logistics.map.enabled' => true,
+            'logistics.map.release_manifest_path' => $manifest,
+            'logistics.map.activation_status_path' => $activation,
+        ]);
+
+        try {
+            $this->actingAs($user)->getJson('/api/logistics/routing-status')
+                ->assertServiceUnavailable()
+                ->assertJsonPath('data.healthy', false)
+                ->assertJsonPath('data.overall_status', 'degraded')
+                ->assertJsonPath('data.services.map.available', true)
+                ->assertJsonPath('data.services.routing.available', false);
+        } finally {
+            @unlink($manifest);
+            @unlink($activation);
+            @rmdir($directory);
+        }
     }
 
     private function verifiedCity(string $name, float $latitude, float $longitude, int $userId): \App\Models\City

@@ -1,31 +1,46 @@
 # Full-Russia logistics GIS operations
 
-This directory contains a manual, native Linux release pipeline for one paired
-dataset: a Valhalla graph and an OpenMapTiles-compatible PMTiles archive built
-from the same checksum-verified full-Russia Geofabrik PBF.
+This directory contains the manual native-Linux pipeline for one paired
+full-Russia dataset: a Valhalla graph and an OpenMapTiles-compatible PMTiles
+archive built from the same checksum-verified Geofabrik PBF.
 
-It deliberately contains no GIS data and performs no work from Laravel deploy,
-migrations, queue workers, or GitHub Actions. The existing routing service stays
-active during download and staging builds.
-
-## Release layout
-
-Large files live outside Git, under `${GIS_BASE_DIR:-/srv/pischeprom-gis}`:
+The production runtime is deliberately split:
 
 ```text
-sources/                    verified immutable PBF + source manifests
-staging/russia-YYYYMMDD/    incomplete Valhalla/map components
-staging/planetiler-work/... resumable auxiliary downloads/scratch, never published
-releases/russia-YYYYMMDD/   immutable paired releases
-current -> releases/...     active Valhalla + PMTiles pair
-previous -> releases/...    rollback pair
-logs/                       timestamped preflight/build/smoke logs
-state/                      sanitized diagnostics JSON
-locks/                      download/build/activation locks
+Object Storage + CDN (always on) ── PMTiles, glyphs, sprites ── browser
+Application VPS (always on) ─────── Laravel + small verified GIS state
+GIS compute VPS (optional) ──────── Valhalla + build workspace
 ```
 
-Create these exact directories once, owned by the already approved GIS service
-account. Do not place them under the repository or `storage/app/public`.
+Turning off the GIS compute VPS disables only new routing/matrix calculations.
+The basemap and previously saved route geometries remain available because no
+map request depends on that VPS. Object Storage/CDN and the application VPS
+must remain active.
+
+No GIS data is committed to Git. Download, build, publication, activation and
+state transfer never run from Laravel deploy, migrations, queue workers or
+GitHub Actions.
+
+## Storage layout
+
+Large build files live only on the GIS compute host, outside Git:
+
+```text
+/srv/pischeprom-gis/
+├── sources/                    verified immutable PBF + source manifests
+├── staging/russia-YYYYMMDD/    incomplete Valhalla/map components
+├── staging/planetiler-work/    resumable scratch; never public
+├── releases/russia-YYYYMMDD/   immutable paired releases
+├── current -> releases/...     active Valhalla release
+├── previous -> releases/...    routing rollback release
+├── logs/                       build/preflight/smoke logs
+├── state/
+│   ├── map-publications/       immutable per-release publication records
+│   └── last-*.json             current sanitized operational state
+└── locks/
+```
+
+Create the directories once with the approved GIS service account:
 
 ```bash
 sudo install -d -m 0750 -o pischeprom-gis -g pischeprom-gis \
@@ -38,20 +53,76 @@ sudo install -d -m 0750 -o pischeprom-gis -g pischeprom-gis \
   /srv/pischeprom-gis/locks
 ```
 
-Use another existing account/path if the production audit requires it; set
-`GIS_BASE_DIR` consistently before running anything.
+The application VPS stores only a sanitized bundle:
 
-The Nginx worker needs read-only traversal of `current/map`. The PHP runtime
-needs read-only access only to `current/release-manifest.json` and the four
-sanitized JSON files in `state/` referenced by `LOGISTICS_GIS_*`. Use the
-existing service group or exact read-only bind mounts when PHP runs in a
-container; do not grant PHP access to sources, graph tiles, build logs, or
-staging merely to make diagnostics work.
+```text
+/srv/pischeprom-gis-state/
+├── releases/russia-YYYYMMDD/   JSON only; no PBF, PMTiles or graph
+├── current -> releases/...
+└── previous -> releases/...
+```
 
-## Required configuration
+PHP needs read-only access to `current/*.json`. It must not receive access to
+the GIS host's sources, graph, credentials, staging or logs.
 
-Copy `.env.example` outside Git, set exact installed versions and checksums, then
-source it in the supervised shell:
+## Object Storage and CDN
+
+The publisher is S3-compatible. The recommended first deployment for this
+Russian production service is Yandex Object Storage (Standard) with Cloud CDN,
+large-file segmentation enabled and a dedicated TLS hostname such as
+`maps.example.ru`. Cloudflare R2 or Selectel S3/CDN can be used without
+application-code changes if their public endpoint passes the same checks.
+
+Required properties:
+
+- the bucket/prefix is dedicated to this map and contains no console-created
+  directory-marker objects;
+- browser access is read-only; anonymous object listing and writes stay off;
+- the CDN custom hostname uses HTTPS;
+- large-file segmentation/Range forwarding is enabled;
+- cookies are ignored and immutable release query parameters do not change the
+  cached body;
+- `GET` and `HEAD` are allowed;
+- the exact application origin is allowed by CORS;
+- `Accept-Ranges`, `Content-Length`, `Content-Range` and `ETag` are exposed;
+- the publisher identity has only list/read/write permissions for the dedicated
+  prefix and has no delete permission;
+- billing budgets/alerts are enabled.
+
+Use [object-storage/cors.example.json](object-storage/cors.example.json) as the
+AWS S3 API CORS payload after replacing its placeholder outside Git:
+
+```bash
+aws --endpoint-url https://storage.yandexcloud.net \
+  s3api put-bucket-cors \
+  --bucket MAP_BUCKET \
+  --cors-configuration file:///etc/pischeprom-map-cors.json
+```
+
+Cloud CDN must also preserve/add the same response headers. Purge the CDN once
+after changing CORS; immutable release objects do not otherwise need purging.
+Do not put `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, tokens, bucket policy
+secrets or private host addresses in this repository.
+
+Published keys are immutable:
+
+```text
+logistics/releases/russia-YYYYMMDD/
+├── russia.pmtiles
+├── assets/fonts/...
+├── assets/sprites/...
+├── release-manifest.json
+└── map-publication.json        uploaded last; release completion marker
+```
+
+`publish-map-assets.sh` can resume an interrupted upload. It validates every
+existing object's size, MIME type, immutable cache policy and SHA-256 metadata;
+it never overwrites a mismatching object and rejects unexpected keys.
+
+## Compute host configuration
+
+Copy `.env.example` outside Git, replace every placeholder and source it only
+in the supervised shell:
 
 ```bash
 set -a
@@ -59,73 +130,95 @@ set -a
 set +a
 ```
 
-The pipeline does not install packages. Before a build, provision and pin:
+The pipeline installs no packages. Provision and pin:
 
-- the already used native Valhalla version and its build tools;
+- the audited native Valhalla version and build tools;
 - Java 21 or newer;
-- one explicit Planetiler release and `PLANETILER_JAR_SHA256`;
-- one explicit PMTiles CLI version;
-- local Noto Sans glyphs and sprite files with `SHA256SUMS` under
-  `GIS_MAP_ASSETS_DIR`.
+- one exact Planetiler release plus `PLANETILER_JAR_SHA256`;
+- one exact PMTiles CLI version;
+- AWS CLI compatible with the selected storage;
+- local Noto Sans glyphs and sprites with `SHA256SUMS`.
 
-Set the exact existing runtime restart mechanism. Prefer
-`VALHALLA_SYSTEMD_UNIT` when that is how production actually runs. If the
-audited deployment uses another existing mechanism, point
-`VALHALLA_RESTART_HELPER` to a root/operator-managed executable adapter. The
-scripts never assume or create a second runtime.
+Set the real Valhalla restart mechanism. Prefer `VALHALLA_SYSTEMD_UNIT`; an
+alternative `VALHALLA_RESTART_HELPER` must be an absolute operator-managed
+executable and not a symlink.
 
-`VALHALLA_SERVICE_LISTEN` defaults to `tcp://127.0.0.1:8002` and is written
-into every new graph config. A legacy container may require a wildcard bind
-inside its private network; that requires the explicit
-`VALHALLA_ALLOW_WILDCARD_LISTEN=true` acknowledgement, while host publishing
-and firewall must still keep port 8002 private/loopback-only. Activation checks
-that the verified release contains the audited value.
+`VALHALLA_SERVICE_LISTEN` defaults to loopback. On a separate host, bind an
+exact RFC1918/WireGuard/Tailscale IPv4 address and explicitly set
+`VALHALLA_ALLOW_PRIVATE_NETWORK_LISTEN=true`. The cloud and host firewalls must
+allow port 8002 only from the application VPS. A public IP is always rejected.
+A wildcard bind remains a legacy opt-in and still requires a private outer
+network.
 
-## Safe sequence
+If Laravel is not installed on the GIS host, configure
+`GIS_LARAVEL_STALE_MARK_HELPER` as a restricted operator-owned adapter that
+accepts exactly one old OSM version argument and runs:
+
+```bash
+php artisan logistics:routing-mark-stale --old-osm-version=VERSION
+```
+
+The helper may use a dedicated SSH forced command. It must not accept arbitrary
+shell text.
+
+## Safe release sequence
 
 Every `WARN` and `FAIL` is blocking. Only exit code `0` permits the next heavy
 step (`2` is WARN, `3` is FAIL).
 
 ```bash
-# Read-only inspection plus timestamped log/state JSON.
+# 1. Read-only resource/toolchain inspection.
 infrastructure/logistics-gis/scripts/preflight.sh --mode full --json
 
-# Download only after PASS; does not activate anything.
+# 2. Download only after PASS.
 infrastructure/logistics-gis/scripts/download-russia-pbf.sh
 
-# Use the exact path printed by the downloader.
+# 3. Build both components from the exact path printed by the downloader.
 infrastructure/logistics-gis/scripts/build-valhalla.sh \
   /srv/pischeprom-gis/sources/russia-YYYYMMDD.osm.pbf
 infrastructure/logistics-gis/scripts/build-pmtiles.sh \
   /srv/pischeprom-gis/sources/russia-YYYYMMDD.osm.pbf
 
-# Runs a lightweight verify preflight, validates graph/map/assets checksums and
-# starts an inactive Valhalla on loopback port 18002.
+# 4. Verify checksums and run inactive Valhalla route/matrix smoke.
 infrastructure/logistics-gis/scripts/finalize-release.sh russia-YYYYMMDD
 
-# Install/adapt Nginx config and test it before activation.
-sudo nginx -t
+# 5. Upload immutable map files and require public HEAD, Range/206, CORS,
+#    every small asset checksum and (by default) a streamed PMTiles SHA-256.
+infrastructure/logistics-gis/scripts/publish-map-assets.sh russia-YYYYMMDD
 
-# Atomic current/previous switch, production smoke, Range/206, stale marking.
+# 6. Switch Valhalla current/previous, repeat production smoke and CDN checks,
+#    then mark only the old automatic routing values stale.
 infrastructure/logistics-gis/scripts/activate-release.sh russia-YYYYMMDD
+
+# 7. Export JSON-only state to a new directory.
+infrastructure/logistics-gis/scripts/export-application-state.sh \
+  russia-YYYYMMDD /tmp/pischeprom-gis-state-russia-YYYYMMDD
 ```
 
-The activation requires `GIS_PUBLIC_PMTILES_URL`, `GIS_LARAVEL_APP_DIR`, a
-healthy current Valhalla, a verified release, the existing restart adapter, and
-successful staging smoke tests. It never starts a full matrix recalculation.
+Activation requires a healthy current Valhalla rollback target, the audited
+restart adapter, a verified object-storage publication, the exact CDN URL,
+passing CORS/Range checks and either local Laravel or the restricted stale-mark
+helper. It never starts a full matrix recalculation.
 
-Before the first paired activation, the operator must register the audited
-currently working graph as the exact `current` release inside `GIS_BASE_DIR` and
-prove that the configured restart adapter still starts that same graph. This
-one-time compatibility step is host-specific and is intentionally not guessed
-from repository documentation. It provides the mandatory rollback target. A
-legacy target may have no PMTiles; rollback will restore routing, record Range as
-unavailable, run only the explicitly labelled legacy Санкт-Петербург → Москва
-route/matrix compatibility smoke, and let the Laravel map fall back safely
-instead of claiming full-Russia visual coverage.
+Transfer the exported directory over the existing authenticated administrative
+channel. On the application VPS:
 
-The registered legacy directory must contain a regular
-`release-manifest.json`; a minimal audited example is:
+```bash
+sudo install -d -m 0750 -o APP_USER -g www-data /srv/pischeprom-gis-state
+
+infrastructure/logistics-gis/scripts/install-application-state.sh \
+  /absolute/path/pischeprom-gis-state-russia-YYYYMMDD \
+  /srv/pischeprom-gis-state
+```
+
+The installer validates an allowlisted checksum manifest and all cross-file
+release, SHA, size, activation, smoke, Range and CORS invariants. It creates an
+immutable state release and atomically updates `current`/`previous`. Retrying
+the same byte-identical bundle is safe.
+
+Before the first activation, register the already working graph as
+`GIS_BASE_DIR/current` and prove its restart/health path. This is the mandatory
+rollback target. A legacy manifest may be:
 
 ```json
 {
@@ -136,42 +229,89 @@ The registered legacy directory must contain a regular
 }
 ```
 
-Point `current` to that exact directory only after its existing route/matrix
-smoke passes. If its manifest cannot contain the known OSM version, set the same
-value as `GIS_CURRENT_OSM_DATA_VERSION` before the first activation. Activation
-blocks before any symlink change when neither source provides it, because the
-existing automatic matrix/route values must be marked stale after success.
+If it does not contain the old OSM version, set
+`GIS_CURRENT_OSM_DATA_VERSION`. Activation blocks when the old version is
+unknown.
 
-Rollback is an exact symlink swap followed by routing and Range smoke tests:
+## Laravel configuration
+
+Use the real application and CDN origins. The release placeholder makes every
+asset URL immutable:
+
+```dotenv
+LOGISTICS_MAP_ENABLED=true
+LOGISTICS_MAP_STYLE_URL=/api/logistics/map/style
+LOGISTICS_MAP_ASSET_ORIGINS=https://maps.example.ru
+LOGISTICS_MAP_PMTILES_URL=https://maps.example.ru/logistics/releases/{release}/russia.pmtiles
+LOGISTICS_MAP_GLYPHS_URL=https://maps.example.ru/logistics/releases/{release}/assets/fonts/{fontstack}/{range}.pbf
+LOGISTICS_MAP_SPRITE_URL=https://maps.example.ru/logistics/releases/{release}/assets/sprites/basic
+
+LOGISTICS_GIS_RELEASE_MANIFEST=/srv/pischeprom-gis-state/current/release-manifest.json
+LOGISTICS_GIS_PREFLIGHT_STATUS=/srv/pischeprom-gis-state/current/last-preflight.json
+LOGISTICS_GIS_RANGE_STATUS=/srv/pischeprom-gis-state/current/last-range-check.json
+LOGISTICS_GIS_ACTIVATION_STATUS=/srv/pischeprom-gis-state/current/last-activation.json
+LOGISTICS_GIS_PRODUCTION_SMOKE_STATUS=/srv/pischeprom-gis-state/current/last-production-smoke.json
+LOGISTICS_GIS_MAP_PUBLICATION_STATUS=/srv/pischeprom-gis-state/current/last-map-publication.json
+
+# Private/VPN address of the optional compute host.
+VALHALLA_BASE_URL=http://10.66.0.2:8002
+```
+
+After editing the server-side environment, run `php artisan config:cache` and
+restart the routing worker through the normal production procedure. Never
+commit the production `.env`.
+
+The application enables an external basemap only when the HTTPS origin is
+allowlisted and the local release, activation and object-publication records
+match exactly. A CDN URL alone cannot enable the map.
+
+## Acceptance before stopping the GIS VPS
+
+Do not stop the compute host until all checks pass:
+
+```bash
+curl --fail --silent http://PRIVATE_GIS_IP:8002/status
+curl --fail --head \
+  -H 'Origin: https://APP_HOST' \
+  https://MAP_HOST/logistics/releases/russia-YYYYMMDD/russia.pmtiles
+curl --fail --silent --show-error \
+  -H 'Origin: https://APP_HOST' \
+  --range 0-15 --dump-header - --output /dev/null \
+  https://MAP_HOST/logistics/releases/russia-YYYYMMDD/russia.pmtiles
+```
+
+Also verify:
+
+- `/api/logistics/map/config` returns `enabled=true`, the expected release and
+  only public URLs;
+- `/Ameise/logistics` loads the basemap, glyph labels and sprites in a clean
+  browser session;
+- the Diagnostics tab reports “Публикация карты: verified”;
+- one route and one matrix smoke pass while Valhalla is on;
+- after stopping Valhalla, the map still loads and Diagnostics reports the map
+  available with routing unavailable.
+
+When the compute host is off, do not start new route/matrix jobs. Existing
+trips, tables, saved distances and saved route geometries remain application
+data and continue to work. Start the host, verify `/status`, then resume
+calculations. Keep the object-storage bucket and current application-state
+release; those are the map's always-on dependencies.
+
+## Rollback and retention
+
+`rollback-release.sh` switches the Valhalla pair and uses the previous
+release's immutable `state/map-publications/<release>.json` to test the correct
+CDN object. Export and install a new application-state bundle after a rollback.
 
 ```bash
 infrastructure/logistics-gis/scripts/rollback-release.sh
 ```
 
-No script removes a PBF, staging directory, active release, previous release,
-log, or matrix row. Failed/incomplete artifacts require an explicit operator
-review; there is intentionally no automatic cleanup command. Planetiler's
-auxiliary downloads remain under `staging/planetiler-work/<release>` for audit
-and an explicitly reviewed retry, and are not moved into the immutable release.
+No script deletes PBFs, staging, releases, published objects, logs or matrix
+rows. Keep at least current and previous releases in both object storage and
+application state. Add a lifecycle rule only after an operator has identified
+exact release keys that are no longer current, previous or required for audit.
 
-## HTTP checks
-
-Nginx must include `nginx/logistics-map.conf.example` inside the existing HTTPS
-server block. It publishes only `current/map` and keeps sources, graphs,
-manifests, staging, state, and logs private.
-
-```bash
-curl --fail --head https://HOST/maps/logistics/russia.pmtiles
-curl --fail --silent --show-error \
-  --range 0-15 \
-  --dump-header - \
-  --output /dev/null \
-  https://HOST/maps/logistics/russia.pmtiles
-
-GIS_PUBLIC_PMTILES_URL=https://HOST/maps/logistics/russia.pmtiles \
-  infrastructure/logistics-gis/scripts/check-pmtiles-range.sh \
-  https://HOST/maps/logistics/russia.pmtiles
-```
-
-The required result is `206 Partial Content`, `Accept-Ranges: bytes`, a valid
-`Content-Range`, and exactly 16 response bytes for the scripted check.
+The required PMTiles result is `200` for HEAD, `206 Partial Content` for bytes
+`0-15`, `Accept-Ranges: bytes`, a matching `Content-Range`, exactly 16 response
+bytes and the exact CORS origin/exposed headers.

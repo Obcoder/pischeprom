@@ -44,6 +44,10 @@ jobs:
           php -l infrastructure/logistics-gis/scripts/validate-map-assets.php
           infrastructure/logistics-gis/tests/preflight-calculator-test.sh
           infrastructure/logistics-gis/tests/map-assets-validator-test.sh
+          infrastructure/logistics-gis/tests/private-listen-test.sh
+          infrastructure/logistics-gis/tests/range-cors-test.sh
+          infrastructure/logistics-gis/tests/application-state-bundle-test.sh
+          infrastructure/logistics-gis/tests/object-storage-publisher-test.sh
 
       - name: Enforce the manual-build boundary
         run: |

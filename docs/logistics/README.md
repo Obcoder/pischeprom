@@ -64,7 +64,7 @@ Seeder выдаёт все права роли `admin`. Роль `manager` по�
 | `GET /api/logistics/matrix/export` | CSV выбранного фрагмента |
 | `GET /api/logistics/routing-runs[/{run}]` | список/прогресс запусков |
 | `GET /api/logistics/routing-status` | health Valhalla |
-| `GET /api/logistics/map/config` | безопасная same-origin конфигурация карты |
+| `GET /api/logistics/map/config` | безопасная конфигурация карты с allowlisted HTTPS Object Storage/CDN |
 | `GET /api/logistics/map/style` | versioned MapLibre style |
 | `GET /api/logistics/map/features` | bbox/zoom слои городов, рейсов и контрагентов |
 | `GET /api/logistics/trips/{trip}/map` | текущая route geometry и остановки GeoJSON |

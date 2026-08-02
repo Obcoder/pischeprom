@@ -11,6 +11,7 @@ use App\Models\LogisticsCityDistance;
 use App\Models\LogisticsRoutingRun;
 use App\Models\LogisticsTripRoute;
 use App\Services\Logistics\Map\GisReleaseMetadataService;
+use App\Services\Logistics\Map\MapConfigurationService;
 use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -19,7 +20,10 @@ use Throwable;
 
 class RoutingStatusController extends Controller
 {
-    public function __construct(private readonly GisReleaseMetadataService $gisMetadata) {}
+    public function __construct(
+        private readonly GisReleaseMetadataService $gisMetadata,
+        private readonly MapConfigurationService $mapConfiguration,
+    ) {}
 
     public function __invoke(RoutingProviderInterface $provider): JsonResponse
     {
@@ -27,11 +31,19 @@ class RoutingStatusController extends Controller
 
         $health = $provider->health();
         $gis = $this->gisMetadata->diagnostics();
-        $releaseReady = ($gis['status'] ?? null) === 'active';
-        $rangeHealthy = (bool) data_get($gis, 'range_requests.healthy', false);
+        $mapDelivery = 'same_origin';
+        try {
+            $mapConfiguration = $this->mapConfiguration->configuration();
+            $mapAvailable = (bool) ($mapConfiguration['enabled'] ?? false);
+            $mapDelivery = ($mapConfiguration['delivery'] ?? null) === 'object_storage_cdn'
+                ? 'object_storage_cdn'
+                : 'same_origin';
+        } catch (Throwable) {
+            $mapAvailable = false;
+        }
         $overallStatus = match (true) {
-            $health->healthy && $releaseReady && $rangeHealthy => 'healthy',
-            $health->healthy || $releaseReady => 'degraded',
+            $health->healthy && $mapAvailable => 'healthy',
+            $health->healthy || $mapAvailable => 'degraded',
             default => 'unavailable',
         };
         $healthcheckAt = now()->toISOString();
@@ -49,6 +61,15 @@ class RoutingStatusController extends Controller
                 'last_healthcheck_at' => $healthcheckAt,
                 'last_successful_healthcheck_at' => $lastSuccessfulHealthcheckAt,
                 'overall_status' => $overallStatus,
+                'services' => [
+                    'map' => [
+                        'available' => $mapAvailable,
+                        'delivery' => $mapDelivery,
+                    ],
+                    'routing' => [
+                        'available' => $health->healthy,
+                    ],
+                ],
                 'gis' => $gis,
                 'queue' => [
                     'connection' => config('logistics.queue_connection') ?: config('queue.default'),

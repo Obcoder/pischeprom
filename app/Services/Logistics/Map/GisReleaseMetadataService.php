@@ -75,6 +75,7 @@ final class GisReleaseMetadataService
         $range = $this->readJson(config('logistics.map.range_status_path'));
         $activation = $this->readJson(config('logistics.map.activation_status_path'));
         $productionSmoke = $this->readJson(config('logistics.map.production_smoke_status_path'));
+        $publication = $this->mapPublication();
 
         return [
             ...$release,
@@ -107,6 +108,9 @@ final class GisReleaseMetadataService
                 'status_code' => isset($range['status_code']) ? (int) $range['status_code'] : null,
                 'accept_ranges' => $this->string($range, 'accept_ranges'),
                 'content_range' => $this->string($range, 'content_range'),
+                'cors_origin' => $this->string($range, 'cors_origin'),
+                'cors_allow_origin' => $this->string($range, 'cors_allow_origin'),
+                'cors_expose_headers' => $this->string($range, 'cors_expose_headers'),
                 'checked_at' => $this->string($range, 'checked_at'),
             ],
             'activation' => $activation === null ? null : [
@@ -119,7 +123,22 @@ final class GisReleaseMetadataService
             'production_smoke_tests' => $productionSmoke === null ? null : $this->selected($productionSmoke, [
                 'status', 'kind', 'coverage', 'release', 'checked_at', 'results',
             ]),
+            'map_publication' => $publication === null ? null : [
+                'status' => $this->string($publication, 'status'),
+                'release' => $this->string($publication, 'release'),
+                'published_at' => $this->string($publication, 'published_at'),
+                'public_base_url' => $this->string($publication, 'public_base_url'),
+                'pmtiles' => $this->selected($publication['pmtiles'] ?? null, [
+                    'url', 'size_bytes', 'sha256', 'range_requests', 'cors',
+                ]),
+            ],
         ];
+    }
+
+    /** @return array<string, mixed>|null */
+    public function mapPublication(): ?array
+    {
+        return $this->readJson(config('logistics.map.publication_status_path'));
     }
 
     private function readJson(mixed $path): ?array

@@ -126,9 +126,23 @@ gis_validate_valhalla_restart() {
         || gis_fail 'Set VALHALLA_SYSTEMD_UNIT or an absolute, executable, non-symlink VALHALLA_RESTART_HELPER for the audited existing runtime.'
 }
 
+gis_is_private_ipv4() {
+    PRIVATE_IP="$1" php -r '
+        $ip=getenv("PRIVATE_IP");
+        if(filter_var($ip,FILTER_VALIDATE_IP,FILTER_FLAG_IPV4)===false){echo "no";exit;}
+        $parts=array_map("intval",explode(".",$ip));
+        $private=$parts[0]===10
+            ||($parts[0]===172&&$parts[1]>=16&&$parts[1]<=31)
+            ||($parts[0]===192&&$parts[1]===168)
+            ||($parts[0]===100&&$parts[1]>=64&&$parts[1]<=127);
+        echo $private?"yes":"no";
+    '
+}
+
 gis_validated_valhalla_listen() {
     local listen="${VALHALLA_SERVICE_LISTEN:-tcp://127.0.0.1:8002}"
     local port=""
+    local host=""
 
     if [[ "$listen" =~ ^tcp://127\.0\.0\.1:([0-9]{1,5})$ ]]; then
         port="${BASH_REMATCH[1]}"
@@ -136,8 +150,15 @@ gis_validated_valhalla_listen() {
         && "${VALHALLA_ALLOW_WILDCARD_LISTEN:-false}" == "true" ]]
     then
         port="${BASH_REMATCH[1]}"
+    elif [[ "$listen" =~ ^tcp://([0-9.]+):([0-9]{1,5})$ \
+        && "${VALHALLA_ALLOW_PRIVATE_NETWORK_LISTEN:-false}" == "true" ]]
+    then
+        host="${BASH_REMATCH[1]}"
+        port="${BASH_REMATCH[2]}"
+        [[ "$(gis_is_private_ipv4 "$host")" == "yes" ]] \
+            || gis_fail 'VALHALLA private bind must be an RFC1918 or 100.64.0.0/10 address.'
     else
-        gis_fail 'VALHALLA_SERVICE_LISTEN must use loopback, or an explicitly approved wildcard bind inside the audited private runtime.'
+        gis_fail 'VALHALLA_SERVICE_LISTEN must use loopback or an explicitly approved private-network bind.'
     fi
 
     (( port >= 1 && port <= 65535 )) || gis_fail 'VALHALLA_SERVICE_LISTEN contains an invalid TCP port.'

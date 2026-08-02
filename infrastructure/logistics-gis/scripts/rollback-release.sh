@@ -20,13 +20,41 @@ previous_manifest_valid="$(MANIFEST="$previous_manifest" EXPECTED_RELEASE="$(bas
 [[ "$previous_manifest_valid" == "yes" ]] \
     || gis_fail 'Previous release manifest is invalid or does not match its directory.'
 gis_validate_valhalla_restart
-public_pmtiles_url="${GIS_PUBLIC_PMTILES_URL:-}"
-[[ "$public_pmtiles_url" =~ ^https?:// ]] || gis_fail 'GIS_PUBLIC_PMTILES_URL is required.'
 
 exec 9>"${GIS_LOCK_DIR}/gis-activate.lock"
 flock -n 9 || gis_fail 'Another GIS activation/rollback is already running.'
 has_pmtiles=false
 [[ ! -s "$previous_target/map/russia.pmtiles" ]] || has_pmtiles=true
+rollback_publication=""
+rollback_pmtiles_url=""
+rollback_application_origin=""
+if $has_pmtiles; then
+    rollback_publication="${GIS_STATE_DIR}/map-publications/$(basename "$previous_target").json"
+    [[ -s "$rollback_publication" && -f "$rollback_publication" && ! -L "$rollback_publication" ]] \
+        || gis_fail 'Rollback release needs its immutable object-storage publication state.'
+    rollback_publication_valid="$(PUBLICATION="$rollback_publication" MANIFEST="$previous_manifest" EXPECTED_RELEASE="$(basename "$previous_target")" php -r '
+        $publication=json_decode((string)file_get_contents(getenv("PUBLICATION")),true,flags:JSON_THROW_ON_ERROR);
+        $manifest=json_decode((string)file_get_contents(getenv("MANIFEST")),true,flags:JSON_THROW_ON_ERROR);
+        $pmtiles=$publication["pmtiles"]??[];$manifestPmtiles=$manifest["pmtiles"]??[];
+        $valid=($publication["status"]??null)==="verified"
+            &&($publication["release"]??null)===getenv("EXPECTED_RELEASE")
+            &&is_string($publication["application_origin"]??null)&&$publication["application_origin"]!==""
+            &&is_string($pmtiles["url"]??null)&&str_starts_with($pmtiles["url"],"https://")
+            &&($pmtiles["sha256"]??null)===($manifestPmtiles["sha256"]??null)
+            &&(int)($pmtiles["size_bytes"]??0)===(int)($manifestPmtiles["size_bytes"]??-1)
+            &&($pmtiles["range_requests"]??null)==="passed"&&($pmtiles["cors"]??null)==="passed";
+        echo $valid?"yes":"no";
+    ')"
+    [[ "$rollback_publication_valid" == "yes" ]] \
+        || gis_fail 'Rollback object-storage publication state does not match its release manifest.'
+    IFS=$'\t' read -r rollback_pmtiles_url rollback_application_origin < <(
+        PUBLICATION="$rollback_publication" php -r '
+            $v=json_decode((string)file_get_contents(getenv("PUBLICATION")),true,flags:JSON_THROW_ON_ERROR);
+            echo $v["pmtiles"]["url"],"\t",$v["application_origin"],PHP_EOL;
+        '
+    )
+    IFS=$'\n\t'
+fi
 validate_rollback_runtime() {
     if $has_pmtiles; then
         "${GIS_SCRIPT_DIR}/smoke-test-release.sh" "$previous_target" "${VALHALLA_STATUS_URL%/status}"
@@ -46,7 +74,9 @@ then
 fi
 range_status="unavailable"
 if $has_pmtiles; then
-    if ! "${GIS_SCRIPT_DIR}/check-pmtiles-range.sh" "$public_pmtiles_url"; then
+    if ! GIS_EXPECTED_CORS_ORIGIN="$rollback_application_origin" \
+        "${GIS_SCRIPT_DIR}/check-pmtiles-range.sh" "$rollback_pmtiles_url"
+    then
         gis_atomic_symlink "$current_target" "$current_link"
         gis_atomic_symlink "$previous_target" "$previous_link"
         gis_restart_valhalla || true
@@ -60,6 +90,18 @@ else
     ' "${GIS_STATE_DIR}/.last-range-check.json.$$"
     mv -- "${GIS_STATE_DIR}/.last-range-check.json.$$" "${GIS_STATE_DIR}/last-range-check.json"
 fi
+publication_state="${GIS_STATE_DIR}/last-map-publication.json"
+[[ ! -L "$publication_state" ]] || gis_fail 'Map publication state path must not be a symlink.'
+publication_state_part="${publication_state}.next.$$"
+if $has_pmtiles; then
+    cp -- "$rollback_publication" "$publication_state_part"
+else
+    ROLLBACK_RELEASE="$(basename "$previous_target")" php -r '
+        $value=["status"=>"unavailable","release"=>getenv("ROLLBACK_RELEASE"),"updated_at"=>gmdate("c"),"reason"=>"rollback_release_has_no_pmtiles"];
+        file_put_contents($argv[1],json_encode($value,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR).PHP_EOL,LOCK_EX);
+    ' "$publication_state_part"
+fi
+mv -- "$publication_state_part" "$publication_state"
 export ROLLBACK_CURRENT="$(basename "$previous_target")" ROLLBACK_PREVIOUS="$(basename "$current_target")"
 export ROLLBACK_RANGE_STATUS="$range_status"
 php -r '

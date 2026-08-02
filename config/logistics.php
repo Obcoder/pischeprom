@@ -24,6 +24,10 @@ return [
         'pmtiles_url' => env('LOGISTICS_MAP_PMTILES_URL', '/maps/logistics/russia.pmtiles'),
         'glyphs_url' => env('LOGISTICS_MAP_GLYPHS_URL', '/maps/logistics/fonts/{fontstack}/{range}.pbf'),
         'sprite_url' => env('LOGISTICS_MAP_SPRITE_URL', '/maps/logistics/sprites/basic'),
+        'asset_origins' => array_values(array_filter(array_map(
+            static fn (string $origin): string => trim($origin),
+            explode(',', (string) env('LOGISTICS_MAP_ASSET_ORIGINS', '')),
+        ))),
         'attribution' => '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · © <a href="https://openmaptiles.org/">OpenMapTiles</a>',
         'default_center' => [94.0, 66.0],
         'default_zoom' => (float) env('LOGISTICS_MAP_DEFAULT_ZOOM', 2.3),
@@ -33,23 +37,27 @@ return [
         'matrix_preview_ttl' => (int) env('LOGISTICS_MAP_MATRIX_PREVIEW_TTL', 21600),
         'release_manifest_path' => env(
             'LOGISTICS_GIS_RELEASE_MANIFEST',
-            '/srv/pischeprom-gis/current/release-manifest.json'
+            '/srv/pischeprom-gis-state/current/release-manifest.json'
         ),
         'preflight_status_path' => env(
             'LOGISTICS_GIS_PREFLIGHT_STATUS',
-            '/srv/pischeprom-gis/state/last-preflight.json'
+            '/srv/pischeprom-gis-state/current/last-preflight.json'
         ),
         'range_status_path' => env(
             'LOGISTICS_GIS_RANGE_STATUS',
-            '/srv/pischeprom-gis/state/last-range-check.json'
+            '/srv/pischeprom-gis-state/current/last-range-check.json'
         ),
         'activation_status_path' => env(
             'LOGISTICS_GIS_ACTIVATION_STATUS',
-            '/srv/pischeprom-gis/state/last-activation.json'
+            '/srv/pischeprom-gis-state/current/last-activation.json'
         ),
         'production_smoke_status_path' => env(
             'LOGISTICS_GIS_PRODUCTION_SMOKE_STATUS',
-            '/srv/pischeprom-gis/state/last-production-smoke.json'
+            '/srv/pischeprom-gis-state/current/last-production-smoke.json'
+        ),
+        'publication_status_path' => env(
+            'LOGISTICS_GIS_MAP_PUBLICATION_STATUS',
+            '/srv/pischeprom-gis-state/current/last-map-publication.json'
         ),
     ],
 
