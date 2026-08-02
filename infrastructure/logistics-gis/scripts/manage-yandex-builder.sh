@@ -173,8 +173,12 @@ if ! is_null_json "$security_group_json"; then
         $rules=is_array($value["rules"]??null)?$value["rules"]:[];
         $egress=0;
         $ssh=0;
+        $unexpected=false;
         foreach($rules as $rule){
-            if(!is_array($rule))exit(1);
+            if(!is_array($rule)){
+                $unexpected=true;
+                break;
+            }
             $direction=strtoupper((string)($rule["direction"]??""));
             $protocol=strtoupper((string)($rule["protocol_name"]??$rule["protocolName"]??""));
             $protocolNumber=(string)($rule["protocol_number"]??$rule["protocolNumber"]??"");
@@ -201,9 +205,10 @@ if ! is_null_json "$security_group_json"; then
                 $ssh++;
                 continue;
             }
-            exit(1);
+            $unexpected=true;
+            break;
         }
-        $valid=$egress===1&&$ssh<=1&&count($rules)===$egress+$ssh;
+        $valid=!$unexpected&&$egress===1&&$ssh<=1&&count($rules)===$egress+$ssh;
         if(!$valid){
             $summary=[];
             foreach($rules as $rule){
