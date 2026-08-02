@@ -203,7 +203,31 @@ if ! is_null_json "$security_group_json"; then
             }
             exit(1);
         }
-        exit($egress===1&&$ssh<=1&&count($rules)===$egress+$ssh?0:1);
+        $valid=$egress===1&&$ssh<=1&&count($rules)===$egress+$ssh;
+        if(!$valid){
+            $summary=[];
+            foreach($rules as $rule){
+                $ports=is_array($rule["ports"]??null)?$rule["ports"]:[];
+                $cidrs=$rule["cidr_blocks"]["v4_cidr_blocks"]
+                    ??$rule["cidrBlocks"]["v4CidrBlocks"]??[];
+                $targets=[];
+                foreach(is_array($cidrs)?$cidrs:[] as $cidr){
+                    $targets[]=$cidr==="0.0.0.0/0"?"all-ipv4"
+                        :(is_string($cidr)&&str_ends_with($cidr,"/32")?"single-ipv4":"other");
+                }
+                $summary[]=[
+                    "description"=>(string)($rule["description"]??""),
+                    "direction"=>(string)($rule["direction"]??""),
+                    "protocol_name"=>(string)($rule["protocol_name"]??$rule["protocolName"]??""),
+                    "protocol_number"=>(string)($rule["protocol_number"]??$rule["protocolNumber"]??""),
+                    "from"=>(string)($ports["from_port"]??$ports["fromPort"]??""),
+                    "to"=>(string)($ports["to_port"]??$ports["toPort"]??""),
+                    "targets"=>$targets,
+                ];
+            }
+            fwrite(STDERR,"[logistics-gis] Sanitized firewall mismatch: ".json_encode($summary,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR).PHP_EOL);
+        }
+        exit($valid?0:1);
     ' || fail 'Existing managed security group contains an unexpected firewall rule.'
 fi
 
