@@ -446,6 +446,8 @@ jobs:
                 build-status) echo 'Builder pipeline status was inspected; public SSH ingress is closed.' ;;
               esac
               if [[ "${pipeline_failed:-false}" == 'true' ]]; then
+                printf '%s\n' '----- sanitized pischeprom-gis-build journal -----' >&2
+                sed -n '1,200p' "$pipeline_journal_artifact" >&2
                 echo '::error::The detached builder pipeline reported a failed or interrupted state; inspect its sanitized journal artifact.'
                 exit 1
               fi
