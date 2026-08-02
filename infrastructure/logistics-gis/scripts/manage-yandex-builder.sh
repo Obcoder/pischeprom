@@ -184,7 +184,8 @@ if ! is_null_json "$security_group_json"; then
             $from=(string)($ports["from_port"]??$ports["fromPort"]??"");
             $to=(string)($ports["to_port"]??$ports["toPort"]??"");
             $description=(string)($rule["description"]??"");
-            if($direction==="EGRESS"&&$protocol==="ANY"&&$cidrs===["0.0.0.0/0"]
+            if($direction==="EGRESS"&&$protocol==="ANY"&&$from==="0"&&$to==="65535"
+                &&$cidrs===["0.0.0.0/0"]
                 &&$description==="builder-egress"){
                 $egress++;
                 continue;
@@ -301,7 +302,7 @@ update_security_group_rules() {
     local command=(
         yc vpc security-group update "$security_group_id"
         --clear-rules
-        --rule 'description=builder-egress,direction=egress,protocol=any,v4-cidrs=[0.0.0.0/0]'
+        --rule 'description=builder-egress,direction=egress,protocol=any,from-port=0,to-port=65535,v4-cidrs=[0.0.0.0/0]'
         --format json
         --no-user-output
     )
@@ -347,7 +348,7 @@ if [[ "$action" == 'apply' ]]; then
                 --name "$security_group_name" \
                 --description 'Ephemeral SSH ingress for the temporary Pischeprom GIS builder' \
                 --labels "managed-by=${managed_label},lifecycle=ephemeral" \
-                --rule 'description=builder-egress,direction=egress,protocol=any,v4-cidrs=[0.0.0.0/0]' \
+                --rule 'description=builder-egress,direction=egress,protocol=any,from-port=0,to-port=65535,v4-cidrs=[0.0.0.0/0]' \
                 --rule "description=ephemeral-github-ssh,direction=ingress,protocol=tcp,port=22,v4-cidrs=[${YC_GIS_SSH_CIDR}]" \
                 --format json \
                 --no-user-output
