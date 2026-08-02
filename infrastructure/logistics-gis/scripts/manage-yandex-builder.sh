@@ -177,6 +177,7 @@ if ! is_null_json "$security_group_json"; then
             if(!is_array($rule))exit(1);
             $direction=strtoupper((string)($rule["direction"]??""));
             $protocol=strtoupper((string)($rule["protocol_name"]??$rule["protocolName"]??""));
+            $protocolNumber=(string)($rule["protocol_number"]??$rule["protocolNumber"]??"");
             $cidrs=$rule["cidr_blocks"]["v4_cidr_blocks"]
                 ??$rule["cidrBlocks"]["v4CidrBlocks"]??[];
             sort($cidrs);
@@ -184,13 +185,16 @@ if ! is_null_json "$security_group_json"; then
             $from=(string)($ports["from_port"]??$ports["fromPort"]??"");
             $to=(string)($ports["to_port"]??$ports["toPort"]??"");
             $description=(string)($rule["description"]??"");
-            if($direction==="EGRESS"&&$protocol==="ANY"&&$from==="0"&&$to==="65535"
+            $anyProtocol=$protocol===""||$protocol==="ANY"||$protocolNumber==="0";
+            $allPorts=($from===""&&$to==="")||($from==="0"&&$to==="65535");
+            $tcpProtocol=$protocol==="TCP"||$protocolNumber==="6";
+            if($direction==="EGRESS"&&$anyProtocol&&$allPorts
                 &&$cidrs===["0.0.0.0/0"]
                 &&$description==="builder-egress"){
                 $egress++;
                 continue;
             }
-            if($direction==="INGRESS"&&$protocol==="TCP"&&$from==="22"&&$to==="22"
+            if($direction==="INGRESS"&&$tcpProtocol&&$from==="22"&&$to==="22"
                 &&count($cidrs)===1
                 &&preg_match("/^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\/32$/",$cidrs[0])===1
                 &&$description==="ephemeral-github-ssh"){
@@ -301,7 +305,6 @@ update_security_group_rules() {
     local ssh_cidr="${2:-}"
     local command=(
         yc vpc security-group update "$security_group_id"
-        --clear-rules
         --rule 'description=builder-egress,direction=egress,protocol=any,from-port=0,to-port=65535,v4-cidrs=[0.0.0.0/0]'
         --format json
         --no-user-output
