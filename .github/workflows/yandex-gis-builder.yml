@@ -1,0 +1,398 @@
+name: Plan, provision or destroy Yandex GIS builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Plan is read-only; apply creates/provisions; destroy removes the exact managed VM, disk and security group
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      confirmation:
+        description: For apply enter CREATE_GIS_BUILDER; for destroy enter DESTROY_GIS_BUILDER
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pischeprom-yandex-gis-builder
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  builder:
+    name: ${{ inputs.action }} temporary GIS builder
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: production
+
+    steps:
+      - name: Check out audited builder automation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate immutable cloud inputs
+        env:
+          LOGISTICS_APP_ORIGIN: ${{ vars.LOGISTICS_APP_ORIGIN }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_GIS_IMAGE_ID: ${{ vars.YC_GIS_IMAGE_ID }}
+          YC_GIS_NETWORK_ID: ${{ vars.YC_GIS_NETWORK_ID }}
+          YC_GIS_PRIVATE_BUCKET: ${{ vars.YC_GIS_PRIVATE_BUCKET }}
+          YC_GIS_SUBNET_ID: ${{ vars.YC_GIS_SUBNET_ID }}
+          YC_GIS_ZONE: ${{ vars.YC_GIS_ZONE }}
+          YC_MAP_BUCKET: ${{ vars.YC_MAP_BUCKET }}
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "$GITHUB_REPOSITORY" != 'Obcoder/pischeprom' \
+            || "$GITHUB_REF" != 'refs/heads/main' \
+            || ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::GIS infrastructure mutations may run only from the exact main commit of Obcoder/pischeprom.'
+            exit 1
+          fi
+
+          for required_name in \
+            LOGISTICS_APP_ORIGIN \
+            YC_FOLDER_ID \
+            YC_GIS_IMAGE_ID \
+            YC_GIS_NETWORK_ID \
+            YC_GIS_PRIVATE_BUCKET \
+            YC_GIS_SUBNET_ID \
+            YC_GIS_ZONE \
+            YC_MAP_BUCKET \
+            YC_OIDC_AUDIENCE \
+            YC_SERVICE_ACCOUNT_ID
+          do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "::error::Required production variable ${required_name} is missing."
+              exit 1
+            fi
+          done
+
+          expected_audience="https://github.com/${GITHUB_REPOSITORY_OWNER}"
+          if [[ "$YC_OIDC_AUDIENCE" != "$expected_audience" ]]; then
+            echo "::error::YC_OIDC_AUDIENCE must equal ${expected_audience}."
+            exit 1
+          fi
+
+      - name: Install checksum-pinned Yandex Cloud CLI
+        run: |
+          set -Eeuo pipefail
+          yc_version='1.22.0'
+          yc_sha256='54549af3441f691e362e27bc4197010658053d704ccd494e26534135bab34f33'
+          yc_bin_dir="${RUNNER_TEMP}/pischeprom-yc/bin"
+          install -d -m 0700 -- "$yc_bin_dir"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            --retry 4 \
+            --retry-all-errors \
+            --output "${yc_bin_dir}/yc" \
+            "https://storage.yandexcloud.net/yandexcloud-yc/release/${yc_version}/linux/amd64/yc"
+          printf '%s  %s\n' "$yc_sha256" "${yc_bin_dir}/yc" | sha256sum --check --strict
+          chmod 0500 "${yc_bin_dir}/yc"
+          "${yc_bin_dir}/yc" version
+          printf '%s\n' "$yc_bin_dir" >> "$GITHUB_PATH"
+
+      - name: Exchange GitHub OIDC token for short-lived Yandex IAM token
+        env:
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+
+          oidc_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --get \
+              --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              --data-urlencode "audience=${YC_OIDC_AUDIENCE}" \
+              --output "${work_dir}/github-oidc.json" \
+              --write-out '%{http_code}' \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL"
+          )"
+          [[ "$oidc_status" == '200' ]] || {
+            echo "::error::GitHub OIDC request failed with HTTP ${oidc_status}."
+            exit 1
+          }
+          oidc_token="$(jq -er '.value | select(type == "string" and length > 0)' "${work_dir}/github-oidc.json")"
+          echo "::add-mask::${oidc_token}"
+
+          iam_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --request POST \
+              --header 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+              --data-urlencode 'requested_token_type=urn:ietf:params:oauth:token-type:access_token' \
+              --data-urlencode "audience=${YC_SERVICE_ACCOUNT_ID}" \
+              --data-urlencode "subject_token=${oidc_token}" \
+              --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+              --output "${work_dir}/yandex-iam.json" \
+              --write-out '%{http_code}' \
+              'https://auth.yandex.cloud/oauth/token'
+          )"
+          if [[ "$iam_status" != '200' ]]; then
+            iam_message="$(jq -r '.error_description // .error // "No API error message"' "${work_dir}/yandex-iam.json")"
+            echo "::error::Yandex token exchange failed with HTTP ${iam_status}: ${iam_message}"
+            exit 1
+          fi
+
+          iam_token="$(jq -er '.access_token | select(type == "string" and length > 0)' "${work_dir}/yandex-iam.json")"
+          expires_in="$(jq -er '.expires_in | tonumber' "${work_dir}/yandex-iam.json")"
+          (( expires_in >= 1800 )) || {
+            echo '::error::Yandex IAM token lifetime is unexpectedly short.'
+            exit 1
+          }
+          echo "::add-mask::${iam_token}"
+          printf '%s' "$iam_token" > "${RUNNER_TEMP}/pischeprom-yc-iam-token"
+          echo "Short-lived Yandex IAM token acquired for ${expires_in} seconds."
+
+      - name: Run guarded builder lifecycle
+        env:
+          BUILDER_PRIVATE_KEY: ${{ secrets.YC_GIS_BUILDER_SSH_PRIVATE_KEY }}
+          LOGISTICS_APP_ORIGIN: ${{ vars.LOGISTICS_APP_ORIGIN }}
+          REQUESTED_ACTION: ${{ inputs.action }}
+          REQUESTED_CONFIRMATION: ${{ inputs.confirmation }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_GIS_IMAGE_ID: ${{ vars.YC_GIS_IMAGE_ID }}
+          YC_GIS_NETWORK_ID: ${{ vars.YC_GIS_NETWORK_ID }}
+          YC_GIS_PRIVATE_BUCKET: ${{ vars.YC_GIS_PRIVATE_BUCKET }}
+          YC_GIS_SUBNET_ID: ${{ vars.YC_GIS_SUBNET_ID }}
+          YC_GIS_ZONE: ${{ vars.YC_GIS_ZONE }}
+          YC_MAP_BUCKET: ${{ vars.YC_MAP_BUCKET }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          token_file="${RUNNER_TEMP}/pischeprom-yc-iam-token"
+          [[ -s "$token_file" && ! -L "$token_file" ]] || {
+            echo '::error::Short-lived Yandex IAM token file is unavailable.'
+            exit 1
+          }
+          YC_IAM_TOKEN="$(<"$token_file")"
+          echo "::add-mask::${YC_IAM_TOKEN}"
+          export YC_IAM_TOKEN
+
+          manager='infrastructure/logistics-gis/scripts/manage-yandex-builder.sh'
+          work_dir="$(mktemp -d)"
+          close_ssh=false
+          cleanup() {
+            cleanup_exit=$?
+            trap - EXIT
+            if $close_ssh; then
+              echo 'Closing transient SSH ingress after lifecycle interruption.'
+              YC_GIS_COMPUTE_ACTION=close-ssh "$manager" \
+                || echo '::error::Automatic SSH ingress closure failed; inspect the dedicated builder security group.'
+            fi
+            rm -rf -- "$work_dir"
+            exit "$cleanup_exit"
+          }
+          trap cleanup EXIT
+
+          export YC_GIS_COMPUTE_ACTION="$REQUESTED_ACTION"
+          export YC_GIS_COMPUTE_CONFIRMATION="$REQUESTED_CONFIRMATION"
+
+          case "$REQUESTED_ACTION" in
+            plan|destroy)
+              "$manager"
+              ;;
+            apply)
+              [[ -n "$BUILDER_PRIVATE_KEY" ]] || {
+                echo '::error::Production secret YC_GIS_BUILDER_SSH_PRIVATE_KEY is missing.'
+                exit 1
+              }
+              private_key="${work_dir}/builder-ed25519"
+              public_key="${work_dir}/builder-ed25519.pub"
+              printf '%s\n' "$BUILDER_PRIVATE_KEY" > "$private_key"
+              chmod 0600 "$private_key"
+              ssh-keygen -y -P '' -f "$private_key" > "$public_key"
+              [[ "$(wc -l < "$public_key" | tr -d '[:space:]')" == '1' \
+                && "$(<"$public_key")" =~ ^ssh-ed25519\  ]] || {
+                echo '::error::Builder secret is not one valid unencrypted Ed25519 private key.'
+                exit 1
+              }
+
+              runner_ipv4="$(
+                curl \
+                  --fail \
+                  --silent \
+                  --show-error \
+                  --ipv4 \
+                  --retry 4 \
+                  --retry-all-errors \
+                  --max-time 20 \
+                  'https://api.ipify.org'
+              )"
+              RUNNER_IPV4="$runner_ipv4" php -r '
+                exit(filter_var((string)getenv("RUNNER_IPV4"), FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false ? 0 : 1);
+              ' || {
+                echo '::error::Unable to determine one valid GitHub runner public IPv4.'
+                exit 1
+              }
+              export YC_GIS_SSH_CIDR="${runner_ipv4}/32"
+              export YC_GIS_SSH_PUBLIC_KEY_FILE="$public_key"
+              close_ssh=true
+
+              "$manager"
+              YC_GIS_COMPUTE_ACTION=plan "$manager"
+
+              vm_json="$(
+                yc compute instance get pischeprom-gis-builder \
+                  --folder-id "$YC_FOLDER_ID" \
+                  --format json \
+                  --no-user-output
+              )"
+              mapfile -t vm_values < <(
+                VM="$vm_json" php -r '
+                  $v=json_decode((string)getenv("VM"),true,flags:JSON_THROW_ON_ERROR);
+                  $interfaces=$v["network_interfaces"]??$v["networkInterfaces"]??[];
+                  $primary=$interfaces[0]["primary_v4_address"]??$interfaces[0]["primaryV4Address"]??[];
+                  $nat=$primary["one_to_one_nat"]??$primary["oneToOneNat"]??[];
+                  echo ($v["id"]??""),PHP_EOL,($nat["address"]??""),PHP_EOL,($v["status"]??""),PHP_EOL;
+                '
+              )
+              vm_id="${vm_values[0]:-}"
+              public_ipv4="${vm_values[1]:-}"
+              vm_status="${vm_values[2]:-}"
+              [[ "$vm_id" =~ ^[a-z0-9]{20}$ && "$vm_status" == 'RUNNING' ]] || {
+                echo '::error::Managed builder did not reach RUNNING state.'
+                exit 1
+              }
+              VM_PUBLIC_IPV4="$public_ipv4" php -r '
+                exit(filter_var((string)getenv("VM_PUBLIC_IPV4"), FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false ? 0 : 1);
+              ' || {
+                echo '::error::Managed builder has no valid public IPv4.'
+                exit 1
+              }
+
+              serial_output="${work_dir}/serial-output.txt"
+              scanned_host_keys="${work_dir}/scanned-host-keys"
+              expected_fingerprint=''
+              actual_fingerprint=''
+              for attempt in $(seq 1 72); do
+                yc compute instance get-serial-port-output "$vm_id" \
+                  --no-user-output > "$serial_output" 2>/dev/null || true
+                expected_fingerprint="$(
+                  php -r '
+                    $lines=preg_split("/\\R/",(string)file_get_contents($argv[1]))?:[];
+                    foreach($lines as $line){
+                      if(stripos($line,"ED25519")!==false
+                        &&preg_match("/SHA256:[A-Za-z0-9+\\/=]+/",$line,$match)===1){$value=$match[0];}
+                    }
+                    echo $value??"";
+                  ' "$serial_output"
+                )"
+                ssh-keyscan -4 -T 5 -t ed25519 "$public_ipv4" > "$scanned_host_keys" 2>/dev/null || true
+                actual_fingerprint="$(
+                  if [[ -s "$scanned_host_keys" ]]; then
+                    ssh-keygen -lf "$scanned_host_keys" -E sha256 2>/dev/null \
+                      | awk '$NF == "(ED25519)" {print $2; exit}'
+                  fi
+                )"
+                if [[ -n "$expected_fingerprint" && "$actual_fingerprint" == "$expected_fingerprint" ]]; then
+                  break
+                fi
+                expected_fingerprint=''
+                actual_fingerprint=''
+                sleep 5
+              done
+              [[ -n "$expected_fingerprint" && "$actual_fingerprint" == "$expected_fingerprint" ]] || {
+                echo '::error::SSH ED25519 host key could not be matched to authenticated Yandex serial output.'
+                exit 1
+              }
+              echo "Verified managed builder SSH host fingerprint ${actual_fingerprint}."
+
+              ssh_options=(
+                -i "$private_key"
+                -o BatchMode=yes
+                -o ConnectTimeout=15
+                -o HostKeyAlgorithms=ssh-ed25519
+                -o IdentitiesOnly=yes
+                -o StrictHostKeyChecking=yes
+                -o "UserKnownHostsFile=${scanned_host_keys}"
+              )
+              ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" true
+
+              source_archive="${work_dir}/pischeprom-gis-${GITHUB_SHA}.tar.gz"
+              git archive \
+                --format=tar.gz \
+                --prefix=pischeprom-gis-source/ \
+                --output="$source_archive" \
+                "$GITHUB_SHA" \
+                infrastructure/logistics-gis
+              [[ -s "$source_archive" ]] || {
+                echo '::error::Audited GIS source archive is empty.'
+                exit 1
+              }
+              remote_archive="/tmp/pischeprom-gis-${GITHUB_SHA}.tar.gz"
+              scp "${ssh_options[@]}" "$source_archive" "yc-user@${public_ipv4}:${remote_archive}"
+
+              remote_command="$(printf '%s' \
+                'set -Eeuo pipefail; ' \
+                'provision_root=$(mktemp -d /tmp/pischeprom-gis-provision.XXXXXXXX); ' \
+                "archive='${remote_archive}'; " \
+                'cleanup(){ rm -rf -- "$provision_root" "$archive"; }; trap cleanup EXIT; ' \
+                'tar --no-same-owner -xzf "$archive" -C "$provision_root"; ' \
+                "sudo env GIS_PROVISION_SOURCE_DIR=\"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis\" GIS_PROVISION_SOURCE_COMMIT='${GITHUB_SHA}' YC_MAP_BUCKET='${YC_MAP_BUCKET}' YC_GIS_PRIVATE_BUCKET='${YC_GIS_PRIVATE_BUCKET}' LOGISTICS_APP_ORIGIN='${LOGISTICS_APP_ORIGIN}' \"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis/scripts/provision-yandex-builder.sh\"")"
+              ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" "$remote_command"
+
+              preflight_artifact="${RUNNER_TEMP}/yandex-gis-builder-preflight.json"
+              ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                "sudo -u pischeprom-gis php -r 'readfile(\"/srv/pischeprom-gis/state/last-preflight.json\");'" \
+                > "$preflight_artifact"
+              php -r '
+                $v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);
+                exit(($v["result"]??null)==="PASS"&&($v["exit_code"]??null)===0?0:1);
+              ' "$preflight_artifact" || {
+                echo '::error::Downloaded target-host preflight evidence is not PASS.'
+                exit 1
+              }
+
+              YC_GIS_COMPUTE_ACTION=close-ssh "$manager"
+              close_ssh=false
+              YC_GIS_COMPUTE_ACTION=plan "$manager"
+              echo 'Temporary GIS builder is provisioned; public SSH ingress is closed.'
+              ;;
+            *)
+              echo "::error::Unsupported action ${REQUESTED_ACTION}."
+              exit 1
+              ;;
+          esac
+
+          trap - EXIT
+          rm -rf -- "$work_dir"
+
+      - name: Upload sanitized target-host preflight evidence
+        if: ${{ always() && inputs.action == 'apply' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yandex-gis-builder-preflight-${{ github.sha }}
+          path: ${{ runner.temp }}/yandex-gis-builder-preflight.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove short-lived credentials
+        if: ${{ always() }}
+        run: rm -f -- "${RUNNER_TEMP}/pischeprom-yc-iam-token"

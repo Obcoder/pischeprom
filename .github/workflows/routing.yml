@@ -51,6 +51,7 @@ jobs:
           infrastructure/logistics-gis/tests/application-state-bundle-test.sh
           infrastructure/logistics-gis/tests/object-storage-publisher-test.sh
           infrastructure/logistics-gis/tests/yandex-storage-bootstrap-test.sh
+          infrastructure/logistics-gis/tests/yandex-builder-manager-test.sh
 
       - name: Enforce the manual-build boundary
         run: |
