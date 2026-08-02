@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/routing.yml'
       - '.github/workflows/yandex-cloud-preflight.yml'
+      - '.github/workflows/yandex-storage.yml'
       - 'infrastructure/logistics-gis/**'
       - 'app/Services/Logistics/Map/**'
       - 'config/logistics.php'
@@ -49,6 +50,7 @@ jobs:
           infrastructure/logistics-gis/tests/range-cors-test.sh
           infrastructure/logistics-gis/tests/application-state-bundle-test.sh
           infrastructure/logistics-gis/tests/object-storage-publisher-test.sh
+          infrastructure/logistics-gis/tests/yandex-storage-bootstrap-test.sh
 
       - name: Enforce the manual-build boundary
         run: |

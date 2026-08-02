@@ -1,0 +1,120 @@
+name: Plan or apply Yandex Object Storage foundation
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Use plan for GET-only inspection or apply to create/reconcile storage
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+      confirmation:
+        description: For apply only, enter CREATE_YANDEX_STORAGE
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pischeprom-yandex-storage
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  storage:
+    name: ${{ inputs.action == 'apply' && 'Apply storage foundation' || 'Plan storage foundation' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: production
+
+    steps:
+      - name: Check out audited storage bootstrap
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Exchange OIDC token and run storage bootstrap
+        env:
+          LOGISTICS_APP_ORIGIN: ${{ vars.LOGISTICS_APP_ORIGIN }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_GIS_PRIVATE_BUCKET: ${{ vars.YC_GIS_PRIVATE_BUCKET }}
+          YC_MAP_BUCKET: ${{ vars.YC_MAP_BUCKET }}
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+          YC_STORAGE_ACTION: ${{ inputs.action }}
+          YC_STORAGE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -Eeuo pipefail
+
+          for required_name in \
+            LOGISTICS_APP_ORIGIN \
+            YC_FOLDER_ID \
+            YC_GIS_PRIVATE_BUCKET \
+            YC_MAP_BUCKET \
+            YC_OIDC_AUDIENCE \
+            YC_SERVICE_ACCOUNT_ID
+          do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "::error::Required production variable ${required_name} is missing."
+              exit 1
+            fi
+          done
+
+          oidc_response="$(mktemp)"
+          iam_response="$(mktemp)"
+          trap 'rm -- "$oidc_response" "$iam_response"' EXIT
+
+          oidc_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --get \
+              --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              --data-urlencode "audience=${YC_OIDC_AUDIENCE}" \
+              --output "$oidc_response" \
+              --write-out '%{http_code}' \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL"
+          )"
+          if [[ "$oidc_status" != '200' ]]; then
+            echo "::error::GitHub OIDC request failed with HTTP ${oidc_status}."
+            exit 1
+          fi
+
+          oidc_token="$(jq -er '.value | select(type == "string" and length > 0)' "$oidc_response")"
+          echo "::add-mask::${oidc_token}"
+
+          iam_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --request POST \
+              --header 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+              --data-urlencode 'requested_token_type=urn:ietf:params:oauth:token-type:access_token' \
+              --data-urlencode "audience=${YC_SERVICE_ACCOUNT_ID}" \
+              --data-urlencode "subject_token=${oidc_token}" \
+              --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+              --output "$iam_response" \
+              --write-out '%{http_code}' \
+              'https://auth.yandex.cloud/oauth/token'
+          )"
+          if [[ "$iam_status" != '200' ]]; then
+            iam_message="$(jq -r '.error_description // .error // "No API error message"' "$iam_response")"
+            echo "::error::Yandex Cloud token exchange failed with HTTP ${iam_status}: ${iam_message}"
+            exit 1
+          fi
+
+          YC_IAM_TOKEN="$(jq -er '.access_token | select(type == "string" and length > 0)' "$iam_response")"
+          echo "::add-mask::${YC_IAM_TOKEN}"
+          export YC_IAM_TOKEN
+
+          infrastructure/logistics-gis/scripts/bootstrap-yandex-storage.sh

@@ -92,6 +92,20 @@ Passing this workflow proves authentication and read authorization only. It
 does not prove an active billing account and never creates a bucket, network,
 disk or VM.
 
+The separate manual `yandex-storage.yml` workflow has an explicit two-stage
+boundary:
+
+- `action=plan` only inspects current bucket state;
+- `action=apply` additionally requires the exact confirmation
+  `CREATE_YANDEX_STORAGE` before it may create or reconcile resources.
+
+It creates a public-read map bucket with anonymous listing disabled, capped at
+50 GiB, and a fully private GIS artifact bucket capped at 100 GiB. These are
+maximum-size safety limits, not allocated storage. It uploads one deterministic
+64 KiB fixture and
+requires public HTTPS, exact production CORS, immutable content and Range/206.
+It does not create a network, disk or VM.
+
 ## Object Storage and optional CDN
 
 The publisher is S3-compatible. The first experimental deployment uses Yandex
