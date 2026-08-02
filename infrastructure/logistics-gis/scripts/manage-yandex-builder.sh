@@ -190,7 +190,8 @@ if ! is_null_json "$security_group_json"; then
             $to=(string)($ports["to_port"]??$ports["toPort"]??"");
             $description=(string)($rule["description"]??"");
             $anyProtocol=$protocol===""||$protocol==="ANY"||$protocolNumber==="0";
-            $allPorts=($from===""&&$to==="")||($from==="0"&&$to==="65535");
+            $allPorts=($from===""&&($to===""||$to==="65535"))
+                ||($from==="0"&&$to==="65535");
             $tcpProtocol=$protocol==="TCP"||$protocolNumber==="6";
             if($direction==="EGRESS"&&$anyProtocol&&$allPorts
                 &&$cidrs===["0.0.0.0/0"]

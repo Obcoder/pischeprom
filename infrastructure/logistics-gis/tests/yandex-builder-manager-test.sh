@@ -70,7 +70,7 @@ case "$1 $2 $3" in
         else
             extra_rule=''
         fi
-        printf '{"id":"%s","folder_id":"%s","name":"pischeprom-gis-builder-sg","network_id":"%s","labels":{"managed-by":"pischeprom-gis","lifecycle":"ephemeral"},"rules":[{"description":"builder-egress","direction":"EGRESS","protocol_number":"0","cidr_blocks":{"v4_cidr_blocks":["0.0.0.0/0"]}}%s]}\n' \
+        printf '{"id":"%s","folder_id":"%s","name":"pischeprom-gis-builder-sg","network_id":"%s","labels":{"managed-by":"pischeprom-gis","lifecycle":"ephemeral"},"rules":[{"description":"builder-egress","direction":"EGRESS","protocol_name":"ANY","protocol_number":"-1","ports":{"to_port":"65535"},"cidr_blocks":{"v4_cidr_blocks":["0.0.0.0/0"]}}%s]}\n' \
             "$security_group" "$folder" "$network" "$extra_rule"
         ;;
     *)
