@@ -96,7 +96,7 @@ run_timed() {
         file_put_contents($next,json_encode($value,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR).PHP_EOL,LOCK_EX);
         rename($next,$path);
     '
-    run_timed valhalla_build_timezones > "$component/tiles/timezones.sqlite"
+    run_timed "${GIS_SCRIPT_DIR}/build-valhalla-timezones.sh" "$component/tiles/timezones.sqlite"
     run_timed valhalla_build_admins -c "$config" "$pbf"
     run_timed valhalla_build_tiles -c "$config" "$pbf"
     run_timed valhalla_build_extract -c "$config" -v

@@ -219,7 +219,7 @@ jobs:
           echo 'Sanitized compute inventory:'
           jq -r '
             (.networks // [])[]
-            | "network id=\(.id) name=\(.name) default_security_group=\(.defaultSecurityGroupId // \"none\")"
+            | "network id=\(.id) name=\(.name) default_security_group=\(.defaultSecurityGroupId // "none")"
           ' "$work_dir/networks.json"
           if [[ "$(jq '(.networks // []) | length' "$work_dir/networks.json")" == '0' ]]; then
             echo 'network none'

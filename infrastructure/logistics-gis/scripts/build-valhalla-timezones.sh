@@ -8,7 +8,7 @@ output="$1"
 [[ "$output" == /* && "$(basename "$output")" == 'timezones.sqlite' ]] \
     || gis_fail 'Timezone output must be an absolute timezones.sqlite path.'
 
-for command_name in curl spatialite spatialite_tool unzip; do
+for command_name in curl find spatialite spatialite_tool tr unzip wc; do
     gis_require_command "$command_name"
 done
 

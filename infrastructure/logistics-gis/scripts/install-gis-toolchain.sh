@@ -13,17 +13,21 @@ fail() {
     || fail 'Pinned GIS toolchain installer supports Linux x86_64 only.'
 [[ "${EUID}" -eq 0 ]] || fail 'Pinned GIS toolchain installation must run as root.'
 
-for command_name in curl install ln mktemp php python3 sha256sum tar; do
+for command_name in awk basename curl head install ln mktemp php python3 readlink sha256sum tar uname; do
     command -v "$command_name" >/dev/null 2>&1 \
         || fail "Required provisioning command is unavailable: ${command_name}"
 done
 python3 -m venv --help >/dev/null 2>&1 \
     || fail 'python3-venv is required for the pinned Valhalla wheel.'
+python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)' \
+    || fail 'Python 3.12 or newer is required for the pinned Valhalla wheel.'
 
 planetiler_version='0.10.2'
 planetiler_sha256='f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d'
 pmtiles_version='1.31.2'
 pmtiles_sha256='3ed7dbf4ec2e6dfe5e25b6f70d1ffc932729f93c86db353bf514dd71010a312f'
+yc_version='1.22.0'
+yc_sha256='54549af3441f691e362e27bc4197010658053d704ccd494e26534135bab34f33'
 valhalla_version='3.6.3'
 valhalla_wheel_sha256='e123720983ce570f340c3ef78289098bf647deba68d56143571384a5aa874868'
 valhalla_commit='e2f017b16080f49203de245a211b09efab09cf72'
@@ -31,9 +35,15 @@ valhalla_extract_sha256='37daac2ff760552c79431b41653be6d457e7e30d051e400c2906420
 
 planetiler_root="/opt/planetiler/${planetiler_version}"
 pmtiles_root="/opt/pmtiles/${pmtiles_version}"
+yc_root="/opt/yandex-cloud-cli/${yc_version}"
 valhalla_root="/opt/valhalla/${valhalla_version}"
 work_root="$(mktemp -d /opt/.pischeprom-gis-toolchain.XXXXXXXX)"
+created_valhalla=false
+valhalla_ready=false
 cleanup() {
+    if $created_valhalla && ! $valhalla_ready && [[ -d "$valhalla_root" && ! -L "$valhalla_root" ]]; then
+        rm -r -- "$valhalla_root"
+    fi
     rm -r -- "$work_root"
 }
 trap cleanup EXIT
@@ -83,7 +93,12 @@ link_exact() {
     ln -s -- "$target" "$link"
 }
 
-install -d -m 0755 -- "$planetiler_root" "$pmtiles_root" /opt/valhalla /usr/local/bin
+install -d -m 0755 -- \
+    "$planetiler_root" \
+    "$pmtiles_root" \
+    "$yc_root" \
+    /opt/valhalla \
+    /usr/local/bin
 
 planetiler_download="${work_root}/planetiler.jar"
 download_verified \
@@ -115,20 +130,31 @@ install_versioned_file \
     0555
 link_exact "${pmtiles_root}/pmtiles" /usr/local/bin/pmtiles
 
-valhalla_wheel="${work_root}/pyvalhalla.whl"
+yc_download="${work_root}/yc"
+download_verified \
+    "https://storage.yandexcloud.net/yandexcloud-yc/release/${yc_version}/linux/amd64/yc" \
+    "$yc_download" \
+    "$yc_sha256"
+install_versioned_file \
+    "$yc_download" \
+    "${yc_root}/yc" \
+    "$yc_sha256" \
+    0555
+link_exact "${yc_root}/yc" /usr/local/bin/yc
+
+valhalla_wheel="${work_root}/pyvalhalla-3.6.3-cp312-abi3-manylinux_2_28_x86_64.whl"
 download_verified \
     'https://files.pythonhosted.org/packages/d3/cc/78891758cd34dfdc9c8924a92cb1a9f48d594acc03d2b62d68d9933abaaf/pyvalhalla-3.6.3-cp312-abi3-manylinux_2_28_x86_64.whl' \
     "$valhalla_wheel" \
     "$valhalla_wheel_sha256"
 if [[ ! -d "$valhalla_root" ]]; then
-    valhalla_stage="${work_root}/valhalla"
-    python3 -m venv "$valhalla_stage"
-    "$valhalla_stage/bin/python3" -m pip install \
+    created_valhalla=true
+    python3 -m venv "$valhalla_root"
+    "$valhalla_root/bin/python3" -m pip install \
         --disable-pip-version-check \
         --no-deps \
         --no-index \
         "$valhalla_wheel" >/dev/null
-    mv -- "$valhalla_stage" "$valhalla_root"
 fi
 [[ -x "${valhalla_root}/bin/python3" ]] || fail 'Pinned Valhalla virtual environment is incomplete.'
 installed_valhalla_version="$("${valhalla_root}/bin/python3" -m valhalla --version)"
@@ -171,10 +197,13 @@ link_exact "${valhalla_root}/bin/valhalla_build_extract" /usr/local/bin/valhalla
 
 [[ "$(/usr/local/bin/pmtiles version 2>/dev/null | head -n1)" == *"${pmtiles_version}"* ]] \
     || fail 'Installed PMTiles CLI version check failed.'
+[[ "$(/usr/local/bin/yc version 2>&1 | head -n1)" == *"${yc_version}"* ]] \
+    || fail 'Installed Yandex Cloud CLI version check failed.'
 [[ "$(/usr/local/bin/valhalla_service --version 2>&1 | head -n1)" == *"${valhalla_version}"* ]] \
     || fail 'Installed Valhalla version check failed.'
 
+valhalla_ready=true
 trap - EXIT
 rm -r -- "$work_root"
-printf '[logistics-gis] Installed pinned GIS toolchain: Planetiler %s, PMTiles %s, Valhalla %s.\n' \
-    "$planetiler_version" "$pmtiles_version" "$valhalla_version"
+printf '[logistics-gis] Installed pinned GIS toolchain: Planetiler %s, PMTiles %s, Valhalla %s, YC CLI %s.\n' \
+    "$planetiler_version" "$pmtiles_version" "$valhalla_version" "$yc_version"

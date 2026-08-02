@@ -25,16 +25,18 @@ bucket='map-bucket'
 release_dir="${gis_base}/releases/${release}"
 assets="${release_dir}/map/assets"
 mkdir -p -- "$fake_bin" "${gis_base}/state" "${gis_base}/locks" \
-    "${assets}/fonts/Noto Sans Regular" "${assets}/sprites" "$object_root" "$metadata_root"
+    "${assets}/fonts/Noto Sans Regular" "${assets}/licenses" "${assets}/sprites" "$object_root" "$metadata_root"
 
 printf '0123456789abcdef0123456789abcdef' > "${release_dir}/map/russia.pmtiles"
 printf 'glyph-fixture\n' > "${assets}/fonts/Noto Sans Regular/0-255.pbf"
+printf 'license-fixture\n' > "${assets}/licenses/font.txt"
 printf '{}\n' > "${assets}/sprites/basic.json"
 printf 'png-fixture\n' > "${assets}/sprites/basic.png"
 (
     cd "$assets"
     sha256sum -- \
         'fonts/Noto Sans Regular/0-255.pbf' \
+        'licenses/font.txt' \
         'sprites/basic.json' \
         'sprites/basic.png' \
         > SHA256SUMS
@@ -84,7 +86,10 @@ if [[ "$service" == 's3api' && "$operation" == 'list-objects-v2' ]]; then
             }
         }
         sort($keys,SORT_STRING);
-        echo json_encode(["Contents"=>array_map(static fn($key)=>["Key"=>$key],$keys)],JSON_THROW_ON_ERROR);
+        $yc=getenv("FAKE_YC_JSON")==="true";
+        echo json_encode($yc
+            ?["contents"=>array_map(static fn($key)=>["key"=>$key],$keys)]
+            :["Contents"=>array_map(static fn($key)=>["Key"=>$key],$keys)],JSON_THROW_ON_ERROR);
     '
     exit 0
 fi
@@ -110,7 +115,13 @@ if [[ "$service" == 's3api' && "$operation" == 'head-object' ]]; then
     release="${values[3]}"
     CONTENT_LENGTH="$(stat -c '%s' -- "$object")" CONTENT_TYPE="$content_type" \
     CACHE_CONTROL="$cache_control" OBJECT_SHA="$sha" OBJECT_RELEASE="$release" php -r '
-        echo json_encode([
+        $yc=getenv("FAKE_YC_JSON")==="true";
+        echo json_encode($yc?[
+            "content_length"=>(int)getenv("CONTENT_LENGTH"),
+            "content_type"=>getenv("CONTENT_TYPE"),
+            "cache_control"=>getenv("CACHE_CONTROL"),
+            "metadata"=>["sha256"=>getenv("OBJECT_SHA"),"release"=>getenv("OBJECT_RELEASE")],
+        ]:[
             "ContentLength"=>(int)getenv("CONTENT_LENGTH"),
             "ContentType"=>getenv("CONTENT_TYPE"),
             "CacheControl"=>getenv("CACHE_CONTROL"),
@@ -157,6 +168,35 @@ printf 'Unsupported fake AWS call: %s %s\n' "$service" "$operation" >&2
 exit 64
 FAKE_AWS
 
+tee "${fake_bin}/yc" >/dev/null <<'FAKE_YC'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+[[ "${1:-}" == 'storage' ]] || exit 64
+shift
+fake_aws="$(dirname "$0")/aws"
+if [[ "${1:-}" == 's3api' ]]; then
+    operation="${2:-}"
+    shift 2
+    [[ "$operation" != 'list-objects' ]] || operation='list-objects-v2'
+    translated=()
+    while (( $# > 0 )); do
+        if [[ "$1" == '--format' ]]; then
+            translated+=(--output "$2")
+            shift 2
+        else
+            translated+=("$1")
+            shift
+        fi
+    done
+    FAKE_YC_JSON=true exec "$fake_aws" s3api "$operation" "${translated[@]}"
+fi
+if [[ "${1:-}" == 's3' && "${2:-}" == 'cp' ]]; then
+    shift 2
+    exec "$fake_aws" s3 cp "$@"
+fi
+exit 64
+FAKE_YC
+
 tee "${fake_bin}/curl" >/dev/null <<'FAKE_CURL'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -202,9 +242,10 @@ else
     cat -- "$object"
 fi
 FAKE_CURL
-chmod 0755 "${fake_bin}/aws" "${fake_bin}/curl"
+chmod 0755 "${fake_bin}/aws" "${fake_bin}/curl" "${fake_bin}/yc"
 
 run_publisher() {
+    local storage_cli="${1:-aws}"
     PATH="${fake_bin}:$PATH" \
     FAKE_S3_ROOT="$object_root" \
     FAKE_S3_METADATA_ROOT="$metadata_root" \
@@ -212,14 +253,16 @@ run_publisher() {
     FAKE_APPLICATION_ORIGIN='https://app.example.test' \
     GIS_BASE_DIR="$gis_base" \
     GIS_OBJECT_STORAGE_BUCKET="$bucket" \
+    GIS_OBJECT_STORAGE_CLI="$storage_cli" \
     GIS_OBJECT_STORAGE_PREFIX='logistics' \
     GIS_PUBLIC_ASSET_BASE_URL='https://maps.example.test/logistics' \
     GIS_MAP_APPLICATION_ORIGIN='https://app.example.test' \
     GIS_VERIFY_PUBLIC_PMTILES_SHA256=true \
+    YC_IAM_TOKEN='short-lived-test-token' \
         "$publisher" "$release"
 }
 
-run_publisher
+run_publisher yc
 publication="${object_root}/${bucket}/logistics/releases/${release}/map-publication.json"
 [[ -s "$publication" && -s "${gis_base}/state/last-map-publication.json" ]]
 PUBLICATION="$publication" EXPECTED_SHA="$pmtiles_sha" php -r '
@@ -228,11 +271,12 @@ PUBLICATION="$publication" EXPECTED_SHA="$pmtiles_sha" php -r '
 '
 
 # A completed retry verifies all immutable objects and performs no upload.
-FAKE_FAIL_UPLOAD=true run_publisher
+FAKE_FAIL_UPLOAD=true run_publisher yc
+FAKE_FAIL_UPLOAD=true run_publisher aws
 
 unexpected="${object_root}/${bucket}/logistics/releases/${release}/unexpected.txt"
 printf 'unexpected\n' > "$unexpected"
-if run_publisher >/dev/null 2>&1; then
+if run_publisher yc >/dev/null 2>&1; then
     printf 'Unexpected immutable object was accepted.\n' >&2
     exit 1
 fi

@@ -17,9 +17,11 @@ The basemap and previously saved route geometries remain available because no
 map request depends on that VPS. Object Storage and the application VPS
 must remain active.
 
-No GIS data is committed to Git. Download, build, publication, activation and
-state transfer never run from Laravel deploy, migrations, queue workers or
-GitHub Actions.
+No GIS data is committed to Git. Download, graph/PMTiles build, publication,
+activation and state transfer never run from Laravel deploy, migrations, queue
+workers or GitHub-hosted runners. The manual validation workflow may install
+the pinned native tools and small map assets on an ephemeral runner, but never
+downloads a PBF or creates a release.
 
 ## Storage layout
 
@@ -160,7 +162,9 @@ logistics/releases/russia-YYYYMMDD/
 └── map-publication.json        uploaded last; release completion marker
 ```
 
-`publish-map-assets.sh` can resume an interrupted upload. It validates every
+`publish-map-assets.sh` can resume an interrupted upload through either the
+AWS-compatible CLI or the native Yandex Cloud CLI. Yandex mode accepts only a
+short-lived `YC_IAM_TOKEN`; no static S3 access key is required. It validates every
 existing object's size, MIME type, immutable cache policy and SHA-256 metadata;
 it never overwrites a mismatching object and rejects unexpected keys.
 
@@ -175,14 +179,36 @@ set -a
 set +a
 ```
 
-The pipeline installs no packages. Provision and pin:
+Install the small OS prerequisite set on Ubuntu 24.04:
 
-- the audited native Valhalla version and build tools;
-- Java 21 or newer;
-- one exact Planetiler release plus `PLANETILER_JAR_SHA256`;
-- one exact PMTiles CLI version;
-- AWS CLI compatible with the selected storage;
-- local Noto Sans glyphs and sprites with `SHA256SUMS`.
+```bash
+sudo apt-get update
+sudo apt-get install --yes --no-install-recommends \
+  ca-certificates curl git jq openjdk-21-jre-headless php-cli \
+  python3-venv spatialite-bin time unzip
+```
+
+Then install the checksum-pinned user-space toolchain and public map assets:
+
+```bash
+sudo infrastructure/logistics-gis/scripts/install-gis-toolchain.sh
+sudo infrastructure/logistics-gis/scripts/install-map-assets.sh \
+  /opt/pischeprom-map-assets
+```
+
+The installers are idempotent and refuse to replace a different existing file
+or symlink. They pin:
+
+- Valhalla/pyvalhalla `3.6.3` and its build helpers;
+- Planetiler `0.10.2` plus its exact SHA-256;
+- PMTiles CLI `1.31.2`;
+- Yandex Cloud CLI `1.22.0`;
+- Noto Sans glyph ranges, empty sprite pair and their upstream licenses.
+
+Java 21 and Spatialite remain OS packages and are checked again by the
+blocking target-host preflight. The manual GitHub `routing.yml` workflow runs
+the installers twice on clean Ubuntu and verifies the generated Valhalla
+configuration and complete asset checksum manifest.
 
 Set the real Valhalla restart mechanism. Prefer `VALHALLA_SYSTEMD_UNIT`; an
 alternative `VALHALLA_RESTART_HELPER` must be an absolute operator-managed

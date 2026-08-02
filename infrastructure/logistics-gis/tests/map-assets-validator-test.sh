@@ -7,13 +7,16 @@ fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/pischeprom-map-assets.XXXXXXXX")"
 cleanup() { rm -r -- "$fixture_dir"; }
 trap cleanup EXIT
 
-mkdir -p -- "$fixture_dir/fonts/Noto Sans Regular" "$fixture_dir/sprites"
+mkdir -p -- "$fixture_dir/fonts/Noto Sans Regular" "$fixture_dir/licenses" "$fixture_dir/sprites"
 printf 'glyph-fixture\n' > "$fixture_dir/fonts/Noto Sans Regular/0-255.pbf"
+printf 'license-fixture\n' > "$fixture_dir/licenses/font.txt"
 printf '{}\n' > "$fixture_dir/sprites/basic.json"
 glyph_sha="$(php -r 'echo hash_file("sha256",$argv[1]);' "$fixture_dir/fonts/Noto Sans Regular/0-255.pbf")"
+license_sha="$(php -r 'echo hash_file("sha256",$argv[1]);' "$fixture_dir/licenses/font.txt")"
 sprite_sha="$(php -r 'echo hash_file("sha256",$argv[1]);' "$fixture_dir/sprites/basic.json")"
-printf '%s  %s\n%s  %s\n' \
+printf '%s  %s\n%s  %s\n%s  %s\n' \
     "$glyph_sha" 'fonts/Noto Sans Regular/0-255.pbf' \
+    "$license_sha" 'licenses/font.txt' \
     "$sprite_sha" 'sprites/basic.json' \
     > "$fixture_dir/SHA256SUMS"
 

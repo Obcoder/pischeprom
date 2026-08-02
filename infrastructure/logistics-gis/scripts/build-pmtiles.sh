@@ -38,6 +38,10 @@ assets="${GIS_MAP_ASSETS_DIR:-}"
 for asset in \
     "$assets/fonts/Noto Sans Regular/0-255.pbf" \
     "$assets/fonts/Noto Sans Regular/1024-1279.pbf" \
+    "$assets/fonts/Noto Sans Regular/1280-1535.pbf" \
+    "$assets/fonts/Noto Sans Regular/8192-8447.pbf" \
+    "$assets/licenses/MapLibre-Demo-Tiles.BSD-3-Clause.txt" \
+    "$assets/licenses/Noto-Sans.OFL-1.1.txt" \
     "$assets/sprites/basic.json" \
     "$assets/sprites/basic.png" \
     "$assets/sprites/basic@2x.json" \
@@ -125,6 +129,7 @@ started_epoch="$(date +%s)"
 [[ -s "$pmtiles_file" && -s "$component/pmtiles-header.json" ]] \
     || gis_fail 'Planetiler/PMTiles validation did not create all required artifacts.'
 cp -a -- "$assets/fonts" "$component/assets/fonts"
+cp -a -- "$assets/licenses" "$component/assets/licenses"
 cp -a -- "$assets/sprites" "$component/assets/sprites"
 cp -- "$assets/SHA256SUMS" "$component/assets/SHA256SUMS"
 finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

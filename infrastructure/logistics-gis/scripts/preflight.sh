@@ -48,7 +48,7 @@ else
     required=(awk basename cp curl date df dirname du find findmnt flock free head id ln md5sum mkdir mktemp mv nproc php ps realpath rm sed seq sha256sum sleep sort stat tee tr uname)
     case "$mode" in
         valhalla)
-            required+=(ionice nice valhalla_build_admins valhalla_build_config valhalla_build_extract valhalla_build_tiles valhalla_build_timezones valhalla_service)
+            required+=(ionice nice spatialite spatialite_tool unzip valhalla_build_admins valhalla_build_config valhalla_build_extract valhalla_build_tiles valhalla_service)
             ;;
         planetiler)
             required+=(ionice java nice pmtiles)
@@ -63,9 +63,14 @@ else
             fi
             ;;
         full)
-            required+=(ionice java nice pmtiles valhalla_build_admins valhalla_build_config valhalla_build_extract valhalla_build_tiles valhalla_build_timezones valhalla_service)
+            required+=(ionice java nice pmtiles spatialite spatialite_tool unzip valhalla_build_admins valhalla_build_config valhalla_build_extract valhalla_build_tiles valhalla_service)
             if [[ "${GIS_REQUIRE_OBJECT_STORAGE_PUBLICATION:-false}" == "true" ]]; then
-                required+=(aws)
+                publication_cli="${GIS_OBJECT_STORAGE_CLI:-aws}"
+                if [[ "$publication_cli" == 'aws' || "$publication_cli" == 'yc' ]]; then
+                    required+=("$publication_cli")
+                else
+                    failures+=('GIS_OBJECT_STORAGE_CLI должен быть aws или yc.')
+                fi
             fi
             if [[ "${GIS_REQUIRE_LOCAL_MAP_NGINX:-true}" == "true" ]]; then
                 required+=(nginx)

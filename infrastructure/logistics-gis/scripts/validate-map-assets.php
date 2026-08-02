@@ -29,7 +29,7 @@ foreach (file($manifest, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as
 
     $relative = str_replace('\\', '/', trim($matches[2]));
     if ($relative === '' || str_starts_with($relative, '/')
-        || ! preg_match('#^(fonts|sprites)/#', $relative)
+        || ! preg_match('#^(fonts|licenses|sprites)/#', $relative)
         || in_array('..', explode('/', $relative), true)
         || isset($expected[$relative])) {
         fwrite(STDERR, 'Unsafe or duplicate map asset path on line '.($lineNumber + 1).".\n");
@@ -44,7 +44,7 @@ if ($expected === []) {
 }
 
 $actual = [];
-foreach (['fonts', 'sprites'] as $rootName) {
+foreach (['fonts', 'licenses', 'sprites'] as $rootName) {
     $root = $base.DIRECTORY_SEPARATOR.$rootName;
     if (! is_dir($root) || is_link($root)) {
         fwrite(STDERR, "Map assets {$rootName} root must be a real directory.\n");

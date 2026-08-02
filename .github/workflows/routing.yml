@@ -68,6 +68,46 @@ jobs:
             exit 1
           fi
 
+  toolchain:
+    name: Pinned Linux toolchain smoke
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install host prerequisites
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends php-cli python3-venv
+
+      - name: Install and verify pinned native tools
+        run: |
+          set -Eeuo pipefail
+          sudo infrastructure/logistics-gis/scripts/install-gis-toolchain.sh
+          sudo infrastructure/logistics-gis/scripts/install-gis-toolchain.sh
+          sudo infrastructure/logistics-gis/scripts/install-map-assets.sh /opt/pischeprom-map-assets
+          sudo infrastructure/logistics-gis/scripts/install-map-assets.sh /opt/pischeprom-map-assets
+
+          config="${RUNNER_TEMP}/valhalla.json"
+          valhalla_build_config \
+            --mjolnir-tile-dir "${RUNNER_TEMP}/tiles" \
+            --mjolnir-tile-extract "${RUNNER_TEMP}/tiles.tar" \
+            > "$config"
+          CONFIG="$config" php -r '
+            $value=json_decode((string)file_get_contents(getenv("CONFIG")),true,flags:JSON_THROW_ON_ERROR);
+            if(($value["mjolnir"]["tile_dir"]??null)!==getenv("RUNNER_TEMP")."/tiles")exit(1);
+          '
+          php infrastructure/logistics-gis/scripts/validate-map-assets.php \
+            /opt/pischeprom-map-assets
+          test "$(sha256sum /opt/planetiler/planetiler.jar | awk '{print $1}')" = \
+            'f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d'
+
 # This workflow intentionally performs no PBF download, graph/PMTiles build,
 # production transfer, service restart, or release activation. Those operations
 # require an explicit production-host preflight and a supervised maintenance run.

@@ -7,9 +7,24 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 release="$1"
 gis_validate_release "$release"
 
-for command_name in aws cmp curl find flock install mkdir php sha256sum sort; do
+for command_name in cmp curl find flock install mkdir php sha256sum sort; do
     gis_require_command "$command_name"
 done
+
+storage_cli="${GIS_OBJECT_STORAGE_CLI:-aws}"
+case "$storage_cli" in
+    aws)
+        gis_require_command aws
+        ;;
+    yc)
+        gis_require_command yc
+        [[ -n "${YC_IAM_TOKEN:-}" ]] \
+            || gis_fail 'YC_IAM_TOKEN is required for the short-lived Yandex CLI publication session.'
+        ;;
+    *)
+        gis_fail 'GIS_OBJECT_STORAGE_CLI must be aws or yc.'
+        ;;
+esac
 
 target="${GIS_RELEASES_DIR}/${release}"
 [[ -d "$target" && ! -L "$target" ]] || gis_fail 'Verified release directory is unavailable.'
@@ -105,6 +120,7 @@ while IFS= read -r -d '' asset; do
         *.pbf) content_type='application/x-protobuf' ;;
         *.json) content_type='application/json' ;;
         *.png) content_type='image/png' ;;
+        licenses/*.txt) content_type='text/plain' ;;
         SHA256SUMS) content_type='text/plain' ;;
         *) gis_fail "Unsupported public map asset type: ${relative}" ;;
     esac
@@ -113,14 +129,24 @@ done < <(find "$assets" -type f -print0 | sort -z)
 add_inventory "$manifest" "${release_prefix}/release-manifest.json" 'application/json'
 
 list_release_keys() {
-    aws "${aws_options[@]}" s3api list-objects-v2 \
-        --bucket "$bucket" --prefix "${release_prefix}/" --output json
+    if [[ "$storage_cli" == 'yc' ]]; then
+        yc storage s3api list-objects \
+            --bucket "$bucket" \
+            --prefix "${release_prefix}/" \
+            --format json
+    else
+        aws "${aws_options[@]}" s3api list-objects-v2 \
+            --bucket "$bucket" --prefix "${release_prefix}/" --output json
+    fi
 }
 
 listing="$(list_release_keys)" || gis_fail 'Unable to inspect the immutable object-storage release prefix.'
 mapfile -t existing_keys < <(LISTING="$listing" php -r '
     $v=json_decode((string)getenv("LISTING"),true,flags:JSON_THROW_ON_ERROR);
-    foreach($v["Contents"]??[] as $item){if(is_string($item["Key"]??null))echo $item["Key"],PHP_EOL;}
+    foreach(($v["Contents"]??$v["contents"]??[]) as $item){
+        $key=$item["Key"]??$item["key"]??null;
+        if(is_string($key))echo $key,PHP_EOL;
+    }
 ')
 declare -A existing_key_set=()
 publication_exists=false
@@ -142,24 +168,41 @@ fi
 
 upload_file() {
     local source="$1" key="$2" content_type="$3" checksum="$4"
-    aws "${aws_options[@]}" s3 cp "$source" "s3://${bucket}/${key}" \
-        --only-show-errors \
-        --content-type "$content_type" \
-        --cache-control 'public,max-age=31536000,immutable' \
-        --metadata "sha256=${checksum},release=${release}"
+    if [[ "$storage_cli" == 'yc' ]]; then
+        yc storage s3 cp "$source" "s3://${bucket}/${key}" \
+            --only-show-errors \
+            --content-type "$content_type" \
+            --cache-control 'public,max-age=31536000,immutable' \
+            --metadata "sha256=${checksum},release=${release}"
+    else
+        aws "${aws_options[@]}" s3 cp "$source" "s3://${bucket}/${key}" \
+            --only-show-errors \
+            --content-type "$content_type" \
+            --cache-control 'public,max-age=31536000,immutable' \
+            --metadata "sha256=${checksum},release=${release}"
+    fi
 }
 
 validate_existing_object() {
     local key="$1" content_type="$2" checksum="$3" size="$4"
     local head_json matches
-    head_json="$(aws "${aws_options[@]}" s3api head-object --bucket "$bucket" --key "$key" --output json)" \
-        || gis_fail "Unable to inspect existing immutable object: ${key}"
+    if [[ "$storage_cli" == 'yc' ]]; then
+        head_json="$(yc storage s3api head-object --bucket "$bucket" --key "$key" --format json)" \
+            || gis_fail "Unable to inspect existing immutable object: ${key}"
+    else
+        head_json="$(aws "${aws_options[@]}" s3api head-object --bucket "$bucket" --key "$key" --output json)" \
+            || gis_fail "Unable to inspect existing immutable object: ${key}"
+    fi
     matches="$(HEAD_JSON="$head_json" EXPECTED_TYPE="$content_type" EXPECTED_SHA="$checksum" EXPECTED_SIZE="$size" EXPECTED_RELEASE="$release" php -r '
         $v=json_decode((string)getenv("HEAD_JSON"),true,flags:JSON_THROW_ON_ERROR);
-        $metadata=array_change_key_case(is_array($v["Metadata"]??null)?$v["Metadata"]:[],CASE_LOWER);
-        $valid=(int)($v["ContentLength"]??-1)===(int)getenv("EXPECTED_SIZE")
-            &&strtolower((string)($v["ContentType"]??""))===strtolower((string)getenv("EXPECTED_TYPE"))
-            &&(string)($v["CacheControl"]??"")==="public,max-age=31536000,immutable"
+        $rawMetadata=$v["Metadata"]??$v["metadata"]??[];
+        $metadata=array_change_key_case(is_array($rawMetadata)?$rawMetadata:[],CASE_LOWER);
+        $length=$v["ContentLength"]??$v["content_length"]??-1;
+        $type=$v["ContentType"]??$v["content_type"]??"";
+        $cache=$v["CacheControl"]??$v["cache_control"]??"";
+        $valid=(int)$length===(int)getenv("EXPECTED_SIZE")
+            &&strtolower((string)$type)===strtolower((string)getenv("EXPECTED_TYPE"))
+            &&(string)$cache==="public,max-age=31536000,immutable"
             &&strtolower((string)($metadata["sha256"]??""))===strtolower((string)getenv("EXPECTED_SHA"))
             &&(string)($metadata["release"]??"")===(string)getenv("EXPECTED_RELEASE");
         echo $valid?"yes":"no";
@@ -232,7 +275,11 @@ cleanup_publication() {
 }
 trap cleanup_publication EXIT
 if $publication_exists; then
-    aws "${aws_options[@]}" s3 cp "s3://${bucket}/${publication_key}" "$publication_part" --only-show-errors
+    if [[ "$storage_cli" == 'yc' ]]; then
+        yc storage s3 cp "s3://${bucket}/${publication_key}" "$publication_part" --only-show-errors
+    else
+        aws "${aws_options[@]}" s3 cp "s3://${bucket}/${publication_key}" "$publication_part" --only-show-errors
+    fi
     publication_matches="$(PUBLICATION="$publication_part" EXPECTED_RELEASE="$release" EXPECTED_URL="$pmtiles_url" EXPECTED_BASE="$public_base" EXPECTED_ORIGIN="$application_origin" EXPECTED_SIZE="$expected_size" EXPECTED_SHA="$expected_sha" php -r '
         $v=json_decode((string)file_get_contents(getenv("PUBLICATION")),true,flags:JSON_THROW_ON_ERROR);$pmtiles=$v["pmtiles"]??[];
         $valid=($v["status"]??null)==="verified"&&($v["release"]??null)===getenv("EXPECTED_RELEASE")
@@ -286,7 +333,8 @@ trap - EXIT
 final_listing="$(list_release_keys)" || gis_fail 'Unable to verify the completed immutable object-storage release.'
 final_inventory_valid="$(LISTING="$final_listing" EXPECTED_COUNT="$((${#inventory_keys[@]} + 1))" PUBLICATION_KEY="$publication_key" php -r '
     $v=json_decode((string)getenv("LISTING"),true,flags:JSON_THROW_ON_ERROR);
-    $keys=array_values(array_filter(array_map(static fn($item)=>$item["Key"]??null,$v["Contents"]??[]),"is_string"));
+    $items=$v["Contents"]??$v["contents"]??[];
+    $keys=array_values(array_filter(array_map(static fn($item)=>$item["Key"]??$item["key"]??null,$items),"is_string"));
     echo count($keys)===(int)getenv("EXPECTED_COUNT")&&in_array(getenv("PUBLICATION_KEY"),$keys,true)?"yes":"no";
 ')"
 [[ "$final_inventory_valid" == "yes" ]] || gis_fail 'Completed object-storage release inventory is inconsistent.'

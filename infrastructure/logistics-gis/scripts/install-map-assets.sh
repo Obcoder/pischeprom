@@ -13,7 +13,7 @@ fail() {
     exit 1
 }
 
-for command_name in base64 curl find install php sha256sum sort; do
+for command_name in base64 curl mkdir php; do
     command -v "$command_name" >/dev/null 2>&1 \
         || fail "Required command is unavailable: ${command_name}"
 done
@@ -30,7 +30,7 @@ verify_checksum() {
     local path="$1"
     local expected="$2"
     [[ -f "$path" && ! -L "$path" ]] || return 1
-    [[ "$(sha256sum -- "$path" | awk '{print $1}')" == "$expected" ]]
+    [[ "$(php -r 'echo hash_file("sha256", $argv[1]);' "$path")" == "$expected" ]]
 }
 
 verify_complete() {
@@ -70,20 +70,22 @@ if [[ -e "$destination" ]]; then
     [[ -d "$destination" ]] || fail 'Existing map assets destination is not a directory.'
     verify_complete "$destination" \
         || fail 'Existing map assets differ from the pinned immutable asset set; refusing to overwrite them.'
+    chmod -R a-w "$destination"
     printf '[logistics-gis] Pinned map assets are already verified: %s\n' "$destination"
     exit 0
 fi
 
 parent="$(dirname "$destination")"
-install -d -m 0755 -- "$parent"
+mkdir -p -- "$parent"
 work_root="$(mktemp -d "${parent}/.pischeprom-map-assets.XXXXXXXX")"
 stage="${work_root}/assets"
 cleanup() {
+    chmod -R u+w "$work_root" 2>/dev/null || true
     rm -r -- "$work_root"
 }
 trap cleanup EXIT
 
-install -d -m 0755 -- \
+mkdir -p -- \
     "$stage/fonts/Noto Sans Regular" \
     "$stage/licenses" \
     "$stage/sprites"
@@ -139,16 +141,27 @@ printf '%s' "$empty_sprite_png" | base64 --decode > "$stage/sprites/basic@2x.png
 
 (
     cd "$stage"
-    while IFS= read -r -d '' asset; do
-        sha256sum -- "$asset"
-    done < <(find fonts licenses sprites -type f -print0 | sort -z)
+    for asset in \
+        'fonts/Noto Sans Regular/0-255.pbf' \
+        'fonts/Noto Sans Regular/1024-1279.pbf' \
+        'fonts/Noto Sans Regular/1280-1535.pbf' \
+        'fonts/Noto Sans Regular/8192-8447.pbf' \
+        'licenses/MapLibre-Demo-Tiles.BSD-3-Clause.txt' \
+        'licenses/Noto-Sans.OFL-1.1.txt' \
+        'sprites/basic.json' \
+        'sprites/basic.png' \
+        'sprites/basic@2x.json' \
+        'sprites/basic@2x.png'
+    do
+        php -r 'printf("%s  %s\n", hash_file("sha256", $argv[1]), $argv[1]);' "$asset"
+    done
 ) > "$stage/SHA256SUMS"
 
 verify_complete "$stage" || fail 'Generated map assets failed final validation.'
-chmod -R a-w -- "$stage"
 mv -- "$stage" "$destination"
 trap - EXIT
 rm -r -- "$work_root"
+chmod -R a-w "$destination"
 
 printf '[logistics-gis] Installed checksum-verified immutable map assets: %s\n' "$destination"
 printf '[logistics-gis] MapLibre demo commit: %s; OpenMapTiles fonts commit: %s\n' \
