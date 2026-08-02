@@ -138,7 +138,9 @@ get_bucket() {
         "Get bucket ${name}" \
         GET \
         "${storage_api}/buckets/${name}" \
-        "$output_file"
+        "$output_file" \
+        --get \
+        --data-urlencode 'view=VIEW_FULL'
 }
 
 create_bucket() {
