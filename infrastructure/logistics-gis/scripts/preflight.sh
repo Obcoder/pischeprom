@@ -2,6 +2,7 @@
 
 set -Eeuo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+trap 'preflight_status=$?; trap - ERR; printf "[logistics-gis] ERROR: preflight aborted unexpectedly at line %s (exit %s).\n" "$LINENO" "$preflight_status" >&2; exit "$preflight_status"' ERR
 
 mode="full"
 json_output=false
@@ -137,7 +138,7 @@ else
     physical_cores="$( (lscpu -p=core,socket 2>/dev/null || true) | awk '!/^#/ {seen[$1 FS $2]=1} END {print length(seen)}')"
     [[ "$physical_cores" =~ ^[0-9]+$ && "$physical_cores" -gt 0 ]] || physical_cores="$logical_cores"
     if [[ -r /proc/loadavg ]]; then
-        read -r load_one load_five load_fifteen _ < /proc/loadavg
+        IFS=' ' read -r load_one load_five load_fifteen _ < /proc/loadavg
     else
         load_one=0
         load_five=0
@@ -166,7 +167,7 @@ else
     mount_source="$(findmnt -n -o SOURCE --target "$disk_probe" 2>/dev/null || true)"
     storage_kind="unknown"
     if command -v lsblk >/dev/null 2>&1 && [[ -n "$mount_source" ]]; then
-        rotational="$(lsblk -ndo ROTA "$mount_source" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+        rotational="$(lsblk -ndo ROTA "$mount_source" 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
         case "$rotational" in
             0) storage_kind="SSD/NVMe" ;;
             1) storage_kind="HDD" ;;
