@@ -177,4 +177,75 @@ jobs:
             'https://vpc.api.cloud.yandex.net/vpc/v1/networks' \
             'networks'
 
+          request_json \
+            'VPC subnet list' \
+            'https://vpc.api.cloud.yandex.net/vpc/v1/subnets' \
+            "$work_dir/subnets.json" \
+            --get \
+            --header "Authorization: Bearer ${iam_token}" \
+            --data-urlencode "folderId=${YC_FOLDER_ID}" \
+            --data-urlencode 'pageSize=100'
+
+          request_json \
+            'VPC security group list' \
+            'https://vpc.api.cloud.yandex.net/vpc/v1/securityGroups' \
+            "$work_dir/security-groups.json" \
+            --get \
+            --header "Authorization: Bearer ${iam_token}" \
+            --data-urlencode "folderId=${YC_FOLDER_ID}" \
+            --data-urlencode 'pageSize=100'
+
+          request_json \
+            'Compute availability zone list' \
+            'https://compute.api.cloud.yandex.net/compute/v1/zones' \
+            "$work_dir/zones.json" \
+            --get \
+            --header "Authorization: Bearer ${iam_token}" \
+            --data-urlencode 'pageSize=100'
+
+          request_json \
+            'Latest Ubuntu 24.04 LTS image lookup' \
+            'https://compute.api.cloud.yandex.net/compute/v1/images:latestByFamily' \
+            "$work_dir/ubuntu-image.json" \
+            --get \
+            --header "Authorization: Bearer ${iam_token}" \
+            --data-urlencode 'folderId=standard-images' \
+            --data-urlencode 'family=ubuntu-2404-lts'
+
+          # Resource IDs, RFC1918 CIDRs and public image metadata are not
+          # credentials. Printing only this allowlisted subset gives the next
+          # provisioning workflow deterministic inputs without exposing IAM
+          # tokens, VM metadata, addresses or unrelated API response fields.
+          echo 'Sanitized compute inventory:'
+          jq -r '
+            (.networks // [])[]
+            | "network id=\(.id) name=\(.name) default_security_group=\(.defaultSecurityGroupId // \"none\")"
+          ' "$work_dir/networks.json"
+          if [[ "$(jq '(.networks // []) | length' "$work_dir/networks.json")" == '0' ]]; then
+            echo 'network none'
+          fi
+          jq -r '
+            (.subnets // [])[]
+            | "subnet id=\(.id) name=\(.name) network=\(.networkId) zone=\(.zoneId) cidr=\((.v4CidrBlocks // []) | join(\",\"))"
+          ' "$work_dir/subnets.json"
+          if [[ "$(jq '(.subnets // []) | length' "$work_dir/subnets.json")" == '0' ]]; then
+            echo 'subnet none'
+          fi
+          jq -r '
+            (.securityGroups // [])[]
+            | "security_group id=\(.id) name=\(.name) network=\(.networkId) status=\(.status) default=\(.defaultForNetwork // false)"
+          ' "$work_dir/security-groups.json"
+          if [[ "$(jq '(.securityGroups // []) | length' "$work_dir/security-groups.json")" == '0' ]]; then
+            echo 'security_group none'
+          fi
+          jq -er '
+            (.zones // [])[]
+            | select(.status == "UP")
+            | "zone id=\(.id) region=\(.regionId) status=\(.status)"
+          ' "$work_dir/zones.json"
+          jq -er '
+            select(.status == "READY" and .family == "ubuntu-2404-lts")
+            | "image id=\(.id) name=\(.name) family=\(.family) min_disk_bytes=\(.minDiskSize) status=\(.status)"
+          ' "$work_dir/ubuntu-image.json"
+
           echo 'Yandex Cloud OIDC preflight passed without mutating cloud state.'
