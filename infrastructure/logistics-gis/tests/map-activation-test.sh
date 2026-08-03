@@ -34,7 +34,7 @@ cat > "${scripts}/check-pmtiles-range.sh" <<'SCRIPT'
 #!/usr/bin/env bash
 set -Eeuo pipefail
 test "$1" = "${GIS_PUBLIC_ASSET_BASE_URL}/releases/russia-20260801/russia.pmtiles"
-ORIGIN="$GIS_EXPECTED_CORS_ORIGIN" PMTILES="${GIS_RELEASES_DIR}/russia-20260801/map/russia.pmtiles" OUTPUT="${GIS_STATE_DIR}/last-range-check.json" php -r '
+ORIGIN="$GIS_EXPECTED_CORS_ORIGIN" PMTILES="${GIS_BASE_DIR}/releases/russia-20260801/map/russia.pmtiles" OUTPUT="${GIS_BASE_DIR}/state/last-range-check.json" php -r '
     $value=[
         "healthy"=>true,
         "head_status_code"=>200,
