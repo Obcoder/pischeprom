@@ -8,6 +8,7 @@ use App\Services\Gis\DTO\GeocodeResult;
 use App\Services\Gis\Exceptions\GisValidationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -87,6 +88,7 @@ class EntityLocationService
         );
 
         $this->syncGeoPoint($location->entity_id);
+        Cache::forget('logistics:map:missing-coordinate-counts:v2');
 
         return $location->refresh();
     }
@@ -288,7 +290,10 @@ class EntityLocationService
 
     private function syncGeoPoint(int $entityId): void
     {
-        if (! Schema::hasColumn('entity_locations', 'geo_point')) {
+        if (
+            ! in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)
+            || ! Schema::hasColumn('entity_locations', 'geo_point')
+        ) {
             return;
         }
 

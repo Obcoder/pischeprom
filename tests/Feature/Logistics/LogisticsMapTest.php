@@ -39,6 +39,41 @@ class LogisticsMapTest extends LogisticsTestCase
         $this->assertLessThan($protocolRegistration, $workerRegistration);
     }
 
+    public function test_entity_layer_empty_state_links_to_missing_location_management(): void
+    {
+        $component = (string) file_get_contents(
+            resource_path('js/Components/Logistics/MapTab.vue')
+        );
+
+        $this->assertStringContainsString('missingEntityCoordinateCount', $component);
+        $this->assertStringContainsString('Контрагенты не показаны', $component);
+        $this->assertStringContainsString('/Ameise/gis/entities/no-location', $component);
+    }
+
+    public function test_missing_entity_coordinate_count_refreshes_after_location_is_saved(): void
+    {
+        $user = $this->logisticsUser(['logistics.view']);
+        $entity = Entity::query()->create(['name' => 'Новый контрагент']);
+        $featuresUrl = '/api/logistics/map/features?bbox=20,40,50,70&zoom=6&layers[]=entities';
+
+        $this->actingAs($user)->getJson($featuresUrl)
+            ->assertOk()
+            ->assertJsonPath('data.entities.features', [])
+            ->assertJsonPath('data.meta.missing_coordinates.entities', 1);
+
+        $this->putJson("/api/gis/entities/{$entity->id}/location", [
+            'address_text' => 'Москва, тестовый адрес',
+            'lat' => 55.76,
+            'lon' => 37.62,
+            'precision_level' => 'exact',
+        ])->assertOk();
+
+        $this->getJson($featuresUrl)
+            ->assertOk()
+            ->assertJsonPath('data.entities.features.0.properties.name', 'Новый контрагент')
+            ->assertJsonPath('data.meta.missing_coordinates.entities', 0);
+    }
+
     public function test_verified_activation_manifest_enables_map_without_exposing_manifest_paths(): void
     {
         $user = $this->logisticsUser(['logistics.view']);
@@ -254,6 +289,14 @@ class LogisticsMapTest extends LogisticsTestCase
             'precision_level' => 'exact',
             'is_confirmed' => true,
         ]);
+        Entity::query()->create(['name' => 'Контрагент без строки геопозиции']);
+        $incompleteEntity = Entity::query()->create(['name' => 'Контрагент с пустой геопозицией']);
+        EntityLocation::query()->create([
+            'entity_id' => $incompleteEntity->id,
+            'source' => 'manual',
+            'precision_level' => 'unknown',
+            'is_confirmed' => false,
+        ]);
 
         $configuration = $this->actingAs($user)->getJson('/api/logistics/map/config')
             ->assertOk()
@@ -282,6 +325,7 @@ class LogisticsMapTest extends LogisticsTestCase
             ->assertJsonPath('data.cities.features.0.geometry.coordinates.0', 37.6173)
             ->assertJsonPath('data.cities.features.0.geometry.coordinates.1', 55.7558)
             ->assertJsonPath('data.entities.features.0.properties.name', 'Безопасный контрагент')
+            ->assertJsonPath('data.meta.missing_coordinates.entities', 2)
             ->assertJsonPath('data.trips.0.id', $trip->id)
             ->assertJsonPath('data.trips.0.current_route.id', $route->id)
             ->assertJsonPath('data.trips.0.current_route.geometry_available', true);

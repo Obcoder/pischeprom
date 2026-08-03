@@ -37,6 +37,11 @@ const statuses = [
 ]
 const nothingVisible = computed(() => !cities.value.features.length && !entities.value.features.length && !trips.value.length)
 const selectedTrips = computed(() => selectedTripIds.value.map((id) => tripOptions.value.find((trip) => trip.id === id)).filter(Boolean))
+const missingEntityCoordinateCount = computed(() => {
+    const value = meta.value?.missing_coordinates?.entities
+    return value == null || Number.isNaN(Number(value)) ? null : Number(value)
+})
+const entityLayerIsEmpty = computed(() => layers.entities && !loadingLayers.value && !entities.value.features.length)
 
 function emptyCollection() { return { type: 'FeatureCollection', features: [] } }
 function formatTrip(item) { return `${item.number}${item.route_summary ? ` · ${item.route_summary}` : ''}` }
@@ -300,7 +305,38 @@ onBeforeUnmount(() => {
                     <v-card-text>
                         <v-switch v-model="layers.cities" label="Города и логистические точки" color="green" hide-details />
                         <v-switch v-model="layers.trips" label="Рейсы" color="teal" hide-details />
-                        <v-switch v-model="layers.entities" label="Контрагенты" color="purple" hide-details :disabled="config && !config.entity_layer_available" />
+                        <v-switch v-model="layers.entities" color="purple" hide-details :disabled="config && !config.entity_layer_available">
+                            <template #label>
+                                <span>Контрагенты</span>
+                                <v-chip v-if="layers.entities && !loadingLayers" size="x-small" variant="tonal" color="purple" class="ml-2">
+                                    на карте: {{ entities.features.length }}
+                                </v-chip>
+                            </template>
+                        </v-switch>
+
+                        <v-alert v-if="entityLayerIsEmpty" type="info" variant="tonal" density="compact" class="map-entity-layer-status mt-3">
+                            <div class="map-entity-layer-status__content">
+                                <div>
+                                    <strong>Контрагенты не показаны</strong>
+                                    <div v-if="missingEntityCoordinateCount">
+                                        Без координат: {{ missingEntityCoordinateCount }}. На карту попадают только контрагенты с заполненными широтой и долготой.
+                                    </div>
+                                    <div v-else>
+                                        В текущей области карты нет контрагентов с координатами.
+                                    </div>
+                                </div>
+                                <v-btn href="/Ameise/gis/entities/no-location" color="purple-darken-2" variant="flat" size="small" prepend-icon="mdi-map-marker-plus-outline">
+                                    Настроить координаты
+                                </v-btn>
+                            </div>
+                        </v-alert>
+
+                        <div v-else-if="layers.entities && missingEntityCoordinateCount" class="map-entity-layer-hint mt-2">
+                            <span>Без координат: {{ missingEntityCoordinateCount }}</span>
+                            <v-btn href="/Ameise/gis/entities/no-location" color="purple-darken-2" variant="text" size="small">
+                                Настроить
+                            </v-btn>
+                        </div>
                     </v-card-text>
                 </v-card>
 
@@ -331,6 +367,10 @@ onBeforeUnmount(() => {
 .map-trip-list { display: grid; gap: 10px; max-height: 220px; overflow: auto; }
 .map-trip-list > div { display: grid; grid-template-columns: 1fr auto; gap: 2px 7px; padding-bottom: 8px; border-bottom: 1px solid #e4e8e5; }
 .map-trip-list small { grid-column: 1 / -1; color: #66736b; }
+.map-entity-layer-status__content { display: grid; gap: 12px; }
+.map-entity-layer-status__content > div { display: grid; gap: 3px; }
+.map-entity-layer-status__content .v-btn { justify-self: start; }
+.map-entity-layer-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #6f3c78; font-size: .78rem; }
 .map-legend { display: grid; gap: 10px; }
 .map-legend > div { display: flex; align-items: center; gap: 9px; }
 .map-legend__dot { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #aaa; }

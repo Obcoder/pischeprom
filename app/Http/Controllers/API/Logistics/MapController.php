@@ -230,7 +230,7 @@ class MapController extends Controller
     /** @return array{cities: int, trip_stops: int, entities: int|null} */
     private function missingCoordinateCounts(): array
     {
-        return Cache::remember('logistics:map:missing-coordinate-counts', 300, function (): array {
+        return Cache::remember('logistics:map:missing-coordinate-counts:v2', 300, function (): array {
             $entitiesAvailable = Schema::hasTable('entity_locations');
 
             return [
@@ -245,9 +245,12 @@ class MapController extends Controller
                         $query->whereNull('latitude')->orWhereNull('longitude');
                     })->count(),
                 'entities' => $entitiesAvailable
-                    ? DB::table('entity_locations')
+                    ? DB::table('entities')
+                        ->leftJoin('entity_locations', 'entity_locations.entity_id', '=', 'entities.id')
                         ->where(function (QueryBuilder $query): void {
-                            $query->whereNull('lat')->orWhereNull('lon');
+                            $query->whereNull('entity_locations.entity_id')
+                                ->orWhereNull('entity_locations.lat')
+                                ->orWhereNull('entity_locations.lon');
                         })->count()
                     : null,
             ];
