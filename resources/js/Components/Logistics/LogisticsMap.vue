@@ -366,10 +366,6 @@ defineExpose({ showRussia, fitData, resize })
         <v-alert v-if="mapError" class="logistics-map-error" type="warning" density="compact" variant="tonal" closable @click:close="mapError = ''">
             {{ mapError }}
         </v-alert>
-        <span class="logistics-map-attribution">
-            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>
-            · © <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a>
-        </span>
     </div>
 </template>
 
@@ -384,8 +380,6 @@ defineExpose({ showRussia, fitData, resize })
 .logistics-map-canvas { width: 100%; height: var(--logistics-map-height); }
 .logistics-map-overlay { position: absolute; inset: 0; z-index: 4; display: grid; place-content: center; justify-items: center; gap: 10px; background: rgba(247, 249, 247, .72); color: #415046; }
 .logistics-map-error { position: absolute !important; z-index: 5; top: 12px; left: 12px; max-width: min(520px, calc(100% - 78px)); }
-.logistics-map-attribution { position: absolute; z-index: 3; right: 7px; bottom: 4px; padding: 2px 5px; border-radius: 3px; background: rgba(255,255,255,.86); color: #3f5146; font-size: 10px; }
-.logistics-map-attribution a { color: inherit; text-decoration: none; }
 .logistics-map-stop { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 3px solid #fff; border-radius: 50%; background: #087f5b; box-shadow: 0 2px 8px rgba(17, 47, 34, .32); color: #fff; cursor: pointer; font: 750 12px/1 sans-serif; }
 .maplibregl-popup-content { color: #26312b; }
 @media (max-width: 700px) { .logistics-map-shell, .logistics-map-canvas { min-height: 460px; height: 460px; } }

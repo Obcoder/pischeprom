@@ -20,6 +20,25 @@ use App\Services\Logistics\Routing\Support\Polyline6;
 
 class LogisticsMapTest extends LogisticsTestCase
 {
+    public function test_map_runtime_registers_the_vite_bundled_maplibre_worker_before_pmtiles(): void
+    {
+        $runtime = (string) file_get_contents(
+            resource_path('js/Components/Logistics/mapRuntime.js')
+        );
+
+        $workerImport = strpos(
+            $runtime,
+            "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
+        );
+        $workerRegistration = strpos($runtime, 'maplibregl.setWorkerUrl(maplibreWorkerUrl)');
+        $protocolRegistration = strpos($runtime, "maplibregl.addProtocol('pmtiles', protocol.tile)");
+
+        $this->assertNotFalse($workerImport);
+        $this->assertNotFalse($workerRegistration);
+        $this->assertNotFalse($protocolRegistration);
+        $this->assertLessThan($protocolRegistration, $workerRegistration);
+    }
+
     public function test_verified_activation_manifest_enables_map_without_exposing_manifest_paths(): void
     {
         $user = $this->logisticsUser(['logistics.view']);
