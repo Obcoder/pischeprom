@@ -109,6 +109,13 @@ sudo chmod 2750 -- "$state_base"
 
 # The bundle contains only checksummed public metadata. Give the application
 # owner temporary read access, install it immutably, then normalize state ACLs.
+bundle_parent="$(dirname "$bundle_dir")"
+[[ "$bundle_parent" == /tmp/pischeprom-gis-map.* \
+    && -d "$bundle_parent" && ! -L "$bundle_parent" ]] \
+    || fail 'State bundle parent must be the dedicated deployment temporary directory.'
+# mktemp creates the parent as 0700 for the SSH user. Keep that ownership for
+# reliable cleanup, but permit traversal to the separately protected 0750 bundle.
+sudo chmod 0711 -- "$bundle_parent"
 sudo chown -R "$application_owner:$runtime_group" -- "$bundle_dir"
 sudo find "$bundle_dir" -type d -exec chmod 0750 {} +
 sudo find "$bundle_dir" -type f -exec chmod 0640 {} +

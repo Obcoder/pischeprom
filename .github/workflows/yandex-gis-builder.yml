@@ -601,7 +601,7 @@ jobs:
             cleanup_exit=$?
             trap - EXIT
             if [[ -n "$remote_dir" ]]; then
-              ssh "${ssh_options[@]}" "$ssh_target" "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+              ssh "${ssh_options[@]}" "$ssh_target" "sudo rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
             fi
             rm -rf -- "$ssh_work"
             exit "$cleanup_exit"
@@ -638,11 +638,12 @@ jobs:
           )
           ssh_target="${SSH_USER}@${SSH_HOST}"
           ssh "${ssh_options[@]}" "$ssh_target" true
-          remote_dir="$(ssh "${ssh_options[@]}" "$ssh_target" 'umask 077 && mktemp -d /tmp/pischeprom-gis-map.XXXXXXXXXX')"
-          [[ "$remote_dir" =~ ^/tmp/pischeprom-gis-map\.[A-Za-z0-9]+$ ]] || {
+          remote_dir_candidate="$(ssh "${ssh_options[@]}" "$ssh_target" 'umask 077 && mktemp -d /tmp/pischeprom-gis-map.XXXXXXXXXX')"
+          [[ "$remote_dir_candidate" =~ ^/tmp/pischeprom-gis-map\.[A-Za-z0-9]+$ ]] || {
             echo '::error::Application VPS returned an invalid GIS temporary directory.'
             exit 1
           }
+          remote_dir="$remote_dir_candidate"
           ssh "${ssh_options[@]}" "$ssh_target" "install -d -m 0750 -- '${remote_dir}/bundle'"
           scp "${scp_options[@]}" "$state_bundle"/* "${ssh_target}:${remote_dir}/bundle/"
 
