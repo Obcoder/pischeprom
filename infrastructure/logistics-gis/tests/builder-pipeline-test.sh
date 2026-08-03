@@ -43,9 +43,15 @@ for stage in preflight download-russia-pbf build-valhalla build-pmtiles finalize
             ;;
         finalize-release)
             printf '%s\n' \
-                'test "$1" = "russia-20260801"' \
-                'mkdir -- "$GIS_RELEASES_DIR/$1"' \
-                'printf '\''{"release":"russia-20260801","status":"verified"}\n'\'' > "$GIS_RELEASES_DIR/$1/release-manifest.json"' \
+                'if [[ "${1:-}" == "--retry-smoke" ]]; then' \
+                '    test "$2" = "russia-20260801"' \
+                '    test -d "$GIS_RELEASES_DIR/$2"' \
+                '    printf '\''{"release":"russia-20260801","status":"verified"}\n'\'' > "$GIS_RELEASES_DIR/$2/release-manifest.json"' \
+                'else' \
+                '    test "$1" = "russia-20260801"' \
+                '    mkdir -- "$GIS_RELEASES_DIR/$1"' \
+                '    printf '\''{"release":"russia-20260801","status":"verified"}\n'\'' > "$GIS_RELEASES_DIR/$1/release-manifest.json"' \
+                'fi' \
                 >> "$script"
             ;;
         build-valhalla|build-pmtiles)
@@ -76,3 +82,28 @@ STATE="$base/state/builder-pipeline.json" php -r '
 '
 
 printf 'builder pipeline: detached sequence and completion state passed\n'
+
+printf '{"release":"russia-20260801","status":"failed"}\n' \
+    > "$base/releases/russia-20260801/release-manifest.json"
+: > "$events"
+PATH="${fake_bin}:${PATH}" PIPELINE_TEST_EVENTS="$events" GIS_BASE_DIR="$base" \
+    "$scripts/run-builder-pipeline.sh"
+
+printf '%s\n' \
+    preflight.sh \
+    download-russia-pbf.sh \
+    finalize-release.sh \
+    > "$expected_events"
+cmp --silent "$expected_events" "$events"
+STATE="$base/state/builder-pipeline.json" php -r '
+    $v=json_decode((string)file_get_contents(getenv("STATE")),true,flags:JSON_THROW_ON_ERROR);
+    exit(($v["status"]??null)==="completed"
+        &&($v["stage"]??null)==="completed"
+        &&($v["release"]??null)==="russia-20260801"
+        &&($v["exit_code"]??null)===0?0:1);
+'
+
+grep -Fx 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK' \
+    "${repository}/infrastructure/logistics-gis/systemd/pischeprom-gis-build.service.example" \
+    >/dev/null
+printf 'builder pipeline: failed-release smoke retry and libzmq address-family policy passed\n'

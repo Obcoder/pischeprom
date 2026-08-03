@@ -110,12 +110,22 @@ if [[ -e "$target" ]]; then
         $v=json_decode((string)file_get_contents(getenv("MANIFEST")),true,flags:JSON_THROW_ON_ERROR);
         echo is_string($v["status"]??null)?$v["status"]:"";
     ')"
-    [[ "$target_status" == 'verified' ]] \
-        || gis_fail 'Existing immutable release target is not verified.'
+    if [[ "$target_status" == 'verified' ]]; then
+        pipeline_stage="completed"
+        write_state completed "$pipeline_stage" "$pipeline_release"
+        pipeline_terminal=true
+        gis_log "Verified paired release already exists: ${pipeline_release}; no rebuild was needed."
+        exit 0
+    fi
+    [[ "$target_status" == 'failed' ]] \
+        || gis_fail 'Existing immutable release target is neither verified nor eligible for a smoke retry.'
+    pipeline_stage="finalize"
+    write_state running "$pipeline_stage" "$pipeline_release"
+    "${GIS_SCRIPT_DIR}/finalize-release.sh" --retry-smoke "$pipeline_release"
     pipeline_stage="completed"
     write_state completed "$pipeline_stage" "$pipeline_release"
     pipeline_terminal=true
-    gis_log "Verified paired release already exists: ${pipeline_release}; no rebuild was needed."
+    gis_log "Existing failed release passed its supervised checksum and smoke retry: ${pipeline_release}."
     exit 0
 fi
 

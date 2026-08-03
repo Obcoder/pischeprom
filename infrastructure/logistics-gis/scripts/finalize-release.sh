@@ -3,8 +3,15 @@
 set -Eeuo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-[[ $# -eq 1 ]] || gis_fail 'Usage: finalize-release.sh russia-YYYYMMDD'
-release="$1"
+retry_failed=false
+if [[ $# -eq 1 ]]; then
+    release="$1"
+elif [[ $# -eq 2 && "$1" == '--retry-smoke' ]]; then
+    retry_failed=true
+    release="$2"
+else
+    gis_fail 'Usage: finalize-release.sh [--retry-smoke] russia-YYYYMMDD'
+fi
 gis_validate_release "$release"
 pbf="${GIS_SOURCE_DIR}/${release}.osm.pbf"
 GIS_PREFLIGHT_PBF_PATH="$pbf" "${GIS_SCRIPT_DIR}/preflight.sh" --mode verify
@@ -17,6 +24,26 @@ flock -n 9 || gis_fail 'Another GIS build/finalize operation is already running.
 
 stage="${GIS_STAGING_DIR}/${release}"
 target="${GIS_RELEASES_DIR}/${release}"
+
+if $retry_failed; then
+    [[ ! -e "$stage" && -d "$target" && ! -L "$target" ]] \
+        || gis_fail 'Smoke retry requires an absent staging path and one real failed release target.'
+    target="$(gis_assert_inside_base "$target")"
+    failed_manifest="${target}/release-manifest.json"
+    [[ -s "$failed_manifest" && ! -L "$failed_manifest" ]] \
+        || gis_fail 'Smoke retry requires the managed failed release manifest.'
+    failed_release_status="$(MANIFEST="$failed_manifest" EXPECTED_RELEASE="$release" php -r '
+        $v=json_decode((string)file_get_contents(getenv("MANIFEST")),true,flags:JSON_THROW_ON_ERROR);
+        echo (($v["release"]??null)===getenv("EXPECTED_RELEASE")&&($v["status"]??null)==="failed")?"yes":"no";
+    ')"
+    [[ "$failed_release_status" == 'yes' ]] \
+        || gis_fail 'Only the exact failed release may be returned to staging for a smoke retry.'
+    [[ "$(stat -c '%d' -- "$target")" == "$(stat -c '%d' -- "$GIS_STAGING_DIR")" ]] \
+        || gis_fail 'Failed release and staging must share a filesystem for atomic smoke retry.'
+    mv -- "$target" "$stage"
+    gis_log "Returned failed inactive release to staging for checksum verification and smoke retry: ${release}."
+fi
+
 [[ -d "$stage" && ! -e "$target" ]] || gis_fail 'Expected a unique staged release and an absent final target.'
 [[ ! -L "$stage" ]] || gis_fail 'Release staging path must not be a symlink.'
 stage="$(gis_assert_inside_base "$stage")"

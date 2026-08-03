@@ -25,7 +25,8 @@ ProtectControlGroups=true
 ProtectKernelLogs=true
 ProtectKernelModules=true
 ProtectKernelTunables=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# libzmq resolves explicit listen addresses through getifaddrs(3), which uses
+# an AF_NETLINK socket on Linux before it opens the loopback TCP listener.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictSUIDSGID=true
 LockPersonality=true
-
