@@ -436,12 +436,25 @@ jobs:
                   exit 1
                 }
                 pipeline_status="$(php -r '$v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);echo $v["status"]??"";' "$pipeline_artifact")"
+                pipeline_stage="$(php -r '$v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);echo $v["stage"]??"";' "$pipeline_artifact")"
+                pipeline_release="$(php -r '$v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);echo $v["release"]??"";' "$pipeline_artifact")"
                 if [[ "$pipeline_status" == 'failed' || "$pipeline_status" == 'interrupted' ]]; then
                   pipeline_failed=true
                 fi
                 ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
                   'sudo journalctl --unit=pischeprom-gis-build.service --no-pager --no-hostname --output=short-iso-precise --lines=200' \
                   > "$pipeline_journal_artifact"
+
+                if $pipeline_failed \
+                  && [[ "$pipeline_stage" == 'finalize' \
+                    && "$pipeline_release" =~ ^russia-[0-9]{8}$ ]]
+                then
+                  {
+                    printf '\n%s\n' '----- bounded staging Valhalla smoke log -----'
+                    ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                      "set -Eeuo pipefail; latest=\$(sudo find /srv/pischeprom-gis/logs -maxdepth 1 -type f -name 'smoke-${pipeline_release}-*.log' -printf '%T@ %f\\n' | LC_ALL=C sort -nr | sed -n '1p' | cut -d ' ' -f 2-); if [[ \"\$latest\" =~ ^smoke-${pipeline_release}-[0-9]{8}T[0-9]{6}Z\\.log\$ ]]; then sudo tail --lines=200 -- \"/srv/pischeprom-gis/logs/\$latest\"; else printf '%s\\n' 'No matching regular smoke log was found.'; fi"
+                  } >> "$pipeline_journal_artifact"
+                fi
                 [[ -s "$pipeline_journal_artifact" && "$(wc -c < "$pipeline_journal_artifact")" -le 2097152 ]] || {
                   echo '::error::Builder pipeline journal is missing or unexpectedly large.'
                   exit 1
@@ -453,7 +466,6 @@ jobs:
                   echo "::error::Release publication requires a completed builder pipeline; current status is ${pipeline_status}."
                   exit 1
                 }
-                pipeline_release="$(php -r '$v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);echo $v["release"]??"";' "$pipeline_artifact")"
                 [[ "$pipeline_release" =~ ^russia-[0-9]{8}$ ]] || {
                   echo '::error::Completed builder state has no valid release name.'
                   exit 1
