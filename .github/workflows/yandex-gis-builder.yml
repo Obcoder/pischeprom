@@ -470,7 +470,7 @@ jobs:
                 ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
                   "sudo install -d -m 0750 -o pischeprom-gis -g pischeprom-gis -- '${remote_export_parent}'; sudo test ! -e '${remote_export}'; sudo test ! -e '${remote_archive}'"
 
-                printf '%s' "$YC_IAM_TOKEN" | ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                printf '%s\n' "$YC_IAM_TOKEN" | ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
                   "set -Eeuo pipefail; IFS= read -r iam_token; sudo -u pischeprom-gis -- env YC_IAM_TOKEN=\"\$iam_token\" bash -c 'set -Eeuo pipefail; set -a; source /etc/pischeprom-gis.env; set +a; exec /opt/pischeprom-gis-operations/current/scripts/publish-builder-release.sh \"${pipeline_release}\" \"${remote_export}\"'"
 
                 ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \

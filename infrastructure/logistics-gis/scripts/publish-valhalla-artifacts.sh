@@ -7,7 +7,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 release="$1"
 gis_validate_release "$release"
 
-for command_name in cmp curl find flock install php sha256sum sort; do
+for command_name in cmp curl find flock install mktemp mv php sha256sum sort; do
     gis_require_command "$command_name"
 done
 

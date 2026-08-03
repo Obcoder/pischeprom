@@ -155,8 +155,8 @@ ENV_SOURCE="$target_dir/.env" ENV_TARGET="$env_stage" PUBLIC_BASE="$public_base"
     foreach($updates as $key=>$value){if(!isset($seen[$key]))$output[]=$key."=".$value;}
     file_put_contents(getenv("ENV_TARGET"),implode(PHP_EOL,$output).PHP_EOL,LOCK_EX);
 '
-chmod --reference="$target_dir/.env" "$env_stage"
-chown --reference="$target_dir/.env" "$env_stage"
+sudo chmod --reference="$target_dir/.env" "$env_stage"
+sudo chown --reference="$target_dir/.env" "$env_stage"
 mv -f -- "$env_stage" "$target_dir/.env"
 env_switched=true
 
