@@ -1,6 +1,7 @@
 <script setup>
+import axios from 'axios'
 import { Head, usePage } from '@inertiajs/vue3'
-import { computed, onMounted, provide, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import BuildingsPage from '@/Components/Geography/Buildings/BuildingsPage.vue'
 import CitiesPage from '@/Components/Geography/Cities/CitiesPage.vue'
@@ -22,6 +23,7 @@ const LOGISTICS_TAB_KEY = 'ameise:logistics:tab'
 const pageQuery = String(page.url || '').split('?')[1]?.split('#')[0] || ''
 const requestedPageTab = new URLSearchParams(pageQuery).get('tab')
 const activeTab = ref(requestedPageTab || 'overview')
+const services = ref({ loaded: false, map: false, routing: false })
 const permissions = computed(() => page.props.auth?.permissions?.logistics || {})
 const tabs = computed(() => [
     { value: 'overview', title: 'Обзор', icon: 'mdi-view-dashboard-outline', component: OverviewTab },
@@ -38,9 +40,53 @@ const tabs = computed(() => [
     { value: 'countries', title: 'Countries', icon: 'mdi-earth', component: CountriesPage },
 ])
 const activeComponent = computed(() => tabs.value.find((item) => item.value === activeTab.value)?.component || OverviewTab)
+const serviceChip = computed(() => {
+    if (!services.value.loaded) {
+        return { color: 'grey-darken-1', icon: 'mdi-server-network-outline', text: 'Проверка GIS…' }
+    }
+    if (services.value.map && services.value.routing) {
+        return { color: 'green-darken-2', icon: 'mdi-server-network', text: 'Карта · Valhalla' }
+    }
+    if (services.value.map) {
+        return { color: 'orange-darken-2', icon: 'mdi-map-check-outline', text: 'Карта доступна · Valhalla выключена' }
+    }
+    if (services.value.routing) {
+        return { color: 'orange-darken-2', icon: 'mdi-server-network', text: 'Valhalla доступна · карта выключена' }
+    }
+
+    return { color: 'red-darken-2', icon: 'mdi-server-network-off', text: 'GIS недоступен' }
+})
+let serviceStatusTimer = null
 
 function tabIsAvailable(value) {
     return tabs.value.some((item) => item.value === value)
+}
+
+async function refreshServiceStatus() {
+    try {
+        const response = await axios.get('/api/logistics/routing-status', {
+            validateStatus: (status) => status < 600,
+        })
+        const status = response.data?.data
+        if (status?.services) {
+            services.value = {
+                loaded: true,
+                map: Boolean(status.services.map?.available),
+                routing: Boolean(status.services.routing?.available),
+            }
+            return
+        }
+    } catch {
+        // Fall back to the map endpoint below. Header status is non-blocking.
+    }
+
+    try {
+        const response = await axios.get('/api/logistics/map/config')
+        const config = response.data?.data || response.data
+        services.value = { loaded: true, map: Boolean(config?.enabled), routing: false }
+    } catch {
+        services.value = { loaded: true, map: false, routing: false }
+    }
 }
 
 onMounted(() => {
@@ -53,7 +99,12 @@ onMounted(() => {
     } else if (!tabIsAvailable(activeTab.value)) {
         activeTab.value = 'overview'
     }
+
+    refreshServiceStatus()
+    serviceStatusTimer = window.setInterval(refreshServiceStatus, 60000)
 })
+
+onBeforeUnmount(() => window.clearInterval(serviceStatusTimer))
 
 watch(tabs, () => {
     if (!tabIsAvailable(activeTab.value)) {
@@ -92,8 +143,8 @@ provide('logisticsPermissions', permissions)
                     <h1>Логистика</h1>
                     <p>Рейсы, автопарк, расходы по чекам, география и собственные автомобильные расстояния.</p>
                 </div>
-                <v-chip color="green-darken-2" variant="tonal" prepend-icon="mdi-server-network">
-                    OSM · Valhalla
+                <v-chip :color="serviceChip.color" variant="tonal" :prepend-icon="serviceChip.icon">
+                    {{ serviceChip.text }}
                 </v-chip>
             </header>
 
@@ -118,7 +169,7 @@ provide('logisticsPermissions', permissions)
             </div>
 
             <footer class="logistics-attribution">
-                Расчёты дорог: Valhalla. Данные карт: © OpenStreetMap contributors, ODbL. Живые пробки не учитываются.
+                Дорожные расчёты при включённом routing: Valhalla. Данные карт: © OpenStreetMap contributors, ODbL. Живые пробки не учитываются.
             </footer>
         </div>
 

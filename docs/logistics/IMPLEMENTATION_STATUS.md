@@ -1,27 +1,37 @@
 # Статус реализации логистики
 
-Обновлено: 2026-08-02.
+Обновлено: 2026-08-03.
 
 ## Дополнение «вся Россия и интерактивная карта»
 
 - Без новых миграций переиспользованы существующие trips/stops/routes/matrix,
   polyline6, stale, policies, `cities`, `logistics_cities` и `entity_locations`.
-- Добавлена шестая вкладка «Карта», карта в карточке рейса, история версий,
-  preview матрицы, bbox/cluster layers и расширенная диагностика.
+- Добавлена вкладка «Карта», карта в карточке рейса, история версий, preview
+  матрицы, bbox/cluster layers и расширенная диагностика. Вложенные справочники
+  Cities, Buildings, Regions и Countries перенесены из «Географии» Grossbuch в
+  `/Ameise/logistics` после «Диагностики», получили иконки и сохранение активной
+  вкладки в URL/localStorage. Общая оболочка имеет стабильную ширину и не
+  сжимается при переходе на «Авто».
 - Закреплены `maplibre-gl 6.1.0` и `pmtiles 4.4.1`; чужие публичные OSM tile
   servers не используются. Для собственной карты добавлена allowlisted HTTPS
   доставка через S3-compatible Object Storage/CDN.
 - Добавлен native full-Russia release pipeline с blocking preflight,
-  checksum/version locks, staging smoke, paired current/previous activation и
-  rollback. Он не запускается из Laravel/queue/deploy/CI.
-- Ресурсоёмкий routing GitHub workflow заменён лёгкой статической проверкой.
+  checksum/version locks, staging smoke, независимой активацией постоянной
+  карты, опциональной paired routing activation и rollback. Он не запускается
+  из Laravel/queue/обычного deploy/автоматического CI; тяжёлый контур доступен
+  только через ручные защищённые actions временного Yandex builder.
+- Автоматический routing workflow оставлен лёгкой статической/toolchain
+  проверкой; отдельный ручной workflow управляет detached build, status,
+  publication/application handoff и удалением временной VM.
 - По решению владельца PMTiles, glyphs и sprites вынесены в постоянно
-  доступный Object Storage/CDN, а отдельный Valhalla/GIS compute VPS сделан
-  отключаемым. На основном VPS хранится только атомарный checksum-verified JSON
-  state; выключение Valhalla не выключает карту и сохранённые геометрии.
-- Код развернут штатным exact-commit GitHub Actions deploy. Production preflight
-  выполнен по SSH и остановил heavy operations из-за недостатка диска/RAM и
-  отсутствующего native toolchain; точные метрики и runbook зафиксированы в
+  доступный Object Storage/CDN, а Valhalla/GIS compute спроектирован как
+  отдельный отключаемый сервис. Matching graph хранится приватно; на основном
+  VPS находится только атомарный checksum-verified JSON state. Выключение
+  Valhalla не выключает карту и сохранённые геометрии.
+- Full-Russia релиз `russia-20260802` собран на временной Yandex VM после
+  blocking preflight, прошёл Valhalla route/matrix smoke, опубликован и
+  активирован. VM, auto-delete disk и отдельная security group после публикации
+  удалены; точные метрики и runbook зафиксированы в
   [MAP_RUSSIA.md](MAP_RUSSIA.md).
 
 ## Выполнено
@@ -35,9 +45,16 @@
 - Реализованы routing interface/DTO/typed exceptions, Valhalla provider, fake provider, профиль грузовика, polyline6 и request hashes.
 - Реализованы версионные маршруты рейса, направленная матрица, manual/stale/no_route/failed, cache locks, unique queue jobs, batching и polling runs.
 - Добавлены шесть Artisan-команд: health, выбранная матрица, refresh stale/expired, восстановление зависших routing jobs, mark stale и CSV import.
-- Добавлен отдельный раздел Vue/Vuetify с шестью вкладками, server-side таблицами, формами, картой, validation/errors/loading, CSV и OSM attribution.
+- Добавлен отдельный раздел Vue/Vuetify с десятью вкладками, server-side
+  таблицами, формами, картой, validation/errors/loading, CSV и OSM attribution.
+- Для MapLibre GL JS 6 добавлен обязательный Vite bundled worker; production
+  browser smoke подтверждает реальную отрисовку PMTiles, а не только доступность
+  первых байтов архива. Статический зелёный статус заменён фактическим раздельным
+  состоянием карты и Valhalla, дублирующая атрибуция удалена.
 - Добавлена воспроизводимая Valhalla-инфраструктура: pinned image 3.6.3, loopback/private network, immutable two-region download с checksum, staging build, route/matrix smoke, atomic activate и rollback.
-- Исторически применялся ручной GitHub Actions workflow для двухрегионального графа; в дополнении full-Russia он заменён только лёгкой проверкой, без download/build/deploy.
+- Исторический двухрегиональный workflow больше не строит граф. Для full-Russia
+  добавлен отдельный ручной `yandex-gis-builder.yml`: GitHub runner не строит
+  данные сам, а безопасно оркестрирует временную Linux VM.
 - Добавлен отдельный `redis-routing` connection, systemd worker example, интеграция worker/seeder/routes в production deploy и logistics checks в CI.
 - Созданы исходные пять документов и отдельный full-Russia runbook.
 - По последующему решению владельца добавлен явный полный расчёт всех включённых и проверенных городов (`--all` и UI) без лимита выбранного фрагмента.
@@ -47,46 +64,41 @@
 
 ## Проверено фактически
 
-- Четыре миграции успешно применялись к отдельной временной SQLite test database; рабочая MySQL не изменялась.
-- Targeted backend suite после разделения карты и Valhalla: `43 passed, 359 assertions, 1 skipped`; пропущен только opt-in smoke с живой Valhalla.
-- Полный regression suite после разделения карты и Valhalla: `243 tests, 1530 assertions, 5 skipped` через `php -d memory_limit=512M vendor/bin/phpunit --colors=never`.
-- Все затронутые PHP-файлы прошли `vendor/bin/pint --test`; общий legacy-код проекта вне задачи по-прежнему содержит style issues и не переформатировался массово.
-- Production client + SSR build успешно выполнен на Node.js 22.18.0; остались только предупреждения о старой базе Browserslist и размере существующих общих chunks.
-- Все shell scripts нового full-Russia pipeline прошли `bash -n`; calculator и map-assets fixtures прошли.
-- `docker compose ... config --quiet` успешно проверен с example env и staging volume.
-- `composer validate --no-check-publish --strict`, `git diff HEAD --check`, регистрация 31 API route и scheduler прошли успешно.
-- Production CI после исправления: `147 passed, 2 skipped, 992 assertions`, PHP style, client build и SSR build; [deploy run 30403630659](https://github.com/Obcoder/pischeprom/actions/runs/30403630659).
-- На GitHub-hosted runner собран и проверен граф из checksum-verified PBF Центрального и Северо-Западного федеральных округов, snapshot `260725`; на VPS запущен Valhalla `3.6.3`, доступный Laravel только через `127.0.0.1:8002`.
-- Production health возвращает `healthy=true`, OSM `260725`; Redis routing worker активен. Provisioning, route/matrix smoke и production API E2E прошли в [routing run 30403764857](https://github.com/Obcoder/pischeprom/actions/runs/30403764857).
-- Полный auto-расчёт `8ff7407e-a2ff-45f8-86c4-89e3407bdedb` завершил `2/2` направленных пар без ошибок: Санкт-Петербург → Воронеж `1 255,502 км`, Воронеж → Санкт-Петербург `1 326,100 км`.
-- Production `.env` синхронизирован с Redis queue, loopback Valhalla и версиями engine/OSM; перед изменением workflow сохранил закрытую резервную копию.
-- Дополнение карты развернуто на production: основной
-  [run 30755487539](https://github.com/Obcoder/pischeprom/actions/runs/30755487539)
-  и inode-fix
-  [run 30755634948](https://github.com/Obcoder/pischeprom/actions/runs/30755634948)
-  прошли verify/deploy; фактический SHA `6ed3b476b1fd359e74a3efc2b49ed12451e64998`.
-- Production full preflight `2026-08-02T16:02:41Z` вернул `FAIL`: свободно
-  `24 794 128 384` из требуемых `89 688 021 740` bytes диска и доступно
-  `2 573 320 192` из требуемых `6 442 450 944` bytes RAM. Inode достаточно
-  (`4 938 096`); действующая Valhalla `3.6.3` healthy и не переключалась.
-- Production HTTP smoke успешен: главная страница, map config и same-origin
-  style отвечают 200; карта преднамеренно остаётся `enabled=false` до paired
-  full-Russia release, Range/206 и activation.
-- Реализованы возобновляемая immutable S3-публикация без overwrite, строгие
-  CDN Range/206+CORS проверки, отдельные export/install application-state
-  scripts, private/VPN bind для Valhalla и раздельная диагностика карты/routing.
-- Настроена GitHub workload identity federation без статических ключей;
-  [OIDC preflight 30765038381](https://github.com/Obcoder/pischeprom/actions/runs/30765038381)
-  подтвердил доступ к Object Storage, Compute Cloud и VPC.
-- Созданы отдельные Yandex Object Storage бакеты: публичный read-only для карты
-  и приватный для GIS build-артефактов. Успешный
-  [storage apply 30765628840](https://github.com/Obcoder/pischeprom/actions/runs/30765628840)
-  подтвердил exact production CORS, immutable 64 KiB fixture, HTTPS HEAD 200,
-  Range 206 и запрет anonymous listing. Статические access keys, CDN, DNS,
-  Certificate Manager, VM и disks не создавались.
-- Карта остаётся `enabled=false`: fixture доказывает готовность транспортного
-  контура Object Storage, но не заменяет настоящий full-Russia PMTiles,
-  согласованный release manifest, application state и activation.
+- Четыре миграции успешно применялись к отдельной временной SQLite test
+  database; рабочая MySQL не изменялась.
+- Targeted logistics suite: `44 passed`, `368 assertions`, `1 skipped`;
+  пропущен только opt-in smoke с живой Valhalla.
+- Полный regression suite: `244 tests`, `1539 assertions`, `5 skipped` через
+  `php -d memory_limit=512M vendor/bin/phpunit --colors=never`; пропущены только
+  opt-in/live интеграции.
+- Production CI: `156 passed`, `1117 assertions`, `2 skipped`, Pint для всех
+  logistics-файлов, client + SSR build и exact-commit deploy —
+  [run 30799057918](https://github.com/Obcoder/pischeprom/actions/runs/30799057918).
+- Linux toolchain/workflow validation —
+  [run 30795117473](https://github.com/Obcoder/pischeprom/actions/runs/30795117473).
+- Full-Russia snapshot: `russia-260802.osm.pbf`, `4 134 706 838` bytes,
+  OSM timestamp `2026-08-02T20:21:48Z`, Geofabrik MD5
+  `1c57b379d8dbd18667f051e32ba00772`.
+- Valhalla `3.6.3`: граф `7 395 596 449` bytes; staging smoke прошёл `/status`,
+  пять региональных маршрутов, Москва → Новосибирск, truck route и 3×3 matrix.
+- PMTiles v3/Planetiler `0.10.2`: `7 784 103 974` bytes, SHA-256
+  `a8d8249b0bf1f2d67306472d350c9fed094e2b5a60704b2aef1796a0e8a2b110`,
+  zoom `0…14`.
+- Финальный `release-publish` —
+  [run 30797074675](https://github.com/Obcoder/pischeprom/actions/runs/30797074675):
+  public map и private graph опубликованы, application state установлен,
+  `LOGISTICS_AUTHORIZATION_ENABLED=false` сохранён, builder/disk/SG удалены.
+- Production `/api/logistics/map/config` сообщает `enabled=true`,
+  `delivery=object_storage_cdn`, `status=active`; независимые HEAD/Range/CORS
+  проверки возвращают `200/206`, точный `Content-Range` и immutable cache.
+- Browser smoke загрузил bundled worker, выполнил шесть PMTiles fetch-запросов
+  (пять рабочих byte ranges после header), получил только `206` без ошибок и
+  визуально отрисовал воду, границы, подписи и прикладные точки.
+- Приватный publication marker/graph остаётся недоступен анонимно (`403`).
+- Текущий штатный режим: постоянная карта доступна, Valhalla compute выключена;
+  `/api/logistics/routing-status` возвращает `degraded`, `map.available=true`,
+  `routing.available=false`. Сохранённые маршруты работают, новые расчёты ждут
+  отдельного включения routing runtime.
 
 ## Архитектурные решения аудита
 
@@ -108,9 +120,9 @@
 
 ## Оставшиеся эксплуатационные задачи
 
-- Предоставить отдельный Linux build host либо расширить production минимум до
-  рассчитанных blocking thresholds с дополнительным запасом, установить и
-  закрепить native Java 21/Planetiler/PMTiles/Valhalla toolchain, затем повторить
-  `preflight → build → smoke → Range/206 → activate` без сокращения территории.
+- Если понадобятся новые автомобильные расчёты, развернуть отдельный
+  отключаемый Valhalla runtime из приватного graph artifact и настроить
+  защищённый transport от application VPS; карта этого не требует.
 - Выполнить backup/restore drill MySQL и additive migrations.
-- Выдать права ролям, проверить реальные routing-точки и выполнить приёмочный рейс Санкт-Петербург → Москва.
+- Перед будущим включением `LOGISTICS_AUTHORIZATION_ENABLED=true` выдать права
+  ролям и провести отдельную приёмку доступа.

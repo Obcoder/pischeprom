@@ -1,6 +1,6 @@
 # Логистика: вся Россия и интерактивная карта
 
-Обновлено: 2026-08-02.
+Обновлено: 2026-08-03.
 
 ## Фактический аудит до реализации
 
@@ -49,8 +49,9 @@ Baseline до изменений:
 
 - отдельная вкладка «Карта» внутри `/Ameise/logistics`;
 - MapLibre GL JS `6.1.0` и PMTiles client `4.4.1`, закреплённые в npm lockfile;
-- однократная регистрация PMTiles protocol и динамическая загрузка JS/CSS только
-  при инициализации карты;
+- однократная регистрация PMTiles protocol, обязательный Vite bundled worker
+  для MapLibre GL JS 6 и динамическая загрузка JS/CSS только при инициализации
+  карты;
 - собственный same-origin style, русский OpenMapTiles-compatible слой,
   allowlisted HTTPS Object Storage/CDN для immutable PMTiles/sprites/glyphs и
   видимая атрибуция OpenStreetMap/OpenMapTiles;
@@ -209,16 +210,20 @@ infrastructure/logistics-gis/tests/range-cors-test.sh
 7. `publish-map-assets.sh` возобновляемо публикует immutable PMTiles, glyphs и
    sprites в S3-compatible Object Storage/CDN, не перезаписывает существующие
    объекты и требует публичные HEAD, Range/206, CORS и SHA-256.
-8. `activate-release.sh` атомарно хранит `previous`, переключает `current`,
-   перезапускает фактически настроенный существующий runtime, повторяет smoke,
-   проверяет CDN PMTiles Range/206/CORS и только затем помечает старые
-   автоматические значения stale существующей командой. На отдельном GIS host
-   используется ограниченный helper к application VPS. Ошибка возвращает
-   прежний symlink.
-9. `export-application-state.sh` и `install-application-state.sh` переносят на
+8. `publish-valhalla-artifacts.sh` сохраняет matching graph и manifest в
+   полностью приватном immutable bucket, публикует marker последним и требует
+   `403` для anonymous access.
+9. `activate-map-release.sh` повторяет публичный Range/206+CORS и активирует
+   только постоянную map delivery. Он не переключает, не запускает и не требует
+   Valhalla.
+10. `export-application-state.sh` и `install-application-state.sh` переносят на
    основной VPS только checksum-verified JSON state. Поэтому выключение
    Valhalla/GIS VPS не выключает карту.
-10. `rollback-release.sh` доступен даже при нездоровом current и восстанавливает
+11. Опциональный `activate-release.sh` отдельно атомарно хранит `previous`,
+   переключает routing `current`, перезапускает настроенный runtime, повторяет
+   route/matrix smoke и только после успеха помечает старые автоматические
+   значения stale. Ошибка возвращает прежний symlink.
+12. `rollback-release.sh` доступен даже при нездоровом current и восстанавливает
    согласованную previous-пару; для первого legacy rollback без прежнего
    PMTiles выполняется только явно помеченный legacy route/matrix smoke
    Санкт-Петербург → Москва, восстанавливается routing, а карта честно
@@ -226,7 +231,10 @@ infrastructure/logistics-gis/tests/range-cors-test.sh
 
 Тяжёлая сборка удалена из `.github/workflows/routing.yml`: workflow теперь
 выполняет только syntax/calculator/boundary checks. Стандартный deploy её не
-запускает.
+запускает. Явно запущенный `yandex-gis-builder.yml` оркестрирует временную VM:
+`build-start` запускает detached service, `build-status` забирает ограниченный
+журнал, а `release-publish` публикует immutable artifacts, переносит JSON state
+на application VPS и удаляет VM только после application + Range/CORS smoke.
 
 ## Изменения БД
 
@@ -240,211 +248,98 @@ infrastructure/logistics-gis/tests/range-cors-test.sh
 
 ## Фактический production preflight и deploy
 
-Приложение доставлено штатным GitHub Actions workflow exact-commit deploy:
+Первичный preflight основного VPS корректно вернул `FAIL`: тяжёлая full-Russia
+сборка не помещалась в его RAM/диск. Поэтому сборка была перенесена на отдельную
+временную VM и никогда не запускалась на application VPS или GitHub runner.
 
-- основной релиз `50bc03d897fc27cea711743e2fd6934a7851da71` —
-  [run 30755487539](https://github.com/Obcoder/pischeprom/actions/runs/30755487539),
-  verify и deploy успешны;
-- исправление Linux inode-пробы
-  `6ed3b476b1fd359e74a3efc2b49ed12451e64998` —
-  [run 30755634948](https://github.com/Obcoder/pischeprom/actions/runs/30755634948),
-  verify и deploy успешны;
-- production working tree после deploy чистый, фактический SHA совпадает;
-- подтверждённые владельцем `LOGISTICS_AUTHORIZATION_ENABLED=false` и защитный
-  `LOGISTICS_MAP_ENABLED=false` действуют в cached production config.
+`2026-08-03` временный builder прошёл blocking preflight, pinned toolchain и
+полную последовательность `download → build → smoke → publish → Range/206 →
+activate`. Финальная публикация выполнена ручным
+[run 30797074675](https://github.com/Obcoder/pischeprom/actions/runs/30797074675).
 
-Повторный `preflight.sh --mode full --json` на production Linux выполнен
-`2026-08-02T16:02:41Z` и вернул `FAIL` (exit 3):
+### Активный релиз `russia-20260802`
 
-- Ubuntu 22.04, kernel `5.15.0-181-generic`, x86_64;
-- AMD EPYC 7773X, 2 physical / 2 logical cores, load/core `0.195`;
-- RAM total `4 101 832 704`, available `2 573 320 192` bytes; swap total
-  `1 073 737 728` bytes;
-- ext4/HDD: free `24 794 128 384` bytes и `4 938 096` свободных inode;
-- staging `/srv/pischeprom-gis` отсутствует и не writable;
-- действующая Valhalla отвечает healthy, версия `3.6.3`;
-- native Java 21, PMTiles CLI, Valhalla build tools и закреплённый Planetiler
-  отсутствуют; host-specific restart adapter и version pins не настроены.
+- источник: `russia-260802.osm.pbf`, `4 134 706 838` bytes, OSM timestamp
+  `2026-08-02T20:21:48Z`, MD5 `1c57b379d8dbd18667f051e32ba00772`;
+- Valhalla `3.6.3`: graph extract `7 395 596 449` bytes; staging smoke прошёл
+  `/status`, Санкт-Петербург → Псков, Москва → Нижний Новгород,
+  Екатеринбург → Тюмень, Новосибирск → Красноярск, Хабаровск → Владивосток,
+  Москва → Новосибирск, truck route и 3×3 matrix;
+- PMTiles v3, Planetiler `0.10.2`: `7 784 103 974` bytes, zoom `0…14`,
+  SHA-256 `a8d8249b0bf1f2d67306472d350c9fed094e2b5a60704b2aef1796a0e8a2b110`;
+- public map release опубликован в
+  `https://pischeprom-gis-map-8as88kt.storage.yandexcloud.net/logistics/releases/russia-20260802/`;
+- matching graph/manifest опубликованы в приватном bucket; anonymous marker
+  возвращает `403`;
+- application state установлен атомарно, `LOGISTICS_MAP_ENABLED=true`, а
+  подтверждённый владельцем `LOGISTICS_AUTHORIZATION_ENABLED=false` сохранён;
+- временная VM, auto-delete disk и отдельная security group удалены после всех
+  production smoke. Постоянной платы за builder compute/disk больше нет.
 
-Read-only метаданные официального Geofabrik в этом production preflight:
+### Production-приёмка
 
-- alias: `https://download.geofabrik.de/russia-latest.osm.pbf`;
-- immutable resolved URL: `https://download.geofabrik.de/russia-260801.osm.pbf`;
-- размер: `4 134 132 440` bytes;
-- OSM data timestamp из официального индекса: `2026-08-01T20:21:21Z`;
-- Last-Modified: `Sat, 01 Aug 2026 22:38:57 GMT`;
-- опубликованный MD5: `eaefeb62007ed1dc9e0a180dd3717d86`;
-- рассчитанный минимальный full-operation disk threshold с текущими default
-  коэффициентами и 20 GiB app reserve: `89 688 021 740` bytes;
-- рассчитанный RAM threshold с 2 GiB app reserve: `6 442 450 944` bytes.
+- `/api/logistics/map/config` — `200`, `enabled=true`,
+  `delivery=object_storage_cdn`, `release.status=active`;
+- PMTiles HEAD — `200`; `Range: bytes=0-16383` — `206`,
+  `Content-Range: bytes 0-16383/7784103974`, magic `PMTiles`;
+- CORS разрешает exact production origin и экспортирует Range/cache headers;
+- cache policy — `public,max-age=31536000,immutable`;
+- MapLibre/Vite client загружает отдельный bundled worker и после header делает
+  рабочие byte-range запросы к архиву; браузерный screenshot подтвердил воду,
+  границы, подписи и прикладные точки без console/network errors;
+- финальный app verify/deploy —
+  [run 30799057918](https://github.com/Obcoder/pischeprom/actions/runs/30799057918),
+  Linux GIS validation —
+  [run 30795117473](https://github.com/Obcoder/pischeprom/actions/runs/30795117473).
 
-Фактических ресурсов недостаточно: дефицит к blocking threshold составляет
-`64 893 893 356` bytes диска и `3 869 130 752` bytes доступной RAM. Поэтому в
-соответствии с ТЗ после `FAIL` не запускались PBF download, build, smoke,
-Range/206 и activate. Территория не уменьшалась; текущий routing release не
-переключался и не удалялся. Для продолжения нужен отдельный временный Linux
-build host либо расширение production с запасом сверх указанных thresholds и
-проверенным native toolchain.
+### Текущий режим Valhalla
 
-Это metadata probe, а не скачанный/проверенный локальный PBF. Значения
-`russia-latest` меняются, поэтому новый preflight обязан получить их заново
-непосредственно перед продолжением.
-
-### Yandex Cloud Object Storage foundation
-
-`2026-08-02` настроена GitHub workload identity без статических ключей.
-Ручной GET-only [OIDC preflight run 30765038381](https://github.com/Obcoder/pischeprom/actions/runs/30765038381)
-успешно обменял GitHub OIDC на краткоживущий IAM token и подтвердил доступ к
-Object Storage, Compute Cloud и VPC.
-
-После отдельного безопасного
-[storage plan 30765458792](https://github.com/Obcoder/pischeprom/actions/runs/30765458792)
-созданы и повторно проверены идемпотентным
-[storage apply 30765628840](https://github.com/Obcoder/pischeprom/actions/runs/30765628840):
-
-- публичный read-only origin карты
-  `https://pischeprom-gis-map-8as88kt.storage.yandexcloud.net`, с лимитом
-  размера бакета 50 GiB;
-- полностью приватный бакет GIS build-артефактов с лимитом 100 GiB;
-- anonymous object listing и чтение конфигурации запрещены на обоих бакетах;
-- CORS разрешает только production application origin, методы `GET`/`HEAD` и
-  нужные карте Range/cache headers;
-- deterministic 64 KiB fixture доступен по HTTPS с immutable cache policy;
-  HEAD вернул `200`, `Range: bytes=0-15` — `206` и корректный
-  `Content-Range: bytes 0-15/65536`;
-- независимая локальная проверка повторила `200/206`, точный CORS и `403` для
-  anonymous listing обоих бакетов.
-
-50/100 GiB — верхние safety limits, а не заранее выделенное или оплаченное
-место. В бакете карты пока находится только 64 KiB fixture, настоящего
-`russia.pmtiles` нет. CDN, Certificate Manager и DNS для первого эксперимента
-намеренно не создавались: используется отдельный HTTPS hostname Object Storage.
-Compute VM и диски этим этапом не создавались.
+Valhalla runtime намеренно не включён постоянно. Production diagnostics
+возвращает `overall_status=degraded`, но раздельные состояния корректны:
+`map.available=true`, `routing.available=false`. Карта, справочники и уже
+сохранённые route geometries продолжают работать; недоступны только новые
+route/matrix расчёты. Full-Russia graph сохранён приватно для будущего
+отключаемого runtime.
 
 ## Проверки реализации
 
-- релевантный backend suite: `42 tests`, `341 assertions`, `1 skipped`;
-- полный regression suite: `241 tests`, `1512 assertions`, `5 skipped` при
-  `memory_limit=512M`; пропуски включают только opt-in/live интеграции;
-- PHP lint и Pint для затронутых файлов, `git diff --check` и регистрация шести
-  новых API endpoint-ов прошли;
-- client и SSR production build прошли на Node.js `22.14.0`; сборка сообщает
-  только о давности локальной Browserslist-базы и крупных существующих chunks;
-- все shell scripts прошли `bash -n`, preflight calculator — PASS/WARN/FAIL
-  fixtures, валидатор ассетов — complete-manifest fixture;
-- MapLibre style JSON, workflow YAML, exact npm lock versions и запрет тяжёлой
-  GIS/Docker-работы в новом CI-контуре проверены;
-- `npm audit` сообщил о 9 проблемах в общем дереве зависимостей проекта
-  (`2 low`, `3 moderate`, `4 high`, `0 critical`); автоматический потенциально
-  ломающий `audit fix` не выполнялся.
-- production HTTP smoke после deploy: `/` — 200,
-  `/api/logistics/map/config` — 200 с `enabled=false`,
-  `/api/logistics/map/style` — 200; release metadata корректно сообщает
-  `status=unavailable`, пока paired GIS release не активирован.
-
-Локальная MySQL из рабочего `.env` не содержит таблиц логистики, поэтому
-production-счётчики данных и browser-приёмка не подменялись локальными данными.
+- полный regression suite: `244 tests`, `1539 assertions`, `5 skipped`;
+- production CI: `156 passed`, `1117 assertions`, `2 skipped`, Pint, client и
+  SSR build;
+- все GIS shell scripts прошли `bash -n`, fixtures preflight/assets/
+  publication/application-state/builder — успешно;
+- PMTiles проверен и go-pmtiles CLI, и реальными browser Range-запросами;
+- `git diff --check`, pinned versions и запрет тяжёлой работы в обычном deploy
+  проверены.
 
 ## Production runbook
 
-Production-команды и layout подробно описаны в
-`infrastructure/logistics-gis/README.md`. Короткая последовательность:
+Повторное обновление запускается только вручную через
+`.github/workflows/yandex-gis-builder.yml`:
 
-Перед первой активацией оператор обязан зарегистрировать фактически работающий
-старый graph как `GIS_BASE_DIR/current`, адаптировать существующий runtime к
-этому пути и проверить restart/health. Код намеренно не угадывает host-specific
-Docker/systemd unit или каталоги по устаревшей документации; без rollback target
-активация завершается до переключения. Минимальный legacy manifest и правило
-`GIS_CURRENT_OSM_DATA_VERSION` приведены в полном runbook; без известной старой
-версии OSM активация блокируется до изменения symlink.
+1. `plan` — только расчёт/проверка ресурсов, без создания;
+2. `apply` — временный builder с auto-delete disk и runner-scoped SSH;
+3. `build-start` — detached preflight/download/build/finalize;
+4. `build-status` — санитаризированный bounded status/log;
+5. `release-publish` — public map + private graph, application-state handoff,
+   Range/CORS/application smoke и автоматическое удаление builder;
+6. `destroy` — отдельная аварийная уборка exact managed resources.
 
-```bash
-set -a
-. /etc/pischeprom-gis.env
-set +a
+Нельзя публиковать релиз, если `status != completed`, smoke не прошёл или
+manifest/checksum не совпадают. Повторный `release-publish` возобновляем и не
+перезаписывает immutable объекты.
 
-infrastructure/logistics-gis/scripts/preflight.sh --mode full --json
-# Продолжать только при PASS / exit 0.
-infrastructure/logistics-gis/scripts/download-russia-pbf.sh
-infrastructure/logistics-gis/scripts/build-valhalla.sh \
-  /srv/pischeprom-gis/sources/russia-YYYYMMDD.osm.pbf
-infrastructure/logistics-gis/scripts/build-pmtiles.sh \
-  /srv/pischeprom-gis/sources/russia-YYYYMMDD.osm.pbf
-infrastructure/logistics-gis/scripts/finalize-release.sh russia-YYYYMMDD
-infrastructure/logistics-gis/scripts/publish-map-assets.sh russia-YYYYMMDD
-infrastructure/logistics-gis/scripts/activate-release.sh russia-YYYYMMDD
-infrastructure/logistics-gis/scripts/export-application-state.sh \
-  russia-YYYYMMDD /tmp/pischeprom-gis-state-russia-YYYYMMDD
-```
+Локальная эквивалентная последовательность и layout описаны в
+`infrastructure/logistics-gis/README.md`. `activate-release.sh` относится только
+к отдельной активации Valhalla и не входит в обязательную map-only публикацию.
 
-После защищённой передачи JSON bundle на основной VPS:
+## Оставшийся опциональный шаг
 
-```bash
-infrastructure/logistics-gis/scripts/install-application-state.sh \
-  /absolute/path/pischeprom-gis-state-russia-YYYYMMDD \
-  /srv/pischeprom-gis-state
-```
-
-Health и rollback:
-
-```bash
-curl --fail --silent http://127.0.0.1:8002/status
-php artisan logistics:routing-health --json
-infrastructure/logistics-gis/scripts/check-pmtiles-range.sh \
-  https://MAP_HOST/logistics/releases/russia-YYYYMMDD/russia.pmtiles
-infrastructure/logistics-gis/scripts/rollback-release.sh
-```
-
-Laravel env после проверенной активации (без секретов):
-
-```dotenv
-LOGISTICS_MAP_ENABLED=true
-LOGISTICS_MAP_STYLE_URL=/api/logistics/map/style
-LOGISTICS_MAP_ASSET_ORIGINS=https://MAP_HOST
-LOGISTICS_MAP_PMTILES_URL=https://MAP_HOST/logistics/releases/{release}/russia.pmtiles
-LOGISTICS_MAP_GLYPHS_URL=https://MAP_HOST/logistics/releases/{release}/assets/fonts/{fontstack}/{range}.pbf
-LOGISTICS_MAP_SPRITE_URL=https://MAP_HOST/logistics/releases/{release}/assets/sprites/basic
-LOGISTICS_GIS_RELEASE_MANIFEST=/srv/pischeprom-gis-state/current/release-manifest.json
-LOGISTICS_GIS_PREFLIGHT_STATUS=/srv/pischeprom-gis-state/current/last-preflight.json
-LOGISTICS_GIS_RANGE_STATUS=/srv/pischeprom-gis-state/current/last-range-check.json
-LOGISTICS_GIS_ACTIVATION_STATUS=/srv/pischeprom-gis-state/current/last-activation.json
-LOGISTICS_GIS_PRODUCTION_SMOKE_STATUS=/srv/pischeprom-gis-state/current/last-production-smoke.json
-LOGISTICS_GIS_MAP_PUBLICATION_STATUS=/srv/pischeprom-gis-state/current/last-map-publication.json
-VALHALLA_BASE_URL=http://PRIVATE_GIS_IP:8002
-```
-
-PHP должен видеть указанные manifest/state JSON read-only (через существующую
-service group либо точные read-only bind mounts, если приложение работает в
-контейнере). Давать web-процессу доступ ко всему `sources/staging/graph/logs`
-для этого не требуется.
-
-После изменения env: `php artisan config:cache` и штатный restart PHP/queue
-процессов проекта. `LOGISTICS_OSM_DATA_VERSION` остаётся legacy fallback;
-активный verified manifest является источником версии для новых расчётов.
-
-## Что заблокировано production preflight
-
-Production SSH-аудит, exact-commit deploy, blocking preflight и безопасный HTTP
-smoke выполнены. Из-за документированного `FAIL` не выполнялись и не заявляются
-выполненными:
-
-- скачивание 4.13 GB PBF;
-- native install/provisioning Valhalla, Java, Planetiler, PMTiles/assets;
-- создание отдельного GIS compute VPS, private/VPN-сети и firewall allowlist;
-- staging graph и PMTiles build, их duration/peak RSS/paths/sizes;
-- публикация immutable map release и перенос application-state bundle;
-- staging/production routing smoke;
-- HEAD/Range 206 настоящего `russia.pmtiles` (storage fixture уже прошёл);
-- переключение current/previous и rollback drill;
-- browser screenshots и регрессия посторонних production-страниц.
-
-Отдельно ещё не настроены billing budget alerts. CDN/TLS/DNS не являются
-блокером первого релиза через прямой bucket-specific HTTPS origin и могут быть
-добавлены позднее без изменения структуры immutable object keys.
-
-Старый рабочий release не затрагивался и не удалялся. До PASS и успешных smoke
-карта остаётся с `LOGISTICS_MAP_ENABLED=false`: прикладные точки могут работать
-на резервном фоне, но интерфейс явно сообщает, что production PMTiles не активен.
+Если понадобятся новые маршруты/матрицы, нужно отдельно развернуть отключаемый
+Valhalla runtime из приватного graph artifact и настроить защищённый transport
+от application VPS. Это не блокирует и не изменяет уже активную карту.
+Billing budget alerts и отдельный CDN/custom DNS также не являются блокерами:
+первый production release работает через bucket-specific HTTPS origin.
 
 ## Официальные технические источники
 

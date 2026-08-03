@@ -17,12 +17,25 @@
 - scheduler Laravel раз в минуту;
 - backup MySQL и проверенная процедура восстановления перед production-миграцией.
 
-Исторический граф Northwestern + Central был построен отдельно от Laravel и
-остаётся действующим до проверенной активации full-Russia release. Новый граф и
-PMTiles нельзя собирать на GitHub runner: фактические требования сначала
-рассчитывает `infrastructure/logistics-gis/scripts/preflight.sh`, после чего
-оператор использует production host только при `PASS` либо отдельную временную
-Linux-машину достаточного размера. Исходные PBF не заменяются generated tiles.
+Исторический граф Northwestern + Central был построен отдельно от Laravel, но
+не является текущим full-Russia routing runtime. Новый граф и PMTiles нельзя
+собирать на GitHub-hosted runner или основном VPS:
+фактические требования сначала рассчитывает
+`infrastructure/logistics-gis/scripts/preflight.sh`, после чего ручной GitHub
+workflow оркестрирует отдельную временную Linux VM достаточного размера.
+Исходные PBF не заменяются generated tiles.
+
+## Текущий production-режим
+
+Активен map-only релиз `russia-20260802`: PMTiles, glyphs и sprites постоянно
+доступны через bucket-specific HTTPS Object Storage origin, matching Valhalla
+graph хранится в приватном bucket. Временный builder, его auto-delete disk и
+security group удалены после публикации.
+
+`/api/logistics/routing-status` в штатном дешёвом режиме сообщает
+`map.available=true`, `routing.available=false`. Это означает: карта и
+сохранённые геометрии доступны, а новые route/matrix jobs нельзя запускать до
+отдельного включения Valhalla runtime.
 
 ## Laravel env
 
@@ -61,13 +74,17 @@ VALHALLA_RETRY_DELAY_MS=250
 
 ### GitHub Actions
 
-Workflow `routing.yml` теперь выполняет только syntax, calculator и boundary
-checks. Он не принимает OSM snapshot, ничего не скачивает, не собирает, не
-передаёт на сервер и не активирует. Обычный workflow приложения также не
-перестраивает GIS и только обслуживает уже установленный routing worker.
+Workflow `routing.yml` выполняет только syntax, calculator, boundary и pinned
+toolchain checks. Обычный workflow приложения также не перестраивает GIS и
+только обслуживает уже установленный routing worker.
 
-Full-Russia обновление выполняется исключительно вручную по
-[production runbook](MAP_RUSSIA.md#production-runbook).
+Full-Russia обновление выполняется вручную по
+[production runbook](MAP_RUSSIA.md#production-runbook) через
+`yandex-gis-builder.yml`: точные подтверждения требуются для `build-start`,
+`release-publish` и `destroy`. GitHub runner только управляет временной Yandex
+VM и переносит проверенный JSON state; download/build выполняются detached на
+самой VM, а публичный SSH открыт лишь для IP активного runner и закрывается в
+конце каждого action.
 
 ### Ручная сборка
 
@@ -152,4 +169,14 @@ sudo systemctl status pischeprom-routing-worker
 sudo journalctl -u pischeprom-routing-worker -n 100 --no-pager
 ```
 
-Затем откройте `/Ameise/logistics` в анонимном окне: при `LOGISTICS_AUTHORIZATION_ENABLED=false` должны работать страница, чтение и изменяющие API-операции. Проверьте diagnostics, создайте тестовый рейс с двумя остановками и поставьте маршрут в очередь. Когда будет готова общая авторизация `/Ameise`, установите `LOGISTICS_AUTHORIZATION_ENABLED=true`, пересоберите config cache и проверьте Sanctum, подтверждение email и logistics permissions. Не утверждайте успешность live-маршрута до положительного результата health/smoke на production-графе.
+Затем откройте `/Ameise/logistics` в анонимном окне: при
+`LOGISTICS_AUTHORIZATION_ENABLED=false` должны работать страница, чтение и
+изменяющие API-операции. Проверьте diagnostics, карту и справочники. В текущем
+map-only режиме не ставьте тестовый маршрут в очередь: сначала включите
+отдельный Valhalla runtime и дождитесь `services.routing.available=true`.
+Проверка самой карты от routing не зависит.
+
+Когда будет готова общая авторизация `/Ameise`, установите
+`LOGISTICS_AUTHORIZATION_ENABLED=true`, пересоберите config cache и проверьте
+Sanctum, подтверждение email и logistics permissions. Не утверждайте успешность
+live-маршрута до положительного health/smoke на production-графе.

@@ -1,11 +1,14 @@
 # Эксплуатация Valhalla и матрицы
 
-> Full-Russia graph + PMTiles обновляются только ручным native Linux pipeline из
-> [MAP_RUSSIA.md](MAP_RUSSIA.md). PMTiles постоянно доступны из Object
-> Storage/CDN; Valhalla работает на отдельном отключаемом compute VPS через
-> private/VPN address. Старые команды `infrastructure/valhalla` относятся к
-> сохранённому двухрегиональному deployment. GitHub Actions не скачивает, не
-> строит, не публикует и не активирует GIS.
+> Full-Russia graph + PMTiles обновляются только явно запущенным native Linux
+> pipeline из [MAP_RUSSIA.md](MAP_RUSSIA.md). Ручной workflow
+> `yandex-gis-builder.yml` через GitHub Actions оркестрирует временную Yandex
+> Cloud VM: `build-start` запускает detached build, `build-status` читает
+> санитаризированное состояние, а защищённый `release-publish` публикует и
+> активирует постоянную карту. Обычный CI/deploy приложения тяжёлые GIS-операции
+> не запускает. PMTiles постоянно доступны из Object Storage/CDN; Valhalla
+> остаётся отдельным отключаемым compute-сервисом. Старые команды
+> `infrastructure/valhalla` относятся к сохранённому двухрегиональному runtime.
 
 ## Ежедневные проверки
 
@@ -17,6 +20,10 @@ curl --fail --silent http://PRIVATE_GIS_IP:8002/status
 infrastructure/logistics-gis/scripts/check-pmtiles-range.sh \
   https://MAP_HOST/logistics/releases/russia-YYYYMMDD/russia.pmtiles
 ```
+
+При выключенном Valhalla первая команда ожидаемо сообщает degraded/unavailable;
+это не авария карты. Обязательная ежедневная проверка map-only режима —
+`services.map.available=true` в diagnostics и успешный PMTiles Range/206.
 
 Status самого Valhalla проверяйте через фактически аудированный runtime:
 `systemctl` для native unit либо `docker compose ps` только пока production
@@ -176,7 +183,7 @@ php artisan schedule:list | grep logistics
 | город не считается | `is_matrix_enabled`, обе координаты, verification | проверить точку администратором |
 | неверная версия в UI | active release manifest, activation state, config cache, worker env | восстановить согласованный `current`/activation state; legacy env использовать только как fallback |
 | карта работает, routing недоступен | status отдельного GIS VPS и private/VPN route | это штатный режим при выключенном compute; включить VPS перед новыми расчётами |
-| пустая карта при healthy CDN | `map_publication`, allowlisted origin, browser CORS, HEAD/206 | установить проверенный JSON bundle, исправить exact origin/CORS и пересобрать config cache |
+| пустая карта при healthy CDN | `map_publication`, allowlisted origin, browser CORS, MapLibre worker, HEAD/206 и последующие tile ranges | проверить Vite import `?worker&url`, exact origin/CORS, JSON bundle и config cache |
 | build не активирован | `staging`, component/release manifests, smoke output | не переключать symlink; исправить и собрать новый точный snapshot |
 
 Не помещайте секреты, PBF и generated tiles в Git. Valhalla остаётся на loopback/private network; при отдельном host доступ ограничивается private firewall.
