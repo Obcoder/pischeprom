@@ -222,7 +222,7 @@ key="$(PUBLIC_URL="$url" php -r '$path=parse_url((string)getenv("PUBLIC_URL"),PH
 object="${FAKE_S3_ROOT}/${FAKE_S3_BUCKET}/${key}"
 [[ -f "$object" ]]
 size="$(stat -c '%s' -- "$object")"
-origin="${FAKE_APPLICATION_ORIGIN}"
+origin="${FAKE_APPLICATION_ORIGIN:-}"
 if $is_head; then
     if [[ "${FAKE_PRIVATE_OBJECT:-false}" == 'true' ]]; then
         printf '403'
