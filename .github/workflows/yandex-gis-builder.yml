@@ -687,7 +687,7 @@ jobs:
 
       - name: Upload sanitized target-host preflight evidence
         if: ${{ always() && (inputs.action == 'apply' || inputs.action == 'build-start' || inputs.action == 'release-publish') }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: yandex-gis-builder-preflight-${{ github.sha }}
           path: ${{ runner.temp }}/yandex-gis-builder-preflight.json
@@ -696,7 +696,7 @@ jobs:
 
       - name: Upload sanitized builder pipeline state
         if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status' || inputs.action == 'release-publish') }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: yandex-gis-builder-pipeline-${{ github.sha }}
           path: ${{ runner.temp }}/yandex-gis-builder-pipeline.json
@@ -705,7 +705,7 @@ jobs:
 
       - name: Upload bounded builder pipeline journal
         if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status' || inputs.action == 'release-publish') }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: yandex-gis-builder-journal-${{ github.sha }}
           path: ${{ runner.temp }}/yandex-gis-builder-pipeline-journal.log
@@ -714,7 +714,7 @@ jobs:
 
       - name: Upload sanitized application map state
         if: ${{ always() && inputs.action == 'release-publish' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pischeprom-gis-map-state-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/pischeprom-gis-map-state/
