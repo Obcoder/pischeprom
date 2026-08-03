@@ -28,7 +28,7 @@ class LogisticsMapTest extends LogisticsTestCase
 
         $workerImport = strpos(
             $runtime,
-            "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
+            'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
         );
         $workerRegistration = strpos($runtime, 'maplibregl.setWorkerUrl(maplibreWorkerUrl)');
         $protocolRegistration = strpos($runtime, "maplibregl.addProtocol('pmtiles', protocol.tile)");
