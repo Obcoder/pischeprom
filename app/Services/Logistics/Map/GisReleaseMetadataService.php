@@ -37,9 +37,11 @@ final class GisReleaseMetadataService
 
         $activation = $this->readJson(config('logistics.map.activation_status_path'));
         $releaseName = $this->string($manifest, 'release');
+        $deliveryPassed = $this->string($activation ?? [], 'map_delivery') === 'passed'
+            || $this->string($activation ?? [], 'production_smoke') === 'passed';
         $isActive = $releaseName !== null
             && $this->string($activation ?? [], 'status') === 'active'
-            && $this->string($activation ?? [], 'production_smoke') === 'passed'
+            && $deliveryPassed
             && hash_equals($releaseName, (string) $this->string($activation ?? [], 'release'));
 
         return [
@@ -118,6 +120,8 @@ final class GisReleaseMetadataService
                 'release' => $this->string($activation, 'release'),
                 'previous_release' => $this->string($activation, 'previous_release'),
                 'activated_at' => $this->string($activation, 'activated_at'),
+                'map_delivery' => $this->string($activation, 'map_delivery'),
+                'routing_activation' => $this->string($activation, 'routing_activation'),
                 'production_smoke' => $this->string($activation, 'production_smoke'),
             ],
             'production_smoke_tests' => $productionSmoke === null ? null : $this->selected($productionSmoke, [

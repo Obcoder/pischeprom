@@ -16,6 +16,7 @@ trap cleanup EXIT
 
 repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 publisher="${repository}/infrastructure/logistics-gis/scripts/publish-map-assets.sh"
+private_publisher="${repository}/infrastructure/logistics-gis/scripts/publish-valhalla-artifacts.sh"
 fake_bin="${test_root}/bin"
 gis_base="${test_root}/gis"
 object_root="${test_root}/objects"
@@ -223,6 +224,10 @@ object="${FAKE_S3_ROOT}/${FAKE_S3_BUCKET}/${key}"
 size="$(stat -c '%s' -- "$object")"
 origin="${FAKE_APPLICATION_ORIGIN}"
 if $is_head; then
+    if [[ "${FAKE_PRIVATE_OBJECT:-false}" == 'true' ]]; then
+        printf '403'
+        exit 0
+    fi
     printf 'HTTP/1.1 200 OK\r\nContent-Length: %s\r\nContent-Type: application/vnd.pmtiles\r\nAccess-Control-Allow-Origin: %s\r\n\r\n' "$size" "$origin" > "$headers"
     printf '200'
     exit 0
@@ -280,5 +285,45 @@ if run_publisher yc >/dev/null 2>&1; then
     printf 'Unexpected immutable object was accepted.\n' >&2
     exit 1
 fi
+
+private_bucket='private-bucket'
+mkdir -p -- "${release_dir}/valhalla/tiles"
+printf 'graph-fixture\n' > "${release_dir}/valhalla/valhalla_tiles.tar"
+printf '{"mjolnir":{}}\n' > "${release_dir}/valhalla/valhalla.json"
+printf '{"status":"built"}\n' > "${release_dir}/valhalla/component-manifest.json"
+printf 'admins-fixture\n' > "${release_dir}/valhalla/tiles/admins.sqlite"
+printf 'timezones-fixture\n' > "${release_dir}/valhalla/tiles/timezones.sqlite"
+printf '{"status":"passed"}\n' > "${release_dir}/smoke-tests.json"
+graph_sha="$(sha256sum -- "${release_dir}/valhalla/valhalla_tiles.tar" | awk '{print $1}')"
+printf '%s\n' \
+    "{\"release\":\"${release}\",\"status\":\"verified\",\"valhalla\":{\"graph_size_bytes\":128,\"graph_sha256\":\"${graph_sha}\"},\"pmtiles\":{\"size_bytes\":32,\"sha256\":\"${pmtiles_sha}\"}}" \
+    > "${release_dir}/release-manifest.json"
+
+run_private_publisher() {
+    local storage_cli="${1:-yc}"
+    PATH="${fake_bin}:$PATH" \
+    FAKE_S3_ROOT="$object_root" \
+    FAKE_S3_METADATA_ROOT="$metadata_root" \
+    FAKE_S3_BUCKET="$private_bucket" \
+    FAKE_PRIVATE_OBJECT=true \
+    GIS_BASE_DIR="$gis_base" \
+    GIS_OBJECT_STORAGE_CLI="$storage_cli" \
+    GIS_OBJECT_STORAGE_ENDPOINT='https://storage.example.test' \
+    GIS_OBJECT_STORAGE_REGION='test-region' \
+    GIS_PRIVATE_OBJECT_STORAGE_BUCKET="$private_bucket" \
+    GIS_PRIVATE_OBJECT_STORAGE_PREFIX='logistics-gis' \
+    YC_IAM_TOKEN='short-lived-test-token' \
+        "$private_publisher" "$release"
+}
+
+run_private_publisher yc
+private_marker="${object_root}/${private_bucket}/logistics-gis/releases/${release}/private-publication.json"
+[[ -s "$private_marker" && -s "${gis_base}/state/last-private-publication.json" ]]
+MARKER="$private_marker" EXPECTED_SHA="$graph_sha" php -r '
+    $v=json_decode((string)file_get_contents(getenv("MARKER")),true,flags:JSON_THROW_ON_ERROR);
+    exit(($v["status"]??null)==="verified"&&($v["graph_sha256"]??null)===getenv("EXPECTED_SHA")?0:1);
+'
+FAKE_FAIL_UPLOAD=true run_private_publisher yc
+FAKE_FAIL_UPLOAD=true run_private_publisher aws
 
 printf 'object-storage-publisher-test: PASS\n'

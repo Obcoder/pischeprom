@@ -70,6 +70,18 @@ class LogisticsMapTest extends LogisticsTestCase
             $this->assertSame('20260801', app(GisReleaseMetadataService::class)->osmDataVersion());
 
             file_put_contents($activation, json_encode([
+                'release' => 'russia-20260801',
+                'status' => 'active',
+                'activated_at' => '2026-08-02T11:30:00Z',
+                'map_delivery' => 'passed',
+                'routing_activation' => 'independent',
+            ], JSON_THROW_ON_ERROR));
+            $this->actingAs($user)->getJson('/api/logistics/map/config')
+                ->assertOk()
+                ->assertJsonPath('data.enabled', true)
+                ->assertJsonPath('data.release.status', 'active');
+
+            file_put_contents($activation, json_encode([
                 'release' => 'russia-20260731',
                 'status' => 'active',
             ], JSON_THROW_ON_ERROR));

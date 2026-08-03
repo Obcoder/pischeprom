@@ -13,14 +13,31 @@ output_parent="$(dirname "$output")"
 [[ -d "$output_parent" && -w "$output_parent" && ! -L "$output_parent" ]] \
     || gis_fail 'Output parent must be an existing writable real directory.'
 
-current_link="${GIS_BASE_DIR}/current"
-[[ -L "$current_link" ]] || gis_fail 'An active current GIS release is required.'
-current="$(realpath -- "$current_link")"
-gis_assert_inside_base "$current" >/dev/null
-[[ "$(basename "$current")" == "$release" ]] || gis_fail 'Requested release is not the active current release.'
+activation="${GIS_STATE_DIR}/last-activation.json"
+[[ -s "$activation" && -f "$activation" && ! -L "$activation" ]] \
+    || gis_fail 'An active map or paired-routing activation state is required.'
+activation_scope="$(ACTIVATION="$activation" RELEASE="$release" php -r '
+    $v=json_decode((string)file_get_contents(getenv("ACTIVATION")),true,flags:JSON_THROW_ON_ERROR);
+    if(($v["status"]??null)!=="active"||($v["release"]??null)!==getenv("RELEASE"))exit(1);
+    if(($v["map_delivery"]??null)==="passed"&&($v["routing_activation"]??null)==="independent"){echo "map_only";exit;}
+    if(($v["production_smoke"]??null)==="passed"){echo "paired_routing";exit;}
+    exit(1);
+')" || gis_fail 'Activation state does not authorize this release for application export.'
+if [[ "$activation_scope" == 'map_only' ]]; then
+    current="${GIS_RELEASES_DIR}/${release}"
+    [[ -d "$current" && ! -L "$current" ]] \
+        || gis_fail 'Map-only export requires the verified immutable release directory.'
+else
+    current_link="${GIS_BASE_DIR}/current"
+    [[ -L "$current_link" ]] || gis_fail 'Paired-routing export requires an active current GIS release.'
+    current="$(realpath -- "$current_link")"
+    gis_assert_inside_base "$current" >/dev/null
+    [[ "$(basename "$current")" == "$release" ]] \
+        || gis_fail 'Requested release is not the active current routing release.'
+fi
+current="$(gis_assert_inside_base "$current")"
 
 manifest="${current}/release-manifest.json"
-activation="${GIS_STATE_DIR}/last-activation.json"
 range="${GIS_STATE_DIR}/last-range-check.json"
 smoke="${GIS_STATE_DIR}/last-production-smoke.json"
 publication="${GIS_STATE_DIR}/last-map-publication.json"
@@ -30,14 +47,17 @@ for file in "$manifest" "$activation" "$range" "$smoke" "$publication"; do
     (( size >= 2 && size <= 1048576 )) || gis_fail "Application-state file has an unsafe size: ${file}"
 done
 
-state_matches="$(RELEASE="$release" MANIFEST="$manifest" ACTIVATION="$activation" RANGE_STATE="$range" SMOKE="$smoke" PUBLICATION="$publication" php -r '
+state_matches="$(RELEASE="$release" ACTIVATION_SCOPE="$activation_scope" MANIFEST="$manifest" ACTIVATION="$activation" RANGE_STATE="$range" SMOKE="$smoke" PUBLICATION="$publication" php -r '
     $read=static fn(string $name): array => json_decode((string)file_get_contents(getenv($name)),true,flags:JSON_THROW_ON_ERROR);
     $release=getenv("RELEASE");$manifest=$read("MANIFEST");$activation=$read("ACTIVATION");$range=$read("RANGE_STATE");$smoke=$read("SMOKE");$publication=$read("PUBLICATION");
     $manifestPmtiles=$manifest["pmtiles"]??[];$publishedPmtiles=$publication["pmtiles"]??[];
-    $valid=($manifest["release"]??null)===$release&&($manifest["status"]??null)==="verified"
-        &&($activation["release"]??null)===$release&&($activation["status"]??null)==="active"&&($activation["production_smoke"]??null)==="passed"
+    $scope=getenv("ACTIVATION_SCOPE");
+    $activationValid=($activation["release"]??null)===$release&&($activation["status"]??null)==="active"
+        &&(($scope==="map_only"&&($activation["map_delivery"]??null)==="passed"&&($activation["routing_activation"]??null)==="independent"&&($smoke["kind"]??null)==="map-delivery")
+            ||($scope==="paired_routing"&&($activation["production_smoke"]??null)==="passed"&&($smoke["kind"]??null)==="production"));
+    $valid=($manifest["release"]??null)===$release&&($manifest["status"]??null)==="verified"&&$activationValid
         &&is_string($manifestPmtiles["sha256"]??null)&&preg_match("/^[0-9a-f]{64}$/",$manifestPmtiles["sha256"])===1&&(int)($manifestPmtiles["size_bytes"]??0)>0
-        &&($smoke["release"]??null)===$release&&($smoke["status"]??null)==="passed"&&($smoke["kind"]??null)==="production"
+        &&($smoke["release"]??null)===$release&&($smoke["status"]??null)==="passed"
         &&($publication["release"]??null)===$release&&($publication["status"]??null)==="verified"
         &&is_string($publication["application_origin"]??null)&&$publication["application_origin"]!==""
         &&($publishedPmtiles["sha256"]??null)===$manifestPmtiles["sha256"]
@@ -73,11 +93,12 @@ if [[ -e "$preflight" ]]; then
     install -m 0640 -- "$preflight" "${output_part}/last-preflight.json"
 fi
 
-BUNDLE_RELEASE="$release" BUNDLE_OUTPUT="${output_part}/bundle.json" php -r '
+BUNDLE_RELEASE="$release" BUNDLE_SCOPE="$activation_scope" BUNDLE_OUTPUT="${output_part}/bundle.json" php -r '
     $value=[
-        "schema_version"=>1,
+        "schema_version"=>getenv("BUNDLE_SCOPE")==="map_only"?2:1,
         "release"=>getenv("BUNDLE_RELEASE"),
         "purpose"=>"pischeprom-logistics-map-state",
+        "activation_scope"=>getenv("BUNDLE_SCOPE"),
         "exported_at"=>gmdate("c"),
     ];
     file_put_contents(getenv("BUNDLE_OUTPUT"),json_encode($value,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR).PHP_EOL,LOCK_EX);

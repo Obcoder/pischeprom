@@ -19,7 +19,7 @@ state_base="$2"
 source_dir="$(realpath -- "$source_dir")"
 state_base="$(realpath -- "$state_base")"
 
-for command_name in cmp php sha256sum; do
+for command_name in awk cmp php sha256sum; do
     command -v "$command_name" >/dev/null 2>&1 || fail "Required command is unavailable: ${command_name}"
 done
 for file_name in bundle.json SHA256SUMS release-manifest.json last-activation.json \
@@ -60,20 +60,30 @@ fi
     sha256sum --check --strict SHA256SUMS >/dev/null
 ) || fail 'Bundle checksum verification failed.'
 
-release="$(BUNDLE="${source_dir}/bundle.json" php -r '
+bundle_values="$(BUNDLE="${source_dir}/bundle.json" php -r '
     $v=json_decode((string)file_get_contents(getenv("BUNDLE")),true,flags:JSON_THROW_ON_ERROR);
-    if(($v["schema_version"]??null)!==1||($v["purpose"]??null)!=="pischeprom-logistics-map-state")exit(1);
-    echo (string)($v["release"]??"");
+    $schema=$v["schema_version"]??null;$scope=$v["activation_scope"]??($schema===1?"paired_routing":null);
+    if(!in_array($schema,[1,2],true)||($v["purpose"]??null)!=="pischeprom-logistics-map-state"
+        ||!in_array($scope,["map_only","paired_routing"],true)
+        ||($schema===1&&$scope!=="paired_routing")||($schema===2&&$scope!=="map_only"))exit(1);
+    echo (string)($v["release"]??""),PHP_EOL,$scope,PHP_EOL,$schema,PHP_EOL;
 ')"
+mapfile -t bundle_value_lines <<< "$bundle_values"
+release="${bundle_value_lines[0]:-}"
+activation_scope="${bundle_value_lines[1]:-}"
+schema_version="${bundle_value_lines[2]:-}"
 [[ "$release" =~ ^russia-[0-9]{8}$ ]] || fail 'Bundle release name is invalid.'
-state_matches="$(RELEASE="$release" MANIFEST="${source_dir}/release-manifest.json" ACTIVATION="${source_dir}/last-activation.json" RANGE_STATE="${source_dir}/last-range-check.json" SMOKE="${source_dir}/last-production-smoke.json" PUBLICATION="${source_dir}/last-map-publication.json" php -r '
+state_matches="$(RELEASE="$release" ACTIVATION_SCOPE="$activation_scope" MANIFEST="${source_dir}/release-manifest.json" ACTIVATION="${source_dir}/last-activation.json" RANGE_STATE="${source_dir}/last-range-check.json" SMOKE="${source_dir}/last-production-smoke.json" PUBLICATION="${source_dir}/last-map-publication.json" php -r '
     $read=static fn(string $name): array => json_decode((string)file_get_contents(getenv($name)),true,flags:JSON_THROW_ON_ERROR);
     $release=getenv("RELEASE");$manifest=$read("MANIFEST");$activation=$read("ACTIVATION");$range=$read("RANGE_STATE");$smoke=$read("SMOKE");$publication=$read("PUBLICATION");
     $manifestPmtiles=$manifest["pmtiles"]??[];$publishedPmtiles=$publication["pmtiles"]??[];
-    $valid=($manifest["release"]??null)===$release&&($manifest["status"]??null)==="verified"
-        &&($activation["release"]??null)===$release&&($activation["status"]??null)==="active"&&($activation["production_smoke"]??null)==="passed"
+    $scope=getenv("ACTIVATION_SCOPE");
+    $activationValid=($activation["release"]??null)===$release&&($activation["status"]??null)==="active"
+        &&(($scope==="map_only"&&($activation["map_delivery"]??null)==="passed"&&($activation["routing_activation"]??null)==="independent"&&($smoke["kind"]??null)==="map-delivery")
+            ||($scope==="paired_routing"&&($activation["production_smoke"]??null)==="passed"&&($smoke["kind"]??null)==="production"));
+    $valid=($manifest["release"]??null)===$release&&($manifest["status"]??null)==="verified"&&$activationValid
         &&is_string($manifestPmtiles["sha256"]??null)&&preg_match("/^[0-9a-f]{64}$/",$manifestPmtiles["sha256"])===1&&(int)($manifestPmtiles["size_bytes"]??0)>0
-        &&($smoke["release"]??null)===$release&&($smoke["status"]??null)==="passed"&&($smoke["kind"]??null)==="production"
+        &&($smoke["release"]??null)===$release&&($smoke["status"]??null)==="passed"
         &&($publication["release"]??null)===$release&&($publication["status"]??null)==="verified"
         &&is_string($publication["application_origin"]??null)&&$publication["application_origin"]!==""
         &&($publishedPmtiles["sha256"]??null)===$manifestPmtiles["sha256"]
@@ -101,7 +111,13 @@ if [[ -L "$current_link" ]]; then
     [[ "$old_current" == "${releases_dir}/"* && -d "$old_current" ]] || fail 'Current state symlink escapes the state base.'
 fi
 
-target="${releases_dir}/${release}"
+target_name="$release"
+if [[ "$schema_version" == '2' ]]; then
+    bundle_digest="$(sha256sum -- "${source_dir}/SHA256SUMS" | awk '{print $1}')"
+    [[ "$bundle_digest" =~ ^[0-9a-f]{64}$ ]] || fail 'Unable to derive the schema-2 state snapshot identity.'
+    target_name="${release}-map-${bundle_digest:0:16}"
+fi
+target="${releases_dir}/${target_name}"
 bundle_files=(bundle.json release-manifest.json last-activation.json last-range-check.json last-production-smoke.json last-map-publication.json SHA256SUMS)
 [[ ! -f "${source_dir}/last-preflight.json" ]] || bundle_files+=(last-preflight.json)
 if [[ -e "$target" ]]; then
@@ -119,7 +135,7 @@ if [[ -e "$target" ]]; then
             || fail "Existing immutable state differs from the verified bundle: ${file_name}"
     done
 else
-    target_part="${releases_dir}/.${release}.next.$$"
+    target_part="${releases_dir}/.${target_name}.next.$$"
     mkdir -m 0750 -- "$target_part"
     cleanup() {
         [[ ! -d "$target_part" ]] || rm -r -- "$target_part"

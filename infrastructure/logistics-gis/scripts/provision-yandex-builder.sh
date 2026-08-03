@@ -27,6 +27,7 @@ source_commit="${GIS_PROVISION_SOURCE_COMMIT:-}"
 map_bucket="${YC_MAP_BUCKET:-}"
 private_bucket="${YC_GIS_PRIVATE_BUCKET:-}"
 application_origin="${LOGISTICS_APP_ORIGIN:-}"
+preflight_mode="${GIS_PROVISION_PREFLIGHT_MODE:-full}"
 
 [[ "$source_dir" == /* && -d "$source_dir" && ! -L "$source_dir" ]] \
     || fail 'GIS_PROVISION_SOURCE_DIR must be an absolute real directory.'
@@ -39,10 +40,17 @@ source_dir="$(readlink -f -- "$source_dir")"
     || fail 'Yandex Object Storage bucket variables are missing or invalid.'
 [[ "$application_origin" =~ ^https://[a-z0-9.-]+(:[0-9]{1,5})?$ ]] \
     || fail 'LOGISTICS_APP_ORIGIN must be one exact HTTPS origin.'
+[[ "$preflight_mode" == 'full' || "$preflight_mode" == 'verify' ]] \
+    || fail 'GIS_PROVISION_PREFLIGHT_MODE must be full or verify.'
 [[ -x "$source_dir/scripts/install-gis-toolchain.sh" \
     && -x "$source_dir/scripts/install-map-assets.sh" \
     && -x "$source_dir/scripts/preflight.sh" \
     && -x "$source_dir/scripts/run-builder-pipeline.sh" \
+    && -x "$source_dir/scripts/activate-map-release.sh" \
+    && -x "$source_dir/scripts/export-application-state.sh" \
+    && -x "$source_dir/scripts/publish-map-assets.sh" \
+    && -x "$source_dir/scripts/publish-builder-release.sh" \
+    && -x "$source_dir/scripts/publish-valhalla-artifacts.sh" \
     && -f "$source_dir/systemd/pischeprom-valhalla.service.example" \
     && -f "$source_dir/systemd/pischeprom-gis-build.service.example" ]] \
     || fail 'The audited GIS source bundle is incomplete.'
@@ -239,8 +247,8 @@ sudo -u "$service_user" -- bash -c '
     set -a
     source /etc/pischeprom-gis.env
     set +a
-    exec /opt/pischeprom-gis-operations/current/scripts/preflight.sh --mode full --json
-' > "$preflight_output" 2> "$preflight_stderr"
+    exec /opt/pischeprom-gis-operations/current/scripts/preflight.sh --mode "$1" --json
+' _ "$preflight_mode" > "$preflight_output" 2> "$preflight_stderr"
 preflight_exit=$?
 set -e
 if [[ ! -s "$preflight_state" || ! -f "$preflight_state" || -L "$preflight_state" ]]; then
@@ -248,11 +256,11 @@ if [[ ! -s "$preflight_state" || ! -f "$preflight_state" || -L "$preflight_state
         printf '[logistics-gis] Target-host preflight stderr follows:\n' >&2
         sed -n '1,80p' "$preflight_stderr" >&2
     fi
-    fail "Target-host full preflight produced no trusted state with exit code ${preflight_exit}."
+    fail "Target-host ${preflight_mode} preflight produced no trusted state with exit code ${preflight_exit}."
 fi
-php -r '
+EXPECTED_PREFLIGHT_MODE="$preflight_mode" php -r '
     $value=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);
-    if (($value["mode"]??null)!=="full"
+    if (($value["mode"]??null)!==getenv("EXPECTED_PREFLIGHT_MODE")
         || !in_array($value["result"]??null,["PASS","WARN","FAIL"],true)
         || !is_int($value["exit_code"]??null)) {
         throw new RuntimeException("Target-host preflight state has an invalid schema.");
@@ -260,9 +268,9 @@ php -r '
     echo json_encode($value,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),PHP_EOL;
 ' "$preflight_state"
 [[ "$preflight_exit" -eq 0 ]] \
-    || fail "Target-host full preflight blocked provisioning with exit code ${preflight_exit}."
+    || fail "Target-host ${preflight_mode} preflight blocked provisioning with exit code ${preflight_exit}."
 
 trap - EXIT
 rm -f -- "$source_manifest" "$existing_manifest" "$preflight_output" "$preflight_stderr"
-log "Provisioned checksum-pinned GIS builder operations from commit ${source_commit}; full target-host preflight PASS."
+log "Provisioned checksum-pinned GIS builder operations from commit ${source_commit}; ${preflight_mode} target-host preflight PASS."
 log 'Valhalla is loopback-only and remains disabled until a paired release passes smoke and activation checks.'

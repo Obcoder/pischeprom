@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Plan is read-only; apply provisions; build-start launches the detached build; build-status inspects it; destroy removes managed compute
+        description: Plan/apply builder; start/inspect build; publish activates the persistent map; destroy removes managed compute
         required: true
         default: plan
         type: choice
@@ -13,9 +13,10 @@ on:
           - apply
           - build-start
           - build-status
+          - release-publish
           - destroy
       confirmation:
-        description: CREATE_GIS_BUILDER for apply; START_GIS_BUILD for build-start; DESTROY_GIS_BUILDER for destroy
+        description: CREATE_GIS_BUILDER, START_GIS_BUILD, PUBLISH_AND_ACTIVATE_GIS_MAP or DESTROY_GIS_BUILDER
         required: false
         type: string
 
@@ -220,7 +221,7 @@ jobs:
             plan|destroy)
               "$manager"
               ;;
-            apply|build-start|build-status)
+            apply|build-start|build-status|release-publish)
               [[ -n "$BUILDER_PRIVATE_KEY" ]] || {
                 echo '::error::Production secret YC_GIS_BUILDER_SSH_PRIVATE_KEY is missing.'
                 exit 1
@@ -275,6 +276,14 @@ jobs:
                   export YC_GIS_COMPUTE_CONFIRMATION=CREATE_GIS_BUILDER
                   ;;
                 build-status)
+                  export YC_GIS_COMPUTE_ACTION=open-ssh
+                  export YC_GIS_COMPUTE_CONFIRMATION=OPEN_GIS_BUILDER_SSH
+                  ;;
+                release-publish)
+                  [[ "$REQUESTED_CONFIRMATION" == 'PUBLISH_AND_ACTIVATE_GIS_MAP' ]] || {
+                    echo '::error::Release publication requires exact confirmation PUBLISH_AND_ACTIVATE_GIS_MAP.'
+                    exit 1
+                  }
                   export YC_GIS_COMPUTE_ACTION=open-ssh
                   export YC_GIS_COMPUTE_CONFIRMATION=OPEN_GIS_BUILDER_SSH
                   ;;
@@ -374,13 +383,15 @@ jobs:
                 remote_archive="/tmp/pischeprom-gis-${GITHUB_SHA}.tar.gz"
                 scp "${ssh_options[@]}" "$source_archive" "yc-user@${public_ipv4}:${remote_archive}"
 
+                provision_preflight_mode='full'
+                [[ "$REQUESTED_ACTION" != 'release-publish' ]] || provision_preflight_mode='verify'
                 remote_command="$(printf '%s' \
                   'set -Eeuo pipefail; ' \
                   'provision_root=$(mktemp -d /tmp/pischeprom-gis-provision.XXXXXXXX); ' \
                   "archive='${remote_archive}'; " \
                   'cleanup(){ rm -rf -- "$provision_root" "$archive"; }; trap cleanup EXIT; ' \
                   'tar --no-same-owner -xzf "$archive" -C "$provision_root"; ' \
-                  "sudo env GIS_PROVISION_SOURCE_DIR=\"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis\" GIS_PROVISION_SOURCE_COMMIT='${GITHUB_SHA}' YC_MAP_BUCKET='${YC_MAP_BUCKET}' YC_GIS_PRIVATE_BUCKET='${YC_GIS_PRIVATE_BUCKET}' LOGISTICS_APP_ORIGIN='${LOGISTICS_APP_ORIGIN}' \"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis/scripts/provision-yandex-builder.sh\"")"
+                  "sudo env GIS_PROVISION_SOURCE_DIR=\"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis\" GIS_PROVISION_SOURCE_COMMIT='${GITHUB_SHA}' GIS_PROVISION_PREFLIGHT_MODE='${provision_preflight_mode}' YC_MAP_BUCKET='${YC_MAP_BUCKET}' YC_GIS_PRIVATE_BUCKET='${YC_GIS_PRIVATE_BUCKET}' LOGISTICS_APP_ORIGIN='${LOGISTICS_APP_ORIGIN}' \"\${provision_root}/pischeprom-gis-source/infrastructure/logistics-gis/scripts/provision-yandex-builder.sh\"")"
                 ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" "$remote_command"
 
                 preflight_artifact="${RUNNER_TEMP}/yandex-gis-builder-preflight.json"
@@ -401,7 +412,7 @@ jobs:
                   'set -Eeuo pipefail; if sudo systemctl is-active --quiet pischeprom-gis-build.service; then echo "The supervised GIS build is already active." >&2; exit 1; fi; state=/srv/pischeprom-gis/state/builder-pipeline.json; if sudo test -e "$state"; then sudo test -f "$state" && sudo test ! -L "$state"; fi; sudo rm -f -- "$state"; sudo systemctl reset-failed pischeprom-gis-build.service >/dev/null 2>&1 || true; sudo systemctl start --no-block pischeprom-gis-build.service'
               fi
 
-              if [[ "$REQUESTED_ACTION" == 'build-start' || "$REQUESTED_ACTION" == 'build-status' ]]; then
+              if [[ "$REQUESTED_ACTION" == 'build-start' || "$REQUESTED_ACTION" == 'build-status' || "$REQUESTED_ACTION" == 'release-publish' ]]; then
                 pipeline_artifact="${RUNNER_TEMP}/yandex-gis-builder-pipeline.json"
                 pipeline_journal_artifact="${RUNNER_TEMP}/yandex-gis-builder-pipeline-journal.log"
                 pipeline_failed=false
@@ -437,6 +448,67 @@ jobs:
                 }
               fi
 
+              if [[ "$REQUESTED_ACTION" == 'release-publish' ]]; then
+                [[ "$pipeline_status" == 'completed' ]] || {
+                  echo "::error::Release publication requires a completed builder pipeline; current status is ${pipeline_status}."
+                  exit 1
+                }
+                pipeline_release="$(php -r '$v=json_decode((string)file_get_contents($argv[1]),true,flags:JSON_THROW_ON_ERROR);echo $v["release"]??"";' "$pipeline_artifact")"
+                [[ "$pipeline_release" =~ ^russia-[0-9]{8}$ ]] || {
+                  echo '::error::Completed builder state has no valid release name.'
+                  exit 1
+                }
+                if ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  'sudo systemctl is-active --quiet pischeprom-gis-build.service'; then
+                  echo '::error::Builder service is still active; publication was refused.'
+                  exit 1
+                fi
+
+                remote_export_parent='/srv/pischeprom-gis/state/application-exports'
+                remote_export="${remote_export_parent}/${pipeline_release}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+                remote_archive="/tmp/pischeprom-gis-state-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"
+                ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  "sudo install -d -m 0750 -o pischeprom-gis -g pischeprom-gis -- '${remote_export_parent}'; sudo test ! -e '${remote_export}'; sudo test ! -e '${remote_archive}'"
+
+                printf '%s' "$YC_IAM_TOKEN" | ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  "set -Eeuo pipefail; IFS= read -r iam_token; sudo -u pischeprom-gis -- env YC_IAM_TOKEN=\"\$iam_token\" bash -c 'set -Eeuo pipefail; set -a; source /etc/pischeprom-gis.env; set +a; exec /opt/pischeprom-gis-operations/current/scripts/publish-builder-release.sh \"${pipeline_release}\" \"${remote_export}\"'"
+
+                ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  "set -Eeuo pipefail; sudo tar --create --gzip --file='${remote_archive}' --directory='${remote_export_parent}' -- '${pipeline_release}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'; sudo chown yc-user:yc-user -- '${remote_archive}'; chmod 0600 -- '${remote_archive}'"
+                state_archive="${RUNNER_TEMP}/pischeprom-gis-state.tar.gz"
+                scp "${ssh_options[@]}" "yc-user@${public_ipv4}:${remote_archive}" "$state_archive"
+                ssh "${ssh_options[@]}" "yc-user@${public_ipv4}" \
+                  "sudo rm -f -- '${remote_archive}'"
+
+                state_extract="${RUNNER_TEMP}/pischeprom-gis-map-state"
+                mkdir -m 0750 -- "$state_extract"
+                archive_root="${pipeline_release}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+                archive_valid="$(ARCHIVE="$state_archive" ROOT="$archive_root" php -r '
+                  $required=["bundle.json","release-manifest.json","last-activation.json","last-range-check.json","last-production-smoke.json","last-map-publication.json","SHA256SUMS"];
+                  $optional=["last-preflight.json"];
+                  $lines=[];exec("tar -tzf ".escapeshellarg(getenv("ARCHIVE")),$lines,$status);if($status!==0)exit(1);
+                  $seen=[];$root=getenv("ROOT");
+                  foreach($lines as $line){
+                    if($line===$root."/")continue;
+                    if(!preg_match("#^".preg_quote($root,"#")."/([A-Za-z0-9.-]+)$#",$line,$m))exit(1);
+                    if(isset($seen[$m[1]]))exit(1);$seen[$m[1]]=true;
+                  }
+                  foreach($required as $name){if(!isset($seen[$name]))exit(1);}
+                  foreach(array_keys($seen) as $name){if(!in_array($name,$required,true)&&!in_array($name,$optional,true))exit(1);}
+                  echo "yes";
+                ')"
+                [[ "$archive_valid" == 'yes' ]] || {
+                  echo '::error::Downloaded application-state archive has an unsafe inventory.'
+                  exit 1
+                }
+                tar -xzf "$state_archive" --directory "$state_extract" --no-same-owner --no-same-permissions
+                state_bundle="${state_extract}/${archive_root}"
+                validation_state="${RUNNER_TEMP}/pischeprom-gis-state-validation"
+                mkdir -m 0750 -- "$validation_state"
+                infrastructure/logistics-gis/scripts/install-application-state.sh "$state_bundle" "$validation_state"
+                printf '%s\n' "$pipeline_release" > "${RUNNER_TEMP}/pischeprom-gis-release"
+              fi
+
               YC_GIS_COMPUTE_ACTION=close-ssh "$manager"
               close_ssh=false
               YC_GIS_COMPUTE_ACTION=plan "$manager"
@@ -444,6 +516,7 @@ jobs:
                 apply) echo 'Temporary GIS builder is provisioned; public SSH ingress is closed.' ;;
                 build-start) echo 'Detached full-Russia build was started; public SSH ingress is closed.' ;;
                 build-status) echo 'Builder pipeline status was inspected; public SSH ingress is closed.' ;;
+                release-publish) echo 'GIS release was published and sanitized state was downloaded; public SSH ingress is closed.' ;;
               esac
               if [[ "${pipeline_failed:-false}" == 'true' ]]; then
                 printf '%s\n' '----- sanitized pischeprom-gis-build journal -----' >&2
@@ -461,8 +534,159 @@ jobs:
           trap - EXIT
           rm -rf -- "$work_dir"
 
+      - name: Deploy persistent map state to the application VPS
+        if: ${{ inputs.action == 'release-publish' }}
+        env:
+          LOGISTICS_APP_ORIGIN: ${{ vars.LOGISTICS_APP_ORIGIN }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          YC_MAP_BUCKET: ${{ vars.YC_MAP_BUCKET }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          for required_name in \
+            LOGISTICS_APP_ORIGIN SSH_HOST SSH_KNOWN_HOSTS SSH_PORT \
+            SSH_PRIVATE_KEY SSH_USER TARGET_DIR YC_MAP_BUCKET
+          do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "::error::Required production input ${required_name} is missing."
+              exit 1
+            fi
+          done
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 )) || {
+            echo '::error::PORT must be a valid TCP port.'
+            exit 1
+          }
+          [[ "$TARGET_DIR" == /* && "$TARGET_DIR" != '/' ]] || {
+            echo '::error::TARGET_DIR must be an absolute non-root path.'
+            exit 1
+          }
+
+          release_file="${RUNNER_TEMP}/pischeprom-gis-release"
+          [[ -s "$release_file" && ! -L "$release_file" ]] || {
+            echo '::error::Published GIS release identity is unavailable.'
+            exit 1
+          }
+          release="$(<"$release_file")"
+          [[ "$release" =~ ^russia-[0-9]{8}$ ]] || {
+            echo '::error::Published GIS release identity is malformed.'
+            exit 1
+          }
+          state_bundle="${RUNNER_TEMP}/pischeprom-gis-map-state/${release}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ -d "$state_bundle" && ! -L "$state_bundle" ]] || {
+            echo '::error::Verified application-state bundle is unavailable.'
+            exit 1
+          }
+
+          ssh_work="$(mktemp -d)"
+          remote_dir=''
+          cleanup() {
+            cleanup_exit=$?
+            trap - EXIT
+            if [[ -n "$remote_dir" ]]; then
+              ssh "${ssh_options[@]}" "$ssh_target" "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+            fi
+            rm -rf -- "$ssh_work"
+            exit "$cleanup_exit"
+          }
+          trap cleanup EXIT
+          private_key="${ssh_work}/deploy-key"
+          known_hosts="${ssh_work}/known-hosts"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$private_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$known_hosts"
+          chmod 0600 "$private_key" "$known_hosts"
+          ssh-keygen -y -P '' -f "$private_key" >/dev/null
+          if ! ssh-keygen -F "$SSH_HOST" -f "$known_hosts" >/dev/null \
+            && ! ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$known_hosts" >/dev/null
+          then
+            echo '::error::SSH_KNOWN_HOSTS does not contain the configured application host.'
+            exit 1
+          fi
+
+          ssh_options=(
+            -i "$private_key"
+            -p "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=${known_hosts}"
+          )
+          scp_options=(
+            -i "$private_key"
+            -P "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=${known_hosts}"
+          )
+          ssh_target="${SSH_USER}@${SSH_HOST}"
+          ssh "${ssh_options[@]}" "$ssh_target" true
+          remote_dir="$(ssh "${ssh_options[@]}" "$ssh_target" 'umask 077 && mktemp -d /tmp/pischeprom-gis-map.XXXXXXXXXX')"
+          [[ "$remote_dir" =~ ^/tmp/pischeprom-gis-map\.[A-Za-z0-9]+$ ]] || {
+            echo '::error::Application VPS returned an invalid GIS temporary directory.'
+            exit 1
+          }
+          ssh "${ssh_options[@]}" "$ssh_target" "install -d -m 0750 -- '${remote_dir}/bundle'"
+          scp "${scp_options[@]}" "$state_bundle"/* "${ssh_target}:${remote_dir}/bundle/"
+
+          target_dir_base64="$(printf '%s' "$TARGET_DIR" | base64 -w 0)"
+          public_base="https://${YC_MAP_BUCKET}.storage.yandexcloud.net/logistics"
+          ssh "${ssh_options[@]}" "$ssh_target" \
+            "bash -se -- '$target_dir_base64' '$GITHUB_SHA' '${remote_dir}/bundle' '$release' '$public_base' '$LOGISTICS_APP_ORIGIN'" \
+            < scripts/install-production-gis-map.sh
+
+          range_root="$(mktemp -d)"
+          mkdir -- "${range_root}/state"
+          GIS_BASE_DIR="$range_root" \
+          GIS_STATE_DIR="${range_root}/state" \
+          GIS_EXPECTED_CORS_ORIGIN="$LOGISTICS_APP_ORIGIN" \
+            infrastructure/logistics-gis/scripts/check-pmtiles-range.sh \
+            "${public_base}/releases/${release}/russia.pmtiles"
+          rm -rf -- "$range_root"
+
+          app_status="$(curl --silent --show-error --head --max-redirs 0 --output /dev/null --write-out '%{http_code}' "${LOGISTICS_APP_ORIGIN}/Ameise/logistics")"
+          [[ "$app_status" == '200' || "$app_status" == '302' || "$app_status" == '303' ]] || {
+            echo "::error::Application logistics page returned HTTP ${app_status}."
+            exit 1
+          }
+          echo "Application persistent map ${release} and public Range/CORS delivery are verified."
+
+          cleanup_exit=0
+          cleanup
+
+      - name: Destroy temporary builder after verified map deployment
+        if: ${{ inputs.action == 'release-publish' }}
+        env:
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_GIS_IMAGE_ID: ${{ vars.YC_GIS_IMAGE_ID }}
+          YC_GIS_NETWORK_ID: ${{ vars.YC_GIS_NETWORK_ID }}
+          YC_GIS_PRIVATE_BUCKET: ${{ vars.YC_GIS_PRIVATE_BUCKET }}
+          YC_GIS_SUBNET_ID: ${{ vars.YC_GIS_SUBNET_ID }}
+          YC_GIS_ZONE: ${{ vars.YC_GIS_ZONE }}
+          YC_MAP_BUCKET: ${{ vars.YC_MAP_BUCKET }}
+        run: |
+          set -Eeuo pipefail
+          token_file="${RUNNER_TEMP}/pischeprom-yc-iam-token"
+          [[ -s "$token_file" && ! -L "$token_file" ]] || {
+            echo '::error::Short-lived Yandex IAM token file is unavailable for builder cleanup.'
+            exit 1
+          }
+          YC_IAM_TOKEN="$(<"$token_file")"
+          echo "::add-mask::${YC_IAM_TOKEN}"
+          export YC_IAM_TOKEN
+          export YC_GIS_COMPUTE_ACTION=destroy
+          export YC_GIS_COMPUTE_CONFIRMATION=DESTROY_GIS_BUILDER
+          infrastructure/logistics-gis/scripts/manage-yandex-builder.sh
+          YC_GIS_COMPUTE_ACTION=plan infrastructure/logistics-gis/scripts/manage-yandex-builder.sh
+          echo 'Temporary GIS builder and its auto-delete disk were removed after successful activation.'
+
       - name: Upload sanitized target-host preflight evidence
-        if: ${{ always() && (inputs.action == 'apply' || inputs.action == 'build-start') }}
+        if: ${{ always() && (inputs.action == 'apply' || inputs.action == 'build-start' || inputs.action == 'release-publish') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: yandex-gis-builder-preflight-${{ github.sha }}
@@ -471,7 +695,7 @@ jobs:
           retention-days: 14
 
       - name: Upload sanitized builder pipeline state
-        if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status') }}
+        if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status' || inputs.action == 'release-publish') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: yandex-gis-builder-pipeline-${{ github.sha }}
@@ -480,13 +704,22 @@ jobs:
           retention-days: 14
 
       - name: Upload bounded builder pipeline journal
-        if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status') }}
+        if: ${{ always() && (inputs.action == 'build-start' || inputs.action == 'build-status' || inputs.action == 'release-publish') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: yandex-gis-builder-journal-${{ github.sha }}
           path: ${{ runner.temp }}/yandex-gis-builder-pipeline-journal.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Upload sanitized application map state
+        if: ${{ always() && inputs.action == 'release-publish' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pischeprom-gis-map-state-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/pischeprom-gis-map-state/
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Remove short-lived credentials
         if: ${{ always() }}

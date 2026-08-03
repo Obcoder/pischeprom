@@ -59,7 +59,7 @@ The application VPS stores only a sanitized bundle:
 
 ```text
 /srv/pischeprom-gis-state/
-├── releases/russia-YYYYMMDD/   JSON only; no PBF, PMTiles or graph
+├── releases/russia-YYYYMMDD*/  JSON only; no PBF, PMTiles or graph
 ├── current -> releases/...
 └── previous -> releases/...
 ```
@@ -246,6 +246,13 @@ and SSH session ending. `action=build-status` reopens SSH only to that active
 runner's `/32`, downloads the sanitized `builder-pipeline.json`, and closes
 ingress again. Neither action exposes Valhalla or SSH publicly after the job.
 
+After the pipeline reports `completed`, the guarded `release-publish` action
+with confirmation `PUBLISH_AND_ACTIVATE_GIS_MAP` uploads the immutable public
+map, preserves the matching Valhalla files in the private bucket, repeats
+Range/CORS checks, activates only persistent map delivery and deploys the
+checksummed JSON state to the application VPS. The temporary builder is
+destroyed only after the application itself reports the map enabled.
+
 ```bash
 # 1. Read-only resource/toolchain inspection.
 infrastructure/logistics-gis/scripts/preflight.sh --mode full --json
@@ -266,19 +273,29 @@ infrastructure/logistics-gis/scripts/finalize-release.sh russia-YYYYMMDD
 #    every small asset checksum and (by default) a streamed PMTiles SHA-256.
 infrastructure/logistics-gis/scripts/publish-map-assets.sh russia-YYYYMMDD
 
-# 6. Switch Valhalla current/previous, repeat production smoke and CDN checks,
-#    then mark only the old automatic routing values stale.
-infrastructure/logistics-gis/scripts/activate-release.sh russia-YYYYMMDD
+# 5a. Preserve the matching Valhalla graph in the private artifact bucket.
+infrastructure/logistics-gis/scripts/publish-valhalla-artifacts.sh russia-YYYYMMDD
+
+# 6. Activate the persistent map after repeating public Range/CORS checks.
+#    This does not start, switch or otherwise depend on Valhalla.
+infrastructure/logistics-gis/scripts/activate-map-release.sh russia-YYYYMMDD
 
 # 7. Export JSON-only state to a new directory.
 infrastructure/logistics-gis/scripts/export-application-state.sh \
   russia-YYYYMMDD /tmp/pischeprom-gis-state-russia-YYYYMMDD
 ```
 
-Activation requires a healthy current Valhalla rollback target, the audited
-restart adapter, a verified object-storage publication, the exact CDN URL,
-passing CORS/Range checks and either local Laravel or the restricted stale-mark
-helper. It never starts a full matrix recalculation.
+Persistent-map activation requires a verified object-storage publication, the
+exact public asset URL and passing CORS/Range checks. Its schema-2 application
+state deliberately has no dependency on a Valhalla `current` symlink. This is
+the normal first activation when the map must remain available while the GIS
+compute VM is stopped.
+
+Optional routing activation remains a separate maintenance operation. When a
+new full-Russia Valhalla runtime is ready, run `activate-release.sh` only after
+registering a healthy rollback target and configuring the audited restart and
+stale-mark adapters. That operation switches `current`/`previous`, repeats
+production route/matrix smoke and never starts a full matrix recalculation.
 
 Transfer the exported directory over the existing authenticated administrative
 channel. On the application VPS:
@@ -293,8 +310,9 @@ infrastructure/logistics-gis/scripts/install-application-state.sh \
 
 The installer validates an allowlisted checksum manifest and all cross-file
 release, SHA, size, activation, smoke, Range and CORS invariants. It creates an
-immutable state release and atomically updates `current`/`previous`. Retrying
-the same byte-identical bundle is safe.
+immutable state release and atomically updates `current`/`previous`. Schema-2
+map snapshots include a short bundle digest in their directory name, so both a
+byte-identical retry and a later revalidation of the same OSM release are safe.
 
 Before the first activation, register the already working graph as
 `GIS_BASE_DIR/current` and prove its restart/health path. This is the mandatory
