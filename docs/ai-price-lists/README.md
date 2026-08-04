@@ -141,6 +141,9 @@ PRICE_LIST_RETENTION_DAYS=730
 PRICE_LIST_AUTO_APPLY=false
 PRICE_LIST_FILE_SCANNER=null
 PRICE_LIST_CLAMAV_SOCKET=
+PRICE_LIST_CLAMDSCAN_BINARY=clamdscan
+PRICE_LIST_CLAMD_CONFIG=/etc/clamav/clamd.conf
+PRICE_LIST_CLAMDSCAN_TIMEOUT_SECONDS=120
 
 PRICE_LIST_EXACT_MATCH_THRESHOLD=0.96
 PRICE_LIST_PROBABLE_MATCH_THRESHOLD=0.70
@@ -298,7 +301,8 @@ php artisan price-lists:recover-stale
 - secrets, Authorization, URL файла и полный документ не попадают в audit/AI usage;
 - Office ZIP и MIME проверяются по содержимому; формулы не вычисляются;
 - `PRICE_LIST_FILE_SCANNER=clamav` обязателен для production-активации. Workflow
-  определяет локальный Unix socket и проверяет его безопасным синтетическим файлом.
+  определяет локальный Unix socket и проверяет его безопасным синтетическим файлом
+  через официальный `clamdscan --stream`, не передавая закрытый путь daemon-процессу.
   Если первичная загрузка базы через FreshClam недоступна из-за CDN cooldown,
   provisioner один раз извлекает подписанную базу из официального образа
   `clamav/clamav:1.5.3`, закреплённого по digest и совпадающего с host engine,

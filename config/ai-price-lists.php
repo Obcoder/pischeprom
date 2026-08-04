@@ -38,6 +38,9 @@ return [
 
     'scanner' => env('PRICE_LIST_FILE_SCANNER', 'null'),
     'clamav_socket' => env('PRICE_LIST_CLAMAV_SOCKET'),
+    'clamdscan_binary' => env('PRICE_LIST_CLAMDSCAN_BINARY', 'clamdscan'),
+    'clamd_config' => env('PRICE_LIST_CLAMD_CONFIG', '/etc/clamav/clamd.conf'),
+    'clamdscan_timeout_seconds' => (int) env('PRICE_LIST_CLAMDSCAN_TIMEOUT_SECONDS', 120),
 
     'ai' => [
         'provider' => env('AI_PROVIDER', 'yandex'),

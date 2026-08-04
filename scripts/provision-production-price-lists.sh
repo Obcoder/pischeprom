@@ -132,6 +132,7 @@ prepare_host() {
     php -r 'exit(extension_loaded("imagick") ? 0 : 1);' || fail 'PHP Imagick extension is unavailable.'
     php -r 'exit(extension_loaded("gd") ? 0 : 1);' || fail 'PHP GD extension is unavailable.'
     command -v tiff2pdf >/dev/null || fail 'tiff2pdf is unavailable.'
+    command -v clamdscan >/dev/null || fail 'clamdscan is unavailable.'
     getent group clamav >/dev/null || fail 'ClamAV group is unavailable.'
 
     if ! has_clamav_database; then
@@ -151,6 +152,19 @@ prepare_host() {
     local clamav_socket
     clamav_socket="$(detect_clamav_socket)" || fail 'ClamAV local socket is not configured.'
     wait_for_clamav "$clamav_socket" || fail 'ClamAV local socket did not become ready.'
+
+    local clamav_smoke
+    clamav_smoke="$(mktemp)"
+    printf '%s\n' 'pischeprom-clamav-daemon-smoke' > "$clamav_smoke"
+    chmod 0600 "$clamav_smoke"
+    sudo chown "$application_owner:clamav" "$clamav_smoke"
+    if ! sudo -u "$application_owner" -g clamav clamdscan \
+        --stream --no-summary --config-file=/etc/clamav/clamd.conf "$clamav_smoke" >/dev/null
+    then
+        rm -f -- "$clamav_smoke"
+        fail 'ClamAV daemon rejected the harmless streaming smoke test.'
+    fi
+    rm -f -- "$clamav_smoke"
 
     local unit_staging
     unit_staging="$(mktemp)"

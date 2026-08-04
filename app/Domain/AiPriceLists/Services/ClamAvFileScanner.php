@@ -5,6 +5,8 @@ namespace App\Domain\AiPriceLists\Services;
 use App\Domain\AiPriceLists\Contracts\FileScannerInterface;
 use App\Domain\AiPriceLists\DTO\FileScanResult;
 use RuntimeException;
+use Symfony\Component\Process\Process;
+use Throwable;
 
 class ClamAvFileScanner implements FileScannerInterface
 {
@@ -16,57 +18,39 @@ class ClamAvFileScanner implements FileScannerInterface
             throw new RuntimeException('ClamAV scanner selected without PRICE_LIST_CLAMAV_SOCKET.');
         }
 
-        $socket = @stream_socket_client(
-            str_starts_with($socketPath, 'tcp://') ? $socketPath : 'unix://'.$socketPath,
-            $errorNumber,
-            $errorMessage,
-            5,
-        );
-
-        if (! is_resource($socket)) {
-            throw new RuntimeException('ClamAV is unavailable.');
-        }
-
-        $input = fopen($localPath, 'rb');
-
-        if (! is_resource($input)) {
-            fclose($socket);
+        if (! is_file($localPath) || ! is_readable($localPath)) {
             throw new RuntimeException('The file cannot be opened for antivirus scanning.');
         }
 
-        try {
-            fwrite($socket, "zINSTREAM\0");
+        $binary = trim((string) config('ai-price-lists.clamdscan_binary', 'clamdscan'));
+        $configPath = trim((string) config('ai-price-lists.clamd_config'));
+        $timeout = max(1, (int) config('ai-price-lists.clamdscan_timeout_seconds', 120));
 
-            while (! feof($input)) {
-                $chunk = fread($input, 8192);
-
-                if ($chunk === false) {
-                    throw new RuntimeException('The file cannot be read for antivirus scanning.');
-                }
-
-                if ($chunk === '') {
-                    break;
-                }
-
-                fwrite($socket, pack('N', strlen($chunk)).$chunk);
-            }
-
-            fwrite($socket, pack('N', 0));
-            stream_set_timeout($socket, 30);
-            $response = trim((string) stream_get_contents($socket));
-
-            if (str_contains($response, 'FOUND')) {
-                return new FileScanResult(false, 'clamav', 'Обнаружено потенциально опасное содержимое.');
-            }
-
-            if (! str_contains($response, 'OK')) {
-                throw new RuntimeException('ClamAV returned an indeterminate result.');
-            }
-
-            return new FileScanResult(true, 'clamav');
-        } finally {
-            fclose($input);
-            fclose($socket);
+        if ($binary === '') {
+            throw new RuntimeException('ClamAV client is not configured.');
         }
+
+        $command = [$binary, '--stream', '--no-summary'];
+
+        if ($configPath !== '') {
+            $command[] = '--config-file='.$configPath;
+        }
+
+        $command[] = $localPath;
+        $process = new Process($command);
+        $process->setTimeout($timeout);
+        $process->disableOutput();
+
+        try {
+            $exitCode = $process->run();
+        } catch (Throwable $exception) {
+            throw new RuntimeException('ClamAV is unavailable.', previous: $exception);
+        }
+
+        return match ($exitCode) {
+            0 => new FileScanResult(true, 'clamav'),
+            1 => new FileScanResult(false, 'clamav', 'Обнаружено потенциально опасное содержимое.'),
+            default => throw new RuntimeException('ClamAV returned an indeterminate result.'),
+        };
     }
 }
