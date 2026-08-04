@@ -56,6 +56,22 @@ wait_for_clamav() {
     return 1
 }
 
+wait_for_clamav_scan() {
+    local scan_target="$1"
+
+    for _ in $(seq 1 30); do
+        if sudo -u "$application_owner" -g clamav clamdscan \
+            --stream --no-summary --config-file=/etc/clamav/clamd.conf "$scan_target" \
+            >/dev/null 2>&1
+        then
+            return 0
+        fi
+        sleep 2
+    done
+
+    return 1
+}
+
 has_clamav_database() {
     sudo find /var/lib/clamav -maxdepth 1 -type f \
         \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print -quit | grep -q .
@@ -158,11 +174,9 @@ prepare_host() {
     printf '%s\n' 'pischeprom-clamav-daemon-smoke' > "$clamav_smoke"
     chmod 0600 "$clamav_smoke"
     sudo chown "$application_owner:clamav" "$clamav_smoke"
-    if ! sudo -u "$application_owner" -g clamav clamdscan \
-        --stream --no-summary --config-file=/etc/clamav/clamd.conf "$clamav_smoke" >/dev/null
-    then
+    if ! wait_for_clamav_scan "$clamav_smoke"; then
         rm -f -- "$clamav_smoke"
-        fail 'ClamAV daemon rejected the harmless streaming smoke test.'
+        fail 'ClamAV daemon did not become ready for the harmless streaming smoke test.'
     fi
     rm -f -- "$clamav_smoke"
 
