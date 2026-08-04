@@ -334,25 +334,24 @@ onBeforeUnmount(() => {
             </v-col>
         </v-row>
 
-        <v-row no-gutters class="goods-table-row">
-            <v-col class="goods-table-column">
-                <v-data-table-server
-                    :items="itemsForTable"
-                    :headers="headers"
-                    :loading="loading"
-                    :items-length="totalItems"
-                    :page="tableOptions.page"
-                    :items-per-page="tableOptions.itemsPerPage"
-                    :sort-by="tableOptions.sortBy"
-                    item-value="id"
-                    hide-default-footer
-                    fixed-header
-                    fixed-footer
-                    density="compact"
-                    hover
-                    class="border rounded goods-table"
-                    @update:options="updateTableOptions"
-                >
+        <div class="goods-table-region">
+            <v-data-table-server
+                :items="itemsForTable"
+                :headers="headers"
+                :loading="loading"
+                :items-length="totalItems"
+                :page="tableOptions.page"
+                :items-per-page="tableOptions.itemsPerPage"
+                :sort-by="tableOptions.sortBy"
+                item-value="id"
+                hide-default-footer
+                fixed-header
+                fixed-footer
+                density="compact"
+                hover
+                class="border rounded goods-table"
+                @update:options="updateTableOptions"
+            >
                     <template #item.ava_image="{ item }">
                         <v-avatar size="44" rounded="lg" class="cursor-pointer" @click="showGood(item.id)">
                             <v-img :src="item.ava_image || logo" cover />
@@ -472,9 +471,8 @@ onBeforeUnmount(() => {
                             />
                         </div>
                     </template>
-                </v-data-table-server>
-            </v-col>
-        </v-row>
+            </v-data-table-server>
+        </div>
 
         <!-- Drawer details -->
         <v-navigation-drawer v-model="drawer" location="right" width="420">
@@ -774,22 +772,22 @@ onBeforeUnmount(() => {
     padding-bottom: 4px;
 }
 
-.goods-table-row {
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
-.goods-table-column {
+.goods-table-region {
     display: flex;
+    flex: 1 1 0;
+    height: 0;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
 }
 
 .goods-table {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    height: 100%;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
     flex-direction: column;
 }
 
