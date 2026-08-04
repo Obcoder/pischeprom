@@ -91,6 +91,19 @@ has_clamav_database() {
         \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print -quit | grep -q .
 }
 
+clamav_database_is_usable() {
+    has_clamav_database || return 1
+
+    local scan_target
+    scan_target="$(mktemp)"
+    printf '%s\n' 'pischeprom-clamav-database-smoke' > "$scan_target"
+    if ! clamscan --database=/var/lib/clamav --no-summary "$scan_target" >/dev/null 2>&1; then
+        rm -f -- "$scan_target"
+        return 1
+    fi
+    rm -f -- "$scan_target"
+}
+
 seed_clamav_database_from_official_image() {
     local image='clamav/clamav:1.5.3@sha256:afbacf91caa6e02cd3b86238a4b130255bc465c8928dfe505cae63ae22c7e966'
     local container_id=''
@@ -132,6 +145,9 @@ seed_clamav_database_from_official_image() {
     if (( status == 0 )); then
         while IFS= read -r -d '' database_file; do
             sudo install -m 0644 -o clamav -g clamav "$database_file" /var/lib/clamav/
+            if [[ -f "${database_file}.sign" ]]; then
+                sudo install -m 0644 -o clamav -g clamav "${database_file}.sign" /var/lib/clamav/
+            fi
         done < <(find "$seed_dir" -maxdepth 1 -type f \
             \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print0)
     fi
@@ -165,18 +181,19 @@ prepare_host() {
     command -v clamdscan >/dev/null || fail 'clamdscan is unavailable.'
     getent group clamav >/dev/null || fail 'ClamAV group is unavailable.'
 
-    if ! has_clamav_database; then
+    if ! clamav_database_is_usable; then
         sudo systemctl stop clamav-freshclam.service >/dev/null 2>&1 || true
         sudo freshclam --stdout || true
     fi
-    if ! has_clamav_database; then
+    if ! clamav_database_is_usable; then
         log 'FreshClam database is unavailable; bootstrapping signed databases from the pinned official ClamAV image.'
         seed_clamav_database_from_official_image \
             || fail 'ClamAV databases could not be bootstrapped from the official image.'
     fi
-    has_clamav_database || fail 'ClamAV signature database is unavailable.'
+    clamav_database_is_usable || fail 'ClamAV signature database is unavailable or failed integrity verification.'
 
     sudo systemctl enable --now clamav-freshclam.service >/dev/null 2>&1 || true
+    sudo systemctl reset-failed clamav-daemon.service >/dev/null 2>&1 || true
     sudo systemctl enable --now clamav-daemon.service
 
     local clamav_socket
