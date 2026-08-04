@@ -21,6 +21,7 @@ unit_template="${3:-}"
 api_key_file="${4:-}"
 folder_id="${5:-}"
 env_updater="${6:-}"
+max_access_token_file="${7:-}"
 
 [[ "$mode" == 'prepare' || "$mode" == 'activate' || "$mode" == 'verify' ]] \
     || fail 'MODE must be prepare, activate or verify.'
@@ -258,6 +259,10 @@ verify_application() {
 activate_application() {
     [[ -f "$api_key_file" && ! -L "$api_key_file" ]] || fail 'API key file is missing or unsafe.'
     [[ -f "$env_updater" && ! -L "$env_updater" ]] || fail 'Environment updater is missing or unsafe.'
+    if [[ -n "$max_access_token_file" ]]; then
+        [[ -f "$max_access_token_file" && ! -L "$max_access_token_file" ]] \
+            || fail 'MAX access-token file is missing or unsafe.'
+    fi
     [[ "$folder_id" =~ ^[a-z0-9]{20}$ ]] || fail 'Yandex folder ID has an unexpected format.'
 
     local clamav_socket env_path backup_dir backup_path env_owner env_group env_mode was_active activated
@@ -300,7 +305,17 @@ activate_application() {
     }
     trap rollback_activation EXIT
 
-    sudo "$php_binary" "$env_updater" "$env_path" "$api_key_file" "$folder_id" "$clamav_socket"
+    local env_update_args=(
+        "$env_path"
+        "$api_key_file"
+        "$folder_id"
+        "$clamav_socket"
+    )
+    if [[ -n "$max_access_token_file" ]]; then
+        env_update_args+=("$max_access_token_file")
+    fi
+
+    sudo "$php_binary" "$env_updater" "${env_update_args[@]}"
     sudo chown "$env_owner:$env_group" "$env_path"
     sudo chmod "$env_mode" "$env_path"
     verify_application

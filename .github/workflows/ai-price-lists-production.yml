@@ -220,6 +220,7 @@ jobs:
         if: inputs.action == 'apply'
         env:
           ROTATE_EXISTING_KEY: ${{ inputs.rotate_existing_key }}
+          MAX_ACCESS_TOKEN: ${{ secrets.MAX_ACCESS_TOKEN }}
           SERVICE_ACCOUNT_ID: ${{ steps.iam.outputs.service_account_id }}
           SSH_HOST: ${{ secrets.HOST }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
@@ -283,6 +284,23 @@ jobs:
             scripts/update-production-price-list-env.php \
             deploy/systemd/pischeprom-price-lists-worker.service.template \
             "${ssh_target}:${remote_dir}/"
+
+          remote_max_access_token_file=''
+          if [[ -n "${MAX_ACCESS_TOKEN:-}" ]]; then
+            if (( ${#MAX_ACCESS_TOKEN} > 4096 )) \
+              || printf '%s' "$MAX_ACCESS_TOKEN" | LC_ALL=C grep -q '[[:space:][:cntrl:]]'; then
+              echo '::error::MAX_ACCESS_TOKEN has an unexpected format.'
+              exit 1
+            fi
+
+            echo "::add-mask::${MAX_ACCESS_TOKEN}"
+            install -m 0600 /dev/null "$work_dir/max-access-token"
+            printf '%s' "$MAX_ACCESS_TOKEN" > "$work_dir/max-access-token"
+            scp "${scp_options[@]}" \
+              "$work_dir/max-access-token" \
+              "${ssh_target}:${remote_dir}/max-access-token"
+            remote_max_access_token_file="${remote_dir}/max-access-token"
+          fi
 
           target_dir_base64="$(printf '%s' "$TARGET_DIR" | base64 -w 0)"
           ssh "${ssh_options[@]}" "$ssh_target" \
@@ -365,7 +383,7 @@ jobs:
             scp "${scp_options[@]}" "$work_dir/yandex-ai-api-key" "${ssh_target}:${remote_dir}/yandex-ai-api-key"
 
             ssh "${ssh_options[@]}" "$ssh_target" \
-              "target_dir=\$(printf '%s' '$target_dir_base64' | base64 --decode); bash '$remote_dir/provision-production-price-lists.sh' activate \"\$target_dir\" '' '$remote_dir/yandex-ai-api-key' '$YC_FOLDER_ID' '$remote_dir/update-production-price-list-env.php'"
+              "target_dir=\$(printf '%s' '$target_dir_base64' | base64 --decode); bash '$remote_dir/provision-production-price-lists.sh' activate \"\$target_dir\" '' '$remote_dir/yandex-ai-api-key' '$YC_FOLDER_ID' '$remote_dir/update-production-price-list-env.php' '$remote_max_access_token_file'"
           else
             ssh "${ssh_options[@]}" "$ssh_target" \
               "target_dir=\$(printf '%s' '$target_dir_base64' | base64 --decode); bash '$remote_dir/provision-production-price-lists.sh' verify \"\$target_dir\""

@@ -254,12 +254,21 @@ workflow `.github/workflows/ai-price-lists-production.yml`:
 
 1. `action=plan` — read-only проверка service account и двух IAM-ролей;
 2. `action=apply`, confirmation `ACTIVATE_AI_PRICE_LISTS` — установка ClamAV,
-   Ghostscript, Imagick/GD и `libtiff-tools`, создание отдельного service account,
-   ограниченного API key и systemd worker;
+   Ghostscript, Imagick/GD и `libtiff-tools`, поиск заранее созданного отдельного
+   service account, создание ограниченного API key и systemd worker;
 3. workflow атомарно обновляет только allowlist AI-параметров server-side `.env`,
    не передаёт ключ в artifact/GitHub secret и выполняет полный production preflight;
 4. при ошибке новый ключ удаляется, `.env` восстанавливается из server-side backup,
    а прежнее состояние worker возвращается.
+
+Для первой настройки MAX токен уже прошедшего модерацию бота временно добавляется
+как Environment secret `MAX_ACCESS_TOKEN` в GitHub Environment `production`.
+Workflow маскирует значение, передаёт его по закреплённому SSH-соединению во временном
+файле с mode `0600` и удаляет файл после запуска. `MAX_WEBHOOK_SECRET` генерируется
+криптографически непосредственно на VPS и не попадает в GitHub. При неуспешном
+preflight оба изменения откатываются вместе с `.env`; после успешной активации
+временный GitHub secret `MAX_ACCESS_TOKEN` следует удалить — рабочая копия остаётся
+только в server-side `.env`.
 
 Для ручной альтернативы пример Supervisor process остаётся таким:
 

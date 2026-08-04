@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-if ($argc !== 5) {
-    fwrite(STDERR, "Expected ENV_PATH, API_KEY_FILE, FOLDER_ID and CLAMAV_SOCKET.\n");
+if ($argc < 5 || $argc > 6) {
+    fwrite(STDERR, "Expected ENV_PATH, API_KEY_FILE, FOLDER_ID, CLAMAV_SOCKET and optional MAX_ACCESS_TOKEN_FILE.\n");
     exit(2);
 }
 
-[$script, $envPath, $apiKeyPath, $folderId, $clamAvSocket] = $argv;
+[$script, $envPath, $apiKeyPath, $folderId, $clamAvSocket] = array_slice($argv, 0, 5);
+$maxAccessTokenPath = $argv[5] ?? null;
 
 if (! is_file($envPath) || is_link($envPath)) {
     throw new RuntimeException('Production environment file is missing or unsafe.');
@@ -29,6 +30,22 @@ $apiKey = trim((string) file_get_contents($apiKeyPath));
 
 if (preg_match('/^AQVN[A-Za-z0-9_-]{30,80}$/', $apiKey) !== 1) {
     throw new RuntimeException('Yandex API key has an unexpected format.');
+}
+
+$maxAccessToken = null;
+
+if ($maxAccessTokenPath !== null && $maxAccessTokenPath !== '') {
+    if (! is_file($maxAccessTokenPath) || is_link($maxAccessTokenPath)) {
+        throw new RuntimeException('MAX access-token input file is missing or unsafe.');
+    }
+
+    $maxAccessToken = trim((string) file_get_contents($maxAccessTokenPath));
+
+    if ($maxAccessToken === ''
+        || strlen($maxAccessToken) > 4096
+        || preg_match('/[\x00-\x20\x7F]/', $maxAccessToken) === 1) {
+        throw new RuntimeException('MAX access token has an unexpected format.');
+    }
 }
 
 $updates = [
@@ -57,6 +74,19 @@ try {
 
     if (! is_string($contents)) {
         throw new RuntimeException('Production environment file could not be read.');
+    }
+
+    if ($maxAccessToken !== null) {
+        $updates['MAX_API_URL'] = 'https://platform-api2.max.ru';
+        $updates['MAX_ACCESS_TOKEN'] = $maxAccessToken;
+
+        if (! hasValidMaxWebhookSecret($contents)) {
+            $updates['MAX_WEBHOOK_SECRET'] = rtrim(strtr(
+                base64_encode(random_bytes(48)),
+                '+/',
+                '-_'
+            ), '=');
+        }
     }
 
     $lines = preg_split('/\R/', $contents) ?: [];
@@ -119,4 +149,25 @@ function dotenvValue(string $value): string
     }
 
     return '"'.str_replace(['\\', '"', '$'], ['\\\\', '\\"', '\\$'], $value).'"';
+}
+
+function hasValidMaxWebhookSecret(string $contents): bool
+{
+    foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+        if (preg_match('/^MAX_WEBHOOK_SECRET=(.*)$/', $line, $matches) !== 1) {
+            continue;
+        }
+
+        $value = trim($matches[1]);
+
+        if (strlen($value) >= 2
+            && (($value[0] === '"' && $value[-1] === '"')
+                || ($value[0] === "'" && $value[-1] === "'"))) {
+            $value = substr($value, 1, -1);
+        }
+
+        return preg_match('/^[A-Za-z0-9_-]{5,256}$/', $value) === 1;
+    }
+
+    return false;
 }

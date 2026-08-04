@@ -49,6 +49,12 @@ server-side `.env`, после чего временные копии удаля
 создаёт новый ключ, проводит все smoke и только после успеха удаляет прежние ключи,
 созданные этим workflow.
 
+При первой активации MAX допускается временный Environment secret
+`MAX_ACCESS_TOKEN`. Workflow использует его только как вход bootstrap: передаёт в
+закрытом временном файле, генерирует `MAX_WEBHOOK_SECRET` на самом VPS и атомарно
+обновляет server-side `.env`. После успешного `apply` GitHub-копию токена нужно
+удалить. В artifacts и Actions log токен и webhook-secret не выводятся.
+
 ### Verify job
 
 До доступа к production secrets выполняются:
@@ -141,6 +147,13 @@ SSH_PRIVATE_KEY
 SSH_KNOWN_HOSTS
 ```
 
+Для однократного bootstrap MAX дополнительно создаётся и после успешной активации
+удаляется Environment secret:
+
+```text
+MAX_ACCESS_TOKEN
+```
+
 Назначение:
 
 - `HOST` — адрес российского VPS;
@@ -149,6 +162,8 @@ SSH_KNOWN_HOSTS
 - `TARGET_DIR` — абсолютный путь существующего Git checkout, не `/`;
 - `SSH_PRIVATE_KEY` — отдельный deploy key;
 - `SSH_KNOWN_HOSTS` — заранее проверенная строка host key.
+- `MAX_ACCESS_TOKEN` — временный токен прошедшего модерацию MAX-бота; workflow
+  сохраняет рабочую копию только в server-side `.env`.
 
 Sber credentials не являются GitHub secrets и в этот список не входят.
 
