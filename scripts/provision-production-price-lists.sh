@@ -86,10 +86,18 @@ seed_clamav_database_from_official_image() {
         local database_count
         database_count="$(find "$seed_dir" -maxdepth 1 -type f \
             \( -name '*.cvd' -o -name '*.cld' \) -size +100k | wc -l)"
-        (( database_count >= 2 )) || status=1
+        if (( database_count < 2 )); then
+            log 'Pinned ClamAV image did not contain the expected database set.'
+            status=1
+        fi
     fi
     if (( status == 0 )); then
-        clamscan --database="$seed_dir" --no-summary /dev/null >/dev/null || status=1
+        local scan_target="${seed_dir}/bootstrap-smoke.txt"
+        printf '%s\n' 'pischeprom-clamav-bootstrap-smoke' > "$scan_target"
+        if ! clamscan --database="$seed_dir" --no-summary "$scan_target" >/dev/null; then
+            log 'Pinned ClamAV databases failed validation with the host engine.'
+            status=1
+        fi
     fi
     if (( status == 0 )); then
         while IFS= read -r -d '' database_file; do
