@@ -233,14 +233,13 @@ onMounted(loadAll)
 
             <v-divider />
 
-            <v-card-text class="pa-0">
+            <v-card-text class="products-table-region pa-0">
                 <v-data-table
                     :headers="headers"
                     :items="filteredProducts"
                     item-key="id"
                     items-per-page="50"
                     fixed-header
-                    height="calc(100vh - 290px)"
                     :loading="loading"
                     density="compact"
                     class="products-table"
@@ -418,13 +417,31 @@ onMounted(loadAll)
 
 <style scoped>
 .products-shell {
-    min-height: calc(100vh - 120px);
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
 }
 
 .products-card,
 .create-card {
     border: 1px solid rgba(var(--v-theme-primary), 0.16);
     overflow: hidden;
+}
+
+.products-card {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.products-table-region {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
 }
 
 .products-toolbar,
@@ -446,6 +463,18 @@ onMounted(loadAll)
 .products-table :deep(thead th) {
     font-weight: 800;
     white-space: nowrap;
+}
+
+.products-table {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.products-table :deep(.v-table__wrapper) {
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .product-link {

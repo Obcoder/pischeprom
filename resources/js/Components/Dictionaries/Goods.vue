@@ -78,15 +78,15 @@ const form = useForm({
 })
 
 const headers = [
-    { key: 'group_category', title: 'Category', sortable: false, width: '175px' },
-    { key: 'ava_image', title: '', sortable: false, width: '200px' },
+    { key: 'group_category', title: 'Category', sortable: false, width: '150px' },
+    { key: 'ava_image', title: '', sortable: false, width: '68px' },
     { key: 'name', title: 'Good', sortable: true },
-    { key: 'country', title: 'Страна', sortable: false, width: '150px' },
-    { key: 'fields', title: 'Fields', sortable: false, width: '220px' },
-    { key: 'vat_rate', title: 'НДС', sortable: false, width: '140px' },
-    { key: 'is_published', title: 'Pub', sortable: true, width: '90px' },
-    { key: 'created_at', title: 'Создан', sortable: true, width: '200px' },
-    { key: 'actions', title: '', sortable: false, width: '120px' },
+    { key: 'country', title: 'Страна', sortable: false, width: '132px' },
+    { key: 'fields', title: 'Fields', sortable: false, width: '190px' },
+    { key: 'vat_rate', title: 'НДС', sortable: false, width: '104px' },
+    { key: 'is_published', title: 'Pub', sortable: true, width: '72px' },
+    { key: 'created_at', title: 'Создан', sortable: true, width: '132px' },
+    { key: 'actions', title: '', sortable: false, width: '108px' },
 ]
 
 // ---------- helpers ----------
@@ -285,8 +285,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <v-container fluid>
-        <v-row class="align-center">
+    <v-container fluid class="goods-admin pa-2 pa-md-3">
+        <v-row dense class="goods-toolbar align-center">
             <v-col cols="12" md="4">
                 <v-text-field
                     v-model="search"
@@ -328,14 +328,14 @@ onBeforeUnmount(() => {
             </v-col>
 
             <v-col cols="12" md="2">
-                <v-btn block color="deep-purple-darken-1" variant="tonal" @click="openCreate">
+                <v-btn block color="primary" variant="elevated" @click="openCreate">
                     Новый товар
                 </v-btn>
             </v-col>
         </v-row>
 
-        <v-row>
-            <v-col>
+        <v-row no-gutters class="goods-table-row">
+            <v-col class="goods-table-column">
                 <v-data-table-server
                     :items="itemsForTable"
                     :headers="headers"
@@ -348,14 +348,13 @@ onBeforeUnmount(() => {
                     hide-default-footer
                     fixed-header
                     fixed-footer
-                    height="760px"
                     density="compact"
                     hover
                     class="border rounded goods-table"
                     @update:options="updateTableOptions"
                 >
                     <template #item.ava_image="{ item }">
-                        <v-avatar size="100" class="cursor-pointer" @click="showGood(item.id)">
+                        <v-avatar size="44" rounded="lg" class="cursor-pointer" @click="showGood(item.id)">
                             <v-img :src="item.ava_image || logo" cover />
                         </v-avatar>
                     </template>
@@ -441,9 +440,9 @@ onBeforeUnmount(() => {
                     </template>
 
                     <template #item.actions="{ item }">
-                        <v-btn size="small" variant="text" icon="mdi-eye" @click="showGood(item.id)" />
-                        <v-btn size="small" variant="text" icon="mdi-pencil" @click="openEdit(item)" />
-                        <v-btn size="small" variant="text" icon="mdi-delete" @click="askDelete(item)" />
+                        <v-btn size="small" density="compact" variant="text" icon="mdi-eye" @click="showGood(item.id)" />
+                        <v-btn size="small" density="compact" variant="text" icon="mdi-pencil" @click="openEdit(item)" />
+                        <v-btn size="small" density="compact" variant="text" icon="mdi-delete" @click="askDelete(item)" />
                     </template>
 
                     <template #bottom>
@@ -757,12 +756,70 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.goods-admin {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+.goods-toolbar {
+    flex: 0 0 auto;
+    margin-bottom: 6px;
+}
+
+.goods-toolbar :deep(.v-col) {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.goods-table-row {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.goods-table-column {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+}
+
+.goods-table {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.goods-table :deep(.v-table__wrapper) {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.goods-table :deep(thead th) {
+    height: 38px !important;
+    font-size: 0.75rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.goods-table :deep(tbody td) {
+    height: 52px !important;
+    padding: 4px 8px !important;
+}
+
+.goods-table :deep(tbody td:last-child) {
+    white-space: nowrap;
+}
+
 .goods-table-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 40px;
-    padding: 4px 12px;
+    min-height: 36px;
+    padding: 2px 10px;
     border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
@@ -779,9 +836,9 @@ onBeforeUnmount(() => {
 
 .goods-field-strip {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 4px;
-    max-height: 48px;
+    max-height: 24px;
     overflow: hidden;
 }
 
@@ -791,7 +848,7 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 7px;
     min-width: 0;
-    color: #30463a;
+    color: inherit;
     font-size: 0.82rem;
     font-weight: 700;
 }

@@ -162,7 +162,7 @@ jobs:
             tests/Unit/LogisticsRoutingSupportTest.php \
             tests/Unit/ValhallaRoutingProviderTest.php
 
-      - name: Run unit, logistics, banking, goods stock, and orders tests
+      - name: Run unit, logistics, banking, goods stock, orders, and products tests
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -184,6 +184,7 @@ jobs:
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/OrderManagementTest.php \
             tests/Feature/RegistrationTest.php \
+            tests/Feature/AmeiseProductsPageTest.php \
             --compact
 
       - name: Set up Node.js

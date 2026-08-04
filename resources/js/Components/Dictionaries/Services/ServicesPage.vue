@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { useServices } from '@/Composables/useServices.js'
@@ -112,8 +112,6 @@ const headers = [
         width: 126,
     },
 ]
-
-const tableHeight = computed(() => 'calc(100vh - 320px)')
 
 let searchTimer = null
 
@@ -370,6 +368,7 @@ onMounted(async () => {
                 <v-btn
                     text="Сбросить"
                     prepend-icon="mdi-filter-off"
+                    color="light-blue-accent-2"
                     variant="tonal"
                     density="compact"
                     @click="resetFilters"
@@ -395,7 +394,6 @@ onMounted(async () => {
             :items="services"
             :items-length="totalItems"
             :loading="loadingServices"
-            :height="tableHeight"
             fixed-header
             hover
             density="compact"
@@ -505,7 +503,28 @@ onMounted(async () => {
 
 <style scoped>
 .services-page {
-    min-height: calc(100vh - 150px);
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+.services-page > :deep(.v-row) {
+    flex: 0 0 auto;
+}
+
+.services-table {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.services-table :deep(.v-table__wrapper) {
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .services-table :deep(thead th) {

@@ -523,7 +523,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <v-container fluid class="category-admin pa-4">
+    <v-container fluid class="category-admin pa-2 pa-md-3">
         <v-card rounded="xl" elevation="1" class="category-admin__card">
             <v-card-title class="d-flex align-center ga-3 flex-wrap">
                 <div>
@@ -588,7 +588,6 @@ onBeforeUnmount(() => {
                 :items-per-page="options.itemsPerPage"
                 :sort-by="options.sortBy"
                 fixed-header
-                height="720px"
                 density="compact"
                 hover
                 item-value="id"
@@ -1144,16 +1143,39 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .category-admin {
+    display: flex;
+    height: 100%;
     width: 100%;
     max-width: none;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
 }
 
 .category-admin__card {
+    display: flex;
+    flex: 1 1 auto;
     width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+.category-admin__card :deep(.v-card-title) {
+    flex: 0 0 auto;
 }
 
 .category-admin__table {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
     border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.category-admin__table :deep(.v-table__wrapper) {
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .category-admin__description {

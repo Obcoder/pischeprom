@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
 import { route } from 'ziggy-js'
@@ -108,8 +108,6 @@ const headers = [
     },
 ]
 
-const tableHeight = computed(() => '760px')
-
 let searchTimer = null
 
 watch(
@@ -216,8 +214,8 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid>
-        <v-row align="center" class="mb-2">
+    <v-container fluid class="commodities-page pa-2 pa-md-3">
+        <v-row align="center" dense class="mb-2">
             <v-col cols="12" md="3">
                 <v-text-field
                     v-model="filters.search"
@@ -295,7 +293,7 @@ onMounted(async () => {
             </v-col>
         </v-row>
 
-        <v-row align="center" class="mb-2">
+        <v-row align="center" dense class="mb-2">
             <v-col>
                 <div class="text-caption text-grey">
                     Всего: {{ totalItems }}
@@ -305,6 +303,7 @@ onMounted(async () => {
             <v-col cols="auto">
                 <v-btn
                     text="Сбросить"
+                    color="light-blue-accent-2"
                     variant="tonal"
                     density="compact"
                     @click="resetFilters"
@@ -330,11 +329,10 @@ onMounted(async () => {
             :items="commodities"
             :items-length="totalItems"
             :loading="loadingCommodities"
-            :height="tableHeight"
             fixed-header
             hover
             density="compact"
-            class="border rounded"
+            class="commodities-table border rounded"
             :items-per-page-options="[50, 100, 200, 500]"
             @update:options="indexCommodities"
         >
@@ -406,3 +404,35 @@ onMounted(async () => {
         />
     </v-container>
 </template>
+
+<style scoped>
+.commodities-page {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+.commodities-page > :deep(.v-row) {
+    flex: 0 0 auto;
+}
+
+.commodities-table {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.commodities-table :deep(.v-table__wrapper) {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.commodities-table :deep(thead th) {
+    font-weight: 800;
+    white-space: nowrap;
+}
+</style>

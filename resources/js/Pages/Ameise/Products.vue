@@ -123,7 +123,13 @@ watch(activeTab, (value) => {
                 </header>
 
                 <v-card class="products-page__workspace" variant="outlined">
-                    <v-tabs v-model="activeTab" color="light-blue-accent-2" show-arrows aria-label="Разделы Products">
+                    <v-tabs
+                        v-model="activeTab"
+                        class="products-page__tabs"
+                        color="light-blue-accent-2"
+                        show-arrows
+                        aria-label="Разделы Products"
+                    >
                         <v-tab v-for="tab in tabs" :key="tab.value" :value="tab.value">
                             <v-icon :icon="tab.icon" start />
                             {{ tab.title }}
@@ -133,19 +139,19 @@ watch(activeTab, (value) => {
                     <v-divider />
 
                     <v-tabs-window v-model="activeTab" class="products-page__content">
-                        <v-tabs-window-item value="categories">
+                        <v-tabs-window-item value="categories" class="products-page__pane">
                             <Categories />
                         </v-tabs-window-item>
 
-                        <v-tabs-window-item value="categories_products">
+                        <v-tabs-window-item value="categories_products" class="products-page__pane">
                             <Products />
                         </v-tabs-window-item>
 
-                        <v-tabs-window-item value="goods">
+                        <v-tabs-window-item value="goods" class="products-page__pane">
                             <Goods />
                         </v-tabs-window-item>
 
-                        <v-tabs-window-item value="components">
+                        <v-tabs-window-item value="components" class="products-page__pane">
                             <section class="components-panel">
                                 <div class="components-panel__toolbar">
                                     <div>
@@ -182,7 +188,6 @@ watch(activeTab, (value) => {
                                     :items-per-page="150"
                                     :loading="componentsLoading"
                                     fixed-header
-                                    height="calc(100vh - 300px)"
                                     density="compact"
                                     hover
                                     class="components-panel__table"
@@ -194,11 +199,11 @@ watch(activeTab, (value) => {
                             </section>
                         </v-tabs-window-item>
 
-                        <v-tabs-window-item value="commodities">
+                        <v-tabs-window-item value="commodities" class="products-page__pane">
                             <CommoditiesPage />
                         </v-tabs-window-item>
 
-                        <v-tabs-window-item value="services">
+                        <v-tabs-window-item value="services" class="products-page__pane">
                             <ServicesPage />
                         </v-tabs-window-item>
                     </v-tabs-window>
@@ -212,22 +217,30 @@ watch(activeTab, (value) => {
 .products-page {
     align-self: stretch;
     width: 100%;
+    height: calc(100dvh - 58px);
     min-width: 0;
-    min-height: calc(100vh - 58px);
-    padding: 24px clamp(12px, 2vw, 32px) 32px;
+    min-height: 0;
+    padding: 20px clamp(12px, 2vw, 32px) 18px;
+    overflow: hidden;
+    box-sizing: border-box;
     background:
         radial-gradient(circle at 8% 0%, rgba(14, 165, 233, 0.14), transparent 30rem),
         linear-gradient(145deg, #060b18 0%, #080d1d 48%, #050914 100%);
 }
 
 .products-page__shell {
+    display: flex;
+    height: 100%;
     width: min(1680px, 100%);
     min-width: 0;
+    min-height: 0;
     margin-inline: auto;
+    flex-direction: column;
 }
 
 .products-page__header {
-    margin-bottom: 18px;
+    flex: 0 0 auto;
+    margin-bottom: 14px;
 }
 
 .products-page__identity {
@@ -259,6 +272,7 @@ watch(activeTab, (value) => {
 
 .products-page h1 {
     margin: 2px 0 3px;
+    color: #f8fafc;
     font-size: clamp(1.65rem, 3vw, 2.35rem);
     line-height: 1.08;
 }
@@ -269,18 +283,107 @@ watch(activeTab, (value) => {
 }
 
 .products-page__workspace {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: hidden;
+    flex-direction: column;
     border-color: rgba(125, 211, 252, 0.2) !important;
     background: rgba(8, 15, 32, 0.92) !important;
     box-shadow: 0 22px 60px rgba(2, 6, 23, 0.38);
 }
 
-.products-page__content {
+.products-page__tabs {
+    flex: 0 0 auto;
+    background: rgba(15, 23, 42, 0.7);
+}
+
+.products-page__tabs :deep(.v-tab) {
     min-width: 0;
+    color: #dbeafe !important;
+    opacity: 0.88;
+}
+
+.products-page__tabs :deep(.v-tab:hover),
+.products-page__tabs :deep(.v-tab:focus-visible) {
+    background: rgba(125, 211, 252, 0.1);
+    color: #f8fafc !important;
+    opacity: 1;
+}
+
+.products-page__tabs :deep(.v-tab.v-tab--selected) {
+    background: linear-gradient(180deg, rgba(14, 165, 233, 0.17), rgba(37, 99, 235, 0.08));
+    color: #7dd3fc !important;
+    opacity: 1;
+}
+
+.products-page__content {
+    flex: 1 1 0;
+    height: 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.products-page__content :deep(.v-window__container),
+.products-page__content :deep(.v-window-item) {
+    height: 100%;
+    min-height: 0;
+}
+
+.products-page__content :deep(.v-window-item--active) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.products-page__content :deep(.v-field:not(.v-field--variant-plain)) {
+    border-radius: 9px;
+    background: rgba(248, 250, 252, 0.96) !important;
+    color: #0f172a !important;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.26);
+}
+
+.products-page__content :deep(.v-field:not(.v-field--variant-plain) .v-field__overlay) {
+    opacity: 0 !important;
+}
+
+.products-page__content :deep(.v-field:not(.v-field--variant-plain) .v-field__input),
+.products-page__content :deep(.v-field:not(.v-field--variant-plain) .v-label),
+.products-page__content :deep(.v-field:not(.v-field--variant-plain) .v-icon) {
+    color: #1e293b !important;
+    opacity: 1;
+}
+
+.products-page__content :deep(.v-field--variant-outlined .v-label.v-field-label--floating) {
+    padding-inline: 4px;
+    border-radius: 3px;
+    background: #f8fafc;
+    color: #334155 !important;
+}
+
+.products-page__content :deep(.v-field:not(.v-field--variant-plain).v-field--focused) {
+    background: #ffffff !important;
+    box-shadow:
+        inset 0 0 0 1px rgba(56, 189, 248, 0.72),
+        0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+.products-page__content :deep(.v-field:not(.v-field--variant-plain) input::placeholder) {
+    color: #64748b !important;
+    opacity: 1;
+}
+
+.products-page__content :deep(input[type="date"]) {
+    color-scheme: light;
 }
 
 .components-panel {
-    padding: 16px;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    padding: 12px;
+    flex-direction: column;
 }
 
 .components-panel__toolbar {
@@ -306,13 +409,22 @@ watch(activeTab, (value) => {
 }
 
 .components-panel__table {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
     border: 1px solid rgba(125, 211, 252, 0.14);
     border-radius: 12px;
 }
 
+.components-panel__table :deep(.v-table__wrapper) {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 @media (max-width: 720px) {
     .products-page {
-        padding-top: 16px;
+        padding: 14px 10px 12px;
     }
 
     .products-page__identity {
@@ -327,6 +439,10 @@ watch(activeTab, (value) => {
     .components-panel__search {
         width: 100%;
         margin-left: 0;
+    }
+
+    .components-panel {
+        padding: 8px;
     }
 }
 </style>
