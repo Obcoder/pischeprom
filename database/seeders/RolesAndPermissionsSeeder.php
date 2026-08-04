@@ -27,6 +27,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'products.view',
             'products.edit',
 
+            'ai_price_lists.view',
+            'ai_price_lists.process',
+            'ai_price_lists.review',
+            'ai_price_lists.assign_supplier',
+            'ai_price_lists.apply',
+            'ai_price_lists.view_technical',
+
             'users.view',
             'users.edit',
 
@@ -71,6 +78,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'orders.create',
             'orders.edit',
             'products.view',
+            'ai_price_lists.view',
+            'ai_price_lists.process',
+            'ai_price_lists.review',
+            'ai_price_lists.assign_supplier',
             'bank.view',
             'bank.view_sensitive',
             'bank.sync',

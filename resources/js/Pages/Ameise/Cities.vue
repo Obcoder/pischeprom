@@ -3,7 +3,7 @@ import {Link, useForm} from "@inertiajs/vue3";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
-import {useHead} from "@vueuse/head";
+import {useHead} from "@unhead/vue";
 defineOptions({
     layout: VerwalterLayout,
 })

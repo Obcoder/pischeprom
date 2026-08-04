@@ -185,6 +185,15 @@ class MaxMessengerService
         return $this->request('get', '/messages', $this->cleanQuery($query));
     }
 
+    public function getMessage(string $messageId): array
+    {
+        if (trim($messageId) === '') {
+            return $this->failure('Не указан MAX message_id.');
+        }
+
+        return $this->request('get', '/messages/'.rawurlencode($messageId));
+    }
+
     public function createSubscription(string $url, array $updateTypes = [], ?string $secret = null): array
     {
         $payload = [

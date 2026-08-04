@@ -51,6 +51,14 @@ class HandleInertiaRequests extends Middleware
                         'edit' => true,
                         'delete' => true,
                     ],
+                    'ai_price_lists' => [
+                        'view' => (bool) $request->user()?->can('ai_price_lists.view'),
+                        'process' => (bool) $request->user()?->can('ai_price_lists.process'),
+                        'review' => (bool) $request->user()?->can('ai_price_lists.review'),
+                        'assign_supplier' => (bool) $request->user()?->can('ai_price_lists.assign_supplier'),
+                        'apply' => (bool) $request->user()?->can('ai_price_lists.apply'),
+                        'view_technical' => (bool) $request->user()?->can('ai_price_lists.view_technical'),
+                    ],
                     'logistics' => [
                         'view' => ! config('logistics.authorization_enabled')
                             || (bool) $request->user()?->can('logistics.view'),

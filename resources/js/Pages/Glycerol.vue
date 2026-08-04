@@ -1,6 +1,6 @@
 <script setup>
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
-import {useHead} from "@vueuse/head";
+import {useHead} from "@unhead/vue";
 defineOptions({
     layout: LayoutDefault,
 })

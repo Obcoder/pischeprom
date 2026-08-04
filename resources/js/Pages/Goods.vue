@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import PublicGoodInfographicCard from '@/Components/Goods/PublicGoodInfographicCard.vue'

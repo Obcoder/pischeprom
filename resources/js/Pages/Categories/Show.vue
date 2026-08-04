@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 
 import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'

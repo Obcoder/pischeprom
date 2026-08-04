@@ -3,7 +3,7 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import {Link, useForm} from "@inertiajs/vue3";
 import axios from "axios";
-import {useHead} from "@vueuse/head";
+import {useHead} from "@unhead/vue";
 import {route} from "ziggy-js";
 import MaxContactButton from "@/Components/Max/MaxContactButton.vue";
 defineOptions({

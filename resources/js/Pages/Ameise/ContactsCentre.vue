@@ -2,7 +2,7 @@
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 import { route } from 'ziggy-js'
 import { useDate } from 'vuetify'
 import { Link } from '@inertiajs/vue3'

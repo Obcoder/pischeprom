@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["class", "confidence", "reason"],
+  "properties": {
+    "class": {
+      "type": "string",
+      "enum": ["price_list", "not_price_list", "uncertain"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 240
+    }
+  }
+}

@@ -5,7 +5,7 @@ import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm, Link} from "@inertiajs/vue3";
 import {useDate} from "vuetify";
-import {useHead} from "@vueuse/head";
+import {useHead} from "@unhead/vue";
 import {route} from "ziggy-js";
 defineOptions({
     layout: VerwalterLayout,

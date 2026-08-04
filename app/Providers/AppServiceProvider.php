@@ -2,6 +2,15 @@
 
 namespace App\Providers;
 
+use App\Domain\AiPriceLists\Contracts\FileScannerInterface;
+use App\Domain\AiPriceLists\Contracts\OcrProviderInterface;
+use App\Domain\AiPriceLists\Contracts\StructuredTextModelProviderInterface;
+use App\Domain\AiPriceLists\Providers\FakeOcrProvider;
+use App\Domain\AiPriceLists\Providers\FakeStructuredTextModelProvider;
+use App\Domain\AiPriceLists\Providers\YandexAiStudioProvider;
+use App\Domain\AiPriceLists\Providers\YandexVisionOcrProvider;
+use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
+use App\Domain\AiPriceLists\Services\NullFileScanner;
 use App\Domain\Banking\Contracts\BankProviderInterface;
 use App\Domain\Banking\Events\BankConnectionRequiresAttention;
 use App\Domain\Banking\Events\BankSyncFailed;
@@ -18,8 +27,11 @@ use App\Models\LogisticsCity;
 use App\Models\LogisticsCityDistance;
 use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripExpense;
+use App\Models\MailMessageAttachment;
+use App\Models\PriceListImport;
 use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
+use App\Observers\MailMessageAttachmentObserver;
 use App\Policies\BankAuditEventPolicy;
 use App\Policies\BankConnectionPolicy;
 use App\Policies\BankPaymentOrderDraftPolicy;
@@ -28,6 +40,7 @@ use App\Policies\LogisticsCityDistancePolicy;
 use App\Policies\LogisticsCityPolicy;
 use App\Policies\LogisticsTripExpensePolicy;
 use App\Policies\LogisticsTripPolicy;
+use App\Policies\PriceListImportPolicy;
 use App\Policies\VehiclePolicy;
 use App\Services\Logistics\Routing\Contracts\RoutingProviderInterface;
 use App\Services\Logistics\Routing\Providers\FakeRoutingProvider;
@@ -48,6 +61,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(FileScannerInterface::class, fn ($app) => match (config('ai-price-lists.scanner')) {
+            'clamav' => $app->make(ClamAvFileScanner::class),
+            default => $app->make(NullFileScanner::class),
+        });
+        $this->app->bind(StructuredTextModelProviderInterface::class, fn ($app) => match (config('ai-price-lists.ai.provider')) {
+            'fake' => $app->make(FakeStructuredTextModelProvider::class),
+            default => $app->make(YandexAiStudioProvider::class),
+        });
+        $this->app->bind(OcrProviderInterface::class, fn ($app) => match (config('ai-price-lists.ai.provider')) {
+            'fake' => $app->make(FakeOcrProvider::class),
+            default => $app->make(YandexVisionOcrProvider::class),
+        });
+
         $this->app->bind(
             BankProviderInterface::class,
             fn ($app) => $app->make(BankProviderManager::class)->driver()
@@ -68,6 +94,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         GoodStockMovement::observe(GoodStockMovementObserver::class);
+        MailMessageAttachment::observe(MailMessageAttachmentObserver::class);
 
         RateLimiter::for('bank-oauth', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->id ?? $request->ip())));
@@ -77,8 +104,28 @@ class AppServiceProvider extends ServiceProvider
             ->by((string) ($request->user()?->id ?? $request->ip())));
         RateLimiter::for('bank-drafts', fn (Request $request) => Limit::perMinute(30)
             ->by((string) ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('price-list-ai', fn () => Limit::perMinute(
+            max(1, (int) config('ai-price-lists.ai.requests_per_minute', 30))
+        )->by('yandex-price-list-ai'));
 
         Gate::before(function ($user, string $ability) {
+            if (Str::startsWith($ability, 'ai_price_lists.')) {
+                if (($user->status ?? 'active') === 'blocked') {
+                    return false;
+                }
+
+                try {
+                    if (method_exists($user, 'hasRole') && $user->hasRole('admin', 'crm')) {
+                        return true;
+                    }
+
+                    return method_exists($user, 'hasPermissionTo')
+                        && $user->hasPermissionTo($ability, 'crm');
+                } catch (Throwable) {
+                    return false;
+                }
+            }
+
             if (Str::startsWith($ability, 'logistics.')) {
                 if (($user->status ?? 'active') === 'blocked') {
                     return false;
@@ -143,6 +190,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(LogisticsTripExpense::class, LogisticsTripExpensePolicy::class);
         Gate::policy(LogisticsCity::class, LogisticsCityPolicy::class);
         Gate::policy(LogisticsCityDistance::class, LogisticsCityDistancePolicy::class);
+        Gate::policy(PriceListImport::class, PriceListImportPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

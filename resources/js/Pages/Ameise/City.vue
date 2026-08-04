@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import CityShowPage from '@/Components/Geography/Cities/Show/CityShowPage.vue'
 

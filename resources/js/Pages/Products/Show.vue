@@ -1,7 +1,7 @@
 <script setup>
 import LayoutDefault from "@/Layouts/LayoutDefault.vue";
 import { Link } from "@inertiajs/vue3";
-import { useHead } from "@vueuse/head";
+import { useHead } from "@unhead/vue";
 import { computed } from "vue";
 import { route } from "ziggy-js";
 import GoodStockAlertButton from "@/Components/Goods/GoodStockAlertButton.vue";

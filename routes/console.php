@@ -147,3 +147,9 @@ Schedule::command('logistics:routing-mark-stale --expired-only')
     ->dailyAt('01:35')
     ->onOneServer()
     ->withoutOverlapping(30);
+
+Schedule::command('price-lists:recover-stale')
+    ->name('recover-stale-price-list-imports')
+    ->everyTenMinutes()
+    ->onOneServer()
+    ->withoutOverlapping(10);

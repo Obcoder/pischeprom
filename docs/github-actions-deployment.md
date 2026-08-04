@@ -20,7 +20,7 @@ Vue/Vite assets и управления деплоем по SSH.
 
 ## Workflow
 
-Production workflow находится в `.github/workflows/main.yml`.
+Основной production workflow находится в `.github/workflows/main.yml`.
 
 Он запускается:
 
@@ -30,11 +30,26 @@ Production workflow находится в `.github/workflows/main.yml`.
 Для одного production-окружения одновременно разрешён только один deploy.
 Новый запуск ждёт завершения уже начавшегося и не отменяет его.
 
+Для однократной подготовки AI-прайс-листов добавлен отдельный ручной workflow
+`.github/workflows/ai-price-lists-production.yml`. Его всегда запускают сначала с
+`action=plan`, затем с `action=apply` и точным подтверждением
+`ACTIVATE_AI_PRICE_LISTS`. Он использует существующую GitHub→Yandex OIDC-федерацию,
+создаёт выделенный service account только с ролями `ai.languageModels.user` и
+`ai.vision.user`, а API key — только со scopes `yc.ai.languageModels.execute` и
+`yc.ai.vision.execute` и сроком один год.
+
+AI API key не сохраняется в GitHub secrets/artifacts: одноразовое значение маскируется,
+передаётся напрямую во временный файл VPS с mode `0600`, атомарно переносится в
+server-side `.env`, после чего временные копии удаляются. Режим `rotate_existing_key`
+создаёт новый ключ, проводит все smoke и только после успеха удаляет прежние ключи,
+созданные этим workflow.
+
 ### Verify job
 
 До доступа к production secrets выполняются:
 
-1. Composer validation и установка dev-зависимостей.
+1. Composer validation, установка dev-зависимостей и блокирующие Composer/npm
+   security audit без известных high-risk зависимостей.
 2. Pint для банковского модуля.
 3. Все unit tests и feature tests банковского модуля с SQLite.
 4. `SBER_API_ENABLED=false`, поэтому запрос к Sber невозможен.

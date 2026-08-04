@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\API\AiPriceLists\PriceListImportController as AiPriceListImportController;
+use App\Http\Controllers\API\AiPriceLists\PriceListItemController as AiPriceListItemController;
 use App\Http\Controllers\API\BeelinePbxController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
@@ -111,6 +113,28 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::prefix('ai/price-lists')
+    ->name('api.ai.price-lists.')
+    ->middleware(['auth:sanctum', 'throttle:120,1'])
+    ->group(function (): void {
+        Route::get('/meta/entities', [AiPriceListImportController::class, 'entities'])->name('entities');
+        Route::get('/meta/goods', [AiPriceListImportController::class, 'goods'])->name('goods');
+        Route::get('/', [AiPriceListImportController::class, 'index'])->name('index');
+        Route::get('/{priceListImport}', [AiPriceListImportController::class, 'show'])->name('show');
+        Route::get('/{priceListImport}/download', [AiPriceListImportController::class, 'download'])->name('download');
+        Route::patch('/{priceListImport}/supplier', [AiPriceListImportController::class, 'assignSupplier'])->name('supplier');
+        Route::post('/{priceListImport}/classification', [AiPriceListImportController::class, 'classify'])->name('classification');
+        Route::post('/{priceListImport}/retry', [AiPriceListImportController::class, 'retry'])->name('retry');
+        Route::post('/{priceListImport}/cancel', [AiPriceListImportController::class, 'cancel'])->name('cancel');
+        Route::get('/{priceListImport}/apply-preview', [AiPriceListImportController::class, 'applyPreview'])->name('apply-preview');
+        Route::post('/{priceListImport}/apply', [AiPriceListImportController::class, 'apply'])->name('apply');
+        Route::get('/{priceListImport}/items', [AiPriceListItemController::class, 'index'])->name('items.index');
+        Route::patch('/{priceListImport}/items/{priceListItem}', [AiPriceListItemController::class, 'update'])->name('items.update');
+        Route::post('/{priceListImport}/items/{priceListItem}/decision', [AiPriceListItemController::class, 'decide'])->name('items.decision');
+        Route::post('/{priceListImport}/items/bulk-confirm-exact', [AiPriceListItemController::class, 'bulkConfirmExact'])->name('items.bulk-confirm-exact');
+        Route::post('/{priceListImport}/items/bulk-defaults', [AiPriceListItemController::class, 'bulkDefaults'])->name('items.bulk-defaults');
+    });
 
 /*
  * ------------------

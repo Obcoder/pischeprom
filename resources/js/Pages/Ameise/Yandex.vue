@@ -2,7 +2,7 @@
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {useHead} from "@vueuse/head";
+import {useHead} from "@unhead/vue";
 defineOptions({
     layout: VerwalterLayout,
 })

@@ -46,6 +46,9 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Reject vulnerable locked dependencies
+        run: composer audit --locked
+
       - name: Check banking PHP style
         run: |
           vendor/bin/pint --test \
@@ -162,7 +165,7 @@ jobs:
             tests/Unit/LogisticsRoutingSupportTest.php \
             tests/Unit/ValhallaRoutingProviderTest.php
 
-      - name: Run unit, logistics, banking, goods stock, orders, and products tests
+      - name: Run unit, logistics, banking, AI price-list, goods stock, orders, and products tests
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -180,6 +183,7 @@ jobs:
             tests/Unit \
             tests/Feature/Logistics \
             tests/Feature/Banking \
+            tests/Feature/AiPriceLists \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/OrderManagementTest.php \
@@ -195,6 +199,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Reject vulnerable frontend dependencies
+        run: npm audit --audit-level=high
 
       - name: Build client and SSR assets
         env:

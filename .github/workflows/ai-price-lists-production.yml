@@ -1,0 +1,475 @@
+name: Provision AI supplier price lists
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Use plan for read-only inspection or apply for production activation
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+      confirmation:
+        description: For apply only, enter ACTIVATE_AI_PRICE_LISTS
+        required: false
+        type: string
+      rotate_existing_key:
+        description: Create a new AI API key and retire older managed keys after successful activation
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pischeprom-ai-price-lists-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  provision:
+    name: ${{ inputs.action == 'apply' && 'Activate production service' || 'Plan production service' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: production
+
+    steps:
+      - name: Check out audited provisioner
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate inputs and metadata
+        env:
+          ACTION: ${{ inputs.action }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+        run: |
+          set -Eeuo pipefail
+
+          for required_name in YC_FOLDER_ID YC_OIDC_AUDIENCE YC_SERVICE_ACCOUNT_ID; do
+            [[ -n "${!required_name:-}" ]] || {
+              echo "::error::Required production variable ${required_name} is missing."
+              exit 1
+            }
+          done
+
+          [[ "$YC_FOLDER_ID" =~ ^[a-z0-9]{20}$ ]] || {
+            echo '::error::YC_FOLDER_ID has an unexpected format.'
+            exit 1
+          }
+          [[ "$YC_SERVICE_ACCOUNT_ID" =~ ^[a-z0-9]{20}$ ]] || {
+            echo '::error::YC_SERVICE_ACCOUNT_ID has an unexpected format.'
+            exit 1
+          }
+          [[ "$YC_OIDC_AUDIENCE" == "https://github.com/${GITHUB_REPOSITORY_OWNER}" ]] || {
+            echo '::error::YC_OIDC_AUDIENCE does not match the repository owner.'
+            exit 1
+          }
+          [[ "$GITHUB_REPOSITORY" == 'Obcoder/pischeprom' ]] || {
+            echo '::error::This provisioner is restricted to Obcoder/pischeprom.'
+            exit 1
+          }
+
+          if [[ "$ACTION" == 'apply' ]]; then
+            [[ "$CONFIRMATION" == 'ACTIVATE_AI_PRICE_LISTS' ]] || {
+              echo '::error::Apply requires the exact confirmation ACTIVATE_AI_PRICE_LISTS.'
+              exit 1
+            }
+
+            for required_name in SSH_HOST SSH_KNOWN_HOSTS SSH_PORT SSH_PRIVATE_KEY SSH_USER TARGET_DIR; do
+              [[ -n "${!required_name:-}" ]] || {
+                echo "::error::Required production secret ${required_name} is missing."
+                exit 1
+              }
+            done
+
+            [[ "$SSH_PORT" =~ ^[0-9]+$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 )) || {
+              echo '::error::PORT must be a valid TCP port.'
+              exit 1
+            }
+            [[ "$TARGET_DIR" =~ ^/[A-Za-z0-9._/-]+$ && "$TARGET_DIR" != '/' ]] || {
+              echo '::error::TARGET_DIR contains unsupported characters or is unsafe.'
+              exit 1
+            }
+          fi
+
+      - name: Exchange GitHub OIDC token for Yandex IAM token
+        env:
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+        run: |
+          set -Eeuo pipefail
+          oidc_response="$(mktemp)"
+          iam_response="$(mktemp)"
+          trap 'rm -f -- "$oidc_response" "$iam_response"' EXIT
+
+          oidc_status="$(
+            curl --silent --show-error --get \
+              --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              --data-urlencode "audience=${YC_OIDC_AUDIENCE}" \
+              --output "$oidc_response" --write-out '%{http_code}' \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL"
+          )"
+          [[ "$oidc_status" == '200' ]] || {
+            echo "::error::GitHub OIDC request failed with HTTP ${oidc_status}."
+            exit 1
+          }
+
+          oidc_token="$(jq -er '.value | select(type == "string" and length > 0)' "$oidc_response")"
+          echo "::add-mask::${oidc_token}"
+          iam_status="$(
+            curl --silent --show-error --request POST \
+              --header 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+              --data-urlencode 'requested_token_type=urn:ietf:params:oauth:token-type:access_token' \
+              --data-urlencode "audience=${YC_SERVICE_ACCOUNT_ID}" \
+              --data-urlencode "subject_token=${oidc_token}" \
+              --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+              --output "$iam_response" --write-out '%{http_code}' \
+              'https://auth.yandex.cloud/oauth/token'
+          )"
+          [[ "$iam_status" == '200' ]] || {
+            echo "::error::Yandex token exchange failed with HTTP ${iam_status}."
+            exit 1
+          }
+
+          iam_token="$(jq -er '.access_token | select(type == "string" and length > 0)' "$iam_response")"
+          echo "::add-mask::${iam_token}"
+          install -m 0600 /dev/null "${RUNNER_TEMP}/pischeprom-ai-iam-token"
+          printf '%s' "$iam_token" > "${RUNNER_TEMP}/pischeprom-ai-iam-token"
+
+      - name: Plan or reconcile the dedicated AI service account
+        id: iam
+        env:
+          ACTION: ${{ inputs.action }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+        run: |
+          set -Eeuo pipefail
+          iam_token="$(<"${RUNNER_TEMP}/pischeprom-ai-iam-token")"
+          service_account_name='pischeprom-ai-price-lists'
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+
+          request_json() {
+            local label="$1"
+            local method="$2"
+            local url="$3"
+            local output="$4"
+            local data_file="${5:-}"
+            local args=(--silent --show-error --request "$method" --header "Authorization: Bearer ${iam_token}" --output "$output" --write-out '%{http_code}')
+
+            if [[ -n "$data_file" ]]; then
+              args+=(--header 'Content-Type: application/json' --data-binary "@${data_file}")
+            fi
+
+            local status
+            status="$(curl "${args[@]}" "$url")"
+            [[ "$status" =~ ^2[0-9]{2}$ ]] || {
+              local message
+              message="$(jq -r '.message // .error_description // .error // "No API error message"' "$output" 2>/dev/null || true)"
+              message="${message//$'\n'/ }"
+              echo "::error::${label} failed with HTTP ${status}: ${message}"
+              return 1
+            }
+          }
+
+          list_service_accounts() {
+            request_json \
+              'Service-account list' GET \
+              "https://iam.api.cloud.yandex.net/iam/v1/serviceAccounts?folderId=${YC_FOLDER_ID}&pageSize=100" \
+              "$work_dir/service-accounts.json"
+          }
+
+          list_service_accounts
+          service_account_count="$(jq --arg name "$service_account_name" '[.serviceAccounts[]? | select(.name == $name)] | length' "$work_dir/service-accounts.json")"
+          (( service_account_count <= 1 )) || {
+            echo '::error::More than one managed AI service account was returned.'
+            exit 1
+          }
+          service_account_id="$(jq -r --arg name "$service_account_name" '.serviceAccounts[]? | select(.name == $name) | .id' "$work_dir/service-accounts.json")"
+
+          if [[ -z "$service_account_id" && "$ACTION" == 'apply' ]]; then
+            jq -n \
+              --arg folder "$YC_FOLDER_ID" \
+              --arg name "$service_account_name" \
+              '{folderId:$folder,name:$name,description:"Production AI supplier price-list extraction and OCR",labels:{component:"price-lists",environment:"production"}}' \
+              > "$work_dir/create-service-account.json"
+            request_json \
+              'Service-account creation' POST \
+              'https://iam.api.cloud.yandex.net/iam/v1/serviceAccounts' \
+              "$work_dir/create-service-account-response.json" \
+              "$work_dir/create-service-account.json"
+
+            for attempt in $(seq 1 15); do
+              sleep 2
+              list_service_accounts
+              service_account_id="$(jq -r --arg name "$service_account_name" '.serviceAccounts[]? | select(.name == $name) | .id' "$work_dir/service-accounts.json")"
+              [[ -n "$service_account_id" ]] && break
+            done
+            [[ "$service_account_id" =~ ^[a-z0-9]{20}$ ]] || {
+              echo '::error::Created AI service account did not become visible.'
+              exit 1
+            }
+            echo 'Dedicated AI service account created.'
+          fi
+
+          if [[ -z "$service_account_id" ]]; then
+            echo 'Plan: dedicated AI service account is absent and would be created.'
+            echo 'service_account_id=' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          [[ "$service_account_id" =~ ^[a-z0-9]{20}$ ]] || {
+            echo '::error::AI service-account ID has an unexpected format.'
+            exit 1
+          }
+          echo "service_account_id=${service_account_id}" >> "$GITHUB_OUTPUT"
+
+          request_json \
+            'Folder access-binding list' GET \
+            "https://resource-manager.api.cloud.yandex.net/resource-manager/v1/folders/${YC_FOLDER_ID}:listAccessBindings?pageSize=1000" \
+            "$work_dir/access-bindings.json"
+          missing_roles="$(
+            jq -r --arg id "$service_account_id" \
+              '["ai.languageModels.user","ai.vision.user"] as $required
+               | [.accessBindings[]? | select(.subject.type == "serviceAccount" and .subject.id == $id) | .roleId] as $actual
+               | $required - $actual | .[]' \
+              "$work_dir/access-bindings.json"
+          )"
+
+          if [[ -n "$missing_roles" && "$ACTION" == 'apply' ]]; then
+            jq -n --arg id "$service_account_id" --arg roles "$missing_roles" \
+              '{accessBindingDeltas:($roles | split("\n") | map(select(length > 0)) | map({action:"ADD",accessBinding:{roleId:.,subject:{id:$id,type:"serviceAccount"}}}))}' \
+              > "$work_dir/update-access-bindings.json"
+            request_json \
+              'Folder access-binding update' POST \
+              "https://resource-manager.api.cloud.yandex.net/resource-manager/v1/folders/${YC_FOLDER_ID}:updateAccessBindings" \
+              "$work_dir/update-access-bindings-response.json" \
+              "$work_dir/update-access-bindings.json"
+
+            for attempt in $(seq 1 15); do
+              sleep 2
+              request_json \
+                'Folder access-binding verification' GET \
+                "https://resource-manager.api.cloud.yandex.net/resource-manager/v1/folders/${YC_FOLDER_ID}:listAccessBindings?pageSize=1000" \
+                "$work_dir/access-bindings.json"
+              remaining="$(
+                jq -r --arg id "$service_account_id" \
+                  '["ai.languageModels.user","ai.vision.user"] as $required
+                   | [.accessBindings[]? | select(.subject.type == "serviceAccount" and .subject.id == $id) | .roleId] as $actual
+                   | $required - $actual | length' \
+                  "$work_dir/access-bindings.json"
+              )"
+              [[ "$remaining" == '0' ]] && break
+            done
+          fi
+
+          remaining="$(
+            jq -r --arg id "$service_account_id" \
+              '["ai.languageModels.user","ai.vision.user"] as $required
+               | [.accessBindings[]? | select(.subject.type == "serviceAccount" and .subject.id == $id) | .roleId] as $actual
+               | $required - $actual | length' \
+              "$work_dir/access-bindings.json"
+          )"
+
+          if [[ "$remaining" != '0' ]]; then
+            if [[ "$ACTION" == 'plan' ]]; then
+              echo "Plan: ${remaining} required role binding(s) would be added."
+            else
+              echo '::error::Required AI role bindings were not applied.'
+              exit 1
+            fi
+          else
+            echo 'Dedicated service account has the two required AI roles.'
+          fi
+
+      - name: Provision VPS, create a scoped key and activate the service
+        if: inputs.action == 'apply'
+        env:
+          ROTATE_EXISTING_KEY: ${{ inputs.rotate_existing_key }}
+          SERVICE_ACCOUNT_ID: ${{ steps.iam.outputs.service_account_id }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SERVICE_ACCOUNT_ID" =~ ^[a-z0-9]{20}$ ]] || {
+            echo '::error::Dedicated service account is unavailable.'
+            exit 1
+          }
+
+          iam_token="$(<"${RUNNER_TEMP}/pischeprom-ai-iam-token")"
+          work_dir="$(mktemp -d)"
+          install -m 0700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 0600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 0600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null
+          ssh-keygen -F "$SSH_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null \
+            || ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$HOME/.ssh/known_hosts" >/dev/null \
+            || {
+              echo '::error::Pinned known_hosts does not contain the production host.'
+              exit 1
+            }
+
+          ssh_options=(-i "$HOME/.ssh/deploy_key" -p "$SSH_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          scp_options=(-i "$HOME/.ssh/deploy_key" -P "$SSH_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh_target="${SSH_USER}@${SSH_HOST}"
+          remote_dir="$(ssh "${ssh_options[@]}" "$ssh_target" 'umask 077 && mktemp -d /tmp/pischeprom-price-lists.XXXXXXXXXX')"
+          [[ "$remote_dir" =~ ^/tmp/pischeprom-price-lists\.[A-Za-z0-9]+$ ]] || {
+            echo '::error::Production host returned an unsafe temporary directory.'
+            exit 1
+          }
+
+          created_key_id=''
+          activation_succeeded=0
+          cleanup() {
+            local exit_code=$?
+            trap - EXIT
+            ssh "${ssh_options[@]}" "$ssh_target" "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+            rm -rf -- "$work_dir"
+
+            if (( exit_code != 0 && activation_succeeded == 0 )) && [[ -n "$created_key_id" ]]; then
+              curl --silent --show-error --fail --request DELETE \
+                --header "Authorization: Bearer ${iam_token}" \
+                "https://iam.api.cloud.yandex.net/iam/v1/apiKeys/${created_key_id}" >/dev/null \
+                || echo '::warning::The unused newly-created API key could not be removed automatically.'
+            fi
+
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          scp "${scp_options[@]}" \
+            scripts/provision-production-price-lists.sh \
+            scripts/update-production-price-list-env.php \
+            deploy/systemd/pischeprom-price-lists-worker.service.template \
+            "${ssh_target}:${remote_dir}/"
+
+          target_dir_base64="$(printf '%s' "$TARGET_DIR" | base64 -w 0)"
+          ssh "${ssh_options[@]}" "$ssh_target" \
+            "target_dir=\$(printf '%s' '$target_dir_base64' | base64 --decode); bash '$remote_dir/provision-production-price-lists.sh' prepare \"\$target_dir\" '$remote_dir/pischeprom-price-lists-worker.service.template'"
+
+          key_list="$work_dir/api-keys.json"
+          key_status="$(
+            curl --silent --show-error --get \
+              --header "Authorization: Bearer ${iam_token}" \
+              --data-urlencode "serviceAccountId=${SERVICE_ACCOUNT_ID}" \
+              --data-urlencode 'pageSize=100' \
+              --output "$key_list" --write-out '%{http_code}' \
+              'https://iam.api.cloud.yandex.net/iam/v1/apiKeys'
+          )"
+          [[ "$key_status" == '200' ]] || {
+            echo "::error::API-key inventory failed with HTTP ${key_status}."
+            exit 1
+          }
+
+          mapfile -t managed_key_ids < <(
+            jq -r '.apiKeys[]? | select(.description == "pischeprom-ai-price-lists-production") | .id' "$key_list"
+          )
+          server_key_suffix="$(
+            ssh "${ssh_options[@]}" "$ssh_target" \
+              "target_dir=\$(printf '%s' '$target_dir_base64' | base64 --decode); sudo awk -F= '\$1 == \"YANDEX_AI_API_KEY\" { value=substr(\$0,index(\$0,\"=\")+1); gsub(/^\"|\"\$/,\"\",value); if (value ~ /^AQVN[A-Za-z0-9_-]+\$/) print substr(value,length(value)-5); exit }' \"\$target_dir/.env\""
+          )"
+          [[ -z "$server_key_suffix" || "$server_key_suffix" =~ ^[A-Za-z0-9_-]{6}$ ]] || {
+            echo '::error::The VPS contains a malformed Yandex AI API-key setting.'
+            exit 1
+          }
+
+          server_has_managed_key=0
+          if [[ -n "$server_key_suffix" ]]; then
+            matching_key_count="$(
+              jq --arg suffix "$server_key_suffix" \
+                '[.apiKeys[]? | select(.description == "pischeprom-ai-price-lists-production") | select(.maskedSecret | endswith($suffix))] | length' \
+                "$key_list"
+            )"
+            (( matching_key_count <= 1 )) || {
+              echo '::error::More than one managed API key matches the VPS configuration.'
+              exit 1
+            }
+            [[ "$matching_key_count" == '1' ]] && server_has_managed_key=1
+          fi
+
+          create_key=0
+          if [[ "$ROTATE_EXISTING_KEY" == 'true' || "$server_has_managed_key" != '1' ]]; then
+            create_key=1
+          fi
+
+          if (( create_key == 1 )) && [[ "$server_has_managed_key" != '1' && ${#managed_key_ids[@]} -gt 0 && "$ROTATE_EXISTING_KEY" != 'true' ]]; then
+            echo '::error::A managed API key exists, but the VPS is not configured. Rerun with rotate_existing_key after auditing the orphaned key.'
+            exit 1
+          fi
+
+          if (( create_key == 1 )); then
+            expires_at="$(date -u -d '+365 days' +%Y-%m-%dT%H:%M:%SZ)"
+            jq -n \
+              --arg id "$SERVICE_ACCOUNT_ID" \
+              --arg expires "$expires_at" \
+              '{serviceAccountId:$id,description:"pischeprom-ai-price-lists-production",scopes:["yc.ai.languageModels.execute","yc.ai.vision.execute"],expiresAt:$expires}' \
+              > "$work_dir/create-api-key.json"
+            key_create_status="$(
+              curl --silent --show-error --request POST \
+                --header "Authorization: Bearer ${iam_token}" \
+                --header 'Content-Type: application/json' \
+                --data-binary "@$work_dir/create-api-key.json" \
+                --output "$work_dir/create-api-key-response.json" --write-out '%{http_code}' \
+                'https://iam.api.cloud.yandex.net/iam/v1/apiKeys'
+            )"
+            [[ "$key_create_status" == '200' ]] || {
+              echo "::error::Scoped API-key creation failed with HTTP ${key_create_status}."
+              exit 1
+            }
+            created_key_id="$(jq -er '.apiKey.id | select(test("^[a-z0-9]{20}$"))' "$work_dir/create-api-key-response.json")"
+            api_key_secret="$(jq -er '.secret | select(type == "string" and startswith("AQVN"))' "$work_dir/create-api-key-response.json")"
+            echo "::add-mask::${api_key_secret}"
+            install -m 0600 /dev/null "$work_dir/yandex-ai-api-key"
+            printf '%s' "$api_key_secret" > "$work_dir/yandex-ai-api-key"
+            scp "${scp_options[@]}" "$work_dir/yandex-ai-api-key" "${ssh_target}:${remote_dir}/yandex-ai-api-key"
+
+            ssh "${ssh_options[@]}" "$ssh_target" \
+              "target_dir=\$(printf '%s' '$target_dir_base64' | base64 --decode); bash '$remote_dir/provision-production-price-lists.sh' activate \"\$target_dir\" '' '$remote_dir/yandex-ai-api-key' '$YC_FOLDER_ID' '$remote_dir/update-production-price-list-env.php'"
+          else
+            ssh "${ssh_options[@]}" "$ssh_target" \
+              "target_dir=\$(printf '%s' '$target_dir_base64' | base64 --decode); bash '$remote_dir/provision-production-price-lists.sh' verify \"\$target_dir\""
+          fi
+
+          activation_succeeded=1
+
+          if [[ "$ROTATE_EXISTING_KEY" == 'true' && -n "$created_key_id" ]]; then
+            for old_key_id in "${managed_key_ids[@]}"; do
+              [[ "$old_key_id" == "$created_key_id" ]] && continue
+              [[ "$old_key_id" =~ ^[a-z0-9]{20}$ ]] || continue
+              curl --silent --show-error --fail --request DELETE \
+                --header "Authorization: Bearer ${iam_token}" \
+                "https://iam.api.cloud.yandex.net/iam/v1/apiKeys/${old_key_id}" >/dev/null
+            done
+            echo 'Older managed AI API keys were retired after successful activation.'
+          fi
+
+          echo 'Production AI supplier price-list service is active and verified.'
+
+      - name: Remove short-lived credentials
+        if: always()
+        run: rm -f -- "${RUNNER_TEMP}/pischeprom-ai-iam-token"

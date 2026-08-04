@@ -8,7 +8,7 @@ import { createSSRApp, h } from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from 'ziggy-js'
-import { createHead } from '@vueuse/head'
+import { createHead } from '@unhead/vue/client'
 import { createAppVuetify } from '@/Plugins/vuetify'
 
 const head = createHead()

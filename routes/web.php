@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiPriceLists\PriceListPageController;
 use App\Http\Controllers\API\BuildingController;
 use App\Http\Controllers\API\CheckCommodityController;
 use App\Http\Controllers\API\CheckController;
@@ -230,6 +231,17 @@ Route::get('/Ameise/Mail', function () {
 Route::get('/Ameise/Max', function () {
     return Inertia::render('Ameise/Max');
 })->name('Ameise.max');
+
+Route::prefix('/Ameise/ai/price-lists')
+    ->name('Ameise.ai.price-lists.')
+    ->middleware([
+        'auth:sanctum',
+        config('jetstream.auth_session'),
+    ])
+    ->group(function (): void {
+        Route::get('/', [PriceListPageController::class, 'index'])->name('index');
+        Route::get('/{priceListImport}', [PriceListPageController::class, 'show'])->name('show');
+    });
 
 //
 

@@ -1,5 +1,5 @@
 <script setup>
-import {useHead} from "@vueuse/head";
+import {useHead} from "@unhead/vue";
 import {computed, onMounted, ref, watch} from "vue";
 import {useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";

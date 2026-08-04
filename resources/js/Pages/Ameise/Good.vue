@@ -2,7 +2,7 @@
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import { ref, onMounted, computed, reactive } from "vue";
 import axios from "axios";
-import { useHead } from "@vueuse/head";
+import { useHead } from "@unhead/vue";
 import { route } from "ziggy-js";
 import { useDate } from "vuetify";
 import { useForm } from "@inertiajs/vue3";

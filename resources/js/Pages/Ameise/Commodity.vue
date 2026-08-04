@@ -1,5 +1,5 @@
 <script setup>
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import CommodityShowPage from '@/Components/Dictionaries/Commodities/CommodityShowPage.vue'
 

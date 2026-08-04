@@ -11,6 +11,7 @@ class MaxWebhookEvent extends Model
 
     protected $fillable = [
         'update_id',
+        'deduplication_key',
         'update_type',
         'phone_normalized',
         'chat_id',

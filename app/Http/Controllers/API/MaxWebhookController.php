@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Domain\AiPriceLists\Services\MaxPriceListWebhookDispatcher;
 use App\Http\Controllers\Controller;
 use App\Models\MaxChat;
 use App\Models\MaxMessage;
@@ -9,16 +10,22 @@ use App\Models\MaxWebhookEvent;
 use App\Services\Goods\GoodStockAlertManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class MaxWebhookController extends Controller
 {
     public function __construct(
         private readonly GoodStockAlertManager $stockAlerts,
+        private readonly MaxPriceListWebhookDispatcher $priceLists,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
     {
         $secret = trim((string) config('services.max.webhook_secret'));
+
+        if ($secret === '' && app()->isProduction()) {
+            return response()->json(['message' => 'MAX webhook secret is not configured.'], 503);
+        }
 
         if ($secret !== '' && ! hash_equals($secret, (string) $request->header('X-Max-Bot-Api-Secret'))) {
             return response()->json([
@@ -31,8 +38,9 @@ class MaxWebhookController extends Controller
         $processed = 0;
 
         foreach ($updates as $update) {
-            $this->storeUpdate($update);
-            $processed++;
+            if (is_array($update) && $this->storeUpdate($update)) {
+                $processed++;
+            }
         }
 
         return response()->json([
@@ -54,7 +62,7 @@ class MaxWebhookController extends Controller
         return [$payload];
     }
 
-    private function storeUpdate(array $payload): void
+    private function storeUpdate(array $payload): bool
     {
         $updateType = $this->firstFilled($payload, [
             'update_type',
@@ -112,7 +120,21 @@ class MaxWebhookController extends Controller
             'message_id',
         ]);
 
-        MaxWebhookEvent::create([
+        if (! is_string($updateType) || trim($updateType) === '') {
+            return false;
+        }
+
+        if ($updateType === 'message_created' && ! is_array(data_get($payload, 'message', data_get($payload, 'body')))) {
+            return false;
+        }
+
+        $deduplicationKey = $this->deduplicationKey($payload, $updateType, $messageId);
+        $hasDeduplicationColumn = Schema::hasColumn('max_webhook_events', 'deduplication_key');
+        $identity = $hasDeduplicationColumn
+            ? ['deduplication_key' => $deduplicationKey]
+            : ['update_id' => $updateId ? (string) $updateId : 'dedupe:'.$deduplicationKey];
+
+        $event = MaxWebhookEvent::query()->firstOrCreate($identity, [
             'update_id' => $updateId ? (string) $updateId : null,
             'update_type' => $updateType ? (string) $updateType : null,
             'phone_normalized' => $phone,
@@ -121,6 +143,10 @@ class MaxWebhookController extends Controller
             'payload' => $payload,
             'processed_at' => now(),
         ]);
+
+        if (! $event->wasRecentlyCreated) {
+            return false;
+        }
 
         $chat = $this->upsertChat(
             $phone,
@@ -131,7 +157,9 @@ class MaxWebhookController extends Controller
             $updateType ? (string) $updateType : null,
         );
 
-        if ($chat && $text !== null) {
+        $attachments = data_get($payload, 'message.body.attachments', data_get($payload, 'body.attachments', []));
+
+        if ($chat && ($text !== null || (is_array($attachments) && $attachments !== []))) {
             $this->storeIncomingMessage($chat, $messageId, $text, $payload);
         }
 
@@ -140,6 +168,10 @@ class MaxWebhookController extends Controller
             $payload,
             $chat,
         );
+
+        $this->priceLists->dispatch($event);
+
+        return true;
     }
 
     private function upsertChat(
@@ -300,5 +332,34 @@ class MaxWebhookController extends Controller
         }
 
         return null;
+    }
+
+    private function deduplicationKey(array $payload, mixed $updateType, mixed $messageId): string
+    {
+        $canonical = $this->canonicalize($payload);
+
+        return hash('sha256', json_encode([
+            'type' => $updateType,
+            'message_id' => $messageId,
+            'timestamp' => data_get($payload, 'timestamp', data_get($payload, 'message.timestamp')),
+            'payload' => $canonical,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+    }
+
+    private function canonicalize(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->canonicalize($item);
+        }
+
+        return $value;
     }
 }

@@ -1,7 +1,7 @@
 <script setup>
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 
 defineOptions({

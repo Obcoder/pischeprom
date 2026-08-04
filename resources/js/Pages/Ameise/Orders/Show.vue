@@ -1,7 +1,7 @@
 <script setup>
 import axios from 'axios'
 import { Link, router } from '@inertiajs/vue3'
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
 

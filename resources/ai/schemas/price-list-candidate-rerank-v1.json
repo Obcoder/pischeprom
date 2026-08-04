@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selections"],
+  "properties": {
+    "selections": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item_id", "good_id", "confidence", "reason"],
+        "properties": {
+          "item_id": {"type": "integer", "minimum": 1},
+          "good_id": {"type": ["integer", "null"], "minimum": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "reason": {"type": "string", "maxLength": 255}
+        }
+      }
+    }
+  }
+}

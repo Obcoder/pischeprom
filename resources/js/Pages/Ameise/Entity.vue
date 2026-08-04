@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import axios from 'axios'
 import { Link, router } from '@inertiajs/vue3'
-import { useHead } from '@vueuse/head'
+import { useHead } from '@unhead/vue'
 import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import EntityDetailCard from '@/Components/Dictionaries/Entities/EntityDetailCard.vue'

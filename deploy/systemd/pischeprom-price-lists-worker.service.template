@@ -1,0 +1,22 @@
+[Unit]
+Description=Pischeprom Laravel AI supplier price-list queue worker
+After=network-online.target redis-server.service clamav-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APPLICATION_USER__
+Group=__RUNTIME_GROUP__
+SupplementaryGroups=clamav
+WorkingDirectory=__TARGET_DIR__
+ExecStart=__PHP_BINARY__ artisan queue:work redis --queue=price-lists --sleep=1 --tries=4 --timeout=180 --max-time=3600
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=240
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -135,10 +135,12 @@ mail_worker_stopped=0
 mail_notification_worker_stopped=0
 banking_worker_stopped=0
 routing_worker_stopped=0
+price_list_worker_stopped=0
 ssr_stopped=0
 mail_notification_worker_installed=0
 banking_worker_installed=0
 routing_worker_installed=0
+price_list_worker_installed=0
 
 if systemctl cat pischeprom-mail-notifications-worker.service >/dev/null 2>&1; then
     mail_notification_worker_installed=1
@@ -150,6 +152,10 @@ fi
 
 if systemctl cat pischeprom-routing-worker.service >/dev/null 2>&1; then
     routing_worker_installed=1
+fi
+
+if systemctl cat pischeprom-price-lists-worker.service >/dev/null 2>&1; then
+    price_list_worker_installed=1
 fi
 
 restore_application() {
@@ -173,6 +179,10 @@ restore_application() {
 
     if (( routing_worker_stopped == 1 )); then
         sudo systemctl start pischeprom-routing-worker >/dev/null 2>&1 || true
+    fi
+
+    if (( price_list_worker_stopped == 1 )); then
+        sudo systemctl start pischeprom-price-lists-worker >/dev/null 2>&1 || true
     fi
 
     if (( mail_notification_worker_stopped == 1 )); then
@@ -215,6 +225,11 @@ if (( routing_worker_installed == 1 )); then
     routing_worker_stopped=1
 fi
 
+if (( price_list_worker_installed == 1 )); then
+    sudo systemctl stop pischeprom-price-lists-worker
+    price_list_worker_stopped=1
+fi
+
 php artisan schedule:interrupt
 php artisan down --retry=60 --refresh=15
 maintenance_started=1
@@ -250,9 +265,11 @@ php artisan route:list --path=Ameise/bank >/dev/null
 php artisan route:list --path=Ameise/orders >/dev/null
 php artisan route:list --path=api/logistics >/dev/null
 php artisan route:list --path=Ameise/logistics >/dev/null
+php artisan route:list --path=Ameise/ai/price-lists >/dev/null
 php artisan route:list --path=unisender-go >/dev/null
 php artisan route:list --path=unsubscribe >/dev/null
 php artisan list mailings >/dev/null
+php artisan price-lists:production-preflight --schema >/dev/null
 
 if ! php artisan max:webhook:ensure >/dev/null 2>&1; then
     fail 'MAX webhook verification failed; rerun the command locally on the VPS.'
@@ -304,6 +321,13 @@ if (( routing_worker_installed == 1 )); then
     routing_worker_stopped=0
 else
     log 'WARNING: pischeprom-routing-worker.service is not installed; routing jobs will remain queued.'
+fi
+
+if (( price_list_worker_installed == 1 )); then
+    sudo systemctl start pischeprom-price-lists-worker
+    price_list_worker_stopped=0
+else
+    log 'WARNING: pischeprom-price-lists-worker.service is not installed; price-list jobs will remain queued.'
 fi
 
 sudo systemctl start pischeprom-ssr
