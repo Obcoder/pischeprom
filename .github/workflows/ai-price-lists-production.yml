@@ -155,10 +155,9 @@ jobs:
           install -m 0600 /dev/null "${RUNNER_TEMP}/pischeprom-ai-iam-token"
           printf '%s' "$iam_token" > "${RUNNER_TEMP}/pischeprom-ai-iam-token"
 
-      - name: Plan or reconcile the dedicated AI service account
+      - name: Resolve the pre-provisioned dedicated AI service account
         id: iam
         env:
-          ACTION: ${{ inputs.action }}
           YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
         run: |
           set -Eeuo pipefail
@@ -205,35 +204,9 @@ jobs:
           }
           service_account_id="$(jq -r --arg name "$service_account_name" '.serviceAccounts[]? | select(.name == $name) | .id' "$work_dir/service-accounts.json")"
 
-          if [[ -z "$service_account_id" && "$ACTION" == 'apply' ]]; then
-            jq -n \
-              --arg folder "$YC_FOLDER_ID" \
-              --arg name "$service_account_name" \
-              '{folderId:$folder,name:$name,description:"Production AI supplier price-list extraction and OCR",labels:{component:"price-lists",environment:"production"}}' \
-              > "$work_dir/create-service-account.json"
-            request_json \
-              'Service-account creation' POST \
-              'https://iam.api.cloud.yandex.net/iam/v1/serviceAccounts' \
-              "$work_dir/create-service-account-response.json" \
-              "$work_dir/create-service-account.json"
-
-            for attempt in $(seq 1 15); do
-              sleep 2
-              list_service_accounts
-              service_account_id="$(jq -r --arg name "$service_account_name" '.serviceAccounts[]? | select(.name == $name) | .id' "$work_dir/service-accounts.json")"
-              [[ -n "$service_account_id" ]] && break
-            done
-            [[ "$service_account_id" =~ ^[a-z0-9]{20}$ ]] || {
-              echo '::error::Created AI service account did not become visible.'
-              exit 1
-            }
-            echo 'Dedicated AI service account created.'
-          fi
-
           if [[ -z "$service_account_id" ]]; then
-            echo 'Plan: dedicated AI service account is absent and would be created.'
-            echo 'service_account_id=' >> "$GITHUB_OUTPUT"
-            exit 0
+            echo '::error::Pre-provisioned service account pischeprom-ai-price-lists was not found.'
+            exit 1
           fi
 
           [[ "$service_account_id" =~ ^[a-z0-9]{20}$ ]] || {
@@ -241,64 +214,7 @@ jobs:
             exit 1
           }
           echo "service_account_id=${service_account_id}" >> "$GITHUB_OUTPUT"
-
-          request_json \
-            'Folder access-binding list' GET \
-            "https://resource-manager.api.cloud.yandex.net/resource-manager/v1/folders/${YC_FOLDER_ID}:listAccessBindings?pageSize=1000" \
-            "$work_dir/access-bindings.json"
-          missing_roles="$(
-            jq -r --arg id "$service_account_id" \
-              '["ai.languageModels.user","ai.vision.user"] as $required
-               | [.accessBindings[]? | select(.subject.type == "serviceAccount" and .subject.id == $id) | .roleId] as $actual
-               | $required - $actual | .[]' \
-              "$work_dir/access-bindings.json"
-          )"
-
-          if [[ -n "$missing_roles" && "$ACTION" == 'apply' ]]; then
-            jq -n --arg id "$service_account_id" --arg roles "$missing_roles" \
-              '{accessBindingDeltas:($roles | split("\n") | map(select(length > 0)) | map({action:"ADD",accessBinding:{roleId:.,subject:{id:$id,type:"serviceAccount"}}}))}' \
-              > "$work_dir/update-access-bindings.json"
-            request_json \
-              'Folder access-binding update' POST \
-              "https://resource-manager.api.cloud.yandex.net/resource-manager/v1/folders/${YC_FOLDER_ID}:updateAccessBindings" \
-              "$work_dir/update-access-bindings-response.json" \
-              "$work_dir/update-access-bindings.json"
-
-            for attempt in $(seq 1 15); do
-              sleep 2
-              request_json \
-                'Folder access-binding verification' GET \
-                "https://resource-manager.api.cloud.yandex.net/resource-manager/v1/folders/${YC_FOLDER_ID}:listAccessBindings?pageSize=1000" \
-                "$work_dir/access-bindings.json"
-              remaining="$(
-                jq -r --arg id "$service_account_id" \
-                  '["ai.languageModels.user","ai.vision.user"] as $required
-                   | [.accessBindings[]? | select(.subject.type == "serviceAccount" and .subject.id == $id) | .roleId] as $actual
-                   | $required - $actual | length' \
-                  "$work_dir/access-bindings.json"
-              )"
-              [[ "$remaining" == '0' ]] && break
-            done
-          fi
-
-          remaining="$(
-            jq -r --arg id "$service_account_id" \
-              '["ai.languageModels.user","ai.vision.user"] as $required
-               | [.accessBindings[]? | select(.subject.type == "serviceAccount" and .subject.id == $id) | .roleId] as $actual
-               | $required - $actual | length' \
-              "$work_dir/access-bindings.json"
-          )"
-
-          if [[ "$remaining" != '0' ]]; then
-            if [[ "$ACTION" == 'plan' ]]; then
-              echo "Plan: ${remaining} required role binding(s) would be added."
-            else
-              echo '::error::Required AI role bindings were not applied.'
-              exit 1
-            fi
-          else
-            echo 'Dedicated service account has the two required AI roles.'
-          fi
+          echo 'Dedicated service account resolved; AI roles are verified by the apply runtime smoke tests.'
 
       - name: Provision VPS, create a scoped key and activate the service
         if: inputs.action == 'apply'

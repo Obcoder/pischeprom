@@ -33,10 +33,15 @@ Vue/Vite assets и управления деплоем по SSH.
 Для однократной подготовки AI-прайс-листов добавлен отдельный ручной workflow
 `.github/workflows/ai-price-lists-production.yml`. Его всегда запускают сначала с
 `action=plan`, затем с `action=apply` и точным подтверждением
-`ACTIVATE_AI_PRICE_LISTS`. Он использует существующую GitHub→Yandex OIDC-федерацию,
-создаёт выделенный service account только с ролями `ai.languageModels.user` и
-`ai.vision.user`, а API key — только со scopes `yc.ai.languageModels.execute` и
-`yc.ai.vision.execute` и сроком один год.
+`ACTIVATE_AI_PRICE_LISTS`. Выделенный service account
+`pischeprom-ai-price-lists` и его роли каталога `ai.languageModels.user` и
+`ai.vision.user` создаются один раз вручную. Workflow использует существующую
+GitHub→Yandex OIDC-федерацию, находит этот аккаунт по точному имени и создаёт API key
+только со scopes `yc.ai.languageModels.execute` и `yc.ai.vision.execute` и сроком
+один год. Для OIDC-аккаунта достаточно роли `iam.serviceAccounts.apiKeyAdmin`,
+назначенной непосредственно на `pischeprom-ai-price-lists`; читать или менять роли
+всего каталога ему не требуется. Наличие обеих AI-ролей подтверждают реальные
+runtime smoke-тесты AI Studio и Vision во время `apply`.
 
 AI API key не сохраняется в GitHub secrets/artifacts: одноразовое значение маскируется,
 передаётся напрямую во временный файл VPS с mode `0600`, атомарно переносится в
