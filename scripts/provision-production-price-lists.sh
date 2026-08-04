@@ -72,6 +72,20 @@ wait_for_clamav_scan() {
     return 1
 }
 
+report_clamav_failure() {
+    log 'ClamAV diagnostic: service state follows.'
+    sudo systemctl show clamav-daemon.service \
+        --property=LoadState,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,NRestarts,MemoryCurrent \
+        --no-pager || true
+    log 'ClamAV diagnostic: recent daemon journal follows.'
+    sudo journalctl -u clamav-daemon.service -n 40 --no-pager -o cat || true
+    log 'ClamAV diagnostic: memory summary follows.'
+    free -m || true
+    log 'ClamAV diagnostic: recent kernel OOM events follow.'
+    sudo journalctl -k --since '-5 minutes' --no-pager -o cat \
+        | grep -Ei 'out of memory|oom-kill|killed process' || true
+}
+
 has_clamav_database() {
     sudo find /var/lib/clamav -maxdepth 1 -type f \
         \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print -quit | grep -q .
@@ -176,6 +190,7 @@ prepare_host() {
     sudo chown "$application_owner:clamav" "$clamav_smoke"
     if ! wait_for_clamav_scan "$clamav_smoke"; then
         rm -f -- "$clamav_smoke"
+        report_clamav_failure
         fail 'ClamAV daemon did not become ready for the harmless streaming smoke test.'
     fi
     rm -f -- "$clamav_smoke"
