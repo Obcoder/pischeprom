@@ -93,6 +93,8 @@ has_clamav_database() {
 
 clamav_database_is_usable() {
     has_clamav_database || return 1
+    sudo find /var/lib/clamav -maxdepth 1 -type f -name '*.sign' -size +100c -print -quit \
+        | grep -q . || return 1
 
     local scan_target
     scan_target="$(mktemp)"
@@ -145,11 +147,11 @@ seed_clamav_database_from_official_image() {
     if (( status == 0 )); then
         while IFS= read -r -d '' database_file; do
             sudo install -m 0644 -o clamav -g clamav "$database_file" /var/lib/clamav/
-            if [[ -f "${database_file}.sign" ]]; then
-                sudo install -m 0644 -o clamav -g clamav "${database_file}.sign" /var/lib/clamav/
-            fi
         done < <(find "$seed_dir" -maxdepth 1 -type f \
             \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print0)
+        while IFS= read -r -d '' signature_file; do
+            sudo install -m 0644 -o clamav -g clamav "$signature_file" /var/lib/clamav/
+        done < <(find "$seed_dir" -maxdepth 1 -type f -name '*.sign' -size +100c -print0)
     fi
 
     rm -rf -- "$seed_dir"
