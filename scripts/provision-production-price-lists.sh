@@ -48,12 +48,58 @@ detect_clamav_socket() {
 wait_for_clamav() {
     local socket_path="$1"
 
-    for attempt in $(seq 1 30); do
+    for _ in $(seq 1 30); do
         [[ -S "$socket_path" ]] && return 0
         sleep 2
     done
 
     return 1
+}
+
+has_clamav_database() {
+    sudo find /var/lib/clamav -maxdepth 1 -type f \
+        \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print -quit | grep -q .
+}
+
+seed_clamav_database_from_official_image() {
+    local image='clamav/clamav:1.5.3@sha256:afbacf91caa6e02cd3b86238a4b130255bc465c8928dfe505cae63ae22c7e966'
+    local container_id=''
+    local seed_dir
+    local status=0
+
+    [[ "$(dpkg --print-architecture)" == 'amd64' ]] || return 1
+    command -v docker >/dev/null || return 1
+    seed_dir="$(mktemp -d)"
+
+    sudo docker pull "$image" || status=1
+    if (( status == 0 )); then
+        container_id="$(sudo docker create --entrypoint /bin/true "$image")" || status=1
+    fi
+    if (( status == 0 )); then
+        sudo docker cp "${container_id}:/var/lib/clamav/." "$seed_dir/" || status=1
+    fi
+    if [[ -n "$container_id" ]]; then
+        sudo docker rm --force "$container_id" >/dev/null 2>&1 || true
+    fi
+
+    if (( status == 0 )); then
+        local database_count
+        database_count="$(find "$seed_dir" -maxdepth 1 -type f \
+            \( -name '*.cvd' -o -name '*.cld' \) -size +100k | wc -l)"
+        (( database_count >= 2 )) || status=1
+    fi
+    if (( status == 0 )); then
+        clamscan --database="$seed_dir" --no-summary /dev/null >/dev/null || status=1
+    fi
+    if (( status == 0 )); then
+        while IFS= read -r -d '' database_file; do
+            sudo install -m 0644 -o clamav -g clamav "$database_file" /var/lib/clamav/
+        done < <(find "$seed_dir" -maxdepth 1 -type f \
+            \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print0)
+    fi
+
+    rm -rf -- "$seed_dir"
+    (( status == 0 ))
 }
 
 prepare_host() {
@@ -80,12 +126,16 @@ prepare_host() {
     command -v tiff2pdf >/dev/null || fail 'tiff2pdf is unavailable.'
     getent group clamav >/dev/null || fail 'ClamAV group is unavailable.'
 
-    if ! sudo find /var/lib/clamav -maxdepth 1 -type f \
-        \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print -quit | grep -q .
-    then
+    if ! has_clamav_database; then
         sudo systemctl stop clamav-freshclam.service >/dev/null 2>&1 || true
-        sudo freshclam --stdout
+        sudo freshclam --stdout || true
     fi
+    if ! has_clamav_database; then
+        log 'FreshClam database is unavailable; bootstrapping signed databases from the pinned official ClamAV image.'
+        seed_clamav_database_from_official_image \
+            || fail 'ClamAV databases could not be bootstrapped from the official image.'
+    fi
+    has_clamav_database || fail 'ClamAV signature database is unavailable.'
 
     sudo systemctl enable --now clamav-freshclam.service >/dev/null 2>&1 || true
     sudo systemctl enable --now clamav-daemon.service
@@ -151,7 +201,9 @@ activate_application() {
     was_active=0
     activated=0
 
-    sudo systemctl is-active --quiet pischeprom-price-lists-worker.service && was_active=1 || true
+    if sudo systemctl is-active --quiet pischeprom-price-lists-worker.service; then
+        was_active=1
+    fi
     sudo install -d -m 0750 -o "$application_owner" -g "$runtime_group" "$backup_dir"
     sudo install -m 0600 -o "$env_owner" -g "$env_group" "$env_path" "$backup_path"
 

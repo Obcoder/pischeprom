@@ -212,6 +212,7 @@ frontend-переменные `VITE_*`.
 - [актуальные модели](https://aistudio.yandex.ru/docs/ru/ai-studio/concepts/generation/models.html)
 - [Vision OCR quickstart](https://yandex.cloud/ru/docs/vision/quickstart)
 - [API key и scopes](https://yandex.cloud/ru/docs/iam/concepts/authorization/api-key)
+- [официальные Docker images ClamAV](https://docs.clamav.net/manual/Installing/Docker.html)
 - [MAX subscriptions](https://dev.max.ru/docs-api/methods/POST/subscriptions),
   [получение сообщения](https://dev.max.ru/docs-api/methods/GET/messages/-messageId-/),
   [Message](https://dev.max.ru/docs-api/objects/Message),
@@ -297,7 +298,11 @@ php artisan price-lists:recover-stale
 - secrets, Authorization, URL файла и полный документ не попадают в audit/AI usage;
 - Office ZIP и MIME проверяются по содержимому; формулы не вычисляются;
 - `PRICE_LIST_FILE_SCANNER=clamav` обязателен для production-активации. Workflow
-  определяет локальный Unix socket и проверяет его безопасным синтетическим файлом;
+  определяет локальный Unix socket и проверяет его безопасным синтетическим файлом.
+  Если первичная загрузка базы через FreshClam недоступна из-за CDN cooldown,
+  provisioner один раз извлекает подписанную базу из официального образа
+  `clamav/clamav:1.5.3`, закреплённого по digest и совпадающего с host engine,
+  проверяет её локальным `clamscan`, после чего обновления снова выполняет FreshClam;
   default `null` оставлен только для локальной разработки и тестов;
 - дневные/месячные token и OCR page budgets проверяются до внешнего запроса;
 - `PRICE_LIST_RETENTION_DAYS` задаёт политику, но модуль намеренно ничего не удаляет
