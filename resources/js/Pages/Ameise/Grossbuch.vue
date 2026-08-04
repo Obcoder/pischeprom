@@ -12,17 +12,12 @@ defineOptions({
     layout: VerwalterLayout,
 })
 
-import CommoditiesPage from '@/Components/Dictionaries/Commodities/CommoditiesPage.vue';
-import Categories from '@/Components/Dictionaries/Categories.vue';
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Fields from "@/Components/Dictionaries/Fields.vue";
-import Goods from "@/Components/Dictionaries/Goods.vue";
 import GrossbuchSales from '@/Components/Grossbuch/GrossbuchSales.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
-import Products from '@/Components/Dictionaries/Products.vue';
 import Purchases from "@/Pages/Purchases/Purchases.vue";
-import ServicesPage from '@/Components/Dictionaries/Services/ServicesPage.vue';
 import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
 import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
@@ -38,12 +33,10 @@ const date = useDate()
 
 const GROSSBUCH_TAB_KEY = 'ameise:grossbuch:tab'
 const GROSSBUCH_CONTACTS_TAB_KEY = 'ameise:grossbuch:contacts-tab'
-const GROSSBUCH_PRODUCTS_TAB_KEY = 'ameise:grossbuch:products-tab'
 const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
 const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
-const allowedTabs = ['units', 'contacts', 'products', 'segments', 'purchases', 'sales']
+const allowedTabs = ['units', 'contacts', 'segments', 'purchases', 'sales']
 const allowedContactTabs = ['telephones', 'uris', 'emails']
-const allowedProductTabs = ['categories', 'categories_products', 'goods', 'components', 'commodities', 'services']
 
 function storedTab(key, fallback, allowed = null) {
     if (typeof window === 'undefined') {
@@ -70,30 +63,23 @@ function rememberTab(key, value) {
 function loadStoredTabs() {
     tab.value = storedTab(GROSSBUCH_TAB_KEY, 'units', allowedTabs)
     tabsContacts.value = storedTab(GROSSBUCH_CONTACTS_TAB_KEY, 'telephones', allowedContactTabs)
-    tabsProducts.value = storedTab(GROSSBUCH_PRODUCTS_TAB_KEY, 'categories', allowedProductTabs)
     tabsSegments.value = storedTab(GROSSBUCH_SEGMENTS_TAB_KEY, 'industries')
     tabsUnits.value = storedTab(GROSSBUCH_UNITS_TAB_KEY, 'units_sub')
 }
 
 const tab = ref('units')
 const tabsContacts = ref('telephones')
-const tabsProducts = ref('categories')
 const tabsSegments = ref('industries')
 const tabsUnits = ref('units_sub')
 
 const brands = ref([])
 const catalogs = ref([])
-const categories = ref([])
 const checks = ref([])
-const commodities = ref([])
-const components = ref([])
 const emails = ref([])
 const entityClassifications = ref([])
 const good = ref(null)
-const goods = ref([])
 const labels = ref([])
 const measures = ref([])
-const products = ref([])
 const purchases = ref([])
 const sale = ref()
 const sales = ref([])
@@ -101,11 +87,7 @@ const segments = ref([])
 
 let manufacturers = ref();
 
-let searchComponents = ref('');
-
 const dialogFormCheck = ref(false)
-
-const selectedCategoriesIDs = ref([])
 
 const headersCatalogs = ref([
     {
@@ -165,19 +147,6 @@ function indexCatalogs(){
         console.log(error)
     })
 }
-//   C A T E G O R I E S
-function indexCategories(){
-    axios.get(route('categories.index')).then(function (response) {
-        // handle success
-        categories.value = response.data
-    }).catch(function (error) {
-        // handle error
-        console.error(error);
-    })
-        .finally(function () {
-            // always executed
-        });
-}
 //   C H E C K S
 function indexChecks(){
     axios.get(route('checks.index')).then(function (response){
@@ -186,40 +155,6 @@ function indexChecks(){
         console.log(error)
     })
 }
-
-
-
-//     C O M P O N E N T S
-function indexComponents(){
-    axios.get(route('components.index')).then(function (response){
-        components.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
-}
-const headerComponents = ref([
-    {
-        key: 'name',
-        title: 'name',
-        align: 'start',
-        sortable: true,
-    },
-])
-const formComponent = useForm({
-    name: null,
-})
-function storeComponent(){
-    formComponent.post(route('api.components.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: ()=> {
-            formComponent.reset();
-            indexComponents()
-        },
-    });
-}
-// E N D  C O M P O N E N T S
 
 
 
@@ -251,27 +186,6 @@ function indexMeasures(){
         console.error(error)
     })
 }
-//   P R O D U C T S
-function indexProducts(){
-    axios.get(route('products.index')).then(function (response) {
-        // handle success
-        products.value = response.data
-    }).catch(function (error) {
-        // handle error
-        console.error(error);
-    }).finally(function () {
-        // always executed
-    });
-}
-
-// Функция выбора категорий
-const toggleCategories = (categoryId) => {
-    if (selectedCategoriesIDs.value.includes(categoryId)) {
-        selectedCategoriesIDs.value = selectedCategoriesIDs.value.filter((id) => id !== categoryId);
-    } else {
-        selectedCategoriesIDs.value.push(categoryId);
-    }
-};
 //   P U R C H A S E S
 function indexPurchases(){
     axios.get(route('purchases.index')).then(function (response){
@@ -449,13 +363,10 @@ onMounted(()=>{
     loadStoredTabs()
     indexBrands()
     indexCatalogs()
-    indexCategories()
     indexChecks()
-    indexComponents()
     indexEntityClassifications()
     indexLabels()
     indexMeasures()
-    indexProducts()
     indexPurchases()
     indexSegments()
     indexUnits()
@@ -465,7 +376,6 @@ onMounted(()=>{
 
 watch(tab, (value) => rememberTab(GROSSBUCH_TAB_KEY, value))
 watch(tabsContacts, (value) => rememberTab(GROSSBUCH_CONTACTS_TAB_KEY, value))
-watch(tabsProducts, (value) => rememberTab(GROSSBUCH_PRODUCTS_TAB_KEY, value))
 watch(tabsSegments, (value) => rememberTab(GROSSBUCH_SEGMENTS_TAB_KEY, value))
 watch(tabsUnits, (value) => rememberTab(GROSSBUCH_UNITS_TAB_KEY, value))
 
@@ -506,7 +416,6 @@ const style = `
                         <v-tabs v-model="tab">
                             <v-tab value="units">Объекты</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
-                            <v-tab value="products">Products</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
                             <v-tab value="purchases">Закупки</v-tab>
                             <v-tab value="sales">Продажи</v-tab>
@@ -560,77 +469,6 @@ const style = `
                                     </v-row>
                                 </v-tabs-window-item>
                                 <!--        К О Н Е Ц  К О Н Т А К Т Ы         -->
-
-
-                                <!--   P R O D U C T S   -->
-                                <v-tabs-window-item value="products">
-                                    <v-tabs v-model="tabsProducts">
-                                        <v-tab value="categories">Categories</v-tab>
-                                        <v-tab value="categories_products">Products</v-tab>
-                                        <v-tab value="goods">Goods</v-tab>
-                                        <v-tab value="components">Components</v-tab>
-                                        <v-tab value="commodities">Commodities</v-tab>
-                                        <v-tab value="services">Услуги</v-tab>
-                                    </v-tabs>
-                                    <v-tabs-window v-model="tabsProducts">
-                                        <v-tabs-window-item value="categories">
-                                            <v-container fluid class="pa-0">
-                                                <v-row no-gutters>
-                                                    <v-col cols="12">
-                                                        <Categories />
-                                                    </v-col>
-                                                </v-row>
-                                            </v-container>
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="categories_products">
-                                            <Products />
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="goods">
-                                            <Goods />
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="components">
-                                            <v-container fluid>
-                                                <v-row>
-                                                    <v-col>
-                                                        <v-text-field v-model="searchComponents"
-                                                                      label="search components"
-                                                                      variant="solo"
-                                                                      density="comfortable"
-                                                                      clearable
-                                                                      hide-details
-                                                                      class="border rounded"
-                                                        ></v-text-field>
-                                                    </v-col>
-                                                </v-row>
-                                                <v-row>
-                                                    <v-col>
-                                                        <v-data-table :items="components"
-                                                                      items-per-page="150"
-                                                                      :headers="headerComponents"
-                                                                      fixed-header
-                                                                      height="810px"
-                                                                      density="compact"
-                                                                      hover
-                                                                      class="border rounded border-lime-300"
-                                                        ></v-data-table>
-                                                    </v-col>
-                                                </v-row>
-                                            </v-container>
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="commodities">
-                                            <CommoditiesPage />
-                                        </v-tabs-window-item>
-
-                                        <v-tabs-window-item value="services">
-                                            <ServicesPage />
-                                        </v-tabs-window-item>
-                                    </v-tabs-window>
-                                </v-tabs-window-item>
-                                <!--  E N D  P R O D U C T S  -->
 
 
                                 <!--           S A L E S           -->

@@ -758,6 +758,16 @@ onMounted(fetchWorkingLeads)
             <template #append>
                 <div class="ameise-header-actions">
                     <Link
+                        :href="route('Ameise.products')"
+                        class="ameise-header-control ameise-header-icon ameise-products-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.products')) }"
+                        title="Products"
+                        aria-label="Products"
+                    >
+                        <v-icon icon="mdi-package-variant-closed" size="21" />
+                    </Link>
+
+                    <Link
                         v-if="canViewOrders"
                         :href="route('Ameise.orders.index')"
                         class="ameise-header-control ameise-header-icon ameise-orders-icon"
@@ -1336,6 +1346,11 @@ onMounted(fetchWorkingLeads)
 .ameise-orders-icon {
     --ameise-glow: 249 115 22;
     color: #fed7aa;
+}
+
+.ameise-products-icon {
+    --ameise-glow: 14 165 233;
+    color: #bae6fd;
 }
 
 .ameise-bank-icon {
