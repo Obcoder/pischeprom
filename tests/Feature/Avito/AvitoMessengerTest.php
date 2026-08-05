@@ -181,9 +181,13 @@ class AvitoMessengerTest extends TestCase
             'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crud/messages/outgoing-1' => Http::response([]),
             'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crud/read' => Http::response(['ok' => true]),
             'https://api.avito.ru/messenger/v2/accounts/777/blacklist' => Http::response([], 200),
-            'https://api.avito.ru/messenger/v1/subscriptions' => Http::response(['subscriptions' => []]),
-            'https://api.avito.ru/messenger/v3/webhook' => Http::response(['ok' => true]),
-            'https://api.avito.ru/messenger/v1/webhook/unsubscribe' => Http::response(['ok' => true]),
+            'https://api.avito.ru/messenger/v1/subscriptions' => Http::response(
+                '{"subscriptions":[{"url":"https://example.test/webhook","version":"3"}]}',
+                200,
+                ['Content-Type' => 'text/plain']
+            ),
+            'https://api.avito.ru/messenger/v3/webhook' => Http::response('{"ok":true}', 200, ['Content-Type' => 'text/plain']),
+            'https://api.avito.ru/messenger/v1/webhook/unsubscribe' => Http::response('{"ok":true}', 200, ['Content-Type' => 'text/plain']),
         ]);
 
         $sent = $this->postJson("/api/avito/messenger/chats/{$chat->id}/messages", ['text' => 'Ответ клиенту'])
@@ -195,7 +199,10 @@ class AvitoMessengerTest extends TestCase
             ->assertOk();
         $this->postJson("/api/avito/messenger/chats/{$chat->id}/blacklist", ['reason_id' => 1])
             ->assertOk();
-        $this->getJson('/api/avito/messenger/subscriptions')->assertOk()->assertJsonCount(0, 'items');
+        $this->getJson('/api/avito/messenger/subscriptions')
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.version', '3');
         $this->postJson('/api/avito/messenger/subscriptions')->assertOk();
         $this->deleteJson('/api/avito/messenger/subscriptions')->assertOk();
         $this->deleteJson("/api/avito/messenger/messages/{$messageId}")

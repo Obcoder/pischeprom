@@ -545,7 +545,20 @@ class AvitoApiExecutor
         $contentType = Str::lower((string) $response->header('Content-Type'));
         $isJson = Str::contains($contentType, ['application/json', '+json']);
         $isText = $isJson || Str::startsWith($contentType, 'text/') || $contentType === '';
-        $data = $isJson ? json_decode($body, true) : ($isText ? $body : base64_encode($body));
+        $decodedJson = null;
+        $hasDecodedJson = false;
+
+        // Some live Messenger endpoints return a valid JSON document with an
+        // empty or text Content-Type. Accept only syntactically valid JSON;
+        // ordinary textual and binary responses keep their original handling.
+        if ($isText && $body !== '') {
+            $decodedJson = json_decode($body, true);
+            $hasDecodedJson = json_last_error() === JSON_ERROR_NONE;
+        }
+
+        $data = $hasDecodedJson
+            ? $decodedJson
+            : ($isText ? $body : base64_encode($body));
 
         return [
             'request_id' => $requestId,
