@@ -176,6 +176,7 @@ jobs:
             app/Domain/Avito \
             app/Http/Controllers/AvitoController.php \
             app/Http/Controllers/AvitoCrmController.php \
+            app/Http/Controllers/AvitoMessageTemplateController.php \
             app/Http/Controllers/AvitoMessengerController.php \
             app/Jobs/Avito \
             app/Models/AvitoApiCall.php \
@@ -185,6 +186,8 @@ jobs:
             app/Models/AvitoConnection.php \
             app/Models/AvitoMessage.php \
             app/Models/AvitoMessageAttachment.php \
+            app/Models/AvitoMessageTemplate.php \
+            app/Models/AvitoMessageTemplateUsage.php \
             app/Models/AvitoMessengerAccount.php \
             app/Models/AvitoMessengerSyncRun.php \
             app/Models/AvitoWebhookEvent.php \
@@ -193,6 +196,8 @@ jobs:
             database/migrations/2026_08_05_100000_create_avito_integration_tables.php \
             database/migrations/2026_08_05_110000_create_avito_messenger_archive_tables.php \
             database/migrations/2026_08_05_130000_add_crm_context_to_avito_messenger.php \
+            database/migrations/2026_08_05_140000_create_avito_message_templates.php \
+            database/seeders/AvitoMessageTemplateSeeder.php \
             scripts/update-production-avito-env.php \
             tests/Feature/Avito \
             tests/Unit/Avito

@@ -24,6 +24,9 @@ const subscriptions = ref([])
 const selectedConnectionId = ref(null)
 const activeRun = ref(null)
 const composerText = ref('')
+const composerTemplateId = ref(null)
+const composerTemplateName = ref('')
+const composerInput = ref(null)
 const imageInput = ref(null)
 const messageStream = ref(null)
 const crmPanel = ref(null)
@@ -101,6 +104,7 @@ async function openChat(chat) {
     selectedChat.value = chat
     messages.value = []
     messagesMeta.value = { current_page: 1, last_page: 1, total: 0 }
+    clearComposerTemplate()
     await loadChatPage(1, false)
 }
 
@@ -208,9 +212,13 @@ async function sendText() {
     if (!text || !selectedChat.value) return
     sending.value = true
     try {
-        const { data } = await axios.post(`/api/avito/messenger/chats/${selectedChat.value.id}/messages`, { text })
+        const { data } = await axios.post(`/api/avito/messenger/chats/${selectedChat.value.id}/messages`, {
+            text,
+            template_id: composerTemplateId.value || undefined,
+        })
         messages.value = uniqueMessages([...messages.value, data.item])
         composerText.value = ''
+        clearComposerTemplate()
         await scrollToBottom()
         await loadChats(chatsMeta.value.current_page)
     } catch (exception) {
@@ -264,6 +272,29 @@ function handleContactCandidate(candidate) {
 
 function openCrmCatalog() {
     crmPanel.value?.openCatalog()
+}
+
+function openMessageTemplates() {
+    crmPanel.value?.openTemplates()
+}
+
+async function insertMessageTemplate(payload) {
+    composerText.value = payload.text || ''
+    composerTemplateId.value = payload.template_id || null
+    composerTemplateName.value = payload.template_name || ''
+    await nextTick()
+    composerInput.value?.focus()
+}
+
+async function handleTemplateSent(message) {
+    messages.value = uniqueMessages([...messages.value, message])
+    await scrollToBottom()
+    await loadChats(chatsMeta.value.current_page)
+}
+
+function clearComposerTemplate() {
+    composerTemplateId.value = null
+    composerTemplateName.value = ''
 }
 
 async function deleteMessage(message) {
@@ -452,9 +483,10 @@ onBeforeUnmount(() => {
                     <footer class="composer">
                         <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="sendImage">
                         <v-btn icon="mdi-package-variant-closed-plus" size="small" variant="text" :disabled="sending" title="Выбрать товар из Пищепром-Сервера" @click="openCrmCatalog" />
+                        <v-btn icon="mdi-text-box-multiple-outline" size="small" variant="text" :disabled="sending" title="Шаблоны сообщений" @click="openMessageTemplates" />
                         <v-btn icon="mdi-image-plus-outline" size="small" variant="text" :disabled="sending" title="Отправить изображение" @click="selectImage" />
-                        <v-textarea v-model="composerText" placeholder="Сообщение до 1000 символов" rows="1" max-rows="4" auto-grow density="compact" variant="solo-filled" hide-details maxlength="1000" @keydown.ctrl.enter.prevent="sendText" />
-                        <span>{{ composerText.length }}/1000</span>
+                        <v-textarea ref="composerInput" v-model="composerText" :placeholder="composerTemplateName ? `Шаблон: ${composerTemplateName}` : 'Сообщение до 1000 символов'" rows="1" max-rows="4" auto-grow density="compact" variant="solo-filled" hide-details maxlength="1000" @keydown.ctrl.enter.prevent="sendText" />
+                        <span :title="composerTemplateName ? `Используется шаблон «${composerTemplateName}»` : ''">{{ composerText.length }}/1000<b v-if="composerTemplateId">Ш</b></span>
                         <v-btn icon="mdi-send" color="deep-purple-lighten-1" size="small" :loading="sending" :disabled="!canSend" @click="sendText" />
                     </footer>
                 </template>
@@ -469,6 +501,8 @@ onBeforeUnmount(() => {
                 @error="(message) => emit('error', message)"
                 @chat-updated="refreshAfterCrmMutation"
                 @refresh-messages="refreshMessagesFromCrm"
+                @insert-template="insertMessageTemplate"
+                @template-sent="handleTemplateSent"
             />
 
             <aside v-else class="messenger-info-pane">
@@ -502,7 +536,7 @@ onBeforeUnmount(() => {
 .message-stream { display: flex; overflow-y: auto; flex: 1; flex-direction: column; gap: 5px; padding: 12px 14px; }.older-button { align-self: center; margin: 3px 0 9px; }
 .message-bubble { width: fit-content; max-width: min(76%, 680px); padding: 7px 9px 4px; border: 1px solid #343951; border-radius: 11px 11px 11px 3px; background: #20243b; box-shadow: 0 4px 12px rgba(0, 0, 0, .12); }.message-bubble.is-out { align-self: flex-end; border-color: rgba(132, 103, 239, .38); border-radius: 11px 11px 3px; background: #392d62; }.message-bubble.is-deleted { border-style: dashed; opacity: .82; }.message-bubble p { margin: 0; color: #f0f1ff; font-size: 12px; line-height: 1.38; white-space: pre-wrap; word-break: break-word; }.message-bubble audio { width: 260px; max-width: 100%; height: 34px; }.message-image { overflow: hidden; max-width: 360px; margin: -3px -5px 4px; border-radius: 7px; }.message-image img { display: block; width: 100%; max-height: 320px; object-fit: contain; background: #0d1020; }.message-bubble footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; color: #8f95b5; font-size: 8px; }.message-bubble footer span { margin-right: auto; text-transform: uppercase; }.archive-marker { display: flex; align-items: center; gap: 3px; margin-top: 5px; color: #d2a4ae; font-size: 8px; }
 .message-candidates { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }.message-candidates button { display: flex; align-items: center; gap: 3px; padding: 2px 5px; color: #b7ead4; font-size: 7px; border: 1px solid rgba(90, 205, 154, .28); border-radius: 10px; background: rgba(34, 105, 75, .22); cursor: pointer; }.message-candidates button.is-address { color: #b9dff0; border-color: rgba(83, 175, 216, .28); background: rgba(33, 91, 119, .22); }
-.composer { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > span { color: #737999; font-size: 8px; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
+.composer { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > span { display: flex; align-items: center; gap: 3px; color: #737999; font-size: 8px; }.composer > span b { display: grid; width: 13px; height: 13px; place-items: center; color: #d9d0ff; font-size: 7px; border-radius: 10px; background: #654eb5; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
 .conversation-empty, .pane-empty { display: grid; place-items: center; align-content: center; gap: 7px; color: #858baa; text-align: center; }.conversation-empty { flex: 1; }.conversation-empty strong, .pane-empty strong { color: #dfe2f8; }.conversation-empty span, .pane-empty span { max-width: 300px; font-size: 11px; }.pane-empty { min-height: 220px; padding: 20px; }
 .messenger-info-pane { overflow-y: auto; padding: 9px; border-left: 1px solid #30344d; background: #15182b; }.messenger-info-pane section { margin-bottom: 8px; padding: 10px; border: 1px solid #2f334c; border-radius: 8px; background: #1b1e35; }.info-eyebrow { display: block; margin-bottom: 8px; color: #9d88f4; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.messenger-info-pane dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 7px; margin: 0; font-size: 10px; }.messenger-info-pane dt { color: #858baa; }.messenger-info-pane dd { overflow: hidden; max-width: 125px; margin: 0; color: #e5e7fa; text-overflow: ellipsis; white-space: nowrap; }.messenger-info-pane section > strong, .messenger-info-pane section > small { display: block; }.messenger-info-pane section > strong { font-size: 11px; }.messenger-info-pane section > small { margin: 4px 0 8px; color: #858baa; font-size: 9px; line-height: 1.4; }.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
 .tools-panel :deep(.v-expansion-panel) { color: #dfe2f8; background: #1b1e35; }.tools-panel :deep(.v-expansion-panel-title) { min-height: 38px; padding: 8px 10px; font-size: 10px; }.tools-panel :deep(.v-expansion-panel-text__wrapper) { display: grid; gap: 4px; padding: 4px 8px 10px; }.tools-panel a { display: grid; grid-template-columns: 32px 1fr; gap: 4px; color: #bec4e3; font-size: 8px; text-decoration: none; }.tools-panel a span { color: #9c85f5; font-weight: 800; }

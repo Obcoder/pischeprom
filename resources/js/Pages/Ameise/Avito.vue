@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useHead } from '@unhead/vue'
 import axios from 'axios'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import AvitoMessageTemplates from '@/Components/Avito/AvitoMessageTemplates.vue'
 import AvitoMessages from '@/Components/Avito/AvitoMessages.vue'
 
 defineOptions({ layout: VerwalterLayout })
@@ -496,6 +497,7 @@ onMounted(loadAll)
             <v-tabs v-model="tab" class="avito-tabs" color="deep-purple-accent-1" show-arrows>
                 <v-tab value="overview" prepend-icon="mdi-view-dashboard-outline">Обзор</v-tab>
                 <v-tab value="messages" prepend-icon="mdi-forum-outline">Сообщения</v-tab>
+                <v-tab value="templates" prepend-icon="mdi-text-box-multiple-outline">Шаблоны</v-tab>
                 <v-tab value="catalog" prepend-icon="mdi-table-large">API-функции</v-tab>
                 <v-tab value="connections" prepend-icon="mdi-link-variant">Подключения</v-tab>
                 <v-tab value="calls" prepend-icon="mdi-console-line">Журнал</v-tab>
@@ -552,6 +554,14 @@ onMounted(loadAll)
                 <v-window-item value="messages">
                     <AvitoMessages
                         :connections="connections"
+                        @notice="notice = $event; error = ''"
+                        @error="error = $event; notice = ''"
+                    />
+                </v-window-item>
+
+                <v-window-item value="templates">
+                    <AvitoMessageTemplates
+                        standalone
                         @notice="notice = $event; error = ''"
                         @error="error = $event; notice = ''"
                     />

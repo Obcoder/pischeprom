@@ -58,4 +58,9 @@ class AvitoMessage extends Model
     {
         return $this->hasMany(AvitoContactCandidate::class);
     }
+
+    public function messageTemplateUsages(): HasMany
+    {
+        return $this->hasMany(AvitoMessageTemplateUsage::class);
+    }
 }

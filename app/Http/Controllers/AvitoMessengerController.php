@@ -8,15 +8,18 @@ use App\Models\AvitoChat;
 use App\Models\AvitoConnection;
 use App\Models\AvitoMessage;
 use App\Models\AvitoMessageAttachment;
+use App\Models\AvitoMessageTemplate;
 use App\Models\AvitoMessengerAccount;
 use App\Models\AvitoMessengerSyncRun;
 use App\Services\Avito\AvitoContactDetector;
+use App\Services\Avito\AvitoMessageTemplateService;
 use App\Services\Avito\AvitoMessengerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AvitoMessengerController extends Controller
@@ -185,12 +188,26 @@ class AvitoMessengerController extends Controller
         ]);
     }
 
-    public function sendText(Request $request, AvitoChat $chat, AvitoMessengerService $messenger): JsonResponse
-    {
+    public function sendText(
+        Request $request,
+        AvitoChat $chat,
+        AvitoMessengerService $messenger,
+        AvitoMessageTemplateService $templates,
+    ): JsonResponse {
         $validated = $request->validate([
             'text' => ['required', 'string', 'max:1000'],
+            'template_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('avito_message_templates', 'id')
+                    ->where(fn ($query) => $query->whereNull('deleted_at')->where('is_active', true)),
+            ],
         ]);
         $message = $messenger->sendText($chat, trim($validated['text']));
+        if (filled($validated['template_id'] ?? null)) {
+            $template = AvitoMessageTemplate::query()->findOrFail($validated['template_id']);
+            $templates->recordUsage($template, $chat, $message, trim($validated['text']));
+        }
 
         return response()->json([
             'message' => 'Сообщение отправлено.',

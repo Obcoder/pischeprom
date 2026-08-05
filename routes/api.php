@@ -106,6 +106,7 @@ use App\Http\Controllers\API\WarehouseController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\AvitoCrmController;
+use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
@@ -745,6 +746,12 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
     Route::get('/webhooks/{event}', [AvitoController::class, 'webhook'])->name('webhooks.show');
 
     Route::prefix('messenger')->name('messenger.')->group(function () {
+        Route::get('/templates', [AvitoMessageTemplateController::class, 'index'])->name('templates.index');
+        Route::post('/templates', [AvitoMessageTemplateController::class, 'store'])->name('templates.store');
+        Route::match(['put', 'patch'], '/templates/{template}', [AvitoMessageTemplateController::class, 'update'])
+            ->name('templates.update');
+        Route::delete('/templates/{template}', [AvitoMessageTemplateController::class, 'destroy'])
+            ->name('templates.destroy');
         Route::get('/crm/options', [AvitoCrmController::class, 'options'])->name('crm.options');
         Route::get('/crm/entities', [AvitoCrmController::class, 'entities'])->name('crm.entities');
         Route::get('/crm/cities', [AvitoCrmController::class, 'cities'])->name('crm.cities');
@@ -771,6 +778,11 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
         Route::post('/chats/{chat}/crm/goods/{good}/send', [AvitoCrmController::class, 'sendGood'])
             ->middleware('throttle:20,1')
             ->name('chats.crm.goods.send');
+        Route::post('/chats/{chat}/message-templates/{template}/preview', [AvitoMessageTemplateController::class, 'preview'])
+            ->name('chats.templates.preview');
+        Route::post('/chats/{chat}/message-templates/{template}/send', [AvitoMessageTemplateController::class, 'send'])
+            ->middleware('throttle:30,1')
+            ->name('chats.templates.send');
         Route::post('/sync', [AvitoMessengerController::class, 'queueSync'])
             ->middleware('throttle:10,1')
             ->name('sync.store');

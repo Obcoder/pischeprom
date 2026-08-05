@@ -263,6 +263,7 @@ php artisan optimize:clear
 php artisan migrate --force --isolated
 php artisan db:seed --class=RolesAndPermissionsSeeder --force
 php artisan db:seed --class=LogisticsExpenseCategorySeeder --force
+php artisan db:seed --class=AvitoMessageTemplateSeeder --force
 
 php artisan route:list --path=stock-alerts >/dev/null
 php artisan route:list --path=Ameise/commercial-offers >/dev/null
@@ -386,6 +387,10 @@ fi
 
 if ! php artisan app:deploy-smoke --path=/api/avito/messenger/crm/options >/dev/null 2>&1; then
     fail 'Smoke check for Avito CRM failed; rerun the command locally on the VPS.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/api/avito/messenger/templates >/dev/null 2>&1; then
+    fail 'Smoke check for Avito message templates failed; rerun the command locally on the VPS.'
 fi
 
 log "Deployment completed: ${previous_sha} -> ${commit_sha}."

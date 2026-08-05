@@ -1,12 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import axios from 'axios'
+import AvitoMessageTemplates from './AvitoMessageTemplates.vue'
 
 const props = defineProps({
     chat: { type: Object, default: null },
 })
 
-const emit = defineEmits(['notice', 'error', 'chat-updated', 'refresh-messages'])
+const emit = defineEmits(['notice', 'error', 'chat-updated', 'refresh-messages', 'insert-template', 'template-sent'])
 
 const loading = ref(false)
 const saving = ref(false)
@@ -401,6 +402,10 @@ function openCatalog() {
     if (!goods.value.length) searchGoods()
 }
 
+function openTemplates() {
+    activeTab.value = 'templates'
+}
+
 function setOrderDefaults() {
     if (!orderForm.order_status_id) {
         orderForm.order_status_id = options.value.order_statuses.find((item) => item.code === 'open')?.id
@@ -457,6 +462,7 @@ defineExpose({
     acceptPhoneCandidate: savePhone,
     prepareAddressCandidate,
     openCatalog,
+    openTemplates,
     refresh: loadCrm,
 })
 
@@ -470,7 +476,7 @@ onBeforeUnmount(() => {
 <template>
     <aside class="avito-crm-pane">
         <header class="crm-header">
-            <div><span>Avito CRM</span><strong>Клиент · заказ · товары</strong></div>
+            <div><span>Avito CRM</span><strong>Клиент · заказ · товары · шаблоны</strong></div>
             <v-btn icon="mdi-refresh" size="x-small" variant="text" :loading="loading" title="Обновить CRM-карточку" @click="loadCrm" />
         </header>
 
@@ -478,6 +484,7 @@ onBeforeUnmount(() => {
             <v-tab value="client"><v-icon icon="mdi-account-card-outline" size="15" /><span>Клиент</span><b v-if="pendingPhones.length + pendingAddresses.length">{{ pendingPhones.length + pendingAddresses.length }}</b></v-tab>
             <v-tab value="order"><v-icon icon="mdi-cart-outline" size="15" /><span>Заказ</span><b v-if="orderItems.length">{{ orderItems.length }}</b></v-tab>
             <v-tab value="catalog"><v-icon icon="mdi-package-variant-closed" size="15" /><span>Товары</span></v-tab>
+            <v-tab value="templates"><v-icon icon="mdi-text-box-multiple-outline" size="15" /><span>Шаблоны</span></v-tab>
         </v-tabs>
 
         <v-progress-linear v-if="loading" indeterminate color="deep-purple-accent-1" height="2" />
@@ -581,7 +588,7 @@ onBeforeUnmount(() => {
                 </template>
             </section>
 
-            <section v-else class="crm-section catalog-section">
+            <section v-else-if="activeTab === 'catalog'" class="crm-section catalog-section">
                 <v-text-field v-model="goodsSearch" prepend-inner-icon="mdi-magnify" placeholder="Товар, описание, slug" density="compact" variant="outlined" hide-details clearable :loading="goodsLoading" />
                 <div class="goods-list" :class="{ 'is-loading': goodsLoading }">
                     <article v-for="good in goods" :key="good.id">
@@ -592,6 +599,16 @@ onBeforeUnmount(() => {
                     <div v-if="!goods.length && !goodsLoading" class="order-empty"><v-icon icon="mdi-package-variant-remove" size="28" /><span>Товары не найдены.</span></div>
                 </div>
             </section>
+
+            <AvitoMessageTemplates
+                v-else
+                :chat="chat"
+                :crm="crm"
+                @notice="notify"
+                @error="(message) => emit('error', message)"
+                @insert="(payload) => emit('insert-template', payload)"
+                @sent="(message) => emit('template-sent', message)"
+            />
         </div>
 
         <footer class="crm-context"><span><v-icon icon="mdi-identifier" size="11" />{{ chat?.peer_user_id || 'peer не определён' }}</span><span><v-icon icon="mdi-message-text-outline" size="11" />{{ chat?.external_chat_id?.slice(0, 14) }}</span></footer>

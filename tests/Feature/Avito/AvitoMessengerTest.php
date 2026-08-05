@@ -56,8 +56,11 @@ class AvitoMessengerTest extends TestCase
         $page = (string) file_get_contents(resource_path('js/Pages/Ameise/Avito.vue'));
         $component = (string) file_get_contents(resource_path('js/Components/Avito/AvitoMessages.vue'));
         $crmComponent = (string) file_get_contents(resource_path('js/Components/Avito/AvitoCrmPanel.vue'));
+        $templateComponent = (string) file_get_contents(resource_path('js/Components/Avito/AvitoMessageTemplates.vue'));
         $this->assertStringContainsString('value="messages"', $page);
         $this->assertStringContainsString('<AvitoMessages', $page);
+        $this->assertStringContainsString('value="templates"', $page);
+        $this->assertStringContainsString('<AvitoMessageTemplates', $page);
         $this->assertStringContainsString('/api/avito/messenger/chats', $component);
         $this->assertStringContainsString('<AvitoCrmPanel', $component);
         $this->assertStringContainsString('Клиент · заказ · товары', $crmComponent);
@@ -65,6 +68,11 @@ class AvitoMessengerTest extends TestCase
         $this->assertStringContainsString('/crm/buildings', $crmComponent);
         $this->assertStringContainsString('/crm/orders', $crmComponent);
         $this->assertStringContainsString('/crm/goods/', $crmComponent);
+        $this->assertStringContainsString('value="templates"', $crmComponent);
+        $this->assertStringContainsString('<AvitoMessageTemplates', $crmComponent);
+        $this->assertStringContainsString('/api/avito/messenger/templates', $templateComponent);
+        $this->assertStringContainsString('/message-templates/', $templateComponent);
+        $this->assertStringContainsString('openMessageTemplates', $component);
         $this->assertStringNotContainsString('localStorage', $component);
     }
 

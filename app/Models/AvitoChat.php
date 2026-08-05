@@ -68,4 +68,9 @@ class AvitoChat extends Model
             ->withPivot('source_message_id')
             ->withTimestamps();
     }
+
+    public function messageTemplateUsages(): HasMany
+    {
+        return $this->hasMany(AvitoMessageTemplateUsage::class);
+    }
 }
