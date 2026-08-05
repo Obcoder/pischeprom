@@ -14,6 +14,18 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 class AuthorizationAndReviewTest extends AiPriceListTestCase
 {
+    public function test_header_exposes_the_protected_price_list_entry_point(): void
+    {
+        $layout = (string) file_get_contents(resource_path('js/Layouts/VerwalterLayout.vue'));
+
+        $this->assertStringContainsString("route('Ameise.ai.price-lists.index')", $layout);
+        $this->assertStringContainsString('mdi-robot-outline', $layout);
+        $this->assertStringNotContainsString('v-if="canViewAiPriceLists"', $layout);
+
+        $this->get('/Ameise/ai/price-lists')
+            ->assertRedirect('/login');
+    }
+
     public function test_pages_metadata_and_private_download_require_permissions(): void
     {
         $import = $this->import();
