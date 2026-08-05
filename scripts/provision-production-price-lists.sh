@@ -87,6 +87,34 @@ report_clamav_failure() {
         | grep -Ei 'out of memory|oom-kill|killed process' || true
 }
 
+wait_for_price_list_worker() {
+    local consecutive_active_checks=0
+
+    for _ in $(seq 1 20); do
+        if sudo systemctl is-active --quiet pischeprom-price-lists-worker.service; then
+            consecutive_active_checks=$((consecutive_active_checks + 1))
+            (( consecutive_active_checks >= 3 )) && return 0
+        else
+            consecutive_active_checks=0
+        fi
+
+        sudo systemctl is-failed --quiet pischeprom-price-lists-worker.service && break
+        sleep 2
+    done
+
+    return 1
+}
+
+report_price_list_worker_failure() {
+    log 'Price-list worker diagnostic: service state follows.'
+    sudo systemctl show pischeprom-price-lists-worker.service \
+        --property=LoadState,UnitFileState,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,NRestarts,MemoryCurrent \
+        --no-pager || true
+    log 'Price-list worker diagnostic: recent unit journal follows.'
+    sudo journalctl -u pischeprom-price-lists-worker.service \
+        --since '-3 minutes' -n 60 --no-pager -o cat || true
+}
+
 has_clamav_database() {
     sudo find /var/lib/clamav -maxdepth 1 -type f \
         \( -name '*.cvd' -o -name '*.cld' \) -size +100k -print -quit | grep -q .
@@ -242,7 +270,9 @@ verify_application() {
     cd "$target_dir"
     sudo -u "$application_owner" "$php_binary" artisan optimize:clear >/dev/null
     sudo -u "$application_owner" "$php_binary" artisan config:cache >/dev/null
-    sudo systemctl enable --now pischeprom-price-lists-worker.service
+    sudo systemctl reset-failed pischeprom-price-lists-worker.service >/dev/null 2>&1 || true
+    sudo systemctl enable pischeprom-price-lists-worker.service
+    sudo systemctl restart pischeprom-price-lists-worker.service
 
     local schedule_output
     schedule_output="$(sudo -u "$application_owner" "$php_binary" artisan schedule:list --no-ansi)"
@@ -250,8 +280,10 @@ verify_application() {
         || fail 'Price-list recovery task is absent from the Laravel scheduler.'
     sudo -u "$application_owner" -g clamav "$php_binary" artisan price-lists:production-preflight --all
     sudo -u "$application_owner" "$php_binary" artisan max:webhook:ensure >/dev/null
-    sudo systemctl is-active --quiet pischeprom-price-lists-worker.service \
-        || fail 'Dedicated price-list worker is not active.'
+    if ! wait_for_price_list_worker; then
+        report_price_list_worker_failure
+        fail 'Dedicated price-list worker is not stably active.'
+    fi
 
     log 'Production application, integrations and dedicated worker passed preflight.'
 }
