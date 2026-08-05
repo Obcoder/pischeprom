@@ -52,11 +52,10 @@ return [
         ])))
     ))),
 
-    /*
-     * The Ameise page intentionally uses the common Ameise access model. Keep
-     * remote mutations disabled until access to Ameise itself is protected.
-     */
-    'mutations_enabled' => (bool) env('AVITO_MUTATIONS_ENABLED', false),
+    // Ameise currently exposes Avito with the same open access model as its
+    // other modules. Remote actions are therefore enabled without an extra
+    // page-specific authorization layer, as explicitly required by the owner.
+    'mutations_enabled' => (bool) env('AVITO_MUTATIONS_ENABLED', true),
     'mutation_confirmation' => env('AVITO_MUTATION_CONFIRMATION', 'AVITO'),
 
     'webhook_secret' => env('AVITO_WEBHOOK_SECRET'),
@@ -73,4 +72,15 @@ return [
     'connect_timeout_seconds' => max(2, (int) env('AVITO_HTTP_CONNECT_TIMEOUT', 10)),
     'max_response_bytes' => max(65536, (int) env('AVITO_MAX_RESPONSE_BYTES', 5 * 1024 * 1024)),
     'log_retention_days' => max(1, (int) env('AVITO_LOG_RETENTION_DAYS', 90)),
+
+    'messenger' => [
+        'archive_disk' => env('AVITO_MESSENGER_ARCHIVE_DISK', 'avito'),
+        'sync_interval_minutes' => min(59, max(1, (int) env('AVITO_MESSENGER_SYNC_INTERVAL', 5))),
+        'chat_page_size' => min(100, max(1, (int) env('AVITO_MESSENGER_CHAT_PAGE_SIZE', 100))),
+        'message_page_size' => min(100, max(1, (int) env('AVITO_MESSENGER_MESSAGE_PAGE_SIZE', 100))),
+        'incremental_chat_limit' => min(1100, max(1, (int) env('AVITO_MESSENGER_INCREMENTAL_CHAT_LIMIT', 100))),
+        'full_chat_limit' => min(1100, max(1, (int) env('AVITO_MESSENGER_FULL_CHAT_LIMIT', 1100))),
+        'message_limit_per_chat' => min(1100, max(1, (int) env('AVITO_MESSENGER_MESSAGE_LIMIT_PER_CHAT', 1100))),
+        'max_attachment_bytes' => max(1024 * 1024, (int) env('AVITO_MESSENGER_MAX_ATTACHMENT_BYTES', 25 * 1024 * 1024)),
+    ],
 ];

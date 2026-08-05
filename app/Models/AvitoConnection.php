@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class AvitoConnection extends Model
 {
@@ -43,5 +44,10 @@ class AvitoConnection extends Model
     public function apiCalls(): HasMany
     {
         return $this->hasMany(AvitoApiCall::class);
+    }
+
+    public function messengerAccount(): HasOne
+    {
+        return $this->hasOne(AvitoMessengerAccount::class);
     }
 }

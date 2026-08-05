@@ -86,6 +86,15 @@ Schedule::command('avito:maintain')
     ->onOneServer()
     ->withoutOverlapping(20);
 
+$avitoMessengerSyncMinutes = (int) config('avito.messenger.sync_interval_minutes', 5);
+
+Schedule::command('avito:messages-sync')
+    ->name('sync-avito-messenger-archive')
+    ->cron("*/{$avitoMessengerSyncMinutes} * * * *")
+    ->when(fn () => (bool) config('avito.enabled'))
+    ->onOneServer()
+    ->withoutOverlapping(30);
+
 $bankSyncMinutes = min(59, max(1, (int) config('banking.sber.sync_interval_minutes', 15)));
 
 Schedule::call(function (): void {

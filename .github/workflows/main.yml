@@ -170,16 +170,25 @@ jobs:
           vendor/bin/pint --test \
             app/Console/Commands/AvitoPreflightCommand.php \
             app/Console/Commands/MaintainAvitoIntegrationCommand.php \
+            app/Console/Commands/SyncAvitoMessengerCommand.php \
             app/Console/Commands/SyncAvitoApiCatalogCommand.php \
             app/Domain/Avito \
             app/Http/Controllers/AvitoController.php \
+            app/Http/Controllers/AvitoMessengerController.php \
+            app/Jobs/Avito \
             app/Models/AvitoApiCall.php \
+            app/Models/AvitoChat.php \
             app/Models/AvitoCapabilitySetting.php \
             app/Models/AvitoConnection.php \
+            app/Models/AvitoMessage.php \
+            app/Models/AvitoMessageAttachment.php \
+            app/Models/AvitoMessengerAccount.php \
+            app/Models/AvitoMessengerSyncRun.php \
             app/Models/AvitoWebhookEvent.php \
             app/Services/Avito \
             config/avito.php \
             database/migrations/2026_08_05_100000_create_avito_integration_tables.php \
+            database/migrations/2026_08_05_110000_create_avito_messenger_archive_tables.php \
             scripts/update-production-avito-env.php \
             tests/Feature/Avito \
             tests/Unit/Avito

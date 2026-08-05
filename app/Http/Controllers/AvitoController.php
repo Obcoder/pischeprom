@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Avito\Exceptions\AvitoException;
+use App\Jobs\Avito\ArchiveAvitoMessageMediaJob;
 use App\Models\AvitoApiCall;
 use App\Models\AvitoCapabilitySetting;
 use App\Models\AvitoConnection;
 use App\Models\AvitoWebhookEvent;
 use App\Services\Avito\AvitoApiExecutor;
+use App\Services\Avito\AvitoMessengerArchive;
 use App\Services\Avito\AvitoTokenManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -312,7 +314,7 @@ class AvitoController extends Controller
         ]);
     }
 
-    public function receiveWebhook(Request $request): JsonResponse
+    public function receiveWebhook(Request $request, AvitoMessengerArchive $messengerArchive): JsonResponse
     {
         $expectedSecret = (string) config('avito.webhook_secret');
         $actualSecret = (string) ($request->header('X-Secret')
@@ -351,6 +353,26 @@ class AvitoController extends Controller
                 'received_at' => now(),
             ]
         );
+
+        try {
+            $message = $messengerArchive->ingestWebhook($payload);
+
+            if ($message) {
+                $event->update([
+                    'status' => 'processed',
+                    'processed_at' => now(),
+                    'error_message' => null,
+                ]);
+                ArchiveAvitoMessageMediaJob::dispatchAfterResponse($message->id);
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+            $event->update([
+                'status' => 'error',
+                'processed_at' => now(),
+                'error_message' => Str::limit($exception->getMessage(), 1000),
+            ]);
+        }
 
         return response()->json([
             'ok' => true,

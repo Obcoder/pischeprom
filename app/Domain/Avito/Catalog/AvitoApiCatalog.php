@@ -7,18 +7,27 @@ use Illuminate\Support\Arr;
 
 class AvitoApiCatalog
 {
-    private ?array $snapshot = null;
+    /**
+     * The normalized catalog is almost 2 MB on disk and substantially larger
+     * as a PHP array. Keep one decoded copy per process instead of rebuilding
+     * it for every controller/service resolution.
+     *
+     * @var array<string, array>
+     */
+    private static array $decodedSnapshots = [];
 
     public function snapshot(): array
     {
-        if ($this->snapshot !== null) {
-            return $this->snapshot;
-        }
-
         $path = (string) config('avito.catalog_path');
 
         if (! is_file($path) || ! is_readable($path)) {
             throw new AvitoException('Каталог API Avito отсутствует. Выполните avito:catalog-sync.', 'catalog_missing', 503);
+        }
+
+        $cacheKey = (string) realpath($path).':'.(string) filemtime($path);
+
+        if (isset(self::$decodedSnapshots[$cacheKey])) {
+            return self::$decodedSnapshots[$cacheKey];
         }
 
         $decoded = json_decode((string) file_get_contents($path), true);
@@ -27,7 +36,7 @@ class AvitoApiCatalog
             throw new AvitoException('Каталог API Avito повреждён.', 'catalog_invalid', 503);
         }
 
-        return $this->snapshot = $decoded;
+        return self::$decodedSnapshots[$cacheKey] = $decoded;
     }
 
     public function capabilities(): array
@@ -46,6 +55,24 @@ class AvitoApiCatalog
 
         if (! $capability) {
             throw new AvitoException('Функция отсутствует в проверенном каталоге Avito.', 'capability_not_found', 404);
+        }
+
+        return $capability;
+    }
+
+    public function findOperation(string $section, string $operationId): array
+    {
+        $capability = Arr::first(
+            $this->capabilities(),
+            fn (array $item) => $item['section'] === $section && $item['operation_id'] === $operationId
+        );
+
+        if (! $capability) {
+            throw new AvitoException(
+                "Операция {$section}.{$operationId} отсутствует в проверенном каталоге Avito.",
+                'capability_not_found',
+                503
+            );
         }
 
         return $capability;

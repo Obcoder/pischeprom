@@ -379,4 +379,8 @@ if ! php artisan app:deploy-smoke --path=/api/avito/status >/dev/null 2>&1; then
     fail 'Smoke check for /api/avito/status failed; rerun the command locally on the VPS.'
 fi
 
+if ! php artisan app:deploy-smoke --path=/api/avito/messenger/overview >/dev/null 2>&1; then
+    fail 'Smoke check for Avito Messenger archive failed; rerun the command locally on the VPS.'
+fi
+
 log "Deployment completed: ${previous_sha} -> ${commit_sha}."

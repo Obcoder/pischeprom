@@ -31,9 +31,11 @@ $updates = [
     'AVITO_AUTOTEKA_API_URL' => 'https://pro.autoteka.ru',
     'AVITO_TOKEN_URL' => 'https://api.avito.ru/token',
     'AVITO_AUTHORIZE_URL' => 'https://avito.ru/oauth',
-    // Ameise intentionally has no common authorization yet.
-    'AVITO_MUTATIONS_ENABLED' => 'false',
+    // The owner explicitly requested Avito actions without a protective gate.
+    'AVITO_MUTATIONS_ENABLED' => 'true',
     'AVITO_WEBHOOK_SECRET' => $webhookSecret,
+    'AVITO_MESSENGER_ARCHIVE_DISK' => 'avito',
+    'AVITO_MESSENGER_SYNC_INTERVAL' => '5',
 ];
 
 $handle = fopen($envPath, 'c+');

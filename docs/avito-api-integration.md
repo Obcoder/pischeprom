@@ -50,11 +50,16 @@
 - журнал запросов с request UUID, HTTP status, latency, редактированными и зашифрованными payload;
 - webhook inbox с shared secret (`X-Secret` из API «Работа», совместимый `X-Avito-Webhook-Secret` или query), дедупликацией и шифрованием payload;
 - server-side подстановка webhook secret в методы подписки «Работы» и Messenger без передачи секрета браузеру;
+- компактный tab «Сообщения» со списком чатов, поиском, непрочитанными, отправкой текста и изображений, удалением, отметкой прочтения и чёрным списком;
+- локальный шифрованный архив чатов и сообщений: удаление сообщения на Avito сохраняет его последнюю известную архивную копию;
+- приватный файловый архив изображений и голосовых сообщений, полученных через Messenger API;
+- Messenger webhook V3 сразу сохраняет событие в БД, а плановая синхронизация каждые пять минут восстанавливает пропущенные события;
+- первый запуск автоматически забирает максимально доступную через API историю (официальный предел пагинации — offset 1000), последующие запуски работают инкрементально;
 - hourly refresh истекающих OAuth tokens и удаление журналов старше retention period;
 - серверный host allowlist, запрет redirects и запрет произвольных параметров вне OpenAPI;
-- изменяющие операции требуют включённого `AVITO_MUTATIONS_ENABLED` и явного подтверждения.
+- низкоуровневая API-консоль сохраняет явное подтверждение изменяющих вызовов, а штатные кнопки Messenger формируют проверенные запросы автоматически.
 
-Отдельная авторизация страницы не добавлена: раздел следует общей модели доступа Ameise. Поэтому `AVITO_MUTATIONS_ENABLED=false` — безопасное production-значение до появления общей авторизации Ameise.
+Отдельная авторизация страницы не добавлена: раздел следует общей модели доступа Ameise. По решению владельца защитный контур изменяющих операций отключён, поэтому production использует `AVITO_MUTATIONS_ENABLED=true`.
 
 ## Production-конфигурация
 
@@ -65,8 +70,10 @@ AVITO_ENABLED=true
 AVITO_CLIENT_ID=...
 AVITO_CLIENT_SECRET=...
 AVITO_REDIRECT_URI=https://пищепром-сервер.рф/api/avito/oauth/callback
-AVITO_MUTATIONS_ENABLED=false
+AVITO_MUTATIONS_ENABLED=true
 AVITO_WEBHOOK_SECRET=...
+AVITO_MESSENGER_ARCHIVE_DISK=avito
+AVITO_MESSENGER_SYNC_INTERVAL=5
 ```
 
 Для OAuth сторонних аккаунтов redirect URI должен в точности совпадать с зарегистрированным в приложении Avito. Полный список параметров находится в `.env.example`.
@@ -77,10 +84,14 @@ AVITO_WEBHOOK_SECRET=...
 php artisan avito:preflight --schema
 php artisan avito:preflight --schema --live
 php artisan avito:catalog-sync --check
+php artisan avito:messages-sync
+php artisan avito:messages-sync --full
 ```
 
 `--live` безопасно читает только профиль и не меняет данные Avito.
 
 При deploy GitHub Actions standalone-скрипт атомарно нормализует legacy base URL,
-оставляет изменяющие операции выключенными и создаёт webhook secret на самом VPS,
-если его ещё нет. Существующий валидный secret сохраняется.
+разрешает изменяющие операции по подтверждённой настройке владельца и создаёт
+webhook secret на самом VPS, если его ещё нет. Существующий валидный secret
+сохраняется. Secret защищает только приём событий от подделки и не является
+авторизацией страницы Ameise.

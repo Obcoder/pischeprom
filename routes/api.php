@@ -105,6 +105,7 @@ use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\WarehouseController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\AvitoController;
+use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnforceAiPriceListAuthorization;
@@ -741,6 +742,35 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
     Route::get('/calls/{call}', [AvitoController::class, 'call'])->name('calls.show');
     Route::get('/webhooks', [AvitoController::class, 'webhooks'])->name('webhooks.index');
     Route::get('/webhooks/{event}', [AvitoController::class, 'webhook'])->name('webhooks.show');
+
+    Route::prefix('messenger')->name('messenger.')->group(function () {
+        Route::get('/overview', [AvitoMessengerController::class, 'overview'])->name('overview');
+        Route::get('/chats', [AvitoMessengerController::class, 'chats'])->name('chats.index');
+        Route::get('/chats/{chat}', [AvitoMessengerController::class, 'chat'])->name('chats.show');
+        Route::post('/sync', [AvitoMessengerController::class, 'queueSync'])
+            ->middleware('throttle:10,1')
+            ->name('sync.store');
+        Route::get('/sync-runs/{run}', [AvitoMessengerController::class, 'syncRun'])->name('sync-runs.show');
+        Route::post('/chats/{chat}/refresh', [AvitoMessengerController::class, 'refreshChat'])
+            ->middleware('throttle:20,1')
+            ->name('chats.refresh');
+        Route::post('/chats/{chat}/read', [AvitoMessengerController::class, 'markRead'])->name('chats.read');
+        Route::post('/chats/{chat}/blacklist', [AvitoMessengerController::class, 'blacklist'])->name('chats.blacklist');
+        Route::post('/chats/{chat}/messages', [AvitoMessengerController::class, 'sendText'])
+            ->middleware('throttle:30,1')
+            ->name('messages.store');
+        Route::post('/chats/{chat}/messages/image', [AvitoMessengerController::class, 'sendImage'])
+            ->middleware('throttle:20,1')
+            ->name('messages.image');
+        Route::delete('/messages/{message}', [AvitoMessengerController::class, 'destroyMessage'])
+            ->middleware('throttle:30,1')
+            ->name('messages.destroy');
+        Route::get('/subscriptions', [AvitoMessengerController::class, 'subscriptions'])->name('subscriptions.index');
+        Route::post('/subscriptions', [AvitoMessengerController::class, 'subscribe'])->name('subscriptions.store');
+        Route::delete('/subscriptions', [AvitoMessengerController::class, 'unsubscribe'])->name('subscriptions.destroy');
+        Route::get('/attachments/{attachment}', [AvitoMessengerController::class, 'attachment'])
+            ->name('attachments.show');
+    });
 });
 
 /*

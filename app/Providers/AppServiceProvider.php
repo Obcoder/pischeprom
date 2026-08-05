@@ -11,6 +11,7 @@ use App\Domain\AiPriceLists\Providers\YandexAiStudioProvider;
 use App\Domain\AiPriceLists\Providers\YandexVisionOcrProvider;
 use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
 use App\Domain\AiPriceLists\Services\NullFileScanner;
+use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Banking\Contracts\BankProviderInterface;
 use App\Domain\Banking\Events\BankConnectionRequiresAttention;
 use App\Domain\Banking\Events\BankSyncFailed;
@@ -61,6 +62,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(AvitoApiCatalog::class);
+
         $this->app->bind(FileScannerInterface::class, fn ($app) => match (config('ai-price-lists.scanner')) {
             'clamav' => $app->make(ClamAvFileScanner::class),
             default => $app->make(NullFileScanner::class),

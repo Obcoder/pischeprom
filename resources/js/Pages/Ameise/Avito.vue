@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useHead } from '@unhead/vue'
 import axios from 'axios'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import AvitoMessages from '@/Components/Avito/AvitoMessages.vue'
 
 defineOptions({ layout: VerwalterLayout })
 
@@ -461,7 +462,7 @@ onMounted(loadAll)
             <div>
                 <div class="avito-kicker">AMEISE · MARKETPLACE OPERATIONS</div>
                 <h1>Avito API</h1>
-                <p>Единый реестр функций, OAuth-подключения, безопасная консоль запросов и журнал событий.</p>
+                <p>Чаты и сообщения с долговременным архивом, реестр функций API, подключения и журнал событий.</p>
             </div>
             <div class="avito-hero__actions">
                 <v-btn
@@ -488,12 +489,13 @@ onMounted(loadAll)
             <section class="avito-metrics">
                 <article><span>Функции API</span><strong>{{ status.catalog?.counts?.capabilities || 0 }}</strong><small>{{ status.catalog?.counts?.sections || 0 }} разделов</small></article>
                 <article><span>Доступно в реестре</span><strong>{{ activeCount }}</strong><small>{{ safeCount }} операций чтения</small></article>
-                <article><span>Изменяющие</span><strong>{{ mutationCount }}</strong><small>{{ status.mutations_enabled ? 'серверный доступ включён' : 'защитный контур включён' }}</small></article>
+                <article><span>Изменяющие</span><strong>{{ mutationCount }}</strong><small>{{ status.mutations_enabled ? 'операции разрешены' : 'операции отключены в .env' }}</small></article>
                 <article><span>Подключения</span><strong>{{ status.active_connections || 0 }}</strong><small>{{ status.configured ? 'client credentials настроены' : 'нужна настройка .env' }}</small></article>
             </section>
 
             <v-tabs v-model="tab" class="avito-tabs" color="deep-purple-accent-1" show-arrows>
                 <v-tab value="overview" prepend-icon="mdi-view-dashboard-outline">Обзор</v-tab>
+                <v-tab value="messages" prepend-icon="mdi-forum-outline">Сообщения</v-tab>
                 <v-tab value="catalog" prepend-icon="mdi-table-large">API-функции</v-tab>
                 <v-tab value="connections" prepend-icon="mdi-link-variant">Подключения</v-tab>
                 <v-tab value="calls" prepend-icon="mdi-console-line">Журнал</v-tab>
@@ -515,7 +517,7 @@ onMounted(loadAll)
                                 <div><v-icon :color="status.configured ? 'success' : 'warning'" :icon="status.configured ? 'mdi-check-circle' : 'mdi-alert-circle'" /><span>Client credentials</span><strong>{{ status.configured ? 'готовы' : 'не заданы' }}</strong></div>
                                 <div><v-icon color="success" icon="mdi-check-circle" /><span>OpenAPI snapshot</span><strong>{{ status.catalog?.counts?.capabilities }} функций</strong></div>
                                 <div><v-icon :color="status.webhook_protected ? 'success' : 'warning'" :icon="status.webhook_protected ? 'mdi-shield-check' : 'mdi-shield-alert'" /><span>Webhook endpoint</span><strong>{{ status.webhook_protected ? 'защищён секретом' : 'секрет не задан' }}</strong></div>
-                                <div><v-icon :color="status.mutations_enabled ? 'warning' : 'success'" icon="mdi-shield-lock-outline" /><span>Удалённые изменения</span><strong>{{ status.mutations_enabled ? 'разрешены' : 'заблокированы' }}</strong></div>
+                                <div><v-icon :color="status.mutations_enabled ? 'success' : 'warning'" :icon="status.mutations_enabled ? 'mdi-lock-open-outline' : 'mdi-lock-outline'" /><span>Удалённые изменения</span><strong>{{ status.mutations_enabled ? 'разрешены без отдельного контура' : 'отключены' }}</strong></div>
                             </div>
                             <v-alert v-if="status.missing_environment?.length" type="warning" variant="tonal" class="mt-4">
                                 На production добавьте секреты: <code>{{ status.missing_environment.join(', ') }}</code>.
@@ -545,6 +547,14 @@ onMounted(loadAll)
                             </div>
                         </section>
                     </div>
+                </v-window-item>
+
+                <v-window-item value="messages">
+                    <AvitoMessages
+                        :connections="connections"
+                        @notice="notice = $event; error = ''"
+                        @error="error = $event; notice = ''"
+                    />
                 </v-window-item>
 
                 <v-window-item value="catalog">

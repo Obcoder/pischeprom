@@ -27,7 +27,7 @@ class ProductionEnvironmentUpdaterTest extends TestCase
             'AVITO_CLIENT_ID=preserved-client-id',
             'AVITO_CLIENT_SECRET=preserved-client-secret',
             'AVITO_API_URL=https://api.avito.ru/token',
-            'AVITO_MUTATIONS_ENABLED=true',
+            'AVITO_MUTATIONS_ENABLED=false',
             'AVITO_WEBHOOK_SECRET=',
             '',
         ]));
@@ -38,7 +38,9 @@ class ProductionEnvironmentUpdaterTest extends TestCase
         $this->assertStringContainsString("AVITO_CLIENT_ID=preserved-client-id\n", $contents);
         $this->assertStringContainsString("AVITO_CLIENT_SECRET=preserved-client-secret\n", $contents);
         $this->assertStringContainsString("AVITO_API_URL=https://api.avito.ru\n", $contents);
-        $this->assertStringContainsString("AVITO_MUTATIONS_ENABLED=false\n", $contents);
+        $this->assertStringContainsString("AVITO_MUTATIONS_ENABLED=true\n", $contents);
+        $this->assertStringContainsString("AVITO_MESSENGER_ARCHIVE_DISK=avito\n", $contents);
+        $this->assertStringContainsString("AVITO_MESSENGER_SYNC_INTERVAL=5\n", $contents);
         $this->assertMatchesRegularExpression('/^AVITO_WEBHOOK_SECRET=[A-Za-z0-9_-]{64}$/m', $contents);
         $this->assertSame(0600, fileperms($envPath) & 0777);
     }

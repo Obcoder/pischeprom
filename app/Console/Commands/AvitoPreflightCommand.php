@@ -40,7 +40,17 @@ class AvitoPreflightCommand extends Command
         }
 
         if ($this->option('schema')) {
-            foreach (['avito_connections', 'avito_capability_settings', 'avito_api_calls', 'avito_webhook_events'] as $table) {
+            foreach ([
+                'avito_connections',
+                'avito_capability_settings',
+                'avito_api_calls',
+                'avito_webhook_events',
+                'avito_messenger_accounts',
+                'avito_chats',
+                'avito_messages',
+                'avito_message_attachments',
+                'avito_messenger_sync_runs',
+            ] as $table) {
                 if (! Schema::hasTable($table)) {
                     $this->error("Отсутствует таблица {$table}.");
 
