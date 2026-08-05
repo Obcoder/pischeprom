@@ -4,6 +4,7 @@ namespace App\Http\Requests\AiPriceLists;
 
 use App\Models\PriceListImport;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class BulkPriceListDefaultsRequest extends FormRequest
@@ -13,7 +14,7 @@ class BulkPriceListDefaultsRequest extends FormRequest
         /** @var PriceListImport|null $import */
         $import = $this->route('priceListImport');
 
-        return $import && ($this->user()?->can('review', $import) ?? false);
+        return $import && Gate::allows('review', $import);
     }
 
     public function rules(): array

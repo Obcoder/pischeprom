@@ -52,12 +52,18 @@ class HandleInertiaRequests extends Middleware
                         'delete' => true,
                     ],
                     'ai_price_lists' => [
-                        'view' => (bool) $request->user()?->can('ai_price_lists.view'),
-                        'process' => (bool) $request->user()?->can('ai_price_lists.process'),
-                        'review' => (bool) $request->user()?->can('ai_price_lists.review'),
-                        'assign_supplier' => (bool) $request->user()?->can('ai_price_lists.assign_supplier'),
-                        'apply' => (bool) $request->user()?->can('ai_price_lists.apply'),
-                        'view_technical' => (bool) $request->user()?->can('ai_price_lists.view_technical'),
+                        'view' => ! config('ai-price-lists.authorization_enabled')
+                            || (bool) $request->user()?->can('ai_price_lists.view'),
+                        'process' => ! config('ai-price-lists.authorization_enabled')
+                            || (bool) $request->user()?->can('ai_price_lists.process'),
+                        'review' => ! config('ai-price-lists.authorization_enabled')
+                            || (bool) $request->user()?->can('ai_price_lists.review'),
+                        'assign_supplier' => ! config('ai-price-lists.authorization_enabled')
+                            || (bool) $request->user()?->can('ai_price_lists.assign_supplier'),
+                        'apply' => ! config('ai-price-lists.authorization_enabled')
+                            || (bool) $request->user()?->can('ai_price_lists.apply'),
+                        'view_technical' => ! config('ai-price-lists.authorization_enabled')
+                            || (bool) $request->user()?->can('ai_price_lists.view_technical'),
                     ],
                     'logistics' => [
                         'view' => ! config('logistics.authorization_enabled')

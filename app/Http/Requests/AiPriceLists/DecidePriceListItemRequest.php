@@ -4,6 +4,7 @@ namespace App\Http\Requests\AiPriceLists;
 
 use App\Models\PriceListImportItem;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class DecidePriceListItemRequest extends FormRequest
@@ -13,7 +14,7 @@ class DecidePriceListItemRequest extends FormRequest
         /** @var PriceListImportItem|null $item */
         $item = $this->route('priceListItem');
 
-        return $item && ($this->user()?->can('review', $item->import) ?? false);
+        return $item && Gate::allows('review', $item->import);
     }
 
     public function rules(): array

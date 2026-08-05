@@ -50,6 +50,7 @@ if ($maxAccessTokenPath !== null && $maxAccessTokenPath !== '') {
 
 $updates = [
     'AI_PRICE_LISTS_ENABLED' => 'true',
+    'AI_PRICE_LIST_AUTHORIZATION_ENABLED' => 'false',
     'AI_PRICE_LIST_QUEUE_CONNECTION' => 'redis',
     'AI_PRICE_LIST_QUEUE' => 'price-lists',
     'AI_PRICE_LIST_STORAGE_DISK' => 'yandex',

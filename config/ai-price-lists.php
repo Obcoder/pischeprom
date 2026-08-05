@@ -1,6 +1,11 @@
 <?php
 
 return [
+    // Temporary public mode until authorization is enabled for the whole Ameise area.
+    'authorization_enabled' => filter_var(
+        env('AI_PRICE_LIST_AUTHORIZATION_ENABLED', false),
+        FILTER_VALIDATE_BOOL
+    ),
     // Enable only after the database, dedicated worker, scanner and provider
     // credentials have passed the production preflight.
     'enabled' => (bool) env('AI_PRICE_LISTS_ENABLED', false),

@@ -15,7 +15,7 @@ class ApplyPriceListService
     public function __construct(private readonly PriceListAuditLogger $audit) {}
 
     /** @param list<int> $selectedItemIds */
-    public function apply(PriceListImport $import, User $user, array $selectedItemIds = []): array
+    public function apply(PriceListImport $import, ?User $user, array $selectedItemIds = []): array
     {
         return DB::transaction(function () use ($import, $user, $selectedItemIds): array {
             $import = PriceListImport::query()->lockForUpdate()->findOrFail($import->id);
@@ -80,7 +80,7 @@ class ApplyPriceListService
                     'entity_id' => $import->entity_id,
                     'good_id' => $good->id,
                     'price_list_import_id' => $import->id,
-                    'created_by' => $user->id,
+                    'created_by' => $user?->id,
                     'price' => $item->price,
                     'currency_code' => $item->currency_code,
                     'vat_mode' => $item->vat_mode,
@@ -117,7 +117,7 @@ class ApplyPriceListService
 
             $import->forceFill([
                 'items_applied' => $import->items()->whereNotNull('applied_at')->count(),
-                'applied_by' => $user->id,
+                'applied_by' => $user?->id,
             ])->save();
             $this->audit->record($import, 'prices_applied', $result, $user);
 

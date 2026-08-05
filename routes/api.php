@@ -107,6 +107,7 @@ use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
+use App\Http\Middleware\EnforceAiPriceListAuthorization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -116,7 +117,7 @@ Route::get('/user', function (Request $request) {
 
 Route::prefix('ai/price-lists')
     ->name('api.ai.price-lists.')
-    ->middleware(['auth:sanctum', 'throttle:120,1'])
+    ->middleware([EnforceAiPriceListAuthorization::class, 'throttle:120,1'])
     ->group(function (): void {
         Route::get('/meta/entities', [AiPriceListImportController::class, 'entities'])->name('entities');
         Route::get('/meta/goods', [AiPriceListImportController::class, 'goods'])->name('goods');

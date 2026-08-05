@@ -13,7 +13,7 @@ use App\Models\User;
 class ApplyConfirmedPriceList extends AbstractPriceListJob
 {
     /** @param list<int> $selectedItemIds */
-    public function __construct(int $importId, public readonly int $userId, public readonly array $selectedItemIds = [])
+    public function __construct(int $importId, public readonly ?int $userId, public readonly array $selectedItemIds = [])
     {
         parent::__construct($importId);
     }
@@ -35,7 +35,7 @@ class ApplyConfirmedPriceList extends AbstractPriceListJob
             return;
         }
 
-        $user = User::query()->findOrFail($this->userId);
+        $user = $this->userId === null ? null : User::query()->find($this->userId);
 
         if ($import->status !== PriceListStatus::Applying) {
             $import = $states->transition($import, PriceListStatus::Applying, PriceListStage::Apply, 95, user: $user);

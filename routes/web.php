@@ -48,6 +48,7 @@ use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
 use App\Http\Controllers\Web\UnitRelationSyncController;
 use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
+use App\Http\Middleware\EnforceAiPriceListAuthorization;
 use App\Http\Middleware\EnsureBankConnectionAdministrator;
 use App\Mail\TestEmail;
 use App\Models\City;
@@ -234,10 +235,7 @@ Route::get('/Ameise/Max', function () {
 
 Route::prefix('/Ameise/ai/price-lists')
     ->name('Ameise.ai.price-lists.')
-    ->middleware([
-        'auth:sanctum',
-        config('jetstream.auth_session'),
-    ])
+    ->middleware(EnforceAiPriceListAuthorization::class)
     ->group(function (): void {
         Route::get('/', [PriceListPageController::class, 'index'])->name('index');
         Route::get('/{priceListImport}', [PriceListPageController::class, 'show'])->name('show');

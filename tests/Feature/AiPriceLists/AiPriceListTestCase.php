@@ -24,6 +24,7 @@ abstract class AiPriceListTestCase extends TestCase
         config()->set([
             'queue.default' => 'sync',
             'ai-price-lists.enabled' => true,
+            'ai-price-lists.authorization_enabled' => true,
             'ai-price-lists.queue_connection' => 'sync',
             'ai-price-lists.queue' => 'price-lists',
             'ai-price-lists.storage_disk' => 'local',

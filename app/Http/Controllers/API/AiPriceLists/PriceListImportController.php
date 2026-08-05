@@ -355,9 +355,10 @@ class PriceListImportController extends Controller
             throw ValidationException::withMessages(['item_ids' => 'Выбраны строки другого импорта.']);
         }
 
-        $priceListImport->forceFill(['applied_by' => $request->user()->id])->save();
+        $actorId = $request->user()?->id;
+        $priceListImport->forceFill(['applied_by' => $actorId])->save();
         $states->transition($priceListImport, PriceListStatus::Applying, PriceListStage::Apply, 95, user: $request->user());
-        ApplyConfirmedPriceList::dispatch($priceListImport->id, $request->user()->id, $ids)->afterCommit();
+        ApplyConfirmedPriceList::dispatch($priceListImport->id, $actorId, $ids)->afterCommit();
 
         return response()->json(['message' => 'Подтверждённые изменения поставлены в очередь.'], 202);
     }

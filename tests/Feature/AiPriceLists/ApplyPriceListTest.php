@@ -14,6 +14,29 @@ use Illuminate\Validation\ValidationException;
 
 class ApplyPriceListTest extends AiPriceListTestCase
 {
+    public function test_public_mode_apply_records_an_anonymous_actor(): void
+    {
+        config()->set('ai-price-lists.authorization_enabled', false);
+        $import = $this->import(['status' => PriceListStatus::ReadyToApply]);
+        $good = Good::query()->create(['name' => 'Мука из публичного review', 'is_published' => true]);
+        $item = $this->matchedItem($import->id, $good, 1, '100.00');
+
+        (new ApplyConfirmedPriceList($import->id, null, [$item->id]))
+            ->handle(app(ApplyPriceListService::class), app(\App\Domain\AiPriceLists\Services\PriceListStateMachine::class));
+
+        $this->assertSame(PriceListStatus::Applied, $import->fresh()->status);
+        $this->assertDatabaseHas('supplier_good_prices', [
+            'price_list_import_item_id' => $item->id,
+            'created_by' => null,
+        ]);
+        $this->assertNull($import->fresh()->applied_by);
+        $this->assertDatabaseHas('price_list_events', [
+            'price_list_import_id' => $import->id,
+            'event_type' => 'prices_applied',
+            'user_id' => null,
+        ]);
+    }
+
     public function test_selected_rows_apply_partially_then_completely_without_duplicate_prices(): void
     {
         $user = $this->userWith([]);

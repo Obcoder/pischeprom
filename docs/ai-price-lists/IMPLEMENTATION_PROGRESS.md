@@ -13,9 +13,9 @@
 - [x] Каталог: строка прайса относится к `Good` (реальная товарная позиция). `Product` — переводимая классификационная сущность, связанная с `Good` many-to-many; автоматически связывать строку одновременно с обеими сущностями нельзя.
 - [x] Цена: `good_price_type_values` хранит продажные/расчётные значения по типу цены, но не поставщика и не происхождение. Для закупочных прайсов требуется отдельная append-only история `supplier_good_prices` с `entity_id`, `good_id`, валютой, НДС и provenance на строку импорта. Существующие продажные цены модуль не изменяет.
 - [x] Справочники: `Measure`, `VatRate`, `Currency`, `Country` существуют; производитель в фактической модели товара не является отдельным `Manufacturer` model (таблица `manufacturers` — pivot Product↔Unit). Неизвестные справочные значения сохраняются как распознанный текст и не создаются автоматически.
-- [x] Права: Spatie Permission с guard `crm`, центральный `Gate::before`, permissions seeder и Policies. Добавляется отдельное семейство `ai_price_lists.*`.
+- [x] Права: Spatie Permission с guard `crm`, центральный `Gate::before`, permissions seeder и Policies. Семейство `ai_price_lists.*` сохранено для будущей общей авторизации Ameise; временный публичный режим управляется `AI_PRICE_LIST_AUTHORIZATION_ENABLED=false`.
 - [x] UI: Inertia/Vue/Vuetify, общий `VerwalterLayout`, навигация в header. Новый раздел будет доступен как `AI → Прайс-листы` и использовать тот же layout.
-- [x] Хранилище: существующий приватно используемый disk `yandex` (S3 Yandex Object Storage). Постоянные Object Storage URL для нового модуля не выдаются; скачивание только через авторизованный backend stream/temporary URL.
+- [x] Хранилище: существующий приватно используемый disk `yandex` (S3 Yandex Object Storage). Постоянные Object Storage URL для нового модуля не выдаются; скачивание идёт только через backend stream, а карантинные файлы закрыты и в публичном режиме.
 - [x] Очереди: Redis уже настроен, scheduler находится в `routes/console.php`; production docs используют Supervisor/systemd. Добавляется логическая очередь `price-lists`, jobs dispatch after commit и команда восстановления зависших импортов.
 - [x] Audit: общий универсальный audit отсутствует; банковский журнал специализирован и append-only. Для модуля нужны собственные append-only `price_list_events` и `ai_usage_records`.
 - [x] Тесты: PHPUnit 11, основной test DB — SQLite memory; feature/unit стиль изучен. MySQL-совместимость миграций дополнительно проверяется через SQL/индексы и документируется, так как MySQL test service локально не объявлен.
@@ -25,7 +25,7 @@
 
 ## Значимые фактические отличия от предположений ТЗ
 
-1. Проектовые API routes исторически в основном не закрыты общей auth middleware. Новый модуль изолируется собственными `auth:sanctum` + policy/permission проверками, не затрагивая legacy routes.
+1. Проектовые API routes исторически в основном не закрыты общей auth middleware. По решению владельца отдельная авторизация модуля временно отключена до общей авторизации `/Ameise`; единый middleware и прежние policy/permissions сохранены и включаются параметром `AI_PRICE_LIST_AUTHORIZATION_ENABLED=true`.
 2. `good_price_type_values` — не история закупочных предложений поставщиков. Модуль не подменяет ею закупочные цены и создаёт отдельную append-only таблицу.
 3. `Product` не является SKU поставщика; основной match/apply target — `Good`.
 4. Отдельного универсального scanner/audit/AI provider слоя нет; добавляются небольшие контракты и безопасные default/fake реализации.
@@ -49,9 +49,9 @@
 
 ## Выполненные проверки
 
-- `php -d memory_limit=512M vendor/bin/phpunit --colors=never tests/Unit/AiPriceLists tests/Feature/AiPriceLists` — 51 тест, 225 assertions, включая production preflight, успешно.
-- `php -d memory_limit=512M vendor/bin/phpunit --colors=never` — 299 тестов,
-  1816 assertions; 5 legacy-тестов штатно пропущено.
+- `php -d memory_limit=512M vendor/bin/phpunit --colors=never tests/Unit/AiPriceLists tests/Feature/AiPriceLists` — 60 тестов, 282 assertions, включая публичный и permission-режимы, успешно.
+- `php -d memory_limit=512M vendor/bin/phpunit --colors=never` — 308 тестов,
+  1873 assertions; 5 legacy-тестов штатно пропущено.
 - `APP_ENV=testing DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan migrate:fresh --force` — все миграции с нуля, включая `2026_08_04_100000_create_ai_price_list_tables`, успешно.
 - `php artisan route:list --path=ai/price-lists --except-vendor` — 18 маршрутов модуля; `php artisan route:list --path=max/webhook --except-vendor` — существующий публичный webhook сохранён.
 - `php artisan schedule:list` — `price-lists:recover-stale` зарегистрирован каждые 10 минут.

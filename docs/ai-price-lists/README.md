@@ -5,6 +5,12 @@
 как отдельные импорты, проходят безопасный асинхронный конвейер и никогда не меняют
 каталог или цены без явного подтверждения сотрудника.
 
+До внедрения общей авторизации всего `/Ameise` раздел и его API работают без
+отдельного входа: `AI_PRICE_LIST_AUTHORIZATION_ENABLED=false` по умолчанию. Прежняя
+permission model сохранена и снова включается одним параметром
+`AI_PRICE_LIST_AUTHORIZATION_ENABLED=true`. В публичном режиме операции всё равно
+ограничены машиной состояний, а файл в статусе `quarantined` скачать нельзя.
+
 ## Архитектура и поток данных
 
 ### Почта
@@ -55,7 +61,8 @@ HTTP-запроса. Поддерживаются реальные attachment `f
   strict JSON Schema;
 - нормализация и первичный matching детерминированы; AI может лишь немного переставить
   уже найденные probable/conflict candidates и не может подтвердить строку;
-- review и apply защищены отдельными permissions, policy и машиной состояний;
+- review и apply ограничены policy и машиной состояний; отдельные permissions
+  применяются только при `AI_PRICE_LIST_AUTHORIZATION_ENABLED=true`;
 - apply создаёт append-only цену поставщика; новый `Good` создаётся только как
   `is_published=false`.
 
@@ -120,6 +127,7 @@ shell/parser.
 
 ```dotenv
 AI_PRICE_LISTS_ENABLED=true
+AI_PRICE_LIST_AUTHORIZATION_ENABLED=false
 AI_PRICE_LIST_QUEUE_CONNECTION=redis
 AI_PRICE_LIST_QUEUE=price-lists
 AI_PRICE_LIST_STORAGE_DISK=yandex

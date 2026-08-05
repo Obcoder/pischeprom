@@ -26,6 +26,65 @@ class AuthorizationAndReviewTest extends AiPriceListTestCase
             ->assertRedirect('/login');
     }
 
+    public function test_pages_and_review_actions_work_without_separate_authorization(): void
+    {
+        config()->set('ai-price-lists.authorization_enabled', false);
+        $import = $this->import(['items_total' => 1, 'items_probable' => 1]);
+        $good = Good::query()->create(['name' => 'Мука без отдельной авторизации', 'is_published' => true]);
+        $item = $this->item($import->id, [
+            'match_class' => MatchClass::Probable,
+            'match_score' => '0.8000',
+        ]);
+
+        $this->get('/Ameise/ai/price-lists')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Ameise/Ai/PriceLists/Index')
+                ->where('auth.user', null)
+                ->where('auth.permissions.ai_price_lists.view', true)
+                ->where('auth.permissions.ai_price_lists.review', true)
+                ->where('auth.permissions.ai_price_lists.apply', true));
+
+        $this->getJson("/api/ai/price-lists/{$import->uuid}")
+            ->assertOk()
+            ->assertJsonPath('permissions.review', true)
+            ->assertJsonPath('permissions.view_technical', true);
+
+        $this->postJson("/api/ai/price-lists/{$import->uuid}/items/{$item->id}/decision", [
+            'decision' => 'matched',
+            'good_id' => $good->id,
+            'save_alias' => true,
+        ])->assertOk()->assertJsonPath('data.decision_status', 'matched');
+
+        $this->assertDatabaseHas('price_list_import_items', [
+            'id' => $item->id,
+            'reviewed_by' => null,
+        ]);
+        $this->assertDatabaseHas('supplier_product_aliases', [
+            'entity_id' => $import->entity_id,
+            'good_id' => $good->id,
+            'confirmed_by' => null,
+        ]);
+        $this->assertDatabaseHas('price_list_events', [
+            'price_list_import_id' => $import->id,
+            'event_type' => 'item_decision_changed',
+            'user_id' => null,
+        ]);
+    }
+
+    public function test_quarantined_document_stays_unavailable_in_public_mode(): void
+    {
+        config()->set('ai-price-lists.authorization_enabled', false);
+        $import = $this->import(['status' => PriceListStatus::Quarantined]);
+        Storage::disk('local')->put($import->path, 'quarantined supplier document');
+
+        $this->getJson("/api/ai/price-lists/{$import->uuid}")
+            ->assertOk()
+            ->assertJsonPath('permissions.download', false);
+        $this->get("/api/ai/price-lists/{$import->uuid}/download")
+            ->assertForbidden();
+    }
+
     public function test_pages_metadata_and_private_download_require_permissions(): void
     {
         $import = $this->import();

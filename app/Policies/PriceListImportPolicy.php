@@ -8,34 +8,38 @@ use App\Models\User;
 
 class PriceListImportPolicy
 {
-    public function viewAny(User $user): bool
+    public function viewAny(?User $user): bool
     {
-        return $user->can('ai_price_lists.view');
+        return $this->can($user, 'ai_price_lists.view');
     }
 
-    public function view(User $user, PriceListImport $import): bool
+    public function view(?User $user, PriceListImport $import): bool
     {
-        return $user->can('ai_price_lists.view');
+        return $this->can($user, 'ai_price_lists.view');
     }
 
-    public function download(User $user, PriceListImport $import): bool
+    public function download(?User $user, PriceListImport $import): bool
     {
-        if (! $user->can('ai_price_lists.view')) {
+        if (! $this->can($user, 'ai_price_lists.view')) {
             return false;
         }
 
-        return $import->status !== PriceListStatus::Quarantined
-            || $user->can('ai_price_lists.view_technical');
+        if ($import->status !== PriceListStatus::Quarantined) {
+            return true;
+        }
+
+        return config('ai-price-lists.authorization_enabled')
+            && $this->can($user, 'ai_price_lists.view_technical');
     }
 
-    public function reprocess(User $user, PriceListImport $import): bool
+    public function reprocess(?User $user, PriceListImport $import): bool
     {
-        return $user->can('ai_price_lists.process');
+        return $this->can($user, 'ai_price_lists.process');
     }
 
-    public function review(User $user, PriceListImport $import): bool
+    public function review(?User $user, PriceListImport $import): bool
     {
-        return $user->can('ai_price_lists.review')
+        return $this->can($user, 'ai_price_lists.review')
             && in_array($import->status, [
                 PriceListStatus::SupplierUnresolved,
                 PriceListStatus::ReviewRequired,
@@ -44,9 +48,9 @@ class PriceListImportPolicy
             ], true);
     }
 
-    public function assignSupplier(User $user, PriceListImport $import): bool
+    public function assignSupplier(?User $user, PriceListImport $import): bool
     {
-        return $user->can('ai_price_lists.assign_supplier')
+        return $this->can($user, 'ai_price_lists.assign_supplier')
             && in_array($import->status, [
                 PriceListStatus::AwaitingClassification,
                 PriceListStatus::SupplierUnresolved,
@@ -56,17 +60,23 @@ class PriceListImportPolicy
             ], true);
     }
 
-    public function apply(User $user, PriceListImport $import): bool
+    public function apply(?User $user, PriceListImport $import): bool
     {
-        return $user->can('ai_price_lists.apply')
+        return $this->can($user, 'ai_price_lists.apply')
             && in_array($import->status, [
                 PriceListStatus::ReadyToApply,
                 PriceListStatus::PartiallyApplied,
             ], true);
     }
 
-    public function viewTechnical(User $user, PriceListImport $import): bool
+    public function viewTechnical(?User $user, PriceListImport $import): bool
     {
-        return $user->can('ai_price_lists.view_technical');
+        return $this->can($user, 'ai_price_lists.view_technical');
+    }
+
+    private function can(?User $user, string $permission): bool
+    {
+        return ! config('ai-price-lists.authorization_enabled')
+            || (bool) $user?->can($permission);
     }
 }

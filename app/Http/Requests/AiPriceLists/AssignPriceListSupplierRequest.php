@@ -3,12 +3,13 @@
 namespace App\Http\Requests\AiPriceLists;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 
 class AssignPriceListSupplierRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('assignSupplier', $this->route('priceListImport')) ?? false;
+        return Gate::allows('assignSupplier', $this->route('priceListImport'));
     }
 
     public function rules(): array

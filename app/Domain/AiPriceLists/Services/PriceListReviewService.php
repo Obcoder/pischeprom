@@ -38,7 +38,7 @@ class PriceListReviewService
         private readonly PriceListStateMachine $states,
     ) {}
 
-    public function updateItem(PriceListImportItem $item, array $data, User $user): PriceListImportItem
+    public function updateItem(PriceListImportItem $item, array $data, ?User $user): PriceListImportItem
     {
         return DB::transaction(function () use ($item, $data, $user): PriceListImportItem {
             $item = PriceListImportItem::query()->with('import')->lockForUpdate()->findOrFail($item->id);
@@ -78,7 +78,7 @@ class PriceListReviewService
                 ...$changes,
                 ...$reviewReset,
                 'user_corrections' => array_merge($item->user_corrections ?: [], $changes),
-                'reviewed_by' => $user->id,
+                'reviewed_by' => $user?->id,
                 'reviewed_at' => now(),
             ])->save();
 
@@ -93,7 +93,7 @@ class PriceListReviewService
         }, 3);
     }
 
-    public function decide(PriceListImportItem $item, ItemDecisionStatus $decision, ?int $goodId, bool $saveAlias, User $user): PriceListImportItem
+    public function decide(PriceListImportItem $item, ItemDecisionStatus $decision, ?int $goodId, bool $saveAlias, ?User $user): PriceListImportItem
     {
         return DB::transaction(function () use ($item, $decision, $goodId, $saveAlias, $user): PriceListImportItem {
             $item = PriceListImportItem::query()->with('import')->lockForUpdate()->findOrFail($item->id);
@@ -151,7 +151,7 @@ class PriceListReviewService
                 throw ValidationException::withMessages(['decision' => 'Недопустимое решение для review.']);
             }
 
-            $item->forceFill(['reviewed_by' => $user->id, 'reviewed_at' => now()])->save();
+            $item->forceFill(['reviewed_by' => $user?->id, 'reviewed_at' => now()])->save();
             $this->audit->record($import, 'item_decision_changed', [
                 'item_id' => $item->id,
                 'decision' => $decision->value,
@@ -164,7 +164,7 @@ class PriceListReviewService
         }, 3);
     }
 
-    public function assignSupplier(PriceListImport $import, int $entityId, bool $bindSource, User $user): PriceListImport
+    public function assignSupplier(PriceListImport $import, int $entityId, bool $bindSource, ?User $user): PriceListImport
     {
         return DB::transaction(function () use ($import, $entityId, $bindSource, $user): PriceListImport {
             $import = PriceListImport::query()->lockForUpdate()->findOrFail($import->id);
@@ -177,7 +177,7 @@ class PriceListReviewService
                 ]);
             }
 
-            $import->forceFill(['entity_id' => $entityId, 'reviewed_by' => $user->id, 'reviewed_at' => now()])->save();
+            $import->forceFill(['entity_id' => $entityId, 'reviewed_by' => $user?->id, 'reviewed_at' => now()])->save();
 
             if ($bindSource && $import->source_channel->value === 'max' && $import->source_chat_id) {
                 \App\Models\MaxChat::query()->where('chat_id', $import->source_chat_id)->update(['entity_id' => $entityId]);
@@ -228,7 +228,7 @@ class PriceListReviewService
      *
      * @return array{affected:int, preview:bool}
      */
-    public function applyDefaults(PriceListImport $import, array $defaults, bool $preview, User $user): array
+    public function applyDefaults(PriceListImport $import, array $defaults, bool $preview, ?User $user): array
     {
         $defaults = Arr::only($defaults, ['currency_code', 'vat_mode', 'vat_rate']);
         $defaults = array_filter($defaults, static fn ($value): bool => $value !== null && $value !== '');
@@ -273,7 +273,7 @@ class PriceListReviewService
                         $item->forceFill([
                             ...$changes,
                             'user_corrections' => array_merge($item->user_corrections ?: [], $changes),
-                            'reviewed_by' => $user->id,
+                            'reviewed_by' => $user?->id,
                             'reviewed_at' => now(),
                         ])->save();
                     }
@@ -289,7 +289,7 @@ class PriceListReviewService
 
             $import->forceFill([
                 'document_defaults' => array_merge($import->document_defaults ?: [], $documentDefaults),
-                'reviewed_by' => $user->id,
+                'reviewed_by' => $user?->id,
                 'reviewed_at' => now(),
             ])->save();
             $this->audit->record($import, 'item_defaults_applied', [
@@ -301,7 +301,7 @@ class PriceListReviewService
         }, 3);
     }
 
-    public function bulkConfirmExact(PriceListImport $import, User $user, int $limit = 5000): int
+    public function bulkConfirmExact(PriceListImport $import, ?User $user, int $limit = 5000): int
     {
         return DB::transaction(function () use ($import, $user, $limit): int {
             $import = PriceListImport::query()->lockForUpdate()->findOrFail($import->id);
@@ -321,11 +321,11 @@ class PriceListReviewService
             PriceListImportItem::query()->whereIn('id', $ids)->update([
                 'decision_status' => ItemDecisionStatus::Matched->value,
                 'review_reason' => 'Однозначное совпадение массово подтверждено пользователем.',
-                'reviewed_by' => $user->id,
+                'reviewed_by' => $user?->id,
                 'reviewed_at' => now(),
                 'updated_at' => now(),
             ]);
-            $import->forceFill(['reviewed_by' => $user->id, 'reviewed_at' => now()])->save();
+            $import->forceFill(['reviewed_by' => $user?->id, 'reviewed_at' => now()])->save();
             $this->audit->record($import, 'exact_items_bulk_confirmed', ['count' => $ids->count()], $user);
             $this->refreshReadiness($import, $user);
 
@@ -333,7 +333,7 @@ class PriceListReviewService
         }, 3);
     }
 
-    private function refreshReadiness(PriceListImport $import, User $user): void
+    private function refreshReadiness(PriceListImport $import, ?User $user): void
     {
         $import->refresh();
 
@@ -362,7 +362,7 @@ class PriceListReviewService
         }
     }
 
-    private function saveAlias(PriceListImport $import, PriceListImportItem $item, Good $good, User $user): void
+    private function saveAlias(PriceListImport $import, PriceListImportItem $item, Good $good, ?User $user): void
     {
         if (! $import->entity_id || ! $item->normalized_name) {
             return;
@@ -395,7 +395,7 @@ class PriceListReviewService
             'good_id' => $good->id,
             'supplier_sku' => $item->supplier_sku,
             'alias' => $item->raw_name,
-            'confirmed_by' => $user->id,
+            'confirmed_by' => $user?->id,
             'confirmed_at' => now(),
         ]);
     }
