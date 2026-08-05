@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Avito\Exceptions\AvitoException;
 use App\Domain\Banking\Exceptions\BankingException;
 use App\Services\Logistics\Routing\Exceptions\RoutingException;
 use Illuminate\Foundation\Application;
@@ -27,7 +28,20 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->dontReport(BankingException::class);
+        $exceptions->dontReport(AvitoException::class);
         $exceptions->dontReport(RoutingException::class);
+
+        $exceptions->render(function (AvitoException $exception, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'category' => $exception->category,
+                'retryable' => $exception->retryable,
+            ], $exception->httpStatus);
+        });
 
         $exceptions->render(function (RoutingException $exception, Request $request) {
             if (! $request->expectsJson()) {

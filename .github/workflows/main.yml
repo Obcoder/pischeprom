@@ -165,6 +165,24 @@ jobs:
             tests/Unit/LogisticsRoutingSupportTest.php \
             tests/Unit/ValhallaRoutingProviderTest.php
 
+      - name: Check Avito PHP style and catalog
+        run: |
+          vendor/bin/pint --test \
+            app/Console/Commands/AvitoPreflightCommand.php \
+            app/Console/Commands/MaintainAvitoIntegrationCommand.php \
+            app/Console/Commands/SyncAvitoApiCatalogCommand.php \
+            app/Domain/Avito \
+            app/Http/Controllers/AvitoController.php \
+            app/Models/AvitoApiCall.php \
+            app/Models/AvitoCapabilitySetting.php \
+            app/Models/AvitoConnection.php \
+            app/Models/AvitoWebhookEvent.php \
+            app/Services/Avito \
+            config/avito.php \
+            database/migrations/2026_08_05_100000_create_avito_integration_tables.php \
+            tests/Feature/Avito
+          php artisan avito:preflight
+
       - name: Run unit, logistics, banking, AI price-list, goods stock, orders, and products tests
         env:
           APP_ENV: testing
@@ -184,6 +202,7 @@ jobs:
             tests/Feature/Logistics \
             tests/Feature/Banking \
             tests/Feature/AiPriceLists \
+            tests/Feature/Avito \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/OrderManagementTest.php \

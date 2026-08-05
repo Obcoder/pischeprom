@@ -769,6 +769,16 @@ onMounted(fetchWorkingLeads)
             <template #append>
                 <div class="ameise-header-actions">
                     <Link
+                        :href="route('Ameise.avito')"
+                        class="ameise-header-control ameise-header-icon ameise-avito-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.avito')) }"
+                        title="Avito API"
+                        aria-label="Центр управления Avito API"
+                    >
+                        <v-icon icon="mdi-storefront-outline" size="21" />
+                    </Link>
+
+                    <Link
                         :href="route('Ameise.products')"
                         class="ameise-header-control ameise-header-icon ameise-products-icon"
                         :class="{ 'is-active': isActiveUrl(route('Ameise.products')) }"
@@ -1366,6 +1376,11 @@ onMounted(fetchWorkingLeads)
 .ameise-products-icon {
     --ameise-glow: 14 165 233;
     color: #bae6fd;
+}
+
+.ameise-avito-icon {
+    --ameise-glow: 139 92 246;
+    color: #ddd6fe;
 }
 
 .ameise-bank-icon {

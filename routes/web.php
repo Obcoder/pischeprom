@@ -450,9 +450,17 @@ Route::get('/api/marketing/yandex/oauth/callback', [\App\Http\Controllers\API\Ma
     ->name('api.marketing.yandex.oauth.callback');
 
 //   A V I T O
-Route::get('/Ameise/Avito', function () {
+Route::get('/Ameise/avito', function () {
     return Inertia::render('Ameise/Avito');
-})->name('Ameise/avito');
+})->name('Ameise.avito');
+
+Route::redirect('/Ameise/Avito', '/Ameise/avito', 301);
+
+Route::get('/api/avito/oauth/redirect', [\App\Http\Controllers\AvitoController::class, 'oauthRedirect'])
+    ->name('api.avito.oauth.redirect');
+
+Route::get('/api/avito/oauth/callback', [\App\Http\Controllers\AvitoController::class, 'oauthCallback'])
+    ->name('api.avito.oauth.callback');
 
 //   S E A P R O M
 Route::get('Seaprom', function () {

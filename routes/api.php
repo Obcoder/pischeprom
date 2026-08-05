@@ -716,7 +716,32 @@ Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class
  * A V I T O
  * -------------------------
  */
-Route::get('/avito/user', [AvitoController::class, 'getUserInfo']);
+Route::post('/avito/webhook', [AvitoController::class, 'receiveWebhook'])
+    ->middleware('throttle:300,1')
+    ->name('api.avito.webhook');
+
+Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(function () {
+    Route::get('/status', [AvitoController::class, 'status'])->name('status');
+    Route::get('/capabilities', [AvitoController::class, 'capabilities'])->name('capabilities.index');
+    Route::patch('/capabilities', [AvitoController::class, 'bulkUpdateCapabilities'])->name('capabilities.bulk-update');
+    Route::get('/capabilities/{capability}', [AvitoController::class, 'capability'])->name('capabilities.show');
+    Route::patch('/capabilities/{capability}', [AvitoController::class, 'updateCapability'])->name('capabilities.update');
+    Route::post('/capabilities/{capability}/execute', [AvitoController::class, 'execute'])
+        ->middleware('throttle:20,1')
+        ->name('capabilities.execute');
+    Route::post('/preflight', [AvitoController::class, 'preflight'])
+        ->middleware('throttle:10,1')
+        ->name('preflight');
+
+    Route::get('/connections', [AvitoController::class, 'connections'])->name('connections.index');
+    Route::post('/connections/{connection}/refresh', [AvitoController::class, 'refreshConnection'])->name('connections.refresh');
+    Route::delete('/connections/{connection}', [AvitoController::class, 'destroyConnection'])->name('connections.destroy');
+
+    Route::get('/calls', [AvitoController::class, 'calls'])->name('calls.index');
+    Route::get('/calls/{call}', [AvitoController::class, 'call'])->name('calls.show');
+    Route::get('/webhooks', [AvitoController::class, 'webhooks'])->name('webhooks.index');
+    Route::get('/webhooks/{event}', [AvitoController::class, 'webhook'])->name('webhooks.show');
+});
 
 /*
  * ---------------------------

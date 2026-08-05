@@ -60,12 +60,6 @@ return [
         'dry_run' => env('MAILINGS_DRY_RUN', false),
     ],
 
-    'avito' => [
-        'client_id' => env('AVITO_CLIENT_ID'),
-        'client_secret' => env('AVITO_CLIENT_SECRET'),
-        'api_url' => env('AVITO_API_URL', 'https://api.avito.ru/token'),
-    ],
-
     'yandex_search' => [
         'api_key' => env('YANDEX_SEARCH_API_KEY'),
         'folder_id' => env('YANDEX_SEARCH_FOLDER_ID'),

@@ -266,10 +266,13 @@ php artisan route:list --path=Ameise/orders >/dev/null
 php artisan route:list --path=api/logistics >/dev/null
 php artisan route:list --path=Ameise/logistics >/dev/null
 php artisan route:list --path=Ameise/ai/price-lists >/dev/null
+php artisan route:list --path=Ameise/avito >/dev/null
+php artisan route:list --path=api/avito >/dev/null
 php artisan route:list --path=unisender-go >/dev/null
 php artisan route:list --path=unsubscribe >/dev/null
 php artisan list mailings >/dev/null
 php artisan price-lists:production-preflight --schema >/dev/null
+php artisan avito:preflight --schema >/dev/null
 
 if ! php artisan max:webhook:ensure >/dev/null 2>&1; then
     fail 'MAX webhook verification failed; rerun the command locally on the VPS.'
@@ -361,6 +364,14 @@ fi
 
 if ! php artisan app:deploy-smoke --path=/Ameise/ >/dev/null 2>&1; then
     fail 'Smoke check for /Ameise/ failed; rerun the command locally on the VPS.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/Ameise/avito >/dev/null 2>&1; then
+    fail 'Smoke check for /Ameise/avito failed; rerun the command locally on the VPS.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/api/avito/status >/dev/null 2>&1; then
+    fail 'Smoke check for /api/avito/status failed; rerun the command locally on the VPS.'
 fi
 
 log "Deployment completed: ${previous_sha} -> ${commit_sha}."

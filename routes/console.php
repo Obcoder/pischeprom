@@ -79,6 +79,13 @@ Schedule::command('yandex:direct:ai:autopilot')
     ->when(fn () => (bool) config('yandex.direct.ai_autopilot.enabled', true))
     ->withoutOverlapping(60);
 
+Schedule::command('avito:maintain')
+    ->name('maintain-avito-integration')
+    ->hourly()
+    ->when(fn () => (bool) config('avito.enabled'))
+    ->onOneServer()
+    ->withoutOverlapping(20);
+
 $bankSyncMinutes = min(59, max(1, (int) config('banking.sber.sync_interval_minutes', 15)));
 
 Schedule::call(function (): void {
