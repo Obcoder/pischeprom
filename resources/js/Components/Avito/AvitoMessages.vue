@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
+import AvitoCrmPanel from './AvitoCrmPanel.vue'
 
 const props = defineProps({
     connections: { type: Array, default: () => [] },
@@ -25,6 +26,7 @@ const activeRun = ref(null)
 const composerText = ref('')
 const imageInput = ref(null)
 const messageStream = ref(null)
+const crmPanel = ref(null)
 const filters = reactive({ search: '', account_id: null, unread_only: false, chat_type: null })
 let searchTimer = null
 let runTimer = null
@@ -241,6 +243,29 @@ async function sendImage(event) {
     }
 }
 
+async function refreshAfterCrmMutation() {
+    await loadChats(chatsMeta.value.current_page)
+    if (selectedChat.value) await loadChatPage(1, false)
+}
+
+async function refreshMessagesFromCrm() {
+    if (selectedChat.value) await loadChatPage(1, false)
+    await loadChats(chatsMeta.value.current_page)
+}
+
+function handleContactCandidate(candidate) {
+    if (candidate.type === 'phone') {
+        crmPanel.value?.acceptPhoneCandidate(candidate)
+        return
+    }
+
+    crmPanel.value?.prepareAddressCandidate(candidate)
+}
+
+function openCrmCatalog() {
+    crmPanel.value?.openCatalog()
+}
+
 async function deleteMessage(message) {
     if (!window.confirm('Удалить сообщение на Avito? Локальная архивная копия останется.')) return
     try {
@@ -386,7 +411,7 @@ onBeforeUnmount(() => {
                     <button v-for="chat in chats" :key="chat.id" type="button" class="chat-row" :class="{ 'is-active': selectedChat?.id === chat.id, 'is-unread': chat.is_unread }" @click="openChat(chat)">
                         <v-avatar size="34" color="deep-purple-darken-1"><v-img v-if="chat.peer_avatar_url" :src="chat.peer_avatar_url" cover /><span v-else>{{ (chat.peer_name || chat.title || 'A').slice(0, 1).toUpperCase() }}</span></v-avatar>
                         <span class="chat-row__body"><strong>{{ chat.peer_name || chat.title || 'Чат Avito' }}</strong><small>{{ chat.last_message_preview || 'Сообщений пока нет' }}</small><em>{{ chat.title !== chat.peer_name ? chat.title : `ID ${chat.external_chat_id.slice(0, 8)}` }}</em></span>
-                        <span class="chat-row__meta"><time>{{ formatDate(chat.last_message_at, true) }}</time><b v-if="chat.unread_count">{{ chat.unread_count }}</b><i>{{ chat.chat_type || 'u2i' }}</i></span>
+                        <span class="chat-row__meta"><time>{{ formatDate(chat.last_message_at, true) }}</time><b v-if="chat.unread_count">{{ chat.unread_count }}</b><v-icon v-if="chat.entity" icon="mdi-account-check-outline" size="11" color="green-lighten-1" :title="chat.entity.name" /><i>{{ chat.chat_type || 'u2i' }}</i></span>
                     </button>
                     <div v-if="!chats.length" class="pane-empty"><v-icon icon="mdi-forum-remove-outline" size="36" /><strong>Архив пока пуст</strong><span>Запустите синхронизацию — чаты и сообщения сохранятся на сервере.</span></div>
                 </div>
@@ -396,7 +421,7 @@ onBeforeUnmount(() => {
             <main class="conversation-pane">
                 <template v-if="selectedChat">
                     <header class="conversation-header">
-                        <div><strong>{{ selectedChat.peer_name || selectedChat.title }}</strong><span>{{ selectedChat.title }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений · архив {{ formatDate(selectedChat.last_synced_at) }}</span></div>
+                        <div><strong>{{ selectedChat.peer_name || selectedChat.title }}</strong><span>{{ selectedChat.entity?.name || 'Entity не связана' }} · {{ selectedChat.title }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений · архив {{ formatDate(selectedChat.last_synced_at) }}</span></div>
                         <v-btn icon="mdi-refresh" size="small" variant="text" :loading="chatLoading" title="Обновить из Avito" @click="refreshSelectedChat" />
                         <v-btn icon="mdi-check-all" size="small" variant="text" title="Отметить прочитанным" @click="markRead" />
                         <v-menu>
@@ -411,6 +436,12 @@ onBeforeUnmount(() => {
                             <div v-if="attachment(message, 'image')" class="message-image"><img :src="attachment(message, 'image').url" alt="Изображение из архива Avito" loading="lazy"></div>
                             <audio v-if="attachment(message, 'voice')" :src="attachment(message, 'voice').url" controls preload="none" />
                             <p v-if="message.type !== 'image' || !attachment(message, 'image')">{{ messageText(message) }}</p>
+                            <div v-if="message.contact_candidates?.length" class="message-candidates">
+                                <button v-for="candidate in message.contact_candidates" :key="candidate.id" type="button" :class="`is-${candidate.type}`" @click="handleContactCandidate(candidate)">
+                                    <v-icon :icon="candidate.type === 'phone' ? 'mdi-phone-plus-outline' : 'mdi-map-marker-plus-outline'" size="11" />
+                                    {{ candidate.type === 'phone' ? candidate.normalized_value : 'Сохранить адрес' }}
+                                </button>
+                            </div>
                             <div v-if="message.remote_type === 'deleted'" class="archive-marker"><v-icon icon="mdi-archive-lock-outline" size="12" />Удалено на Avito · копия сохранена</div>
                             <footer><span>{{ message.type }}</span><time>{{ formatDate(message.remote_created_at) }}</time><v-icon v-if="message.direction === 'out'" :icon="message.is_read ? 'mdi-check-all' : 'mdi-check'" size="13" /><v-btn v-if="message.direction === 'out' && message.remote_type !== 'deleted'" icon="mdi-delete-outline" color="error" size="x-small" variant="text" @click="deleteMessage(message)" /></footer>
                         </article>
@@ -419,7 +450,8 @@ onBeforeUnmount(() => {
                     </div>
 
                     <footer class="composer">
-                        <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" hidden @change="sendImage">
+                        <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="sendImage">
+                        <v-btn icon="mdi-package-variant-closed-plus" size="small" variant="text" :disabled="sending" title="Выбрать товар из Пищепром-Сервера" @click="openCrmCatalog" />
                         <v-btn icon="mdi-image-plus-outline" size="small" variant="text" :disabled="sending" title="Отправить изображение" @click="selectImage" />
                         <v-textarea v-model="composerText" placeholder="Сообщение до 1000 символов" rows="1" max-rows="4" auto-grow density="compact" variant="solo-filled" hide-details maxlength="1000" @keydown.ctrl.enter.prevent="sendText" />
                         <span>{{ composerText.length }}/1000</span>
@@ -429,11 +461,20 @@ onBeforeUnmount(() => {
                 <div v-else class="conversation-empty"><v-icon icon="mdi-message-text-outline" size="48" /><strong>Выберите переписку</strong><span>Здесь доступны отправка текста и изображений, удаление, прочтение и блокировка.</span></div>
             </main>
 
-            <aside class="messenger-info-pane">
+            <AvitoCrmPanel
+                v-if="selectedChat"
+                ref="crmPanel"
+                :chat="selectedChat"
+                @notice="notify"
+                @error="(message) => emit('error', message)"
+                @chat-updated="refreshAfterCrmMutation"
+                @refresh-messages="refreshMessagesFromCrm"
+            />
+
+            <aside v-else class="messenger-info-pane">
                 <section><span class="info-eyebrow">Локальный архив</span><dl><dt>Аккаунтов</dt><dd>{{ overview.counts.accounts || 0 }}</dd><dt>Чатов</dt><dd>{{ overview.counts.chats || 0 }}</dd><dt>Сообщений</dt><dd>{{ overview.counts.messages || 0 }}</dd><dt>Вложений</dt><dd>{{ overview.counts.attachments || 0 }}</dd></dl></section>
                 <section><span class="info-eyebrow">Realtime</span><strong>{{ subscriptions.length ? 'Webhook V3 активен' : 'Webhook не найден' }}</strong><small>{{ subscriptions.length ? `${subscriptions.length} подписок Avito` : 'Плановая синхронизация выполняется каждые 5 минут' }}</small><div><v-btn v-if="!subscriptions.length" size="x-small" variant="tonal" @click="changeSubscription(true)">Подключить</v-btn><v-btn v-else size="x-small" color="error" variant="text" @click="changeSubscription(false)">Отключить</v-btn></div></section>
                 <section><span class="info-eyebrow">Возможности Avito</span><small>API разрешает создать и удалить сообщение, но не предоставляет редактирование уже отправленного текста. Удаление доступно не позднее часа.</small></section>
-                <section v-if="selectedChat"><span class="info-eyebrow">Текущий чат</span><dl><dt>Avito chat ID</dt><dd class="mono">{{ selectedChat.external_chat_id }}</dd><dt>Собеседник</dt><dd>{{ selectedChat.peer_user_id || '—' }}</dd><dt>Объявление</dt><dd>{{ selectedChat.context_id || '—' }}</dd><dt>Тип</dt><dd>{{ selectedChat.chat_type || '—' }}</dd></dl><v-btn v-if="selectedChat.context_url" :href="selectedChat.context_url" target="_blank" rel="noopener noreferrer" size="x-small" prepend-icon="mdi-open-in-new" variant="tonal">Открыть объявление</v-btn></section>
                 <v-expansion-panels variant="accordion" class="tools-panel"><v-expansion-panel><v-expansion-panel-title>13 инструментов API</v-expansion-panel-title><v-expansion-panel-text><a v-for="tool in overview.tools" :key="tool.id" :href="tool.documentation_url" target="_blank" rel="noopener noreferrer"><span>{{ tool.method }}</span>{{ tool.summary }}</a></v-expansion-panel-text></v-expansion-panel></v-expansion-panels>
             </aside>
         </div>
@@ -448,7 +489,7 @@ onBeforeUnmount(() => {
 .messenger-stat > .v-icon { color: #a995ff; }.messenger-stat span, .messenger-stat strong { display: block; }.messenger-stat span { color: #858cac; font-size: 9px; text-transform: uppercase; }.messenger-stat strong { margin-top: 1px; color: #f1f2ff; font-size: 16px; }
 .sync-strip { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 7px 13px; color: #d9d1ff; font-size: 11px; background: #282044; }.sync-strip .v-progress-linear { position: absolute; inset: 0 0 auto; }.sync-strip small { color: #a7a0c9; }
 .messenger-loading { display: flex; min-height: 430px; align-items: center; justify-content: center; gap: 12px; color: #9da3c3; }
-.messenger-layout { display: grid; grid-template-columns: 330px minmax(420px, 1fr) 230px; height: calc(100vh - 355px); min-height: 520px; }
+.messenger-layout { display: grid; grid-template-columns: 320px minmax(410px, 1fr) 360px; height: calc(100vh - 355px); min-height: 520px; }
 .chat-list-pane, .conversation-pane, .messenger-info-pane { min-width: 0; min-height: 0; }
 .chat-list-pane { display: flex; flex-direction: column; border-right: 1px solid #30344d; background: #15182b; }
 .chat-filters { display: grid; gap: 6px; padding: 8px; border-bottom: 1px solid #2c3048; }.chat-filters > div { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
@@ -460,10 +501,11 @@ onBeforeUnmount(() => {
 .conversation-header { display: flex; min-height: 58px; align-items: center; gap: 3px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1a1d33; }.conversation-header > div:first-child { min-width: 0; flex: 1; }.conversation-header strong, .conversation-header span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conversation-header strong { font-size: 13px; }.conversation-header span { margin-top: 3px; color: #858baa; font-size: 10px; }
 .message-stream { display: flex; overflow-y: auto; flex: 1; flex-direction: column; gap: 5px; padding: 12px 14px; }.older-button { align-self: center; margin: 3px 0 9px; }
 .message-bubble { width: fit-content; max-width: min(76%, 680px); padding: 7px 9px 4px; border: 1px solid #343951; border-radius: 11px 11px 11px 3px; background: #20243b; box-shadow: 0 4px 12px rgba(0, 0, 0, .12); }.message-bubble.is-out { align-self: flex-end; border-color: rgba(132, 103, 239, .38); border-radius: 11px 11px 3px; background: #392d62; }.message-bubble.is-deleted { border-style: dashed; opacity: .82; }.message-bubble p { margin: 0; color: #f0f1ff; font-size: 12px; line-height: 1.38; white-space: pre-wrap; word-break: break-word; }.message-bubble audio { width: 260px; max-width: 100%; height: 34px; }.message-image { overflow: hidden; max-width: 360px; margin: -3px -5px 4px; border-radius: 7px; }.message-image img { display: block; width: 100%; max-height: 320px; object-fit: contain; background: #0d1020; }.message-bubble footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; color: #8f95b5; font-size: 8px; }.message-bubble footer span { margin-right: auto; text-transform: uppercase; }.archive-marker { display: flex; align-items: center; gap: 3px; margin-top: 5px; color: #d2a4ae; font-size: 8px; }
-.composer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > span { color: #737999; font-size: 8px; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
+.message-candidates { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }.message-candidates button { display: flex; align-items: center; gap: 3px; padding: 2px 5px; color: #b7ead4; font-size: 7px; border: 1px solid rgba(90, 205, 154, .28); border-radius: 10px; background: rgba(34, 105, 75, .22); cursor: pointer; }.message-candidates button.is-address { color: #b9dff0; border-color: rgba(83, 175, 216, .28); background: rgba(33, 91, 119, .22); }
+.composer { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > span { color: #737999; font-size: 8px; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
 .conversation-empty, .pane-empty { display: grid; place-items: center; align-content: center; gap: 7px; color: #858baa; text-align: center; }.conversation-empty { flex: 1; }.conversation-empty strong, .pane-empty strong { color: #dfe2f8; }.conversation-empty span, .pane-empty span { max-width: 300px; font-size: 11px; }.pane-empty { min-height: 220px; padding: 20px; }
 .messenger-info-pane { overflow-y: auto; padding: 9px; border-left: 1px solid #30344d; background: #15182b; }.messenger-info-pane section { margin-bottom: 8px; padding: 10px; border: 1px solid #2f334c; border-radius: 8px; background: #1b1e35; }.info-eyebrow { display: block; margin-bottom: 8px; color: #9d88f4; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.messenger-info-pane dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 7px; margin: 0; font-size: 10px; }.messenger-info-pane dt { color: #858baa; }.messenger-info-pane dd { overflow: hidden; max-width: 125px; margin: 0; color: #e5e7fa; text-overflow: ellipsis; white-space: nowrap; }.messenger-info-pane section > strong, .messenger-info-pane section > small { display: block; }.messenger-info-pane section > strong { font-size: 11px; }.messenger-info-pane section > small { margin: 4px 0 8px; color: #858baa; font-size: 9px; line-height: 1.4; }.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
 .tools-panel :deep(.v-expansion-panel) { color: #dfe2f8; background: #1b1e35; }.tools-panel :deep(.v-expansion-panel-title) { min-height: 38px; padding: 8px 10px; font-size: 10px; }.tools-panel :deep(.v-expansion-panel-text__wrapper) { display: grid; gap: 4px; padding: 4px 8px 10px; }.tools-panel a { display: grid; grid-template-columns: 32px 1fr; gap: 4px; color: #bec4e3; font-size: 8px; text-decoration: none; }.tools-panel a span { color: #9c85f5; font-weight: 800; }
-@media (max-width: 1250px) { .messenger-layout { grid-template-columns: 300px minmax(400px, 1fr); }.messenger-info-pane { display: none; }.messenger-stat:nth-of-type(4) { display: none; } }
+@media (max-width: 1250px) { .messenger-layout { grid-template-columns: 285px minmax(390px, 1fr) 330px; }.messenger-stat:nth-of-type(4) { display: none; } }
 @media (max-width: 850px) { .messenger-toolbar { flex-wrap: wrap; }.messenger-stat { min-width: 90px; flex: 1; }.messenger-toolbar > .v-select { max-width: none; flex-basis: 190px; }.messenger-layout { display: block; height: auto; }.chat-list-pane { height: 360px; border-right: 0; }.conversation-pane { min-height: 620px; border-top: 1px solid #30344d; }.message-bubble { max-width: 88%; } }
 </style>

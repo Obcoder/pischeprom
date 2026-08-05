@@ -105,6 +105,7 @@ use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\WarehouseController;
 use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\AvitoController;
+use App\Http\Controllers\AvitoCrmController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
@@ -744,9 +745,32 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
     Route::get('/webhooks/{event}', [AvitoController::class, 'webhook'])->name('webhooks.show');
 
     Route::prefix('messenger')->name('messenger.')->group(function () {
+        Route::get('/crm/options', [AvitoCrmController::class, 'options'])->name('crm.options');
+        Route::get('/crm/entities', [AvitoCrmController::class, 'entities'])->name('crm.entities');
+        Route::get('/crm/cities', [AvitoCrmController::class, 'cities'])->name('crm.cities');
+        Route::get('/crm/goods', [AvitoCrmController::class, 'goods'])->name('crm.goods');
+        Route::patch('/crm/candidates/{candidate}', [AvitoCrmController::class, 'updateCandidate'])
+            ->name('crm.candidates.update');
         Route::get('/overview', [AvitoMessengerController::class, 'overview'])->name('overview');
         Route::get('/chats', [AvitoMessengerController::class, 'chats'])->name('chats.index');
         Route::get('/chats/{chat}', [AvitoMessengerController::class, 'chat'])->name('chats.show');
+        Route::get('/chats/{chat}/crm', [AvitoCrmController::class, 'show'])->name('chats.crm.show');
+        Route::put('/chats/{chat}/crm/entity', [AvitoCrmController::class, 'linkEntity'])
+            ->name('chats.crm.entity.link');
+        Route::post('/chats/{chat}/crm/entity', [AvitoCrmController::class, 'createEntity'])
+            ->name('chats.crm.entity.store');
+        Route::delete('/chats/{chat}/crm/entity', [AvitoCrmController::class, 'unlinkEntity'])
+            ->name('chats.crm.entity.destroy');
+        Route::post('/chats/{chat}/crm/telephones', [AvitoCrmController::class, 'storeTelephone'])
+            ->name('chats.crm.telephones.store');
+        Route::post('/chats/{chat}/crm/buildings', [AvitoCrmController::class, 'storeBuilding'])
+            ->name('chats.crm.buildings.store');
+        Route::post('/chats/{chat}/crm/orders', [AvitoCrmController::class, 'storeOrder'])
+            ->middleware('throttle:30,1')
+            ->name('chats.crm.orders.store');
+        Route::post('/chats/{chat}/crm/goods/{good}/send', [AvitoCrmController::class, 'sendGood'])
+            ->middleware('throttle:20,1')
+            ->name('chats.crm.goods.send');
         Route::post('/sync', [AvitoMessengerController::class, 'queueSync'])
             ->middleware('throttle:10,1')
             ->name('sync.store');

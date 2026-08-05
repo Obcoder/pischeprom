@@ -21,6 +21,7 @@ class AvitoMessage extends Model
         'remote_read_at',
         'deleted_from_avito_at',
         'last_synced_at',
+        'crm_scanned_at',
         'content',
         'quote',
         'payload',
@@ -36,6 +37,7 @@ class AvitoMessage extends Model
             'remote_read_at' => 'datetime',
             'deleted_from_avito_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            'crm_scanned_at' => 'datetime',
             'content' => 'encrypted:array',
             'quote' => 'encrypted:array',
             'payload' => 'encrypted:array',
@@ -50,5 +52,10 @@ class AvitoMessage extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(AvitoMessageAttachment::class);
+    }
+
+    public function contactCandidates(): HasMany
+    {
+        return $this->hasMany(AvitoContactCandidate::class);
     }
 }

@@ -4,12 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AvitoChat extends Model
 {
     protected $fillable = [
         'avito_messenger_account_id',
+        'entity_id',
         'external_chat_id',
         'chat_type',
         'context_type',
@@ -50,8 +52,20 @@ class AvitoChat extends Model
         return $this->belongsTo(AvitoMessengerAccount::class, 'avito_messenger_account_id');
     }
 
+    public function entity(): BelongsTo
+    {
+        return $this->belongsTo(Entity::class);
+    }
+
     public function messages(): HasMany
     {
         return $this->hasMany(AvitoMessage::class);
+    }
+
+    public function orders(): BelongsToMany
+    {
+        return $this->belongsToMany(Order::class, 'avito_chat_order')
+            ->withPivot('source_message_id')
+            ->withTimestamps();
     }
 }

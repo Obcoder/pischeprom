@@ -13,7 +13,10 @@ use Illuminate\Support\Str;
 
 class AvitoMessengerArchive
 {
-    public function __construct(private readonly AvitoApiExecutor $executor) {}
+    public function __construct(
+        private readonly AvitoApiExecutor $executor,
+        private readonly AvitoContactDetector $contactDetector,
+    ) {}
 
     public function resolveAccount(?AvitoConnection $connection = null, bool $refreshIdentity = false): AvitoMessengerAccount
     {
@@ -122,6 +125,14 @@ class AvitoMessengerArchive
             'last_synced_at' => now(),
             'payload' => $payload,
         ]);
+
+        if (! $chat->entity_id && filled($peer['id'])) {
+            $chat->entity_id = AvitoChat::query()
+                ->where('avito_messenger_account_id', $account->id)
+                ->where('peer_user_id', $peer['id'])
+                ->whereNotNull('entity_id')
+                ->value('entity_id');
+        }
         $chat->save();
 
         if ($lastMessage !== [] && filled(Arr::get($lastMessage, 'id'))) {
@@ -184,8 +195,26 @@ class AvitoMessengerArchive
         $message->fill($attributes);
         $message->save();
 
+        if ($message->wasChanged(['text', 'type', 'remote_type']) && $message->crm_scanned_at) {
+            $message->forceFill(['crm_scanned_at' => null])->saveQuietly();
+        }
+
+        if ($direction === 'in' && filled($message->author_id) && blank($chat->peer_user_id)) {
+            $linkedEntityId = AvitoChat::query()
+                ->where('avito_messenger_account_id', $chat->avito_messenger_account_id)
+                ->where('peer_user_id', $message->author_id)
+                ->whereNotNull('entity_id')
+                ->value('entity_id');
+
+            $chat->fill([
+                'peer_user_id' => $message->author_id,
+                'entity_id' => $chat->entity_id ?: $linkedEntityId,
+            ])->save();
+        }
+
         $this->storeAttachmentReferences($message, $content);
         $this->updateChatFromMessage($chat, $message);
+        $this->contactDetector->detectMessage($message);
 
         return $message->fresh('attachments');
     }

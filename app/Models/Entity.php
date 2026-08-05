@@ -118,6 +118,11 @@ class Entity extends Model
         return $this->hasMany(Order::class)->latest('submitted_at')->latest('id');
     }
 
+    public function avitoChats(): HasMany
+    {
+        return $this->hasMany(AvitoChat::class);
+    }
+
     public function location(): HasOne
     {
         return $this->hasOne(EntityLocation::class);

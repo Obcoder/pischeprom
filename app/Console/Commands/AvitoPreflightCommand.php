@@ -50,11 +50,26 @@ class AvitoPreflightCommand extends Command
                 'avito_messages',
                 'avito_message_attachments',
                 'avito_messenger_sync_runs',
+                'avito_contact_candidates',
+                'avito_chat_order',
             ] as $table) {
                 if (! Schema::hasTable($table)) {
                     $this->error("Отсутствует таблица {$table}.");
 
                     return self::FAILURE;
+                }
+            }
+
+            foreach ([
+                'avito_chats' => ['entity_id'],
+                'avito_messages' => ['crm_scanned_at'],
+            ] as $table => $columns) {
+                foreach ($columns as $column) {
+                    if (! Schema::hasColumn($table, $column)) {
+                        $this->error("Отсутствует поле {$table}.{$column}.");
+
+                        return self::FAILURE;
+                    }
                 }
             }
         }

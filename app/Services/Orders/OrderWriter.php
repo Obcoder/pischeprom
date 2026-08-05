@@ -25,6 +25,9 @@ class OrderWriter
                 'entity_id' => $data['entity_id'],
                 'order_status_id' => $status->id,
                 'created_by_user_id' => $data['created_by_user_id'] ?? $order->created_by_user_id,
+                'contact_telephone_id' => array_key_exists('contact_telephone_id', $data)
+                    ? $data['contact_telephone_id']
+                    : $order->contact_telephone_id,
                 'preferred_delivery_time' => $data['preferred_delivery_time'] ?? null,
                 'internal_comment' => $data['internal_comment'] ?? null,
                 'currency_code' => strtoupper($data['currency_code']),

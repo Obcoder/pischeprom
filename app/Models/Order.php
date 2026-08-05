@@ -110,6 +110,13 @@ class Order extends Model
             ->orderByPivot('position');
     }
 
+    public function avitoChats(): BelongsToMany
+    {
+        return $this->belongsToMany(AvitoChat::class, 'avito_chat_order')
+            ->withPivot('source_message_id')
+            ->withTimestamps();
+    }
+
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
         $search = trim((string) $search);

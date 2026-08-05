@@ -189,6 +189,7 @@ class OrderController extends Controller
             ],
             'entity_id' => ['required', 'integer', 'exists:entities,id'],
             'order_status_id' => ['required', 'integer', 'exists:order_statuses,id'],
+            'contact_telephone_id' => ['nullable', 'integer', 'exists:telephones,id'],
             'preferred_delivery_time' => ['nullable', 'string', 'max:255'],
             'internal_comment' => ['nullable', 'string', 'max:10000'],
             'currency_code' => ['required', 'string', 'min:3', 'max:8'],

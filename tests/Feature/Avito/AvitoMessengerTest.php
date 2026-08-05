@@ -55,9 +55,16 @@ class AvitoMessengerTest extends TestCase
 
         $page = (string) file_get_contents(resource_path('js/Pages/Ameise/Avito.vue'));
         $component = (string) file_get_contents(resource_path('js/Components/Avito/AvitoMessages.vue'));
+        $crmComponent = (string) file_get_contents(resource_path('js/Components/Avito/AvitoCrmPanel.vue'));
         $this->assertStringContainsString('value="messages"', $page);
         $this->assertStringContainsString('<AvitoMessages', $page);
         $this->assertStringContainsString('/api/avito/messenger/chats', $component);
+        $this->assertStringContainsString('<AvitoCrmPanel', $component);
+        $this->assertStringContainsString('Клиент · заказ · товары', $crmComponent);
+        $this->assertStringContainsString('/crm/telephones', $crmComponent);
+        $this->assertStringContainsString('/crm/buildings', $crmComponent);
+        $this->assertStringContainsString('/crm/orders', $crmComponent);
+        $this->assertStringContainsString('/crm/goods/', $crmComponent);
         $this->assertStringNotContainsString('localStorage', $component);
     }
 

@@ -278,6 +278,7 @@ php artisan route:list --path=unsubscribe >/dev/null
 php artisan list mailings >/dev/null
 php artisan price-lists:production-preflight --schema >/dev/null
 php artisan avito:preflight --schema >/dev/null
+php artisan avito:crm-backfill >/dev/null
 
 if ! php artisan max:webhook:ensure >/dev/null 2>&1; then
     fail 'MAX webhook verification failed; rerun the command locally on the VPS.'
@@ -381,6 +382,10 @@ fi
 
 if ! php artisan app:deploy-smoke --path=/api/avito/messenger/overview >/dev/null 2>&1; then
     fail 'Smoke check for Avito Messenger archive failed; rerun the command locally on the VPS.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/api/avito/messenger/crm/options >/dev/null 2>&1; then
+    fail 'Smoke check for Avito CRM failed; rerun the command locally on the VPS.'
 fi
 
 log "Deployment completed: ${previous_sha} -> ${commit_sha}."

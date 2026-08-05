@@ -10,6 +10,7 @@ use App\Models\AvitoMessage;
 use App\Models\AvitoMessageAttachment;
 use App\Models\AvitoMessengerAccount;
 use App\Models\AvitoMessengerSyncRun;
+use App\Services\Avito\AvitoContactDetector;
 use App\Services\Avito\AvitoMessengerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -77,7 +78,10 @@ class AvitoMessengerController extends Controller
             'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
         ]);
         $query = AvitoChat::query()
-            ->with('account:id,name,external_user_id,source_key,avito_connection_id')
+            ->with([
+                'account:id,name,external_user_id,source_key,avito_connection_id',
+                'entity:id,name',
+            ])
             ->withCount('messages')
             ->orderByDesc('last_message_at')
             ->orderByDesc('remote_updated_at')
@@ -108,15 +112,27 @@ class AvitoMessengerController extends Controller
         return response()->json($this->mapPaginator($paginator, fn (AvitoChat $chat) => $this->serializeChat($chat)));
     }
 
-    public function chat(Request $request, AvitoChat $chat): JsonResponse
-    {
+    public function chat(
+        Request $request,
+        AvitoChat $chat,
+        AvitoContactDetector $contactDetector,
+    ): JsonResponse {
         $validated = $request->validate([
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:20', 'max:100'],
         ]);
-        $chat->load('account:id,name,external_user_id,source_key,avito_connection_id');
+        $contactDetector->detectChat($chat);
+        $chat->load([
+            'account:id,name,external_user_id,source_key,avito_connection_id',
+            'entity:id,name',
+        ]);
         $messages = $chat->messages()
-            ->with('attachments')
+            ->with([
+                'attachments',
+                'contactCandidates' => fn ($query) => $query
+                    ->where('status', 'pending')
+                    ->orderByDesc('confidence'),
+            ])
             ->orderByDesc('remote_created_at')
             ->orderByDesc('id')
             ->paginate((int) ($validated['per_page'] ?? 100));
@@ -185,7 +201,7 @@ class AvitoMessengerController extends Controller
     public function sendImage(Request $request, AvitoChat $chat, AvitoMessengerService $messenger): JsonResponse
     {
         $validated = $request->validate([
-            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:24576'],
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,gif', 'max:24576'],
         ]);
         $message = $messenger->sendImage($chat, $validated['image']);
 
@@ -281,6 +297,8 @@ class AvitoMessengerController extends Controller
             'account' => $chat->relationLoaded('account') ? $chat->account?->only([
                 'id', 'name', 'external_user_id', 'source_key', 'avito_connection_id',
             ]) : null,
+            'entity_id' => $chat->entity_id,
+            'entity' => $chat->relationLoaded('entity') ? $chat->entity?->only(['id', 'name']) : null,
             'external_chat_id' => $chat->external_chat_id,
             'chat_type' => $chat->chat_type,
             'context_type' => $chat->context_type,
@@ -330,6 +348,16 @@ class AvitoMessengerController extends Controller
                     'url' => $attachment->archived_at
                         ? route('api.avito.messenger.attachments.show', $attachment)
                         : null,
+                ])->values()
+                : [],
+            'contact_candidates' => $message->relationLoaded('contactCandidates')
+                ? $message->contactCandidates->map(fn ($candidate) => [
+                    'id' => $candidate->id,
+                    'type' => $candidate->type,
+                    'raw_value' => $candidate->raw_value,
+                    'normalized_value' => $candidate->normalized_value,
+                    'confidence' => $candidate->confidence,
+                    'status' => $candidate->status,
                 ])->values()
                 : [],
         ];
