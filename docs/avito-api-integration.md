@@ -12,6 +12,10 @@
 
 Старый сервис и маршрут удалены.
 
+Для уже развёрнутого legacy-значения `AVITO_API_URL=https://api.avito.ru/token`
+предусмотрена точечная нормализация к API origin; новые окружения должны задавать
+`AVITO_API_URL=https://api.avito.ru`, как показано в `.env.example`.
+
 ## Покрытие официального API
 
 Команда `php artisan avito:catalog-sync` загружает официальный каталог и OpenAPI 3.0 каждого раздела с `developers.avito.ru`, нормализует ссылки и схемы и фиксирует snapshot в `resources/avito/api-catalog.json`.

@@ -136,6 +136,33 @@ class AvitoIntegrationTest extends TestCase
             && $request->hasHeader('Authorization', 'Bearer server-only-access-token'));
     }
 
+    public function test_legacy_token_endpoint_environment_value_is_normalized_to_api_origin(): void
+    {
+        $previousEnvironment = $_ENV['AVITO_API_URL'] ?? null;
+        $previousServer = $_SERVER['AVITO_API_URL'] ?? null;
+        $_ENV['AVITO_API_URL'] = 'https://api.avito.ru/token';
+        $_SERVER['AVITO_API_URL'] = 'https://api.avito.ru/token';
+
+        try {
+            $config = require config_path('avito.php');
+        } finally {
+            if ($previousEnvironment === null) {
+                unset($_ENV['AVITO_API_URL']);
+            } else {
+                $_ENV['AVITO_API_URL'] = $previousEnvironment;
+            }
+
+            if ($previousServer === null) {
+                unset($_SERVER['AVITO_API_URL']);
+            } else {
+                $_SERVER['AVITO_API_URL'] = $previousServer;
+            }
+        }
+
+        $this->assertSame('https://api.avito.ru', $config['api_base_url']);
+        $this->assertSame('https://api.avito.ru/token', $config['token_url']);
+    }
+
     public function test_unknown_parameters_and_remote_mutations_are_blocked_before_http(): void
     {
         Http::fake();

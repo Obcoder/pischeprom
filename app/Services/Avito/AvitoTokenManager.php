@@ -72,7 +72,7 @@ class AvitoTokenManager
             throw new AvitoException('AVITO_CLIENT_ID не задан.', 'configuration', 422);
         }
 
-        return rtrim((string) config('avito.authorize_url'), '?').'?'.http_build_query([
+        return $this->validatedAuthorizeUrl().'?'.http_build_query([
             'response_type' => 'code',
             'client_id' => $clientId,
             'redirect_uri' => $this->redirectUri(),
@@ -85,6 +85,7 @@ class AvitoTokenManager
     public function exchangeAuthorizationCode(string $code): AvitoConnection
     {
         $this->assertClientConfiguration();
+        $this->validatedApiBaseUrl();
 
         $response = $this->tokenRequest([
             'grant_type' => 'authorization_code',
@@ -202,7 +203,7 @@ class AvitoTokenManager
                 ->withUserAgent('Pischeprom-Ameise-Avito/1.0')
                 ->connectTimeout((int) config('avito.connect_timeout_seconds'))
                 ->timeout((int) config('avito.timeout_seconds'))
-                ->post((string) config('avito.token_url'), $payload);
+                ->post($this->validatedTokenUrl(), $payload);
         } catch (ConnectionException) {
             throw new AvitoException('Сервис авторизации Avito недоступен.', 'network', 502, true);
         }
@@ -214,6 +215,52 @@ class AvitoTokenManager
         $message = (string) (Arr::get($payload, 'error_description') ?: Arr::get($payload, 'message') ?: $fallback);
 
         return new AvitoException(Str::limit(strip_tags($message), 500), 'authorization', 401);
+    }
+
+    private function validatedTokenUrl(): string
+    {
+        $url = rtrim((string) config('avito.token_url'), '/');
+
+        if (! $this->isExactAvitoUrl($url, 'api.avito.ru', '/token')) {
+            throw new AvitoException('AVITO_TOKEN_URL не прошёл серверный allowlist.', 'configuration', 503);
+        }
+
+        return $url;
+    }
+
+    private function validatedAuthorizeUrl(): string
+    {
+        $url = rtrim((string) config('avito.authorize_url'), '/?');
+
+        if (! $this->isExactAvitoUrl($url, 'avito.ru', '/oauth')) {
+            throw new AvitoException('AVITO_AUTHORIZE_URL не прошёл серверный allowlist.', 'configuration', 503);
+        }
+
+        return $url;
+    }
+
+    private function validatedApiBaseUrl(): string
+    {
+        $url = rtrim((string) config('avito.api_base_url'), '/');
+
+        if (! $this->isExactAvitoUrl($url, 'api.avito.ru', '')) {
+            throw new AvitoException('AVITO_API_URL не прошёл серверный allowlist.', 'configuration', 503);
+        }
+
+        return $url;
+    }
+
+    private function isExactAvitoUrl(string $url, string $host, string $path): bool
+    {
+        $port = parse_url($url, PHP_URL_PORT);
+
+        return Str::lower((string) parse_url($url, PHP_URL_SCHEME)) === 'https'
+            && Str::lower((string) parse_url($url, PHP_URL_HOST)) === $host
+            && rtrim((string) parse_url($url, PHP_URL_PATH), '/') === rtrim($path, '/')
+            && ($port === null || $port === 443)
+            && parse_url($url, PHP_URL_USER) === null
+            && parse_url($url, PHP_URL_QUERY) === null
+            && parse_url($url, PHP_URL_FRAGMENT) === null;
     }
 
     private function payloadScopes(array $payload, array $fallback = []): array
@@ -320,7 +367,7 @@ class AvitoTokenManager
                 ->acceptJson()
                 ->connectTimeout((int) config('avito.connect_timeout_seconds'))
                 ->timeout((int) config('avito.timeout_seconds'))
-                ->get(rtrim((string) config('avito.api_base_url'), '/').'/core/v1/accounts/self');
+                ->get($this->validatedApiBaseUrl().'/core/v1/accounts/self');
 
             if (! $response->successful() || ! is_array($response->json())) {
                 return;

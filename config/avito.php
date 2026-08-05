@@ -1,12 +1,20 @@
 <?php
 
+$apiBaseUrl = rtrim((string) env('AVITO_API_URL', 'https://api.avito.ru'), '/');
+
+// The unfinished legacy integration documented AVITO_API_URL as the token
+// endpoint. Normalize that one known value without accepting arbitrary paths.
+if ($apiBaseUrl === 'https://api.avito.ru/token') {
+    $apiBaseUrl = 'https://api.avito.ru';
+}
+
 return [
     'enabled' => (bool) env('AVITO_ENABLED', true),
 
     'client_id' => env('AVITO_CLIENT_ID'),
     'client_secret' => env('AVITO_CLIENT_SECRET'),
 
-    'api_base_url' => env('AVITO_API_URL', 'https://api.avito.ru'),
+    'api_base_url' => $apiBaseUrl,
     'autoteka_base_url' => env('AVITO_AUTOTEKA_API_URL', 'https://pro.autoteka.ru'),
     'token_url' => env('AVITO_TOKEN_URL', 'https://api.avito.ru/token'),
     'authorize_url' => env('AVITO_AUTHORIZE_URL', 'https://avito.ru/oauth'),

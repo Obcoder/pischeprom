@@ -149,8 +149,16 @@ class AvitoApiExecutor
 
         $scheme = Str::lower((string) parse_url($base, PHP_URL_SCHEME));
         $host = Str::lower((string) parse_url($base, PHP_URL_HOST));
+        $basePath = rtrim((string) parse_url($base, PHP_URL_PATH), '/');
+        $port = parse_url($base, PHP_URL_PORT);
 
-        if ($scheme !== 'https' || ! in_array($host, (array) config('avito.allowed_hosts'), true)) {
+        if ($scheme !== 'https'
+            || ! in_array($host, (array) config('avito.allowed_hosts'), true)
+            || $basePath !== ''
+            || ($port !== null && $port !== 443)
+            || parse_url($base, PHP_URL_USER) !== null
+            || parse_url($base, PHP_URL_QUERY) !== null
+            || parse_url($base, PHP_URL_FRAGMENT) !== null) {
             throw new AvitoException('Адрес API Avito не прошёл серверный allowlist.', 'host_not_allowed', 503);
         }
 
