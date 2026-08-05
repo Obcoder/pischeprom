@@ -14,6 +14,7 @@ use App\Models\AvitoMessengerSyncRun;
 use App\Services\Avito\AvitoContactDetector;
 use App\Services\Avito\AvitoMessageTemplateService;
 use App\Services\Avito\AvitoMessengerService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -101,12 +102,28 @@ class AvitoMessengerController extends Controller
         }
         if (filled($validated['search'] ?? null)) {
             $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($validated['search'])).'%';
-            $query->where(function ($query) use ($search): void {
+            $query->where(function (Builder $query) use ($search): void {
                 $query->where('title', 'like', $search)
                     ->orWhere('peer_name', 'like', $search)
+                    ->orWhere('peer_user_id', 'like', $search)
                     ->orWhere('external_chat_id', 'like', $search)
                     ->orWhere('context_id', 'like', $search)
-                    ->orWhere('last_message_preview', 'like', $search);
+                    ->orWhere('context_url', 'like', $search)
+                    ->orWhere('last_message_preview', 'like', $search)
+                    ->orWhereHas('account', function (Builder $account) use ($search): void {
+                        $account->where('name', 'like', $search)
+                            ->orWhere('external_user_id', 'like', $search);
+                    })
+                    ->orWhereHas('entity', function (Builder $entity) use ($search): void {
+                        $entity->where('name', 'like', $search)
+                            ->orWhere('full_name', 'like', $search)
+                            ->orWhere('INN', 'like', $search)
+                            ->orWhere('KPP', 'like', $search)
+                            ->orWhere('OGRN', 'like', $search)
+                            ->orWhere('legal_address', 'like', $search)
+                            ->orWhereHas('telephones', fn (Builder $telephone) => $telephone->where('number', 'like', $search));
+                    })
+                    ->orWhereHas('messages', fn (Builder $message) => $message->where('text', 'like', $search));
             });
         }
 

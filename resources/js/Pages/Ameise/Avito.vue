@@ -467,6 +467,7 @@ onMounted(loadAll)
             </div>
             <div class="avito-hero__actions">
                 <v-btn
+                    size="small"
                     variant="tonal"
                     color="white"
                     prepend-icon="mdi-book-open-page-variant-outline"
@@ -474,7 +475,7 @@ onMounted(loadAll)
                     target="_blank"
                     rel="noopener noreferrer"
                 >Документация</v-btn>
-                <v-btn color="white" prepend-icon="mdi-link-variant-plus" @click="connectOAuth">Подключить OAuth</v-btn>
+                <v-btn size="small" color="white" prepend-icon="mdi-link-variant-plus" @click="connectOAuth">Подключить OAuth</v-btn>
             </div>
         </section>
 
@@ -505,7 +506,7 @@ onMounted(loadAll)
             </v-tabs>
 
             <v-window v-model="tab" class="avito-window">
-                <v-window-item value="overview">
+                <v-window-item value="overview" class="avito-tab-item">
                     <div class="avito-grid avito-grid--overview">
                         <section class="avito-panel">
                             <div class="avito-panel__header">
@@ -551,7 +552,7 @@ onMounted(loadAll)
                     </div>
                 </v-window-item>
 
-                <v-window-item value="messages">
+                <v-window-item value="messages" class="avito-tab-item">
                     <AvitoMessages
                         :connections="connections"
                         @notice="notice = $event; error = ''"
@@ -559,7 +560,7 @@ onMounted(loadAll)
                     />
                 </v-window-item>
 
-                <v-window-item value="templates">
+                <v-window-item value="templates" class="avito-tab-item">
                     <AvitoMessageTemplates
                         standalone
                         @notice="notice = $event; error = ''"
@@ -567,7 +568,7 @@ onMounted(loadAll)
                     />
                 </v-window-item>
 
-                <v-window-item value="catalog">
+                <v-window-item value="catalog" class="avito-tab-item">
                     <section class="avito-panel avito-panel--catalog">
                         <div class="catalog-toolbar">
                             <v-text-field v-model="filters.search" prepend-inner-icon="mdi-magnify" label="Поиск по функции, endpoint или operationId" variant="outlined" density="compact" hide-details clearable />
@@ -623,7 +624,7 @@ onMounted(loadAll)
                     </section>
                 </v-window-item>
 
-                <v-window-item value="connections">
+                <v-window-item value="connections" class="avito-tab-item">
                     <section class="avito-panel">
                         <div class="avito-panel__header"><div><span class="eyebrow">AUTHORIZATION CODE</span><h2>OAuth-подключения</h2></div><v-btn color="deep-purple" prepend-icon="mdi-link-variant-plus" @click="connectOAuth">Подключить аккаунт</v-btn></div>
                         <v-alert type="info" variant="tonal" class="mb-4">Client credentials из <code>.env</code> используются для собственного аккаунта. OAuth-подключения нужны для управления аккаунтами других пользователей в рамках выданных scopes.</v-alert>
@@ -638,7 +639,7 @@ onMounted(loadAll)
                     </section>
                 </v-window-item>
 
-                <v-window-item value="calls">
+                <v-window-item value="calls" class="avito-tab-item">
                     <section class="avito-panel">
                         <div class="avito-panel__header"><div><span class="eyebrow">AUDIT TRAIL</span><h2>Журнал API-запросов</h2></div><v-btn icon="mdi-refresh" variant="text" @click="loadCalls" /></div>
                         <div class="simple-table-shell"><table class="simple-table"><thead><tr><th>Время</th><th>Request ID</th><th>Функция</th><th>Метод / endpoint</th><th>Статус</th><th>Время</th><th></th></tr></thead><tbody><tr v-for="call in calls" :key="call.id"><td>{{ formatDate(call.created_at) }}</td><td><code>{{ call.request_id }}</code></td><td>{{ call.capability_id }}</td><td><span class="method-pill" :class="methodClass(call.method)">{{ call.method }}</span><code>{{ call.endpoint }}</code></td><td><v-chip size="small" :color="statusColor(call.status)" variant="tonal">{{ call.http_status || call.status }}</v-chip></td><td>{{ call.duration_ms != null ? `${call.duration_ms} ms` : '—' }}</td><td><v-btn icon="mdi-eye-outline" size="small" variant="text" @click="showCall(call)" /></td></tr><tr v-if="!calls.length"><td colspan="7" class="empty-cell">Запросов ещё не было.</td></tr></tbody></table></div>
@@ -646,7 +647,7 @@ onMounted(loadAll)
                     </section>
                 </v-window-item>
 
-                <v-window-item value="webhooks">
+                <v-window-item value="webhooks" class="avito-tab-item">
                     <section class="avito-panel">
                         <div class="avito-panel__header"><div><span class="eyebrow">EVENT INBOX</span><h2>Webhook-события</h2></div><v-btn icon="mdi-refresh" variant="text" @click="loadWebhooks" /></div>
                         <label class="copy-field copy-field--inline"><span>Endpoint для подписок Avito</span><code>{{ status.webhook_url }}</code><v-btn icon="mdi-content-copy" size="small" variant="text" @click="copyText(status.webhook_url)" /></label>
@@ -686,26 +687,26 @@ onMounted(loadAll)
 </template>
 
 <style scoped>
-.avito-page { min-height: calc(100vh - 64px); padding: 18px 22px 28px; color: #edf0ff; background: radial-gradient(circle at 15% -5%, rgba(114, 70, 255, .2), transparent 38%), #0e1020; }
-.avito-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 28px 30px; border: 1px solid rgba(180, 166, 255, .22); border-radius: 22px; background: linear-gradient(125deg, rgba(71, 42, 151, .94), rgba(28, 31, 64, .96)); box-shadow: 0 18px 45px rgba(0, 0, 0, .24); }
-.avito-hero h1 { margin: 2px 0 4px; font-size: clamp(30px, 4vw, 48px); line-height: 1; letter-spacing: -.035em; }
-.avito-hero p { max-width: 720px; margin: 10px 0 0; color: #c9c9e8; }
-.avito-kicker, .eyebrow { color: #b9a8ff; font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-.avito-hero__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.avito-page { box-sizing: border-box; width: 100%; max-width: none; min-height: calc(100vh - 64px); align-self: stretch; padding: 6px 7px 14px; color: #edf0ff; background: radial-gradient(circle at 15% -5%, rgba(114, 70, 255, .2), transparent 38%), #0e1020; }
+.avito-hero { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid rgba(180, 166, 255, .22); border-radius: 12px; background: linear-gradient(125deg, rgba(71, 42, 151, .94), rgba(28, 31, 64, .96)); box-shadow: 0 10px 24px rgba(0, 0, 0, .2); }
+.avito-hero h1 { margin: 1px 0 2px; font-size: clamp(22px, 2.4vw, 30px); line-height: 1; letter-spacing: -.03em; }
+.avito-hero p { max-width: 720px; margin: 4px 0 0; color: #c9c9e8; font-size: 11px; line-height: 1.35; }
+.avito-kicker, .eyebrow { color: #b9a8ff; font-size: 8px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.avito-hero__actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .avito-loading { display: flex; min-height: 260px; align-items: center; justify-content: center; gap: 14px; color: #bfc3de; }
-.avito-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
-.avito-metrics article { display: grid; gap: 3px; min-height: 108px; padding: 17px 19px; border: 1px solid rgba(148, 154, 196, .16); border-radius: 16px; background: rgba(27, 30, 53, .88); }
-.avito-metrics span, .avito-metrics small { color: #999fbe; }
-.avito-metrics strong { font-size: 29px; line-height: 1; }
-.avito-tabs { border: 1px solid rgba(148, 154, 196, .16); border-radius: 14px 14px 0 0; background: #191c32; }
-.avito-window { border: 1px solid rgba(148, 154, 196, .16); border-top: 0; border-radius: 0 0 18px 18px; background: #14172a; }
-.avito-grid { display: grid; gap: 14px; padding: 14px; }
+.avito-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 6px 0; }
+.avito-metrics article { display: grid; gap: 2px; min-height: 70px; padding: 9px 12px; border: 1px solid rgba(148, 154, 196, .16); border-radius: 10px; background: rgba(27, 30, 53, .88); }
+.avito-metrics span, .avito-metrics small { color: #999fbe; font-size: 9px; }
+.avito-metrics strong { font-size: 22px; line-height: 1; }
+.avito-tabs { min-height: 42px; border: 1px solid rgba(148, 154, 196, .16); border-radius: 10px 10px 0 0; background: #191c32; }.avito-tabs :deep(.v-tab) { min-height: 42px; padding: 0 12px; font-size: 11px; }
+.avito-window { border: 1px solid rgba(148, 154, 196, .16); border-top: 0; border-radius: 0 0 12px 12px; background: #14172a; }.avito-tab-item { padding: 5px; }
+.avito-grid { display: grid; gap: 8px; padding: 0; }
 .avito-grid--overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.avito-panel { padding: 20px; color: #e9ebff; border: 1px solid rgba(145, 152, 200, .16); border-radius: 15px; background: #1b1e35; }
+.avito-panel { padding: 14px; color: #e9ebff; border: 1px solid rgba(145, 152, 200, .16); border-radius: 10px; background: #1b1e35; }
 .avito-panel--wide { grid-column: 1 / -1; }
-.avito-panel--catalog { padding: 14px; border: 0; border-radius: 0 0 18px 18px; }
-.avito-panel__header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 16px; }
-.avito-panel h2 { margin: 3px 0 0; font-size: 20px; }
+.avito-panel--catalog { padding: 10px; border: 0; border-radius: 10px; }
+.avito-panel__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.avito-panel h2 { margin: 2px 0 0; font-size: 16px; }
 .readiness-list { display: grid; gap: 2px; }
 .readiness-list > div { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid rgba(145, 152, 200, .12); }
 .readiness-list strong { font-size: 13px; }
@@ -758,5 +759,5 @@ onMounted(loadAll)
 .execution-result { display: grid; gap: 10px; margin-top: 15px; padding: 13px; border: 1px solid; border-radius: 10px; }.execution-result.is-success { border-color: rgba(56, 181, 125, .45); background: rgba(30, 114, 80, .14); }.execution-result.is-error { border-color: rgba(230, 75, 101, .45); background: rgba(151, 35, 58, .14); }.execution-result span { display: block; color: #aeb3cf; font-size: 11px; }.execution-result pre, .detail-json { max-height: 360px; overflow: auto; margin: 0; padding: 12px; color: #d8defb; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; border-radius: 7px; background: #0d1020; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 @media (max-width: 1100px) { .avito-metrics { grid-template-columns: repeat(2, 1fr); }.avito-grid--overview { grid-template-columns: 1fr; }.section-cloud { grid-template-columns: repeat(2, 1fr); }.catalog-toolbar { grid-template-columns: 2fr 1fr 1fr; }.catalog-toolbar > :nth-child(4), .catalog-toolbar > :nth-child(5) { grid-column: span 1; } }
-@media (max-width: 700px) { .avito-page { padding: 10px; }.avito-hero { align-items: flex-start; flex-direction: column; padding: 20px; }.avito-metrics { grid-template-columns: 1fr 1fr; }.avito-metrics article { min-height: 94px; padding: 13px; }.avito-grid { padding: 8px; }.section-cloud, .connections-grid, .parameter-grid, .catalog-toolbar { grid-template-columns: 1fr; }.catalog-toolbar > * { grid-column: auto !important; }.excel-shell { height: calc(100vh - 470px); }.catalog-footer { align-items: flex-end; flex-direction: column; }.avito-hero__actions { width: 100%; }}
+@media (max-width: 700px) { .avito-page { padding: 5px; }.avito-hero { align-items: flex-start; flex-direction: column; padding: 10px 12px; }.avito-metrics { grid-template-columns: 1fr 1fr; }.avito-metrics article { min-height: 68px; padding: 8px; }.avito-grid { padding: 0; }.section-cloud, .connections-grid, .parameter-grid, .catalog-toolbar { grid-template-columns: 1fr; }.catalog-toolbar > * { grid-column: auto !important; }.excel-shell { height: calc(100vh - 470px); }.catalog-footer { align-items: flex-end; flex-direction: column; }.avito-hero__actions { width: 100%; }}
 </style>

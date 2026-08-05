@@ -89,9 +89,31 @@ class AvitoCrmTest extends TestCase
 
         $entityResponse = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/entity", [
             'name' => 'Клиент из Avito',
-        ])->assertCreated();
+            'full_name' => 'Общество с ограниченной ответственностью Клиент из Avito',
+            'INN' => '7801234567',
+            'KPP' => '780101001',
+            'OGRN' => '1027800000000',
+            'legal_address' => '190000, Санкт-Петербург, Невский проспект, 1',
+            'bank_account_number' => '40702810000000000001',
+            'bank_name' => 'Тестовый банк',
+            'bank_bic' => '044030001',
+            'bank_corr_account' => '30101810000000000001',
+        ])->assertCreated()
+            ->assertJsonPath('entity.KPP', '780101001')
+            ->assertJsonPath('entity.OGRN', '1027800000000');
         $entityId = (int) $entityResponse->json('entity.id');
 
+        $this->assertDatabaseHas('entities', [
+            'id' => $entityId,
+            'INN' => '7801234567',
+            'KPP' => '780101001',
+            'OGRN' => '1027800000000',
+            'legal_address' => '190000, Санкт-Петербург, Невский проспект, 1',
+            'bank_account_number' => '40702810000000000001',
+            'bank_name' => 'Тестовый банк',
+            'bank_bic' => '044030001',
+            'bank_corr_account' => '30101810000000000001',
+        ]);
         $this->assertDatabaseHas('avito_chats', ['id' => $chat->id, 'entity_id' => $entityId]);
         $this->assertDatabaseHas('avito_chats', ['id' => $secondChat->id, 'entity_id' => $entityId]);
 

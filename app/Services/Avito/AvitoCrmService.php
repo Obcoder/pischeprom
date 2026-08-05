@@ -45,9 +45,17 @@ class AvitoCrmService
         return DB::transaction(function () use ($chat, $data): Entity {
             $entity = Entity::query()->create([
                 'name' => trim($data['name']),
-                'full_name' => filled($data['full_name'] ?? null) ? trim($data['full_name']) : null,
+                'full_name' => $this->nullableTrimmedString($data['full_name'] ?? null),
                 'entity_classification_id' => $data['entity_classification_id'] ?? null,
+                'INN' => $this->nullableTrimmedString($data['INN'] ?? null),
+                'KPP' => $this->nullableTrimmedString($data['KPP'] ?? null),
+                'OGRN' => $this->nullableTrimmedString($data['OGRN'] ?? null),
+                'legal_address' => $this->nullableTrimmedString($data['legal_address'] ?? null),
                 'country_id' => $data['country_id'] ?? null,
+                'bank_account_number' => $this->nullableTrimmedString($data['bank_account_number'] ?? null),
+                'bank_name' => $this->nullableTrimmedString($data['bank_name'] ?? null),
+                'bank_bic' => $this->nullableTrimmedString($data['bank_bic'] ?? null),
+                'bank_corr_account' => $this->nullableTrimmedString($data['bank_corr_account'] ?? null),
             ]);
 
             $this->linkEntity($chat, $entity);
@@ -253,6 +261,13 @@ class AvitoCrmService
         }
 
         return $entity;
+    }
+
+    private function nullableTrimmedString(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     private function candidateFor(

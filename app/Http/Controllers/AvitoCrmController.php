@@ -234,7 +234,15 @@ class AvitoCrmController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'full_name' => ['nullable', 'string', 'max:1024'],
             'entity_classification_id' => ['nullable', 'integer', 'exists:entity_classifications,id'],
+            'INN' => ['nullable', 'string', 'max:32'],
+            'KPP' => ['nullable', 'string', 'max:32'],
+            'OGRN' => ['nullable', 'string', 'max:32'],
+            'legal_address' => ['nullable', 'string', 'max:1024'],
             'country_id' => ['nullable', 'integer', 'exists:countries,id'],
+            'bank_account_number' => ['nullable', 'string', 'max:34'],
+            'bank_name' => ['nullable', 'string', 'max:1024'],
+            'bank_bic' => ['nullable', 'string', 'max:16'],
+            'bank_corr_account' => ['nullable', 'string', 'max:34'],
         ]);
         $entity = $crm->createAndLinkEntity($chat, $validated);
 
@@ -384,6 +392,9 @@ class AvitoCrmController extends Controller
             'name' => $entity->name,
             'full_name' => $entity->full_name,
             'INN' => $entity->INN,
+            'KPP' => $entity->KPP,
+            'OGRN' => $entity->OGRN,
+            'legal_address' => $entity->legal_address,
             'classification' => $entity->classification?->name,
             'country' => $entity->country?->name,
             'telephones' => $entity->telephones->map(fn (Telephone $telephone) => [

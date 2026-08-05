@@ -26,7 +26,21 @@ const entitySearch = ref('')
 const entityResults = ref([])
 const entitySearching = ref(false)
 const createEntityOpen = ref(false)
-const entityForm = reactive({ name: '', full_name: '', entity_classification_id: null, country_id: null })
+const emptyEntityForm = () => ({
+    name: '',
+    full_name: '',
+    entity_classification_id: null,
+    INN: '',
+    KPP: '',
+    OGRN: '',
+    legal_address: '',
+    country_id: null,
+    bank_account_number: '',
+    bank_name: '',
+    bank_bic: '',
+    bank_corr_account: '',
+})
+const entityForm = reactive(emptyEntityForm())
 const manualPhone = ref('')
 
 const buildingOpen = ref(false)
@@ -215,7 +229,15 @@ async function createEntity() {
             name: entityForm.name.trim(),
             full_name: entityForm.full_name.trim() || null,
             entity_classification_id: entityForm.entity_classification_id,
+            INN: entityForm.INN.trim() || null,
+            KPP: entityForm.KPP.trim() || null,
+            OGRN: entityForm.OGRN.trim() || null,
+            legal_address: entityForm.legal_address.trim() || null,
             country_id: entityForm.country_id,
+            bank_account_number: entityForm.bank_account_number.trim() || null,
+            bank_name: entityForm.bank_name.trim() || null,
+            bank_bic: entityForm.bank_bic.trim() || null,
+            bank_corr_account: entityForm.bank_corr_account.trim() || null,
         })
         notify(data.message)
         createEntityOpen.value = false
@@ -421,8 +443,9 @@ function resetTransientState() {
     entitySearch.value = ''
     entityResults.value = []
     createEntityOpen.value = false
-    entityForm.name = props.chat?.peer_name || props.chat?.title || 'Клиент Avito'
-    entityForm.full_name = ''
+    Object.assign(entityForm, emptyEntityForm(), {
+        name: props.chat?.peer_name || props.chat?.title || 'Клиент Avito',
+    })
     manualPhone.value = ''
     buildingOpen.value = false
     orderItems.value = []
@@ -516,10 +539,27 @@ onBeforeUnmount(() => {
                     </div>
                     <v-btn block size="small" variant="tonal" prepend-icon="mdi-account-plus" @click="createEntityOpen = !createEntityOpen">Создать новую Entity</v-btn>
                     <div v-if="createEntityOpen" class="compact-form">
-                        <v-text-field v-model="entityForm.name" label="Название / имя клиента" density="compact" variant="outlined" hide-details />
-                        <v-text-field v-model="entityForm.full_name" label="Полное имя" density="compact" variant="outlined" hide-details clearable />
-                        <v-select v-model="entityForm.entity_classification_id" :items="options.entity_classifications" item-title="name" item-value="id" label="Классификация" density="compact" variant="outlined" hide-details clearable />
-                        <v-select v-model="entityForm.country_id" :items="options.countries" item-title="name" item-value="id" label="Страна" density="compact" variant="outlined" hide-details clearable />
+                        <v-text-field v-model="entityForm.name" label="Название / имя клиента" density="compact" variant="outlined" hide-details maxlength="255" />
+                        <v-text-field v-model="entityForm.full_name" label="Полное название / ФИО" density="compact" variant="outlined" hide-details clearable maxlength="1024" />
+                        <div class="entity-form-grid">
+                            <v-select v-model="entityForm.entity_classification_id" :items="options.entity_classifications" item-title="name" item-value="id" label="Классификация" density="compact" variant="outlined" hide-details clearable />
+                            <v-select v-model="entityForm.country_id" :items="options.countries" item-title="name" item-value="id" label="Страна" density="compact" variant="outlined" hide-details clearable />
+                        </div>
+                        <div class="entity-form-grid entity-form-grid--ids">
+                            <v-text-field v-model="entityForm.INN" label="ИНН" density="compact" variant="outlined" hide-details clearable maxlength="32" inputmode="numeric" />
+                            <v-text-field v-model="entityForm.KPP" label="КПП" density="compact" variant="outlined" hide-details clearable maxlength="32" inputmode="numeric" />
+                            <v-text-field v-model="entityForm.OGRN" label="ОГРН" density="compact" variant="outlined" hide-details clearable maxlength="32" inputmode="numeric" />
+                        </div>
+                        <v-textarea v-model="entityForm.legal_address" label="Юридический адрес" rows="2" density="compact" variant="outlined" hide-details clearable maxlength="1024" />
+                        <details class="entity-bank-fields">
+                            <summary><span>Банковские реквизиты</span><small>4 необязательных поля</small></summary>
+                            <div class="entity-form-grid">
+                                <v-text-field v-model="entityForm.bank_account_number" label="Расчётный счёт" density="compact" variant="outlined" hide-details clearable maxlength="34" inputmode="numeric" />
+                                <v-text-field v-model="entityForm.bank_bic" label="БИК" density="compact" variant="outlined" hide-details clearable maxlength="16" inputmode="numeric" />
+                                <v-text-field v-model="entityForm.bank_name" class="span-two" label="Название банка" density="compact" variant="outlined" hide-details clearable maxlength="1024" />
+                                <v-text-field v-model="entityForm.bank_corr_account" class="span-two" label="Корреспондентский счёт" density="compact" variant="outlined" hide-details clearable maxlength="34" inputmode="numeric" />
+                            </div>
+                        </details>
                         <v-btn size="small" color="deep-purple-lighten-1" :loading="saving" :disabled="!entityForm.name.trim()" @click="createEntity">Создать и привязать</v-btn>
                     </div>
                 </template>
@@ -641,7 +681,7 @@ onBeforeUnmount(() => {
 .crm-callout { display: grid; grid-template-columns: auto 1fr; gap: 8px; padding: 9px; color: #bfc4de; border: 1px dashed #4a4567; border-radius: 8px; background: #1b1e35; }.crm-callout > .v-icon { color: #a58df6; }.crm-callout strong, .crm-callout span { display: block; }.crm-callout strong { color: #f0f1ff; font-size: 11px; }.crm-callout span { margin-top: 3px; font-size: 9px; line-height: 1.4; }
 .compact-label { color: #858baa; font-size: 8px; font-weight: 700; text-transform: uppercase; }.crm-section :deep(.v-field), .product-dialog :deep(.v-field) { font-size: 10px; }.crm-section :deep(.v-field__input), .product-dialog :deep(.v-field__input) { min-height: 34px; padding-top: 4px; padding-bottom: 4px; }.crm-section :deep(.v-label), .product-dialog :deep(.v-label) { font-size: 10px; }
 .entity-results { display: grid; overflow-y: auto; max-height: 168px; gap: 3px; }.entity-results button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 5px; padding: 6px 7px; color: #e4e6fa; text-align: left; border: 1px solid #30344d; border-radius: 6px; background: #1b1e35; cursor: pointer; }.entity-results button:hover { border-color: #6e5da8; background: #23203c; }.entity-results strong, .entity-results span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.entity-results strong { font-size: 10px; }.entity-results span { grid-column: 1; color: #858baa; font-size: 8px; }.entity-results .v-icon { grid-column: 2; grid-row: 1 / 3; align-self: center; color: #9d88f4; }
-.compact-form { display: grid; gap: 6px; padding: 8px; border: 1px solid #343851; border-radius: 8px; background: #1b1e35; }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }.form-actions { display: flex; align-items: center; justify-content: space-between; gap: 5px; }.form-hint { color: #8e94b4; font-size: 8px; line-height: 1.35; }
+.compact-form { display: grid; gap: 6px; padding: 8px; border: 1px solid #343851; border-radius: 8px; background: #1b1e35; }.form-grid, .entity-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }.entity-form-grid--ids { grid-template-columns: repeat(3, minmax(0, 1fr)); }.entity-form-grid .span-two { grid-column: 1 / -1; }.entity-bank-fields { overflow: hidden; border: 1px solid #343851; border-radius: 7px; background: #171a2f; }.entity-bank-fields summary { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 6px 8px; color: #c9cde4; font-size: 9px; cursor: pointer; list-style: none; }.entity-bank-fields summary::-webkit-details-marker { display: none; }.entity-bank-fields summary::after { content: '+'; color: #a995ff; font-size: 13px; }.entity-bank-fields[open] summary::after { content: '−'; }.entity-bank-fields summary small { margin-left: auto; color: #777e9f; font-size: 7px; }.entity-bank-fields > div { padding: 0 6px 6px; }.form-actions { display: flex; align-items: center; justify-content: space-between; gap: 5px; }.form-hint { color: #8e94b4; font-size: 8px; line-height: 1.35; }
 .entity-card { padding: 8px; border: 1px solid rgba(118, 216, 177, .25); border-radius: 9px; background: linear-gradient(135deg, rgba(44, 116, 91, .18), rgba(31, 34, 56, .75)); }.entity-card__top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; }.entity-card__top span, .entity-card__top a, .entity-card__top small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.entity-card__top span { color: #83cdb0; font-size: 7px; font-weight: 800; text-transform: uppercase; }.entity-card__top a { color: #f0f4ff; font-size: 12px; font-weight: 700; text-decoration: none; }.entity-card__top small { color: #8e96b5; font-size: 8px; }.entity-facts, .entity-buildings { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }.entity-facts span, .entity-buildings span { display: flex; min-width: 0; align-items: center; gap: 3px; padding: 3px 5px; color: #cbd0e8; font-size: 8px; border-radius: 5px; background: rgba(11, 14, 28, .42); }.entity-buildings { display: grid; }.entity-buildings span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .section-title { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: 5px; color: #d9dcf0; font-size: 9px; font-weight: 700; }.section-title > span { display: flex; align-items: center; gap: 4px; }.section-title > b { min-width: 17px; padding: 2px 4px; color: #b7a7f8; font-size: 8px; text-align: center; border-radius: 10px; background: #292445; }
 .fact-group { display: grid; gap: 4px; }.fact-card { padding: 7px; border: 1px solid #343850; border-radius: 7px; background: #1b1e35; }.fact-card strong, .fact-card small, .fact-card time { display: block; }.fact-card strong { color: #eff1ff; font-size: 10px; }.fact-card small, .fact-card time { overflow: hidden; margin-top: 2px; color: #858baa; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }.fact-card footer { display: flex; justify-content: flex-end; gap: 3px; margin-top: 5px; }.candidate-matches { display: grid; gap: 3px; margin-top: 5px; }.candidate-matches button { display: flex; align-items: center; gap: 3px; padding: 4px 6px; color: #bce7d5; font-size: 8px; text-align: left; border: 1px solid rgba(87, 190, 148, .25); border-radius: 5px; background: rgba(40, 105, 78, .18); cursor: pointer; }

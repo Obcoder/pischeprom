@@ -73,6 +73,8 @@ class AvitoMessengerTest extends TestCase
         $this->assertStringContainsString('/api/avito/messenger/templates', $templateComponent);
         $this->assertStringContainsString('/message-templates/', $templateComponent);
         $this->assertStringContainsString('openMessageTemplates', $component);
+        $this->assertStringContainsString('всей сохранённой переписке', $component);
+        $this->assertStringContainsString('width: 100%; max-width: none', $page);
         $this->assertStringNotContainsString('localStorage', $component);
     }
 
@@ -171,6 +173,14 @@ class AvitoMessengerTest extends TestCase
             'peer_name' => 'Покупатель',
             'is_unread' => true,
         ]);
+        $chat = AvitoChat::query()->where('external_chat_id', 'chat-sync-1')->firstOrFail();
+        $this->getJson('/api/avito/messenger/chats?search='.rawurlencode('Первое сообщение'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $chat->id);
+        $this->getJson('/api/avito/messenger/chats?search='.rawurlencode('Такого текста нет'))
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
     }
 
     public function test_text_read_delete_blacklist_and_subscriptions_cover_all_remote_management_actions(): void

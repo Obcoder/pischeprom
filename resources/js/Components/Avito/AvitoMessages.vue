@@ -432,7 +432,7 @@ onBeforeUnmount(() => {
         <div v-else class="messenger-layout">
             <aside class="chat-list-pane">
                 <div class="chat-filters">
-                    <v-text-field v-model="filters.search" prepend-inner-icon="mdi-magnify" placeholder="Чат, клиент, объявление" density="compact" variant="outlined" hide-details clearable />
+                    <v-text-field v-model="filters.search" prepend-inner-icon="mdi-magnify" placeholder="Чат, клиент или текст сообщения" title="Поиск по данным чата, клиенту и всей сохранённой переписке" density="compact" variant="outlined" hide-details clearable />
                     <div>
                         <v-select v-model="filters.account_id" :items="accountOptions" placeholder="Все аккаунты" density="compact" variant="outlined" hide-details clearable />
                         <v-btn :color="filters.unread_only ? 'deep-purple-lighten-1' : undefined" :variant="filters.unread_only ? 'tonal' : 'text'" icon="mdi-message-badge-outline" size="small" @click="filters.unread_only = !filters.unread_only" />
@@ -516,7 +516,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.messenger-module { min-height: calc(100vh - 285px); color: #e9ebff; background: #111427; }
+.messenger-module { overflow: hidden; width: 100%; min-height: calc(100vh - 285px); color: #e9ebff; border: 1px solid #30344d; border-radius: 10px; background: #111427; }
 .messenger-toolbar { display: flex; min-height: 58px; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1b1e35; }
 .messenger-toolbar > .v-select { max-width: 230px; }
 .messenger-stat { display: flex; min-width: 112px; align-items: center; gap: 8px; padding: 5px 9px; border: 1px solid #33374f; border-radius: 8px; background: #15182b; }
@@ -526,7 +526,7 @@ onBeforeUnmount(() => {
 .messenger-layout { display: grid; grid-template-columns: 320px minmax(410px, 1fr) 360px; height: calc(100vh - 355px); min-height: 520px; }
 .chat-list-pane, .conversation-pane, .messenger-info-pane { min-width: 0; min-height: 0; }
 .chat-list-pane { display: flex; flex-direction: column; border-right: 1px solid #30344d; background: #15182b; }
-.chat-filters { display: grid; gap: 6px; padding: 8px; border-bottom: 1px solid #2c3048; }.chat-filters > div { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
+.chat-filters { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px; border-bottom: 1px solid #2c3048; }.chat-filters > .v-input { grid-column: 1 / -1; min-width: 0; width: 100%; justify-self: stretch; }.chat-filters :deep(.v-input--horizontal) { grid-template-areas: 'control' 'messages'; grid-template-columns: minmax(0, 1fr); }.chat-filters > div { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }.chat-filters > div > .v-input { min-width: 0; width: 100%; }
 .chat-list { overflow-y: auto; flex: 1; transition: opacity .15s; }.chat-list.is-loading { opacity: .55; }
 .chat-row { display: grid; width: 100%; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px 9px; color: #e9ebff; text-align: left; border: 0; border-bottom: 1px solid #292d45; background: transparent; cursor: pointer; }.chat-row:hover { background: #1d2038; }.chat-row.is-active { box-shadow: inset 3px 0 #9378ff; background: #24213f; }.chat-row.is-unread .chat-row__body strong { color: #fff; }
 .chat-row__body { min-width: 0; }.chat-row__body strong, .chat-row__body small, .chat-row__body em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.chat-row__body strong { font-size: 12px; }.chat-row__body small { margin-top: 3px; color: #9ca2c1; font-size: 11px; }.chat-row__body em { margin-top: 3px; color: #6f7596; font-size: 9px; font-style: normal; }
