@@ -14,7 +14,6 @@ class AvitoPayloadRedactor
         'client_id',
         'password',
         'secret',
-        'code',
     ];
 
     public function redact(mixed $value, int $depth = 0): mixed
@@ -37,6 +36,12 @@ class AvitoPayloadRedactor
         }
 
         if (is_string($value)) {
+            $value = preg_replace(
+                '/([?&](?:secret|token|access_token|refresh_token)=)[^&\s]+/i',
+                '$1[redacted]',
+                $value
+            ) ?? $value;
+
             return Str::limit($value, 4000, '…');
         }
 

@@ -49,6 +49,7 @@
 - preflight через безопасный `GET /core/v1/accounts/self`;
 - журнал запросов с request UUID, HTTP status, latency, редактированными и зашифрованными payload;
 - webhook inbox с shared secret (`X-Secret` из API «Работа», совместимый `X-Avito-Webhook-Secret` или query), дедупликацией и шифрованием payload;
+- server-side подстановка webhook secret в методы подписки «Работы» и Messenger без передачи секрета браузеру;
 - hourly refresh истекающих OAuth tokens и удаление журналов старше retention period;
 - серверный host allowlist, запрет redirects и запрет произвольных параметров вне OpenAPI;
 - изменяющие операции требуют включённого `AVITO_MUTATIONS_ENABLED` и явного подтверждения.
@@ -79,3 +80,7 @@ php artisan avito:catalog-sync --check
 ```
 
 `--live` безопасно читает только профиль и не меняет данные Avito.
+
+При deploy GitHub Actions standalone-скрипт атомарно нормализует legacy base URL,
+оставляет изменяющие операции выключенными и создаёт webhook secret на самом VPS,
+если его ещё нет. Существующий валидный secret сохраняется.

@@ -330,12 +330,14 @@ class AvitoController extends Controller
         $payload = $request->json()->all();
         $externalId = (string) (Arr::get($payload, 'id')
             ?: Arr::get($payload, 'event_id')
+            ?: Arr::get($payload, 'applyId')
             ?: Arr::get($payload, 'payload.value.id')
             ?: '');
         $type = (string) (Arr::get($payload, 'type')
             ?: Arr::get($payload, 'event_type')
             ?: Arr::get($payload, 'payload.type')
             ?: Arr::get($payload, 'payload.value.type')
+            ?: (Arr::has($payload, 'applyId') ? 'job.application' : null)
             ?: 'unknown');
         $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}';
         $deduplicationKey = hash('sha256', $type.'|'.$externalId.'|'.$encoded);

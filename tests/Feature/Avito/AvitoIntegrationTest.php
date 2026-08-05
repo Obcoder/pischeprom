@@ -7,6 +7,7 @@ use App\Models\AvitoApiCall;
 use App\Models\AvitoCapabilitySetting;
 use App\Models\AvitoConnection;
 use App\Models\AvitoWebhookEvent;
+use App\Services\Avito\AvitoPayloadRedactor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -202,6 +203,9 @@ class AvitoIntegrationTest extends TestCase
             'https://api.avito.ru/messenger/v1/accounts/777/getVoiceFiles*' => Http::response([
                 'voices' => [],
             ]),
+            'https://api.avito.ru/job/v1/applications/webhook' => Http::response([
+                'ok' => true,
+            ]),
             'https://api.avito.ru/order-management/1/orders/labels/task-42/download' => Http::response(
                 '%PDF-test-binary',
                 200,
@@ -240,12 +244,27 @@ class AvitoIntegrationTest extends TestCase
             'query' => ['voice_ids' => ['voice-one', 'voice-two']],
         ])->assertOk()->assertJsonPath('ok', true);
 
+        $webhookResponse = $this->postJson('/api/avito/capabilities/job.applicationswebhookput.721da64cda/execute', [
+            'body' => ['url' => route('api.avito.webhook'), 'secret' => 'browser-must-not-control-this'],
+            'content_type' => 'application/json',
+            'confirmation' => 'AVITO',
+        ])->assertOk()->assertJsonPath('ok', true);
+        $webhookResponse->assertDontSee('webhook-test-secret');
+
         Http::assertSent(fn ($request) => $request->url() === 'https://api.avito.ru/autostrategy/v1/budget'
             && $request->data()['campaignType'] === 'AS');
         Http::assertSent(fn ($request) => $request->url() === 'https://api.avito.ru/messenger/v1/accounts/777/uploadImages'
             && str_contains($request->body(), 'uploadfile[]')
             && str_contains($request->body(), 'photo.png'));
         Http::assertSent(fn ($request) => $request->url() === 'https://api.avito.ru/messenger/v1/accounts/777/getVoiceFiles?voice_ids=voice-one&voice_ids=voice-two');
+        Http::assertSent(fn ($request) => $request->url() === 'https://api.avito.ru/job/v1/applications/webhook'
+            && $request->data()['url'] === route('api.avito.webhook')
+            && $request->data()['secret'] === 'webhook-test-secret');
+
+        $this->assertSame(
+            'https://example.test/hook?secret=[redacted]&page=1',
+            app(AvitoPayloadRedactor::class)->redact('https://example.test/hook?secret=hidden&page=1')
+        );
     }
 
     public function test_capabilities_can_be_managed_individually_and_in_bulk(): void

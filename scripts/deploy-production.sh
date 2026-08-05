@@ -247,6 +247,11 @@ composer install \
     --prefer-dist \
     --no-progress
 
+avito_env_updater="$target_dir/scripts/update-production-avito-env.php"
+[[ -f "$avito_env_updater" && ! -L "$avito_env_updater" ]] \
+    || fail 'Avito production environment updater is missing or unsafe.'
+php "$avito_env_updater" "$target_dir/.env"
+
 rm -rf -- "$target_dir/public/build" "$target_dir/bootstrap/ssr"
 mkdir -p "$target_dir/public" "$target_dir/bootstrap"
 tar -xzf "$frontend_archive" \

@@ -180,7 +180,9 @@ jobs:
             app/Services/Avito \
             config/avito.php \
             database/migrations/2026_08_05_100000_create_avito_integration_tables.php \
-            tests/Feature/Avito
+            scripts/update-production-avito-env.php \
+            tests/Feature/Avito \
+            tests/Unit/Avito
           php artisan avito:preflight
 
       - name: Run unit, logistics, banking, AI price-list, goods stock, orders, and products tests

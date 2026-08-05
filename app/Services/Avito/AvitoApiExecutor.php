@@ -69,6 +69,7 @@ class AvitoApiExecutor
         $headers = $this->serializeHeaders($headers);
         $body = $input['body'] ?? null;
         $contentType = $this->contentType($capability, (string) ($input['content_type'] ?? ''));
+        $body = $this->prepareWebhookBody($capability, $body);
         $files = $this->mapFilesToSchema($capability, $contentType, $files);
 
         $log = AvitoApiCall::query()->create([
@@ -92,6 +93,9 @@ class AvitoApiExecutor
             $token = $this->tokens->tokenFor($capability, $connection);
             $response = $this->send($capability, $url, $query, $headers, $body, $contentType, $files, $token);
             $result = $this->result($response, $requestId);
+            if (! $result['binary']) {
+                $result['data'] = $this->redactor->redact($result['data']);
+            }
             $duration = (int) round((hrtime(true) - $startedAt) / 1_000_000);
 
             $log->update([
@@ -456,6 +460,49 @@ class AvitoApiExecutor
         });
 
         return [$binaryFields[0] => $uploaded];
+    }
+
+    private function prepareWebhookBody(array $capability, mixed $body): mixed
+    {
+        $operationId = (string) ($capability['operation_id'] ?? '');
+
+        if (! in_array($operationId, [
+            'applicationsWebhookPut',
+            'postWebhookV3',
+            'postWebhookUnsubscribe',
+        ], true)) {
+            return $body;
+        }
+
+        if (! is_array($body)) {
+            $body = [];
+        }
+
+        $secret = (string) config('avito.webhook_secret');
+        if ($secret === '') {
+            throw new AvitoException('Для webhook-функции не задан AVITO_WEBHOOK_SECRET.', 'configuration', 503);
+        }
+
+        $publicUrl = route('api.avito.webhook');
+
+        if ($operationId === 'applicationsWebhookPut') {
+            $requestedUrl = (string) ($body['url'] ?? '');
+            if ($requestedUrl !== '' && rtrim($requestedUrl, '/') !== rtrim($publicUrl, '/')) {
+                throw new AvitoException('Webhook «Работы» можно связать только с защищённым endpoint Ameise.', 'validation', 422);
+            }
+
+            $body['url'] = $publicUrl;
+            $body['secret'] = $secret;
+
+            return $body;
+        }
+
+        $requestedUrl = (string) ($body['url'] ?? '');
+        if ($requestedUrl === '' || rtrim(strtok($requestedUrl, '?'), '/') === rtrim($publicUrl, '/')) {
+            $body['url'] = $publicUrl.'?'.http_build_query(['secret' => $secret]);
+        }
+
+        return $body;
     }
 
     private function multipartFields(array $body): array
