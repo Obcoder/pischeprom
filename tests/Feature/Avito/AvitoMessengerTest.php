@@ -129,16 +129,17 @@ class AvitoMessengerTest extends TestCase
                 ]],
             ]),
             'https://api.avito.ru/messenger/v3/accounts/777/chats/chat-sync-1/messages/*' => Http::response([
-                [
+                'messages' => [[
                     'id' => 'sync-message-2', 'author_id' => 999, 'direction' => 'in',
                     'type' => 'text', 'created' => 1785916800, 'is_read' => false,
                     'content' => ['text' => 'Второе сообщение'],
                 ],
-                [
-                    'id' => 'sync-message-1', 'author_id' => 777, 'direction' => 'out',
-                    'type' => 'text', 'created' => 1785910000, 'is_read' => true,
-                    'content' => ['text' => 'Первое сообщение'],
-                ],
+                    [
+                        'id' => 'sync-message-1', 'author_id' => 777, 'direction' => 'out',
+                        'type' => 'text', 'created' => 1785910000, 'is_read' => true,
+                        'content' => ['text' => 'Первое сообщение'],
+                    ]],
+                'meta' => ['has_more' => false],
             ]),
         ]);
 

@@ -316,7 +316,13 @@ class AvitoMessengerService
                 ],
                 'query' => ['limit' => $limit, 'offset' => $offset],
             ], $connection);
-            $messages = array_is_list((array) ($result['data'] ?? [])) ? (array) $result['data'] : [];
+            $responseData = (array) ($result['data'] ?? []);
+            // The published OpenAPI schema declares a bare array, while the
+            // live API currently wraps it in {messages, meta.has_more}.
+            $messages = array_is_list($responseData)
+                ? $responseData
+                : (array) Arr::get($responseData, 'messages', []);
+            $hasMore = (bool) Arr::get($responseData, 'meta.has_more', count($messages) >= $limit);
 
             foreach ($messages as $payload) {
                 if (! is_array($payload) || blank(Arr::get($payload, 'id'))) {
@@ -337,7 +343,7 @@ class AvitoMessengerService
                 }
             }
 
-            if (count($messages) < $limit) {
+            if (! $hasMore || count($messages) < $limit) {
                 break;
             }
         }
