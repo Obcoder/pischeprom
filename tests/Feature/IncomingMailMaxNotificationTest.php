@@ -57,6 +57,7 @@ class IncomingMailMaxNotificationTest extends TestCase
             'services.max.mail_notifications.max_message_age_hours' => 72,
         ]);
         URL::forceRootUrl('https://crm.test');
+        URL::forceScheme('https');
     }
 
     public function test_dispatcher_queues_each_message_and_target_only_once(): void
