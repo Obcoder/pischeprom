@@ -13,7 +13,7 @@ return [
     'queue_connection' => env('AI_PRICE_LIST_QUEUE_CONNECTION', 'redis'),
     'queue' => env('AI_PRICE_LIST_QUEUE', 'price-lists'),
     'mail_ingestion' => [
-        'queue_connection' => env('AI_PRICE_LIST_MAIL_QUEUE_CONNECTION', env('AI_PRICE_LIST_QUEUE_CONNECTION', 'redis')),
+        'queue_connection' => env('AI_PRICE_LIST_MAIL_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'database')),
         'queue' => env('AI_PRICE_LIST_MAIL_QUEUE', 'mail-sync'),
     ],
     'storage_disk' => env('AI_PRICE_LIST_STORAGE_DISK', 'yandex'),

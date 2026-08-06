@@ -36,7 +36,7 @@ class IngestEmailPriceListAttachments implements ShouldBeUnique, ShouldQueue
 
     public function uniqueId(): string
     {
-        return (string) $this->mailMessageId;
+        return 'mail-ingestion-v2:'.$this->mailMessageId;
     }
 
     public function backoff(): array

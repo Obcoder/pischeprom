@@ -17,7 +17,7 @@ permission model сохранена и снова включается одни�
 
 Существующий `YandexMailboxService` по-прежнему быстро сохраняет метаданные
 `MailMessage` без тяжёлой загрузки тела и вложений. Для нового входящего
-письма с признаком вложений ставится уникальный job в Redis-очередь `mail-sync`.
+письма с признаком вложений ставится уникальный job в штатную очередь `mail-sync`.
 Он получает список IMAP-вложений и:
 
 1. исключает inline-логотипы и неподходящие форматы;
@@ -132,7 +132,7 @@ AI_PRICE_LISTS_ENABLED=true
 AI_PRICE_LIST_AUTHORIZATION_ENABLED=false
 AI_PRICE_LIST_QUEUE_CONNECTION=redis
 AI_PRICE_LIST_QUEUE=price-lists
-AI_PRICE_LIST_MAIL_QUEUE_CONNECTION=redis
+AI_PRICE_LIST_MAIL_QUEUE_CONNECTION=database
 AI_PRICE_LIST_MAIL_QUEUE=mail-sync
 AI_PRICE_LIST_STORAGE_DISK=yandex
 AI_PRICE_LIST_STORAGE_PREFIX=supplier-price-lists

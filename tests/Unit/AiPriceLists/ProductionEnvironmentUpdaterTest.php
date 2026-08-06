@@ -33,7 +33,6 @@ class ProductionEnvironmentUpdaterTest extends TestCase
         $this->assertStringContainsString("MAX_API_URL=https://platform-api2.max.ru\n", $contents);
         $this->assertStringContainsString("MAX_ACCESS_TOKEN=max-production-token.with_symbols\n", $contents);
         $this->assertStringContainsString("AI_PRICE_LIST_AUTHORIZATION_ENABLED=false\n", $contents);
-        $this->assertStringContainsString("AI_PRICE_LIST_MAIL_QUEUE_CONNECTION=redis\n", $contents);
         $this->assertStringContainsString("AI_PRICE_LIST_MAIL_QUEUE=mail-sync\n", $contents);
         $this->assertStringContainsString("PRICE_LIST_AUTO_APPLY=false\n", $contents);
         $this->assertMatchesRegularExpression('/^MAX_WEBHOOK_SECRET=[A-Za-z0-9_-]{64}$/m', $contents);

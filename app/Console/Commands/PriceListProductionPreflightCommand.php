@@ -100,8 +100,10 @@ class PriceListProductionPreflightCommand extends Command
             throw new RuntimeException('The dedicated queue must use Redis.');
         }
 
-        if ($all && config('ai-price-lists.mail_ingestion.queue_connection') !== 'redis') {
-            throw new RuntimeException('The email-ingestion queue must use Redis.');
+        $mailQueueConnection = (string) config('ai-price-lists.mail_ingestion.queue_connection');
+
+        if ($all && ($mailQueueConnection === '' || ! is_array(config("queue.connections.{$mailQueueConnection}")))) {
+            throw new RuntimeException('The email-ingestion queue connection is unavailable.');
         }
 
         if ($all && blank(config('ai-price-lists.mail_ingestion.queue'))) {
