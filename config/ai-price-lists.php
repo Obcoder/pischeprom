@@ -12,6 +12,10 @@ return [
     'auto_apply' => false,
     'queue_connection' => env('AI_PRICE_LIST_QUEUE_CONNECTION', 'redis'),
     'queue' => env('AI_PRICE_LIST_QUEUE', 'price-lists'),
+    'mail_ingestion' => [
+        'queue_connection' => env('AI_PRICE_LIST_MAIL_QUEUE_CONNECTION', env('AI_PRICE_LIST_QUEUE_CONNECTION', 'redis')),
+        'queue' => env('AI_PRICE_LIST_MAIL_QUEUE', 'mail-sync'),
+    ],
     'storage_disk' => env('AI_PRICE_LIST_STORAGE_DISK', 'yandex'),
     'storage_prefix' => trim(env('AI_PRICE_LIST_STORAGE_PREFIX', 'supplier-price-lists'), '/'),
     'retention_days' => (int) env('PRICE_LIST_RETENTION_DAYS', 730),

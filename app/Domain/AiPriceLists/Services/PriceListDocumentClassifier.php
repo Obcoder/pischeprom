@@ -21,23 +21,46 @@ class PriceListDocumentClassifier
 
     public function eligibleMailAttachment(MailMessageAttachment $attachment, MailMessage $message): bool
     {
-        $extension = strtolower(pathinfo($attachment->original_name ?: $attachment->file_name, PATHINFO_EXTENSION));
+        return $this->mailAttachmentRejectionReason([
+            'original_name' => $attachment->original_name,
+            'file_name' => $attachment->file_name,
+            'size' => $attachment->size,
+            'content_id' => $attachment->content_id,
+            'disposition' => $attachment->disposition,
+        ], $message) === null;
+    }
+
+    /**
+     * @param  array{original_name?: mixed, file_name?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
+     */
+    public function eligibleMailAttachmentMetadata(array $attachment, MailMessage $message): bool
+    {
+        return $this->mailAttachmentRejectionReason($attachment, $message) === null;
+    }
+
+    /**
+     * @param  array{original_name?: mixed, file_name?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
+     */
+    public function mailAttachmentRejectionReason(array $attachment, MailMessage $message): ?string
+    {
+        $name = trim((string) ($attachment['original_name'] ?? $attachment['file_name'] ?? ''));
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 
         if (! in_array($extension, self::CANDIDATE_EXTENSIONS, true)) {
-            return false;
+            return 'unsupported_extension';
         }
 
         $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'heic'], true);
 
-        if ($isImage && (strtolower((string) $attachment->disposition) === 'inline' || filled($attachment->content_id))) {
-            return false;
+        if ($isImage && (strtolower((string) ($attachment['disposition'] ?? '')) === 'inline' || filled($attachment['content_id'] ?? null))) {
+            return 'inline_image';
         }
 
-        if ($isImage && (int) $attachment->size < 10 * 1024 && ! $this->hasPriceSignal($attachment->original_name, $message->subject)) {
-            return false;
+        if ($isImage && (int) ($attachment['size'] ?? 0) < 10 * 1024 && ! $this->hasPriceSignal($name, $message->subject)) {
+            return 'small_image_without_price_signal';
         }
 
-        return true;
+        return null;
     }
 
     public function classify(string $fileName, ?string $subject = null, ?string $caption = null): DocumentClass

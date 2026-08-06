@@ -1,13 +1,13 @@
 # AI-прайс-листы поставщиков — прогресс реализации
 
-Обновлено: 2026-08-05.
+Обновлено: 2026-08-06.
 
 ## Обязательный аудит
 
 - [x] Локальные инструкции проверены: `AGENTS.md` в репозитории и его родительском рабочем контексте отсутствуют.
 - [x] `git status`: ветка `main`, синхронизирована с `origin/main`, рабочее дерево до начала реализации чистое.
 - [x] Стек проверен: PHP 8.4.1 (проект требует `^8.2`), Laravel 12.64.0, Jetstream 5.5.2, Inertia Laravel 3.1.0 / Vue adapter 3.1.1, Vue 3.5.34, Vuetify 3.8.5, Vite 8.0.13.
-- [x] Почтовый контур проверен: `YandexMailboxService` сохраняет входящие сообщения в `mail_messages`, вложения — в `mail_message_attachments` на настроенный Yandex S3 disk. Точка расширения — после успешного сохранения `MailMessageAttachment`; второй IMAP-клиент не нужен.
+- [x] Почтовый контур проверен: штатная синхронизация `YandexMailboxService` изначально сохраняла в `mail_messages` только метаданные письма и отключала fetch вложений. Существующая операция сохранения в `mail_message_attachments` на Yandex S3 переиспользована фоновым ingestion job; второй IMAP-клиент не нужен.
 - [x] MAX проверен: публичный `POST /api/max/webhook`, `MaxWebhookController`, `MaxMessengerService`, `MaxWebhookEvent`, `MaxMessage`, `MaxChat`. Секрет уже сравнивается через `hash_equals`; webhook необходимо дополнить строгой дедупликацией и асинхронным ingestion вложений, не меняя stock-alert обработчик.
 - [x] Поставщик: `Entity` связан с `Email` через `email_entity`; `MaxChat` уже имеет nullable `entity_id`. Это надёжные первичные способы определения поставщика, создавать параллельную identity-таблицу не требуется.
 - [x] Каталог: строка прайса относится к `Good` (реальная товарная позиция). `Product` — переводимая классификационная сущность, связанная с `Good` many-to-many; автоматически связывать строку одновременно с обеими сущностями нельзя.
@@ -46,6 +46,10 @@
 - [x] Release gate: совместимое обновление Composer lock, ноль security advisories,
   изолированный MySQL 8.0 preflight, безопасный default `enabled=false` и отдельный
   GitHub Actions provisioner для production runtime/credentials/smoke/rollback.
+- [x] Почтовая автозагрузка: новые письма ставят уникальный job в `mail-sync`,
+  inline/неподходящие вложения отсекаются до сохранения, повторы идемпотентны.
+- [x] Исторический backfill: read-only default, пакет 1–100, cursor, фильтры ящика/даты,
+  явный `--apply` и отдельный production GitHub Actions workflow с pinned SSH/SHA/preflight.
 
 ## Выполненные проверки
 

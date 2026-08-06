@@ -1,0 +1,172 @@
+name: Backfill AI price-list email attachments
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Plan is read-only; apply queues one bounded batch
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+      limit:
+        description: Messages in this batch (1-100)
+        required: true
+        default: '10'
+        type: string
+      cursor:
+        description: Optional cursor printed by the previous batch
+        required: false
+        type: string
+      mailbox:
+        description: Optional exact mailbox address
+        required: false
+        type: string
+      since:
+        description: Optional oldest message date, for example 2026-08-01
+        required: false
+        type: string
+      until:
+        description: Optional newest message date, for example 2026-08-06
+        required: false
+        type: string
+      confirmation:
+        description: For apply only, enter BACKFILL_AI_PRICE_LIST_MAIL
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pischeprom-ai-price-list-mail-backfill
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  backfill:
+    name: ${{ inputs.action == 'apply' && 'Queue production backfill batch' || 'Plan production backfill batch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+
+    steps:
+      - name: Check out the exact audited command runner
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate inputs and configure pinned SSH identity
+        env:
+          ACTION: ${{ inputs.action }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          CURSOR: ${{ inputs.cursor }}
+          LIMIT: ${{ inputs.limit }}
+          MAILBOX: ${{ inputs.mailbox }}
+          SINCE: ${{ inputs.since }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          UNTIL: ${{ inputs.until }}
+        run: |
+          set -Eeuo pipefail
+
+          [[ "$GITHUB_REPOSITORY" == 'Obcoder/pischeprom' ]] || {
+            echo '::error::This workflow is restricted to Obcoder/pischeprom.'
+            exit 1
+          }
+          [[ "$ACTION" == 'plan' || "$ACTION" == 'apply' ]] || {
+            echo '::error::Unsupported action.'
+            exit 1
+          }
+          [[ "$LIMIT" =~ ^[0-9]+$ ]] && (( LIMIT >= 1 && LIMIT <= 100 )) || {
+            echo '::error::Limit must be from 1 to 100.'
+            exit 1
+          }
+          [[ -z "$CURSOR" || "$CURSOR" =~ ^[1-9][0-9]*$ ]] || {
+            echo '::error::Cursor must be empty or a positive integer.'
+            exit 1
+          }
+          (( ${#MAILBOX} <= 254 && ${#SINCE} <= 64 && ${#UNTIL} <= 64 )) || {
+            echo '::error::An optional filter is unexpectedly long.'
+            exit 1
+          }
+          [[ "$MAILBOX" != *$'\n'* && "$SINCE" != *$'\n'* && "$UNTIL" != *$'\n'* ]] || {
+            echo '::error::Optional filters must be single-line values.'
+            exit 1
+          }
+
+          if [[ "$ACTION" == 'apply' && "$CONFIRMATION" != 'BACKFILL_AI_PRICE_LIST_MAIL' ]]; then
+            echo '::error::Apply requires the exact confirmation BACKFILL_AI_PRICE_LIST_MAIL.'
+            exit 1
+          fi
+
+          for required_name in SSH_HOST SSH_KNOWN_HOSTS SSH_PORT SSH_PRIVATE_KEY SSH_USER TARGET_DIR; do
+            [[ -n "${!required_name:-}" ]] || {
+              echo "::error::Required production secret ${required_name} is missing."
+              exit 1
+            }
+          done
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 )) || {
+            echo '::error::PORT must be a valid TCP port.'
+            exit 1
+          }
+          [[ "$TARGET_DIR" =~ ^/[A-Za-z0-9._/-]+$ && "$TARGET_DIR" != '/' ]] || {
+            echo '::error::TARGET_DIR contains unsupported characters or is unsafe.'
+            exit 1
+          }
+
+          install -m 0700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 0600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 0600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null
+          ssh-keygen -F "$SSH_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null \
+            || ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$HOME/.ssh/known_hosts" >/dev/null \
+            || {
+              echo '::error::Pinned known_hosts does not contain the production host.'
+              exit 1
+            }
+
+      - name: Run the pinned production backfill command
+        env:
+          ACTION: ${{ inputs.action }}
+          CURSOR: ${{ inputs.cursor }}
+          LIMIT: ${{ inputs.limit }}
+          MAILBOX: ${{ inputs.mailbox }}
+          SINCE: ${{ inputs.since }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          UNTIL: ${{ inputs.until }}
+        run: |
+          set -Eeuo pipefail
+
+          encode() {
+            printf '%s' "$1" | base64 -w 0
+          }
+
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          ssh_target="${SSH_USER}@${SSH_HOST}"
+
+          ssh "${ssh_options[@]}" "$ssh_target" \
+            "bash -se -- '$(encode "$TARGET_DIR")' '$GITHUB_SHA' '$ACTION' '$LIMIT' '$(encode "$CURSOR")' '$(encode "$MAILBOX")' '$(encode "$SINCE")' '$(encode "$UNTIL")'" \
+            < scripts/run-production-price-list-mail-backfill.sh

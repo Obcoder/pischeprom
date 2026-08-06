@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\AiPriceLists\Services\EmailPriceListIngestionDispatcher;
 use App\Jobs\SendIncomingMailMaxNotificationJob;
 use App\Models\MailMessage;
 use App\Models\MailMessageMaxDelivery;
@@ -121,7 +122,16 @@ class IncomingMailMaxNotificationTest extends TestCase
                 fn (MailMessage $message) => $message->mailbox === 'com@food-server.ru'
                     && $message->imap_uid === 301,
             ));
-        $service = new class($registry, $dispatcher) extends YandexMailboxService
+        $priceLists = Mockery::mock(EmailPriceListIngestionDispatcher::class);
+        $priceLists
+            ->shouldReceive('safeRegister')
+            ->once()
+            ->with(Mockery::on(
+                fn (MailMessage $message) => $message->mailbox === 'com@food-server.ru'
+                    && $message->imap_uid === 301
+                    && $message->has_attachments,
+            ));
+        $service = new class($registry, $dispatcher, $priceLists) extends YandexMailboxService
         {
             public function storeForTest(object $message, array $mailbox): void
             {
@@ -142,7 +152,7 @@ class IncomingMailMaxNotificationTest extends TestCase
 
             public function __construct()
             {
-                $this->header = (object) ['raw' => ''];
+                $this->header = (object) ['raw' => 'Content-Type: multipart/mixed; boundary="mail"'];
             }
         };
         $mailbox = ['address' => 'com@food-server.ru'];
@@ -151,6 +161,10 @@ class IncomingMailMaxNotificationTest extends TestCase
         $service->storeForTest($imapMessage, $mailbox);
 
         $this->assertDatabaseCount('mail_messages', 1);
+        $this->assertDatabaseHas('mail_messages', [
+            'subject' => 'Новое письмо',
+            'has_attachments' => true,
+        ]);
     }
 
     public function test_sender_delivers_the_complete_text_attachment_and_link_without_repeating_sent_delivery(): void

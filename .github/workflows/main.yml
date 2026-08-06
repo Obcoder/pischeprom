@@ -203,6 +203,23 @@ jobs:
             tests/Unit/Avito
           php artisan avito:preflight
 
+      - name: Check AI price-list email ingestion PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Console/Commands/BackfillEmailPriceListAttachmentsCommand.php \
+            app/Console/Commands/PriceListProductionPreflightCommand.php \
+            app/Domain/AiPriceLists/Services/EmailPriceListAttachmentCollector.php \
+            app/Domain/AiPriceLists/Services/EmailPriceListIngestionDispatcher.php \
+            app/Domain/AiPriceLists/Services/PriceListDocumentClassifier.php \
+            app/Jobs/AiPriceLists/IngestEmailPriceListAttachments.php \
+            app/Services/Mail/YandexMailboxService.php \
+            config/ai-price-lists.php \
+            scripts/update-production-price-list-env.php \
+            tests/Feature/AiPriceLists/AiPriceListTestCase.php \
+            tests/Feature/AiPriceLists/EmailIngestionTest.php \
+            tests/Feature/IncomingMailMaxNotificationTest.php \
+            tests/Unit/AiPriceLists/ProductionEnvironmentUpdaterTest.php
+
       - name: Run unit, logistics, banking, AI price-list, goods stock, orders, and products tests
         env:
           APP_ENV: testing
@@ -228,6 +245,7 @@ jobs:
             tests/Feature/OrderManagementTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
+            tests/Feature/IncomingMailMaxNotificationTest.php \
             --compact
 
       - name: Set up Node.js

@@ -15,14 +15,16 @@ permission model сохранена и снова включается одни�
 
 ### Почта
 
-Существующий `YandexMailboxService` продолжает получать письма и сохранять
-`MailMessage`/`MailMessageAttachment` на приватный disk. Observer успешно созданного
-вложения:
+Существующий `YandexMailboxService` по-прежнему быстро сохраняет метаданные
+`MailMessage` без тяжёлой загрузки тела и вложений. Для нового входящего
+письма с признаком вложений ставится уникальный job в Redis-очередь `mail-sync`.
+Он получает список IMAP-вложений и:
 
 1. исключает inline-логотипы и неподходящие форматы;
-2. определяет поставщика по точной существующей связи email → `Entity`;
-3. создаёт импорт с уникальным ключом исходного attachment;
-4. после commit ставит обработку в Redis-очередь `price-lists`.
+2. сохраняет только подходящие файлы как `MailMessageAttachment` на приватный disk;
+3. определяет поставщика по точной существующей связи email → `Entity`;
+4. создаёт импорт с уникальным ключом исходного attachment;
+5. после commit ставит обработку в Redis-очередь `price-lists`.
 
 Отдельного IMAP-клиента или ответа отправителю нет. Несколько подходящих вложений
 одного письма дают несколько импортов со ссылкой на одно письмо; повторная синхронизация
@@ -130,6 +132,8 @@ AI_PRICE_LISTS_ENABLED=true
 AI_PRICE_LIST_AUTHORIZATION_ENABLED=false
 AI_PRICE_LIST_QUEUE_CONNECTION=redis
 AI_PRICE_LIST_QUEUE=price-lists
+AI_PRICE_LIST_MAIL_QUEUE_CONNECTION=redis
+AI_PRICE_LIST_MAIL_QUEUE=mail-sync
 AI_PRICE_LIST_STORAGE_DISK=yandex
 AI_PRICE_LIST_STORAGE_PREFIX=supplier-price-lists
 
@@ -308,6 +312,21 @@ stopwaitsecs=240
 php artisan price-lists:recover-stale --dry-run
 php artisan price-lists:recover-stale
 ```
+
+Для старых писем, созданных до включения автозагрузки, есть пакетный backfill. Без
+`--apply` команда ничего не изменяет; пакет идёт от новых писем к старым, а выведенный
+cursor продолжает обход без пропусков:
+
+```bash
+php artisan price-lists:mail-backfill --limit=10
+php artisan price-lists:mail-backfill --apply --limit=10
+php artisan price-lists:mail-backfill --apply --limit=10 --cursor=12345
+```
+
+На production эти операции запускаются workflow
+`.github/workflows/ai-price-list-mail-backfill.yml`: `plan` — read-only, `apply` требует точное
+подтверждение `BACKFILL_AI_PRICE_LIST_MAIL`. Workflow проверяет закреплённый SSH host,
+точный deployed commit, schema, Redis и оба worker до постановки задач в очередь.
 
 ## Безопасность и retention
 

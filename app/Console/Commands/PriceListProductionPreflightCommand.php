@@ -100,6 +100,14 @@ class PriceListProductionPreflightCommand extends Command
             throw new RuntimeException('The dedicated queue must use Redis.');
         }
 
+        if ($all && config('ai-price-lists.mail_ingestion.queue_connection') !== 'redis') {
+            throw new RuntimeException('The email-ingestion queue must use Redis.');
+        }
+
+        if ($all && blank(config('ai-price-lists.mail_ingestion.queue'))) {
+            throw new RuntimeException('The email-ingestion queue name is missing.');
+        }
+
         if ($all && app()->isProduction() && config('ai-price-lists.scanner') !== 'clamav') {
             throw new RuntimeException('Production scanner must be ClamAV.');
         }
@@ -112,6 +120,8 @@ class PriceListProductionPreflightCommand extends Command
     private function assertSchema(): void
     {
         $tables = [
+            'mail_messages',
+            'mail_message_attachments',
             'price_list_imports',
             'price_list_import_items',
             'price_list_item_candidates',
