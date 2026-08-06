@@ -15,6 +15,7 @@ use App\Models\Good;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\Telephone;
+use App\Models\Unit;
 use App\Services\Avito\AvitoContactDetector;
 use App\Services\Avito\AvitoCrmOutboundService;
 use App\Services\Avito\AvitoCrmService;
@@ -36,6 +37,10 @@ class AvitoCrmController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'building_types' => BuildingType::query()
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'units' => Unit::query()
+                ->withoutEagerLoads()
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'order_statuses' => OrderStatus::query()
@@ -152,6 +157,8 @@ class AvitoCrmController extends Controller
             'entity.classification:id,name',
             'entity.country:id,name',
             'entity.telephones:id,number',
+            'entity.cities.region.country',
+            'entity.units:id,name',
             'entity.buildings.city.region.country',
             'entity.buildings.buildingType',
         ]);
@@ -239,6 +246,10 @@ class AvitoCrmController extends Controller
             'OGRN' => ['nullable', 'string', 'max:32'],
             'legal_address' => ['nullable', 'string', 'max:1024'],
             'country_id' => ['nullable', 'integer', 'exists:countries,id'],
+            'city_ids' => ['nullable', 'array', 'max:50'],
+            'city_ids.*' => ['integer', 'distinct', 'exists:cities,id'],
+            'unit_ids' => ['nullable', 'array', 'max:50'],
+            'unit_ids.*' => ['integer', 'distinct', 'exists:units,id'],
             'bank_account_number' => ['nullable', 'string', 'max:34'],
             'bank_name' => ['nullable', 'string', 'max:1024'],
             'bank_bic' => ['nullable', 'string', 'max:16'],
@@ -383,6 +394,8 @@ class AvitoCrmController extends Controller
             'classification:id,name',
             'country:id,name',
             'telephones:id,number',
+            'cities.region.country',
+            'units:id,name',
             'buildings.city.region.country',
             'buildings.buildingType',
         ]);
@@ -397,6 +410,20 @@ class AvitoCrmController extends Controller
             'legal_address' => $entity->legal_address,
             'classification' => $entity->classification?->name,
             'country' => $entity->country?->name,
+            'cities' => $entity->cities->map(fn (City $city) => [
+                'id' => $city->id,
+                'name' => $city->name,
+                'region' => $city->region?->name,
+                'country' => $city->region?->country?->name,
+                'label' => collect([$city->name, $city->region?->name])
+                    ->filter()
+                    ->unique()
+                    ->implode(' · '),
+            ])->values(),
+            'units' => $entity->units->map(fn (Unit $unit) => [
+                'id' => $unit->id,
+                'name' => $unit->name,
+            ])->values(),
             'telephones' => $entity->telephones->map(fn (Telephone $telephone) => [
                 'id' => $telephone->id,
                 'number' => $telephone->number,

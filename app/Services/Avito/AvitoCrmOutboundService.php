@@ -256,7 +256,6 @@ class AvitoCrmOutboundService
         if (filled($order->preferred_delivery_time)) {
             $lines[] = 'Желаемое время: '.$order->preferred_delivery_time;
         }
-        $lines[] = 'Если всё верно, подтвердите заказ ответным сообщением.';
 
         return implode("\n", $lines);
     }

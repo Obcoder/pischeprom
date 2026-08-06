@@ -5,6 +5,7 @@ namespace Tests\Feature\Avito;
 use App\Models\AvitoChat;
 use App\Models\AvitoContactCandidate;
 use App\Models\AvitoMessengerAccount;
+use App\Models\BuildingType;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\Currency;
@@ -15,6 +16,7 @@ use App\Models\GoodPriceTypeValue;
 use App\Models\OrderStatus;
 use App\Models\PriceType;
 use App\Models\Region;
+use App\Models\Unit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -87,6 +89,17 @@ class AvitoCrmTest extends TestCase
             ->assertOk()
             ->assertJsonPath('messages.data.0.contact_candidates.0.status', 'pending');
 
+        $country = Country::query()->create(['name' => 'Россия', 'сodeISO' => 'RU']);
+        $region = Region::query()->create(['name' => 'Москва', 'country_id' => $country->id]);
+        $city = City::query()->create(['name' => 'Москва', 'region_id' => $region->id]);
+        $unit = Unit::query()->create(['name' => 'Московский Unit']);
+        $homeBuildingType = BuildingType::query()->where('name', 'Домашний')->firstOrFail();
+
+        $this->getJson('/api/avito/messenger/crm/options')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $unit->id, 'name' => 'Московский Unit'])
+            ->assertJsonFragment(['id' => $homeBuildingType->id, 'name' => 'Домашний']);
+
         $entityResponse = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/entity", [
             'name' => 'Клиент из Avito',
             'full_name' => 'Общество с ограниченной ответственностью Клиент из Avito',
@@ -94,13 +107,18 @@ class AvitoCrmTest extends TestCase
             'KPP' => '780101001',
             'OGRN' => '1027800000000',
             'legal_address' => '190000, Санкт-Петербург, Невский проспект, 1',
+            'country_id' => $country->id,
+            'city_ids' => [$city->id],
+            'unit_ids' => [$unit->id],
             'bank_account_number' => '40702810000000000001',
             'bank_name' => 'Тестовый банк',
             'bank_bic' => '044030001',
             'bank_corr_account' => '30101810000000000001',
         ])->assertCreated()
             ->assertJsonPath('entity.KPP', '780101001')
-            ->assertJsonPath('entity.OGRN', '1027800000000');
+            ->assertJsonPath('entity.OGRN', '1027800000000')
+            ->assertJsonPath('entity.cities.0.id', $city->id)
+            ->assertJsonPath('entity.units.0.id', $unit->id);
         $entityId = (int) $entityResponse->json('entity.id');
 
         $this->assertDatabaseHas('entities', [
@@ -116,6 +134,8 @@ class AvitoCrmTest extends TestCase
         ]);
         $this->assertDatabaseHas('avito_chats', ['id' => $chat->id, 'entity_id' => $entityId]);
         $this->assertDatabaseHas('avito_chats', ['id' => $secondChat->id, 'entity_id' => $entityId]);
+        $this->assertDatabaseHas('city_entity', ['city_id' => $city->id, 'entity_id' => $entityId]);
+        $this->assertDatabaseHas('entity_unit', ['unit_id' => $unit->id, 'entity_id' => $entityId]);
 
         $phone = AvitoContactCandidate::query()->where('type', 'phone')->firstOrFail();
         $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/telephones", [
@@ -124,13 +144,11 @@ class AvitoCrmTest extends TestCase
         $this->assertDatabaseHas('entity_telephone', ['entity_id' => $entityId]);
         $this->assertSame('accepted', $phone->fresh()->status);
 
-        $country = Country::query()->create(['name' => 'Россия', 'сodeISO' => 'RU']);
-        $region = Region::query()->create(['name' => 'Москва', 'country_id' => $country->id]);
-        $city = City::query()->create(['name' => 'Москва', 'region_id' => $region->id]);
         $address = AvitoContactCandidate::query()->where('type', 'address')->firstOrFail();
         $buildingResponse = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/buildings", [
             'candidate_id' => $address->id,
             'city_id' => $city->id,
+            'building_type_id' => $homeBuildingType->id,
             'address' => 'ул. Ленина, д. 10',
             'postcode' => '101000',
         ])->assertCreated();
@@ -139,22 +157,53 @@ class AvitoCrmTest extends TestCase
             'entity_id' => $entityId,
             'building_id' => $buildingId,
         ]);
+        $this->assertDatabaseHas('buildings', [
+            'id' => $buildingId,
+            'building_type_id' => $homeBuildingType->id,
+        ]);
 
         $good = Good::query()->create(['name' => 'Тестовый товар', 'is_published' => true]);
         $status = OrderStatus::query()->where('code', OrderStatus::OPEN)->firstOrFail();
+        Http::fake([
+            'https://api.avito.ru/token' => Http::response(['access_token' => 'crm-order-token', 'expires_in' => 86400]),
+            'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crm/messages' => Http::response([
+                'id' => 'order-confirmation-1',
+                'author_id' => 777,
+                'direction' => 'out',
+                'type' => 'text',
+                'created' => 1785916800,
+                'content' => ['text' => 'Подтверждение заказа'],
+            ]),
+        ]);
         $orderResponse = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/orders", [
             'order_status_id' => $status->id,
             'currency_code' => 'RUB',
             'building_ids' => [$buildingId],
             'contact_telephone_id' => $phone->fresh()->telephone_id,
-            'send_confirmation' => false,
+            'send_confirmation' => true,
             'items' => [[
                 'good_id' => $good->id,
                 'quantity' => 2,
                 'unit_price' => 350,
             ]],
-        ])->assertCreated()->assertJsonPath('order.total_amount', 700);
+        ])->assertCreated()
+            ->assertJsonPath('order.total_amount', 700)
+            ->assertJsonPath('outbound.sent', 1);
         $orderId = (int) $orderResponse->json('order.id');
+        $orderNumber = (string) $orderResponse->json('order.number');
+
+        Http::assertSent(function ($request) use ($orderNumber): bool {
+            if ($request->url() !== 'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crm/messages') {
+                return false;
+            }
+
+            $text = (string) data_get($request->data(), 'message.text');
+
+            return str_contains($text, "Заказ {$orderNumber} создан.")
+                && str_contains($text, 'Тестовый товар')
+                && str_contains($text, 'Итого: 700 RUB')
+                && ! str_contains($text, 'подтвердите заказ ответным сообщением');
+        });
 
         $this->assertDatabaseHas('orders', [
             'id' => $orderId,
@@ -168,7 +217,10 @@ class AvitoCrmTest extends TestCase
         $this->getJson("/api/avito/messenger/chats/{$chat->id}/crm")
             ->assertOk()
             ->assertJsonPath('entity.id', $entityId)
+            ->assertJsonPath('entity.cities.0.name', 'Москва')
+            ->assertJsonPath('entity.units.0.name', 'Московский Unit')
             ->assertJsonPath('entity.telephones.0.number', '+79991234567')
+            ->assertJsonPath('entity.buildings.0.building_type', 'Домашний')
             ->assertJsonPath('orders.0.id', $orderId);
     }
 

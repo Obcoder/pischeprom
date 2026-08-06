@@ -66,6 +66,13 @@ class AvitoAutoReplyTest extends TestCase
         $this->assertStringContainsString('value="auto-replies"', $crm);
         $this->assertStringContainsString('<AvitoAutoReplies', $crm);
         $this->assertStringContainsString('/api/avito/messenger/auto-replies/test', $component);
+        $this->assertStringContainsString('Описание сценария для AI', $component);
+        $this->assertStringContainsString('Примеры вопросов для AI', $component);
+        $this->assertStringContainsString('Когда AI не должен отвечать', $component);
+        $this->assertStringContainsString('Минимальная уверенность AI', $component);
+        $this->assertStringContainsString('Не повторять этот сценарий, мин.', $component);
+        $this->assertStringContainsString('Лимит сценария в день', $component);
+        $this->assertStringContainsString('Порядок проверки', $component);
         $this->assertStringNotContainsString('AVITO_AUTO_REPLY_ENABLED', $component);
     }
 

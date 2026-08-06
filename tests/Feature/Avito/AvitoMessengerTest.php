@@ -73,6 +73,8 @@ class AvitoMessengerTest extends TestCase
         $this->assertStringContainsString('/crm/buildings', $crmComponent);
         $this->assertStringContainsString('/crm/orders', $crmComponent);
         $this->assertStringContainsString('/crm/goods/', $crmComponent);
+        $this->assertStringContainsString('v-model="entityForm.city_ids"', $crmComponent);
+        $this->assertStringContainsString('v-model="entityForm.unit_ids"', $crmComponent);
         $this->assertStringContainsString('class="order-line__media"', $crmComponent);
         $this->assertStringContainsString('mdi-image-off-outline', $crmComponent);
         $this->assertStringContainsString('grid-template-columns: 38px minmax(0, 1fr) 24px', $crmComponent);

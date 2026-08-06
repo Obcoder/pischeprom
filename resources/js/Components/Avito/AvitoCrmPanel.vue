@@ -18,6 +18,7 @@ const options = ref({
     entity_classifications: [],
     countries: [],
     building_types: [],
+    units: [],
     order_statuses: [],
     currency_codes: ['RUB'],
 })
@@ -36,6 +37,8 @@ const emptyEntityForm = () => ({
     OGRN: '',
     legal_address: '',
     country_id: null,
+    city_ids: [],
+    unit_ids: [],
     bank_account_number: '',
     bank_name: '',
     bank_bic: '',
@@ -235,6 +238,8 @@ async function createEntity() {
             OGRN: entityForm.OGRN.trim() || null,
             legal_address: entityForm.legal_address.trim() || null,
             country_id: entityForm.country_id,
+            city_ids: entityForm.city_ids,
+            unit_ids: entityForm.unit_ids,
             bank_account_number: entityForm.bank_account_number.trim() || null,
             bank_name: entityForm.bank_name.trim() || null,
             bank_bic: entityForm.bank_bic.trim() || null,
@@ -527,8 +532,10 @@ onBeforeUnmount(() => {
                         <div><span>Связанный клиент</span><a :href="`/Ameise/entity/${crm.entity.id}`" target="_blank">{{ crm.entity.name }}</a><small>{{ crm.entity.classification || 'Классификация не задана' }}</small></div>
                         <v-btn icon="mdi-link-variant-off" color="error" size="x-small" variant="text" title="Отвязать" @click="unlinkEntity" />
                     </div>
-                    <div v-if="crm.entity.telephones?.length" class="entity-facts">
+                    <div v-if="crm.entity.telephones?.length || crm.entity.cities?.length || crm.entity.units?.length" class="entity-facts">
                         <span v-for="phone in crm.entity.telephones" :key="phone.id"><v-icon icon="mdi-phone-outline" size="12" />{{ phone.number }}</span>
+                        <span v-for="city in crm.entity.cities" :key="`city-${city.id}`"><v-icon icon="mdi-city-variant-outline" size="12" />{{ city.label }}</span>
+                        <span v-for="unit in crm.entity.units" :key="`unit-${unit.id}`"><v-icon icon="mdi-source-branch" size="12" />{{ unit.name }}</span>
                     </div>
                     <div v-if="crm.entity.buildings?.length" class="entity-buildings">
                         <span v-for="building in crm.entity.buildings" :key="building.id"><v-icon icon="mdi-map-marker-outline" size="12" />{{ building.label }}</span>
@@ -551,6 +558,10 @@ onBeforeUnmount(() => {
                         <div class="entity-form-grid">
                             <v-select v-model="entityForm.entity_classification_id" :items="options.entity_classifications" item-title="name" item-value="id" label="Классификация" density="compact" variant="outlined" hide-details clearable />
                             <v-select v-model="entityForm.country_id" :items="options.countries" item-title="name" item-value="id" label="Страна" density="compact" variant="outlined" hide-details clearable />
+                        </div>
+                        <div class="entity-form-grid">
+                            <v-autocomplete v-model="entityForm.city_ids" v-model:search="citySearch" :items="cityResults" item-title="label" item-value="id" label="Города" density="compact" variant="outlined" hide-details clearable multiple chips closable-chips :loading="citySearching" no-filter />
+                            <v-autocomplete v-model="entityForm.unit_ids" :items="options.units" item-title="name" item-value="id" label="Unit" density="compact" variant="outlined" hide-details clearable multiple chips closable-chips />
                         </div>
                         <div class="entity-form-grid entity-form-grid--ids">
                             <v-text-field v-model="entityForm.INN" label="ИНН" density="compact" variant="outlined" hide-details clearable maxlength="32" inputmode="numeric" />

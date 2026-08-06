@@ -358,17 +358,17 @@ defineExpose({ reload: load })
                 <div class="editor-grid">
                     <v-text-field v-model="editor.name" label="Название" density="compact" variant="outlined" hide-details maxlength="160" />
                     <v-text-field v-model="editor.key" label="ID сценария" placeholder="создастся автоматически" density="compact" variant="outlined" hide-details maxlength="80" />
-                    <v-textarea v-model="editor.description" class="span-two" label="Точная тема сценария" rows="2" auto-grow density="compact" variant="outlined" hide-details maxlength="2000" />
+                    <v-textarea v-model="editor.description" class="span-two" label="Описание сценария для AI" rows="2" auto-grow density="compact" variant="outlined" hide-details maxlength="2000" />
                     <v-textarea v-model="editor.response_text" class="span-two response-editor" label="Утверждённый фиксированный ответ" rows="3" auto-grow density="compact" variant="outlined" hide-details maxlength="1000" counter />
-                    <v-textarea v-model="editor.positive_examples_text" label="Разрешённые примеры · по одному в строке" rows="6" density="compact" variant="outlined" hide-details />
-                    <v-textarea v-model="editor.negative_examples_text" label="Отрицательные и смешанные примеры" rows="6" density="compact" variant="outlined" hide-details />
+                    <v-textarea v-model="editor.positive_examples_text" label="Примеры вопросов для AI · по одному в строке" rows="6" density="compact" variant="outlined" hide-details />
+                    <v-textarea v-model="editor.negative_examples_text" label="Когда AI не должен отвечать · по одному в строке" rows="6" density="compact" variant="outlined" hide-details />
                     <v-select v-model="editor.account_ids" :items="meta.accounts" item-title="name" item-value="id" label="Аккаунты · пусто означает все" multiple chips closable-chips density="compact" variant="outlined" hide-details />
                     <v-textarea v-model="editor.context_ids_text" label="ID объявлений · по одному в строке" rows="2" density="compact" variant="outlined" hide-details />
                     <div class="number-grid span-two">
-                        <v-text-field v-model="editor.confidence_threshold" type="number" min="0.8" max="1" step="0.01" label="Порог уверенности" density="compact" variant="outlined" hide-details />
-                        <v-text-field v-model="editor.cooldown_minutes" type="number" min="1" label="Пауза, минут" density="compact" variant="outlined" hide-details />
-                        <v-text-field v-model="editor.daily_limit" type="number" min="1" label="Лимит в день" density="compact" variant="outlined" hide-details />
-                        <v-text-field v-model="editor.sort_order" type="number" min="0" label="Порядок" density="compact" variant="outlined" hide-details />
+                        <v-text-field v-model="editor.confidence_threshold" type="number" min="0.8" max="1" step="0.01" label="Минимальная уверенность AI" density="compact" variant="outlined" hide-details />
+                        <v-text-field v-model="editor.cooldown_minutes" type="number" min="1" label="Не повторять этот сценарий, мин." density="compact" variant="outlined" hide-details />
+                        <v-text-field v-model="editor.daily_limit" type="number" min="1" label="Лимит сценария в день" density="compact" variant="outlined" hide-details />
+                        <v-text-field v-model="editor.sort_order" type="number" min="0" label="Порядок проверки" density="compact" variant="outlined" hide-details />
                     </div>
                     <div class="editor-switches span-two">
                         <v-checkbox v-model="editor.is_active" label="Активен" density="compact" hide-details />

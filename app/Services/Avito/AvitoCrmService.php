@@ -58,9 +58,19 @@ class AvitoCrmService
                 'bank_corr_account' => $this->nullableTrimmedString($data['bank_corr_account'] ?? null),
             ]);
 
+            $entity->cities()->sync($data['city_ids'] ?? []);
+            $entity->units()->sync($data['unit_ids'] ?? []);
+
             $this->linkEntity($chat, $entity);
 
-            return $entity->fresh(['classification', 'country', 'telephones', 'buildings.city.region']);
+            return $entity->fresh([
+                'classification',
+                'country',
+                'cities.region.country',
+                'units',
+                'telephones',
+                'buildings.city.region',
+            ]);
         });
     }
 
