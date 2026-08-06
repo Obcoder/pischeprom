@@ -82,6 +82,12 @@ class EmailIngestionTest extends AiPriceListTestCase
             'size' => 100,
             'disposition' => 'attachment',
         ], $message));
+        $this->assertNull($classifier->automaticMailAttachmentRejectionReason([
+            'original_name' => '=?UTF-8?B?damaged-excel-name=?',
+            'mime_type' => 'application/vnd.ms-excel',
+            'size' => 100,
+            'disposition' => 'attachment',
+        ], $message));
         $this->assertSame('document_without_price_signal', $classifier->automaticMailAttachmentRejectionReason([
             'original_name' => 'invoice.pdf',
             'size' => 100,
@@ -108,6 +114,44 @@ class EmailIngestionTest extends AiPriceListTestCase
             ...$this->attachment($message, 'mail/manual.pdf', 'invoice.pdf', ['size' => 100]),
         ]));
         $this->assertTrue($classifier->eligibleMailAttachment($storedPdf, $message));
+    }
+
+    public function test_damaged_mime_filename_uses_attachment_content_type_and_subject_extension(): void
+    {
+        Queue::fake();
+        $message = $this->message(['subject' => 'Прайс Дары Моря']);
+        Storage::disk('local')->put('mail/damaged-name', 'spreadsheet placeholder');
+
+        MailMessageAttachment::query()->create($this->attachment(
+            $message,
+            'mail/damaged-name',
+            '=?UTF-8?B?0JRgNCw0LnRgSDQlNCw0YDRiy54bHM=?',
+            ['mime_type' => 'application/vnd.ms-excel'],
+        ));
+
+        $this->assertDatabaseHas('price_list_imports', [
+            'mail_message_id' => $message->id,
+            'original_name' => 'Прайс Дары Моря.xls',
+            'safe_name' => 'Прайс Дары Моря.xls',
+            'extension' => 'xls',
+            'mime_type' => 'application/vnd.ms-excel',
+        ]);
+        Queue::assertPushed(ValidatePriceListFile::class, 1);
+
+        Storage::disk('local')->put('mail/damaged-docx-name', 'document placeholder');
+        MailMessageAttachment::query()->create($this->attachment(
+            $message,
+            'mail/damaged-docx-name',
+            '=?UTF-8?B?damaged-word-name?= .26.docx',
+            ['mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        ));
+
+        $this->assertDatabaseHas('price_list_imports', [
+            'mail_message_id' => $message->id,
+            'original_name' => 'Прайс Дары Моря.docx',
+            'extension' => 'docx',
+        ]);
+        Queue::assertPushed(ValidatePriceListFile::class, 2);
     }
 
     public function test_collector_saves_only_eligible_remote_attachments_and_is_idempotent(): void

@@ -48,6 +48,12 @@ class PriceListIngestionService
         return DB::transaction(function () use ($attachment, $message, $sourceKey): PriceListImport {
             $supplier = $this->supplierForEmail($message->from_address);
             $name = $attachment->original_name ?: $attachment->file_name ?: 'attachment';
+            $extension = $this->classifier->mailAttachmentExtension([
+                'original_name' => $attachment->original_name,
+                'file_name' => $attachment->file_name,
+                'mime_type' => $attachment->mime_type,
+            ]);
+            $name = $this->normalizedMailAttachmentName($name, $extension, $message->subject);
             $safeName = $this->validator->safeDisplayName($name);
 
             $import = PriceListImport::query()->create([
@@ -67,7 +73,7 @@ class PriceListIngestionService
                 'path' => $attachment->path,
                 'original_name' => $name,
                 'safe_name' => $safeName,
-                'extension' => strtolower(pathinfo($name, PATHINFO_EXTENSION)) ?: null,
+                'extension' => $extension,
                 'mime_type' => $attachment->mime_type,
                 'size_bytes' => (int) $attachment->size,
                 'document_class' => $this->classifier->classify($name, $message->subject, $message->preview),
@@ -106,5 +112,29 @@ class PriceListIngestionService
             ->first();
 
         return $email && $email->entities->count() === 1 ? $email->entities->first() : null;
+    }
+
+    private function normalizedMailAttachmentName(string $name, ?string $extension, ?string $subject): string
+    {
+        if (! $extension) {
+            return $name;
+        }
+
+        $hasBrokenMimeWrapper = preg_match('/=\?[^?]+\?[bq]\?/i', $name) === 1;
+
+        if (! $hasBrokenMimeWrapper && strtolower(pathinfo($name, PATHINFO_EXTENSION)) === $extension) {
+            return $name;
+        }
+
+        $base = $hasBrokenMimeWrapper
+            ? (trim((string) $subject) ?: 'attachment')
+            : $name;
+        $base = rtrim($this->validator->safeDisplayName($base), '. ');
+
+        if (strtolower(pathinfo($base, PATHINFO_EXTENSION)) === $extension) {
+            return $base;
+        }
+
+        return ($base !== '' ? $base : 'attachment').'.'.$extension;
     }
 }

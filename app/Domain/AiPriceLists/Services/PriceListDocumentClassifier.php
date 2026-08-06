@@ -28,6 +28,7 @@ class PriceListDocumentClassifier
         return $this->mailAttachmentRejectionReason([
             'original_name' => $attachment->original_name,
             'file_name' => $attachment->file_name,
+            'mime_type' => $attachment->mime_type,
             'size' => $attachment->size,
             'content_id' => $attachment->content_id,
             'disposition' => $attachment->disposition,
@@ -35,7 +36,7 @@ class PriceListDocumentClassifier
     }
 
     /**
-     * @param  array{original_name?: mixed, file_name?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
+     * @param  array{original_name?: mixed, file_name?: mixed, mime_type?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
      */
     public function eligibleMailAttachmentMetadata(array $attachment, MailMessage $message): bool
     {
@@ -43,7 +44,7 @@ class PriceListDocumentClassifier
     }
 
     /**
-     * @param  array{original_name?: mixed, file_name?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
+     * @param  array{original_name?: mixed, file_name?: mixed, mime_type?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
      */
     public function automaticMailAttachmentRejectionReason(array $attachment, MailMessage $message): ?string
     {
@@ -54,7 +55,7 @@ class PriceListDocumentClassifier
         }
 
         $name = trim((string) ($attachment['original_name'] ?? $attachment['file_name'] ?? ''));
-        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $extension = $this->mailAttachmentExtension($attachment);
 
         if (in_array($extension, self::TABULAR_EXTENSIONS, true)) {
             return null;
@@ -70,12 +71,12 @@ class PriceListDocumentClassifier
     }
 
     /**
-     * @param  array{original_name?: mixed, file_name?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
+     * @param  array{original_name?: mixed, file_name?: mixed, mime_type?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
      */
     public function mailAttachmentRejectionReason(array $attachment, MailMessage $message): ?string
     {
         $name = trim((string) ($attachment['original_name'] ?? $attachment['file_name'] ?? ''));
-        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $extension = $this->mailAttachmentExtension($attachment);
 
         if (! in_array($extension, self::CANDIDATE_EXTENSIONS, true)) {
             return 'unsupported_extension';
@@ -92,6 +93,41 @@ class PriceListDocumentClassifier
         }
 
         return null;
+    }
+
+    /**
+     * Some mail servers expose a damaged RFC 2047 filename while preserving the
+     * trustworthy attachment Content-Type. Use that type only as a fallback;
+     * the file validator still verifies the actual bytes before parsing.
+     *
+     * @param  array{original_name?: mixed, file_name?: mixed, mime_type?: mixed}  $attachment
+     */
+    public function mailAttachmentExtension(array $attachment): ?string
+    {
+        $name = trim((string) ($attachment['original_name'] ?? $attachment['file_name'] ?? ''));
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+        if (in_array($extension, self::CANDIDATE_EXTENSIONS, true)) {
+            return $extension;
+        }
+
+        $mimeType = strtolower(trim(explode(';', (string) ($attachment['mime_type'] ?? ''))[0]));
+
+        return match ($mimeType) {
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+            'application/vnd.ms-excel', 'application/xls', 'application/x-xls' => 'xls',
+            'text/csv', 'application/csv' => 'csv',
+            'text/tab-separated-values' => 'tsv',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            'application/pdf' => 'pdf',
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/tiff' => 'tiff',
+            'image/bmp', 'image/x-ms-bmp' => 'bmp',
+            'image/gif' => 'gif',
+            'image/heic', 'image/heif' => 'heic',
+            default => null,
+        };
     }
 
     public function classify(string $fileName, ?string $subject = null, ?string $caption = null): DocumentClass
