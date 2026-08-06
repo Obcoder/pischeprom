@@ -5,6 +5,7 @@ namespace Tests\Feature\AiPriceLists;
 use App\Domain\AiPriceLists\Enums\PriceListStatus;
 use App\Domain\AiPriceLists\Services\EmailPriceListAttachmentCollector;
 use App\Domain\AiPriceLists\Services\EmailPriceListIngestionDispatcher;
+use App\Domain\AiPriceLists\Services\PriceListDocumentClassifier;
 use App\Domain\AiPriceLists\Services\PriceListIngestionService;
 use App\Jobs\AiPriceLists\IngestEmailPriceListAttachments;
 use App\Jobs\AiPriceLists\ValidatePriceListFile;
@@ -66,6 +67,47 @@ class EmailIngestionTest extends AiPriceListTestCase
 
         $this->assertDatabaseCount('price_list_imports', 0);
         Queue::assertNothingPushed();
+    }
+
+    public function test_automatic_collection_requires_price_signal_for_documents_and_images_but_not_tables(): void
+    {
+        $message = $this->message([
+            'subject' => 'Документы за август',
+            'preview' => 'Добрый день',
+        ]);
+        $classifier = app(PriceListDocumentClassifier::class);
+
+        $this->assertNull($classifier->automaticMailAttachmentRejectionReason([
+            'original_name' => 'offer.xlsx',
+            'size' => 100,
+            'disposition' => 'attachment',
+        ], $message));
+        $this->assertSame('document_without_price_signal', $classifier->automaticMailAttachmentRejectionReason([
+            'original_name' => 'invoice.pdf',
+            'size' => 100,
+            'disposition' => 'attachment',
+        ], $message));
+        $this->assertNull($classifier->automaticMailAttachmentRejectionReason([
+            'original_name' => 'КП молоко.pdf',
+            'size' => 100,
+            'disposition' => 'attachment',
+        ], $message));
+        $this->assertSame('image_without_price_signal', $classifier->automaticMailAttachmentRejectionReason([
+            'original_name' => 'photo.jpg',
+            'size' => 50000,
+            'disposition' => 'attachment',
+        ], $message));
+        $this->assertSame('unsupported_extension', $classifier->automaticMailAttachmentRejectionReason([
+            'original_name' => 'старый прайс.doc',
+            'size' => 100,
+            'disposition' => 'attachment',
+        ], $message));
+
+        Storage::disk('local')->put('mail/manual.pdf', str_repeat('x', 100));
+        $storedPdf = MailMessageAttachment::withoutEvents(fn () => MailMessageAttachment::query()->create([
+            ...$this->attachment($message, 'mail/manual.pdf', 'invoice.pdf', ['size' => 100]),
+        ]));
+        $this->assertTrue($classifier->eligibleMailAttachment($storedPdf, $message));
     }
 
     public function test_collector_saves_only_eligible_remote_attachments_and_is_idempotent(): void

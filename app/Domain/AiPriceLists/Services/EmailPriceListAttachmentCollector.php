@@ -51,7 +51,7 @@ class EmailPriceListAttachmentCollector
 
         $collection = $this->mailbox->storeAttachmentsMatching(
             $message,
-            fn (array $metadata): ?string => $this->classifier->mailAttachmentRejectionReason($metadata, $message),
+            fn (array $metadata): ?string => $this->classifier->automaticMailAttachmentRejectionReason($metadata, $message),
         );
         $report['available'] = $collection['available'];
         $report['eligible'] = $collection['eligible'];

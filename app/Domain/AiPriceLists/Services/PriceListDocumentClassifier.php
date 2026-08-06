@@ -10,9 +10,13 @@ use App\Models\MailMessageAttachment;
 class PriceListDocumentClassifier
 {
     private const CANDIDATE_EXTENSIONS = [
-        'xlsx', 'xls', 'csv', 'tsv', 'docx', 'doc', 'pdf',
+        'xlsx', 'xls', 'csv', 'tsv', 'docx', 'pdf',
         'jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'heic',
     ];
+
+    private const TABULAR_EXTENSIONS = ['xlsx', 'xls', 'csv', 'tsv'];
+
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'heic'];
 
     private const PRICE_WORDS = [
         'прайс', 'price', 'цены', 'цена', 'стоимость', 'опт', 'ассортимент',
@@ -41,6 +45,33 @@ class PriceListDocumentClassifier
     /**
      * @param  array{original_name?: mixed, file_name?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
      */
+    public function automaticMailAttachmentRejectionReason(array $attachment, MailMessage $message): ?string
+    {
+        $reason = $this->mailAttachmentRejectionReason($attachment, $message);
+
+        if ($reason !== null) {
+            return $reason;
+        }
+
+        $name = trim((string) ($attachment['original_name'] ?? $attachment['file_name'] ?? ''));
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+        if (in_array($extension, self::TABULAR_EXTENSIONS, true)) {
+            return null;
+        }
+
+        if ($this->hasPriceSignal($name, $message->subject, $message->preview)) {
+            return null;
+        }
+
+        return in_array($extension, self::IMAGE_EXTENSIONS, true)
+            ? 'image_without_price_signal'
+            : 'document_without_price_signal';
+    }
+
+    /**
+     * @param  array{original_name?: mixed, file_name?: mixed, size?: mixed, content_id?: mixed, disposition?: mixed}  $attachment
+     */
     public function mailAttachmentRejectionReason(array $attachment, MailMessage $message): ?string
     {
         $name = trim((string) ($attachment['original_name'] ?? $attachment['file_name'] ?? ''));
@@ -50,7 +81,7 @@ class PriceListDocumentClassifier
             return 'unsupported_extension';
         }
 
-        $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'heic'], true);
+        $isImage = in_array($extension, self::IMAGE_EXTENSIONS, true);
 
         if ($isImage && (strtolower((string) ($attachment['disposition'] ?? '')) === 'inline' || filled($attachment['content_id'] ?? null))) {
             return 'inline_image';
@@ -82,6 +113,10 @@ class PriceListDocumentClassifier
     public function hasPriceSignal(?string ...$values): bool
     {
         $haystack = mb_strtolower(implode(' ', array_filter($values, fn ($value) => filled($value))));
+
+        if (preg_match('/(?:^|[^\p{L}\p{N}])кп(?:$|[^\p{L}\p{N}])/u', $haystack) === 1) {
+            return true;
+        }
 
         foreach (self::PRICE_WORDS as $word) {
             if (str_contains($haystack, $word)) {
