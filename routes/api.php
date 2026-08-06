@@ -104,6 +104,7 @@ use App\Http\Controllers\API\UnitRelationController;
 use App\Http\Controllers\API\UriController;
 use App\Http\Controllers\API\WarehouseController;
 use App\Http\Controllers\API\YandexRequestController;
+use App\Http\Controllers\AvitoAutoReplyController;
 use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\AvitoCrmController;
 use App\Http\Controllers\AvitoMessageTemplateController;
@@ -746,6 +747,21 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
     Route::get('/webhooks/{event}', [AvitoController::class, 'webhook'])->name('webhooks.show');
 
     Route::prefix('messenger')->name('messenger.')->group(function () {
+        Route::get('/auto-replies', [AvitoAutoReplyController::class, 'index'])->name('auto-replies.index');
+        Route::patch('/auto-replies/settings', [AvitoAutoReplyController::class, 'updateSettings'])
+            ->name('auto-replies.settings.update');
+        Route::post('/auto-replies/rules', [AvitoAutoReplyController::class, 'store'])
+            ->name('auto-replies.rules.store');
+        Route::match(['put', 'patch'], '/auto-replies/rules/{rule}', [AvitoAutoReplyController::class, 'update'])
+            ->name('auto-replies.rules.update');
+        Route::delete('/auto-replies/rules/{rule}', [AvitoAutoReplyController::class, 'destroy'])
+            ->name('auto-replies.rules.destroy');
+        Route::post('/auto-replies/test', [AvitoAutoReplyController::class, 'testPhrase'])
+            ->middleware('throttle:20,1')
+            ->name('auto-replies.test');
+        Route::post('/auto-replies/archive-analysis', [AvitoAutoReplyController::class, 'analyzeArchive'])
+            ->middleware('throttle:5,1')
+            ->name('auto-replies.archive-analysis');
         Route::get('/templates', [AvitoMessageTemplateController::class, 'index'])->name('templates.index');
         Route::post('/templates', [AvitoMessageTemplateController::class, 'store'])->name('templates.store');
         Route::match(['put', 'patch'], '/templates/{template}', [AvitoMessageTemplateController::class, 'update'])

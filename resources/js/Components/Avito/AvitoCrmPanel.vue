@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import axios from 'axios'
+import AvitoAutoReplies from './AvitoAutoReplies.vue'
 import AvitoMessageTemplates from './AvitoMessageTemplates.vue'
 
 const props = defineProps({
@@ -428,6 +429,10 @@ function openTemplates() {
     activeTab.value = 'templates'
 }
 
+function openAutoReplies() {
+    activeTab.value = 'auto-replies'
+}
+
 function setOrderDefaults() {
     if (!orderForm.order_status_id) {
         orderForm.order_status_id = options.value.order_statuses.find((item) => item.code === 'open')?.id
@@ -486,6 +491,7 @@ defineExpose({
     prepareAddressCandidate,
     openCatalog,
     openTemplates,
+    openAutoReplies,
     refresh: loadCrm,
 })
 
@@ -499,7 +505,7 @@ onBeforeUnmount(() => {
 <template>
     <aside class="avito-crm-pane">
         <header class="crm-header">
-            <div><span>Avito CRM</span><strong>Клиент · заказ · товары · шаблоны</strong></div>
+            <div><span>Avito CRM</span><strong>Клиент · заказ · товары · шаблоны · AI</strong></div>
             <v-btn icon="mdi-refresh" size="x-small" variant="text" :loading="loading" title="Обновить CRM-карточку" @click="loadCrm" />
         </header>
 
@@ -508,6 +514,7 @@ onBeforeUnmount(() => {
             <v-tab value="order"><v-icon icon="mdi-cart-outline" size="15" /><span>Заказ</span><b v-if="orderItems.length">{{ orderItems.length }}</b></v-tab>
             <v-tab value="catalog"><v-icon icon="mdi-package-variant-closed" size="15" /><span>Товары</span></v-tab>
             <v-tab value="templates"><v-icon icon="mdi-text-box-multiple-outline" size="15" /><span>Шаблоны</span></v-tab>
+            <v-tab value="auto-replies"><v-icon icon="mdi-robot-outline" size="15" /><span>Авто</span></v-tab>
         </v-tabs>
 
         <v-progress-linear v-if="loading" indeterminate color="deep-purple-accent-1" height="2" />
@@ -658,13 +665,19 @@ onBeforeUnmount(() => {
             </section>
 
             <AvitoMessageTemplates
-                v-else
+                v-else-if="activeTab === 'templates'"
                 :chat="chat"
                 :crm="crm"
                 @notice="notify"
                 @error="(message) => emit('error', message)"
                 @insert="(payload) => emit('insert-template', payload)"
                 @sent="(message) => emit('template-sent', message)"
+            />
+            <AvitoAutoReplies
+                v-else
+                :chat="chat"
+                @notice="notify"
+                @error="(message) => emit('error', message)"
             />
         </div>
 

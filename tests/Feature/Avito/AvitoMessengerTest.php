@@ -41,6 +41,8 @@ class AvitoMessengerTest extends TestCase
             'avito.messenger.full_chat_limit' => 1100,
             'avito.messenger.message_limit_per_chat' => 1100,
             'avito.messenger.max_attachment_bytes' => 25 * 1024 * 1024,
+            'ai-price-lists.ai.api_key' => null,
+            'ai-price-lists.ai.folder_id' => null,
         ]);
     }
 
@@ -57,10 +59,13 @@ class AvitoMessengerTest extends TestCase
         $component = (string) file_get_contents(resource_path('js/Components/Avito/AvitoMessages.vue'));
         $crmComponent = (string) file_get_contents(resource_path('js/Components/Avito/AvitoCrmPanel.vue'));
         $templateComponent = (string) file_get_contents(resource_path('js/Components/Avito/AvitoMessageTemplates.vue'));
+        $autoReplyComponent = (string) file_get_contents(resource_path('js/Components/Avito/AvitoAutoReplies.vue'));
         $this->assertStringContainsString('value="messages"', $page);
         $this->assertStringContainsString('<AvitoMessages', $page);
         $this->assertStringContainsString('value="templates"', $page);
         $this->assertStringContainsString('<AvitoMessageTemplates', $page);
+        $this->assertStringContainsString('value="auto-replies"', $page);
+        $this->assertStringContainsString('<AvitoAutoReplies', $page);
         $this->assertStringContainsString('/api/avito/messenger/chats', $component);
         $this->assertStringContainsString('<AvitoCrmPanel', $component);
         $this->assertStringContainsString('Клиент · заказ · товары', $crmComponent);
@@ -75,9 +80,13 @@ class AvitoMessengerTest extends TestCase
         $this->assertStringContainsString('.crm-content { min-height: 0;', $crmComponent);
         $this->assertStringContainsString('value="templates"', $crmComponent);
         $this->assertStringContainsString('<AvitoMessageTemplates', $crmComponent);
+        $this->assertStringContainsString('value="auto-replies"', $crmComponent);
+        $this->assertStringContainsString('<AvitoAutoReplies', $crmComponent);
         $this->assertStringContainsString('/api/avito/messenger/templates', $templateComponent);
         $this->assertStringContainsString('/message-templates/', $templateComponent);
         $this->assertStringContainsString('openMessageTemplates', $component);
+        $this->assertStringContainsString('openAutoReplies', $component);
+        $this->assertStringContainsString('/api/avito/messenger/auto-replies', $autoReplyComponent);
         $this->assertStringContainsString('всей сохранённой переписке', $component);
         $this->assertStringContainsString('width: 100%; max-width: none', $page);
         $this->assertStringNotContainsString('localStorage', $component);

@@ -63,4 +63,9 @@ class AvitoMessage extends Model
     {
         return $this->hasMany(AvitoMessageTemplateUsage::class);
     }
+
+    public function autoReplyDecisions(): HasMany
+    {
+        return $this->hasMany(AvitoAutoReplyDecision::class);
+    }
 }

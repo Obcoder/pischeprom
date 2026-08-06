@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Avito\Exceptions\AvitoException;
 use App\Jobs\Avito\ArchiveAvitoMessageMediaJob;
+use App\Jobs\Avito\ProcessAvitoAutoReplyJob;
 use App\Models\AvitoApiCall;
+use App\Models\AvitoAutoReplySetting;
 use App\Models\AvitoCapabilitySetting;
 use App\Models\AvitoConnection;
 use App\Models\AvitoWebhookEvent;
@@ -364,6 +366,11 @@ class AvitoController extends Controller
                     'error_message' => null,
                 ]);
                 ArchiveAvitoMessageMediaJob::dispatchAfterResponse($message->id);
+                if ($event->wasRecentlyCreated && $message->direction === 'in') {
+                    $delay = AvitoAutoReplySetting::current()->debounce_seconds;
+                    ProcessAvitoAutoReplyJob::dispatch($message->id)
+                        ->delay(now()->addSeconds($delay));
+                }
             }
         } catch (\Throwable $exception) {
             report($exception);
