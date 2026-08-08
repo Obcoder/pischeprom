@@ -363,11 +363,25 @@ class AvitoMessengerArchive
 
     private function timestamp(mixed $value): ?CarbonImmutable
     {
-        if (! is_numeric($value) || (int) $value <= 0) {
+        if (! is_numeric($value)) {
             return null;
         }
 
-        return CarbonImmutable::createFromTimestampUTC((int) $value);
+        $timestamp = (float) $value;
+
+        if (! is_finite($timestamp) || $timestamp <= 0) {
+            return null;
+        }
+
+        // Most Messenger responses use Unix seconds, but the immediate
+        // send-image response uses a higher-resolution epoch (currently
+        // centiseconds). Reduce only the subsecond precision so the value also
+        // stays inside the range supported by our MySQL TIMESTAMP columns.
+        while ($timestamp > 2_147_483_647) {
+            $timestamp /= 10;
+        }
+
+        return CarbonImmutable::createFromTimestampUTC((int) floor($timestamp));
     }
 
     private function dateTime(mixed $value): ?CarbonImmutable

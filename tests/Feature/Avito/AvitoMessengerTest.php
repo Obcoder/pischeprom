@@ -273,7 +273,9 @@ class AvitoMessengerTest extends TestCase
             ]),
             'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crud/messages/image' => Http::response([
                 'id' => 'image-message-1', 'author_id' => 777, 'direction' => 'out', 'type' => 'image',
-                'created' => 1785916800, 'content' => ['image' => ['sizes' => ['1280x960' => $cdnUrl]]],
+                // The live send-image endpoint returns centiseconds here,
+                // while message-list responses return Unix seconds.
+                'created' => 178620487355, 'content' => ['image' => ['sizes' => ['1280x960' => $cdnUrl]]],
             ]),
             $cdnUrl => Http::response('jpeg-binary', 200, ['Content-Type' => 'image/jpeg']),
         ]);
@@ -285,6 +287,10 @@ class AvitoMessengerTest extends TestCase
             ->assertJsonPath('item.type', 'image')
             ->assertJsonPath('item.attachments.0.archived', true);
 
+        $this->assertSame(
+            '2026-08-08 16:01:13',
+            DB::table('avito_messages')->where('external_message_id', 'image-message-1')->value('remote_created_at')
+        );
         $path = DB::table('avito_message_attachments')->value('storage_path');
         Storage::disk('avito')->assertExists($path);
         $this->get($response->json('item.attachments.0.url'))
