@@ -12,6 +12,8 @@ use App\Models\OrderStatus;
 use App\Models\Telephone;
 use App\Models\User;
 use App\Services\Orders\OrderWriter;
+use App\Services\Telephones\TelephoneIdentityService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +22,7 @@ class AvitoCrmService
     public function __construct(
         private readonly AvitoContactDetector $detector,
         private readonly OrderWriter $orders,
+        private readonly TelephoneIdentityService $telephoneIdentity,
     ) {}
 
     public function linkEntity(AvitoChat $chat, Entity $entity): AvitoChat
@@ -40,30 +43,69 @@ class AvitoCrmService
         return $chat->fresh('entity');
     }
 
-    public function createAndLinkEntity(AvitoChat $chat, array $data): Entity
+    public function createAndLinkEntity(AvitoChat $chat, array $data, ?User $actor = null): Entity
     {
-        return DB::transaction(function () use ($chat, $data): Entity {
-            $entity = Entity::query()->create([
-                'name' => trim($data['name']),
-                'full_name' => $this->nullableTrimmedString($data['full_name'] ?? null),
-                'entity_classification_id' => $data['entity_classification_id'] ?? null,
-                'INN' => $this->nullableTrimmedString($data['INN'] ?? null),
-                'KPP' => $this->nullableTrimmedString($data['KPP'] ?? null),
-                'OGRN' => $this->nullableTrimmedString($data['OGRN'] ?? null),
-                'legal_address' => $this->nullableTrimmedString($data['legal_address'] ?? null),
-                'country_id' => $data['country_id'] ?? null,
-                'bank_account_number' => $this->nullableTrimmedString($data['bank_account_number'] ?? null),
-                'bank_name' => $this->nullableTrimmedString($data['bank_name'] ?? null),
-                'bank_bic' => $this->nullableTrimmedString($data['bank_bic'] ?? null),
-                'bank_corr_account' => $this->nullableTrimmedString($data['bank_corr_account'] ?? null),
-            ]);
+        $this->detector->detectChat($chat);
 
-            $entity->cities()->sync($data['city_ids'] ?? []);
-            $entity->units()->sync($data['unit_ids'] ?? []);
+        return DB::transaction(function () use ($chat, $data, $actor): Entity {
+            $phoneCandidates = $this->pendingPhoneCandidates($chat);
+            $phones = $phoneCandidates
+                ->map(fn (AvitoContactCandidate $candidate) => $this->telephoneIdentity->normalize(
+                    $candidate->normalized_value ?: $candidate->raw_value
+                ))
+                ->filter()
+                ->unique()
+                ->values();
+            $telephones = $phones
+                ->map(fn (string $phone) => $this->telephoneIdentity->resolve($phone))
+                ->filter()
+                ->values();
+            $matchedEntities = $telephones
+                ->flatMap(fn (Telephone $telephone) => $telephone->entities()->get())
+                ->unique('id')
+                ->values();
+            $entity = $this->preferredPhoneEntity($matchedEntities, $phones);
+            $placeholder = $entity && $this->isPhonePlaceholder($entity, $phones);
+
+            if (! $entity) {
+                $entity = Entity::query()->create($this->entityAttributes($data));
+                $entity->cities()->sync($data['city_ids'] ?? []);
+                $entity->units()->sync($data['unit_ids'] ?? []);
+            } elseif ($placeholder) {
+                $entity->fill($this->entityAttributes($data))->save();
+                $entity->cities()->syncWithoutDetaching($data['city_ids'] ?? []);
+                $entity->units()->syncWithoutDetaching($data['unit_ids'] ?? []);
+            }
+
+            foreach ($telephones as $telephone) {
+                $entity->telephones()->syncWithoutDetaching([$telephone->id]);
+                $this->syncPhoneCrmContext($telephone, $entity);
+            }
+
+            $this->detachSupersededPlaceholders($matchedEntities, $entity, $phones, $telephones);
+
+            foreach ($phones as $phone) {
+                $telephone = $telephones->first(
+                    fn (Telephone $item) => $this->telephoneIdentity->normalize($item->number) === $phone
+                );
+
+                if ($telephone) {
+                    $this->acceptMatchingCandidates(
+                        $chat,
+                        AvitoContactCandidate::TYPE_PHONE,
+                        $phone,
+                        [
+                            'telephone_id' => $telephone->id,
+                            'resolved_by_user_id' => $actor?->id,
+                        ],
+                        null,
+                    );
+                }
+            }
 
             $this->linkEntity($chat, $entity);
 
-            return $entity->fresh([
+            return $entity->load([
                 'classification',
                 'country',
                 'cities.region.country',
@@ -91,8 +133,9 @@ class AvitoCrmService
         }
 
         return DB::transaction(function () use ($chat, $entity, $candidate, $normalized, $actor): Telephone {
-            $telephone = Telephone::query()->firstOrCreate(['number' => $normalized]);
+            $telephone = $this->telephoneIdentity->resolve($normalized);
             $entity->telephones()->syncWithoutDetaching([$telephone->id]);
+            $this->syncPhoneCrmContext($telephone, $entity);
 
             $this->acceptMatchingCandidates(
                 $chat,
@@ -280,6 +323,110 @@ class AvitoCrmService
         return $value === '' ? null : $value;
     }
 
+    /** @return array<string, mixed> */
+    private function entityAttributes(array $data): array
+    {
+        return [
+            'name' => trim($data['name']),
+            'full_name' => $this->nullableTrimmedString($data['full_name'] ?? null),
+            'entity_classification_id' => $data['entity_classification_id'] ?? null,
+            'INN' => $this->nullableTrimmedString($data['INN'] ?? null),
+            'KPP' => $this->nullableTrimmedString($data['KPP'] ?? null),
+            'OGRN' => $this->nullableTrimmedString($data['OGRN'] ?? null),
+            'legal_address' => $this->nullableTrimmedString($data['legal_address'] ?? null),
+            'country_id' => $data['country_id'] ?? null,
+            'bank_account_number' => $this->nullableTrimmedString($data['bank_account_number'] ?? null),
+            'bank_name' => $this->nullableTrimmedString($data['bank_name'] ?? null),
+            'bank_bic' => $this->nullableTrimmedString($data['bank_bic'] ?? null),
+            'bank_corr_account' => $this->nullableTrimmedString($data['bank_corr_account'] ?? null),
+        ];
+    }
+
+    /** @return Collection<int, AvitoContactCandidate> */
+    private function pendingPhoneCandidates(AvitoChat $chat): Collection
+    {
+        return AvitoContactCandidate::query()
+            ->where('type', AvitoContactCandidate::TYPE_PHONE)
+            ->where('status', AvitoContactCandidate::STATUS_PENDING)
+            ->whereHas('message', fn ($message) => $message->where('avito_chat_id', $chat->id))
+            ->orderByDesc('confidence')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * @param  Collection<int, Entity>  $entities
+     * @param  Collection<int, string>  $phones
+     */
+    private function preferredPhoneEntity(Collection $entities, Collection $phones): ?Entity
+    {
+        if ($entities->isEmpty()) {
+            return null;
+        }
+
+        $namedEntities = $entities
+            ->reject(fn (Entity $entity) => $this->isPhonePlaceholder($entity, $phones))
+            ->values();
+
+        if ($namedEntities->count() > 1) {
+            throw ValidationException::withMessages([
+                'entity_id' => 'Найденные телефоны уже принадлежат разным Entity. Привяжите нужную Entity вручную.',
+            ]);
+        }
+
+        return $namedEntities->first() ?: $entities->sortBy('id')->first();
+    }
+
+    /** @param Collection<int, string> $phones */
+    private function isPhonePlaceholder(Entity $entity, Collection $phones): bool
+    {
+        $name = trim((string) $entity->name);
+
+        return $phones->contains(fn (string $phone) => preg_match(
+            '/^'.preg_quote('Клиент '.$phone, '/').'(?: #\d+)?$/u',
+            $name,
+        ) === 1);
+    }
+
+    private function syncPhoneCrmContext(Telephone $telephone, Entity $entity): void
+    {
+        DB::table('phone_calls')
+            ->where('telephone_id', $telephone->id)
+            ->update(['entity_id' => $entity->id]);
+        DB::table('leads')
+            ->where('telephone_id', $telephone->id)
+            ->update(['entity_id' => $entity->id]);
+    }
+
+    /**
+     * @param  Collection<int, Entity>  $entities
+     * @param  Collection<int, string>  $phones
+     * @param  Collection<int, Telephone>  $telephones
+     */
+    private function detachSupersededPlaceholders(
+        Collection $entities,
+        Entity $preferred,
+        Collection $phones,
+        Collection $telephones,
+    ): void {
+        $telephoneIds = $telephones->pluck('id')->all();
+
+        $entities
+            ->where('id', '!=', $preferred->id)
+            ->filter(fn (Entity $entity) => $this->isPhonePlaceholder($entity, $phones))
+            ->each(function (Entity $placeholder) use ($preferred, $telephoneIds): void {
+                DB::table('phone_calls')
+                    ->where('entity_id', $placeholder->id)
+                    ->whereIn('telephone_id', $telephoneIds)
+                    ->update(['entity_id' => $preferred->id]);
+                DB::table('leads')
+                    ->where('entity_id', $placeholder->id)
+                    ->whereIn('telephone_id', $telephoneIds)
+                    ->update(['entity_id' => $preferred->id]);
+                $placeholder->telephones()->detach($telephoneIds);
+            });
+    }
+
     private function candidateFor(
         AvitoChat $chat,
         AvitoContactCandidate $candidate,
@@ -306,7 +453,9 @@ class AvitoCrmService
     ): void {
         $query = AvitoContactCandidate::query()
             ->where('type', $type)
-            ->where('normalized_value', $normalized)
+            ->whereIn('normalized_value', $type === AvitoContactCandidate::TYPE_PHONE
+                ? $this->telephoneIdentity->variants($normalized)
+                : [$normalized])
             ->whereHas('message', fn ($message) => $message->where('avito_chat_id', $chat->id));
 
         $query->update($resolution + [

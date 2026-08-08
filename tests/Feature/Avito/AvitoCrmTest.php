@@ -14,9 +14,13 @@ use App\Models\Good;
 use App\Models\GoodMedia;
 use App\Models\GoodPriceTypeValue;
 use App\Models\OrderStatus;
+use App\Models\PhoneCall;
 use App\Models\PriceType;
 use App\Models\Region;
+use App\Models\Telephone;
 use App\Models\Unit;
+use App\Services\Telephones\TelephoneIdentityService;
+use App\Services\Telephony\BeelinePbxService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -253,6 +257,117 @@ class AvitoCrmTest extends TestCase
         $this->patchJson("/api/avito/messenger/crm/candidates/{$candidate->id}", [
             'status' => 'rejected',
         ])->assertOk()->assertJsonPath('candidate.status', 'rejected');
+    }
+
+    public function test_avito_reuses_call_entity_and_canonicalizes_legacy_phone_without_creating_duplicate(): void
+    {
+        [, $chat] = $this->chatFixture();
+        $placeholder = Entity::query()->create(['name' => 'Клиент +79991234567']);
+        $legacyTelephone = Telephone::query()->create(['number' => '79991234567']);
+        $placeholder->telephones()->attach($legacyTelephone);
+        $call = PhoneCall::query()->create([
+            'provider' => 'beeline',
+            'provider_call_id' => 'call-before-avito',
+            'client_phone' => '79991234567',
+            'telephone_id' => $legacyTelephone->id,
+            'entity_id' => $placeholder->id,
+        ]);
+        $chat->messages()->create([
+            'external_message_id' => 'call-first-phone',
+            'author_id' => '999',
+            'direction' => 'in',
+            'type' => 'text',
+            'remote_type' => 'text',
+            'text' => 'Телефон: 8 (999) 123-45-67',
+            'content' => ['text' => 'Телефон: 8 (999) 123-45-67'],
+        ]);
+        $this->artisan('avito:crm-backfill')->assertSuccessful();
+
+        $entityCount = Entity::query()->count();
+
+        $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/entity", [
+            'name' => 'Ирина',
+        ])->assertOk()
+            ->assertJsonPath('entity.id', $placeholder->id)
+            ->assertJsonPath('entity.name', 'Ирина')
+            ->assertJsonPath('entity.telephones.0.number', '+79991234567');
+
+        $this->assertSame($entityCount, Entity::query()->count());
+        $this->assertDatabaseMissing('telephones', ['id' => $legacyTelephone->id]);
+        $this->assertDatabaseHas('telephones', ['number' => '+79991234567']);
+        $this->assertSame($placeholder->id, $call->fresh()->entity_id);
+        $this->assertSame($placeholder->id, $chat->fresh()->entity_id);
+    }
+
+    public function test_beeline_call_reuses_entity_created_from_avito_phone(): void
+    {
+        config(['services.beeline_pbx.own_numbers' => ['79650160001']]);
+        [, $chat] = $this->chatFixture();
+        $chat->messages()->create([
+            'external_message_id' => 'avito-first-phone',
+            'author_id' => '999',
+            'direction' => 'in',
+            'type' => 'text',
+            'remote_type' => 'text',
+            'text' => 'Позвоните: +7 999 123-45-67',
+            'content' => ['text' => 'Позвоните: +7 999 123-45-67'],
+        ]);
+        $this->artisan('avito:crm-backfill')->assertSuccessful();
+
+        $response = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/entity", [
+            'name' => 'Клиент сначала из Avito',
+        ])->assertCreated()
+            ->assertJsonPath('entity.telephones.0.number', '+79991234567');
+        $entityId = (int) $response->json('entity.id');
+        $entityCount = Entity::query()->count();
+
+        $this->postJson('/api/phone-calls', [
+            'source' => 'website',
+            'client_phone' => '8 (999) 123-45-67',
+        ])->assertCreated()
+            ->assertJsonPath('data.entity.id', $entityId)
+            ->assertJsonPath('data.telephone.number', '+79991234567');
+
+        $call = app(BeelinePbxService::class)->registerCall([
+            'cmd' => 'event',
+            'type' => 'xsi:CallReceivedEvent',
+            'callId' => 'call-after-avito',
+            'direction' => 'terminator',
+            'callingParty' => ['address' => 'sip:89991234567@beeline.ru'],
+            'calledParty' => ['address' => 'sip:+79650160001@beeline.ru'],
+            'localParty' => ['address' => 'sip:9650160001@beeline.ru'],
+        ]);
+
+        $this->assertSame($entityId, $call->entity_id);
+        $this->assertSame($entityCount, Entity::query()->count());
+        $this->assertSame('+79991234567', $call->telephone?->number);
+    }
+
+    public function test_legacy_phone_rows_and_automatic_call_placeholder_are_folded_into_named_entity(): void
+    {
+        $entity = Entity::query()->create(['name' => 'Ирина']);
+        $canonicalTelephone = Telephone::query()->create(['number' => '+79991234567']);
+        $entity->telephones()->attach($canonicalTelephone);
+
+        $placeholder = Entity::query()->create(['name' => 'Клиент +79991234567']);
+        $legacyTelephone = Telephone::query()->create(['number' => '79991234567']);
+        $placeholder->telephones()->attach($legacyTelephone);
+        $call = PhoneCall::query()->create([
+            'provider' => 'beeline',
+            'provider_call_id' => 'legacy-duplicate-call',
+            'client_phone' => '79991234567',
+            'telephone_id' => $legacyTelephone->id,
+            'entity_id' => $placeholder->id,
+        ]);
+
+        $resolved = app(TelephoneIdentityService::class)->resolve('8 (999) 123-45-67');
+        $call->refresh();
+
+        $this->assertSame($canonicalTelephone->id, $resolved?->id);
+        $this->assertSame($entity->id, $call->entity_id);
+        $this->assertSame($canonicalTelephone->id, $call->telephone_id);
+        $this->assertDatabaseMissing('telephones', ['id' => $legacyTelephone->id]);
+        $this->assertDatabaseMissing('entities', ['id' => $placeholder->id]);
     }
 
     public function test_good_card_sends_current_price_text_link_and_converted_product_photo(): void

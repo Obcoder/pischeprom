@@ -6,6 +6,7 @@ use App\Models\Entity;
 use App\Models\Lead;
 use App\Models\PhoneCall;
 use App\Models\Telephone;
+use App\Services\Telephones\TelephoneIdentityService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,10 @@ use RuntimeException;
 
 class BeelinePbxService
 {
+    public function __construct(
+        private readonly TelephoneIdentityService $telephoneIdentity,
+    ) {}
+
     public function handle(array $payload): array
     {
         $cmd = Str::lower((string) Arr::get($payload, 'cmd'));
@@ -231,8 +236,15 @@ class BeelinePbxService
     {
         return DB::transaction(function () use ($call, $name) {
             $phone = $this->normalizePhone($call->client_phone);
-            $telephone = $phone ? Telephone::query()->firstOrCreate(['number' => $phone]) : null;
-            $entity = $this->createPlaceholderEntity($phone, $name);
+            $telephone = $this->resolveTelephone($phone, true);
+            $entity = $this->preferredEntity($telephone, $phone)
+                ?? $this->createPlaceholderEntity($phone, $name);
+
+            if ($entity->exists
+                && filled($name)
+                && $this->isPhonePlaceholder($entity, $this->telephoneIdentity->normalize($phone))) {
+                $entity->update(['name' => trim((string) $name)]);
+            }
 
             if ($telephone) {
                 $telephone->entities()->syncWithoutDetaching([$entity->id]);
@@ -899,21 +911,63 @@ class BeelinePbxService
             return ['telephone' => null, 'entity' => null, 'unit' => null];
         }
 
-        $telephone = Telephone::query()
-            ->with(['entities.units', 'units'])
-            ->firstWhere('number', $phone);
+        $telephone = $this->resolveTelephone($phone, $createMissing);
 
-        if (!$telephone && $createMissing) {
-            $telephone = Telephone::query()->create(['number' => $phone]);
+        if ($telephone && $createMissing && $telephone->entities()->doesntExist()) {
             $entity = $this->createPlaceholderEntity($phone);
             $telephone->entities()->syncWithoutDetaching([$entity->id]);
-            $telephone->load(['entities.units', 'units']);
         }
 
-        $entity = $telephone?->entities->first();
+        $telephone?->load(['entities.units', 'units']);
+        $entity = $this->preferredEntity($telephone, $phone);
         $unit = $telephone?->units->first() ?: $entity?->units->first();
 
         return compact('telephone', 'entity', 'unit');
+    }
+
+    protected function resolveTelephone(?string $phone, bool $createMissing): ?Telephone
+    {
+        if ($phone === null) {
+            return null;
+        }
+
+        $telephone = $createMissing
+            ? $this->telephoneIdentity->resolve($phone)
+            : $this->telephoneIdentity->find($phone);
+
+        if ($telephone) {
+            return $telephone;
+        }
+
+        return $createMissing
+            ? Telephone::query()->firstOrCreate(['number' => $phone])
+            : Telephone::query()->firstWhere('number', $phone);
+    }
+
+    protected function preferredEntity(?Telephone $telephone, ?string $phone): ?Entity
+    {
+        if (! $telephone) {
+            return null;
+        }
+
+        $canonical = $this->telephoneIdentity->normalize($phone);
+        $entities = $telephone->entities()->orderBy('entities.id')->get();
+
+        return $entities
+            ->sortBy(fn (Entity $entity) => $this->isPhonePlaceholder($entity, $canonical) ? 1 : 0)
+            ->first();
+    }
+
+    protected function isPhonePlaceholder(Entity $entity, ?string $canonical): bool
+    {
+        if ($canonical === null) {
+            return false;
+        }
+
+        return preg_match(
+            '/^'.preg_quote('Клиент '.$canonical, '/').'(?: #\d+)?$/u',
+            trim((string) $entity->name),
+        ) === 1;
     }
 
     protected function resolveLead(?Telephone $telephone, ?Entity $entity, $unit, array $callData): ?Lead

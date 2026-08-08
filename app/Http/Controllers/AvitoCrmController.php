@@ -20,6 +20,7 @@ use App\Services\Avito\AvitoContactDetector;
 use App\Services\Avito\AvitoCrmOutboundService;
 use App\Services\Avito\AvitoCrmService;
 use App\Services\Orders\OrderWriter;
+use App\Services\Telephones\TelephoneIdentityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -151,6 +152,7 @@ class AvitoCrmController extends Controller
         AvitoChat $chat,
         AvitoContactDetector $detector,
         OrderWriter $orderWriter,
+        TelephoneIdentityService $telephoneIdentity,
     ): JsonResponse {
         $detector->detectChat($chat);
         $chat->load([
@@ -172,15 +174,20 @@ class AvitoCrmController extends Controller
             ->latest('id')
             ->limit(100)
             ->get();
-        $phoneMatches = Telephone::query()
-            ->with('entities:id,name')
-            ->whereIn('number', $candidates
-                ->where('type', AvitoContactCandidate::TYPE_PHONE)
-                ->pluck('normalized_value')
-                ->filter()
-                ->unique())
-            ->get()
-            ->keyBy('number');
+        $candidatePhones = $candidates
+            ->where('type', AvitoContactCandidate::TYPE_PHONE)
+            ->pluck('normalized_value')
+            ->map(fn ($number) => $telephoneIdentity->normalize($number))
+            ->filter()
+            ->unique()
+            ->values();
+        $phoneMatches = $telephoneIdentity
+            ->findMany($candidatePhones, ['entities:id,name'])
+            ->groupBy(fn (Telephone $telephone) => $telephoneIdentity->normalize($telephone->number))
+            ->map(fn ($telephones) => $telephones
+                ->flatMap->entities
+                ->unique('id')
+                ->values());
         $orders = Order::query()
             ->with($orderWriter->relations())
             ->withCount('items')
@@ -207,7 +214,7 @@ class AvitoCrmController extends Controller
                 'message_at' => $candidate->message?->remote_created_at,
                 'message_excerpt' => mb_substr((string) $candidate->message?->text, 0, 180),
                 'matched_entities' => $candidate->type === AvitoContactCandidate::TYPE_PHONE
-                    ? ($phoneMatches->get($candidate->normalized_value)?->entities?->map(fn (Entity $entity) => [
+                    ? ($phoneMatches->get($telephoneIdentity->normalize($candidate->normalized_value))?->map(fn (Entity $entity) => [
                         'id' => $entity->id,
                         'name' => $entity->name,
                     ])->values() ?? collect())
@@ -255,12 +262,15 @@ class AvitoCrmController extends Controller
             'bank_bic' => ['nullable', 'string', 'max:16'],
             'bank_corr_account' => ['nullable', 'string', 'max:34'],
         ]);
-        $entity = $crm->createAndLinkEntity($chat, $validated);
+        $entity = $crm->createAndLinkEntity($chat, $validated, $request->user());
+        $created = $entity->wasRecentlyCreated;
 
         return response()->json([
-            'message' => 'Клиент создан и привязан к переписке Avito.',
+            'message' => $created
+                ? 'Клиент создан и привязан к переписке Avito.'
+                : 'Существующий клиент найден по телефону и привязан к переписке Avito.',
             'entity' => $this->entityPayload($entity),
-        ], 201);
+        ], $created ? 201 : 200);
     }
 
     public function storeTelephone(Request $request, AvitoChat $chat, AvitoCrmService $crm): JsonResponse

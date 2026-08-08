@@ -5,6 +5,7 @@ namespace App\Services\Avito;
 use App\Models\AvitoChat;
 use App\Models\AvitoContactCandidate;
 use App\Models\AvitoMessage;
+use App\Support\PhoneNumber;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -130,19 +131,7 @@ class AvitoContactDetector
 
     public function normalizePhone(string $value): ?string
     {
-        $digits = preg_replace('/\D+/', '', $value) ?: '';
-
-        if (strlen($digits) === 10) {
-            $digits = '7'.$digits;
-        } elseif (strlen($digits) === 11 && $digits[0] === '8') {
-            $digits = '7'.substr($digits, 1);
-        }
-
-        if (strlen($digits) !== 11 || $digits[0] !== '7') {
-            return null;
-        }
-
-        return '+'.$digits;
+        return PhoneNumber::russian($value);
     }
 
     /** @return array<int, string> */

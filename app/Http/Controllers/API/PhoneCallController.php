@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PhoneCallResource;
 use App\Models\Lead;
 use App\Models\PhoneCall;
-use App\Models\Telephone;
+use App\Services\Telephones\TelephoneIdentityService;
 use App\Services\Telephony\BeelinePbxService;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +17,7 @@ use RuntimeException;
 
 class PhoneCallController extends Controller
 {
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, TelephoneIdentityService $telephoneIdentity): JsonResponse
     {
         $data = $request->validate([
             'source' => ['nullable', 'string', 'max:64'],
@@ -32,11 +32,18 @@ class PhoneCallController extends Controller
             'referrer' => ['nullable', 'string', 'max:2048'],
         ]);
 
-        $call = DB::transaction(function () use ($data, $request): PhoneCall {
+        $call = DB::transaction(function () use ($data, $request, $telephoneIdentity): PhoneCall {
             $clientPhone = $this->normalizePhone($data['client_phone'] ?? null);
             $targetPhone = $this->normalizePhone($data['target_phone'] ?? null) ?: '79650160001';
             $telephone = $clientPhone
-                ? Telephone::query()->firstOrCreate(['number' => $clientPhone])
+                ? $telephoneIdentity->resolve($clientPhone)
+                : null;
+            $entity = $telephone
+                ? $telephone->entities()
+                    ->orderBy('entities.id')
+                    ->get()
+                    ->sortBy(fn ($item) => str_starts_with((string) $item->name, 'Клиент +') ? 1 : 0)
+                    ->first()
                 : null;
             $source = $data['source'] ?? 'website';
             $startedAt = now();
@@ -49,6 +56,7 @@ class PhoneCallController extends Controller
                 'description' => $description,
                 'client_phone' => $clientPhone,
                 'telephone_id' => $telephone?->id,
+                'entity_id' => $entity?->id,
                 'last_activity_at' => $startedAt,
             ]);
 
@@ -62,6 +70,7 @@ class PhoneCallController extends Controller
                 'employee_phone' => $targetPhone,
                 'started_at' => $startedAt,
                 'telephone_id' => $telephone?->id,
+                'entity_id' => $entity?->id,
                 'lead_id' => $lead->id,
                 'raw_payload' => [
                     ...$data,
