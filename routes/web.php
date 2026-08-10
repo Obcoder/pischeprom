@@ -17,6 +17,7 @@ use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UriController;
+use App\Http\Controllers\AvitoAutoloadFeedController;
 use App\Http\Controllers\Banking\BankDashboardController;
 use App\Http\Controllers\Banking\BankLogController;
 use App\Http\Controllers\Banking\BankPageController;
@@ -450,6 +451,23 @@ Route::get('/api/marketing/yandex/oauth/callback', [\App\Http\Controllers\API\Ma
     ->name('api.marketing.yandex.oauth.callback');
 
 //   A V I T O
+Route::get('/avito/autoload/feeds/{feed}/{token}.xml', [AvitoAutoloadFeedController::class, 'show'])
+    ->whereNumber('feed')
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->middleware('throttle:120,1')
+    ->name('avito.autoload.feed');
+
+Route::get(
+    '/avito/autoload/feeds/{feed}/{token}/revisions/{revision}/media/{media}',
+    [AvitoAutoloadFeedController::class, 'media']
+)
+    ->whereNumber('feed')
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->whereNumber('revision')
+    ->whereNumber('media')
+    ->middleware('throttle:600,1')
+    ->name('avito.autoload.media');
+
 Route::get('/Ameise/avito', function () {
     return Inertia::render('Ameise/Avito');
 })->name('Ameise.avito');

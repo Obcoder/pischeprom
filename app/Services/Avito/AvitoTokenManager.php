@@ -149,9 +149,26 @@ class AvitoTokenManager
     public function tokenFor(array $capability, ?AvitoConnection $connection = null): ?string
     {
         $schemes = collect($capability['security'] ?? [])->pluck('scheme')->all();
+        $documentsBearerHeader = collect($capability['parameters'] ?? [])->contains(
+            fn (array $parameter): bool => ($parameter['in'] ?? null) === 'header'
+                && strcasecmp((string) ($parameter['name'] ?? ''), 'Authorization') === 0
+                && (bool) ($parameter['required'] ?? false)
+        );
+        $autoloadBearerOperation = ($capability['section'] ?? null) === 'autoload';
 
-        if ($schemes === []) {
+        if ($schemes === [] && ! $documentsBearerHeader && ! $autoloadBearerOperation) {
             return null;
+        }
+
+        // The official Autoload documents omit OpenAPI `security` on the whole
+        // section and sometimes omit the Authorization parameter as well, even
+        // though those endpoints return 403 without a Bearer token.
+        if ($schemes === [] && ($documentsBearerHeader || $autoloadBearerOperation)) {
+            if ($connection) {
+                return $this->oauthToken($connection);
+            }
+
+            return $this->clientCredentialsToken();
         }
 
         if ($connection) {

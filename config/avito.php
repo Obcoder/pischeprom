@@ -73,6 +73,13 @@ return [
     'max_response_bytes' => max(65536, (int) env('AVITO_MAX_RESPONSE_BYTES', 5 * 1024 * 1024)),
     'log_retention_days' => max(1, (int) env('AVITO_LOG_RETENTION_DAYS', 90)),
 
+    'autoload' => [
+        'media_disk' => env('AVITO_AUTOLOAD_MEDIA_DISK', 'avito'),
+        'feed_name' => env('AVITO_AUTOLOAD_FEED_NAME', 'ameise-goods'),
+        'max_images' => min(10, max(1, (int) env('AVITO_AUTOLOAD_MAX_IMAGES', 10))),
+        'upload_interval_minutes' => max(60, (int) env('AVITO_AUTOLOAD_UPLOAD_INTERVAL_MINUTES', 60)),
+    ],
+
     'messenger' => [
         'archive_disk' => env('AVITO_MESSENGER_ARCHIVE_DISK', 'avito'),
         'sync_interval_minutes' => min(59, max(1, (int) env('AVITO_MESSENGER_SYNC_INTERVAL', 5))),

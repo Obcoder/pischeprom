@@ -111,6 +111,7 @@ use App\Http\Controllers\AvitoListingController;
 use App\Http\Controllers\AvitoListingGoodController;
 use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
+use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnforceAiPriceListAuthorization;
@@ -785,6 +786,44 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
             ->whereNumber('item')
             ->middleware('throttle:20,1')
             ->name('action');
+    });
+
+    Route::prefix('publications')->name('publications.')->group(function () {
+        Route::get('/categories', [AvitoPublicationController::class, 'categories'])
+            ->name('categories.index');
+        Route::get('/categories/{nodeSlug}/fields', [AvitoPublicationController::class, 'categoryFields'])
+            ->where('nodeSlug', '[A-Za-z0-9_-]+')
+            ->name('categories.fields');
+        Route::get('/feed', [AvitoPublicationController::class, 'feed'])->name('feed.show');
+        Route::put('/feed', [AvitoPublicationController::class, 'updateFeed'])->name('feed.update');
+        Route::get('/feed/profile', [AvitoPublicationController::class, 'checkProfile'])
+            ->name('feed.profile.show');
+        Route::post('/feed/profile', [AvitoPublicationController::class, 'attachProfile'])
+            ->name('feed.profile.store');
+        Route::get('/feed/upload', [AvitoPublicationController::class, 'uploadStatus'])
+            ->name('feed.upload.show');
+        Route::post('/feed/upload', [AvitoPublicationController::class, 'upload'])
+            ->name('feed.upload.store');
+        Route::get('/', [AvitoPublicationController::class, 'index'])->name('index');
+        Route::post('/', [AvitoPublicationController::class, 'store'])->name('store');
+        Route::get('/{publication}', [AvitoPublicationController::class, 'show'])
+            ->whereNumber('publication')
+            ->name('show');
+        Route::put('/{publication}', [AvitoPublicationController::class, 'update'])
+            ->whereNumber('publication')
+            ->name('update');
+        Route::post('/{publication}/preview', [AvitoPublicationController::class, 'preview'])
+            ->whereNumber('publication')
+            ->name('preview');
+        Route::post('/{publication}/approve', [AvitoPublicationController::class, 'approve'])
+            ->whereNumber('publication')
+            ->name('approve');
+        Route::post('/{publication}/sync', [AvitoPublicationController::class, 'sync'])
+            ->whereNumber('publication')
+            ->name('sync');
+        Route::post('/{publication}/archive', [AvitoPublicationController::class, 'archive'])
+            ->whereNumber('publication')
+            ->name('archive');
     });
 
     Route::prefix('messenger')->name('messenger.')->group(function () {

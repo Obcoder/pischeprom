@@ -7,6 +7,7 @@ import AvitoAutoReplies from '@/Components/Avito/AvitoAutoReplies.vue'
 import AvitoMessageTemplates from '@/Components/Avito/AvitoMessageTemplates.vue'
 import AvitoMessages from '@/Components/Avito/AvitoMessages.vue'
 import AvitoListings from '@/Components/Avito/AvitoListings.vue'
+import AvitoPublications from '@/Components/Avito/AvitoPublications.vue'
 
 defineOptions({ layout: VerwalterLayout })
 
@@ -500,6 +501,7 @@ onMounted(loadAll)
             <v-tabs v-model="tab" class="avito-tabs" color="deep-purple-accent-1" show-arrows>
                 <v-tab value="overview" prepend-icon="mdi-view-dashboard-outline">Обзор</v-tab>
                 <v-tab value="listings" prepend-icon="mdi-view-grid-outline">Объявления</v-tab>
+                <v-tab value="publications" prepend-icon="mdi-file-document-plus-outline">Создание</v-tab>
                 <v-tab value="messages" prepend-icon="mdi-forum-outline">Сообщения</v-tab>
                 <v-tab value="auto-replies" prepend-icon="mdi-robot-outline">Автоответы</v-tab>
                 <v-tab value="templates" prepend-icon="mdi-text-box-multiple-outline">Шаблоны</v-tab>
@@ -566,6 +568,17 @@ onMounted(loadAll)
                         @notice="notice = $event; error = ''"
                         @error="error = $event; notice = ''"
                         @open-catalog="filters.section = $event || 'item'; tab = 'catalog'"
+                    />
+                </v-window-item>
+
+                <v-window-item value="publications" class="avito-tab-item">
+                    <AvitoPublications
+                        :connections="connections"
+                        :configured="status.configured"
+                        :enabled="status.enabled"
+                        :mutations-enabled="status.mutations_enabled"
+                        @notice="notice = $event; error = ''"
+                        @error="error = $event; notice = ''"
                     />
                 </v-window-item>
 
