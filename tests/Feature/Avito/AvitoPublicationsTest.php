@@ -60,6 +60,8 @@ class AvitoPublicationsTest extends TestCase
         $this->assertStringContainsString('category_fields: cloneRecord(draft.category_fields)', $workspace);
         $this->assertStringContainsString('category_schema: cloneList(draft.category_schema)', $workspace);
         $this->assertStringContainsString('const publicationId = positiveInteger(data?.publication?.id)', $workspace);
+        $this->assertStringContainsString("feed.value?.profile_status === 'attached'", $workspace);
+        $this->assertStringContainsString('https://www.avito.ru/autoload/settings', $workspace);
         $this->assertStringNotContainsString('<v-radio v-model="createGoodId"', $workspace);
         $this->assertStringNotContainsString('structuredClone(', $workspace);
     }
@@ -342,6 +344,40 @@ class AvitoPublicationsTest extends TestCase
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.avito.ru/autoload/v1/upload'
             && $request->hasHeader('Authorization', 'Bearer autoload-access-token'));
         $this->assertCount(1, Http::recorded(fn (Request $request) => $request->url() === 'https://api.avito.ru/autoload/v1/upload'));
+    }
+
+    public function test_unavailable_autoload_profile_is_an_actionable_status_and_blocks_upload(): void
+    {
+        [$good, $price] = $this->goodFixture(withMedia: false);
+        $this->configuredPublication($good, $price);
+        config(['avito.mutations_enabled' => true]);
+
+        Http::fake([
+            'https://api.avito.ru/token' => Http::response([
+                'access_token' => 'autoload-access-token',
+                'expires_in' => 86400,
+            ]),
+            'https://api.avito.ru/autoload/v2/profile' => Http::response([
+                'error' => ['message' => 'Получение профиля недоступно.'],
+            ], 403),
+            'https://api.avito.ru/autoload/v1/upload' => Http::response(['upload_id' => 99]),
+        ]);
+
+        $this->getJson('/api/avito/publications/feed/profile?account_id=321')
+            ->assertOk()
+            ->assertJsonPath('available', false)
+            ->assertJsonPath('exists', false)
+            ->assertJsonPath('feed.profile_status', 'unavailable')
+            ->assertJsonPath('feed.last_error', fn ($value) => str_contains($value, 'Активируйте Автозагрузку'));
+
+        $this->postJson('/api/avito/publications/feed/upload', [
+            'account_id' => 321,
+            'confirmed' => true,
+        ])->assertForbidden()
+            ->assertJsonPath('category', 'autoload_profile_unavailable')
+            ->assertJsonPath('message', fn ($value) => str_contains($value, 'настройках кабинета Avito'));
+
+        Http::assertNotSent(fn (Request $request) => $request->url() === 'https://api.avito.ru/autoload/v1/upload');
     }
 
     public function test_report_sync_maps_avito_id_and_links_listing_to_good(): void

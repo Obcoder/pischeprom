@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 
 class AvitoAutoloadApiService
 {
+    public const PROFILE_UNAVAILABLE_MESSAGE = 'Avito не открыл API профиля Автозагрузки для этого кабинета. Активируйте Автозагрузку в настройках кабинета Avito или запросите доступ у поддержки Avito.';
+
     public function __construct(
         private readonly AvitoApiCatalog $catalog,
         private readonly AvitoApiExecutor $executor,
@@ -53,10 +55,25 @@ class AvitoAutoloadApiService
 
     public function profile(?AvitoConnection $connection = null): array
     {
-        $result = $this->execute('getProfileV2', [], $connection, allowNotFound: true);
+        try {
+            $result = $this->execute('getProfileV2', [], $connection, allowNotFound: true);
+        } catch (AvitoException $exception) {
+            if (! $this->isProfileUnavailable($exception)) {
+                throw $exception;
+            }
+
+            return [
+                'available' => false,
+                'exists' => false,
+                'profile' => null,
+                'unavailable_reason' => self::PROFILE_UNAVAILABLE_MESSAGE,
+                'remote' => ['status' => $exception->httpStatus],
+            ];
+        }
 
         if (($result['status'] ?? null) === 404) {
             return [
+                'available' => true,
                 'exists' => false,
                 'profile' => null,
                 'remote' => $this->remoteMeta($result),
@@ -64,6 +81,7 @@ class AvitoAutoloadApiService
         }
 
         return [
+            'available' => true,
             'exists' => true,
             'profile' => $this->profilePayload($result['data'] ?? []),
             'remote' => $this->remoteMeta($result),
@@ -77,6 +95,13 @@ class AvitoAutoloadApiService
         ?AvitoConnection $connection = null,
     ): array {
         $current = $this->profile($connection);
+        if (! ($current['available'] ?? true)) {
+            throw new AvitoException(
+                (string) ($current['unavailable_reason'] ?? self::PROFILE_UNAVAILABLE_MESSAGE),
+                'autoload_profile_unavailable',
+                403,
+            );
+        }
         $profile = (array) ($current['profile'] ?? []);
         $feeds = collect((array) ($profile['feeds_data'] ?? []))
             ->filter(fn ($feed): bool => is_array($feed))
@@ -376,5 +401,14 @@ class AvitoAutoloadApiService
     private function remoteMeta(array $result): array
     {
         return Arr::only($result, ['request_id', 'status', 'duration_ms', 'headers']);
+    }
+
+    private function isProfileUnavailable(AvitoException $exception): bool
+    {
+        return $exception->httpStatus === 403
+            && Str::contains(Str::lower($exception->getMessage()), [
+                'получение профиля недоступно',
+                'profile retrieval is unavailable',
+            ]);
     }
 }

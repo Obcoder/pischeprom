@@ -27,6 +27,8 @@ const FIELD_OPTIONS = [
     { title: 'Фотографии', value: 'images', icon: 'mdi-image-multiple-outline' },
 ]
 
+const AVITO_AUTOLOAD_SETTINGS_URL = 'https://www.avito.ru/autoload/settings'
+
 const accountId = ref(null)
 const connectionId = ref(null)
 const loading = ref(false)
@@ -65,6 +67,8 @@ let initialized = false
 const profileDialog = ref(false)
 const profileLoading = ref(false)
 const profileExists = ref(null)
+const profileAvailable = ref(null)
+const profileUnavailableReason = ref('')
 const profileForm = reactive({
     address: '',
     contact_phone: '',
@@ -125,6 +129,7 @@ const unknownCategoryFields = computed(() => Object.keys(editor.category_fields 
 const canEdit = computed(() => publication.value && publication.value.status !== 'archived')
 const canUseRemoteMutations = computed(() => props.enabled && props.mutationsEnabled)
 const workspaceReady = computed(() => Boolean(props.workspace?.ready && positiveInteger(props.workspace?.account_id)))
+const profileAttached = computed(() => feed.value?.profile_status === 'attached')
 
 watch(() => [props.workspace?.account_id, props.workspace?.connection_id], async ([nextAccountId, nextConnectionId]) => {
     const accountChanged = positiveInteger(nextAccountId) !== positiveInteger(accountId.value)
@@ -490,6 +495,8 @@ async function createPublication() {
 async function openProfile() {
     profileDialog.value = true
     profileExists.value = null
+    profileAvailable.value = null
+    profileUnavailableReason.value = ''
     Object.assign(profileForm, {
         address: feed.value?.defaults?.address || '',
         contact_phone: feed.value?.defaults?.contact_phone || '',
@@ -509,7 +516,10 @@ async function checkProfile() {
     try {
         const { data } = await axios.get('/api/avito/publications/feed/profile', { params: baseParams() })
         feed.value = data.feed || feed.value
-        profileExists.value = Boolean(data.exists)
+        profileAvailable.value = data.available !== false
+        profileUnavailableReason.value = data.unavailable_reason || ''
+        profileExists.value = profileAvailable.value ? Boolean(data.exists) : null
+        if (!profileAvailable.value) return
         const remote = data.profile || {}
         profileForm.report_email = remote.report_email || profileForm.report_email
         profileForm.autoload_enabled = Boolean(remote.autoload_enabled)
@@ -544,6 +554,7 @@ async function saveFeedDefaults() {
 }
 
 async function attachProfile() {
+    if (profileAvailable.value === false) return
     let schedule
     try {
         schedule = JSON.parse(profileForm.schedule_json || '[]')
@@ -723,6 +734,16 @@ function statusColor(status) {
     return STATUS_OPTIONS.find((item) => item.value === status)?.color || 'grey'
 }
 
+function profileStatusLabel(status) {
+    return ({
+        not_checked: 'не проверен',
+        attached: 'feed подключён',
+        feed_missing: 'feed не подключён',
+        missing: 'профиль не создан',
+        unavailable: 'доступ не открыт',
+    })[status] || status || 'не проверен'
+}
+
 function formatMoney(value) {
     if (value === null || value === undefined || value === '') return '—'
     return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(value))
@@ -771,17 +792,21 @@ function showError(exception, fallback) {
         <v-alert v-if="!mutationsEnabled" type="info" variant="tonal" density="compact" class="publisher-alert">
             Черновики и preview работают. Подключение feed и запуск Avito доступны после <code>AVITO_MUTATIONS_ENABLED=true</code>.
         </v-alert>
+        <v-alert v-if="feed?.profile_status === 'unavailable'" type="warning" variant="tonal" density="compact" class="publisher-alert">
+            Avito не открыл API профиля Автозагрузки для этого кабинета. Активируйте Автозагрузку в кабинете Avito, затем повторите проверку профиля.
+            <template #append><v-btn :href="AVITO_AUTOLOAD_SETTINGS_URL" target="_blank" rel="noopener" size="x-small" variant="outlined">Настройки Avito</v-btn></template>
+        </v-alert>
 
         <div class="feed-strip">
             <div>
                 <span class="feed-label">Защищённый feed</span>
                 <strong>{{ feed?.name || 'ещё не создан' }}</strong>
-                <small>{{ feed ? `${feed.approved_publications_count} версий · профиль: ${feed.profile_status}` : 'создастся вместе с первым черновиком' }}</small>
+                <small>{{ feed ? `${feed.approved_publications_count} версий · профиль: ${profileStatusLabel(feed.profile_status)}` : 'создастся вместе с первым черновиком' }}</small>
             </div>
             <code v-if="feed" :title="feed.url">{{ feed.url }}</code>
             <v-btn size="x-small" variant="text" prepend-icon="mdi-cog-outline" :disabled="!workspaceReady" @click="openProfile">Профиль</v-btn>
-            <v-btn size="x-small" variant="text" prepend-icon="mdi-cloud-search-outline" :disabled="!feed" :loading="actionLoading === 'status'" @click="refreshRemoteStatus">Загрузка</v-btn>
-            <v-btn size="x-small" color="deep-purple" prepend-icon="mdi-cloud-upload-outline" :disabled="!feed?.approved_publications_count || !canUseRemoteMutations" @click="uploadDialog = true">Запустить</v-btn>
+            <v-btn size="x-small" variant="text" prepend-icon="mdi-cloud-search-outline" :disabled="!profileAttached" :loading="actionLoading === 'status'" @click="refreshRemoteStatus">Загрузка</v-btn>
+            <v-btn size="x-small" color="deep-purple" prepend-icon="mdi-cloud-upload-outline" :title="profileAttached ? 'Запустить Автозагрузку' : 'Сначала подключите feed в профиле'" :disabled="!feed?.approved_publications_count || !canUseRemoteMutations || !profileAttached" @click="uploadDialog = true">Запустить</v-btn>
         </div>
 
         <div class="status-strip">
@@ -953,11 +978,15 @@ function showError(exception, fallback) {
         <v-dialog v-model="profileDialog" max-width="860">
             <v-card class="dialog-card"><v-card-title>Feed и профиль Автозагрузки</v-card-title><v-card-text>
                 <v-alert type="info" variant="tonal" density="compact">Подключение сохраняет все чужие feed профиля и добавляет только <b>{{ feed?.name }}</b>. Автозагрузка не включается сама.</v-alert>
+                <v-alert v-if="profileAvailable === false" type="warning" variant="tonal" density="compact" class="mt-2">
+                    {{ profileUnavailableReason || 'Avito не открыл API профиля Автозагрузки для этого кабинета.' }}
+                    <div class="mt-2"><v-btn :href="AVITO_AUTOLOAD_SETTINGS_URL" target="_blank" rel="noopener" size="small" variant="outlined" prepend-icon="mdi-open-in-new">Открыть настройки Avito</v-btn></div>
+                </v-alert>
                 <div class="form-grid mt-4"><v-text-field v-model="profileForm.address" label="Адрес по умолчанию" density="compact" variant="outlined" /><v-text-field v-model="profileForm.contact_phone" label="Телефон по умолчанию" density="compact" variant="outlined" /><v-text-field v-model="profileForm.manager_name" label="Контактное лицо" density="compact" variant="outlined" /><v-text-field v-model="profileForm.report_email" label="E-mail отчётов *" density="compact" variant="outlined" /></div>
                 <v-switch v-model="profileForm.autoload_enabled" label="Разрешить Avito выполнять feed по расписанию" color="warning" density="compact" />
                 <v-textarea v-model="profileForm.schedule_json" label="Расписание JSON (Москва): weekdays 0–6, time_slots 0–23, rate" rows="5" density="compact" variant="outlined" spellcheck="false" />
                 <v-checkbox v-if="profileExists === false" v-model="profileForm.agreement" label="Принимаю правила использования Avito Автозагрузки" density="compact" />
-            </v-card-text><v-card-actions><v-btn variant="text" :loading="profileLoading" @click="checkProfile">Проверить</v-btn><v-spacer /><v-btn variant="text" @click="profileDialog = false">Закрыть</v-btn><v-btn color="deep-purple" :disabled="!canUseRemoteMutations" :loading="profileLoading" @click="attachProfile">Сохранить и подключить feed</v-btn></v-card-actions></v-card>
+            </v-card-text><v-card-actions><v-btn variant="text" :loading="profileLoading" @click="checkProfile">Проверить снова</v-btn><v-spacer /><v-btn variant="text" @click="profileDialog = false">Закрыть</v-btn><v-btn color="deep-purple" :disabled="!canUseRemoteMutations || profileAvailable === false" :loading="profileLoading" @click="attachProfile">Сохранить и подключить feed</v-btn></v-card-actions></v-card>
         </v-dialog>
 
         <v-dialog v-model="uploadDialog" max-width="620">

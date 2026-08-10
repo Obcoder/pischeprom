@@ -285,14 +285,17 @@ class AvitoPublicationService
     public function checkProfile(AvitoAutoloadFeed $feed): array
     {
         $profile = $this->autoload->profile($feed->connection);
-        $attached = $profile['exists'] && $this->profileContainsFeed(
+        $available = (bool) ($profile['available'] ?? true);
+        $attached = $available && $profile['exists'] && $this->profileContainsFeed(
             (array) ($profile['profile'] ?? []),
             $feed,
         );
         $feed->update([
-            'profile_status' => $attached ? 'attached' : ($profile['exists'] ? 'feed_missing' : 'missing'),
+            'profile_status' => ! $available
+                ? 'unavailable'
+                : ($attached ? 'attached' : ($profile['exists'] ? 'feed_missing' : 'missing')),
             'profile_snapshot' => $profile,
-            'last_error' => null,
+            'last_error' => $available ? null : ($profile['unavailable_reason'] ?? AvitoAutoloadApiService::PROFILE_UNAVAILABLE_MESSAGE),
             'profile_checked_at' => now(),
             'profile_attached_at' => $attached ? ($feed->profile_attached_at ?: now()) : null,
         ]);
@@ -337,6 +340,13 @@ class AvitoPublicationService
         }
 
         $profile = $this->checkProfile($feed);
+        if (! ($profile['available'] ?? true)) {
+            throw new AvitoException(
+                (string) ($profile['unavailable_reason'] ?? AvitoAutoloadApiService::PROFILE_UNAVAILABLE_MESSAGE),
+                'autoload_profile_unavailable',
+                403,
+            );
+        }
         if (! $profile['attached']) {
             throw new AvitoException(
                 'Сначала подключите защищённый feed Ameise к профилю Автозагрузки.',
