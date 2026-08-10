@@ -49,7 +49,7 @@ class AvitoListingService
                 : null,
             'category' => $filters['category'] ?? null,
             'updatedAtFrom' => $filters['updated_from'] ?? null,
-            'per_page' => $filters['per_page'] ?? 50,
+            'per_page' => $filters['per_page'] ?? 100,
             'page' => $filters['page'] ?? 1,
         ], fn (mixed $value) => $value !== null && $value !== '');
         $result = $this->execute('avito-promo', 'coreItems', [

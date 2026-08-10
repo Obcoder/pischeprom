@@ -249,6 +249,11 @@ class Good extends Model
         return $this->hasMany(GoodStockAlert::class);
     }
 
+    public function avitoListingLinks(): HasMany
+    {
+        return $this->hasMany(AvitoListingGoodLink::class);
+    }
+
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);

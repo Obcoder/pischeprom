@@ -108,6 +108,7 @@ use App\Http\Controllers\AvitoAutoReplyController;
 use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\AvitoCrmController;
 use App\Http\Controllers\AvitoListingController;
+use App\Http\Controllers\AvitoListingGoodController;
 use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\MailController;
@@ -750,12 +751,35 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
     Route::prefix('listings')->name('listings.')->group(function () {
         Route::get('/context', [AvitoListingController::class, 'context'])->name('context');
         Route::get('/', [AvitoListingController::class, 'index'])->name('index');
+        Route::get('/goods', [AvitoListingGoodController::class, 'goods'])->name('goods');
         Route::post('/statistics', [AvitoListingController::class, 'statistics'])->name('statistics');
         Route::post('/statistics/items', [AvitoListingController::class, 'itemStatistics'])->name('statistics.items');
         Route::post('/spendings', [AvitoListingController::class, 'spendings'])->name('spendings');
         Route::post('/promotions', [AvitoListingController::class, 'promotions'])
             ->middleware('throttle:20,1')
             ->name('promotions');
+        Route::get('/{item}/good-link', [AvitoListingGoodController::class, 'show'])
+            ->whereNumber('item')
+            ->name('good-link.show');
+        Route::put('/{item}/good-link', [AvitoListingGoodController::class, 'store'])
+            ->whereNumber('item')
+            ->name('good-link.store');
+        Route::delete('/{item}/good-link', [AvitoListingGoodController::class, 'destroy'])
+            ->whereNumber('item')
+            ->name('good-link.destroy');
+        Route::post('/{item}/good-transfer/preview', [AvitoListingGoodController::class, 'preview'])
+            ->whereNumber('item')
+            ->middleware('throttle:30,1')
+            ->name('good-transfer.preview');
+        Route::post('/{item}/good-transfer/apply', [AvitoListingGoodController::class, 'apply'])
+            ->whereNumber('item')
+            ->middleware('throttle:20,1')
+            ->name('good-transfer.apply');
+        Route::get('/{item}/good-transfer/media/{media}', [AvitoListingGoodController::class, 'media'])
+            ->whereNumber('item')
+            ->whereNumber('media')
+            ->middleware('throttle:60,1')
+            ->name('good-transfer.media');
         Route::get('/{item}', [AvitoListingController::class, 'show'])->whereNumber('item')->name('show');
         Route::post('/{item}/action', [AvitoListingController::class, 'action'])
             ->whereNumber('item')

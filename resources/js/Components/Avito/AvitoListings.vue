@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
+import AvitoListingGoodLink from './AvitoListingGoodLink.vue'
 
 const props = defineProps({
     connections: { type: Array, default: () => [] },
@@ -111,7 +112,7 @@ const filters = reactive({
     updated_from: '',
 })
 const page = ref(1)
-const perPage = ref(50)
+const perPage = ref(100)
 const dateFrom = ref(toIsoDate(daysAgo(29)))
 const dateTo = ref(toIsoDate(new Date()))
 const selectedMetrics = ref([
@@ -492,6 +493,15 @@ async function performAction(action, payload = {}) {
     } finally {
         actionLoading.value = false
     }
+}
+
+function handleGoodPriceApplied({ price } = {}) {
+    if (!Number.isFinite(Number(price))) return
+
+    const item = items.value.find((row) => String(row.id) === String(selectedItemId.value))
+    if (item) item.price = Number(price)
+    if (detail.value) detail.value = { ...detail.value, price: Number(price) }
+    actionForm.price = Number(price)
 }
 
 function selectItem(item) {
@@ -974,13 +984,13 @@ function toIsoDate(date) {
                 </div>
 
                 <footer class="list-footer">
-                    <span>Avito: {{ listMeta.page || page }} · {{ items.length }} записей <small v-if="listRemote">· {{ listRemote.duration_ms }} ms</small></span>
+                    <span>Страница {{ listMeta.page || page }} · {{ items.length }} из макс. {{ perPage }} <small>· общее число Avito не сообщает</small><small v-if="listRemote"> · {{ listRemote.duration_ms }} ms</small></span>
                     <v-btn size="x-small" variant="text" prepend-icon="mdi-file-delimited-outline" @click="exportCsv(false)">CSV</v-btn>
                     <v-select v-model="perPage" :items="[25, 50, 100]" label="Строк" variant="outlined" density="compact" hide-details @update:model-value="changePerPage" />
                     <div class="pager">
-                        <v-btn icon="mdi-chevron-left" size="x-small" variant="tonal" :disabled="page <= 1" @click="previousPage" />
+                        <v-btn size="x-small" variant="tonal" prepend-icon="mdi-chevron-left" :disabled="page <= 1" @click="previousPage">Назад</v-btn>
                         <strong>{{ page }}<template v-if="lastPage"> / {{ lastPage }}</template></strong>
-                        <v-btn icon="mdi-chevron-right" size="x-small" variant="tonal" :disabled="!canGoNext" @click="nextPage" />
+                        <v-btn size="x-small" variant="tonal" append-icon="mdi-chevron-right" :disabled="!canGoNext" @click="nextPage">Ещё</v-btn>
                     </div>
                 </footer>
             </section>
@@ -989,7 +999,7 @@ function toIsoDate(date) {
                 <div v-if="!selectedItem" class="inspector-empty">
                     <v-icon icon="mdi-cursor-default-click-outline" size="42" />
                     <strong>Выберите объявление</strong>
-                    <span>Карточка, аналитика и продвижение откроются здесь.</span>
+                    <span>Карточка, связь с Good, аналитика и продвижение откроются здесь.</span>
                 </div>
 
                 <template v-else>
@@ -1007,6 +1017,7 @@ function toIsoDate(date) {
 
                     <v-tabs v-model="detailTab" class="inspector-tabs" density="compact" color="deep-purple-lighten-1" grow>
                         <v-tab value="card">Карточка</v-tab>
+                        <v-tab value="good">Good</v-tab>
                         <v-tab value="analytics">Аналитика</v-tab>
                         <v-tab value="promotion">Промо</v-tab>
                         <v-tab value="raw">API</v-tab>
@@ -1050,6 +1061,20 @@ function toIsoDate(date) {
                                 <v-alert v-if="!mutationsEnabled" type="info" variant="tonal" density="compact" class="inner-alert">Изменения заблокированы серверным флагом AVITO_MUTATIONS_ENABLED.</v-alert>
                                 <v-checkbox v-model="confirmed" density="compact" color="warning" hide-details label="Подтверждаю реальное изменение в Avito" />
                                 <div v-if="actionResult" class="action-result"><v-icon icon="mdi-check-circle-outline" color="success" /><span>Avito принял изменение · {{ actionResult.remote?.request_id }}</span></div>
+                            </div>
+                        </v-window-item>
+
+                        <v-window-item value="good">
+                            <div class="inspector-scroll">
+                                <AvitoListingGoodLink
+                                    :item="detailItem"
+                                    :account-id="accountId"
+                                    :auth-connection-id="authConnectionId"
+                                    :mutations-enabled="mutationsEnabled"
+                                    @notice="emit('notice', $event)"
+                                    @error="emit('error', $event)"
+                                    @price-applied="handleGoodPriceApplied"
+                                />
                             </div>
                         </v-window-item>
 
