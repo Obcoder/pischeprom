@@ -57,7 +57,11 @@ class AvitoPublicationsTest extends TestCase
         $this->assertStringContainsString('Подтверждаю запуск', $workspace);
         $this->assertStringContainsString('@click="createGoodId = Number(item.id)"', $workspace);
         $this->assertStringContainsString(':disabled="!positiveInteger(createGoodId)"', $workspace);
+        $this->assertStringContainsString('category_fields: cloneRecord(draft.category_fields)', $workspace);
+        $this->assertStringContainsString('category_schema: cloneList(draft.category_schema)', $workspace);
+        $this->assertStringContainsString('const publicationId = positiveInteger(data?.publication?.id)', $workspace);
         $this->assertStringNotContainsString('<v-radio v-model="createGoodId"', $workspace);
+        $this->assertStringNotContainsString('structuredClone(', $workspace);
     }
 
     public function test_official_category_tree_and_dynamic_fields_are_normalized_with_bearer_auth(): void

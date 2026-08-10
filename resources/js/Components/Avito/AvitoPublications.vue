@@ -230,8 +230,8 @@ function hydrate(data) {
         ad_type: draft.ad_type || '',
         condition: draft.condition || '',
         listing_fee: draft.listing_fee || null,
-        category_fields: structuredClone(draft.category_fields || {}),
-        category_schema: structuredClone(draft.category_schema || []),
+        category_fields: cloneRecord(draft.category_fields),
+        category_schema: cloneList(draft.category_schema),
     })
     previewXml.value = ''
 }
@@ -393,23 +393,53 @@ async function loadGoods() {
 }
 
 async function createPublication() {
-    if (!createGoodId.value) return
+    const goodId = positiveInteger(createGoodId.value)
+    const publicationAccountId = positiveInteger(accountId.value)
+    if (!goodId || !publicationAccountId) return
+
     createLoading.value = true
+    inlineError.value = ''
+
+    let data = null
+
     try {
-        const { data } = await axios.post('/api/avito/publications', {
-            account_id: positiveInteger(accountId.value),
+        const response = await axios.post('/api/avito/publications', {
+            account_id: publicationAccountId,
             connection_id: connectionId.value || null,
-            good_id: createGoodId.value,
+            good_id: goodId,
         })
-        createDialog.value = false
-        selectedId.value = data.publication.id
+
+        data = response.data
+    } catch (exception) {
+        showError(exception, 'Не удалось создать черновик.')
+        createLoading.value = false
+
+        return
+    }
+
+    const publicationId = positiveInteger(data?.publication?.id)
+    if (!publicationId) {
+        showError(
+            new Error('Сервер не вернул ID сохранённого черновика.'),
+            'Черновик сохранён, но сервер вернул неполный ответ.'
+        )
+        createLoading.value = false
+
+        return
+    }
+
+    createDialog.value = false
+    selectedId.value = publicationId
+
+    try {
         hydrate(data)
         emit('notice', 'Черновик создан из Good. В Avito ничего не отправлено.')
         await loadList(true)
-        selectedId.value = data.publication.id
-        await loadPublication(data.publication.id)
+        selectedId.value = publicationId
+        await loadPublication(publicationId)
     } catch (exception) {
-        showError(exception, 'Не удалось создать черновик.')
+        console.error('Avito publication editor refresh failed after draft creation:', exception)
+        emit('notice', `Черновик #${publicationId} создан. Обновите список, если редактор не открылся.`)
     } finally {
         createLoading.value = false
     }
@@ -606,6 +636,26 @@ function cleanCategoryFields(fields) {
         .filter(([, value]) => Array.isArray(value) ? value.length : notBlank(value)))
 }
 
+function cloneRecord(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+    try {
+        return JSON.parse(JSON.stringify(value))
+    } catch {
+        return {}
+    }
+}
+
+function cloneList(value) {
+    if (!Array.isArray(value)) return []
+
+    try {
+        return JSON.parse(JSON.stringify(value))
+    } catch {
+        return []
+    }
+}
+
 function firstOption(field) {
     return field?.options?.[0]?.value || ''
 }
@@ -648,10 +698,11 @@ function prettyJson(value) {
 function errorMessage(exception, fallback) {
     const errors = exception?.response?.data?.errors
     if (errors && typeof errors === 'object') return Object.values(errors).flat()[0] || fallback
-    return exception?.response?.data?.message || fallback
+    return exception?.response?.data?.message || exception?.message || fallback
 }
 
 function showError(exception, fallback) {
+    console.error(fallback, exception)
     inlineError.value = errorMessage(exception, fallback)
     emit('error', inlineError.value)
 }
