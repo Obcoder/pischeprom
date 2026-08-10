@@ -39,9 +39,11 @@ class AvitoListingsTest extends TestCase
         $this->assertStringContainsString('class="listings-table"', $workspace);
         $this->assertStringContainsString('class="inspector"', $workspace);
         $this->assertStringContainsString('value="promotion"', $workspace);
+        $this->assertStringContainsString('v-model="agencyMode"', $workspace);
+        $this->assertStringContainsString("'/api/avito/listings/statistics/items'", $workspace);
     }
 
-    public function test_listings_are_loaded_with_compact_filters_and_agency_account_header(): void
+    public function test_own_account_listings_are_loaded_without_an_agency_header(): void
     {
         $this->fakeToken([
             'https://api.avito.ru/core/v1/items*' => Http::response([
@@ -72,6 +74,23 @@ class AvitoListingsTest extends TestCase
             && str_contains($request->url(), 'status=active%2Cold')
             && str_contains($request->url(), 'category=42')
             && str_contains($request->url(), 'page=2')
+            && ! $request->hasHeader('X-AgencyClientId'));
+    }
+
+    public function test_agency_client_listings_include_the_client_header(): void
+    {
+        $this->fakeToken([
+            'https://api.avito.ru/core/v1/items*' => Http::response([
+                'resources' => [['id' => 7001, 'title' => 'Промышленный миксер']],
+            ]),
+        ]);
+
+        $this->getJson('/api/avito/listings?'.http_build_query([
+            'account_id' => 321,
+            'agency_mode' => 1,
+        ]))->assertOk()->assertJsonPath('items.0.id', 7001);
+
+        Http::assertSent(fn (Request $request) => str_starts_with($request->url(), 'https://api.avito.ru/core/v1/items?')
             && $request->hasHeader('X-AgencyClientId', '321'));
     }
 
@@ -100,6 +119,7 @@ class AvitoListingsTest extends TestCase
 
         $this->postJson('/api/avito/listings/statistics', [
             'account_id' => 321,
+            'agency_mode' => true,
             'date_from' => $from,
             'date_to' => $to,
             'grouping' => 'totals',
@@ -119,6 +139,19 @@ class AvitoListingsTest extends TestCase
 
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.avito.ru/stats/v1/accounts/321/items'
             && $request->data()['itemIds'] === [7001]);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://api.avito.ru/stats/v2/accounts/321/items'
+            && $request->hasHeader('X-AgencyClientId', '321'));
+    }
+
+    public function test_remote_forbidden_status_is_not_hidden_as_a_gateway_error(): void
+    {
+        $this->fakeToken([
+            'https://api.avito.ru/core/v1/items*' => Http::response([], 403),
+        ]);
+
+        $this->getJson('/api/avito/listings?account_id=321')
+            ->assertForbidden()
+            ->assertJsonPath('category', 'listing_remote');
     }
 
     public function test_promotion_insights_are_partial_and_handle_camel_case_openapi_placeholders(): void

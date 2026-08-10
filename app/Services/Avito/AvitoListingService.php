@@ -41,7 +41,7 @@ class AvitoListingService
         ];
     }
 
-    public function listings(int $accountId, array $filters): array
+    public function listings(int $accountId, array $filters, bool $agencyMode = false): array
     {
         $query = array_filter([
             'status' => ($filters['statuses'] ?? []) !== []
@@ -54,8 +54,8 @@ class AvitoListingService
         ], fn (mixed $value) => $value !== null && $value !== '');
         $result = $this->execute('avito-promo', 'coreItems', [
             'query' => $query,
-            'headers' => ['X-AgencyClientId' => $accountId],
-        ]);
+            'headers' => $this->agencyHeaders($accountId, $agencyMode),
+        ], ownAccount: ! $agencyMode);
         $payload = is_array($result['data'] ?? null) ? $result['data'] : [];
         $items = Arr::get($payload, 'resources', Arr::get($payload, 'result.resources', Arr::get($payload, 'items', [])));
 
@@ -66,12 +66,12 @@ class AvitoListingService
         ];
     }
 
-    public function listing(int $accountId, int $itemId): array
+    public function listing(int $accountId, int $itemId, bool $agencyMode = false): array
     {
         $result = $this->execute('avito-promo', 'coreItem', [
             'path' => ['user_id' => $accountId, 'item_id' => $itemId],
-            'headers' => ['X-AgencyClientId' => $accountId],
-        ]);
+            'headers' => $this->agencyHeaders($accountId, $agencyMode),
+        ], ownAccount: ! $agencyMode);
 
         return [
             'item' => is_array($result['data'] ?? null) ? $result['data'] : [],
@@ -79,7 +79,7 @@ class AvitoListingService
         ];
     }
 
-    public function statistics(int $accountId, array $input): array
+    public function statistics(int $accountId, array $input, bool $agencyMode = false): array
     {
         $body = array_filter([
             'dateFrom' => $input['date_from'],
@@ -98,10 +98,10 @@ class AvitoListingService
         ], fn (mixed $value) => $value !== null && $value !== []);
         $result = $this->execute('avito-promo', 'statsAccountsItems', [
             'path' => ['user_id' => $accountId],
-            'headers' => ['X-AgencyClientId' => $accountId],
+            'headers' => $this->agencyHeaders($accountId, $agencyMode),
             'body' => $body,
             'content_type' => 'application/json',
-        ]);
+        ], ownAccount: ! $agencyMode);
 
         return [
             'statistics' => is_array($result['data'] ?? null) ? $result['data'] : [],
@@ -130,11 +130,11 @@ class AvitoListingService
         ];
     }
 
-    public function spendings(int $accountId, array $input): array
+    public function spendings(int $accountId, array $input, bool $agencyMode = false): array
     {
         $result = $this->execute('avito-promo', 'statsAccountsSpendings', [
             'path' => ['user_id' => $accountId],
-            'headers' => ['X-AgencyClientId' => $accountId],
+            'headers' => $this->agencyHeaders($accountId, $agencyMode),
             'body' => [
                 'dateFrom' => $input['date_from'],
                 'dateTo' => $input['date_to'],
@@ -146,7 +146,7 @@ class AvitoListingService
                 ]),
             ],
             'content_type' => 'application/json',
-        ]);
+        ], ownAccount: ! $agencyMode);
 
         return [
             'spendings' => is_array($result['data'] ?? null) ? $result['data'] : [],
@@ -254,9 +254,16 @@ class AvitoListingService
         string $operationId,
         array $input,
         ?AvitoConnection $connection = null,
+        bool $ownAccount = false,
     ): array {
         $capability = $this->catalog->findOperation($section, $operationId);
-        $result = $this->executor->execute($capability['id'], $input, $connection);
+        $result = $this->executor->execute(
+            $capability['id'],
+            $input,
+            $connection,
+            [],
+            ['own_account' => $ownAccount],
+        );
 
         if (! $result['ok']) {
             $message = (string) (Arr::get($result, 'data.error.message')
@@ -264,15 +271,25 @@ class AvitoListingService
                 ?: Arr::get($result, 'data.message')
                 ?: "Avito вернул HTTP {$result['status']} для {$operationId}.");
 
+            $remoteStatus = (int) ($result['status'] ?? 0);
+            $httpStatus = in_array($remoteStatus, [400, 401, 403, 404, 409, 422, 429], true)
+                ? $remoteStatus
+                : 502;
+
             throw new AvitoException(
                 Str::limit(strip_tags($message), 1000),
                 'listing_remote',
-                502,
-                true,
+                $httpStatus,
+                $remoteStatus === 429 || $remoteStatus >= 500,
             );
         }
 
         return $result;
+    }
+
+    private function agencyHeaders(int $accountId, bool $agencyMode): array
+    {
+        return $agencyMode ? ['X-AgencyClientId' => $accountId] : [];
     }
 
     private function capture(callable $callback): array

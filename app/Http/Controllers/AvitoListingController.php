@@ -32,18 +32,28 @@ class AvitoListingController extends Controller
             'updated_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'agency_mode' => ['sometimes', 'boolean'],
         ]);
 
-        return response()->json($listings->listings((int) $validated['account_id'], $validated));
+        return response()->json($listings->listings(
+            (int) $validated['account_id'],
+            $validated,
+            (bool) ($validated['agency_mode'] ?? false),
+        ));
     }
 
     public function show(Request $request, int $item, AvitoListingService $listings): JsonResponse
     {
         $validated = $request->validate([
             'account_id' => ['required', 'integer', 'min:1'],
+            'agency_mode' => ['sometimes', 'boolean'],
         ]);
 
-        return response()->json($listings->listing((int) $validated['account_id'], $item));
+        return response()->json($listings->listing(
+            (int) $validated['account_id'],
+            $item,
+            (bool) ($validated['agency_mode'] ?? false),
+        ));
     }
 
     public function statistics(Request $request, AvitoListingService $listings): JsonResponse
@@ -63,10 +73,15 @@ class AvitoListingController extends Controller
             'offset' => ['nullable', 'integer', 'min:0'],
             'sort_key' => ['nullable', 'string', Rule::in(AvitoListingService::METRICS)],
             'sort_order' => ['required_with:sort_key', Rule::in(['asc', 'desc'])],
+            'agency_mode' => ['sometimes', 'boolean'],
         ]);
         $this->assertDateDepth($validated['date_from'], $validated['date_to'], 270);
 
-        return response()->json($listings->statistics((int) $validated['account_id'], $validated));
+        return response()->json($listings->statistics(
+            (int) $validated['account_id'],
+            $validated,
+            (bool) ($validated['agency_mode'] ?? false),
+        ));
     }
 
     public function itemStatistics(Request $request, AvitoListingService $listings): JsonResponse
@@ -99,10 +114,15 @@ class AvitoListingController extends Controller
             'grouping' => ['required', Rule::in(['day', 'week', 'month'])],
             'spending_types' => ['required', 'array', 'min:1', 'max:5'],
             'spending_types.*' => ['required', Rule::in(['all', 'promotion', 'presence', 'commission', 'rest']), 'distinct'],
+            'agency_mode' => ['sometimes', 'boolean'],
         ]);
         $this->assertDateDepth($validated['date_from'], $validated['date_to'], 510);
 
-        return response()->json($listings->spendings((int) $validated['account_id'], $validated));
+        return response()->json($listings->spendings(
+            (int) $validated['account_id'],
+            $validated,
+            (bool) ($validated['agency_mode'] ?? false),
+        ));
     }
 
     public function promotions(Request $request, AvitoListingService $listings): JsonResponse

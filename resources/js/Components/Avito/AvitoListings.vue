@@ -83,6 +83,7 @@ const inlineError = ref('')
 const statsWarning = ref('')
 const accountProfile = ref(null)
 const accountId = ref(null)
+const agencyMode = ref(false)
 const authConnectionId = ref(null)
 const items = ref([])
 const listMeta = ref({})
@@ -219,6 +220,7 @@ const spendingGroups = computed(() => collectObjects(spendingRaw.value)
     .filter((row) => row.date && Array.isArray(row.spendings))
     .sort((a, b) => String(a.date).localeCompare(String(b.date))))
 const spendingTotals = computed(() => {
+    if (!spendingRaw.value) return { all: null, promotion: null, presence: null, commission: null, rest: null }
     const result = { all: 0, promotion: 0, presence: 0, commission: 0, rest: 0 }
     spendingGroups.value.forEach((group) => {
         group.spendings.forEach((entry) => {
@@ -261,6 +263,8 @@ watch(authConnectionId, (connectionId) => {
     promotionInsights.value = null
 })
 
+watch(accountId, syncAccountMode)
+
 onMounted(initialize)
 
 async function initialize() {
@@ -273,6 +277,7 @@ async function initialize() {
             const { data } = await axios.get('/api/avito/listings/context')
             accountProfile.value = data.account || null
             if (!accountId.value && data.account?.id) accountId.value = Number(data.account.id)
+            syncAccountMode()
         } catch (exception) {
             if (!accountId.value) inlineError.value = errorMessage(exception, 'Не удалось определить ID кабинета Avito.')
         } finally {
@@ -294,9 +299,11 @@ async function loadListings(resetPage = false) {
     loading.value = true
     inlineError.value = ''
     statsWarning.value = ''
+    const useAgencyMode = agencyMode.value
     const listRequest = axios.get('/api/avito/listings', {
         params: {
             account_id: resolvedAccountId,
+            agency_mode: useAgencyMode ? 1 : undefined,
             statuses: filters.statuses.length ? filters.statuses : undefined,
             category: positiveInteger(filters.category) || undefined,
             updated_from: filters.updated_from || undefined,
@@ -304,18 +311,22 @@ async function loadListings(resetPage = false) {
             per_page: perPage.value,
         },
     })
-    const statsRequest = axios.post('/api/avito/listings/statistics', {
-        account_id: resolvedAccountId,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
-        grouping: 'totals',
-        metrics: selectedMetrics.value,
-        category_ids: positiveInteger(filters.category) ? [positiveInteger(filters.category)] : undefined,
-        limit: 1000,
-        offset: 0,
-    })
+    const requests = [listRequest]
+    if (useAgencyMode) {
+        requests.push(axios.post('/api/avito/listings/statistics', {
+            account_id: resolvedAccountId,
+            agency_mode: 1,
+            date_from: dateFrom.value,
+            date_to: dateTo.value,
+            grouping: 'totals',
+            metrics: selectedMetrics.value,
+            category_ids: positiveInteger(filters.category) ? [positiveInteger(filters.category)] : undefined,
+            limit: 1000,
+            offset: 0,
+        }))
+    }
 
-    const [listResult, statsResult] = await Promise.allSettled([listRequest, statsRequest])
+    const [listResult, statsResult] = await Promise.allSettled(requests)
 
     if (listResult.status === 'fulfilled') {
         items.value = Array.isArray(listResult.value.data.items) ? listResult.value.data.items : []
@@ -333,16 +344,47 @@ async function loadListings(resetPage = false) {
         showError(listResult.reason, 'Не удалось загрузить объявления Avito.')
     }
 
-    if (statsResult.status === 'fulfilled') {
+    if (!useAgencyMode && listResult.status === 'fulfilled') {
+        await loadOwnAccountStatistics(resolvedAccountId)
+    } else if (statsResult?.status === 'fulfilled') {
         pageStatsRaw.value = statsResult.value.data.statistics || {}
         statsByItem.value = indexStatistics(pageStatsRaw.value)
-    } else {
+    } else if (useAgencyMode) {
         pageStatsRaw.value = null
         statsByItem.value = {}
         statsWarning.value = errorMessage(statsResult.reason, 'Статистика за период недоступна.')
+    } else {
+        pageStatsRaw.value = null
+        statsByItem.value = {}
     }
 
     loading.value = false
+}
+
+async function loadOwnAccountStatistics(resolvedAccountId) {
+    const itemIds = items.value.map((item) => positiveInteger(item.id)).filter(Boolean)
+    if (!itemIds.length) {
+        pageStatsRaw.value = null
+        statsByItem.value = {}
+        return
+    }
+
+    try {
+        const { data } = await axios.post('/api/avito/listings/statistics/items', {
+            account_id: resolvedAccountId,
+            item_ids: itemIds,
+            date_from: dateFrom.value,
+            date_to: dateTo.value,
+            fields: ['uniqViews', 'uniqContacts', 'uniqFavorites'],
+            grouping: 'day',
+        })
+        pageStatsRaw.value = data.statistics || {}
+        statsByItem.value = indexItemStatistics(pageStatsRaw.value)
+    } catch (exception) {
+        pageStatsRaw.value = null
+        statsByItem.value = {}
+        statsWarning.value = errorMessage(exception, 'Базовая статистика за период недоступна.')
+    }
 }
 
 async function loadDetail() {
@@ -352,7 +394,10 @@ async function loadDetail() {
     detailRaw.value = null
     try {
         const { data } = await axios.get(`/api/avito/listings/${encodeURIComponent(selectedItemId.value)}`, {
-            params: { account_id: positiveInteger(accountId.value) },
+            params: {
+                account_id: positiveInteger(accountId.value),
+                agency_mode: agencyMode.value ? 1 : undefined,
+            },
         })
         detailRaw.value = data.item || {}
         detail.value = unwrapPayload(data.item)
@@ -374,23 +419,25 @@ async function loadAnalytics() {
         date_from: dateFrom.value,
         date_to: dateTo.value,
     }
-    const [trendResult, spendingResult] = await Promise.allSettled([
-        axios.post('/api/avito/listings/statistics/items', {
+    const requests = [axios.post('/api/avito/listings/statistics/items', {
             ...payload,
             fields: ['uniqViews', 'uniqContacts', 'uniqFavorites'],
             grouping: trendGrouping.value,
-        }),
-        axios.post('/api/avito/listings/spendings', {
+        })]
+    if (agencyMode.value) {
+        requests.push(axios.post('/api/avito/listings/spendings', {
             ...payload,
+            agency_mode: 1,
             spending_types: ['all'],
             grouping: trendGrouping.value === 'day' ? 'day' : trendGrouping.value,
-        }),
-    ])
+        }))
+    }
+    const [trendResult, spendingResult] = await Promise.allSettled(requests)
     itemTrendRaw.value = trendResult.status === 'fulfilled' ? trendResult.value.data.statistics : null
-    spendingRaw.value = spendingResult.status === 'fulfilled' ? spendingResult.value.data.spendings : null
+    spendingRaw.value = spendingResult?.status === 'fulfilled' ? spendingResult.value.data.spendings : null
 
-    const failures = [trendResult, spendingResult].filter((item) => item.status === 'rejected')
-    if (failures.length === 2) showError(failures[0].reason, 'Аналитика объявления недоступна.')
+    const failures = [trendResult, spendingResult].filter((item) => item?.status === 'rejected')
+    if (failures.length === requests.length) showError(failures[0].reason, 'Аналитика объявления недоступна.')
     else if (failures.length) statsWarning.value = errorMessage(failures[0].reason, 'Часть аналитики недоступна.')
     analyticsLoading.value = false
 }
@@ -510,11 +557,18 @@ function toggleRow(id) {
 }
 
 function metricValue(item, key) {
-    return statsByItem.value[String(item?.id)]?.[key] ?? null
+    const metrics = statsByItem.value[String(item?.id)]
+    const value = metrics?.[key]
+    if (value !== null && value !== undefined) return value
+    if (key === 'viewsToContactsConversion' && Number(metrics?.views) > 0) {
+        return Number(metrics?.contacts || 0) / Number(metrics.views) * 100
+    }
+    return null
 }
 
 function sumMetric(rows, key) {
-    return sum(rows.map((item) => metricValue(item, key)))
+    const values = rows.map((item) => metricValue(item, key)).filter((value) => value !== null && value !== undefined)
+    return values.length ? sum(values) : null
 }
 
 function indexStatistics(payload) {
@@ -531,6 +585,33 @@ function indexStatistics(payload) {
         ]))
     })
     return result
+}
+
+function indexItemStatistics(payload) {
+    const rows = firstArrayAt(payload, [
+        ['result'], ['result', 'items'], ['data', 'result'], ['items'],
+    ])
+    const result = {}
+    rows.forEach((row) => {
+        const id = row.itemId ?? row.item_id ?? row.id
+        if (id == null || !Array.isArray(row.stats)) return
+        const views = sum(row.stats.map((item) => item.uniqViews))
+        const contacts = sum(row.stats.map((item) => item.uniqContacts))
+        const favorites = sum(row.stats.map((item) => item.uniqFavorites))
+        result[String(id)] = {
+            views,
+            contacts,
+            favorites,
+            viewsToContactsConversion: views > 0 ? contacts / views * 100 : 0,
+        }
+    })
+    return result
+}
+
+function syncAccountMode() {
+    const profileId = positiveInteger(accountProfile.value?.id)
+    const selectedAccountId = positiveInteger(accountId.value)
+    if (profileId && selectedAccountId) agencyMode.value = profileId !== selectedAccountId
 }
 
 function normalizeServices(payload, requirePrice) {
@@ -686,6 +767,7 @@ function formatMoney(value) {
 }
 
 function formatNumber(value, digits = 0) {
+    if (value === null || value === undefined || value === '') return '—'
     return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(Number(value || 0))
 }
 
@@ -797,8 +879,17 @@ function toIsoDate(date) {
             >
                 <template #selection="{ index }"><span v-if="index === 0" class="select-summary">{{ selectedMetrics.length }} метрик</span></template>
             </v-select>
+            <v-switch
+                v-model="agencyMode"
+                label="Агентский клиент"
+                color="deep-purple-lighten-1"
+                density="compact"
+                hide-details
+                inset
+                title="Включайте только для кабинета клиента агентства"
+            />
             <v-btn size="small" variant="tonal" prepend-icon="mdi-check" :disabled="!selectedMetrics.length" @click="loadListings(false)">Применить</v-btn>
-            <small>До 270 дней · данные Avito обновляются с задержкой</small>
+            <small>{{ agencyMode ? 'Полная статистика клиента агентства' : 'Свой кабинет · базовая статистика до 270 дней' }}</small>
         </div>
 
         <v-alert v-if="!configured" type="warning" variant="tonal" density="compact" class="compact-alert">
@@ -817,7 +908,7 @@ function toIsoDate(date) {
             <article><span>Просмотры</span><strong>{{ formatNumber(summary.views) }}</strong><small>{{ formatDate(dateFrom) }}—{{ formatDate(dateTo) }}</small></article>
             <article><span>Контакты</span><strong>{{ formatNumber(summary.contacts) }}</strong><small>{{ summary.views ? `${formatNumber(summary.contacts / summary.views * 100, 1)}%` : 'конверсия —' }}</small></article>
             <article><span>Избранное</span><strong>{{ formatNumber(summary.favorites) }}</strong><small>по загруженным ID</small></article>
-            <article><span>Расходы</span><strong>{{ formatMoney(summary.spending / 100) }}</strong><small>включая продвижение</small></article>
+            <article><span>Расходы</span><strong>{{ formatMoney(summary.spending == null ? null : summary.spending / 100) }}</strong><small>{{ agencyMode ? 'включая продвижение' : 'агентская метрика' }}</small></article>
         </div>
 
         <div v-if="selectedIds.length" class="bulk-strip">
@@ -825,7 +916,7 @@ function toIsoDate(date) {
             <span><v-icon icon="mdi-eye-outline" size="14" /> {{ formatNumber(selectionSummary.views) }}</span>
             <span><v-icon icon="mdi-account-arrow-right-outline" size="14" /> {{ formatNumber(selectionSummary.contacts) }}</span>
             <span><v-icon icon="mdi-heart-outline" size="14" /> {{ formatNumber(selectionSummary.favorites) }}</span>
-            <span><v-icon icon="mdi-cash-minus" size="14" /> {{ formatMoney(selectionSummary.spending / 100) }}</span>
+            <span><v-icon icon="mdi-cash-minus" size="14" /> {{ formatMoney(selectionSummary.spending == null ? null : selectionSummary.spending / 100) }}</span>
             <v-spacer />
             <small v-if="bulkPromotionInsights">Данные продвижения получены</small>
             <v-btn size="x-small" variant="text" prepend-icon="mdi-rocket-launch-outline" :loading="promotionsLoading" @click="loadPromotions(selectedIds, true)">Продвижение</v-btn>
@@ -985,7 +1076,7 @@ function toIsoDate(date) {
                                         </div>
                                         <div v-else class="small-empty">Avito не вернул динамику за период.</div>
                                     </section>
-                                    <section class="compact-section">
+                                    <section v-if="agencyMode" class="compact-section">
                                         <div class="section-title"><strong>Расходы</strong><small>рубли</small></div>
                                         <dl class="spending-list">
                                             <dt>Продвижение</dt><dd>{{ formatMoney(spendingTotals.promotion) }}</dd>
@@ -993,6 +1084,10 @@ function toIsoDate(date) {
                                             <dt>Комиссия</dt><dd>{{ formatMoney(spendingTotals.commission) }}</dd>
                                             <dt>Остальное</dt><dd>{{ formatMoney(spendingTotals.rest) }}</dd>
                                         </dl>
+                                    </section>
+                                    <section v-else class="compact-section">
+                                        <div class="section-title"><strong>Расходы</strong><small>агентская статистика</small></div>
+                                        <div class="small-empty">Детализация расходов доступна для кабинетов клиентов агентства.</div>
                                     </section>
                                 </template>
                             </div>
@@ -1088,7 +1183,7 @@ function toIsoDate(date) {
 .listings-toolbar { display: grid; grid-template-columns: minmax(155px, .85fr) minmax(170px, .9fr) minmax(220px, 1.35fr) minmax(150px, .8fr) 115px 135px auto; gap: 5px; padding: 6px; border: 1px solid rgba(147, 154, 201, .16); border-radius: 8px; background: #1a1d33; }
 .toolbar-actions { display: flex; align-items: center; gap: 4px; }
 .select-summary { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.advanced-strip { display: grid; grid-template-columns: auto 145px 145px minmax(260px, 1fr) auto minmax(180px, auto); align-items: center; gap: 6px; padding: 5px 8px; color: #aab0ce; font-size: 10px; border: 1px solid rgba(130, 112, 235, .25); border-radius: 8px; background: rgba(67, 48, 133, .16); }
+.advanced-strip { display: grid; grid-template-columns: auto 145px 145px minmax(240px, 1fr) auto auto minmax(180px, auto); align-items: center; gap: 6px; padding: 5px 8px; color: #aab0ce; font-size: 10px; border: 1px solid rgba(130, 112, 235, .25); border-radius: 8px; background: rgba(67, 48, 133, .16); }
 .strip-label { font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .compact-alert { margin: 0; font-size: 11px; }
 .listings-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
@@ -1130,7 +1225,7 @@ function toIsoDate(date) {
 .raw-actions { display: flex; gap: 4px; margin-bottom: 6px; }.raw-tab details { margin-bottom: 5px; border: 1px solid #30344b; border-radius: 6px; background: #121527; }.raw-tab summary { padding: 6px 7px; color: #bfc4df; font-size: 9px; cursor: pointer; }.raw-tab pre { max-height: 300px; overflow: auto; margin: 0; padding: 7px; color: #cfd5f3; font: 8px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; border-top: 1px solid #2b2f45; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 :deep(.v-field) { font-size: 11px; }.listings-toolbar :deep(.v-field), .advanced-strip :deep(.v-field) { --v-field-input-padding-top: 6px; --v-field-input-padding-bottom: 6px; }.listings-workspace :deep(.v-label) { font-size: 10px; }.listings-workspace :deep(.v-input--density-compact) { --v-input-control-height: 34px; }.listings-workspace :deep(.v-checkbox .v-label) { font-size: 9px; }.mt-2 { margin-top: 5px; }
-@media (max-width: 1350px) { .listings-toolbar { grid-template-columns: 1fr 1fr 1.4fr 1fr 110px auto; }.listings-toolbar > :nth-child(6) { display: none; }.listings-layout { grid-template-columns: minmax(0, 1fr) 355px; }.advanced-strip { grid-template-columns: auto 135px 135px 1fr auto; }.advanced-strip small { display: none; } }
+@media (max-width: 1350px) { .listings-toolbar { grid-template-columns: 1fr 1fr 1.4fr 1fr 110px auto; }.listings-toolbar > :nth-child(6) { display: none; }.listings-layout { grid-template-columns: minmax(0, 1fr) 355px; }.advanced-strip { grid-template-columns: auto 135px 135px 1fr auto auto; }.advanced-strip small { display: none; } }
 @media (max-width: 1050px) { .listings-toolbar { grid-template-columns: 1fr 1fr 1.5fr auto; }.listings-toolbar > :nth-child(4), .listings-toolbar > :nth-child(5), .listings-toolbar > :nth-child(6) { display: none; }.listings-kpis { grid-template-columns: repeat(3, 1fr); }.listings-layout { grid-template-columns: 1fr; }.table-shell { max-height: 520px; }.inspector-scroll { height: auto; max-height: 620px; }.inspector { min-height: 500px; } }
 @media (max-width: 650px) { .listings-toolbar { grid-template-columns: 1fr auto; }.listings-toolbar > :nth-child(2) { display: none; }.listings-toolbar > :nth-child(3) { grid-column: 1; }.advanced-strip { grid-template-columns: 1fr 1fr; }.advanced-strip .strip-label { grid-column: 1 / -1; }.advanced-strip > :nth-child(4) { grid-column: 1 / -1; }.listings-kpis { grid-template-columns: 1fr 1fr; }.listings-kpis article, .listings-kpis button { min-height: 46px; }.bulk-strip span { display: none; }.listings-layout { min-height: 0; }.table-shell { min-height: 390px; }.inspector { min-height: 480px; }.price-list { grid-template-columns: 1fr; } }
 </style>

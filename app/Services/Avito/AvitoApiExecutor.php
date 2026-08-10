@@ -27,6 +27,7 @@ class AvitoApiExecutor
         array $input,
         ?AvitoConnection $connection = null,
         array $files = [],
+        array $options = [],
     ): array {
         if (! config('avito.enabled')) {
             throw new AvitoException('Интеграция Avito отключена серверной настройкой.', 'disabled', 503);
@@ -65,7 +66,16 @@ class AvitoApiExecutor
         $startedAt = hrtime(true);
         $url = $this->buildUrl($capability, (array) ($input['path'] ?? []));
         $query = $this->allowedValues($capability, 'query', (array) ($input['query'] ?? []));
-        $headers = $this->allowedValues($capability, 'header', (array) ($input['headers'] ?? []), ['authorization']);
+        $managedHeaders = ['authorization'];
+        if (($options['own_account'] ?? false) === true) {
+            $managedHeaders[] = 'x-agencyclientid';
+        }
+        $headers = $this->allowedValues(
+            $capability,
+            'header',
+            (array) ($input['headers'] ?? []),
+            $managedHeaders,
+        );
         $headers = $this->serializeHeaders($headers);
         $body = $input['body'] ?? null;
         $contentType = $this->contentType($capability, (string) ($input['content_type'] ?? ''));
