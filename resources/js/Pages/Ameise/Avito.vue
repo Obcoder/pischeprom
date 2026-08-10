@@ -6,6 +6,7 @@ import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import AvitoAutoReplies from '@/Components/Avito/AvitoAutoReplies.vue'
 import AvitoMessageTemplates from '@/Components/Avito/AvitoMessageTemplates.vue'
 import AvitoMessages from '@/Components/Avito/AvitoMessages.vue'
+import AvitoListings from '@/Components/Avito/AvitoListings.vue'
 
 defineOptions({ layout: VerwalterLayout })
 
@@ -464,7 +465,7 @@ onMounted(loadAll)
             <div>
                 <div class="avito-kicker">AMEISE · MARKETPLACE OPERATIONS</div>
                 <h1>Avito API</h1>
-                <p>Чаты и сообщения с долговременным архивом, реестр функций API, подключения и журнал событий.</p>
+                <p>Объявления, аналитика и продвижение, чаты с долговременным архивом, подключения и журнал событий.</p>
             </div>
             <div class="avito-hero__actions">
                 <v-btn
@@ -498,6 +499,7 @@ onMounted(loadAll)
 
             <v-tabs v-model="tab" class="avito-tabs" color="deep-purple-accent-1" show-arrows>
                 <v-tab value="overview" prepend-icon="mdi-view-dashboard-outline">Обзор</v-tab>
+                <v-tab value="listings" prepend-icon="mdi-view-grid-outline">Объявления</v-tab>
                 <v-tab value="messages" prepend-icon="mdi-forum-outline">Сообщения</v-tab>
                 <v-tab value="auto-replies" prepend-icon="mdi-robot-outline">Автоответы</v-tab>
                 <v-tab value="templates" prepend-icon="mdi-text-box-multiple-outline">Шаблоны</v-tab>
@@ -552,6 +554,19 @@ onMounted(loadAll)
                             </div>
                         </section>
                     </div>
+                </v-window-item>
+
+                <v-window-item value="listings" class="avito-tab-item">
+                    <AvitoListings
+                        :connections="connections"
+                        :configured="status.configured"
+                        :enabled="status.enabled"
+                        :mutations-enabled="status.mutations_enabled"
+                        :documentation-url="status.documentation_url"
+                        @notice="notice = $event; error = ''"
+                        @error="error = $event; notice = ''"
+                        @open-catalog="filters.section = $event || 'item'; tab = 'catalog'"
+                    />
                 </v-window-item>
 
                 <v-window-item value="messages" class="avito-tab-item">

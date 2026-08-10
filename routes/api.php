@@ -107,6 +107,7 @@ use App\Http\Controllers\API\YandexRequestController;
 use App\Http\Controllers\AvitoAutoReplyController;
 use App\Http\Controllers\AvitoController;
 use App\Http\Controllers\AvitoCrmController;
+use App\Http\Controllers\AvitoListingController;
 use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\MailController;
@@ -745,6 +746,22 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
     Route::get('/calls/{call}', [AvitoController::class, 'call'])->name('calls.show');
     Route::get('/webhooks', [AvitoController::class, 'webhooks'])->name('webhooks.index');
     Route::get('/webhooks/{event}', [AvitoController::class, 'webhook'])->name('webhooks.show');
+
+    Route::prefix('listings')->name('listings.')->group(function () {
+        Route::get('/context', [AvitoListingController::class, 'context'])->name('context');
+        Route::get('/', [AvitoListingController::class, 'index'])->name('index');
+        Route::post('/statistics', [AvitoListingController::class, 'statistics'])->name('statistics');
+        Route::post('/statistics/items', [AvitoListingController::class, 'itemStatistics'])->name('statistics.items');
+        Route::post('/spendings', [AvitoListingController::class, 'spendings'])->name('spendings');
+        Route::post('/promotions', [AvitoListingController::class, 'promotions'])
+            ->middleware('throttle:20,1')
+            ->name('promotions');
+        Route::get('/{item}', [AvitoListingController::class, 'show'])->whereNumber('item')->name('show');
+        Route::post('/{item}/action', [AvitoListingController::class, 'action'])
+            ->whereNumber('item')
+            ->middleware('throttle:20,1')
+            ->name('action');
+    });
 
     Route::prefix('messenger')->name('messenger.')->group(function () {
         Route::get('/auto-replies', [AvitoAutoReplyController::class, 'index'])->name('auto-replies.index');

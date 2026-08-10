@@ -53,6 +53,7 @@ class SyncAvitoApiCatalogCommand extends Command
         'POST /delivery-sandbox/v1/getParcelInfo',
         'POST /delivery-sandbox/v1/getRegisteredParcelID',
         'POST /core/v1/accounts/{userId}/vas/prices',
+        'POST /stats/v1/accounts/{user_id}/items',
         'POST /core/v1/accounts/{user_id}/calls/stats/',
         'POST /job/v1/applications/get_by_ids',
         'POST /job/v2/vacancies/batch',

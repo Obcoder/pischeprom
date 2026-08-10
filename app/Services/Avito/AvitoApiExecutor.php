@@ -172,6 +172,7 @@ class AvitoApiExecutor
         foreach ($pathParameters as $parameter) {
             $name = $parameter['name'];
             $value = $values[$name] ?? null;
+            $placeholder = $this->pathPlaceholder($path, $name) ?: $name;
 
             if (($parameter['required'] ?? false) && ($value === null || $value === '')) {
                 throw new AvitoException("Не заполнен path-параметр {$name}.", 'validation', 422);
@@ -182,7 +183,7 @@ class AvitoApiExecutor
                     throw new AvitoException("Path-параметр {$name} должен быть строкой или числом.", 'validation', 422);
                 }
 
-                $path = str_replace('{'.$name.'}', rawurlencode((string) $value), $path);
+                $path = str_replace('{'.$placeholder.'}', rawurlencode((string) $value), $path);
             }
         }
 
@@ -191,6 +192,22 @@ class AvitoApiExecutor
         }
 
         return $base.'/'.ltrim($path, '/');
+    }
+
+    private function pathPlaceholder(string $path, string $parameter): ?string
+    {
+        preg_match_all('/\{([^}]+)}/', $path, $matches);
+        $normalizedParameter = Str::lower(preg_replace('/[^a-z0-9]/i', '', $parameter) ?? $parameter);
+
+        foreach ($matches[1] ?? [] as $placeholder) {
+            $normalizedPlaceholder = Str::lower(preg_replace('/[^a-z0-9]/i', '', $placeholder) ?? $placeholder);
+
+            if ($normalizedPlaceholder === $normalizedParameter) {
+                return $placeholder;
+            }
+        }
+
+        return null;
     }
 
     private function allowedValues(array $capability, string $location, array $values, array $excluded = []): array

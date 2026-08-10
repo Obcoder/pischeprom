@@ -22921,9 +22921,9 @@
                 }
             ],
             "deprecated": false,
-            "access": "mutation",
-            "risk": "destructive",
-            "requires_confirmation": true,
+            "access": "read",
+            "risk": "safe",
+            "requires_confirmation": false,
             "managed_by_integration": false,
             "documentation_url": "https://developers.avito.ru/api-catalog/item/documentation#operation/itemStatsShallow",
             "also_listed_in": []
