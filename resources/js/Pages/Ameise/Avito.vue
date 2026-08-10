@@ -20,6 +20,9 @@ const error = ref('')
 const status = ref({ catalog: { counts: {}, sections: [] } })
 const capabilities = ref([])
 const connections = ref([])
+const workspaceSettings = ref({ ready: false, options: [] })
+const workspaceSelection = ref(null)
+const workspaceSettingsLoading = ref(false)
 const calls = ref([])
 const callsTotal = ref(0)
 const webhooks = ref([])
@@ -94,6 +97,8 @@ const allPageSelected = computed(() => paginatedCapabilities.value.length > 0
 const activeCount = computed(() => capabilities.value.filter((item) => item.enabled).length)
 const safeCount = computed(() => capabilities.value.filter((item) => item.access === 'read').length)
 const mutationCount = computed(() => capabilities.value.filter((item) => item.access === 'mutation').length)
+const workspaceSelectionAvailable = computed(() => (workspaceSettings.value.options || [])
+    .some((item) => item.value === workspaceSelection.value && item.available))
 
 watch(filters, () => { page.value = 1 }, { deep: true })
 watch([perPage, () => filteredCapabilities.value.length], () => {
@@ -118,14 +123,16 @@ function showError(exception, fallback = 'Операция не выполнен
 async function loadAll() {
     loading.value = true
     try {
-        const [statusResponse, capabilitiesResponse, connectionsResponse] = await Promise.all([
+        const [statusResponse, capabilitiesResponse, connectionsResponse, workspaceResponse] = await Promise.all([
             axios.get('/api/avito/status'),
             axios.get('/api/avito/capabilities'),
             axios.get('/api/avito/connections'),
+            axios.get('/api/avito/workspace-settings'),
         ])
         status.value = statusResponse.data
         capabilities.value = capabilitiesResponse.data.items || []
         connections.value = connectionsResponse.data.items || []
+        applyWorkspaceSettings(workspaceResponse.data.workspace)
         handleOAuthResult()
     } catch (exception) {
         showError(exception, 'Не удалось загрузить центр управления Avito.')
@@ -147,12 +154,49 @@ function handleOAuthResult() {
 }
 
 async function reloadStatus() {
-    const [statusResponse, connectionsResponse] = await Promise.all([
+    const [statusResponse, connectionsResponse, workspaceResponse] = await Promise.all([
         axios.get('/api/avito/status'),
         axios.get('/api/avito/connections'),
+        axios.get('/api/avito/workspace-settings'),
     ])
     status.value = statusResponse.data
     connections.value = connectionsResponse.data.items || []
+    applyWorkspaceSettings(workspaceResponse.data.workspace)
+}
+
+function applyWorkspaceSettings(value) {
+    workspaceSettings.value = value || { ready: false, options: [] }
+    workspaceSelection.value = workspaceSettings.value.selected || null
+}
+
+async function refreshWorkspaceSettings() {
+    workspaceSettingsLoading.value = true
+    try {
+        const { data } = await axios.get('/api/avito/workspace-settings', { params: { refresh: 1 } })
+        applyWorkspaceSettings(data.workspace)
+        if (data.workspace?.ready) showNotice('Рабочий кабинет Avito определён и сохранён.')
+        else showError(null, data.workspace?.last_error || 'Не удалось определить рабочий кабинет Avito.')
+    } catch (exception) {
+        showError(exception, 'Не удалось определить рабочий кабинет Avito.')
+    } finally {
+        workspaceSettingsLoading.value = false
+    }
+}
+
+async function saveWorkspaceSettings() {
+    if (!workspaceSelection.value) return
+    workspaceSettingsLoading.value = true
+    try {
+        const { data } = await axios.put('/api/avito/workspace-settings', {
+            selection: workspaceSelection.value,
+        })
+        applyWorkspaceSettings(data.workspace)
+        showNotice(data.message || 'Рабочий кабинет Avito сохранён.')
+    } catch (exception) {
+        showError(exception, 'Не удалось сохранить рабочий кабинет Avito.')
+    } finally {
+        workspaceSettingsLoading.value = false
+    }
 }
 
 async function toggleCapability(item) {
@@ -573,12 +617,12 @@ onMounted(loadAll)
 
                 <v-window-item value="publications" class="avito-tab-item">
                     <AvitoPublications
-                        :connections="connections"
-                        :configured="status.configured"
                         :enabled="status.enabled"
                         :mutations-enabled="status.mutations_enabled"
+                        :workspace="workspaceSettings"
                         @notice="notice = $event; error = ''"
                         @error="error = $event; notice = ''"
+                        @open-settings="tab = 'connections'"
                     />
                 </v-window-item>
 
@@ -663,18 +707,34 @@ onMounted(loadAll)
                 </v-window-item>
 
                 <v-window-item value="connections" class="avito-tab-item">
-                    <section class="avito-panel">
-                        <div class="avito-panel__header"><div><span class="eyebrow">AUTHORIZATION CODE</span><h2>OAuth-подключения</h2></div><v-btn color="deep-purple" prepend-icon="mdi-link-variant-plus" @click="connectOAuth">Подключить аккаунт</v-btn></div>
-                        <v-alert type="info" variant="tonal" class="mb-4">Client credentials из <code>.env</code> используются для собственного аккаунта. OAuth-подключения нужны для управления аккаунтами других пользователей в рамках выданных scopes.</v-alert>
-                        <div v-if="connections.length" class="connections-grid">
-                            <article v-for="connection in connections" :key="connection.id" class="connection-card">
-                                <div><v-icon icon="mdi-account-key-outline" size="28" /><div><strong>{{ connection.name }}</strong><small>ID {{ connection.external_user_id || 'не определён' }}</small></div><v-chip :color="statusColor(connection.status)" size="small" variant="tonal">{{ connection.status }}</v-chip></div>
-                                <dl><dt>Токен до</dt><dd>{{ formatDate(connection.token_expires_at) }}</dd><dt>Scopes</dt><dd>{{ connection.scopes?.length || 0 }}</dd><dt>Проверен</dt><dd>{{ formatDate(connection.last_checked_at) }}</dd></dl>
-                                <div class="connection-card__actions"><v-btn size="small" variant="tonal" :loading="preflightLoading" @click="runPreflight(connection.id)">Проверить</v-btn><v-btn size="small" variant="text" @click="refreshConnection(connection)">Обновить токен</v-btn><v-btn size="small" color="error" variant="text" @click="deleteConnection(connection)">Удалить</v-btn></div>
-                            </article>
-                        </div>
-                        <div v-else class="empty-state"><v-icon icon="mdi-link-variant-off" size="42" /><strong>OAuth-подключений пока нет</strong><span>Персональный доступ продолжит работать через client credentials.</span></div>
-                    </section>
+                    <div class="connection-settings-stack">
+                        <section class="avito-panel workspace-settings-panel">
+                            <div class="avito-panel__header"><div><span class="eyebrow">РАБОЧАЯ СРЕДА</span><h2>Кабинет для объявлений</h2></div><v-chip :color="workspaceSettings.ready ? 'success' : 'error'" size="small" variant="tonal">{{ workspaceSettings.ready ? 'настроен' : 'не настроен' }}</v-chip></div>
+                            <p class="panel-note">Кабинет и способ авторизации хранятся здесь и автоматически используются во вкладке «Создание». В рабочем редакторе регистрационные поля не показываются.</p>
+                            <div class="workspace-settings-row">
+                                <v-select v-model="workspaceSelection" :items="workspaceSettings.options || []" item-title="title" item-value="value" label="Рабочий кабинет Avito" density="compact" variant="outlined" hide-details :disabled="!(workspaceSettings.options || []).length">
+                                    <template #item="{ props: itemProps, item }"><v-list-item v-bind="itemProps" :subtitle="item.raw.subtitle" /></template>
+                                    <template #selection="{ item }"><span>{{ item.raw.title }} · {{ item.raw.subtitle }}</span></template>
+                                </v-select>
+                                <v-btn size="small" color="deep-purple" prepend-icon="mdi-content-save-outline" :loading="workspaceSettingsLoading" :disabled="!workspaceSelectionAvailable" @click="saveWorkspaceSettings">Сохранить</v-btn>
+                                <v-btn size="small" variant="outlined" prepend-icon="mdi-account-search-outline" :loading="workspaceSettingsLoading" @click="refreshWorkspaceSettings">Определить заново</v-btn>
+                            </div>
+                            <v-alert v-if="workspaceSettings.last_error" type="warning" density="compact" variant="tonal" class="mt-3">{{ workspaceSettings.last_error }}</v-alert>
+                        </section>
+
+                        <section class="avito-panel">
+                            <div class="avito-panel__header"><div><span class="eyebrow">AUTHORIZATION CODE</span><h2>OAuth-подключения</h2></div><v-btn color="deep-purple" prepend-icon="mdi-link-variant-plus" @click="connectOAuth">Подключить аккаунт</v-btn></div>
+                            <v-alert type="info" variant="tonal" class="mb-4">Client credentials из <code>.env</code> используются для собственного аккаунта. OAuth-подключения нужны для управления аккаунтами других пользователей в рамках выданных scopes.</v-alert>
+                            <div v-if="connections.length" class="connections-grid">
+                                <article v-for="connection in connections" :key="connection.id" class="connection-card">
+                                    <div><v-icon icon="mdi-account-key-outline" size="28" /><div><strong>{{ connection.name }}</strong><small>ID {{ connection.external_user_id || 'не определён' }}</small></div><v-chip :color="statusColor(connection.status)" size="small" variant="tonal">{{ connection.status }}</v-chip></div>
+                                    <dl><dt>Токен до</dt><dd>{{ formatDate(connection.token_expires_at) }}</dd><dt>Scopes</dt><dd>{{ connection.scopes?.length || 0 }}</dd><dt>Проверен</dt><dd>{{ formatDate(connection.last_checked_at) }}</dd></dl>
+                                    <div class="connection-card__actions"><v-btn size="small" variant="tonal" :loading="preflightLoading" @click="runPreflight(connection.id)">Проверить</v-btn><v-btn size="small" variant="text" @click="refreshConnection(connection)">Обновить токен</v-btn><v-btn size="small" color="error" variant="text" @click="deleteConnection(connection)">Удалить</v-btn></div>
+                                </article>
+                            </div>
+                            <div v-else class="empty-state"><v-icon icon="mdi-link-variant-off" size="42" /><strong>OAuth-подключений пока нет</strong><span>Персональный доступ продолжит работать через client credentials.</span></div>
+                        </section>
+                    </div>
                 </v-window-item>
 
                 <v-window-item value="calls" class="avito-tab-item">
@@ -785,6 +845,7 @@ onMounted(loadAll)
 .catalog-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-top: 10px; }
 .catalog-footer .v-select { max-width: 115px; }
 .connections-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.connection-settings-stack { display: grid; gap: 5px; }.workspace-settings-panel { padding-bottom: 10px; }.workspace-settings-row { display: grid; grid-template-columns: minmax(300px, 1fr) auto auto; align-items: center; gap: 6px; }
 .connection-card { padding: 16px; border: 1px solid rgba(153, 158, 205, .17); border-radius: 13px; background: #14172a; }
 .connection-card > div:first-child { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 8px; }
 .connection-card strong, .connection-card small { display: block; }.connection-card small { color: #9298b8; }
@@ -797,5 +858,5 @@ onMounted(loadAll)
 .execution-result { display: grid; gap: 10px; margin-top: 15px; padding: 13px; border: 1px solid; border-radius: 10px; }.execution-result.is-success { border-color: rgba(56, 181, 125, .45); background: rgba(30, 114, 80, .14); }.execution-result.is-error { border-color: rgba(230, 75, 101, .45); background: rgba(151, 35, 58, .14); }.execution-result span { display: block; color: #aeb3cf; font-size: 11px; }.execution-result pre, .detail-json { max-height: 360px; overflow: auto; margin: 0; padding: 12px; color: #d8defb; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; border-radius: 7px; background: #0d1020; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 @media (max-width: 1100px) { .avito-metrics { grid-template-columns: repeat(2, 1fr); }.avito-grid--overview { grid-template-columns: 1fr; }.section-cloud { grid-template-columns: repeat(2, 1fr); }.catalog-toolbar { grid-template-columns: 2fr 1fr 1fr; }.catalog-toolbar > :nth-child(4), .catalog-toolbar > :nth-child(5) { grid-column: span 1; } }
-@media (max-width: 700px) { .avito-page { padding: 5px; }.avito-hero { align-items: flex-start; flex-direction: column; padding: 10px 12px; }.avito-metrics { grid-template-columns: 1fr 1fr; }.avito-metrics article { min-height: 68px; padding: 8px; }.avito-grid { padding: 0; }.section-cloud, .connections-grid, .parameter-grid, .catalog-toolbar { grid-template-columns: 1fr; }.catalog-toolbar > * { grid-column: auto !important; }.excel-shell { height: calc(100vh - 470px); }.catalog-footer { align-items: flex-end; flex-direction: column; }.avito-hero__actions { width: 100%; }}
+@media (max-width: 700px) { .avito-page { padding: 5px; }.avito-hero { align-items: flex-start; flex-direction: column; padding: 10px 12px; }.avito-metrics { grid-template-columns: 1fr 1fr; }.avito-metrics article { min-height: 68px; padding: 8px; }.avito-grid { padding: 0; }.section-cloud, .connections-grid, .parameter-grid, .catalog-toolbar, .workspace-settings-row { grid-template-columns: 1fr; }.catalog-toolbar > * { grid-column: auto !important; }.excel-shell { height: calc(100vh - 470px); }.catalog-footer { align-items: flex-end; flex-direction: column; }.avito-hero__actions { width: 100%; }}
 </style>

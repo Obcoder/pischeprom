@@ -112,6 +112,7 @@ use App\Http\Controllers\AvitoListingGoodController;
 use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\AvitoPublicationController;
+use App\Http\Controllers\AvitoWorkspaceSettingsController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnforceAiPriceListAuthorization;
@@ -743,6 +744,11 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
     Route::get('/connections', [AvitoController::class, 'connections'])->name('connections.index');
     Route::post('/connections/{connection}/refresh', [AvitoController::class, 'refreshConnection'])->name('connections.refresh');
     Route::delete('/connections/{connection}', [AvitoController::class, 'destroyConnection'])->name('connections.destroy');
+
+    Route::get('/workspace-settings', [AvitoWorkspaceSettingsController::class, 'show'])
+        ->name('workspace-settings.show');
+    Route::put('/workspace-settings', [AvitoWorkspaceSettingsController::class, 'update'])
+        ->name('workspace-settings.update');
 
     Route::get('/calls', [AvitoController::class, 'calls'])->name('calls.index');
     Route::get('/calls/{call}', [AvitoController::class, 'call'])->name('calls.show');

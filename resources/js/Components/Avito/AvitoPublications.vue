@@ -3,13 +3,12 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 
 const props = defineProps({
-    connections: { type: Array, default: () => [] },
-    configured: { type: Boolean, default: false },
     enabled: { type: Boolean, default: true },
     mutationsEnabled: { type: Boolean, default: false },
+    workspace: { type: Object, default: () => ({ ready: false }) },
 })
 
-const emit = defineEmits(['notice', 'error'])
+const emit = defineEmits(['notice', 'error', 'open-settings'])
 
 const STATUS_OPTIONS = [
     { title: 'Черновик', value: 'draft', color: 'grey' },
@@ -61,6 +60,7 @@ const createGoods = ref([])
 const createGoodId = ref(null)
 const createLoading = ref(false)
 let goodsTimer = null
+let initialized = false
 
 const profileDialog = ref(false)
 const profileLoading = ref(false)
@@ -101,21 +101,6 @@ const editor = reactive({
     category_schema: [],
 })
 
-const accountOptions = computed(() => props.connections
-    .filter((item) => item.external_user_id)
-    .map((item) => ({
-        title: `${item.name} · ${item.external_user_id}`,
-        value: Number(item.external_user_id),
-    })))
-
-const connectionOptions = computed(() => [
-    { title: 'Серверные ключи', value: null },
-    ...props.connections.filter((item) => item.is_active).map((item) => ({
-        title: `OAuth · ${item.name}`,
-        value: item.id,
-    })),
-])
-
 const good = computed(() => publication.value?.good || null)
 const currentRevision = computed(() => publication.value?.current_revision || null)
 const priceOptions = computed(() => (good.value?.prices || []).map((item) => ({
@@ -139,10 +124,21 @@ const unknownCategoryFields = computed(() => Object.keys(editor.category_fields 
     .filter((key) => !dynamicFields.value.some((item) => item.key === key) && !['AdType', 'Condition'].includes(key)))
 const canEdit = computed(() => publication.value && publication.value.status !== 'archived')
 const canUseRemoteMutations = computed(() => props.enabled && props.mutationsEnabled)
+const workspaceReady = computed(() => Boolean(props.workspace?.ready && positiveInteger(props.workspace?.account_id)))
 
-watch(connectionId, (value) => {
-    const connection = props.connections.find((item) => item.id === value)
-    if (connection?.external_user_id) accountId.value = Number(connection.external_user_id)
+watch(() => [props.workspace?.account_id, props.workspace?.connection_id], async ([nextAccountId, nextConnectionId]) => {
+    const accountChanged = positiveInteger(nextAccountId) !== positiveInteger(accountId.value)
+    const connectionChanged = (nextConnectionId ?? null) !== (connectionId.value ?? null)
+    applyWorkspace()
+    if (initialized && (accountChanged || connectionChanged)) {
+        selectedId.value = null
+        if (workspaceReady.value) await loadList(true)
+        else {
+            items.value = []
+            feed.value = null
+            clearEditor()
+        }
+    }
 })
 
 watch(createSearch, () => {
@@ -154,19 +150,19 @@ onMounted(initialize)
 onBeforeUnmount(() => clearTimeout(goodsTimer))
 
 async function initialize() {
-    const connection = props.connections.find((item) => item.is_active && item.external_user_id)
-    if (connection) {
-        connectionId.value = connection.id
-        accountId.value = Number(connection.external_user_id)
-    } else if (accountOptions.value.length) {
-        accountId.value = accountOptions.value[0].value
-    }
-    if (accountId.value) await loadList(true)
+    initialized = true
+    applyWorkspace()
+    if (workspaceReady.value) await loadList(true)
+}
+
+function applyWorkspace() {
+    accountId.value = positiveInteger(props.workspace?.account_id)
+    connectionId.value = props.workspace?.connection_id ?? null
 }
 
 async function loadList(reset = false) {
     const id = positiveInteger(accountId.value)
-    if (!id) return showError(null, 'Укажите числовой ID кабинета Avito.')
+    if (!id) return
     if (reset) page.value = 1
     loading.value = true
     inlineError.value = ''
@@ -180,9 +176,6 @@ async function loadList(reset = false) {
         } })
         items.value = data.items || []
         feed.value = data.feed || null
-        if (data.feed && Object.hasOwn(data.feed, 'avito_connection_id')) {
-            connectionId.value = data.feed.avito_connection_id
-        }
         meta.value = data.meta || { page: 1, last_page: 1, total: items.value.length }
         statusCounts.value = data.status_counts || {}
         if (!items.value.some((item) => Number(item.id) === Number(selectedId.value))) {
@@ -218,9 +211,6 @@ function hydrate(data) {
     publication.value = data.publication || null
     preview.value = data.preview || null
     feed.value = data.feed || feed.value
-    if (data.feed && Object.hasOwn(data.feed, 'avito_connection_id')) {
-        connectionId.value = data.feed.avito_connection_id
-    }
     revisions.value = publication.value?.revisions || []
     const draft = publication.value?.draft || {}
     Object.assign(editor, {
@@ -670,15 +660,21 @@ function showError(exception, fallback) {
 <template>
     <section class="publisher">
         <header class="publisher-toolbar">
-            <v-combobox v-model="accountId" :items="accountOptions" label="Кабинет Avito / ID" density="compact" variant="outlined" hide-details class="account-field" />
-            <v-select v-model="connectionId" :items="connectionOptions" label="Авторизация" density="compact" variant="outlined" hide-details />
             <v-text-field v-model="search" label="Good, категория или Ameise ID" prepend-inner-icon="mdi-magnify" density="compact" variant="outlined" hide-details clearable @keyup.enter="loadList(true)" />
             <v-select v-model="statusFilter" :items="STATUS_OPTIONS" label="Статус" density="compact" variant="outlined" hide-details clearable />
-            <v-btn size="small" variant="outlined" prepend-icon="mdi-refresh" :loading="loading" @click="loadList(true)">Обновить</v-btn>
-            <v-btn size="small" color="deep-purple-accent-1" prepend-icon="mdi-plus" :disabled="!positiveInteger(accountId)" @click="openCreate">Из Good</v-btn>
+            <v-btn size="small" variant="outlined" prepend-icon="mdi-refresh" :loading="loading" :disabled="!workspaceReady" @click="loadList(true)">Обновить</v-btn>
+            <v-btn size="small" color="deep-purple-accent-1" prepend-icon="mdi-plus" :disabled="!workspaceReady" @click="openCreate">Из Good</v-btn>
         </header>
 
         <v-alert v-if="inlineError" type="error" variant="tonal" density="compact" closable class="publisher-alert" @click:close="inlineError = ''">{{ inlineError }}</v-alert>
+        <v-alert v-if="!workspaceReady" type="warning" variant="tonal" density="compact" class="publisher-alert">
+            Рабочий кабинет Avito не настроен. Регистрационные данные находятся отдельно во вкладке «Подключения».
+            <template #append><v-btn size="x-small" variant="outlined" @click="emit('open-settings')">Открыть настройки</v-btn></template>
+        </v-alert>
+        <v-alert v-else-if="!workspace.authorization_ready" type="warning" variant="tonal" density="compact" class="publisher-alert">
+            Для рабочего кабинета недоступна авторизация Avito. Проверьте её в отдельной вкладке «Подключения».
+            <template #append><v-btn size="x-small" variant="outlined" @click="emit('open-settings')">Открыть настройки</v-btn></template>
+        </v-alert>
         <v-alert v-if="!mutationsEnabled" type="info" variant="tonal" density="compact" class="publisher-alert">
             Черновики и preview работают. Подключение feed и запуск Avito доступны после <code>AVITO_MUTATIONS_ENABLED=true</code>.
         </v-alert>
@@ -690,7 +686,7 @@ function showError(exception, fallback) {
                 <small>{{ feed ? `${feed.approved_publications_count} версий · профиль: ${feed.profile_status}` : 'создастся вместе с первым черновиком' }}</small>
             </div>
             <code v-if="feed" :title="feed.url">{{ feed.url }}</code>
-            <v-btn size="x-small" variant="text" prepend-icon="mdi-cog-outline" :disabled="!positiveInteger(accountId)" @click="openProfile">Профиль</v-btn>
+            <v-btn size="x-small" variant="text" prepend-icon="mdi-cog-outline" :disabled="!workspaceReady" @click="openProfile">Профиль</v-btn>
             <v-btn size="x-small" variant="text" prepend-icon="mdi-cloud-search-outline" :disabled="!feed" :loading="actionLoading === 'status'" @click="refreshRemoteStatus">Загрузка</v-btn>
             <v-btn size="x-small" color="deep-purple" prepend-icon="mdi-cloud-upload-outline" :disabled="!feed?.approved_publications_count || !canUseRemoteMutations" @click="uploadDialog = true">Запустить</v-btn>
         </div>
@@ -883,7 +879,7 @@ function showError(exception, fallback) {
 
 <style scoped>
 .publisher { min-height: calc(100vh - 245px); color: #e8ebff; }
-.publisher-toolbar { display: grid; grid-template-columns: minmax(170px, .8fr) minmax(170px, .8fr) minmax(220px, 1.5fr) 170px auto auto; gap: 5px; padding: 5px; border-bottom: 1px solid #30344e; background: #181b30; }
+.publisher-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) 180px auto auto; gap: 5px; padding: 5px; border-bottom: 1px solid #30344e; background: #181b30; }
 .publisher-alert { margin: 5px; font-size: 11px; }
 .feed-strip { display: grid; grid-template-columns: minmax(220px, auto) minmax(180px, 1fr) auto auto auto; align-items: center; gap: 7px; min-height: 48px; padding: 5px 9px; border-bottom: 1px solid #30344e; background: #111427; }
 .feed-strip > div { display: grid; line-height: 1.15; }.feed-label, .eyebrow { color: #9f91f2; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.feed-strip strong { font-size: 12px; }.feed-strip small { color: #8e94b3; font-size: 9px; }.feed-strip code { overflow: hidden; color: #8d93af; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
