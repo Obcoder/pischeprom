@@ -55,6 +55,9 @@ class AvitoPublicationsTest extends TestCase
         $this->assertStringContainsString('Good остаётся источником истины', $workspace);
         $this->assertStringContainsString('Точно опубликованная версия', $workspace);
         $this->assertStringContainsString('Подтверждаю запуск', $workspace);
+        $this->assertStringContainsString('@click="createGoodId = Number(item.id)"', $workspace);
+        $this->assertStringContainsString(':disabled="!positiveInteger(createGoodId)"', $workspace);
+        $this->assertStringNotContainsString('<v-radio v-model="createGoodId"', $workspace);
     }
 
     public function test_official_category_tree_and_dynamic_fields_are_normalized_with_bearer_auth(): void
