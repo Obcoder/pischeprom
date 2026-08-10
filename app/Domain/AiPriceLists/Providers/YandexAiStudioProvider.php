@@ -18,13 +18,18 @@ class YandexAiStudioProvider implements StructuredTextModelProviderInterface
 {
     public function configured(): bool
     {
-        return filled(config('ai-price-lists.ai.api_key'))
+        return config('ai-price-lists.ai.enabled')
+            && filled(config('ai-price-lists.ai.api_key'))
             && filled(config('ai-price-lists.ai.folder_id'))
             && filled(config('ai-price-lists.ai.model'));
     }
 
     public function generate(StructuredModelRequest $request): StructuredModelResponse
     {
+        if (! config('ai-price-lists.ai.enabled')) {
+            throw new ExternalAiException('AI-обработка прайс-листов временно отключена.', false, 'ai_disabled');
+        }
+
         if (! $this->configured()) {
             throw new ExternalAiException('Yandex AI Studio не настроен.', false, 'ai_not_configured');
         }

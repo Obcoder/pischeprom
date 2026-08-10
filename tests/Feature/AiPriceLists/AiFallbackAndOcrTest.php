@@ -223,6 +223,47 @@ class AiFallbackAndOcrTest extends AiPriceListTestCase
         $this->assertSame(2, $import->usageRecords()->where('operation', 'structured_extraction')->where('status', 'success')->count());
     }
 
+    public function test_ai_kill_switch_stops_ambiguous_normalization_before_provider_call(): void
+    {
+        config()->set('ai-price-lists.ai.enabled', false);
+        $import = $this->import(['status' => PriceListStatus::Normalizing, 'current_stage' => 'normalize']);
+        PriceListImportItem::query()->create([
+            'price_list_import_id' => $import->id,
+            'position' => 1,
+            'source_page' => 1,
+            'source_row' => 1,
+            'raw_cells' => ['Неоднозначная строка'],
+            'raw_text' => 'Неоднозначная строка',
+            'row_fingerprint' => hash('sha256', 'ai-disabled-row'),
+            'decision_status' => ItemDecisionStatus::Unreviewed,
+            'match_class' => MatchClass::None,
+        ]);
+        $provider = new class implements StructuredTextModelProviderInterface
+        {
+            public int $calls = 0;
+
+            public function configured(): bool
+            {
+                return true;
+            }
+
+            public function generate(StructuredModelRequest $request): StructuredModelResponse
+            {
+                $this->calls++;
+
+                throw new \LogicException('Disabled AI provider must not be called.');
+            }
+        };
+        $this->app->instance(StructuredTextModelProviderInterface::class, $provider);
+
+        app()->call([new NormalizePriceListRows($import->id), 'handle']);
+
+        $this->assertSame(0, $provider->calls);
+        $this->assertSame(PriceListStatus::Failed, $import->fresh()->status);
+        $this->assertSame('ai_disabled', $import->fresh()->error_code);
+        $this->assertDatabaseMissing('ai_usage_records', ['price_list_import_id' => $import->id]);
+    }
+
     public function test_fake_ocr_pipeline_records_pages_and_reaches_review(): void
     {
         $import = $this->import([

@@ -74,6 +74,7 @@ class StateAndCandidateTest extends TestCase
     public function test_ai_reranking_only_reorders_supplied_candidates_and_never_confirms_item(): void
     {
         config()->set([
+            'ai-price-lists.ai.enabled' => true,
             'ai-price-lists.matching.ai_reranking_enabled' => true,
             'ai-price-lists.ai.daily_token_limit' => 1000,
             'ai-price-lists.ai.monthly_token_limit' => 1000,

@@ -17,11 +17,17 @@ class YandexVisionOcrProvider implements OcrProviderInterface
 {
     public function configured(): bool
     {
-        return filled(config('ai-price-lists.ai.api_key')) && filled(config('ai-price-lists.ai.folder_id'));
+        return config('ai-price-lists.ai.enabled')
+            && filled(config('ai-price-lists.ai.api_key'))
+            && filled(config('ai-price-lists.ai.folder_id'));
     }
 
     public function recognize(OcrRequest $request): OcrResponse
     {
+        if (! config('ai-price-lists.ai.enabled')) {
+            throw new ExternalAiException('AI/OCR-обработка прайс-листов временно отключена.', false, 'ai_disabled');
+        }
+
         if (! $this->configured()) {
             throw new ExternalAiException('Yandex Vision OCR не настроен.', false, 'ocr_not_configured');
         }

@@ -15,6 +15,13 @@ use Tests\TestCase;
 
 class StructuredOutputTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('ai-price-lists.ai.enabled', true);
+    }
+
     public function test_schema_accepts_minimal_valid_result_and_rejects_extra_fields(): void
     {
         $valid = $this->validResult();
@@ -24,6 +31,41 @@ class StructuredOutputTest extends TestCase
         $valid['document']['unexpected'] = 'forbidden';
         $this->expectException(RuntimeException::class);
         app(StructuredOutputValidator::class)->validate($valid);
+    }
+
+    public function test_ai_kill_switch_blocks_text_and_vision_calls_even_with_credentials(): void
+    {
+        config()->set([
+            'ai-price-lists.ai.enabled' => false,
+            'ai-price-lists.ai.api_key' => 'test-api-key',
+            'ai-price-lists.ai.folder_id' => 'test-folder',
+            'ai-price-lists.ai.model' => 'model',
+        ]);
+        Http::fake();
+
+        $text = app(YandexAiStudioProvider::class);
+        $vision = app(YandexVisionOcrProvider::class);
+
+        $this->assertFalse($text->configured());
+        $this->assertFalse($vision->configured());
+
+        try {
+            $text->generate(new StructuredModelRequest('instructions', 'data', [], 'schema', 'v1', 'v1'));
+            $this->fail('Expected disabled AI exception.');
+        } catch (ExternalAiException $exception) {
+            $this->assertSame('ai_disabled', $exception->errorCode);
+            $this->assertFalse($exception->retryable);
+        }
+
+        try {
+            $vision->recognize(new OcrRequest('image', 'image/png', 'price.png'));
+            $this->fail('Expected disabled OCR exception.');
+        } catch (ExternalAiException $exception) {
+            $this->assertSame('ai_disabled', $exception->errorCode);
+            $this->assertFalse($exception->retryable);
+        }
+
+        Http::assertNothingSent();
     }
 
     public function test_document_injection_stays_in_untrusted_user_data_and_logging_is_disabled(): void

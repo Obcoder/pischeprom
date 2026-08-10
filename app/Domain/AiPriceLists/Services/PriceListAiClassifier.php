@@ -20,7 +20,7 @@ class PriceListAiClassifier
 
     public function configured(): bool
     {
-        return $this->provider->configured();
+        return config('ai-price-lists.ai.enabled') && $this->provider->configured();
     }
 
     public function classify(PriceListImport $import, ExtractionResult $extraction): DocumentClass

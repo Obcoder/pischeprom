@@ -29,7 +29,9 @@ class PriceListCandidateReranker
     {
         $stats = ['attempted' => 0, 'reranked' => 0, 'failed_chunks' => 0];
 
-        if (! config('ai-price-lists.matching.ai_reranking_enabled') || ! $this->provider->configured()) {
+        if (! config('ai-price-lists.ai.enabled')
+            || ! config('ai-price-lists.matching.ai_reranking_enabled')
+            || ! $this->provider->configured()) {
             return $stats;
         }
 

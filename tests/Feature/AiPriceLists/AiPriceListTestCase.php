@@ -31,6 +31,7 @@ abstract class AiPriceListTestCase extends TestCase
             'ai-price-lists.mail_ingestion.queue' => 'mail-sync',
             'ai-price-lists.storage_disk' => 'local',
             'ai-price-lists.storage_prefix' => 'supplier-price-lists-test',
+            'ai-price-lists.ai.enabled' => true,
             'ai-price-lists.ai.provider' => 'fake',
             'ai-price-lists.scanner' => 'null',
             'ai-price-lists.max.send_acknowledgement' => false,

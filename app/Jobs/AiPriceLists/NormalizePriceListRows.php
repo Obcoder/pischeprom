@@ -36,6 +36,12 @@ class NormalizePriceListRows extends AbstractPriceListJob
         $result = $normalizer->normalize($import);
 
         if ($result['product_rows'] === 0) {
+            if (! config('ai-price-lists.ai.enabled')) {
+                $states->fail($import, 'ai_disabled', 'AI-обработка прайс-листов временно отключена.', false);
+
+                return;
+            }
+
             if (! $structured->configured()) {
                 $states->fail($import, 'ai_required_not_configured', 'Структура документа неоднозначна, а Yandex AI Studio не настроен.', false);
 

@@ -172,6 +172,7 @@ AI_PRICE_LIST_MAX_ATTACHMENTS_PER_MESSAGE=10
 AI_PRICE_LIST_STALE_AFTER_MINUTES=20
 AI_PRICE_LIST_MAX_RECOVERIES=3
 
+AI_PRICE_LIST_AI_ENABLED=false
 AI_PROVIDER=yandex
 AI_PRICE_LIST_MODEL=yandexgpt-5.1
 AI_PRICE_LIST_TIMEOUT_SECONDS=120
@@ -194,6 +195,10 @@ YANDEX_VISION_OCR_ENDPOINT=https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText
 YANDEX_VISION_OCR_MODEL=table
 YANDEX_VISION_OCR_LANGUAGES=ru,en
 ```
+
+`AI_PRICE_LIST_AI_ENABLED=false` запрещает внешние вызовы YandexGPT и Vision OCR,
+но оставляет доступным детерминированный локальный разбор поддерживаемых файлов.
+Включение AI выполняется только явным значением `true` в серверном environment.
 
 Также используются уже существующие `MAX_API_URL`, `MAX_ACCESS_TOKEN`,
 `MAX_WEBHOOK_SECRET` и параметры приватного disk `yandex`. Не помещайте ключ AI в

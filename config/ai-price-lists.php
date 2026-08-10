@@ -52,6 +52,7 @@ return [
     'clamdscan_timeout_seconds' => (int) env('PRICE_LIST_CLAMDSCAN_TIMEOUT_SECONDS', 120),
 
     'ai' => [
+        'enabled' => filter_var(env('AI_PRICE_LIST_AI_ENABLED', false), FILTER_VALIDATE_BOOL),
         'provider' => env('AI_PROVIDER', 'yandex'),
         'model' => env('AI_PRICE_LIST_MODEL', 'yandexgpt-5.1'),
         'base_url' => rtrim(env('YANDEX_AI_BASE_URL', 'https://ai.api.cloud.yandex.net/v1'), '/'),

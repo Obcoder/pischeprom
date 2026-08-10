@@ -27,7 +27,7 @@ class StructuredPriceListExtractor
 
     public function configured(): bool
     {
-        return $this->provider->configured();
+        return config('ai-price-lists.ai.enabled') && $this->provider->configured();
     }
 
     public function extract(PriceListImport $import): int

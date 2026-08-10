@@ -38,6 +38,12 @@ class RecognizePriceListWithOcr extends AbstractPriceListJob
 
         $import = $states->transition($import, PriceListStatus::Ocr, PriceListStage::Ocr, 35);
 
+        if (! config('ai-price-lists.ai.enabled')) {
+            $states->fail($import, 'ai_disabled', 'AI/OCR-обработка прайс-листов временно отключена.', false);
+
+            return;
+        }
+
         if ((int) $import->size_bytes > (int) config('ai-price-lists.limits.max_ocr_file_bytes')) {
             $states->fail($import, 'ocr_file_too_large', 'Файл превышает безопасный лимит отправки в OCR.', false);
 
