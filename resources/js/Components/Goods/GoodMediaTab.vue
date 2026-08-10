@@ -55,6 +55,16 @@ const filterPublished = ref("all");
 const search = ref("");
 
 const errorMessage = ref("");
+const batchUploading = ref(false);
+const uploadFailures = ref([]);
+
+const uploadProgress = reactive({
+    total: 0,
+    completed: 0,
+    succeeded: 0,
+    failed: 0,
+    currentName: "",
+});
 
 const dialogUpload = ref(false);
 const dialogFolder = ref(false);
@@ -72,7 +82,7 @@ const sortingMedia = ref({});
 // FORMS
 // --------------------------------------------------
 const uploadForm = reactive({
-    file: null,
+    files: [],
     folder_id: null,
     title: "",
     alt: "",
@@ -139,6 +149,24 @@ const filterFolderItems = computed(() => {
         })),
     ];
 });
+
+const selectedUploadFiles = computed(() => extractFiles(uploadForm.files));
+
+const selectedUploadSize = computed(() => {
+    return selectedUploadFiles.value.reduce((total, file) => {
+        return total + Number(file.size || 0);
+    }, 0);
+});
+
+const uploadProgressPercent = computed(() => {
+    if (!uploadProgress.total) {
+        return 0;
+    }
+
+    return Math.round((uploadProgress.completed / uploadProgress.total) * 100);
+});
+
+const isUploading = computed(() => batchUploading.value || uploading.value);
 
 const filteredMedia = computed(() => {
     let items = [...media.value];
@@ -210,16 +238,21 @@ const hasActiveVideoProcessing = computed(() => {
 // --------------------------------------------------
 // HELPERS
 // --------------------------------------------------
-function extractFile(value) {
-    if (value instanceof File) {
-        return value;
-    }
+function extractFiles(value) {
+    const candidates = Array.isArray(value)
+        ? value
+        : (value ? [value] : []);
 
-    if (Array.isArray(value) && value[0] instanceof File) {
-        return value[0];
-    }
+    return candidates.filter((item) => {
+        if (typeof File !== "undefined") {
+            return item instanceof File;
+        }
 
-    return null;
+        return item &&
+            typeof item === "object" &&
+            typeof item.name === "string" &&
+            typeof item.size === "number";
+    });
 }
 
 function formatSize(bytes) {
@@ -236,6 +269,26 @@ function formatSize(bytes) {
     }
 
     return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatFileCount(count) {
+    const value = Number(count || 0);
+    const lastTwo = value % 100;
+    const last = value % 10;
+
+    if (lastTwo >= 11 && lastTwo <= 14) {
+        return `${value} файлов`;
+    }
+
+    if (last === 1) {
+        return `${value} файл`;
+    }
+
+    if (last >= 2 && last <= 4) {
+        return `${value} файла`;
+    }
+
+    return `${value} файлов`;
 }
 
 function formatDate(value) {
@@ -295,6 +348,20 @@ function handleError(error) {
         error?.response?.data?.message ||
         error?.message ||
         "Произошла ошибка";
+}
+
+function uploadErrorText(error) {
+    const errors = error?.response?.data?.errors || null;
+
+    if (errors) {
+        return Object.values(errors)
+            .flat()
+            .join("; ");
+    }
+
+    return error?.response?.data?.message ||
+        error?.message ||
+        "Не удалось загрузить файл";
 }
 
 async function reload() {
@@ -395,12 +462,22 @@ async function moveMedia(item, direction) {
 // UPLOAD
 // --------------------------------------------------
 function resetUploadForm() {
-    uploadForm.file = null;
+    uploadForm.files = [];
     uploadForm.folder_id = null;
     uploadForm.title = "";
     uploadForm.alt = props.good.name || "";
     uploadForm.caption = "";
     uploadForm.is_published = false;
+
+    uploadFailures.value = [];
+
+    Object.assign(uploadProgress, {
+        total: 0,
+        completed: 0,
+        succeeded: 0,
+        failed: 0,
+        currentName: "",
+    });
 }
 
 function openUpload() {
@@ -409,30 +486,92 @@ function openUpload() {
 }
 
 async function submitUpload() {
-    const file = extractFile(uploadForm.file);
+    const files = [...selectedUploadFiles.value];
 
-    if (!file) {
+    if (!files.length || batchUploading.value) {
         return;
     }
 
     errorMessage.value = "";
+    uploadFailures.value = [];
+
+    Object.assign(uploadProgress, {
+        total: files.length,
+        completed: 0,
+        succeeded: 0,
+        failed: 0,
+        currentName: "",
+    });
+
+    batchUploading.value = true;
+
+    const saved = [];
+    const uploadOptions = {
+        folder_id: uploadForm.folder_id,
+        title: uploadForm.title,
+        alt: uploadForm.alt,
+        caption: uploadForm.caption,
+        is_published: uploadForm.is_published,
+    };
 
     try {
-        const saved = await uploadMedia({
-            file,
-            folder_id: uploadForm.folder_id,
-            title: uploadForm.title,
-            alt: uploadForm.alt,
-            caption: uploadForm.caption,
-            is_published: uploadForm.is_published,
-        });
+        for (const file of files) {
+            uploadProgress.currentName = file.name;
 
+            try {
+                const item = await uploadMedia({
+                    file,
+                    ...uploadOptions,
+                });
+
+                saved.push(item);
+                uploadProgress.succeeded += 1;
+            } catch (error) {
+                console.error(error);
+
+                uploadFailures.value.push({
+                    file,
+                    name: file.name,
+                    message: uploadErrorText(error),
+                });
+
+                uploadProgress.failed += 1;
+            } finally {
+                uploadProgress.completed += 1;
+            }
+        }
+    } finally {
+        batchUploading.value = false;
+        uploadProgress.currentName = "";
+    }
+
+    if (saved.length) {
+        emit("changed", saved);
+    }
+
+    if (!uploadFailures.value.length) {
         dialogUpload.value = false;
 
-        emit("changed", saved);
-    } catch (error) {
-        handleError(error);
+        return;
     }
+
+    uploadForm.files = uploadFailures.value.map((failure) => failure.file);
+}
+
+function clearUploadResult() {
+    if (batchUploading.value) {
+        return;
+    }
+
+    uploadFailures.value = [];
+
+    Object.assign(uploadProgress, {
+        total: 0,
+        completed: 0,
+        succeeded: 0,
+        failed: 0,
+        currentName: "",
+    });
 }
 
 // --------------------------------------------------
@@ -1126,21 +1265,103 @@ onBeforeUnmount(() => {
         <v-dialog
             v-model="dialogUpload"
             width="760"
+            :persistent="isUploading"
         >
             <v-card>
-                <v-card-title>Загрузить media</v-card-title>
+                <v-card-title>Загрузить файлы</v-card-title>
 
                 <v-card-text>
+                    <v-alert
+                        type="info"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                    >
+                        Выберите одно или сразу несколько изображений. Папка и параметры ниже применятся ко всем выбранным файлам.
+                    </v-alert>
+
                     <v-file-input
-                        v-model="uploadForm.file"
-                        label="Файл"
+                        v-model="uploadForm.files"
+                        label="Изображения и другие media-файлы"
                         variant="outlined"
                         density="compact"
                         accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
                         prepend-icon="mdi-paperclip"
+                        multiple
+                        counter
                         show-size
                         clearable
+                        :disabled="isUploading"
+                        hint="Можно выбрать несколько файлов в одном окне"
+                        persistent-hint
+                        @update:model-value="clearUploadResult"
                     />
+
+                    <div
+                        v-if="selectedUploadFiles.length && !batchUploading"
+                        class="d-flex align-center ga-2 mb-3"
+                    >
+                        <v-chip
+                            color="deep-purple-darken-1"
+                            variant="tonal"
+                            size="small"
+                            prepend-icon="mdi-image-multiple"
+                        >
+                            {{ formatFileCount(selectedUploadFiles.length) }}
+                        </v-chip>
+
+                        <span class="text-caption text-medium-emphasis">
+                            {{ formatSize(selectedUploadSize) }}
+                        </span>
+                    </div>
+
+                    <v-sheet
+                        v-if="batchUploading"
+                        class="upload-progress mb-4"
+                        rounded="lg"
+                    >
+                        <div class="d-flex align-center justify-space-between ga-3 mb-2">
+                            <div class="text-body-2 font-weight-medium text-truncate">
+                                {{ uploadProgress.currentName }}
+                            </div>
+
+                            <div class="text-caption text-medium-emphasis flex-shrink-0">
+                                {{ uploadProgress.completed }} / {{ uploadProgress.total }}
+                            </div>
+                        </div>
+
+                        <v-progress-linear
+                            :model-value="uploadProgressPercent"
+                            color="deep-purple-darken-1"
+                            height="8"
+                            rounded
+                        />
+                    </v-sheet>
+
+                    <v-alert
+                        v-if="uploadFailures.length"
+                        type="warning"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                    >
+                        <div class="font-weight-medium">
+                            Загружено: {{ uploadProgress.succeeded }}. Не удалось: {{ uploadFailures.length }}.
+                        </div>
+
+                        <div class="text-caption mt-1">
+                            В выборе оставлены только файлы с ошибками — их можно загрузить повторно.
+                        </div>
+
+                        <ul class="upload-errors mt-2">
+                            <li
+                                v-for="(failure, index) in uploadFailures"
+                                :key="`${failure.name}-${failure.file.lastModified || index}`"
+                            >
+                                <strong>{{ failure.name }}</strong>: {{ failure.message }}
+                            </li>
+                        </ul>
+                    </v-alert>
 
                     <v-row>
                         <v-col cols="12" md="6">
@@ -1153,6 +1374,7 @@ onBeforeUnmount(() => {
                                 variant="outlined"
                                 density="compact"
                                 clearable
+                                :disabled="isUploading"
                             />
                         </v-col>
 
@@ -1163,6 +1385,7 @@ onBeforeUnmount(() => {
                                 color="green"
                                 inset
                                 hide-details
+                                :disabled="isUploading"
                             />
                         </v-col>
 
@@ -1172,6 +1395,7 @@ onBeforeUnmount(() => {
                                 label="Title"
                                 variant="outlined"
                                 density="compact"
+                                :disabled="isUploading"
                             />
                         </v-col>
 
@@ -1181,6 +1405,7 @@ onBeforeUnmount(() => {
                                 label="Alt"
                                 variant="outlined"
                                 density="compact"
+                                :disabled="isUploading"
                             />
                         </v-col>
 
@@ -1191,6 +1416,7 @@ onBeforeUnmount(() => {
                                 variant="outlined"
                                 density="compact"
                                 rows="3"
+                                :disabled="isUploading"
                             />
                         </v-col>
                     </v-row>
@@ -1199,19 +1425,23 @@ onBeforeUnmount(() => {
                 <v-card-actions>
                     <v-btn
                         variant="text"
+                        :disabled="isUploading"
                         @click="dialogUpload = false"
                     >
                         Закрыть
                     </v-btn>
 
+                    <v-spacer />
+
                     <v-btn
                         color="deep-purple-darken-1"
                         variant="tonal"
-                        :loading="uploading"
-                        :disabled="!extractFile(uploadForm.file)"
+                        prepend-icon="mdi-cloud-upload"
+                        :loading="isUploading"
+                        :disabled="!selectedUploadFiles.length || isUploading"
                         @click="submitUpload"
                     >
-                        Загрузить
+                        Загрузить {{ formatFileCount(selectedUploadFiles.length) }}
                     </v-btn>
                 </v-card-actions>
             </v-card>
@@ -1540,5 +1770,17 @@ onBeforeUnmount(() => {
     bottom: -1px;
     color: #ffc107;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+.upload-progress {
+    padding: 12px;
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    background: rgba(var(--v-theme-primary), 0.06);
+}
+
+.upload-errors {
+    max-height: 120px;
+    padding-left: 18px;
+    overflow: auto;
 }
 </style>
