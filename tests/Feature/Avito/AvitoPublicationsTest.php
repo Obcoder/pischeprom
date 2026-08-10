@@ -75,9 +75,28 @@ class AvitoPublicationsTest extends TestCase
                 'categories' => [[
                     'slug' => 'biznes',
                     'name' => 'Для бизнеса',
-                    'children' => [[
+                    'nested' => [[
                         'slug' => 'oborudovanie',
                         'name' => 'Оборудование',
+                    ], [
+                        'slug' => 'deep-2',
+                        'name' => 'Глубина 2',
+                        'nested' => [[
+                            'slug' => 'deep-3',
+                            'name' => 'Глубина 3',
+                            'nested' => [[
+                                'slug' => 'deep-4',
+                                'name' => 'Глубина 4',
+                                'nested' => [[
+                                    'slug' => 'deep-5',
+                                    'name' => 'Глубина 5',
+                                    'nested' => [[
+                                        'slug' => 'deep-leaf',
+                                        'name' => 'Конечная глубокая категория',
+                                    ]],
+                                ]],
+                            ]],
+                        ]],
                     ]],
                 ]],
             ]),
@@ -92,13 +111,21 @@ class AvitoPublicationsTest extends TestCase
             ]),
         ]);
 
-        $this->getJson('/api/avito/publications/categories?account_id=321')
+        $categories = $this->getJson('/api/avito/publications/categories?account_id=321')
             ->assertOk()
             ->assertJsonPath('items.0.slug', 'biznes')
             ->assertJsonPath('items.0.is_leaf', false)
-            ->assertJsonPath('items.1.slug', 'oborudovanie')
-            ->assertJsonPath('items.1.is_leaf', true)
-            ->assertJsonPath('items.1.path', 'Для бизнеса → Оборудование');
+            ->assertJsonFragment([
+                'slug' => 'oborudovanie',
+                'path' => 'Для бизнеса → Оборудование',
+                'is_leaf' => true,
+            ])
+            ->assertJsonFragment([
+                'slug' => 'deep-leaf',
+                'path' => 'Для бизнеса → Глубина 2 → Глубина 3 → Глубина 4 → Глубина 5 → Конечная глубокая категория',
+                'is_leaf' => true,
+            ]);
+        $this->assertCount(7, $categories->json('items'));
         $this->getJson('/api/avito/publications/categories/oborudovanie/fields?account_id=321')
             ->assertOk()
             ->assertJsonPath('items.0.key', 'GoodsType')

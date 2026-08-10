@@ -6,6 +6,8 @@ use Illuminate\Support\Str;
 
 class AvitoPayloadRedactor
 {
+    private const DEFAULT_MAX_DEPTH = 10;
+
     private const SECRET_MARKERS = [
         'authorization',
         'access_token',
@@ -16,9 +18,14 @@ class AvitoPayloadRedactor
         'secret',
     ];
 
-    public function redact(mixed $value, int $depth = 0): mixed
+    public function redact(mixed $value, int $maxDepth = self::DEFAULT_MAX_DEPTH): mixed
     {
-        if ($depth > 10) {
+        return $this->redactValue($value, 0, max(1, $maxDepth));
+    }
+
+    private function redactValue(mixed $value, int $depth, int $maxDepth): mixed
+    {
+        if ($depth > $maxDepth) {
             return '[truncated]';
         }
 
@@ -29,7 +36,7 @@ class AvitoPayloadRedactor
                 $normalized = Str::lower((string) $key);
                 $result[$key] = Str::contains($normalized, self::SECRET_MARKERS)
                     ? '[redacted]'
-                    : $this->redact($item, $depth + 1);
+                    : $this->redactValue($item, $depth + 1, $maxDepth);
             }
 
             return $result;

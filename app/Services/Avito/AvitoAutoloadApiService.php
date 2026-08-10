@@ -18,7 +18,7 @@ class AvitoAutoloadApiService
 
     public function categories(?AvitoConnection $connection = null): array
     {
-        $cacheKey = 'avito:autoload:category-tree:'.($connection?->id ?: 'server');
+        $cacheKey = 'avito:autoload:category-tree:v2:'.($connection?->id ?: 'server');
 
         return Cache::remember($cacheKey, now()->addHours(6), function () use ($connection): array {
             $result = $this->execute('userDocsTree', [], $connection);
@@ -247,7 +247,7 @@ class AvitoAutoloadApiService
             $name = $value['name'] ?? $value['title'] ?? $value['label'] ?? null;
             $nextParents = $parents;
             if (is_string($slug) && $slug !== '' && is_string($name) && $name !== '') {
-                $hasChildren = collect(['children', 'nodes', 'items', 'categories'])
+                $hasChildren = collect(['nested', 'children', 'nodes', 'items', 'categories'])
                     ->contains(fn (string $key): bool => is_array($value[$key] ?? null)
                         && $value[$key] !== []);
                 $path = [...$parents, $name];
@@ -261,7 +261,7 @@ class AvitoAutoloadApiService
             }
 
             foreach ($value as $key => $child) {
-                if (in_array($key, ['children', 'nodes', 'items', 'categories', 'result', 'data'], true)) {
+                if (in_array($key, ['nested', 'children', 'nodes', 'items', 'categories', 'result', 'data'], true)) {
                     $walk($child, $nextParents);
                 }
             }

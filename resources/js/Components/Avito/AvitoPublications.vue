@@ -234,6 +234,7 @@ function hydrate(data) {
         category_schema: cloneList(draft.category_schema),
     })
     previewXml.value = ''
+    validateSelectedCategory()
 }
 
 function clearEditor() {
@@ -332,11 +333,16 @@ async function approve() {
 }
 
 async function loadCategories() {
-    if (categories.value.length || categoriesLoading.value) return
+    if (categories.value.length) {
+        validateSelectedCategory()
+        return
+    }
+    if (categoriesLoading.value) return
     categoriesLoading.value = true
     try {
         const { data } = await axios.get('/api/avito/publications/categories', { params: baseParams() })
         categories.value = data.items || []
+        validateSelectedCategory()
     } catch (exception) {
         showError(exception, 'Avito не вернул дерево категорий.')
     } finally {
@@ -345,8 +351,13 @@ async function loadCategories() {
 }
 
 async function chooseCategory(slug) {
-    editor.category_node_slug = slug || null
     const category = categories.value.find((item) => item.slug === slug)
+    if (category?.is_leaf === false) {
+        rejectNonLeafCategory(category)
+        return
+    }
+
+    editor.category_node_slug = slug || null
     editor.category_name = category?.name || category?.path?.split(' → ').at(-1) || ''
     editor.category_fields = {}
     editor.category_schema = []
@@ -365,10 +376,41 @@ async function chooseCategory(slug) {
         })
         editor.category_fields = values
     } catch (exception) {
+        if (isNonLeafCategoryError(exception)) {
+            if (category) category.is_leaf = false
+            rejectNonLeafCategory(category)
+            return
+        }
         showError(exception, 'Не удалось получить поля выбранной категории.')
     } finally {
         categoryFieldsLoading.value = false
     }
+}
+
+function validateSelectedCategory() {
+    const slug = editor.category_node_slug
+    if (!slug || !categories.value.length) return true
+    const category = categories.value.find((item) => item.slug === slug)
+    if (category?.is_leaf !== false) return true
+
+    rejectNonLeafCategory(category)
+    return false
+}
+
+function rejectNonLeafCategory(category) {
+    const name = category?.path || category?.name || editor.category_name || 'Выбранный раздел'
+    editor.category_node_slug = null
+    editor.category_name = ''
+    editor.category_fields = {}
+    editor.category_schema = []
+    categorySearch.value = ''
+    showError(null, `«${name}» — раздел Avito, а не конечная категория. Выберите самый нижний пункт дерева.`)
+}
+
+function isNonLeafCategoryError(exception) {
+    const message = errorMessage(exception, '')
+    return exception?.response?.status === 400
+        && /not a leaf node|не (?:является )?конечн/i.test(message)
 }
 
 async function openCreate() {

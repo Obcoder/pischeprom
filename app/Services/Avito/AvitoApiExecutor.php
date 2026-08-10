@@ -16,6 +16,8 @@ use Illuminate\Support\Str;
 
 class AvitoApiExecutor
 {
+    private const BUSINESS_PAYLOAD_MAX_DEPTH = 64;
+
     public function __construct(
         private readonly AvitoApiCatalog $catalog,
         private readonly AvitoTokenManager $tokens,
@@ -104,7 +106,7 @@ class AvitoApiExecutor
             $response = $this->send($capability, $url, $query, $headers, $body, $contentType, $files, $token);
             $result = $this->result($response, $requestId);
             if (! $result['binary']) {
-                $result['data'] = $this->redactor->redact($result['data']);
+                $result['data'] = $this->redactor->redact($result['data'], self::BUSINESS_PAYLOAD_MAX_DEPTH);
             }
             $duration = (int) round((hrtime(true) - $startedAt) / 1_000_000);
 
