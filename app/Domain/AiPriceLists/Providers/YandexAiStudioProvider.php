@@ -61,20 +61,60 @@ class YandexAiStudioProvider implements StructuredTextModelProviderInterface
             throw $this->exceptionFor($response, (string) $externalId);
         }
 
+        $finishReason = $response->json('choices.0.finish_reason');
+
+        if ($finishReason === 'length') {
+            throw new ExternalAiException(
+                'AI не завершил JSON из-за лимита длины ответа.',
+                true,
+                'ai_output_truncated',
+                (string) $externalId,
+                $this->responseMetadata($response, $latency, $finishReason),
+            );
+        }
+
+        if ($finishReason === 'content_filter') {
+            throw new ExternalAiException(
+                'AI не вернул результат из-за фильтра содержимого.',
+                false,
+                'ai_content_filtered',
+                (string) $externalId,
+                $this->responseMetadata($response, $latency, $finishReason),
+            );
+        }
+
         $content = $response->json('choices.0.message.content');
 
         if (! is_string($content) || trim($content) === '') {
-            throw new ExternalAiException('AI не вернул структурированный результат.', true, 'ai_empty_response', (string) $externalId);
+            throw new ExternalAiException(
+                'AI не вернул структурированный результат.',
+                true,
+                'ai_empty_response',
+                (string) $externalId,
+                $this->responseMetadata($response, $latency, $finishReason),
+            );
         }
 
         try {
             $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            throw new ExternalAiException('AI вернул некорректный JSON.', true, 'ai_invalid_json', (string) $externalId);
+            throw new ExternalAiException(
+                'AI вернул некорректный JSON.',
+                true,
+                'ai_invalid_json',
+                (string) $externalId,
+                $this->responseMetadata($response, $latency, $finishReason),
+            );
         }
 
         if (! is_array($data)) {
-            throw new ExternalAiException('AI вернул результат неверного типа.', true, 'ai_invalid_shape', (string) $externalId);
+            throw new ExternalAiException(
+                'AI вернул результат неверного типа.',
+                true,
+                'ai_invalid_shape',
+                (string) $externalId,
+                $this->responseMetadata($response, $latency, $finishReason),
+            );
         }
 
         return new StructuredModelResponse(
@@ -86,6 +126,17 @@ class YandexAiStudioProvider implements StructuredTextModelProviderInterface
             totalTokens: (int) $response->json('usage.total_tokens', 0),
             latencyMs: $latency,
         );
+    }
+
+    private function responseMetadata(Response $response, int $latency, mixed $finishReason): array
+    {
+        return [
+            'finish_reason' => is_string($finishReason) ? $finishReason : null,
+            'input_tokens' => (int) $response->json('usage.prompt_tokens', 0),
+            'output_tokens' => (int) $response->json('usage.completion_tokens', 0),
+            'total_tokens' => (int) $response->json('usage.total_tokens', 0),
+            'latency_ms' => $latency,
+        ];
     }
 
     private function client(string $clientRequestId): PendingRequest

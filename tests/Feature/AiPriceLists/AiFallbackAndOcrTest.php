@@ -6,6 +6,8 @@ use App\Domain\AiPriceLists\Contracts\OcrProviderInterface;
 use App\Domain\AiPriceLists\Contracts\StructuredTextModelProviderInterface;
 use App\Domain\AiPriceLists\DTO\OcrRequest;
 use App\Domain\AiPriceLists\DTO\OcrResponse;
+use App\Domain\AiPriceLists\DTO\StructuredModelRequest;
+use App\Domain\AiPriceLists\DTO\StructuredModelResponse;
 use App\Domain\AiPriceLists\Enums\ItemDecisionStatus;
 use App\Domain\AiPriceLists\Enums\MatchClass;
 use App\Domain\AiPriceLists\Enums\PriceListStatus;
@@ -98,6 +100,127 @@ class AiFallbackAndOcrTest extends AiPriceListTestCase
             'provider' => 'yandex_ai_studio',
             'status' => 'success',
         ]);
+    }
+
+    public function test_truncated_structured_output_is_retried_with_smaller_row_chunks(): void
+    {
+        config()->set('ai-price-lists.ai.max_rows_per_chunk', 20);
+        $import = $this->import(['status' => PriceListStatus::Normalizing, 'current_stage' => 'normalize', 'progress' => 45]);
+
+        foreach ([1, 2] as $position) {
+            PriceListImportItem::query()->create([
+                'price_list_import_id' => $import->id,
+                'position' => $position,
+                'source_page' => 1,
+                'source_row' => $position,
+                'raw_cells' => ["Товар {$position} — 100 RUB"],
+                'raw_text' => "Товар {$position} — 100 RUB",
+                'row_fingerprint' => hash('sha256', 'adaptive-chunk-row-'.$position),
+                'decision_status' => ItemDecisionStatus::Unreviewed,
+                'match_class' => MatchClass::None,
+            ]);
+        }
+
+        $provider = new class implements StructuredTextModelProviderInterface
+        {
+            public int $calls = 0;
+
+            public function configured(): bool
+            {
+                return true;
+            }
+
+            public function generate(StructuredModelRequest $request): StructuredModelResponse
+            {
+                $this->calls++;
+                $rows = json_decode($request->data, true, 512, JSON_THROW_ON_ERROR)['rows'];
+
+                if (count($rows) > 1) {
+                    throw new ExternalAiException(
+                        'Ответ оборван.',
+                        true,
+                        'ai_output_truncated',
+                        'truncated-request',
+                        [
+                            'finish_reason' => 'length',
+                            'input_tokens' => 10,
+                            'output_tokens' => 12,
+                            'total_tokens' => 22,
+                            'latency_ms' => 5,
+                        ],
+                    );
+                }
+
+                $row = $rows[0];
+
+                return new StructuredModelResponse(
+                    data: [
+                        'document' => [
+                            'is_price_list' => true,
+                            'supplier_name' => null,
+                            'supplier_inn' => null,
+                            'default_currency' => 'RUB',
+                            'default_vat_mode' => 'unknown',
+                            'default_vat_rate' => null,
+                            'valid_from' => null,
+                            'valid_to' => null,
+                            'notes' => null,
+                        ],
+                        'column_mapping' => [],
+                        'items' => [[
+                            'source_locator' => $row['source_locator'],
+                            'raw_text' => $row['raw_text'],
+                            'supplier_sku' => null,
+                            'manufacturer_sku' => null,
+                            'barcode' => null,
+                            'name' => 'Товар '.$row['source_locator']['row'],
+                            'manufacturer' => null,
+                            'brand' => null,
+                            'country_of_origin' => null,
+                            'package_description' => null,
+                            'units_per_package' => null,
+                            'net_quantity' => null,
+                            'net_quantity_unit' => null,
+                            'price_basis_quantity' => null,
+                            'price_basis_unit' => null,
+                            'minimum_order_quantity' => null,
+                            'price' => '100.00',
+                            'currency' => 'RUB',
+                            'vat_mode' => 'unknown',
+                            'vat_rate' => null,
+                            'availability' => null,
+                            'valid_from' => null,
+                            'valid_to' => null,
+                            'notes' => null,
+                            'field_evidence' => [],
+                            'warnings' => [],
+                        ]],
+                        'warnings' => [],
+                    ],
+                    model: 'fake-adaptive-model',
+                    externalRequestId: 'successful-request-'.$this->calls,
+                    inputTokens: 5,
+                    outputTokens: 5,
+                    totalTokens: 10,
+                    latencyMs: 1,
+                );
+            }
+        };
+        $this->app->instance(StructuredTextModelProviderInterface::class, $provider);
+
+        app()->call([new NormalizePriceListRows($import->id), 'handle']);
+
+        $this->assertSame(3, $provider->calls);
+        $this->assertSame(PriceListStatus::ReviewRequired, $import->fresh()->status);
+        $this->assertSame(['Товар 1', 'Товар 2'], $import->items()->pluck('raw_name')->all());
+        $this->assertDatabaseHas('ai_usage_records', [
+            'price_list_import_id' => $import->id,
+            'operation' => 'structured_extraction',
+            'status' => 'failed',
+            'error_code' => 'ai_output_truncated',
+            'total_tokens' => 22,
+        ]);
+        $this->assertSame(2, $import->usageRecords()->where('operation', 'structured_extraction')->where('status', 'success')->count());
     }
 
     public function test_fake_ocr_pipeline_records_pages_and_reaches_review(): void

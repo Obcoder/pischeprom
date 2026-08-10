@@ -92,6 +92,38 @@ class StructuredOutputTest extends TestCase
         $this->assertCount(1, Http::recorded());
     }
 
+    public function test_length_limited_response_is_reported_as_truncated_before_json_decoding(): void
+    {
+        config()->set([
+            'ai-price-lists.ai.api_key' => 'test-api-key',
+            'ai-price-lists.ai.folder_id' => 'test-folder',
+            'ai-price-lists.ai.model' => 'model',
+            'ai-price-lists.ai.base_url' => 'https://ai.example.test/v1',
+            'ai-price-lists.limits.max_attempts' => 1,
+        ]);
+        Http::fake(fn () => Http::response([
+            'id' => 'response-truncated',
+            'choices' => [[
+                'finish_reason' => 'length',
+                'message' => ['content' => '{"document":'],
+            ]],
+            'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 12000, 'total_tokens' => 12100],
+        ], 200, ['x-request-id' => 'request-truncated']));
+
+        try {
+            app(YandexAiStudioProvider::class)->generate(new StructuredModelRequest(
+                'instructions', 'data', app(StructuredOutputValidator::class)->schema(), 'schema', 'v1', 'v1'
+            ));
+            $this->fail('Expected provider exception.');
+        } catch (ExternalAiException $exception) {
+            $this->assertTrue($exception->retryable);
+            $this->assertSame('ai_output_truncated', $exception->errorCode);
+            $this->assertSame('request-truncated', $exception->externalRequestId);
+            $this->assertSame('length', $exception->metadata['finish_reason']);
+            $this->assertSame(12100, $exception->metadata['total_tokens']);
+        }
+    }
+
     public function test_domain_validation_rejects_impossible_dates(): void
     {
         $result = $this->validResult();

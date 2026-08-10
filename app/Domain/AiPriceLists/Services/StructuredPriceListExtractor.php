@@ -12,6 +12,7 @@ use App\Domain\AiPriceLists\Normalization\CurrencyNormalizer;
 use App\Domain\AiPriceLists\Normalization\TextNormalizer;
 use App\Models\PriceListImport;
 use App\Models\PriceListImportItem;
+use Illuminate\Support\Collection;
 use Throwable;
 
 class StructuredPriceListExtractor
@@ -36,79 +37,93 @@ class StructuredPriceListExtractor
         $count = 0;
 
         $import->items()->orderBy('position')->chunk(
-            max(1, min(100, (int) config('ai-price-lists.ai.max_rows_per_chunk', 50))),
-            function ($rows) use ($import, $schema, $instructions, &$count): void {
-                $data = $rows->map(fn (PriceListImportItem $item) => [
-                    'source_locator' => [
-                        'sheet' => $item->source_sheet,
-                        'page' => $item->source_page,
-                        'table' => $item->source_table,
-                        'row' => $item->source_row,
-                        'cells' => $item->source_range,
-                    ],
-                    'raw_text' => mb_substr((string) $item->raw_text, 0, 3000),
-                    'cells' => collect($item->raw_cells ?: [])->take(30)
-                        ->map(fn ($value) => is_scalar($value) ? mb_substr((string) $value, 0, 500) : null)
-                        ->all(),
-                ])->values()->all();
-
-                try {
-                    $this->usage->guardBudget();
-                    $response = $this->provider->generate(new StructuredModelRequest(
-                        instructions: $instructions,
-                        data: json_encode(['rows' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-                        schema: $schema,
-                        schemaName: 'price_list_v1',
-                        promptVersion: (string) config('ai-price-lists.ai.prompt_version'),
-                        schemaVersion: (string) config('ai-price-lists.ai.schema_version'),
-                        safetyIdentifier: hash('sha256', 'price-list-user:'.$import->uuid),
-                    ));
-                    $this->validator->validate($response->data);
-                    $matchedSources = $this->validateEvidence($rows, $response->data['items']);
-                } catch (ExternalAiException $exception) {
-                    $this->usage->failure($import, 'yandex_ai_studio', 'structured_extraction', $exception, (string) config('ai-price-lists.ai.model'));
-                    throw $exception;
-                } catch (Throwable $exception) {
-                    $safe = new ExternalAiException('AI вернул результат, не прошедший строгую проверку схемы.', false, 'ai_schema_invalid');
-                    $this->usage->failure($import, 'yandex_ai_studio', 'structured_extraction', $safe, (string) config('ai-price-lists.ai.model'));
-                    throw $safe;
-                }
-
-                $this->usage->structured($import, $response);
-                $import->forceFill(['stage_heartbeat_at' => now()])->save();
-                $document = $response->data['document'];
-
-                $documentDefaults = array_filter([
-                    'currency' => $document['default_currency'],
-                    'vat_mode' => $document['default_vat_mode'],
-                    'vat_rate' => $document['default_vat_rate'],
-                    'valid_from' => $document['valid_from'],
-                    'valid_to' => $document['valid_to'],
-                ], fn ($value) => $value !== null);
-                $metadata = $import->document_metadata ?: [];
-                $metadata['ai_supplier_name'] ??= $document['supplier_name'];
-                $metadata['ai_supplier_inn'] ??= $document['supplier_inn'];
-                $metadata['ai_warnings'] = array_values(array_unique([
-                    ...(array) ($metadata['ai_warnings'] ?? []),
-                    ...$response->data['warnings'],
-                ]));
-
-                $import->forceFill([
-                    'document_defaults' => array_merge($import->document_defaults ?: [], $documentDefaults),
-                    'model_id' => $response->model,
-                    'prompt_version' => config('ai-price-lists.ai.prompt_version'),
-                    'schema_version' => config('ai-price-lists.ai.schema_version'),
-                    'document_metadata' => $metadata,
-                ])->save();
-
-                foreach ($response->data['items'] as $index => $aiItem) {
-                    $this->storeItem($import, $matchedSources[$index], $aiItem);
-                    $count++;
-                }
+            max(1, min(100, (int) config('ai-price-lists.ai.max_rows_per_chunk', 20))),
+            function (Collection $rows) use ($import, $schema, $instructions, &$count): void {
+                $count += $this->extractRows($import, $rows, $schema, $instructions);
             }
         );
 
         return $count;
+    }
+
+    private function extractRows(PriceListImport $import, Collection $rows, array $schema, string $instructions): int
+    {
+        $data = $rows->map(fn (PriceListImportItem $item) => [
+            'source_locator' => [
+                'sheet' => $item->source_sheet,
+                'page' => $item->source_page,
+                'table' => $item->source_table,
+                'row' => $item->source_row,
+                'cells' => $item->source_range,
+            ],
+            'raw_text' => mb_substr((string) $item->raw_text, 0, 3000),
+            'cells' => collect($item->raw_cells ?: [])->take(30)
+                ->map(fn ($value) => is_scalar($value) ? mb_substr((string) $value, 0, 500) : null)
+                ->all(),
+        ])->values()->all();
+
+        try {
+            $this->usage->guardBudget();
+            $response = $this->provider->generate(new StructuredModelRequest(
+                instructions: $instructions,
+                data: json_encode(['rows' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                schema: $schema,
+                schemaName: 'price_list_v1',
+                promptVersion: (string) config('ai-price-lists.ai.prompt_version'),
+                schemaVersion: (string) config('ai-price-lists.ai.schema_version'),
+                safetyIdentifier: hash('sha256', 'price-list-user:'.$import->uuid),
+            ));
+            $this->validator->validate($response->data);
+            $matchedSources = $this->validateEvidence($rows, $response->data['items']);
+        } catch (ExternalAiException $exception) {
+            $this->usage->failure($import, 'yandex_ai_studio', 'structured_extraction', $exception, (string) config('ai-price-lists.ai.model'));
+
+            if ($exception->errorCode === 'ai_output_truncated' && $rows->count() > 1) {
+                $middle = (int) ceil($rows->count() / 2);
+
+                return $this->extractRows($import, $rows->slice(0, $middle)->values(), $schema, $instructions)
+                    + $this->extractRows($import, $rows->slice($middle)->values(), $schema, $instructions);
+            }
+
+            throw $exception;
+        } catch (Throwable $exception) {
+            $safe = new ExternalAiException('AI вернул результат, не прошедший строгую проверку схемы.', false, 'ai_schema_invalid');
+            $this->usage->failure($import, 'yandex_ai_studio', 'structured_extraction', $safe, (string) config('ai-price-lists.ai.model'));
+            throw $safe;
+        }
+
+        $this->usage->structured($import, $response);
+        $import->forceFill(['stage_heartbeat_at' => now()])->save();
+        $document = $response->data['document'];
+
+        $documentDefaults = array_filter([
+            'currency' => $document['default_currency'],
+            'vat_mode' => $document['default_vat_mode'],
+            'vat_rate' => $document['default_vat_rate'],
+            'valid_from' => $document['valid_from'],
+            'valid_to' => $document['valid_to'],
+        ], fn ($value) => $value !== null);
+        $metadata = $import->document_metadata ?: [];
+        $metadata['ai_supplier_name'] ??= $document['supplier_name'];
+        $metadata['ai_supplier_inn'] ??= $document['supplier_inn'];
+        $metadata['ai_warnings'] = array_values(array_unique([
+            ...(array) ($metadata['ai_warnings'] ?? []),
+            ...$response->data['warnings'],
+        ]));
+
+        $import->forceFill([
+            'document_defaults' => array_merge($import->document_defaults ?: [], $documentDefaults),
+            'model_id' => $response->model,
+            'prompt_version' => config('ai-price-lists.ai.prompt_version'),
+            'schema_version' => config('ai-price-lists.ai.schema_version'),
+            'document_metadata' => $metadata,
+        ])->save();
+
+        foreach ($response->data['items'] as $index => $aiItem) {
+            $this->storeItem($import, $matchedSources[$index], $aiItem);
+        }
+
+        return count($response->data['items']);
     }
 
     private function storeItem(PriceListImport $import, PriceListImportItem $source, array $aiItem): void

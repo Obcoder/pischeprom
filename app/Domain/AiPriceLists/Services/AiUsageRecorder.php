@@ -157,11 +157,18 @@ class AiUsageRecorder
                 'document_classification' => 'price-list-classification-v1',
                 default => null,
             },
+            'input_tokens' => data_get($exception->metadata, 'input_tokens'),
+            'output_tokens' => data_get($exception->metadata, 'output_tokens'),
+            'total_tokens' => data_get($exception->metadata, 'total_tokens'),
+            'latency_ms' => data_get($exception->metadata, 'latency_ms'),
             'attempt' => 1,
             'status' => 'failed',
             'error_code' => $exception->errorCode,
             'cost_is_estimate' => true,
-            'metadata' => ['retryable' => $exception->retryable],
+            'metadata' => [
+                'retryable' => $exception->retryable,
+                'finish_reason' => data_get($exception->metadata, 'finish_reason'),
+            ],
         ]);
     }
 }

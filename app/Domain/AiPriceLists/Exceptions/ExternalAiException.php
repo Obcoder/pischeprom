@@ -11,6 +11,7 @@ class ExternalAiException extends RuntimeException
         public readonly bool $retryable,
         public readonly string $errorCode,
         public readonly ?string $externalRequestId = null,
+        public readonly array $metadata = [],
     ) {
         parent::__construct($message);
     }

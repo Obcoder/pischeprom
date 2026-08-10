@@ -65,7 +65,7 @@ return [
         'daily_ocr_page_limit' => (int) env('AI_PRICE_LIST_DAILY_OCR_PAGE_LIMIT', 500),
         'monthly_ocr_page_limit' => (int) env('AI_PRICE_LIST_MONTHLY_OCR_PAGE_LIMIT', 5000),
         'requests_per_minute' => (int) env('AI_PRICE_LIST_REQUESTS_PER_MINUTE', 30),
-        'max_rows_per_chunk' => (int) env('AI_PRICE_LIST_MAX_ROWS_PER_CHUNK', 50),
+        'max_rows_per_chunk' => (int) env('AI_PRICE_LIST_MAX_ROWS_PER_CHUNK', 20),
         'classification_min_confidence' => (float) env('AI_PRICE_LIST_CLASSIFICATION_MIN_CONFIDENCE', 0.90),
         'estimated_cost_per_1000_tokens' => env('AI_PRICE_LIST_ESTIMATED_COST_PER_1000_TOKENS'),
         'cost_currency' => env('AI_PRICE_LIST_COST_CURRENCY', 'RUB'),
