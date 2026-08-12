@@ -5,11 +5,14 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CheckResource;
 use App\Models\Check;
+use App\Services\Checks\CheckCommodityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CheckController extends Controller
 {
+    public function __construct(private readonly CheckCommodityService $checkCommodityService) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -40,7 +43,19 @@ class CheckController extends Controller
      */
     public function store(Request $request)
     {
-        $check = Check::create($this->validated($request));
+        $data = $this->validated($request, withCommodities: true);
+        $commodities = $data['commodities'] ?? [];
+        unset($data['commodities']);
+
+        $check = DB::transaction(function () use ($data, $commodities) {
+            $check = Check::create($data);
+
+            foreach ($commodities as $commodity) {
+                $this->checkCommodityService->create($check, $commodity, withRelations: false);
+            }
+
+            return $check;
+        });
 
         return response()->json(
             new CheckResource($this->findForResponse($check->id)),
@@ -82,16 +97,34 @@ class CheckController extends Controller
         return response()->json(null, 204);
     }
 
-    private function validated(Request $request, bool $partial = false): array
-    {
+    private function validated(
+        Request $request,
+        bool $partial = false,
+        bool $withCommodities = false
+    ): array {
         $dateRule = $partial ? 'sometimes' : 'required';
         $entityRule = $partial ? 'sometimes' : 'required';
 
-        return $request->validate([
+        $rules = [
             'date' => [$dateRule, 'date'],
             'entity_id' => [$entityRule, 'exists:entities,id'],
             'amount' => ['nullable', 'numeric', 'min:0'],
-        ]);
+        ];
+
+        if ($withCommodities) {
+            $rules = [
+                ...$rules,
+                'commodities' => ['nullable', 'array', 'max:100'],
+                'commodities.*.commodity_id' => ['required', 'exists:commodities,id'],
+                'commodities.*.warehouse_id' => ['nullable', 'exists:warehouses,id'],
+                'commodities.*.quantity' => ['nullable', 'numeric', 'min:0'],
+                'commodities.*.measure_id' => ['nullable', 'exists:measures,id'],
+                'commodities.*.expense_article_id' => ['nullable', 'exists:expense_articles,id'],
+                'commodities.*.price' => ['nullable', 'numeric', 'min:0'],
+            ];
+        }
+
+        return $request->validate($rules);
     }
 
     private function filteredChecksQuery(Request $request)

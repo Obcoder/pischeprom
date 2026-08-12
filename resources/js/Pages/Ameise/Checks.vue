@@ -25,12 +25,23 @@ const loadingChecks = ref(false)
 const savingCheck = ref(false)
 const savingLine = ref(false)
 const savingDictionary = ref(false)
+const creatingEntity = ref(false)
 const selectedCheckLoading = ref(false)
 
 const checkDialog = ref(false)
 const detailDialog = ref(false)
 const dictionaryDialog = ref(false)
 const dictionaryType = ref('articles')
+const entityCreatorOpen = ref(false)
+const entitySearch = ref('')
+const checkErrors = ref({})
+const checkSubmitError = ref('')
+const newEntityErrors = ref({})
+const newEntitySubmitError = ref('')
+const draftCommodityError = ref('')
+const draftCommodityRows = ref([])
+const draftEditingIndex = ref(null)
+let draftRowSequence = 0
 
 const selectedCheck = ref(null)
 const entityHeader = ref(null)
@@ -66,6 +77,21 @@ const checkForm = reactive({
     date: today(),
     entity_id: null,
     amount: 0,
+})
+
+const newEntityForm = reactive({
+    name: '',
+    full_name: '',
+    INN: '',
+})
+
+const draftCommodityForm = reactive({
+    commodity_id: null,
+    warehouse_id: null,
+    quantity: 1,
+    measure_id: null,
+    expense_article_id: null,
+    price: 0,
 })
 
 const lineForm = reactive({
@@ -117,6 +143,21 @@ const registeredCommodityTotal = computed(() => {
         sum + numeric(item.total_price || numeric(item.quantity) * numeric(item.price))
     ), 0)
 })
+
+const draftCommodityTotal = computed(() => draftCommodityRows.value.reduce(
+    (sum, item) => sum + numeric(item.quantity) * numeric(item.price),
+    0
+))
+
+const draftAmountDifference = computed(() => (
+    numeric(checkForm.amount) - draftCommodityTotal.value
+))
+
+const canSaveCheck = computed(() => (
+    Boolean(checkForm.date)
+    && Boolean(checkForm.entity_id)
+    && numeric(checkForm.amount) >= 0
+))
 
 const receiptRows = computed(() => [
     ...selectedCommodityItems.value.map((item) => ({
@@ -397,6 +438,52 @@ function formatQty(value) {
     }).format(numeric(value))
 }
 
+function validationMessage(errors, field) {
+    const messages = errors?.[field]
+
+    return Array.isArray(messages) ? messages[0] : messages || ''
+}
+
+function entityUnitNames(entity) {
+    return (entity?.units || [])
+        .map((unit) => unit?.name)
+        .filter(Boolean)
+}
+
+function entitySearchLabel(entity) {
+    const units = entityUnitNames(entity)
+
+    return units.length
+        ? `${entity?.name || 'Без названия'} — ${units.join(', ')}`
+        : entity?.name || 'Без названия'
+}
+
+function entityUnitSubtitle(entity) {
+    const units = entityUnitNames(entity)
+
+    return units.length ? `Unit: ${units.join(', ')}` : 'Без присоединённого Unit'
+}
+
+function commodityById(id) {
+    return commodities.value.find((item) => Number(item.id) === Number(id)) || null
+}
+
+function warehouseById(id) {
+    return warehouses.value.find((item) => Number(item.id) === Number(id)) || null
+}
+
+function measureById(id) {
+    return measures.value.find((item) => Number(item.id) === Number(id)) || null
+}
+
+function expenseArticleById(id) {
+    return expenseArticles.value.find((item) => Number(item.id) === Number(id)) || null
+}
+
+function draftLineTotal(row) {
+    return numeric(row.quantity) * numeric(row.price)
+}
+
 function articleColor(article) {
     return article?.color || '#8fbf5f'
 }
@@ -583,6 +670,10 @@ async function loadDictionaries() {
     if (!lineForm.warehouse_id) {
         lineForm.warehouse_id = defaultWarehouseId.value
     }
+
+    if (!draftCommodityForm.warehouse_id) {
+        draftCommodityForm.warehouse_id = defaultWarehouseId.value
+    }
 }
 
 function resetCheckForm() {
@@ -590,6 +681,152 @@ function resetCheckForm() {
     checkForm.date = today()
     checkForm.entity_id = null
     checkForm.amount = 0
+    entitySearch.value = ''
+    entityCreatorOpen.value = false
+    checkErrors.value = {}
+    checkSubmitError.value = ''
+    draftCommodityRows.value = []
+    resetNewEntityForm()
+    resetDraftCommodityForm()
+}
+
+function resetNewEntityForm(name = '') {
+    newEntityForm.name = name
+    newEntityForm.full_name = ''
+    newEntityForm.INN = ''
+    newEntityErrors.value = {}
+    newEntitySubmitError.value = ''
+}
+
+function showEntityCreator() {
+    resetNewEntityForm(entitySearch.value.trim())
+    entityCreatorOpen.value = true
+}
+
+function hideEntityCreator() {
+    entityCreatorOpen.value = false
+    resetNewEntityForm()
+}
+
+async function createEntity() {
+    newEntityErrors.value = {}
+    newEntitySubmitError.value = ''
+
+    const name = newEntityForm.name.trim()
+
+    if (!name) {
+        newEntityErrors.value = { name: ['Укажите название Entity.'] }
+        return
+    }
+
+    creatingEntity.value = true
+
+    try {
+        const response = await axios.post(route('entities.store'), {
+            name,
+            full_name: newEntityForm.full_name.trim() || null,
+            INN: newEntityForm.INN.trim() || null,
+        })
+        const entity = unpack(response)
+
+        entities.value = [
+            ...entities.value.filter((item) => Number(item.id) !== Number(entity.id)),
+            entity,
+        ].sort((left, right) => left.name.localeCompare(right.name, 'ru'))
+        checkForm.entity_id = entity.id
+        entitySearch.value = ''
+        hideEntityCreator()
+    } catch (error) {
+        newEntityErrors.value = error.response?.data?.errors || {}
+        newEntitySubmitError.value = error.response?.data?.message || 'Не удалось создать Entity.'
+        console.error('createEntity error:', error)
+    } finally {
+        creatingEntity.value = false
+    }
+}
+
+function resetDraftCommodityForm() {
+    draftEditingIndex.value = null
+    draftCommodityForm.commodity_id = null
+    draftCommodityForm.warehouse_id = defaultWarehouseId.value
+    draftCommodityForm.quantity = 1
+    draftCommodityForm.measure_id = null
+    draftCommodityForm.expense_article_id = null
+    draftCommodityForm.price = 0
+    draftCommodityError.value = ''
+}
+
+function selectDraftCommodity(commodityId) {
+    draftCommodityForm.commodity_id = commodityId
+    draftCommodityForm.expense_article_id = commodityById(commodityId)?.expense_article_id || null
+    draftCommodityError.value = ''
+}
+
+function saveDraftCommodity() {
+    draftCommodityError.value = ''
+
+    if (!draftCommodityForm.commodity_id) {
+        draftCommodityError.value = 'Выберите Commodity.'
+        return
+    }
+
+    if (numeric(draftCommodityForm.quantity) <= 0) {
+        draftCommodityError.value = 'Количество должно быть больше нуля.'
+        return
+    }
+
+    if (numeric(draftCommodityForm.price) < 0) {
+        draftCommodityError.value = 'Цена не может быть отрицательной.'
+        return
+    }
+
+    const existingRow = draftEditingIndex.value === null
+        ? null
+        : draftCommodityRows.value[draftEditingIndex.value]
+    const row = {
+        _key: existingRow?._key || `draft-${++draftRowSequence}`,
+        commodity_id: draftCommodityForm.commodity_id,
+        warehouse_id: draftCommodityForm.warehouse_id || null,
+        quantity: numeric(draftCommodityForm.quantity),
+        measure_id: draftCommodityForm.measure_id || null,
+        expense_article_id: draftCommodityForm.expense_article_id || null,
+        price: numeric(draftCommodityForm.price),
+    }
+
+    if (draftEditingIndex.value === null) {
+        draftCommodityRows.value.push(row)
+    } else {
+        draftCommodityRows.value.splice(draftEditingIndex.value, 1, row)
+    }
+
+    resetDraftCommodityForm()
+}
+
+function editDraftCommodity(index) {
+    const row = draftCommodityRows.value[index]
+
+    if (!row) {
+        return
+    }
+
+    draftEditingIndex.value = index
+    draftCommodityForm.commodity_id = row.commodity_id
+    draftCommodityForm.warehouse_id = row.warehouse_id
+    draftCommodityForm.quantity = row.quantity
+    draftCommodityForm.measure_id = row.measure_id
+    draftCommodityForm.expense_article_id = row.expense_article_id
+    draftCommodityForm.price = row.price
+    draftCommodityError.value = ''
+}
+
+function removeDraftCommodity(index) {
+    draftCommodityRows.value.splice(index, 1)
+
+    if (draftEditingIndex.value === index) {
+        resetDraftCommodityForm()
+    } else if (draftEditingIndex.value !== null && draftEditingIndex.value > index) {
+        draftEditingIndex.value -= 1
+    }
 }
 
 function openCreateCheck() {
@@ -598,6 +835,7 @@ function openCreateCheck() {
 }
 
 function openEditCheck(check) {
+    resetCheckForm()
     checkForm.id = check.id
     checkForm.date = check.date || today()
     checkForm.entity_id = check.entity_id || null
@@ -606,12 +844,24 @@ function openEditCheck(check) {
 }
 
 async function saveCheck() {
+    checkErrors.value = {}
+    checkSubmitError.value = ''
+
+    if (!canSaveCheck.value) {
+        checkSubmitError.value = 'Заполните дату и выберите Entity.'
+        return
+    }
+
     savingCheck.value = true
 
     const payload = {
         date: checkForm.date,
         entity_id: checkForm.entity_id,
         amount: numeric(checkForm.amount),
+    }
+
+    if (!checkForm.id) {
+        payload.commodities = draftCommodityRows.value.map(({ _key, ...row }) => row)
     }
 
     try {
@@ -628,6 +878,8 @@ async function saveCheck() {
             await loadCheck(checkForm.id)
         }
     } catch (error) {
+        checkErrors.value = error.response?.data?.errors || {}
+        checkSubmitError.value = error.response?.data?.message || 'Не удалось сохранить Check.'
         console.error('saveCheck error:', error)
     } finally {
         savingCheck.value = false
@@ -994,14 +1246,23 @@ onBeforeUnmount(() => {
                     <v-autocomplete
                         v-model="filters.entity_id"
                         :items="entities"
-                        item-title="name"
+                        :item-title="entitySearchLabel"
                         item-value="id"
                         label="Контрагент"
                         variant="solo-filled"
                         density="compact"
                         clearable
                         hide-details
-                    />
+                    >
+                        <template #item="{ props, item }">
+                            <v-list-item v-bind="props" :title="item.raw.name">
+                                <template #prepend>
+                                    <v-icon icon="mdi-domain" size="20" />
+                                </template>
+                                <template #subtitle>{{ entityUnitSubtitle(item.raw) }}</template>
+                            </v-list-item>
+                        </template>
+                    </v-autocomplete>
                     <v-autocomplete
                         v-model="filters.project_id"
                         :items="projects"
@@ -1167,56 +1428,413 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <v-dialog v-model="checkDialog" width="720">
+        <v-dialog v-model="checkDialog" max-width="1180" scrollable>
             <v-card class="check-form-modal">
-                <v-card-title class="modal-title">
-                    <span>{{ checkDialogTitle }}</span>
-                    <v-btn icon="mdi-close" variant="text" density="compact" @click="checkDialog = false" />
+                <v-card-title class="check-form-header">
+                    <div class="check-form-header__icon">
+                        <v-icon :icon="checkForm.id ? 'mdi-receipt-text-edit-outline' : 'mdi-receipt-text-plus-outline'" />
+                    </div>
+                    <div>
+                        <span>{{ checkDialogTitle }}</span>
+                        <small>
+                            {{ checkForm.id ? 'Измените основные реквизиты чека' : 'Заполните реквизиты и состав чека до сохранения' }}
+                        </small>
+                    </div>
+                    <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        density="comfortable"
+                        title="Закрыть"
+                        @click="checkDialog = false"
+                    />
                 </v-card-title>
-                <v-card-text>
-                    <v-row dense>
-                        <v-col cols="12" md="4">
-                            <v-text-field
-                                v-model="checkForm.date"
-                                type="date"
-                                label="Дата"
-                                variant="outlined"
-                                density="compact"
-                                hide-details
-                            />
-                        </v-col>
-                        <v-col cols="12" md="8">
+
+                <v-card-text class="check-form-body">
+                    <div class="check-form-overview">
+                        <section class="check-form-section check-form-section--details">
+                            <div class="check-form-section__title">
+                                <span class="check-form-step">1</span>
+                                <div>
+                                    <strong>Реквизиты</strong>
+                                    <small>Дата и контрагент</small>
+                                </div>
+                            </div>
+
+                            <div class="check-details-grid">
+                                <v-text-field
+                                    v-model="checkForm.date"
+                                    type="date"
+                                    label="Дата чека"
+                                    variant="outlined"
+                                    density="comfortable"
+                                    prepend-inner-icon="mdi-calendar-blank-outline"
+                                    :error-messages="validationMessage(checkErrors, 'date')"
+                                />
+
+                                <div class="entity-picker">
+                                    <div class="entity-picker__control">
+                                        <v-autocomplete
+                                            v-model="checkForm.entity_id"
+                                            v-model:search="entitySearch"
+                                            :items="entities"
+                                            :item-title="entitySearchLabel"
+                                            item-value="id"
+                                            label="Entity"
+                                            placeholder="Название Entity или Unit"
+                                            variant="outlined"
+                                            density="comfortable"
+                                            prepend-inner-icon="mdi-domain"
+                                            clearable
+                                            no-data-text="Entity не найден"
+                                            :error-messages="validationMessage(checkErrors, 'entity_id')"
+                                        >
+                                            <template #item="{ props, item }">
+                                                <v-list-item v-bind="props" :title="item.raw.name">
+                                                    <template #prepend>
+                                                        <v-avatar size="34" rounded="lg" color="#eef3e8">
+                                                            <v-icon icon="mdi-domain" size="20" color="#386145" />
+                                                        </v-avatar>
+                                                    </template>
+                                                    <template #subtitle>{{ entityUnitSubtitle(item.raw) }}</template>
+                                                </v-list-item>
+                                            </template>
+                                            <template #selection="{ item }">
+                                                <div class="entity-selection">
+                                                    <strong>{{ item.raw.name }}</strong>
+                                                    <span>{{ entityUnitSubtitle(item.raw) }}</span>
+                                                </div>
+                                            </template>
+                                        </v-autocomplete>
+
+                                        <v-btn
+                                            class="entity-create-button"
+                                            color="#386145"
+                                            variant="tonal"
+                                            prepend-icon="mdi-domain-plus"
+                                            text="Создать Entity"
+                                            :disabled="creatingEntity"
+                                            @click="showEntityCreator"
+                                        />
+                                    </div>
+
+                                    <div v-if="entityCreatorOpen" class="entity-creator">
+                                        <div class="entity-creator__header">
+                                            <div>
+                                                <strong>Новый Entity</strong>
+                                                <small>После создания он будет выбран в чеке</small>
+                                            </div>
+                                            <v-btn icon="mdi-close" variant="text" density="compact" @click="hideEntityCreator" />
+                                        </div>
+                                        <div class="entity-creator__fields">
+                                            <v-text-field
+                                                v-model="newEntityForm.name"
+                                                label="Короткое название *"
+                                                variant="outlined"
+                                                density="compact"
+                                                autofocus
+                                                :error-messages="validationMessage(newEntityErrors, 'name')"
+                                                @keyup.enter="createEntity"
+                                            />
+                                            <v-text-field
+                                                v-model="newEntityForm.full_name"
+                                                label="Полное название"
+                                                variant="outlined"
+                                                density="compact"
+                                                :error-messages="validationMessage(newEntityErrors, 'full_name')"
+                                            />
+                                            <v-text-field
+                                                v-model="newEntityForm.INN"
+                                                label="ИНН"
+                                                variant="outlined"
+                                                density="compact"
+                                                :error-messages="validationMessage(newEntityErrors, 'INN')"
+                                                @keyup.enter="createEntity"
+                                            />
+                                            <v-btn
+                                                color="#386145"
+                                                variant="flat"
+                                                prepend-icon="mdi-check"
+                                                text="Создать и выбрать"
+                                                :loading="creatingEntity"
+                                                @click="createEntity"
+                                            />
+                                        </div>
+                                        <div v-if="newEntitySubmitError" class="form-inline-error">
+                                            {{ newEntitySubmitError }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="check-form-section check-form-section--totals">
+                            <div class="check-form-section__title">
+                                <span class="check-form-step">2</span>
+                                <div>
+                                    <strong>Суммы</strong>
+                                    <small>Независимые значения</small>
+                                </div>
+                            </div>
+
+                            <div class="check-total-card check-total-card--manual">
+                                <div>
+                                    <span>Сумма чека</span>
+                                    <small>Вводится вручную</small>
+                                </div>
+                                <v-text-field
+                                    v-model="checkForm.amount"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                    :error="Boolean(validationMessage(checkErrors, 'amount'))"
+                                />
+                            </div>
+
+                            <div class="check-total-card check-total-card--calculated">
+                                <div>
+                                    <span>Сумма Commodities</span>
+                                    <small>
+                                        {{ checkForm.id ? 'Состав редактируется отдельно' : 'Рассчитывается по строкам' }}
+                                    </small>
+                                </div>
+                                <strong v-if="!checkForm.id">{{ formatMoney(draftCommodityTotal) }}</strong>
+                                <v-icon v-else icon="mdi-open-in-new" color="#4f7356" />
+                            </div>
+
+                            <div v-if="!checkForm.id" class="check-total-difference">
+                                <span>Разница</span>
+                                <strong :class="{ 'is-negative': draftAmountDifference < 0 }">
+                                    {{ formatMoney(draftAmountDifference) }}
+                                </strong>
+                            </div>
+                            <small v-if="validationMessage(checkErrors, 'amount')" class="form-inline-error">
+                                {{ validationMessage(checkErrors, 'amount') }}
+                            </small>
+                        </section>
+                    </div>
+
+                    <section v-if="!checkForm.id" class="check-form-section check-form-section--commodities">
+                        <div class="commodity-section-header">
+                            <div class="check-form-section__title">
+                                <span class="check-form-step">3</span>
+                                <div>
+                                    <strong>Commodities в чеке</strong>
+                                    <small>Добавьте товарные строки перед сохранением</small>
+                                </div>
+                            </div>
+                            <div class="commodity-section-summary">
+                                <span>{{ draftCommodityRows.length }} строк</span>
+                                <strong>{{ formatMoney(draftCommodityTotal) }}</strong>
+                            </div>
+                        </div>
+
+                        <div class="draft-line-editor">
                             <v-autocomplete
-                                v-model="checkForm.entity_id"
-                                :items="entities"
+                                :model-value="draftCommodityForm.commodity_id"
+                                :items="commodities"
                                 item-title="name"
                                 item-value="id"
-                                label="Entity"
+                                label="Commodity *"
+                                variant="outlined"
+                                density="compact"
+                                hide-details
+                                @update:model-value="selectDraftCommodity"
+                            >
+                                <template #item="{ props, item }">
+                                    <v-list-item v-bind="props" :title="item.raw.name">
+                                        <template #prepend>
+                                            <v-avatar size="30" rounded="lg">
+                                                <v-img :src="item.raw.ava_url || logo" cover />
+                                            </v-avatar>
+                                        </template>
+                                        <template #subtitle>
+                                            {{ item.raw.expense_article?.name || 'без статьи' }}
+                                            <span v-if="item.raw.project"> · {{ item.raw.project.name }}</span>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+                            </v-autocomplete>
+
+                            <v-select
+                                v-model="draftCommodityForm.warehouse_id"
+                                :items="warehouses"
+                                item-title="name"
+                                item-value="id"
+                                label="Склад"
                                 variant="outlined"
                                 density="compact"
                                 hide-details
                             />
-                        </v-col>
-                        <v-col cols="12" md="4">
                             <v-text-field
-                                v-model="checkForm.amount"
-                                label="Сумма"
+                                v-model="draftCommodityForm.quantity"
                                 type="number"
+                                min="0.001"
+                                step="any"
+                                label="Количество *"
                                 variant="outlined"
                                 density="compact"
                                 hide-details
                             />
-                        </v-col>
-                    </v-row>
+                            <v-select
+                                v-model="draftCommodityForm.measure_id"
+                                :items="measures"
+                                item-title="name"
+                                item-value="id"
+                                label="Мера"
+                                variant="outlined"
+                                density="compact"
+                                clearable
+                                hide-details
+                            />
+                            <v-text-field
+                                v-model="draftCommodityForm.price"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                label="Цена *"
+                                variant="outlined"
+                                density="compact"
+                                hide-details
+                            />
+                            <v-autocomplete
+                                v-model="draftCommodityForm.expense_article_id"
+                                :items="expenseArticles"
+                                item-title="name"
+                                item-value="id"
+                                label="Статья расходов"
+                                variant="outlined"
+                                density="compact"
+                                clearable
+                                hide-details
+                            />
+                            <v-btn
+                                class="draft-line-editor__submit"
+                                color="#17845f"
+                                variant="flat"
+                                :prepend-icon="draftEditingIndex === null ? 'mdi-plus' : 'mdi-check'"
+                                :text="draftEditingIndex === null ? 'Добавить' : 'Обновить'"
+                                @click="saveDraftCommodity"
+                            />
+                            <v-btn
+                                v-if="draftEditingIndex !== null"
+                                icon="mdi-close"
+                                variant="text"
+                                density="compact"
+                                title="Отменить редактирование"
+                                @click="resetDraftCommodityForm"
+                            />
+                        </div>
+
+                        <div v-if="draftCommodityError" class="form-inline-error draft-line-error">
+                            <v-icon icon="mdi-alert-circle-outline" size="16" />
+                            {{ draftCommodityError }}
+                        </div>
+
+                        <div class="draft-lines-table-wrap">
+                            <table class="draft-lines-table">
+                                <thead>
+                                    <tr>
+                                        <th>Commodity</th>
+                                        <th>Склад / статья</th>
+                                        <th>Количество</th>
+                                        <th>Цена</th>
+                                        <th>Сумма строки</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-if="!draftCommodityRows.length">
+                                        <td colspan="6" class="draft-lines-empty">
+                                            <v-icon icon="mdi-package-variant-closed-plus" size="24" />
+                                            <span>Товарных строк пока нет</span>
+                                            <small>Чек можно сохранить и без Commodities</small>
+                                        </td>
+                                    </tr>
+                                    <tr v-for="(row, index) in draftCommodityRows" :key="row._key">
+                                        <td>
+                                            <div class="draft-commodity-cell">
+                                                <v-avatar size="34" rounded="lg">
+                                                    <v-img :src="commodityById(row.commodity_id)?.ava_url || logo" cover />
+                                                </v-avatar>
+                                                <div>
+                                                    <strong>{{ commodityById(row.commodity_id)?.name || `Commodity #${row.commodity_id}` }}</strong>
+                                                    <small>{{ commodityById(row.commodity_id)?.project?.name || 'Без проекта' }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <strong>{{ warehouseById(row.warehouse_id)?.name || 'Склад по умолчанию' }}</strong>
+                                            <small>{{ expenseArticleById(row.expense_article_id)?.name || 'Без статьи' }}</small>
+                                        </td>
+                                        <td>
+                                            {{ formatQty(row.quantity) }}
+                                            <small>{{ measureById(row.measure_id)?.name || 'ед.' }}</small>
+                                        </td>
+                                        <td>{{ formatMoney(row.price) }}</td>
+                                        <td class="draft-line-total">{{ formatMoney(draftLineTotal(row)) }}</td>
+                                        <td>
+                                            <div class="row-actions">
+                                                <v-btn
+                                                    icon="mdi-pencil-outline"
+                                                    size="small"
+                                                    variant="text"
+                                                    title="Редактировать строку"
+                                                    @click="editDraftCommodity(index)"
+                                                />
+                                                <v-btn
+                                                    icon="mdi-delete-outline"
+                                                    size="small"
+                                                    variant="text"
+                                                    color="error"
+                                                    title="Удалить строку"
+                                                    @click="removeDraftCommodity(index)"
+                                                />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <v-alert
+                        v-else
+                        type="info"
+                        variant="tonal"
+                        density="compact"
+                        icon="mdi-information-outline"
+                    >
+                        Состав сохранённого чека редактируется в окне просмотра чека.
+                    </v-alert>
+
+                    <v-alert
+                        v-if="checkSubmitError"
+                        class="mt-4"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                    >
+                        {{ checkSubmitError }}
+                    </v-alert>
                 </v-card-text>
-                <v-card-actions>
+
+                <v-card-actions class="check-form-actions">
+                    <div v-if="!checkForm.id" class="check-form-actions__summary">
+                        <span>Сумма чека: <strong>{{ formatMoney(checkForm.amount) }}</strong></span>
+                        <span>Commodities: <strong>{{ formatMoney(draftCommodityTotal) }}</strong></span>
+                    </div>
                     <v-spacer />
                     <v-btn text="Отмена" variant="text" @click="checkDialog = false" />
                     <v-btn
                         color="#7f5f00"
-                        text="Сохранить"
+                        prepend-icon="mdi-content-save-outline"
+                        text="Сохранить Check"
                         variant="flat"
                         :loading="savingCheck"
+                        :disabled="!canSaveCheck"
                         @click="saveCheck"
                     />
                 </v-card-actions>
@@ -2100,6 +2718,453 @@ onBeforeUnmount(() => {
     text-align: center;
 }
 
+.check-form-modal {
+    overflow: hidden;
+    border: 1px solid #d7ccb2;
+    border-radius: 18px !important;
+    background: #f8f6ef;
+}
+
+.check-form-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+    min-height: 74px;
+    padding: 14px 18px !important;
+    border-bottom: 1px solid #ded5c0;
+    background: linear-gradient(135deg, #fffdf7 0%, #f2ead6 100%);
+    white-space: normal;
+}
+
+.check-form-header__icon {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border-radius: 13px;
+    background: #7f5f00;
+    color: #ffffff;
+}
+
+.check-form-header > div:nth-child(2) {
+    min-width: 0;
+}
+
+.check-form-header span {
+    display: block;
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1.15;
+}
+
+.check-form-header small {
+    display: block;
+    margin-top: 3px;
+    color: #766b57;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.check-form-body {
+    display: grid;
+    gap: 14px;
+    padding: 16px !important;
+    background:
+        radial-gradient(circle at top right, rgb(127 95 0 / 6%), transparent 280px),
+        #f8f6ef;
+}
+
+.check-form-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 14px;
+    align-items: stretch;
+}
+
+.check-form-section {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid #ded5c0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 4px 18px rgb(57 45 21 / 5%);
+}
+
+.check-form-section__title {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+}
+
+.check-form-section__title > div {
+    min-width: 0;
+}
+
+.check-form-section__title strong,
+.check-form-section__title small {
+    display: block;
+}
+
+.check-form-section__title strong {
+    color: #2d2519;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.check-form-section__title small {
+    color: #887c67;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.check-form-step {
+    display: grid;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 9px;
+    background: #f1e8cc;
+    color: #795b00;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.check-details-grid {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    margin-top: 14px;
+}
+
+.entity-picker,
+.entity-creator {
+    min-width: 0;
+}
+
+.entity-picker__control {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: start;
+}
+
+.entity-create-button {
+    min-height: 48px;
+}
+
+.entity-selection {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.entity-selection strong,
+.entity-selection span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entity-selection strong {
+    font-size: 13px;
+}
+
+.entity-selection span {
+    color: #766b57;
+    font-size: 10px;
+}
+
+.entity-creator {
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid #aebda8;
+    border-radius: 12px;
+    background: #f3f8f0;
+}
+
+.entity-creator__header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: start;
+    margin-bottom: 10px;
+}
+
+.entity-creator__header strong,
+.entity-creator__header small {
+    display: block;
+}
+
+.entity-creator__header strong {
+    color: #284a34;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.entity-creator__header small {
+    color: #657567;
+    font-size: 10px;
+}
+
+.entity-creator__fields {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) minmax(170px, 1.2fr) 120px;
+    gap: 8px;
+    align-items: start;
+}
+
+.entity-creator__fields > .v-btn {
+    grid-column: 1 / -1;
+    justify-self: end;
+    min-height: 40px;
+}
+
+.check-form-section--totals {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #fffdf8;
+}
+
+.check-total-card {
+    display: grid;
+    grid-template-columns: 1fr 116px;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 11px;
+    border-radius: 11px;
+}
+
+.check-total-card span,
+.check-total-card small {
+    display: block;
+}
+
+.check-total-card span {
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.check-total-card small {
+    margin-top: 2px;
+    color: #756b59;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.check-total-card--manual {
+    border: 1px solid #dbc988;
+    background: #fff8df;
+}
+
+.check-total-card--calculated {
+    border: 1px solid #b9d5b2;
+    background: #edf8e9;
+}
+
+.check-total-card--calculated > strong {
+    color: #10823a;
+    font-size: 19px;
+    font-weight: 950;
+    text-align: right;
+}
+
+.check-total-card--calculated > .v-icon {
+    justify-self: end;
+}
+
+.check-total-difference {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+    color: #756b59;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.check-total-difference strong {
+    color: #385f86;
+    font-size: 13px;
+}
+
+.check-total-difference strong.is-negative {
+    color: #bd3e3e;
+}
+
+.check-form-section--commodities {
+    padding: 0;
+    overflow: hidden;
+}
+
+.commodity-section-header {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    border-bottom: 1px solid #e3dccb;
+    background: #fffdf8;
+}
+
+.commodity-section-summary {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 6px 10px;
+    border-radius: 9px;
+    background: #edf8e9;
+}
+
+.commodity-section-summary span {
+    color: #657567;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.commodity-section-summary strong {
+    color: #10823a;
+    font-size: 15px;
+    font-weight: 950;
+}
+
+.draft-line-editor {
+    display: grid;
+    grid-template-columns: minmax(230px, 1.5fr) 140px 96px 110px 110px minmax(160px, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 12px 14px;
+    background: #f5f1e7;
+}
+
+.draft-line-editor__submit {
+    min-height: 40px;
+}
+
+.form-inline-error {
+    color: #b3261e;
+    font-size: 11px;
+    font-weight: 750;
+}
+
+.draft-line-error {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    padding: 0 14px 10px;
+    background: #f5f1e7;
+}
+
+.draft-lines-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.draft-lines-table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+    table-layout: auto;
+    font-size: 12px;
+}
+
+.draft-lines-table th,
+.draft-lines-table td {
+    padding: 8px 10px;
+    border-top: 1px solid #e3dccb;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.draft-lines-table th {
+    background: #ebe7dc;
+    color: #645a49;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.draft-lines-table tbody tr:hover {
+    background: #fbfaf5;
+}
+
+.draft-lines-table td strong,
+.draft-lines-table td small {
+    display: block;
+}
+
+.draft-lines-table td small {
+    color: #7a705f;
+    font-size: 10px;
+}
+
+.draft-lines-empty {
+    padding: 22px !important;
+    color: #756b59;
+    text-align: center !important;
+}
+
+.draft-lines-empty .v-icon,
+.draft-lines-empty span,
+.draft-lines-empty small {
+    display: block;
+    margin: 0 auto;
+}
+
+.draft-lines-empty span {
+    margin-top: 5px;
+    color: #4d4538;
+    font-weight: 850;
+}
+
+.draft-commodity-cell {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    min-width: 220px;
+}
+
+.draft-commodity-cell > div {
+    min-width: 0;
+}
+
+.draft-commodity-cell strong {
+    overflow: hidden;
+    max-width: 310px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.draft-line-total {
+    color: #10823a;
+    font-size: 13px;
+    font-weight: 950;
+}
+
+.check-form-actions {
+    min-height: 66px;
+    padding: 10px 16px !important;
+    border-top: 1px solid #ded5c0;
+    background: #fffdf8;
+}
+
+.check-form-actions__summary {
+    display: flex;
+    gap: 15px;
+    color: #756b59;
+    font-size: 11px;
+}
+
+.check-form-actions__summary strong {
+    color: #30271b;
+}
+
 .modal-title {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -2238,6 +3303,32 @@ onBeforeUnmount(() => {
     border: 1px solid #948a76;
 }
 
+@media (max-width: 1100px) {
+    .draft-line-editor {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .draft-line-editor > :first-child {
+        grid-column: span 2;
+    }
+
+    .draft-line-editor > :nth-child(6) {
+        grid-column: span 3;
+    }
+
+    .draft-line-editor__submit {
+        grid-column: span 2;
+    }
+
+    .entity-creator__fields {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .entity-creator__fields > .v-btn {
+        grid-column: 1 / -1;
+    }
+}
+
 @media (max-width: 980px) {
     .checks-toolbar {
         grid-template-columns: 1fr;
@@ -2258,6 +3349,75 @@ onBeforeUnmount(() => {
 
     .dictionary-form {
         grid-template-columns: 1fr;
+    }
+
+    .check-form-overview {
+        grid-template-columns: 1fr;
+    }
+
+    .check-form-section--totals {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .check-form-section--totals .check-form-section__title,
+    .check-total-difference,
+    .check-form-section--totals > .form-inline-error {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 680px) {
+    .check-form-header {
+        grid-template-columns: auto 1fr auto;
+        padding: 11px 12px !important;
+    }
+
+    .check-form-header__icon {
+        width: 38px;
+        height: 38px;
+    }
+
+    .check-form-header span {
+        font-size: 18px;
+    }
+
+    .check-form-body {
+        padding: 10px !important;
+    }
+
+    .check-details-grid,
+    .entity-picker__control,
+    .entity-creator__fields,
+    .check-form-section--totals,
+    .draft-line-editor {
+        grid-template-columns: 1fr;
+    }
+
+    .draft-line-editor > :first-child,
+    .draft-line-editor > :nth-child(6),
+    .draft-line-editor__submit,
+    .entity-creator__fields > .v-btn {
+        grid-column: auto;
+        justify-self: stretch;
+    }
+
+    .commodity-section-header,
+    .check-form-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .commodity-section-summary {
+        justify-content: space-between;
+    }
+
+    .check-form-actions__summary {
+        justify-content: space-between;
+    }
+
+    .check-form-actions .v-spacer {
+        display: none;
     }
 }
 </style>
