@@ -7,6 +7,7 @@ use App\Models\Commodity;
 use App\Models\Entity;
 use App\Models\ExpenseArticle;
 use App\Models\Measure;
+use App\Models\Project;
 use App\Models\Service;
 use App\Models\StockMovement;
 use App\Models\Unit;
@@ -135,6 +136,53 @@ class CheckCreationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Юридическое лицо')
             ->assertJsonPath('data.0.units.0.name', 'Масложировой комбинат');
+    }
+
+    public function test_check_index_includes_entity_units_and_compact_row_summaries(): void
+    {
+        $entity = Entity::query()->create(['name' => 'Поставщик']);
+        $unit = Unit::query()->create(['name' => 'Производственная площадка']);
+        $entity->units()->attach($unit);
+        $article = ExpenseArticle::query()->create([
+            'name' => 'Закупки',
+            'color' => '#7aa35b',
+        ]);
+        $project = Project::query()->create(['name' => 'Доставка']);
+        $commodity = Commodity::query()->create([
+            'name' => 'Сырьё',
+            'expense_article_id' => $article->id,
+        ]);
+        $service = Service::query()->create([
+            'name' => 'Перевозка',
+            'expense_article_id' => $article->id,
+            'project_id' => $project->id,
+        ]);
+
+        $this->postJson('/api/checks', [
+            'date' => '2026-08-12',
+            'entity_id' => $entity->id,
+            'amount' => 500,
+            'commodities' => [[
+                'commodity_id' => $commodity->id,
+                'quantity' => 2,
+                'price' => 100,
+            ]],
+            'services' => [[
+                'service_id' => $service->id,
+                'quantity' => 1,
+                'price' => 50,
+            ]],
+        ])->assertCreated();
+
+        $this->getJson('/api/checks')
+            ->assertOk()
+            ->assertJsonPath('data.0.entity.units.0.id', $unit->id)
+            ->assertJsonPath('data.0.entity.units.0.name', 'Производственная площадка')
+            ->assertJsonPath('data.0.table_summary.expense_articles.0.name', 'Закупки')
+            ->assertJsonPath('data.0.table_summary.expense_articles.0.color', '#7aa35b')
+            ->assertJsonPath('data.0.table_summary.projects.0.name', 'Без проекта')
+            ->assertJsonPath('data.0.table_summary.projects.1.name', 'Доставка')
+            ->assertJsonPath('meta.without_project_total', 200);
     }
 
     public function test_existing_commodity_endpoints_keep_stock_movement_in_sync(): void

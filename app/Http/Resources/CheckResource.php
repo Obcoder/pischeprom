@@ -28,6 +28,12 @@ class CheckResource extends JsonResource
                     'id' => $this->entity?->classification?->id,
                     'name' => $this->entity?->classification?->name,
                 ] : null,
+                'units' => $this->entity?->relationLoaded('units')
+                    ? $this->entity->units->map(fn ($unit) => [
+                        'id' => $unit->id,
+                        'name' => $unit->name,
+                    ])->values()
+                    : [],
             ]),
             'amount' => $this->amount,
             'items_count' => ($this->items_count ?? 0) + ($this->service_items_count ?? 0),
@@ -38,6 +44,10 @@ class CheckResource extends JsonResource
             'positions_total' => $commodityItemsTotal !== null && $serviceItemsTotal !== null
                 ? $commodityItemsTotal + $serviceItemsTotal
                 : null,
+            'table_summary' => $this->resource->getAttribute('table_summary') ?? [
+                'expense_articles' => [],
+                'projects' => [],
+            ],
             'items' => CheckCommodityResource::collection($this->whenLoaded('items')),
             'service_items' => CheckServiceResource::collection($this->whenLoaded('serviceItems')),
             'commodities' => CommodityResource::collection($this->whenLoaded('commodities')),

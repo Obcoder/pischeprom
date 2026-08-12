@@ -31,6 +31,8 @@ const selectedCheckLoading = ref(false)
 const checkDialog = ref(false)
 const detailDialog = ref(false)
 const dictionaryDialog = ref(false)
+const datePickerOpen = ref(false)
+const calendarDate = ref(null)
 const dictionaryType = ref('articles')
 const entityCreatorOpen = ref(false)
 const entitySearch = ref('')
@@ -74,6 +76,7 @@ const checksMeta = reactive({
     total_amount: 0,
     items_count: 0,
     project_totals: [],
+    without_project_total: 0,
 })
 
 const checkForm = reactive({
@@ -252,6 +255,23 @@ const stats = computed(() => {
     }
 })
 
+const withoutProjectTotal = computed(() => numeric(
+    checksMeta.without_project_total
+    ?? checksMeta.project_totals.find((item) => item.project_id === null)?.total
+))
+
+const projectTotalsWithProject = computed(() => (
+    checksMeta.project_totals.filter((item) => item.project_id !== null)
+))
+
+const calendarButtonLabel = computed(() => {
+    if (filters.date_from && filters.date_from === filters.date_to) {
+        return formatCompactDate(filters.date_from)
+    }
+
+    return 'Календарь'
+})
+
 const dictionaryItems = computed(() => {
     if (dictionaryType.value === 'articles') {
         return expenseArticles.value
@@ -334,30 +354,30 @@ const datePresets = [
     {
         key: 'previous-2-days',
         label: 'Прошлые 2 дня',
-        startOffset: -2,
-        endOffset: -1,
-        title: 'Два предыдущих дня, без сегодня',
+        startOffset: -1,
+        endOffset: 0,
+        title: 'Сегодня и вчера',
     },
     {
         key: 'previous-3-days',
         label: 'Прошлые 3 дня',
-        startOffset: -3,
-        endOffset: -1,
-        title: 'Три предыдущих дня, без сегодня',
+        startOffset: -2,
+        endOffset: 0,
+        title: 'Сегодня и два предыдущих дня',
     },
     {
         key: 'previous-4-days',
         label: 'Прошлые 4 дня',
-        startOffset: -4,
-        endOffset: -1,
-        title: 'Четыре предыдущих дня, без сегодня',
+        startOffset: -3,
+        endOffset: 0,
+        title: 'Сегодня и три предыдущих дня',
     },
     {
         key: 'week',
         label: 'Неделя',
-        startOffset: -7,
-        endOffset: -1,
-        title: 'Предыдущие семь дней, без сегодня',
+        startOffset: -6,
+        endOffset: 0,
+        title: 'Последние семь дней, включая сегодня',
     },
 ]
 
@@ -453,6 +473,9 @@ function applyDatePreset(preset) {
 
     filters.date_from = range.from
     filters.date_to = range.to
+    calendarDate.value = range.from === range.to
+        ? new Date(`${range.from}T12:00:00`)
+        : null
 }
 
 function isDatePresetActive(preset) {
@@ -490,6 +513,62 @@ function formatDate(value) {
     }).format(date)
 
     return `${date.getFullYear()} ${month} ${date.getDate()}`
+}
+
+function formatTableDate(value) {
+    if (!value) {
+        return '-'
+    }
+
+    const date = new Date(`${value}T12:00:00`)
+
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(date).replace(' г.', '')
+}
+
+function formatCompactDate(value) {
+    if (!value) {
+        return 'Календарь'
+    }
+
+    const date = new Date(`${value}T12:00:00`)
+
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+    }).format(date)
+}
+
+function selectCalendarDate(value) {
+    const selected = Array.isArray(value) ? value[0] : value
+
+    if (!selected) {
+        return
+    }
+
+    const date = selected instanceof Date ? selected : new Date(selected)
+
+    if (Number.isNaN(date.getTime())) {
+        return
+    }
+
+    const selectedDate = dateInputValue(date)
+
+    calendarDate.value = date
+    filters.date_from = selectedDate
+    filters.date_to = selectedDate
+    datePickerOpen.value = false
 }
 
 function formatQty(value) {
@@ -556,8 +635,35 @@ function entityName(check) {
     return check.entity?.name || 'Без entity'
 }
 
-function entitySubtitle(check) {
-    return check.entity?.classification?.name || `Entity #${check.entity_id || '-'}`
+function entityClassificationName(check) {
+    return check.entity?.classification?.name || ''
+}
+
+function checkEntityUnits(check) {
+    return check.entity?.units || []
+}
+
+function checkEntityUnitsLabel(check) {
+    return checkEntityUnits(check)
+        .map((unit) => unit?.name)
+        .filter(Boolean)
+        .join(', ')
+}
+
+function tableSummaryItems(check, key) {
+    return check.table_summary?.[key] || []
+}
+
+function visibleTableSummaryItems(check, key) {
+    return tableSummaryItems(check, key).slice(0, 2)
+}
+
+function hiddenTableSummaryCount(check, key) {
+    return Math.max(0, tableSummaryItems(check, key).length - 2)
+}
+
+function tableSummaryTitle(check, key) {
+    return tableSummaryItems(check, key).map((item) => item.name).join(', ')
 }
 
 function entityHref(check) {
@@ -677,6 +783,8 @@ function resetFilters() {
     filters.project_id = null
     filters.sort_by = 'date'
     filters.sort_desc = true
+    calendarDate.value = null
+    datePickerOpen.value = false
 }
 
 async function loadChecks() {
@@ -691,6 +799,7 @@ async function loadChecks() {
         checksMeta.total_amount = numeric(response.data?.meta?.total_amount)
         checksMeta.items_count = Number(response.data?.meta?.items_count || 0)
         checksMeta.project_totals = response.data?.meta?.project_totals || []
+        checksMeta.without_project_total = numeric(response.data?.meta?.without_project_total)
     } catch (error) {
         console.error('loadChecks error:', error)
     } finally {
@@ -1357,18 +1466,28 @@ onBeforeUnmount(() => {
                     <strong>{{ checks.length }}</strong>
                 </div>
 
-                <div class="checks-kpis">
-                    <div>
-                        <span>Сумма</span>
-                        <strong>{{ formatMoney(stats.total) }}</strong>
+                <div class="checks-toolbar__summary">
+                    <div class="checks-unassigned-total" title="Сумма позиций без связанного проекта">
+                        <span>
+                            <v-icon icon="mdi-folder-question-outline" size="13" />
+                            Без проекта
+                        </span>
+                        <strong>{{ formatMoney(withoutProjectTotal) }}</strong>
                     </div>
-                    <div>
-                        <span>Строк</span>
-                        <strong>{{ stats.items }}</strong>
-                    </div>
-                    <div>
-                        <span>Средний</span>
-                        <strong>{{ formatMoney(stats.average) }}</strong>
+
+                    <div class="checks-kpis">
+                        <div>
+                            <span>Сумма</span>
+                            <strong>{{ formatMoney(stats.total) }}</strong>
+                        </div>
+                        <div>
+                            <span>Строк</span>
+                            <strong>{{ stats.items }}</strong>
+                        </div>
+                        <div>
+                            <span>Средний</span>
+                            <strong>{{ formatMoney(stats.average) }}</strong>
+                        </div>
                     </div>
                 </div>
 
@@ -1414,19 +1533,36 @@ onBeforeUnmount(() => {
             </header>
 
             <section class="checks-filter-panel">
-                <div class="checks-date-presets" aria-label="Быстрый фильтр по дате">
-                    <button
-                        v-for="preset in datePresets"
-                        :key="preset.key"
-                        type="button"
-                        class="checks-date-preset"
-                        :class="{ 'checks-date-preset--active': isDatePresetActive(preset) }"
-                        :title="preset.title"
-                        :aria-pressed="isDatePresetActive(preset)"
-                        @click="applyDatePreset(preset)"
-                    >
-                        {{ preset.label }}
-                    </button>
+                <div class="checks-filter-topline">
+                    <div class="checks-date-presets" aria-label="Быстрый фильтр по дате">
+                        <button
+                            v-for="preset in datePresets"
+                            :key="preset.key"
+                            type="button"
+                            class="checks-date-preset"
+                            :class="{ 'checks-date-preset--active': isDatePresetActive(preset) }"
+                            :title="preset.title"
+                            :aria-pressed="isDatePresetActive(preset)"
+                            @click="applyDatePreset(preset)"
+                        >
+                            {{ preset.label }}
+                        </button>
+                    </div>
+
+                    <div v-if="projectTotalsWithProject.length" class="checks-project-totals">
+                        <button
+                            v-for="projectTotal in projectTotalsWithProject"
+                            :key="projectTotal.project_id"
+                            type="button"
+                            class="project-total"
+                            :class="{ 'project-total--active': Number(filters.project_id) === Number(projectTotal.project_id) }"
+                            :title="`${projectTotal.project_name}: ${formatMoney(projectTotal.total)}`"
+                            @click="filters.project_id = projectTotal.project_id"
+                        >
+                            <span>{{ projectTotal.project_name }}</span>
+                            <strong>{{ formatMoney(projectTotal.total) }}</strong>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="checks-filter-grid">
@@ -1446,6 +1582,30 @@ onBeforeUnmount(() => {
                         density="compact"
                         hide-details
                     />
+                    <v-menu
+                        v-model="datePickerOpen"
+                        :close-on-content-click="false"
+                        location="bottom start"
+                    >
+                        <template #activator="{ props }">
+                            <v-btn
+                                v-bind="props"
+                                class="checks-calendar-button"
+                                prepend-icon="mdi-calendar-month-outline"
+                                :text="calendarButtonLabel"
+                                variant="tonal"
+                                density="comfortable"
+                            />
+                        </template>
+                        <v-date-picker
+                            :model-value="calendarDate"
+                            color="#7f5f00"
+                            locale="ru-RU"
+                            show-adjacent-months
+                            title="Выберите дату"
+                            @update:model-value="selectCalendarDate"
+                        />
+                    </v-menu>
                     <v-autocomplete
                         v-model="filters.entity_id"
                         :items="entities"
@@ -1503,21 +1663,6 @@ onBeforeUnmount(() => {
                         @click="resetFilters"
                     />
                 </div>
-
-                <div class="checks-project-totals">
-                    <button
-                        v-for="projectTotal in checksMeta.project_totals"
-                        :key="projectTotal.project_id || 'without-project'"
-                        type="button"
-                        class="project-total"
-                        :class="{ 'project-total--active': projectTotal.project_id && Number(filters.project_id) === Number(projectTotal.project_id) }"
-                        @click="filters.project_id = projectTotal.project_id"
-                    >
-                        <span>{{ projectTotal.project_name }}</span>
-                        <strong>{{ formatMoney(projectTotal.total) }}</strong>
-                    </button>
-                    <span v-if="!checksMeta.project_totals.length" class="muted">Нет сумм по проектам</span>
-                </div>
             </section>
 
             <div class="checks-table-wrap">
@@ -1533,17 +1678,19 @@ onBeforeUnmount(() => {
                         <col class="checks-col-actions">
                     </colgroup>
                     <thead>
-                        <tr class="checks-grid__groups">
-                            <th colspan="3" class="group-check">Check</th>
-                            <th colspan="2" class="group-budget">Бюджет</th>
-                            <th colspan="2" class="group-links">Связи</th>
-                            <th class="group-actions">Действия</th>
-                        </tr>
                         <tr>
-                            <th class="col-id">ID</th>
-                            <th class="col-date">Дата</th>
+                            <th class="col-id">#</th>
+                            <th class="col-date">
+                                <span class="checks-heading">
+                                    <v-icon icon="mdi-calendar-blank-outline" size="13" />
+                                    Дата
+                                </span>
+                            </th>
                             <th ref="entityHeader" class="col-entity">
-                                <span class="col-entity__label">Контрагент</span>
+                                <span class="checks-heading col-entity__label">
+                                    <v-icon icon="mdi-domain" size="13" />
+                                    Entity · Unit
+                                </span>
                                 <span
                                     class="column-resize-handle"
                                     role="separator"
@@ -1553,11 +1700,13 @@ onBeforeUnmount(() => {
                                     @mousedown.stop.prevent="startEntityColumnResize"
                                 ></span>
                             </th>
-                            <th class="col-money">Сумма</th>
-                            <th class="col-count">Строк</th>
-                            <th>Статья</th>
-                            <th>Проект</th>
-                            <th class="col-edit">CRUD</th>
+                            <th class="col-money">
+                                <span class="checks-heading checks-heading--right">Сумма</span>
+                            </th>
+                            <th class="col-count">Поз.</th>
+                            <th>Статьи</th>
+                            <th>Проекты</th>
+                            <th class="col-edit" aria-label="Действия"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1575,9 +1724,9 @@ onBeforeUnmount(() => {
                                 @click="openCheck(check)"
                             >
                                 <td class="cell-id" :title="`Check #${check.id}`">{{ check.id }}</td>
-                                <td class="cell-date">{{ formatDate(check.date) }}</td>
-                                <td>
-                                    <span class="entity-button">
+                                <td class="cell-date">{{ formatTableDate(check.date) }}</td>
+                                <td class="cell-entity">
+                                    <span class="entity-inline" :title="`${entityName(check)}${checkEntityUnitsLabel(check) ? ` · Unit: ${checkEntityUnitsLabel(check)}` : ''}`">
                                         <a
                                             v-if="entityHref(check)"
                                             :href="entityHref(check)"
@@ -1587,36 +1736,71 @@ onBeforeUnmount(() => {
                                             <strong>{{ entityName(check) }}</strong>
                                         </a>
                                         <strong v-else>{{ entityName(check) }}</strong>
-                                        <span>{{ entitySubtitle(check) }}</span>
+                                        <span v-if="entityClassificationName(check)" class="entity-classification">
+                                            {{ entityClassificationName(check) }}
+                                        </span>
+                                        <span v-if="checkEntityUnits(check).length" class="entity-unit">
+                                            <v-icon icon="mdi-office-building-marker-outline" size="13" />
+                                            {{ checkEntityUnitsLabel(check) }}
+                                        </span>
                                     </span>
                                 </td>
                                 <td class="cell-money">{{ formatMoney(check.amount) }}</td>
                                 <td class="cell-count">{{ check.items_count || check.items?.length || 0 }}</td>
-                                <td>
-                                    <span class="muted">по строкам</span>
+                                <td class="cell-summary" :title="tableSummaryTitle(check, 'expense_articles')">
+                                    <div v-if="tableSummaryItems(check, 'expense_articles').length" class="table-summary-list">
+                                        <span
+                                            v-for="article in visibleTableSummaryItems(check, 'expense_articles')"
+                                            :key="article.id || article.name"
+                                            class="table-summary-chip table-summary-chip--article"
+                                            :style="{ '--summary-color': article.color || '#8aa27f' }"
+                                        >
+                                            {{ article.name }}
+                                        </span>
+                                        <span v-if="hiddenTableSummaryCount(check, 'expense_articles')" class="table-summary-more">
+                                            +{{ hiddenTableSummaryCount(check, 'expense_articles') }}
+                                        </span>
+                                    </div>
+                                    <span v-else class="table-summary-empty">—</span>
                                 </td>
-                                <td>
-                                    <span class="muted">commodity</span>
+                                <td class="cell-summary" :title="tableSummaryTitle(check, 'projects')">
+                                    <div v-if="tableSummaryItems(check, 'projects').length" class="table-summary-list">
+                                        <span
+                                            v-for="project in visibleTableSummaryItems(check, 'projects')"
+                                            :key="project.id || project.name"
+                                            class="table-summary-chip table-summary-chip--project"
+                                            :class="{ 'table-summary-chip--unassigned': project.id === null }"
+                                        >
+                                            {{ project.name }}
+                                        </span>
+                                        <span v-if="hiddenTableSummaryCount(check, 'projects')" class="table-summary-more">
+                                            +{{ hiddenTableSummaryCount(check, 'projects') }}
+                                        </span>
+                                    </div>
+                                    <span v-else class="table-summary-empty">—</span>
                                 </td>
                                 <td>
                                     <div class="row-actions">
                                         <v-btn
                                             icon="mdi-eye-outline"
-                                            size="small"
+                                            size="x-small"
+                                            density="compact"
                                             variant="text"
                                             title="Открыть чек"
                                             @click.stop="openCheck(check)"
                                         />
                                         <v-btn
                                             icon="mdi-pencil-outline"
-                                            size="small"
+                                            size="x-small"
+                                            density="compact"
                                             variant="text"
                                             title="Редактировать"
                                             @click.stop="openEditCheck(check)"
                                         />
                                         <v-btn
                                             icon="mdi-delete-outline"
-                                            size="small"
+                                            size="x-small"
+                                            density="compact"
                                             variant="text"
                                             color="error"
                                             title="Удалить"
@@ -2625,12 +2809,14 @@ onBeforeUnmount(() => {
 
 .checks-toolbar {
     display: grid;
-    grid-template-columns: minmax(170px, 1fr) auto auto;
+    grid-template-columns: minmax(150px, 1fr) auto auto;
     gap: 12px;
     align-items: center;
-    padding: 8px 10px;
+    min-height: 54px;
+    padding: 7px 10px;
     border: 1px solid #c7b894;
-    background: #fffaf0;
+    background: linear-gradient(100deg, #fffdf8 0%, #f6efdc 100%);
+    box-shadow: 0 2px 8px rgb(63 50 25 / 5%);
 }
 
 .checks-toolbar__title {
@@ -2644,6 +2830,39 @@ onBeforeUnmount(() => {
 .checks-toolbar__title strong {
     color: #17845f;
     font-size: 16px;
+}
+
+.checks-toolbar__summary {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.checks-unassigned-total {
+    display: flex;
+    min-width: 138px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 9px;
+    border: 1px solid #d7c78f;
+    background: #fff8dd;
+}
+
+.checks-unassigned-total span {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    color: #75643a;
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.checks-unassigned-total strong {
+    color: #9a6d00;
+    font-size: 14px;
+    font-weight: 950;
 }
 
 .checks-kpis {
@@ -2686,10 +2905,18 @@ onBeforeUnmount(() => {
 
 .checks-filter-panel {
     display: grid;
-    gap: 8px;
-    padding: 8px;
+    gap: 6px;
+    padding: 7px 8px;
     border: 1px solid #c7b894;
-    background: #f7f0df;
+    background: linear-gradient(100deg, #faf4e5 0%, #f3ead5 100%);
+}
+
+.checks-filter-topline {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
 }
 
 .checks-date-presets {
@@ -2702,16 +2929,16 @@ onBeforeUnmount(() => {
 
 .checks-date-preset {
     flex: 0 0 auto;
-    height: 20px;
-    padding: 0 6px;
+    height: 23px;
+    padding: 0 7px;
     border: 1px solid #c7b894;
-    border-radius: 2px;
+    border-radius: 5px;
     background: #fffdf7;
     color: #625743;
     cursor: pointer;
     font-size: 9px;
     font-weight: 850;
-    line-height: 18px;
+    line-height: 21px;
     white-space: nowrap;
 }
 
@@ -2734,26 +2961,39 @@ onBeforeUnmount(() => {
 
 .checks-filter-grid {
     display: grid;
-    grid-template-columns: 130px 130px minmax(220px, 1fr) minmax(180px, 260px) 138px auto auto;
+    grid-template-columns: 125px 125px 112px minmax(220px, 1fr) minmax(170px, 240px) 132px auto auto;
     gap: 8px;
     align-items: center;
 }
 
+.checks-calendar-button {
+    width: 112px;
+    min-height: 40px;
+    border: 1px solid #c9ba96;
+    background: #fffdf8;
+    color: #6c5418;
+    font-size: 10px;
+    font-weight: 850;
+}
+
 .checks-project-totals {
     display: flex;
+    min-width: 0;
     gap: 6px;
     overflow-x: auto;
-    padding-bottom: 2px;
+    scrollbar-width: thin;
 }
 
 .project-total {
-    display: inline-grid;
-    grid-template-columns: minmax(90px, 1fr) auto;
-    gap: 10px;
-    align-items: baseline;
-    min-width: 180px;
-    padding: 4px 8px;
+    display: inline-flex;
+    height: 23px;
+    max-width: 190px;
+    flex: 0 0 auto;
+    gap: 6px;
+    align-items: center;
+    padding: 0 7px;
     border: 1px solid #c7b894;
+    border-radius: 5px;
     background: #ffffff;
     color: #24180f;
     line-height: 1.15;
@@ -2762,7 +3002,7 @@ onBeforeUnmount(() => {
 
 .project-total span {
     overflow: hidden;
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 900;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2770,7 +3010,7 @@ onBeforeUnmount(() => {
 
 .project-total strong {
     color: #10913d;
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 950;
 }
 
@@ -2787,6 +3027,12 @@ onBeforeUnmount(() => {
     background: #ffffff;
 }
 
+.checks-table-wrap {
+    border: 1px solid #c9bc9d;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgb(65 51 22 / 6%);
+}
+
 .checks-grid,
 .receipt-table,
 .dictionary-table {
@@ -2795,6 +3041,13 @@ onBeforeUnmount(() => {
     border-collapse: collapse;
     table-layout: fixed;
     font-size: 12px;
+}
+
+.checks-grid {
+    min-width: 1050px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 11px;
 }
 
 .checks-grid th,
@@ -2817,6 +3070,36 @@ onBeforeUnmount(() => {
     color: #1f1b16;
     font-weight: 900;
     text-align: left;
+}
+
+.checks-grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 32px;
+    padding: 4px 8px;
+    border: 0;
+    border-right: 1px solid #ded7c7;
+    border-bottom: 1px solid #bcae8d;
+    background: #eee9dc;
+    color: #5c5241;
+    font-size: 9px;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+
+.checks-grid thead th:last-child {
+    border-right: 0;
+}
+
+.checks-heading {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.checks-heading--right {
+    justify-content: flex-end;
 }
 
 .checks-grid__groups th {
@@ -2848,10 +3131,18 @@ onBeforeUnmount(() => {
     background: #fff4cc;
 }
 
+.checks-grid tbody tr:nth-child(odd) {
+    background: #fffdf8;
+}
+
 .checks-grid tbody tr:nth-child(even),
 .receipt-table tbody tr:nth-child(even),
 .dictionary-table tbody tr:nth-child(even) {
     background: #ffffff;
+}
+
+.checks-grid tbody tr:nth-child(even) {
+    background: #f8f4e9;
 }
 
 .checks-grid tbody tr:hover,
@@ -2860,33 +3151,57 @@ onBeforeUnmount(() => {
     background: #e8f1df;
 }
 
+.checks-grid tbody tr:hover {
+    background: #edf5e8;
+    box-shadow: inset 3px 0 #4b7a57;
+}
+
 .checks-grid__row {
+    height: 38px;
     cursor: pointer;
 }
 
+.checks-grid tbody td {
+    height: 38px;
+    padding: 3px 8px;
+    border: 0;
+    border-right: 1px solid #e8e1d2;
+    border-bottom: 1px solid #ded6c3;
+    line-height: 1.1;
+    vertical-align: middle;
+}
+
+.checks-grid tbody td:last-child {
+    border-right: 0;
+}
+
+.checks-grid tbody tr:last-child td {
+    border-bottom: 0;
+}
+
 .checks-col-id {
-    width: 64px;
+    width: 52px;
 }
 
 .checks-col-date {
-    width: 148px;
+    width: 116px;
 }
 
 .checks-col-money {
-    width: 160px;
+    width: 132px;
 }
 
 .checks-col-count {
-    width: 72px;
+    width: 58px;
 }
 
 .checks-col-article,
 .checks-col-project {
-    width: 136px;
+    width: 160px;
 }
 
 .checks-col-actions {
-    width: 118px;
+    width: 100px;
 }
 
 .checks-col-entity {
@@ -2954,7 +3269,7 @@ onBeforeUnmount(() => {
 .cell-id {
     color: #806100;
     font-family: "JetBrains Mono", monospace;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 900;
     padding-right: 2px !important;
     padding-left: 2px !important;
@@ -2963,14 +3278,16 @@ onBeforeUnmount(() => {
 
 .cell-date {
     color: #5f574a;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
+    white-space: nowrap;
 }
 
 .cell-money {
-    background: #ecf8e7;
+    background: rgb(228 244 222 / 72%);
     color: #10913d;
-    font-weight: 900;
+    font-size: 12px;
+    font-weight: 950;
     text-align: right;
 }
 
@@ -2980,23 +3297,26 @@ onBeforeUnmount(() => {
     text-align: center;
 }
 
-.entity-button {
+.entity-inline {
     display: flex;
-    flex-direction: column;
+    gap: 7px;
+    align-items: center;
+    min-width: 0;
     max-width: 100%;
     border: 0;
     background: transparent;
     color: inherit;
     cursor: default;
-    line-height: 1.15;
+    line-height: 1;
     text-align: left;
+    white-space: nowrap;
 }
 
 .entity-link {
-    align-self: flex-start;
-    color: inherit;
-    display: inline-block;
-    max-width: 100%;
+    display: block;
+    min-width: 0;
+    max-width: 48%;
+    color: #2b2418;
     overflow: hidden;
     text-overflow: ellipsis;
     text-decoration: none;
@@ -3007,14 +3327,102 @@ onBeforeUnmount(() => {
     text-decoration: underline;
 }
 
-.entity-button strong,
-.entity-button span {
+.entity-link strong,
+.entity-inline > strong {
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.entity-inline > strong,
+.entity-inline > span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.entity-button span,
+.cell-entity {
+    min-width: 0;
+}
+
+.entity-classification {
+    flex: 0 0 auto;
+    max-width: 82px;
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #eee8d8;
+    color: #71664f;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.entity-unit {
+    display: flex;
+    min-width: 0;
+    gap: 4px;
+    align-items: center;
+    color: #4b6b53;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.entity-unit .v-icon {
+    flex: 0 0 auto;
+}
+
+.table-summary-list {
+    display: flex;
+    min-width: 0;
+    gap: 3px;
+    align-items: center;
+    overflow: hidden;
+}
+
+.table-summary-chip,
+.table-summary-more {
+    display: block;
+    overflow: hidden;
+    min-width: 0;
+    padding: 3px 6px;
+    border-radius: 999px;
+    font-size: 8px;
+    font-weight: 850;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table-summary-chip {
+    max-width: 88px;
+}
+
+.table-summary-chip--article {
+    border-left: 3px solid var(--summary-color);
+    border-radius: 4px;
+    background: #ffffff;
+    color: #514839;
+}
+
+.table-summary-chip--project {
+    background: #e5eef7;
+    color: #315a78;
+}
+
+.table-summary-chip--unassigned {
+    background: #f1ead8;
+    color: #7b6a3e;
+}
+
+.table-summary-more {
+    flex: 0 0 auto;
+    background: #e8e3d7;
+    color: #665d4e;
+}
+
+.table-summary-empty {
+    color: #a49b8d;
+}
+
 .muted {
     color: #756b59;
     font-size: 11px;
@@ -3704,20 +4112,26 @@ onBeforeUnmount(() => {
 
 @media (max-width: 980px) {
     .checks-toolbar {
-        grid-template-columns: 1fr;
-    }
-
-    .checks-kpis {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: minmax(130px, 1fr) auto;
     }
 
     .checks-actions {
+        grid-column: 1 / -1;
         justify-content: flex-start;
         flex-wrap: wrap;
     }
 
+    .checks-filter-topline {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
     .checks-filter-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .checks-calendar-button {
+        width: 100%;
     }
 
     .dictionary-form {
@@ -3742,6 +4156,39 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 680px) {
+    .checks-shell {
+        padding: 8px;
+    }
+
+    .checks-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .checks-toolbar__summary {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr);
+    }
+
+    .checks-unassigned-total {
+        min-width: 0;
+    }
+
+    .checks-kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .checks-kpis div {
+        padding: 4px 5px;
+    }
+
+    .checks-kpis strong {
+        font-size: 12px;
+    }
+
+    .checks-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
     .check-form-header {
         grid-template-columns: auto 1fr auto;
         padding: 11px 12px !important;

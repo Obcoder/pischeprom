@@ -25,19 +25,28 @@ class CheckController extends Controller
         $baseQuery = $this->filteredChecksQuery($request);
         $totalAmount = (clone $baseQuery)->sum('amount');
         $checksQuery = (clone $baseQuery)
-            ->with(['entity.classification'])
+            ->with([
+                'entity.classification',
+                'entity.units' => fn ($query) => $query
+                    ->select('units.id', 'units.name')
+                    ->without(['fields', 'labels', 'telephones', 'uris']),
+            ])
             ->withCount(['items', 'serviceItems']);
 
         $this->applySort($checksQuery, $request);
 
         $checks = $checksQuery->get();
+        $this->attachTableSummaries($checks);
+        $projectTotals = $this->projectTotals($request);
 
         return response()->json([
             'data' => CheckResource::collection($checks)->resolve($request),
             'meta' => [
                 'total_amount' => (float) $totalAmount,
                 'items_count' => (int) $checks->sum(fn ($check) => ($check->items_count ?? 0) + ($check->service_items_count ?? 0)),
-                'project_totals' => $this->projectTotals($request),
+                'project_totals' => $projectTotals,
+                'without_project_total' => (float) (collect($projectTotals)
+                    ->firstWhere('project_id', null)['total'] ?? 0),
             ],
         ]);
     }
@@ -244,11 +253,96 @@ class CheckController extends Controller
             ->get();
     }
 
+    private function attachTableSummaries($checks): void
+    {
+        $checkIds = $checks->modelKeys();
+
+        if ($checkIds === []) {
+            return;
+        }
+
+        $rows = collect()
+            ->merge($this->commodityTableSummaryRows($checkIds))
+            ->merge($this->serviceTableSummaryRows($checkIds))
+            ->groupBy('check_id');
+
+        foreach ($checks as $check) {
+            $checkRows = $rows->get($check->id, collect());
+
+            $check->setAttribute('table_summary', [
+                'expense_articles' => $this->uniqueTableSummaryValues(
+                    $checkRows,
+                    'expense_article_id',
+                    'expense_article_name',
+                    'Без статьи',
+                    'expense_article_color',
+                ),
+                'projects' => $this->uniqueTableSummaryValues(
+                    $checkRows,
+                    'project_id',
+                    'project_name',
+                    'Без проекта',
+                ),
+            ]);
+        }
+    }
+
+    private function commodityTableSummaryRows(array $checkIds)
+    {
+        return DB::table('check_commodity as item')
+            ->join('commodities as source', 'source.id', '=', 'item.commodity_id')
+            ->leftJoin('expense_articles as item_article', 'item_article.id', '=', 'item.expense_article_id')
+            ->leftJoin('expense_articles as default_article', 'default_article.id', '=', 'source.expense_article_id')
+            ->leftJoin('projects as project', 'project.id', '=', 'source.project_id')
+            ->whereIn('item.check_id', $checkIds)
+            ->select('item.check_id', 'source.project_id', 'project.name as project_name')
+            ->selectRaw('COALESCE(item_article.id, default_article.id) as expense_article_id')
+            ->selectRaw('COALESCE(item_article.name, default_article.name) as expense_article_name')
+            ->selectRaw('COALESCE(item_article.color, default_article.color) as expense_article_color')
+            ->get();
+    }
+
+    private function serviceTableSummaryRows(array $checkIds)
+    {
+        return DB::table('check_service as item')
+            ->join('services as source', 'source.id', '=', 'item.service_id')
+            ->leftJoin('expense_articles as item_article', 'item_article.id', '=', 'item.expense_article_id')
+            ->leftJoin('expense_articles as default_article', 'default_article.id', '=', 'source.expense_article_id')
+            ->leftJoin('projects as project', 'project.id', '=', 'source.project_id')
+            ->whereIn('item.check_id', $checkIds)
+            ->select('item.check_id', 'source.project_id', 'project.name as project_name')
+            ->selectRaw('COALESCE(item_article.id, default_article.id) as expense_article_id')
+            ->selectRaw('COALESCE(item_article.name, default_article.name) as expense_article_name')
+            ->selectRaw('COALESCE(item_article.color, default_article.color) as expense_article_color')
+            ->get();
+    }
+
+    private function uniqueTableSummaryValues(
+        $rows,
+        string $idField,
+        string $nameField,
+        string $fallbackName,
+        ?string $colorField = null,
+    ): array {
+        return $rows
+            ->map(fn ($row) => [
+                'id' => $row->{$idField} ? (int) $row->{$idField} : null,
+                'name' => $row->{$nameField} ?: $fallbackName,
+                ...($colorField ? ['color' => $row->{$colorField} ?: null] : []),
+            ])
+            ->unique(fn ($value) => ($value['id'] ?? 'none').':'.$value['name'])
+            ->values()
+            ->all();
+    }
+
     private function findForResponse(int $id): Check
     {
         return Check::query()
             ->with([
                 'entity.classification',
+                'entity.units' => fn ($query) => $query
+                    ->select('units.id', 'units.name')
+                    ->without(['fields', 'labels', 'telephones', 'uris']),
                 'items',
                 'serviceItems',
                 'logisticsExpenses.category',
