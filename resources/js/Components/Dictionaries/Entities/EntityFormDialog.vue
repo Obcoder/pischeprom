@@ -6,9 +6,14 @@ import { route } from 'ziggy-js'
 const props = defineProps({
     modelValue: Boolean,
     loading: Boolean,
+    preparing: Boolean,
     isEdit: Boolean,
     form: { type: Object, required: true },
     meta: { type: Object, required: true },
+    errors: { type: Object, default: () => ({}) },
+    error: { type: String, default: '' },
+    title: { type: String, default: '' },
+    submitText: { type: String, default: 'Сохранить' },
 })
 
 const emit = defineEmits(['update:modelValue', 'submit', 'building-created', 'telephone-created'])
@@ -41,6 +46,14 @@ const buildingForm = reactive({
 
 const close = () => emit('update:modelValue', false)
 const save = () => emit('submit')
+
+const validationMessage = (field) => {
+    const messages = props.errors?.[field]
+        ?? Object.entries(props.errors || {})
+            .find(([key]) => key.startsWith(`${field}.`))?.[1]
+
+    return Array.isArray(messages) ? messages[0] : messages || ''
+}
 
 const normalizeSearchText = (value) => String(value ?? '')
     .normalize('NFKD')
@@ -560,10 +573,27 @@ watch(
     >
         <v-card>
             <v-card-title>
-                {{ isEdit ? 'Редактирование Entity' : 'Новая Entity' }}
+                {{ title || (isEdit ? 'Редактирование Entity' : 'Новая Entity') }}
             </v-card-title>
 
+            <v-progress-linear
+                v-if="preparing"
+                indeterminate
+                color="teal-darken-1"
+                height="3"
+            />
+
             <v-card-text>
+                <v-alert
+                    v-if="error"
+                    type="error"
+                    variant="tonal"
+                    density="compact"
+                    class="mb-4"
+                >
+                    {{ error }}
+                </v-alert>
+
                 <v-row dense>
                     <v-col cols="12">
                         <div class="dadata-panel">
@@ -633,23 +663,51 @@ watch(
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-text-field v-model="form.name" label="Название" variant="solo-filled"/>
+                        <v-text-field
+                            v-model="form.name"
+                            label="Название *"
+                            variant="solo-filled"
+                            :error-messages="validationMessage('name')"
+                        />
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-text-field v-model="form.full_name" label="Полное название" variant="solo-filled"/>
+                        <v-text-field
+                            v-model="form.full_name"
+                            label="Полное название"
+                            variant="solo-filled"
+                            :error-messages="validationMessage('full_name')"
+                        />
                     </v-col>
 
                     <v-col cols="12" md="4">
-                        <v-text-field v-model="form.INN" label="INN" variant="solo-filled" />
+                        <v-text-field
+                            v-model="form.INN"
+                            label="ИНН"
+                            variant="solo-filled"
+                            inputmode="numeric"
+                            :error-messages="validationMessage('INN')"
+                        />
                     </v-col>
 
                     <v-col cols="12" md="4">
-                        <v-text-field v-model="form.KPP" label="KPP" variant="solo-filled" />
+                        <v-text-field
+                            v-model="form.KPP"
+                            label="КПП"
+                            variant="solo-filled"
+                            inputmode="numeric"
+                            :error-messages="validationMessage('KPP')"
+                        />
                     </v-col>
 
                     <v-col cols="12" md="4">
-                        <v-text-field v-model="form.OGRN" label="OGRN" variant="solo-filled" />
+                        <v-text-field
+                            v-model="form.OGRN"
+                            label="ОГРН"
+                            variant="solo-filled"
+                            inputmode="numeric"
+                            :error-messages="validationMessage('OGRN')"
+                        />
                     </v-col>
 
                     <v-col cols="12">
@@ -659,6 +717,7 @@ watch(
                             variant="solo-filled"
                             rows="2"
                             auto-grow
+                            :error-messages="validationMessage('legal_address')"
                         />
                     </v-col>
 
@@ -671,6 +730,7 @@ watch(
                             label="Классификация"
                             variant="solo-filled"
                             clearable
+                            :error-messages="validationMessage('entity_classification_id')"
                         />
                     </v-col>
 
@@ -683,6 +743,7 @@ watch(
                             label="Страна"
                             variant="solo-filled"
                             clearable
+                            :error-messages="validationMessage('country_id')"
                         />
                     </v-col>
 
@@ -697,6 +758,7 @@ watch(
                             chips
                             closable-chips
                             variant="solo-filled"
+                            :error-messages="validationMessage('cities')"
                         />
                     </v-col>
 
@@ -743,6 +805,7 @@ watch(
                                 density="comfortable"
                                 class="buildings-autocomplete"
                                 menu-icon="mdi-map-marker-radius"
+                                :error-messages="validationMessage('buildings')"
                                 :menu-props="{ contentClass: 'entity-buildings-menu' }"
                             >
                                 <template #chip="{ props, item }">
@@ -892,6 +955,7 @@ watch(
                             variant="solo-filled"
                             class="emails-autocomplete"
                             menu-icon="mdi-email-search-outline"
+                            :error-messages="validationMessage('emails')"
                             :menu-props="{ contentClass: 'entity-emails-menu' }"
                         >
                             <template #item="{ props, item }">
@@ -947,6 +1011,7 @@ watch(
                                 density="compact"
                                 class="telephones-autocomplete"
                                 menu-icon="mdi-phone-search-outline"
+                                :error-messages="validationMessage('telephones')"
                                 :menu-props="{ contentClass: 'entity-telephones-menu' }"
                             >
                                 <template #chip="{ props, item }">
@@ -1073,6 +1138,7 @@ watch(
                                 density="comfortable"
                                 class="units-autocomplete"
                                 menu-icon="mdi-magnify"
+                                :error-messages="validationMessage('units')"
                                 :menu-props="{ contentClass: 'entity-units-menu' }"
                             >
                                 <template #chip="{ props, item }">
@@ -1112,6 +1178,7 @@ watch(
                             chips
                             closable-chips
                             variant="solo-filled"
+                            :error-messages="validationMessage('chats')"
                         />
                     </v-col>
                 </v-row>
@@ -1120,7 +1187,14 @@ watch(
             <v-card-actions>
                 <v-spacer />
                 <v-btn variant="text" @click="close">Отмена</v-btn>
-                <v-btn color="primary" :loading="loading" @click="save">Сохранить</v-btn>
+                <v-btn
+                    color="primary"
+                    :loading="loading"
+                    :disabled="preparing"
+                    @click="save"
+                >
+                    {{ submitText }}
+                </v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>

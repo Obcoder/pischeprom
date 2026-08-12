@@ -3,6 +3,9 @@ import { Head, Link, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { route } from 'ziggy-js'
+import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
+import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
+import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { logo } from '@/Pages/Helpers/consts.js'
 
@@ -12,6 +15,12 @@ defineOptions({
 
 const page = usePage()
 const canViewLogistics = computed(() => Boolean(page.props.auth?.permissions?.logistics?.view))
+const { getMeta: getEntityMeta, createOne: createEntityOne } = useEntityApi()
+const {
+    form: newEntityForm,
+    resetForm: resetNewEntityForm,
+    toPayload: newEntityPayload,
+} = useEntityForm()
 const checks = ref([])
 const entities = ref([])
 const commodities = ref([])
@@ -26,6 +35,8 @@ const savingCheck = ref(false)
 const savingLine = ref(false)
 const savingDictionary = ref(false)
 const creatingEntity = ref(false)
+const entityMetaLoading = ref(false)
+const entityMetaLoaded = ref(false)
 const selectedCheckLoading = ref(false)
 
 const checkDialog = ref(false)
@@ -86,10 +97,16 @@ const checkForm = reactive({
     amount: 0,
 })
 
-const newEntityForm = reactive({
-    name: '',
-    full_name: '',
-    INN: '',
+const entityMeta = reactive({
+    classifications: [],
+    countries: [],
+    cities: [],
+    regions: [],
+    buildings: [],
+    emails: [],
+    telephones: [],
+    units: [],
+    chats: [],
 })
 
 const draftCommodityForm = reactive({
@@ -866,22 +883,60 @@ function resetCheckForm() {
     resetDraftServiceForm()
 }
 
-function resetNewEntityForm(name = '') {
-    newEntityForm.name = name
-    newEntityForm.full_name = ''
-    newEntityForm.INN = ''
+async function loadEntityMeta() {
+    if (entityMetaLoaded.value || entityMetaLoading.value) {
+        return
+    }
+
+    entityMetaLoading.value = true
+
+    try {
+        Object.assign(entityMeta, await getEntityMeta())
+        entityMetaLoaded.value = true
+    } catch (error) {
+        newEntitySubmitError.value = error.response?.data?.message
+            || 'Не удалось загрузить справочники для формы Entity.'
+        console.error('loadEntityMeta error:', error)
+    } finally {
+        entityMetaLoading.value = false
+    }
+}
+
+async function showEntityCreator() {
+    const suggestedName = entitySearch.value.trim()
+
+    resetNewEntityForm()
+    newEntityForm.name = suggestedName
     newEntityErrors.value = {}
     newEntitySubmitError.value = ''
-}
-
-function showEntityCreator() {
-    resetNewEntityForm(entitySearch.value.trim())
     entityCreatorOpen.value = true
+
+    await loadEntityMeta()
 }
 
-function hideEntityCreator() {
-    entityCreatorOpen.value = false
-    resetNewEntityForm()
+function mergeEntityMetaItem(key, item, compare) {
+    if (!item?.id) {
+        return
+    }
+
+    entityMeta[key] = [
+        item,
+        ...entityMeta[key].filter((candidate) => Number(candidate.id) !== Number(item.id)),
+    ].sort(compare)
+}
+
+function mergeEntityBuildingMeta(building) {
+    mergeEntityMetaItem('buildings', building, (left, right) => {
+        const cityComparison = (left.city?.name || '').localeCompare(right.city?.name || '', 'ru')
+
+        return cityComparison || (left.address || '').localeCompare(right.address || '', 'ru')
+    })
+}
+
+function mergeEntityTelephoneMeta(telephone) {
+    mergeEntityMetaItem('telephones', telephone, (left, right) => (
+        String(left.number || '').localeCompare(String(right.number || ''), 'ru')
+    ))
 }
 
 async function createEntity() {
@@ -898,12 +953,10 @@ async function createEntity() {
     creatingEntity.value = true
 
     try {
-        const response = await axios.post(route('entities.store'), {
+        const entity = await createEntityOne({
+            ...newEntityPayload(),
             name,
-            full_name: newEntityForm.full_name.trim() || null,
-            INN: newEntityForm.INN.trim() || null,
         })
-        const entity = unpack(response)
 
         entities.value = [
             ...entities.value.filter((item) => Number(item.id) !== Number(entity.id)),
@@ -911,7 +964,10 @@ async function createEntity() {
         ].sort((left, right) => left.name.localeCompare(right.name, 'ru'))
         checkForm.entity_id = entity.id
         entitySearch.value = ''
-        hideEntityCreator()
+        entityCreatorOpen.value = false
+        resetNewEntityForm()
+        newEntityErrors.value = {}
+        newEntitySubmitError.value = ''
     } catch (error) {
         newEntityErrors.value = error.response?.data?.errors || {}
         newEntitySubmitError.value = error.response?.data?.message || 'Не удалось создать Entity.'
@@ -1903,53 +1959,6 @@ onBeforeUnmount(() => {
                                             @click="showEntityCreator"
                                         />
                                     </div>
-
-                                    <div v-if="entityCreatorOpen" class="entity-creator">
-                                        <div class="entity-creator__header">
-                                            <div>
-                                                <strong>Новый Entity</strong>
-                                                <small>После создания он будет выбран в чеке</small>
-                                            </div>
-                                            <v-btn icon="mdi-close" variant="text" density="compact" @click="hideEntityCreator" />
-                                        </div>
-                                        <div class="entity-creator__fields">
-                                            <v-text-field
-                                                v-model="newEntityForm.name"
-                                                label="Короткое название *"
-                                                variant="outlined"
-                                                density="compact"
-                                                autofocus
-                                                :error-messages="validationMessage(newEntityErrors, 'name')"
-                                                @keyup.enter="createEntity"
-                                            />
-                                            <v-text-field
-                                                v-model="newEntityForm.full_name"
-                                                label="Полное название"
-                                                variant="outlined"
-                                                density="compact"
-                                                :error-messages="validationMessage(newEntityErrors, 'full_name')"
-                                            />
-                                            <v-text-field
-                                                v-model="newEntityForm.INN"
-                                                label="ИНН"
-                                                variant="outlined"
-                                                density="compact"
-                                                :error-messages="validationMessage(newEntityErrors, 'INN')"
-                                                @keyup.enter="createEntity"
-                                            />
-                                            <v-btn
-                                                color="#386145"
-                                                variant="flat"
-                                                prepend-icon="mdi-check"
-                                                text="Создать и выбрать"
-                                                :loading="creatingEntity"
-                                                @click="createEntity"
-                                            />
-                                        </div>
-                                        <div v-if="newEntitySubmitError" class="form-inline-error">
-                                            {{ newEntitySubmitError }}
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </section>
@@ -2328,6 +2337,22 @@ onBeforeUnmount(() => {
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <EntityFormDialog
+            v-model="entityCreatorOpen"
+            :loading="creatingEntity"
+            :preparing="entityMetaLoading"
+            :is-edit="false"
+            :form="newEntityForm"
+            :meta="entityMeta"
+            :errors="newEntityErrors"
+            :error="newEntitySubmitError"
+            title="Новый Entity для Check"
+            submit-text="Создать и выбрать"
+            @submit="createEntity"
+            @building-created="mergeEntityBuildingMeta"
+            @telephone-created="mergeEntityTelephoneMeta"
+        />
 
         <v-dialog v-model="detailDialog" max-width="1280" scrollable>
             <v-card class="check-detail-modal">
@@ -3558,8 +3583,7 @@ onBeforeUnmount(() => {
     margin-top: 14px;
 }
 
-.entity-picker,
-.entity-creator {
+.entity-picker {
     min-width: 0;
 }
 
@@ -3595,51 +3619,6 @@ onBeforeUnmount(() => {
 .entity-selection span {
     color: #766b57;
     font-size: 10px;
-}
-
-.entity-creator {
-    margin-top: 8px;
-    padding: 12px;
-    border: 1px solid #aebda8;
-    border-radius: 12px;
-    background: #f3f8f0;
-}
-
-.entity-creator__header {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 8px;
-    align-items: start;
-    margin-bottom: 10px;
-}
-
-.entity-creator__header strong,
-.entity-creator__header small {
-    display: block;
-}
-
-.entity-creator__header strong {
-    color: #284a34;
-    font-size: 13px;
-    font-weight: 900;
-}
-
-.entity-creator__header small {
-    color: #657567;
-    font-size: 10px;
-}
-
-.entity-creator__fields {
-    display: grid;
-    grid-template-columns: minmax(140px, 1fr) minmax(170px, 1.2fr) 120px;
-    gap: 8px;
-    align-items: start;
-}
-
-.entity-creator__fields > .v-btn {
-    grid-column: 1 / -1;
-    justify-self: end;
-    min-height: 40px;
 }
 
 .check-form-section--totals {
@@ -4100,14 +4079,6 @@ onBeforeUnmount(() => {
     .draft-line-editor__submit {
         grid-column: span 2;
     }
-
-    .entity-creator__fields {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .entity-creator__fields > .v-btn {
-        grid-column: 1 / -1;
-    }
 }
 
 @media (max-width: 980px) {
@@ -4209,7 +4180,6 @@ onBeforeUnmount(() => {
 
     .check-details-grid,
     .entity-picker__control,
-    .entity-creator__fields,
     .check-form-section--totals,
     .draft-line-editor,
     .draft-line-editor--service {
@@ -4218,8 +4188,7 @@ onBeforeUnmount(() => {
 
     .draft-line-editor__item,
     .draft-line-editor__article,
-    .draft-line-editor__submit,
-    .entity-creator__fields > .v-btn {
+    .draft-line-editor__submit {
         grid-column: auto;
         justify-self: stretch;
     }

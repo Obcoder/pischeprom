@@ -3,11 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Check;
+use App\Models\City;
 use App\Models\Commodity;
+use App\Models\Country;
 use App\Models\Entity;
+use App\Models\EntityClassification;
 use App\Models\ExpenseArticle;
 use App\Models\Measure;
 use App\Models\Project;
+use App\Models\Region;
 use App\Models\Service;
 use App\Models\StockMovement;
 use App\Models\Unit;
@@ -136,6 +140,75 @@ class CheckCreationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Юридическое лицо')
             ->assertJsonPath('data.0.units.0.name', 'Масложировой комбинат');
+    }
+
+    public function test_full_entity_can_be_created_for_check_with_requisites_and_relations(): void
+    {
+        $classification = EntityClassification::query()->create(['name' => 'ООО']);
+        $country = Country::query()->create(['name' => 'Россия', 'сodeISO' => 'RU']);
+        $region = Region::query()->create([
+            'name' => 'Москва',
+            'country_id' => $country->id,
+        ]);
+        $city = City::query()->create([
+            'name' => 'Москва',
+            'region_id' => $region->id,
+        ]);
+        $unit = Unit::query()->create(['name' => 'Основная площадка']);
+
+        $entityId = $this->postJson('/api/entities', [
+            'name' => 'Ромашка',
+            'full_name' => 'Общество с ограниченной ответственностью «Ромашка»',
+            'entity_classification_id' => $classification->id,
+            'INN' => '7707083893',
+            'KPP' => '770701001',
+            'OGRN' => '1027700132195',
+            'legal_address' => '127006, г. Москва, ул. Долгоруковская, д. 1',
+            'country_id' => $country->id,
+            'dadata_raw' => [
+                'source' => 'dadata_suggest',
+                'data' => ['inn' => '7707083893'],
+            ],
+            'cities' => [$city->id],
+            'units' => [$unit->id],
+            'buildings' => [],
+            'emails' => [],
+            'telephones' => [],
+            'chats' => [],
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Ромашка')
+            ->assertJsonPath('data.INN', '7707083893')
+            ->assertJsonPath('data.KPP', '770701001')
+            ->assertJsonPath('data.OGRN', '1027700132195')
+            ->assertJsonPath('data.classification.name', 'ООО')
+            ->assertJsonPath('data.country.name', 'Россия')
+            ->assertJsonPath('data.cities.0.name', 'Москва')
+            ->assertJsonPath('data.units.0.name', 'Основная площадка')
+            ->json('data.id');
+
+        $this->postJson('/api/checks', [
+            'date' => '2026-08-12',
+            'entity_id' => $entityId,
+            'amount' => 1500,
+        ])->assertCreated()
+            ->assertJsonPath('entity.id', $entityId)
+            ->assertJsonPath('entity.units.0.name', 'Основная площадка');
+
+        $this->assertDatabaseHas('entities', [
+            'id' => $entityId,
+            'INN' => '7707083893',
+            'KPP' => '770701001',
+            'OGRN' => '1027700132195',
+            'country_id' => $country->id,
+        ]);
+        $this->assertDatabaseHas('city_entity', [
+            'entity_id' => $entityId,
+            'city_id' => $city->id,
+        ]);
+        $this->assertDatabaseHas('entity_unit', [
+            'entity_id' => $entityId,
+            'unit_id' => $unit->id,
+        ]);
     }
 
     public function test_check_index_includes_entity_units_and_compact_row_summaries(): void
