@@ -6,12 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CheckResource;
 use App\Models\Check;
 use App\Services\Checks\CheckCommodityService;
+use App\Services\Checks\CheckServiceItemService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CheckController extends Controller
 {
-    public function __construct(private readonly CheckCommodityService $checkCommodityService) {}
+    public function __construct(
+        private readonly CheckCommodityService $checkCommodityService,
+        private readonly CheckServiceItemService $checkServiceItemService,
+    ) {}
 
     /**
      * Display a listing of the resource.
@@ -43,15 +47,20 @@ class CheckController extends Controller
      */
     public function store(Request $request)
     {
-        $data = $this->validated($request, withCommodities: true);
+        $data = $this->validated($request, withItems: true);
         $commodities = $data['commodities'] ?? [];
-        unset($data['commodities']);
+        $services = $data['services'] ?? [];
+        unset($data['commodities'], $data['services']);
 
-        $check = DB::transaction(function () use ($data, $commodities) {
+        $check = DB::transaction(function () use ($data, $commodities, $services) {
             $check = Check::create($data);
 
             foreach ($commodities as $commodity) {
                 $this->checkCommodityService->create($check, $commodity, withRelations: false);
+            }
+
+            foreach ($services as $service) {
+                $this->checkServiceItemService->create($check, $service, withRelations: false);
             }
 
             return $check;
@@ -100,7 +109,7 @@ class CheckController extends Controller
     private function validated(
         Request $request,
         bool $partial = false,
-        bool $withCommodities = false
+        bool $withItems = false
     ): array {
         $dateRule = $partial ? 'sometimes' : 'required';
         $entityRule = $partial ? 'sometimes' : 'required';
@@ -111,7 +120,7 @@ class CheckController extends Controller
             'amount' => ['nullable', 'numeric', 'min:0'],
         ];
 
-        if ($withCommodities) {
+        if ($withItems) {
             $rules = [
                 ...$rules,
                 'commodities' => ['nullable', 'array', 'max:100'],
@@ -121,6 +130,12 @@ class CheckController extends Controller
                 'commodities.*.measure_id' => ['nullable', 'exists:measures,id'],
                 'commodities.*.expense_article_id' => ['nullable', 'exists:expense_articles,id'],
                 'commodities.*.price' => ['nullable', 'numeric', 'min:0'],
+                'services' => ['nullable', 'array', 'max:100'],
+                'services.*.service_id' => ['required', 'exists:services,id'],
+                'services.*.quantity' => ['nullable', 'numeric', 'min:0'],
+                'services.*.measure_id' => ['nullable', 'exists:measures,id'],
+                'services.*.expense_article_id' => ['nullable', 'exists:expense_articles,id'],
+                'services.*.price' => ['nullable', 'numeric', 'min:0'],
             ];
         }
 

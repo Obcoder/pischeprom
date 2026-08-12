@@ -38,9 +38,13 @@ const checkErrors = ref({})
 const checkSubmitError = ref('')
 const newEntityErrors = ref({})
 const newEntitySubmitError = ref('')
+const draftLineKind = ref('commodity')
 const draftCommodityError = ref('')
 const draftCommodityRows = ref([])
 const draftEditingIndex = ref(null)
+const draftServiceError = ref('')
+const draftServiceRows = ref([])
+const draftServiceEditingIndex = ref(null)
 let draftRowSequence = 0
 
 const selectedCheck = ref(null)
@@ -88,6 +92,14 @@ const newEntityForm = reactive({
 const draftCommodityForm = reactive({
     commodity_id: null,
     warehouse_id: null,
+    quantity: 1,
+    measure_id: null,
+    expense_article_id: null,
+    price: 0,
+})
+
+const draftServiceForm = reactive({
+    service_id: null,
     quantity: 1,
     measure_id: null,
     expense_article_id: null,
@@ -144,13 +156,61 @@ const registeredCommodityTotal = computed(() => {
     ), 0)
 })
 
+const registeredServiceTotal = computed(() => {
+    if (selectedCheck.value?.service_items_total !== null && selectedCheck.value?.service_items_total !== undefined) {
+        return numeric(selectedCheck.value.service_items_total)
+    }
+
+    return selectedServiceItems.value.reduce((sum, item) => (
+        sum + numeric(item.total_price || numeric(item.quantity) * numeric(item.price))
+    ), 0)
+})
+
+const registeredPositionsTotal = computed(() => (
+    registeredCommodityTotal.value + registeredServiceTotal.value
+))
+
 const draftCommodityTotal = computed(() => draftCommodityRows.value.reduce(
     (sum, item) => sum + numeric(item.quantity) * numeric(item.price),
     0
 ))
 
+const draftServiceTotal = computed(() => draftServiceRows.value.reduce(
+    (sum, item) => sum + numeric(item.quantity) * numeric(item.price),
+    0
+))
+
+const draftPositionsTotal = computed(() => (
+    draftCommodityTotal.value + draftServiceTotal.value
+))
+
+const draftReceiptRows = computed(() => [
+    ...draftCommodityRows.value.map((row, index) => ({
+        kind: 'commodity',
+        index,
+        row,
+    })),
+    ...draftServiceRows.value.map((row, index) => ({
+        kind: 'service',
+        index,
+        row,
+    })),
+].sort((left, right) => left.row._sequence - right.row._sequence))
+
+const activeDraftForm = computed(() => (
+    draftLineKind.value === 'service' ? draftServiceForm : draftCommodityForm
+))
+
+const activeDraftEditingIndex = computed(() => (
+    draftLineKind.value === 'service' ? draftServiceEditingIndex.value : draftEditingIndex.value
+))
+
+const draftLineError = computed(() => (
+    draftLineKind.value === 'service' ? draftServiceError.value : draftCommodityError.value
+))
+
 const draftAmountDifference = computed(() => (
-    numeric(checkForm.amount) - draftCommodityTotal.value
+    numeric(checkForm.amount) - draftPositionsTotal.value
 ))
 
 const canSaveCheck = computed(() => (
@@ -468,6 +528,10 @@ function commodityById(id) {
     return commodities.value.find((item) => Number(item.id) === Number(id)) || null
 }
 
+function serviceById(id) {
+    return services.value.find((item) => Number(item.id) === Number(id)) || null
+}
+
 function warehouseById(id) {
     return warehouses.value.find((item) => Number(item.id) === Number(id)) || null
 }
@@ -685,9 +749,12 @@ function resetCheckForm() {
     entityCreatorOpen.value = false
     checkErrors.value = {}
     checkSubmitError.value = ''
+    draftLineKind.value = 'commodity'
     draftCommodityRows.value = []
+    draftServiceRows.value = []
     resetNewEntityForm()
     resetDraftCommodityForm()
+    resetDraftServiceForm()
 }
 
 function resetNewEntityForm(name = '') {
@@ -756,10 +823,54 @@ function resetDraftCommodityForm() {
     draftCommodityError.value = ''
 }
 
+function resetDraftServiceForm() {
+    draftServiceEditingIndex.value = null
+    draftServiceForm.service_id = null
+    draftServiceForm.quantity = 1
+    draftServiceForm.measure_id = null
+    draftServiceForm.expense_article_id = null
+    draftServiceForm.price = 0
+    draftServiceError.value = ''
+}
+
+function switchDraftLineKind(kind) {
+    if (!kind || kind === draftLineKind.value) {
+        return
+    }
+
+    resetDraftCommodityForm()
+    resetDraftServiceForm()
+    draftLineKind.value = kind
+}
+
+function resetActiveDraftForm() {
+    if (draftLineKind.value === 'service') {
+        resetDraftServiceForm()
+        return
+    }
+
+    resetDraftCommodityForm()
+}
+
 function selectDraftCommodity(commodityId) {
     draftCommodityForm.commodity_id = commodityId
     draftCommodityForm.expense_article_id = commodityById(commodityId)?.expense_article_id || null
     draftCommodityError.value = ''
+}
+
+function selectDraftService(serviceId) {
+    draftServiceForm.service_id = serviceId
+    draftServiceForm.expense_article_id = serviceById(serviceId)?.expense_article_id || null
+    draftServiceError.value = ''
+}
+
+function saveDraftLine() {
+    if (draftLineKind.value === 'service') {
+        saveDraftService()
+        return
+    }
+
+    saveDraftCommodity()
 }
 
 function saveDraftCommodity() {
@@ -783,8 +894,10 @@ function saveDraftCommodity() {
     const existingRow = draftEditingIndex.value === null
         ? null
         : draftCommodityRows.value[draftEditingIndex.value]
+    const sequence = existingRow?._sequence || ++draftRowSequence
     const row = {
-        _key: existingRow?._key || `draft-${++draftRowSequence}`,
+        _key: existingRow?._key || `draft-commodity-${sequence}`,
+        _sequence: sequence,
         commodity_id: draftCommodityForm.commodity_id,
         warehouse_id: draftCommodityForm.warehouse_id || null,
         quantity: numeric(draftCommodityForm.quantity),
@@ -802,6 +915,47 @@ function saveDraftCommodity() {
     resetDraftCommodityForm()
 }
 
+function saveDraftService() {
+    draftServiceError.value = ''
+
+    if (!draftServiceForm.service_id) {
+        draftServiceError.value = 'Выберите услугу.'
+        return
+    }
+
+    if (numeric(draftServiceForm.quantity) <= 0) {
+        draftServiceError.value = 'Количество должно быть больше нуля.'
+        return
+    }
+
+    if (numeric(draftServiceForm.price) < 0) {
+        draftServiceError.value = 'Цена не может быть отрицательной.'
+        return
+    }
+
+    const existingRow = draftServiceEditingIndex.value === null
+        ? null
+        : draftServiceRows.value[draftServiceEditingIndex.value]
+    const sequence = existingRow?._sequence || ++draftRowSequence
+    const row = {
+        _key: existingRow?._key || `draft-service-${sequence}`,
+        _sequence: sequence,
+        service_id: draftServiceForm.service_id,
+        quantity: numeric(draftServiceForm.quantity),
+        measure_id: draftServiceForm.measure_id || null,
+        expense_article_id: draftServiceForm.expense_article_id || null,
+        price: numeric(draftServiceForm.price),
+    }
+
+    if (draftServiceEditingIndex.value === null) {
+        draftServiceRows.value.push(row)
+    } else {
+        draftServiceRows.value.splice(draftServiceEditingIndex.value, 1, row)
+    }
+
+    resetDraftServiceForm()
+}
+
 function editDraftCommodity(index) {
     const row = draftCommodityRows.value[index]
 
@@ -809,6 +963,8 @@ function editDraftCommodity(index) {
         return
     }
 
+    resetDraftServiceForm()
+    draftLineKind.value = 'commodity'
     draftEditingIndex.value = index
     draftCommodityForm.commodity_id = row.commodity_id
     draftCommodityForm.warehouse_id = row.warehouse_id
@@ -819,6 +975,33 @@ function editDraftCommodity(index) {
     draftCommodityError.value = ''
 }
 
+function editDraftService(index) {
+    const row = draftServiceRows.value[index]
+
+    if (!row) {
+        return
+    }
+
+    resetDraftCommodityForm()
+    draftLineKind.value = 'service'
+    draftServiceEditingIndex.value = index
+    draftServiceForm.service_id = row.service_id
+    draftServiceForm.quantity = row.quantity
+    draftServiceForm.measure_id = row.measure_id
+    draftServiceForm.expense_article_id = row.expense_article_id
+    draftServiceForm.price = row.price
+    draftServiceError.value = ''
+}
+
+function editDraftReceiptRow(entry) {
+    if (entry.kind === 'service') {
+        editDraftService(entry.index)
+        return
+    }
+
+    editDraftCommodity(entry.index)
+}
+
 function removeDraftCommodity(index) {
     draftCommodityRows.value.splice(index, 1)
 
@@ -827,6 +1010,25 @@ function removeDraftCommodity(index) {
     } else if (draftEditingIndex.value !== null && draftEditingIndex.value > index) {
         draftEditingIndex.value -= 1
     }
+}
+
+function removeDraftService(index) {
+    draftServiceRows.value.splice(index, 1)
+
+    if (draftServiceEditingIndex.value === index) {
+        resetDraftServiceForm()
+    } else if (draftServiceEditingIndex.value !== null && draftServiceEditingIndex.value > index) {
+        draftServiceEditingIndex.value -= 1
+    }
+}
+
+function removeDraftReceiptRow(entry) {
+    if (entry.kind === 'service') {
+        removeDraftService(entry.index)
+        return
+    }
+
+    removeDraftCommodity(entry.index)
 }
 
 function openCreateCheck() {
@@ -861,7 +1063,8 @@ async function saveCheck() {
     }
 
     if (!checkForm.id) {
-        payload.commodities = draftCommodityRows.value.map(({ _key, ...row }) => row)
+        payload.commodities = draftCommodityRows.value.map(({ _key, _sequence, ...row }) => row)
+        payload.services = draftServiceRows.value.map(({ _key, _sequence, ...row }) => row)
     }
 
     try {
@@ -1595,17 +1798,30 @@ onBeforeUnmount(() => {
 
                             <div class="check-total-card check-total-card--calculated">
                                 <div>
-                                    <span>Сумма Commodities</span>
+                                    <span>Сумма позиций</span>
                                     <small>
-                                        {{ checkForm.id ? 'Состав редактируется отдельно' : 'Рассчитывается по строкам' }}
+                                        {{ checkForm.id ? 'Состав редактируется отдельно' : 'Commodities + услуги' }}
                                     </small>
                                 </div>
-                                <strong v-if="!checkForm.id">{{ formatMoney(draftCommodityTotal) }}</strong>
+                                <strong v-if="!checkForm.id">{{ formatMoney(draftPositionsTotal) }}</strong>
                                 <v-icon v-else icon="mdi-open-in-new" color="#4f7356" />
                             </div>
 
+                            <div v-if="!checkForm.id" class="check-total-breakdown">
+                                <span>
+                                    <v-icon icon="mdi-package-variant-closed" size="14" />
+                                    Commodities
+                                    <strong>{{ formatMoney(draftCommodityTotal) }}</strong>
+                                </span>
+                                <span>
+                                    <v-icon icon="mdi-handshake-outline" size="14" />
+                                    Услуги
+                                    <strong>{{ formatMoney(draftServiceTotal) }}</strong>
+                                </span>
+                            </div>
+
                             <div v-if="!checkForm.id" class="check-total-difference">
-                                <span>Разница</span>
+                                <span>Разница с позициями</span>
                                 <strong :class="{ 'is-negative': draftAmountDifference < 0 }">
                                     {{ formatMoney(draftAmountDifference) }}
                                 </strong>
@@ -1616,23 +1832,55 @@ onBeforeUnmount(() => {
                         </section>
                     </div>
 
-                    <section v-if="!checkForm.id" class="check-form-section check-form-section--commodities">
-                        <div class="commodity-section-header">
+                    <section v-if="!checkForm.id" class="check-form-section check-form-section--items">
+                        <div class="items-section-header">
                             <div class="check-form-section__title">
                                 <span class="check-form-step">3</span>
                                 <div>
-                                    <strong>Commodities в чеке</strong>
-                                    <small>Добавьте товарные строки перед сохранением</small>
+                                    <strong>Позиции чека</strong>
+                                    <small>Добавьте Commodities и услуги перед сохранением</small>
                                 </div>
                             </div>
-                            <div class="commodity-section-summary">
-                                <span>{{ draftCommodityRows.length }} строк</span>
-                                <strong>{{ formatMoney(draftCommodityTotal) }}</strong>
+                            <div class="items-section-summary">
+                                <span>{{ draftReceiptRows.length }} поз.</span>
+                                <strong>{{ formatMoney(draftPositionsTotal) }}</strong>
                             </div>
                         </div>
 
-                        <div class="draft-line-editor">
+                        <div class="draft-kind-bar">
+                            <v-btn-toggle
+                                :model-value="draftLineKind"
+                                mandatory
+                                divided
+                                density="compact"
+                                color="#386145"
+                                @update:model-value="switchDraftLineKind"
+                            >
+                                <v-btn
+                                    value="commodity"
+                                    prepend-icon="mdi-package-variant-closed"
+                                    text="Commodity"
+                                />
+                                <v-btn
+                                    value="service"
+                                    prepend-icon="mdi-handshake-outline"
+                                    text="Услуга"
+                                />
+                            </v-btn-toggle>
+                            <span>
+                                {{ draftLineKind === 'commodity'
+                                    ? 'Товарная строка влияет на складской остаток'
+                                    : 'Услуга сохраняется без складского движения' }}
+                            </span>
+                        </div>
+
+                        <div
+                            class="draft-line-editor"
+                            :class="{ 'draft-line-editor--service': draftLineKind === 'service' }"
+                        >
                             <v-autocomplete
+                                v-if="draftLineKind === 'commodity'"
+                                class="draft-line-editor__item"
                                 :model-value="draftCommodityForm.commodity_id"
                                 :items="commodities"
                                 item-title="name"
@@ -1658,7 +1906,36 @@ onBeforeUnmount(() => {
                                 </template>
                             </v-autocomplete>
 
+                            <v-autocomplete
+                                v-else
+                                class="draft-line-editor__item"
+                                :model-value="draftServiceForm.service_id"
+                                :items="services"
+                                item-title="name"
+                                item-value="id"
+                                label="Услуга *"
+                                variant="outlined"
+                                density="compact"
+                                hide-details
+                                @update:model-value="selectDraftService"
+                            >
+                                <template #item="{ props, item }">
+                                    <v-list-item v-bind="props" :title="item.raw.name">
+                                        <template #prepend>
+                                            <v-avatar size="30" rounded="lg" color="#e8f1ed">
+                                                <v-icon icon="mdi-handshake-outline" size="19" color="#386145" />
+                                            </v-avatar>
+                                        </template>
+                                        <template #subtitle>
+                                            {{ item.raw.expense_article?.name || 'без статьи' }}
+                                            <span v-if="item.raw.project"> · {{ item.raw.project.name }}</span>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+                            </v-autocomplete>
+
                             <v-select
+                                v-if="draftLineKind === 'commodity'"
                                 v-model="draftCommodityForm.warehouse_id"
                                 :items="warehouses"
                                 item-title="name"
@@ -1669,7 +1946,7 @@ onBeforeUnmount(() => {
                                 hide-details
                             />
                             <v-text-field
-                                v-model="draftCommodityForm.quantity"
+                                v-model="activeDraftForm.quantity"
                                 type="number"
                                 min="0.001"
                                 step="any"
@@ -1679,7 +1956,7 @@ onBeforeUnmount(() => {
                                 hide-details
                             />
                             <v-select
-                                v-model="draftCommodityForm.measure_id"
+                                v-model="activeDraftForm.measure_id"
                                 :items="measures"
                                 item-title="name"
                                 item-value="id"
@@ -1690,7 +1967,7 @@ onBeforeUnmount(() => {
                                 hide-details
                             />
                             <v-text-field
-                                v-model="draftCommodityForm.price"
+                                v-model="activeDraftForm.price"
                                 type="number"
                                 min="0"
                                 step="0.01"
@@ -1700,7 +1977,8 @@ onBeforeUnmount(() => {
                                 hide-details
                             />
                             <v-autocomplete
-                                v-model="draftCommodityForm.expense_article_id"
+                                v-model="activeDraftForm.expense_article_id"
+                                class="draft-line-editor__article"
                                 :items="expenseArticles"
                                 item-title="name"
                                 item-value="id"
@@ -1714,31 +1992,31 @@ onBeforeUnmount(() => {
                                 class="draft-line-editor__submit"
                                 color="#17845f"
                                 variant="flat"
-                                :prepend-icon="draftEditingIndex === null ? 'mdi-plus' : 'mdi-check'"
-                                :text="draftEditingIndex === null ? 'Добавить' : 'Обновить'"
-                                @click="saveDraftCommodity"
+                                :prepend-icon="activeDraftEditingIndex === null ? 'mdi-plus' : 'mdi-check'"
+                                :text="activeDraftEditingIndex === null ? 'Добавить' : 'Обновить'"
+                                @click="saveDraftLine"
                             />
                             <v-btn
-                                v-if="draftEditingIndex !== null"
+                                v-if="activeDraftEditingIndex !== null"
                                 icon="mdi-close"
                                 variant="text"
                                 density="compact"
                                 title="Отменить редактирование"
-                                @click="resetDraftCommodityForm"
+                                @click="resetActiveDraftForm"
                             />
                         </div>
 
-                        <div v-if="draftCommodityError" class="form-inline-error draft-line-error">
+                        <div v-if="draftLineError" class="form-inline-error draft-line-error">
                             <v-icon icon="mdi-alert-circle-outline" size="16" />
-                            {{ draftCommodityError }}
+                            {{ draftLineError }}
                         </div>
 
                         <div class="draft-lines-table-wrap">
                             <table class="draft-lines-table">
                                 <thead>
                                     <tr>
-                                        <th>Commodity</th>
-                                        <th>Склад / статья</th>
+                                        <th>Позиция</th>
+                                        <th>Тип / учёт</th>
                                         <th>Количество</th>
                                         <th>Цена</th>
                                         <th>Сумма строки</th>
@@ -1746,35 +2024,59 @@ onBeforeUnmount(() => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-if="!draftCommodityRows.length">
+                                    <tr v-if="!draftReceiptRows.length">
                                         <td colspan="6" class="draft-lines-empty">
-                                            <v-icon icon="mdi-package-variant-closed-plus" size="24" />
-                                            <span>Товарных строк пока нет</span>
-                                            <small>Чек можно сохранить и без Commodities</small>
+                                            <div class="draft-lines-empty__content">
+                                                <v-icon icon="mdi-receipt-text-plus-outline" size="24" />
+                                                <span>Позиций пока нет</span>
+                                                <small>Чек можно сохранить без Commodities и услуг</small>
+                                            </div>
                                         </td>
                                     </tr>
-                                    <tr v-for="(row, index) in draftCommodityRows" :key="row._key">
+                                    <tr v-for="entry in draftReceiptRows" :key="entry.row._key">
                                         <td>
                                             <div class="draft-commodity-cell">
-                                                <v-avatar size="34" rounded="lg">
-                                                    <v-img :src="commodityById(row.commodity_id)?.ava_url || logo" cover />
+                                                <v-avatar
+                                                    v-if="entry.kind === 'commodity'"
+                                                    size="34"
+                                                    rounded="lg"
+                                                >
+                                                    <v-img :src="commodityById(entry.row.commodity_id)?.ava_url || logo" cover />
+                                                </v-avatar>
+                                                <v-avatar v-else size="34" rounded="lg" color="#e8f1ed">
+                                                    <v-icon icon="mdi-handshake-outline" size="19" color="#386145" />
                                                 </v-avatar>
                                                 <div>
-                                                    <strong>{{ commodityById(row.commodity_id)?.name || `Commodity #${row.commodity_id}` }}</strong>
-                                                    <small>{{ commodityById(row.commodity_id)?.project?.name || 'Без проекта' }}</small>
+                                                    <strong v-if="entry.kind === 'commodity'">
+                                                        {{ commodityById(entry.row.commodity_id)?.name || `Commodity #${entry.row.commodity_id}` }}
+                                                    </strong>
+                                                    <strong v-else>
+                                                        {{ serviceById(entry.row.service_id)?.name || `Услуга #${entry.row.service_id}` }}
+                                                    </strong>
+                                                    <small>
+                                                        {{ (entry.kind === 'commodity'
+                                                            ? commodityById(entry.row.commodity_id)?.project?.name
+                                                            : serviceById(entry.row.service_id)?.project?.name) || 'Без проекта' }}
+                                                    </small>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
-                                            <strong>{{ warehouseById(row.warehouse_id)?.name || 'Склад по умолчанию' }}</strong>
-                                            <small>{{ expenseArticleById(row.expense_article_id)?.name || 'Без статьи' }}</small>
+                                            <strong v-if="entry.kind === 'commodity'">
+                                                {{ warehouseById(entry.row.warehouse_id)?.name || 'Склад по умолчанию' }}
+                                            </strong>
+                                            <span v-else class="draft-row-kind">
+                                                <v-icon icon="mdi-handshake-outline" size="13" />
+                                                Услуга
+                                            </span>
+                                            <small>{{ expenseArticleById(entry.row.expense_article_id)?.name || 'Без статьи' }}</small>
                                         </td>
                                         <td>
-                                            {{ formatQty(row.quantity) }}
-                                            <small>{{ measureById(row.measure_id)?.name || 'ед.' }}</small>
+                                            {{ formatQty(entry.row.quantity) }}
+                                            <small>{{ measureById(entry.row.measure_id)?.name || 'ед.' }}</small>
                                         </td>
-                                        <td>{{ formatMoney(row.price) }}</td>
-                                        <td class="draft-line-total">{{ formatMoney(draftLineTotal(row)) }}</td>
+                                        <td>{{ formatMoney(entry.row.price) }}</td>
+                                        <td class="draft-line-total">{{ formatMoney(draftLineTotal(entry.row)) }}</td>
                                         <td>
                                             <div class="row-actions">
                                                 <v-btn
@@ -1782,7 +2084,7 @@ onBeforeUnmount(() => {
                                                     size="small"
                                                     variant="text"
                                                     title="Редактировать строку"
-                                                    @click="editDraftCommodity(index)"
+                                                    @click="editDraftReceiptRow(entry)"
                                                 />
                                                 <v-btn
                                                     icon="mdi-delete-outline"
@@ -1790,7 +2092,7 @@ onBeforeUnmount(() => {
                                                     variant="text"
                                                     color="error"
                                                     title="Удалить строку"
-                                                    @click="removeDraftCommodity(index)"
+                                                    @click="removeDraftReceiptRow(entry)"
                                                 />
                                             </div>
                                         </td>
@@ -1825,6 +2127,8 @@ onBeforeUnmount(() => {
                     <div v-if="!checkForm.id" class="check-form-actions__summary">
                         <span>Сумма чека: <strong>{{ formatMoney(checkForm.amount) }}</strong></span>
                         <span>Commodities: <strong>{{ formatMoney(draftCommodityTotal) }}</strong></span>
+                        <span>Услуги: <strong>{{ formatMoney(draftServiceTotal) }}</strong></span>
+                        <span>Позиции: <strong>{{ formatMoney(draftPositionsTotal) }}</strong></span>
                     </div>
                     <v-spacer />
                     <v-btn text="Отмена" variant="text" @click="checkDialog = false" />
@@ -1850,7 +2154,11 @@ onBeforeUnmount(() => {
                     </div>
                     <div class="receipt-summary">
                         <div class="receipt-total">{{ formatMoney(selectedCheck?.amount) }}</div>
-                        <small>товары: {{ formatMoney(registeredCommodityTotal) }}</small>
+                        <small>
+                            позиции: {{ formatMoney(registeredPositionsTotal) }} ·
+                            товары: {{ formatMoney(registeredCommodityTotal) }} ·
+                            услуги: {{ formatMoney(registeredServiceTotal) }}
+                        </small>
                     </div>
                     <v-btn icon="mdi-close" variant="text" density="compact" @click="detailDialog = false" />
                 </v-card-title>
@@ -2768,7 +3076,9 @@ onBeforeUnmount(() => {
 
 .check-form-body {
     display: grid;
+    grid-auto-rows: max-content;
     gap: 14px;
+    align-content: start;
     padding: 16px !important;
     background:
         radial-gradient(circle at top right, rgb(127 95 0 / 6%), transparent 280px),
@@ -2978,6 +3288,33 @@ onBeforeUnmount(() => {
     justify-self: end;
 }
 
+.check-total-breakdown {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.check-total-breakdown > span {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 5px;
+    align-items: center;
+    padding: 7px 8px;
+    border: 1px solid #ded8c9;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #716754;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.check-total-breakdown strong {
+    grid-column: 1 / -1;
+    color: #3d493d;
+    font-size: 12px;
+    font-weight: 950;
+}
+
 .check-total-difference {
     display: flex;
     align-items: center;
@@ -2997,12 +3334,12 @@ onBeforeUnmount(() => {
     color: #bd3e3e;
 }
 
-.check-form-section--commodities {
+.check-form-section--items {
     padding: 0;
     overflow: hidden;
 }
 
-.commodity-section-header {
+.items-section-header {
     display: flex;
     gap: 12px;
     align-items: center;
@@ -3012,7 +3349,7 @@ onBeforeUnmount(() => {
     background: #fffdf8;
 }
 
-.commodity-section-summary {
+.items-section-summary {
     display: flex;
     gap: 10px;
     align-items: baseline;
@@ -3021,16 +3358,30 @@ onBeforeUnmount(() => {
     background: #edf8e9;
 }
 
-.commodity-section-summary span {
+.items-section-summary span {
     color: #657567;
     font-size: 10px;
     font-weight: 800;
 }
 
-.commodity-section-summary strong {
+.items-section-summary strong {
     color: #10823a;
     font-size: 15px;
     font-weight: 950;
+}
+
+.draft-kind-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 14px 0;
+    background: #f5f1e7;
+}
+
+.draft-kind-bar > span {
+    color: #756b59;
+    font-size: 10px;
+    font-weight: 700;
 }
 
 .draft-line-editor {
@@ -3040,6 +3391,10 @@ onBeforeUnmount(() => {
     align-items: center;
     padding: 12px 14px;
     background: #f5f1e7;
+}
+
+.draft-line-editor--service {
+    grid-template-columns: minmax(260px, 1.8fr) 96px 110px 110px minmax(160px, 1fr) auto auto;
 }
 
 .draft-line-editor__submit {
@@ -3110,6 +3465,10 @@ onBeforeUnmount(() => {
     text-align: center !important;
 }
 
+.draft-lines-empty__content {
+    width: 100%;
+}
+
 .draft-lines-empty .v-icon,
 .draft-lines-empty span,
 .draft-lines-empty small {
@@ -3141,6 +3500,18 @@ onBeforeUnmount(() => {
     white-space: nowrap;
 }
 
+.draft-row-kind {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #e8f1ed;
+    color: #386145;
+    font-size: 10px;
+    font-weight: 900;
+}
+
 .draft-line-total {
     color: #10823a;
     font-size: 13px;
@@ -3156,6 +3527,7 @@ onBeforeUnmount(() => {
 
 .check-form-actions__summary {
     display: flex;
+    flex-wrap: wrap;
     gap: 15px;
     color: #756b59;
     font-size: 11px;
@@ -3304,15 +3676,16 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1100px) {
-    .draft-line-editor {
+    .draft-line-editor,
+    .draft-line-editor--service {
         grid-template-columns: repeat(6, minmax(0, 1fr));
     }
 
-    .draft-line-editor > :first-child {
+    .draft-line-editor__item {
         grid-column: span 2;
     }
 
-    .draft-line-editor > :nth-child(6) {
+    .draft-line-editor__article {
         grid-column: span 3;
     }
 
@@ -3361,6 +3734,7 @@ onBeforeUnmount(() => {
     }
 
     .check-form-section--totals .check-form-section__title,
+    .check-total-breakdown,
     .check-total-difference,
     .check-form-section--totals > .form-inline-error {
         grid-column: 1 / -1;
@@ -3390,26 +3764,46 @@ onBeforeUnmount(() => {
     .entity-picker__control,
     .entity-creator__fields,
     .check-form-section--totals,
-    .draft-line-editor {
+    .draft-line-editor,
+    .draft-line-editor--service {
         grid-template-columns: 1fr;
     }
 
-    .draft-line-editor > :first-child,
-    .draft-line-editor > :nth-child(6),
+    .draft-line-editor__item,
+    .draft-line-editor__article,
     .draft-line-editor__submit,
     .entity-creator__fields > .v-btn {
         grid-column: auto;
         justify-self: stretch;
     }
 
-    .commodity-section-header,
+    .items-section-header,
     .check-form-actions {
         align-items: stretch;
         flex-direction: column;
     }
 
-    .commodity-section-summary {
+    .items-section-summary {
         justify-content: space-between;
+    }
+
+    .draft-kind-bar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .draft-kind-bar .v-btn-toggle {
+        width: 100%;
+    }
+
+    .draft-kind-bar .v-btn {
+        flex: 1;
+    }
+
+    .draft-lines-empty__content {
+        position: sticky;
+        left: 0;
+        width: calc(100vw - 114px);
     }
 
     .check-form-actions__summary {

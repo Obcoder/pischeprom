@@ -129,11 +129,13 @@ jobs:
             app/Http/Controllers/Controller.php \
             app/Http/Controllers/API/CheckCommodityController.php \
             app/Http/Controllers/API/CheckController.php \
+            app/Http/Controllers/API/CheckServiceController.php \
             app/Http/Controllers/API/Logistics \
             app/Http/Middleware/EnforceLogisticsAuthorization.php \
             app/Http/Middleware/HandleInertiaRequests.php \
             app/Http/Requests/Logistics \
             app/Http/Resources/CheckResource.php \
+            app/Http/Resources/CheckServiceResource.php \
             app/Http/Resources/Logistics \
             app/Jobs/Logistics \
             app/Models/Logistics*.php \
@@ -147,6 +149,7 @@ jobs:
             app/Providers/AppServiceProvider.php \
             app/Services/Logistics \
             app/Services/Checks/CheckCommodityService.php \
+            app/Services/Checks/CheckServiceItemService.php \
             bootstrap/app.php \
             config/logistics.php \
             config/queue.php \

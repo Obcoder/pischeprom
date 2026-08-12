@@ -10,6 +10,13 @@ class CheckResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $commodityItemsTotal = $this->relationLoaded('items')
+            ? (float) $this->items->sum(fn ($item) => (float) $item->quantity * (float) $item->price)
+            : null;
+        $serviceItemsTotal = $this->relationLoaded('serviceItems')
+            ? (float) $this->serviceItems->sum(fn ($item) => (float) $item->quantity * (float) $item->price)
+            : null;
+
         return [
             'id' => $this->id,
             'date' => optional($this->date)->toDateString(),
@@ -26,8 +33,10 @@ class CheckResource extends JsonResource
             'items_count' => ($this->items_count ?? 0) + ($this->service_items_count ?? 0),
             'commodity_items_count' => $this->whenCounted('items'),
             'service_items_count' => $this->whenCounted('serviceItems'),
-            'commodity_items_total' => $this->relationLoaded('items')
-                ? (float) $this->items->sum(fn ($item) => (float) $item->quantity * (float) $item->price)
+            'commodity_items_total' => $commodityItemsTotal,
+            'service_items_total' => $serviceItemsTotal,
+            'positions_total' => $commodityItemsTotal !== null && $serviceItemsTotal !== null
+                ? $commodityItemsTotal + $serviceItemsTotal
                 : null,
             'items' => CheckCommodityResource::collection($this->whenLoaded('items')),
             'service_items' => CheckServiceResource::collection($this->whenLoaded('serviceItems')),

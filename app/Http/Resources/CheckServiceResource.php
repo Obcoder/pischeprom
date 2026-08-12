@@ -17,7 +17,8 @@ class CheckServiceResource extends JsonResource
             'measure_id' => $this->measure_id,
             'expense_article_id' => $this->expense_article_id,
             'price' => $this->price,
-            'total_price' => $this->total_price,
+            'total_price' => $this->total_price
+                ?? (float) $this->quantity * (float) $this->price,
             'measure' => $this->whenLoaded('measure', fn () => [
                 'id' => $this->measure?->id,
                 'name' => $this->measure?->name,
