@@ -11,6 +11,8 @@ use App\Domain\AiPriceLists\Providers\YandexAiStudioProvider;
 use App\Domain\AiPriceLists\Providers\YandexVisionOcrProvider;
 use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
 use App\Domain\AiPriceLists\Services\NullFileScanner;
+use App\Domain\AiSales\Contracts\EntityCreateLinkGuard;
+use App\Domain\AiSales\Services\DeterministicEntityCreateLinkGuard;
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Banking\Contracts\BankProviderInterface;
 use App\Domain\Banking\Events\BankConnectionRequiresAttention;
@@ -23,6 +25,7 @@ use App\Models\BankAuditEvent;
 use App\Models\BankConnection;
 use App\Models\BankPaymentOrderDraft;
 use App\Models\BankTransaction;
+use App\Models\EntityCandidateProposal;
 use App\Models\GoodStockMovement;
 use App\Models\LogisticsCity;
 use App\Models\LogisticsCityDistance;
@@ -30,9 +33,16 @@ use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripExpense;
 use App\Models\MailMessageAttachment;
 use App\Models\PriceListImport;
+use App\Models\Unit;
+use App\Models\UnitBusinessContext;
+use App\Models\UnitObservation;
 use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
+use App\Policies\AiSales\EntityCandidateProposalPolicy;
+use App\Policies\AiSales\UnitBusinessContextPolicy;
+use App\Policies\AiSales\UnitObservationPolicy;
+use App\Policies\AiSales\UnitPolicy;
 use App\Policies\BankAuditEventPolicy;
 use App\Policies\BankConnectionPolicy;
 use App\Policies\BankPaymentOrderDraftPolicy;
@@ -63,6 +73,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AvitoApiCatalog::class);
+        $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
 
         $this->app->bind(FileScannerInterface::class, fn ($app) => match (config('ai-price-lists.scanner')) {
             'clamav' => $app->make(ClamAvFileScanner::class),
@@ -194,6 +205,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(LogisticsCity::class, LogisticsCityPolicy::class);
         Gate::policy(LogisticsCityDistance::class, LogisticsCityDistancePolicy::class);
         Gate::policy(PriceListImport::class, PriceListImportPolicy::class);
+        Gate::policy(Unit::class, UnitPolicy::class);
+        Gate::policy(UnitBusinessContext::class, UnitBusinessContextPolicy::class);
+        Gate::policy(UnitObservation::class, UnitObservationPolicy::class);
+        Gate::policy(EntityCandidateProposal::class, EntityCandidateProposalPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

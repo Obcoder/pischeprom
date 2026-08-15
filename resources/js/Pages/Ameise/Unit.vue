@@ -11,6 +11,7 @@ import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
 import UnitCallsCard from '@/Components/Unit/UnitCallsCard.vue'
 import UnitManufacturesCard from '@/Components/Unit/UnitManufacturesCard.vue'
 import UnitTradeTabsCard from '@/Components/Unit/UnitTradeTabsCard.vue'
+import UnitBusinessContextsPanel from '@/Components/Unit/AiSales/UnitBusinessContextsPanel.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -34,6 +35,10 @@ const props = defineProps({
                 create: false,
             },
         }),
+    },
+    aiSales: {
+        type: Object,
+        default: () => ({ capabilities: { view: false } }),
     },
 })
 
@@ -114,6 +119,16 @@ onMounted(async () => {
             </div>
         </section>
 
+        <section class="unit-page__band unit-page__band--contexts">
+            <div>
+                <UnitBusinessContextsPanel
+                    :unit-id="Number(unit.id)"
+                    :initial-capabilities="aiSales.capabilities || {}"
+                    @unit-updated="refreshUnit"
+                />
+            </div>
+        </section>
+
         <section class="unit-page__band unit-page__band--trade-tabs">
             <div>
                 <UnitTradeTabsCard
@@ -177,6 +192,10 @@ onMounted(async () => {
 }
 
 .unit-page__band--trade-tabs {
+    grid-template-columns: 1fr;
+}
+
+.unit-page__band--contexts {
     grid-template-columns: 1fr;
 }
 

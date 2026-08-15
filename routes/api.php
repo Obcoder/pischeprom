@@ -2,6 +2,13 @@
 
 use App\Http\Controllers\API\AiPriceLists\PriceListImportController as AiPriceListImportController;
 use App\Http\Controllers\API\AiPriceLists\PriceListItemController as AiPriceListItemController;
+use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
+use App\Http\Controllers\API\AiSales\UnitAliasController as AiSalesUnitAliasController;
+use App\Http\Controllers\API\AiSales\UnitBusinessContextController as AiSalesUnitBusinessContextController;
+use App\Http\Controllers\API\AiSales\UnitDossierController as AiSalesUnitDossierController;
+use App\Http\Controllers\API\AiSales\UnitObservationController as AiSalesUnitObservationController;
+use App\Http\Controllers\API\AiSales\UnitRoleController as AiSalesUnitRoleController;
+use App\Http\Controllers\API\AiSales\UnitSourceController as AiSalesUnitSourceController;
 use App\Http\Controllers\API\BeelinePbxController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
@@ -122,6 +129,27 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::prefix('ai-sales/units/{unit}')
+    ->name('api.ai-sales.units.')
+    ->middleware(['auth:sanctum', 'verified', 'throttle:60,1'])
+    ->group(function (): void {
+        Route::get('/dossier', AiSalesUnitDossierController::class)->name('dossier.show');
+
+        Route::post('/roles', [AiSalesUnitRoleController::class, 'store'])->name('roles.store');
+        Route::delete('/roles/{marketRole}', [AiSalesUnitRoleController::class, 'destroy'])->name('roles.destroy');
+
+        Route::post('/contexts', [AiSalesUnitBusinessContextController::class, 'store'])->name('contexts.store');
+        Route::patch('/contexts/{context}', [AiSalesUnitBusinessContextController::class, 'update'])->name('contexts.update');
+
+        Route::post('/sources', [AiSalesUnitSourceController::class, 'store'])->name('sources.store');
+        Route::post('/aliases', [AiSalesUnitAliasController::class, 'store'])->name('aliases.store');
+        Route::post('/observations', [AiSalesUnitObservationController::class, 'store'])->name('observations.store');
+        Route::post('/observations/{observation}/review', [AiSalesUnitObservationController::class, 'review'])->name('observations.review');
+        Route::post('/observations/{observation}/promote', [AiSalesUnitObservationController::class, 'promote'])->name('observations.promote');
+
+        Route::post('/entity-proposals', [AiSalesEntityCandidateProposalController::class, 'store'])->name('entity-proposals.store');
+    });
 
 Route::prefix('ai/price-lists')
     ->name('api.ai.price-lists.')
