@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\AiSales\Exceptions\PolicyViolation;
 use App\Domain\Avito\Exceptions\AvitoException;
 use App\Domain\Banking\Exceptions\BankingException;
 use App\Services\Logistics\Routing\Exceptions\RoutingException;
@@ -30,6 +31,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontReport(BankingException::class);
         $exceptions->dontReport(AvitoException::class);
         $exceptions->dontReport(RoutingException::class);
+        $exceptions->dontReport(PolicyViolation::class);
+
+        $exceptions->render(function (PolicyViolation $exception, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            $status = $exception->errorCode === 'idempotency_key_conflict' ? 409 : 422;
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'code' => $exception->errorCode,
+                'field' => $exception->field,
+            ], $status);
+        });
 
         $exceptions->render(function (AvitoException $exception, Request $request) {
             if (! $request->expectsJson()) {

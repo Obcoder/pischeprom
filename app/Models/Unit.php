@@ -167,6 +167,11 @@ class Unit extends Model
         return $this->hasMany(UnitDossierAuditEvent::class);
     }
 
+    public function aiAgentRuns(): HasMany
+    {
+        return $this->hasMany(AiAgentRun::class);
+    }
+
     public function fields(): BelongsToMany
     {
         return $this->belongsToMany(Field::class);

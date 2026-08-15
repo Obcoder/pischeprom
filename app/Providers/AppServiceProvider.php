@@ -12,6 +12,7 @@ use App\Domain\AiPriceLists\Providers\YandexVisionOcrProvider;
 use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
 use App\Domain\AiPriceLists\Services\NullFileScanner;
 use App\Domain\AiSales\Contracts\EntityCreateLinkGuard;
+use App\Domain\AiSales\Providers\AiProviderRegistry;
 use App\Domain\AiSales\Services\DeterministicEntityCreateLinkGuard;
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Banking\Contracts\BankProviderInterface;
@@ -21,6 +22,10 @@ use App\Domain\Banking\Events\BankTransactionChanged;
 use App\Domain\Banking\Events\ReceivablePaymentStatusChanged;
 use App\Domain\Banking\Services\BankNotificationService;
 use App\Domain\Banking\Services\BankProviderManager;
+use App\Infrastructure\AiSales\Providers\FakeExternalSanitizedAiProvider;
+use App\Infrastructure\AiSales\Providers\FakeLocalRuAiProvider;
+use App\Models\AiAgentDefinition;
+use App\Models\AiAgentRun;
 use App\Models\BankAuditEvent;
 use App\Models\BankConnection;
 use App\Models\BankPaymentOrderDraft;
@@ -39,6 +44,8 @@ use App\Models\UnitObservation;
 use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
+use App\Policies\AiSales\AiAgentDefinitionPolicy;
+use App\Policies\AiSales\AiAgentRunPolicy;
 use App\Policies\AiSales\EntityCandidateProposalPolicy;
 use App\Policies\AiSales\UnitBusinessContextPolicy;
 use App\Policies\AiSales\UnitObservationPolicy;
@@ -74,6 +81,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AvitoApiCatalog::class);
         $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
+        $this->app->singleton(AiProviderRegistry::class, function ($app): AiProviderRegistry {
+            $registry = new AiProviderRegistry;
+            $registry->register($app->make(FakeLocalRuAiProvider::class));
+            $registry->register($app->make(FakeExternalSanitizedAiProvider::class));
+
+            return $registry;
+        });
 
         $this->app->bind(FileScannerInterface::class, fn ($app) => match (config('ai-price-lists.scanner')) {
             'clamav' => $app->make(ClamAvFileScanner::class),
@@ -121,6 +135,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('price-list-ai', fn () => Limit::perMinute(
             max(1, (int) config('ai-price-lists.ai.requests_per_minute', 30))
         )->by('yandex-price-list-ai'));
+        RateLimiter::for('ai-sales', fn (Request $request) => Limit::perMinute(30)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
 
         Gate::before(function ($user, string $ability) {
             if (Str::startsWith($ability, 'ai_price_lists.')) {
@@ -209,6 +225,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(UnitBusinessContext::class, UnitBusinessContextPolicy::class);
         Gate::policy(UnitObservation::class, UnitObservationPolicy::class);
         Gate::policy(EntityCandidateProposal::class, EntityCandidateProposalPolicy::class);
+        Gate::policy(AiAgentDefinition::class, AiAgentDefinitionPolicy::class);
+        Gate::policy(AiAgentRun::class, AiAgentRunPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

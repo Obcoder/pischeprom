@@ -92,4 +92,9 @@ class UnitBusinessContext extends Model
     {
         return $this->hasMany(EntityCandidateProposal::class);
     }
+
+    public function aiAgentRuns(): HasMany
+    {
+        return $this->hasMany(AiAgentRun::class);
+    }
 }

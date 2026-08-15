@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Domain\AiSales\Services\AiControlPlaneAuthorizationService;
 use App\Domain\AiSales\Services\UnitContextAuthorizationService;
 use App\Http\Controllers\Controller;
 use App\Models\Building;
@@ -32,6 +33,7 @@ class UnitController extends Controller
         Unit $unit,
         UnansweredOutgoingMailService $mailService,
         UnitContextAuthorizationService $aiSalesAuthorization,
+        AiControlPlaneAuthorizationService $aiControlAuthorization,
     ) {
         $unit->load(Unit::detailRelations(true));
         $this->attachConsumptionRequestCounts($unit);
@@ -67,7 +69,10 @@ class UnitController extends Controller
                 ],
             ],
             'aiSales' => [
-                'capabilities' => $aiSalesAuthorization->capabilities($request->user(), $unit),
+                'capabilities' => [
+                    ...$aiSalesAuthorization->capabilities($request->user(), $unit),
+                    ...$aiControlAuthorization->capabilities($request->user(), $unit),
+                ],
             ],
         ]);
     }

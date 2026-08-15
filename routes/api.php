@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\API\AiPriceLists\PriceListImportController as AiPriceListImportController;
 use App\Http\Controllers\API\AiPriceLists\PriceListItemController as AiPriceListItemController;
+use App\Http\Controllers\API\AiSales\AiAgentDefinitionController as AiSalesAgentDefinitionController;
+use App\Http\Controllers\API\AiSales\AiAgentRunController as AiSalesAgentRunController;
+use App\Http\Controllers\API\AiSales\AiControlPlaneController as AiSalesControlPlaneController;
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
 use App\Http\Controllers\API\AiSales\UnitAliasController as AiSalesUnitAliasController;
 use App\Http\Controllers\API\AiSales\UnitBusinessContextController as AiSalesUnitBusinessContextController;
@@ -149,6 +152,21 @@ Route::prefix('ai-sales/units/{unit}')
         Route::post('/observations/{observation}/promote', [AiSalesUnitObservationController::class, 'promote'])->name('observations.promote');
 
         Route::post('/entity-proposals', [AiSalesEntityCandidateProposalController::class, 'store'])->name('entity-proposals.store');
+    });
+
+Route::prefix('ai-sales')
+    ->name('api.ai-sales.')
+    ->middleware(['auth:sanctum', 'verified', 'throttle:ai-sales'])
+    ->group(function (): void {
+        Route::get('/control-plane', [AiSalesControlPlaneController::class, 'show'])->name('control-plane.show');
+        Route::patch('/control-plane/kill-switches/{scope}', [AiSalesControlPlaneController::class, 'updateKillSwitch'])
+            ->whereIn('scope', ['global', 'local_ru', 'external_sanitized'])
+            ->name('control-plane.kill-switches.update');
+        Route::get('/agent-definitions', [AiSalesAgentDefinitionController::class, 'index'])->name('agent-definitions.index');
+        Route::get('/runs', [AiSalesAgentRunController::class, 'index'])->name('runs.index');
+        Route::post('/runs', [AiSalesAgentRunController::class, 'store'])->name('runs.store');
+        Route::get('/runs/{aiAgentRun}', [AiSalesAgentRunController::class, 'show'])->name('runs.show');
+        Route::post('/runs/{aiAgentRun}/cancel', [AiSalesAgentRunController::class, 'cancel'])->name('runs.cancel');
     });
 
 Route::prefix('ai/price-lists')
