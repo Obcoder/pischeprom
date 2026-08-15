@@ -44,8 +44,14 @@ class AiSalesStage04ConfigurationTest extends TestCase
         $this->assertFalse(config('ai-sales.providers.timeweb.routes.external_sanitized.enabled'));
         $this->assertFalse(config('ai-sales.providers.timeweb.probe.enabled'));
         $this->assertTrue(config('ai-sales.providers.timeweb.probe.synthetic_only'));
-        $this->assertSame('', config('ai-sales.providers.timeweb.routes.local_ru.api_key'));
-        $this->assertSame('', config('ai-sales.providers.timeweb.routes.external_sanitized.api_key'));
+        $this->assertTrue(
+            config('ai-sales.providers.timeweb.routes.local_ru.api_key') === '',
+            'The Timeweb local route key must be absent from the test environment.',
+        );
+        $this->assertTrue(
+            config('ai-sales.providers.timeweb.routes.external_sanitized.api_key') === '',
+            'The Timeweb external route key must be absent from the test environment.',
+        );
         $this->assertSame([], config('ai-sales.providers.timeweb.routes.local_ru.model_ids'));
         $this->assertSame('https://api.timeweb.ai/v1', config('ai-sales.providers.timeweb.base_url'));
         $this->assertSame([], $this->nonCacheableConfigurationPaths((array) config('ai-sales')));
