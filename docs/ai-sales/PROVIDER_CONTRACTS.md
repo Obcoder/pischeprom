@@ -16,9 +16,9 @@ Provider-neutral DTOs are:
 
 Provider-specific JSON is not represented above the adapter boundary. A future adapter must parse transient wire data into these DTOs and discard raw bodies unless a separately approved incident policy exists.
 
-## Stage 04 registry and fakes
+## Stage 04 fakes and Stage 05 Timeweb adapters
 
-`AiProviderRegistry` accepts only `FakeAiProviderInterface` and requires exactly one provider for each selected route. Registered implementations are:
+In default `fake_only` mode, `AiProviderRegistry` registers exactly one `FakeAiProviderInterface` for each selected route. Registered implementations are:
 
 - `FakeLocalRuAiProvider`;
 - `FakeExternalSanitizedAiProvider`;
@@ -26,8 +26,12 @@ Provider-specific JSON is not represented above the adapter boundary. A future a
 
 The fakes cover structured and normal output, function-call request, usage, timeout, 429, 5xx, schema mismatch, DLP/contour block and unavailable health. They create no HTTP request. The external fake independently rejects local-only payloads.
 
-`AiProviderRouter` accepts an already-hashed contour decision. It checks the contract profile, persisted capability evidence, fake health and exact local residency, then emits an auditable selection with `fallbackAllowed=false`. It rejects any request/selection/policy hash or contour mismatch.
+Stage 05 generalizes the registry allowlist to two marker contracts only: the existing fake marker and `TimewebAiProviderInterface`. Timeweb registration additionally requires `transport_mode=timeweb_synthetic_only`; the Unit run feature guard still blocks that mode. `TimewebLocalRuProvider` and `TimewebExternalSanitizedProvider` share a fixed transport but preserve route identity, keys, model allowlists and policy decisions.
+
+The Timeweb adapters accept only `AiProviderRequest.syntheticOnly=true` with a repository fixture and a deterministic hash over the complete fixed synthetic input envelope. Chat/Responses wire objects are transient and normalize into the same Stage 04 DTOs. `previous_response_id` is never emitted.
+
+`AiProviderRouter` accepts an already-hashed contour decision. It checks the contract profile, persisted capability evidence, provider health and exact local residency, then emits an auditable selection with `fallbackAllowed=false`. It rejects any request/selection/policy hash or contour mismatch.
 
 ## Explicit exclusions
 
-Stage 04 has no Timeweb, ProxyAPI, AITUNNEL, OpenAI or Foreign Gateway adapter; no SDK, base URL, API key, HTTP client, search transport, billing integration or provider failover. Config may name future provider codes as inert architecture metadata only. Activating or probing a real provider belongs to a later, separately authorized stage.
+Stage 05 adds only the Timeweb AI Gateway transport and guarded synthetic operational workflow. It adds no ProxyAPI, AITUNNEL, direct OpenAI/Foreign Gateway, vendor SDK, search transport, production runtime or provider failover. Keys remain outside Git and DB; all provider flags remain default-off.

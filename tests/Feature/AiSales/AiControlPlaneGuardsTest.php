@@ -119,6 +119,26 @@ class AiControlPlaneGuardsTest extends Stage04TestCase
         $this->assertDatabaseMissing('ai_usage_records', ['ai_agent_run_id' => $capabilityRun->id]);
     }
 
+    public function test_timeweb_synthetic_transport_cannot_be_selected_by_unit_run_api(): void
+    {
+        Queue::fake();
+        $manager = $this->manager();
+        $actor = $this->aiUser(['sales']);
+        $unit = $this->unit(['name' => 'No Timeweb Domain Runtime Unit']);
+        $context = $this->createContext($manager, $unit, ['lane' => 'sales', 'role_code' => 'customer']);
+        $definition = $this->enableDefinition('unit_public_research_synthetic');
+        config()->set('ai-sales.transport_mode', 'timeweb_synthetic_only');
+
+        $this->actingAs($actor)->postJson('/api/ai-sales/runs', $this->payload(
+            $definition->code,
+            $unit->id,
+            $context['id'],
+            'timeweb-domain-runtime-block',
+        ))->assertUnprocessable()->assertJsonPath('code', 'timeweb_domain_runtime_blocked');
+
+        $this->assertDatabaseCount('ai_agent_runs', 0);
+    }
+
     private function createRun($actor, string $definitionCode, int $unitId, int $contextId, string $key): AiAgentRun
     {
         $id = $this->actingAs($actor)->postJson(

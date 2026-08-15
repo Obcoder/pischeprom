@@ -29,6 +29,7 @@ final readonly class AiProviderRequest
         public array $classificationSummary,
         public bool $containsLocalOnlyData,
         public int $timeoutSeconds,
+        public bool $syntheticOnly = false,
     ) {
         if ($contour === AiProcessingContour::None) {
             throw new InvalidArgumentException('A provider request cannot target the NONE contour.');

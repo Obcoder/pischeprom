@@ -39,7 +39,16 @@ class AiSalesStage04ConfigurationTest extends TestCase
         }
 
         $this->assertSame('fake_only', config('ai-sales.transport_mode'));
-        $this->assertSame([], $this->forbiddenConfigurationPaths((array) config('ai-sales')));
+        $this->assertFalse(config('ai-sales.providers.timeweb.enabled'));
+        $this->assertFalse(config('ai-sales.providers.timeweb.routes.local_ru.enabled'));
+        $this->assertFalse(config('ai-sales.providers.timeweb.routes.external_sanitized.enabled'));
+        $this->assertFalse(config('ai-sales.providers.timeweb.probe.enabled'));
+        $this->assertTrue(config('ai-sales.providers.timeweb.probe.synthetic_only'));
+        $this->assertSame('', config('ai-sales.providers.timeweb.routes.local_ru.api_key'));
+        $this->assertSame('', config('ai-sales.providers.timeweb.routes.external_sanitized.api_key'));
+        $this->assertSame([], config('ai-sales.providers.timeweb.routes.local_ru.model_ids'));
+        $this->assertSame('https://api.timeweb.ai/v1', config('ai-sales.providers.timeweb.base_url'));
+        $this->assertSame([], $this->nonCacheableConfigurationPaths((array) config('ai-sales')));
     }
 
     public function test_application_registry_contains_fake_provider_contracts_only(): void
@@ -53,19 +62,19 @@ class AiSalesStage04ConfigurationTest extends TestCase
         }
     }
 
-    private function forbiddenConfigurationPaths(array $value, string $path = 'ai-sales'): array
+    private function nonCacheableConfigurationPaths(array $value, string $path = 'ai-sales'): array
     {
         $findings = [];
 
         foreach ($value as $key => $item) {
             $child = $path.'.'.$key;
 
-            if (preg_match('/(?:api[_-]?key|secret|password|token|base[_-]?url|endpoint[_-]?url)$/i', (string) $key)) {
+            if ($item instanceof \Closure || is_resource($item) || is_object($item)) {
                 $findings[] = $child;
             }
 
             if (is_array($item)) {
-                $findings = [...$findings, ...$this->forbiddenConfigurationPaths($item, $child)];
+                $findings = [...$findings, ...$this->nonCacheableConfigurationPaths($item, $child)];
             }
         }
 

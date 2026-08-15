@@ -13,7 +13,7 @@ Routing order is fixed:
 5. run deterministic credential/PII DLP over the bounded array;
 6. require current residency evidence for `local_ru`;
 7. require persisted, evidence-backed model capabilities;
-8. select the single fake provider for the already-decided route;
+8. select the single approved provider for the already-decided route;
 9. verify the policy and Safe DTO hashes again immediately before execution.
 
 The client cannot request another contour. `AiProviderRouter` cannot change the decision contour and every `ProviderSelectionDecision` has `fallbackAllowed=false`. A local failure returns `provider_unavailable`; it never invokes the external route.
@@ -51,3 +51,5 @@ The external fake refuses a request marked `containsLocalOnlyData`, even if upst
 Local authorization matches the exact `provider_code + provider_route + model_id`. A usable residency row must be `verified`, declare `local_ru` and country `RU`, include `verified_by`/`verified_at`, and have a future `expires_at`. Missing, pending, stale, suspended or expired evidence yields `residency_unverified`.
 
 Every requested capability is also matched to an `ai_provider_capabilities` row. Unknown/documented-only/suspended/expired rows, missing evidence hashes, insufficient token limits or contour mismatch yield `provider_capability_unverified`. Synthetic fake capability rows are the only seeded provider evidence in Stage 04.
+
+Stage 05 does not seed Timeweb capability or residency evidence. A Timeweb exact model additionally requires current `ai_provider_models.active_in_inventory`, `support_state=supported`, a verified lifecycle and, for `local_ru`, short-lived human RU evidence. The synthetic-only adapter never falls back to the opposite route and is not reachable from the Unit-derived runtime.

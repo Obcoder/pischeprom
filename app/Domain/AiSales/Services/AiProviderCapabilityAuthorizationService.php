@@ -7,6 +7,7 @@ use App\Domain\AiSales\Enums\AiProcessingContour;
 use App\Domain\AiSales\Enums\AiProviderRoute;
 use App\Domain\AiSales\Exceptions\PolicyViolation;
 use App\Models\AiProviderCapability;
+use App\Models\AiProviderModel;
 
 class AiProviderCapabilityAuthorizationService
 {
@@ -19,6 +20,15 @@ class AiProviderCapabilityAuthorizationService
     ): void {
         if ($route->contour() !== $contour) {
             throw new PolicyViolation('provider_capability_contour_mismatch', 'Capability verification cannot change the selected contour.');
+        }
+
+        if ($providerCode === 'timeweb' && ! AiProviderModel::query()
+            ->where('provider_code', $providerCode)
+            ->where('provider_route', $route->value)
+            ->where('model_id', $modelId)
+            ->where('active_in_inventory', true)
+            ->exists()) {
+            throw new PolicyViolation('provider_model_inventory_missing', 'Exact provider model is absent from current normalized inventory.');
         }
 
         $required = array_values(array_unique([
@@ -44,6 +54,7 @@ class AiProviderCapabilityAuthorizationService
             if (! $record
                 || $record->contour !== $contour
                 || ! $record->status->verified()
+                || ! $record->support_state->permitsUse()
                 || $record->verified_at === null
                 || ($record->expires_at !== null && ! $record->expires_at->isFuture())
                 || ! is_string($record->evidence_hash)

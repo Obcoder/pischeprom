@@ -58,7 +58,7 @@ class AiProviderRouter
         $health = $provider->healthCheck();
 
         if (! $health->available) {
-            throw new PolicyViolation('provider_unavailable', 'The selected fake provider is unavailable.');
+            throw new PolicyViolation('provider_unavailable', 'The selected provider is unavailable.');
         }
 
         if ($route === AiProviderRoute::LocalRu) {
@@ -71,7 +71,7 @@ class AiProviderRouter
             $profile->modelId,
             $profile->contour,
             $requirements->capabilities,
-            'exact_contour_fake_provider_selected',
+            'exact_contour_provider_selected',
             false,
         );
     }

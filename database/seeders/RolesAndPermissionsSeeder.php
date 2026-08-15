@@ -55,6 +55,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'ai_sales.runs.view',
             'ai_sales.runs.cancel',
             'ai_sales.capabilities.view',
+            'ai_sales.residency.verify',
+            'ai_sales.pricing.verify',
 
             'users.view',
             'users.edit',

@@ -116,7 +116,7 @@ onMounted(load)
     <v-card rounded="xl" variant="outlined">
         <v-card-title class="d-flex justify-space-between align-center ga-3">
             <div>
-                <div class="text-overline">Stage 04 · fake-only</div>
+                <div class="text-overline">Stage 05 · Timeweb default-off</div>
                 <div class="text-h6">AI Control Plane и два контура</div>
             </div>
             <div class="d-flex ga-2">
@@ -143,7 +143,7 @@ onMounted(load)
                 <v-progress-linear v-if="loading" indeterminate class="mb-3" />
                 <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mb-3">{{ error }}</v-alert>
                 <v-alert type="info" density="compact" variant="tonal" class="mb-4">
-                    Зарегистрированы только fake providers. Raw prompts/responses и ключи не показываются и не сохраняются; fallback отсутствует.
+                    Unit runtime остаётся fake-only. Timeweb доступен только guarded CLI с repository-owned synthetic fixtures; raw bodies и ключи не показываются и не сохраняются, fallback отсутствует.
                 </v-alert>
 
                 <v-row v-if="control">
@@ -155,6 +155,12 @@ onMounted(load)
                             </v-list-item>
                             <v-list-item title="Provider failover">
                                 <template #append><v-chip size="x-small" :color="control.features.failover_enabled ? 'error' : 'success'">{{ control.features.failover_enabled ? 'ON' : 'OFF' }}</v-chip></template>
+                            </v-list-item>
+                            <v-list-item title="Timeweb AI Gateway">
+                                <template #append><v-chip size="x-small" :color="control.features.timeweb_enabled ? 'warning' : 'success'">{{ control.features.timeweb_enabled ? 'STAGING ONLY' : 'OFF' }}</v-chip></template>
+                            </v-list-item>
+                            <v-list-item title="Timeweb synthetic probes">
+                                <template #append><v-chip size="x-small" :color="control.features.timeweb_probe_enabled ? 'warning' : 'success'">{{ control.features.timeweb_probe_enabled ? 'ON' : 'OFF' }}</v-chip></template>
                             </v-list-item>
                             <v-list-item v-for="(enabled, scope) in control.kill_switches" :key="scope" :title="`Kill switch: ${scope}`">
                                 <template #append>
@@ -182,7 +188,7 @@ onMounted(load)
                             </v-list-item>
                         </v-list>
                         <div class="text-caption text-medium-emphasis mt-2">
-                            Capability rows: {{ control.capabilities.length }} · Residency attestations: {{ control.residency_verifications.length }}
+                            Capability rows: {{ control.capabilities.length }} · Inventory models: {{ control.provider_models.length }} · Residency attestations: {{ control.residency_verifications.length }}
                         </div>
                         <template v-if="control.permissions.view_capabilities">
                             <div class="text-caption font-weight-medium mt-3">Verified capability matrix</div>
@@ -193,10 +199,26 @@ onMounted(load)
                                     :title="`${item.model} · ${item.capability}`"
                                     :subtitle="`${item.provider}/${item.route} · ${item.contour}`"
                                 >
-                                    <template #append><v-chip size="x-small">{{ item.status }}</v-chip></template>
+                                    <template #append><v-chip size="x-small">{{ item.support }} / {{ item.status }}</v-chip></template>
                                 </v-list-item>
                                 <v-list-item v-if="!control.capabilities.length" title="Capability evidence отсутствует" />
                             </v-list>
+                            <div class="text-caption font-weight-medium mt-3">Timeweb safe model inventory</div>
+                            <v-list density="compact" class="border rounded-lg mt-1">
+                                <v-list-item
+                                    v-for="item in control.provider_models.slice(0, 12)"
+                                    :key="`${item.provider}:${item.route}:${item.model}`"
+                                    :title="item.model"
+                                    :subtitle="`${item.route} · ${item.endpoint_profile} · last seen ${item.last_seen_at || 'never'}`"
+                                >
+                                    <template #append><v-chip size="x-small" :color="item.active_in_inventory ? 'success' : 'grey'">{{ item.active_in_inventory ? 'active' : 'inactive' }}</v-chip></template>
+                                </v-list-item>
+                                <v-list-item v-if="!control.provider_models.length" title="Timeweb inventory ещё не синхронизирован" />
+                            </v-list>
+                            <div v-if="control.timeweb" class="text-caption text-medium-emphasis mt-2">
+                                Keys: local {{ control.timeweb.local_ru.key_configured ? `configured …${control.timeweb.local_ru.key_fingerprint_suffix}` : 'not configured' }};
+                                external {{ control.timeweb.external_sanitized.key_configured ? `configured …${control.timeweb.external_sanitized.key_fingerprint_suffix}` : 'not configured' }}.
+                            </div>
                             <div class="text-caption font-weight-medium mt-3">Local residency verification</div>
                             <v-list density="compact" class="border rounded-lg mt-1">
                                 <v-list-item

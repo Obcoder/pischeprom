@@ -6,8 +6,9 @@ use App\Domain\AiSales\Enums\AiTaskProfile;
 
 return [
     /*
-    | Stage 04 is deliberately fake-only. Network-capable provider adapters are
-    | not registered and the generic external egress switch must remain off.
+    | Stage 05 keeps the Unit runtime fake-only by default. The only other
+    | accepted mode is timeweb_synthetic_only, which is guarded again inside
+    | the provider and is never allowed to consume a Unit-derived request.
     */
     'enabled' => (bool) env('AI_SALES_ENABLED', false),
     'fake_execution_enabled' => (bool) env('AI_FAKE_EXECUTION_ENABLED', false),
@@ -20,7 +21,7 @@ return [
     'outreach_sending_enabled' => (bool) env('AI_OUTREACH_SENDING_ENABLED', false),
     'autonomous_campaigns_enabled' => (bool) env('AI_AUTONOMOUS_CAMPAIGNS_ENABLED', false),
 
-    'transport_mode' => 'fake_only',
+    'transport_mode' => env('AI_SALES_TRANSPORT_MODE', 'fake_only'),
     'queue' => [
         'connection' => env('AI_SALES_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'sync')),
         'name' => env('AI_SALES_QUEUE', 'ai-sales'),
@@ -126,11 +127,49 @@ return [
                 ],
             ],
         ],
+        'timeweb' => [
+            'enabled' => (bool) env('AI_TIMEWEB_ENABLED', false),
+            'base_url' => env('AI_TIMEWEB_BASE_URL', 'https://api.timeweb.ai/v1'),
+            'connect_timeout_seconds' => (int) env('AI_TIMEWEB_CONNECT_TIMEOUT_SECONDS', 5),
+            'timeout_seconds' => (int) env('AI_TIMEWEB_TIMEOUT_SECONDS', 45),
+            'max_response_bytes' => (int) env('AI_TIMEWEB_MAX_RESPONSE_BYTES', 1_048_576),
+            'user_agent' => 'pischeprom-ai-sales/timeweb-stage05',
+            'adapter_version' => 'stage05-v1',
+            'routes' => [
+                AiProcessingContour::LocalRu->value => [
+                    'enabled' => (bool) env('AI_TIMEWEB_LOCAL_RU_ENABLED', false),
+                    'api_key' => env('AI_TIMEWEB_LOCAL_RU_API_KEY', ''),
+                    'model_ids' => array_values(array_filter(array_map(
+                        'trim',
+                        explode(',', (string) env('AI_TIMEWEB_LOCAL_RU_MODEL_IDS', '')),
+                    ), static fn (string $value): bool => $value !== '')),
+                ],
+                AiProcessingContour::ExternalSanitized->value => [
+                    'enabled' => (bool) env('AI_TIMEWEB_EXTERNAL_ENABLED', false),
+                    'api_key' => env('AI_TIMEWEB_EXTERNAL_API_KEY', ''),
+                    'models' => [
+                        'luna' => env('AI_TIMEWEB_EXTERNAL_MODEL_LUNA', ''),
+                        'terra' => env('AI_TIMEWEB_EXTERNAL_MODEL_TERRA', ''),
+                        'sol' => env('AI_TIMEWEB_EXTERNAL_MODEL_SOL', ''),
+                    ],
+                ],
+            ],
+            'probe' => [
+                'enabled' => (bool) env('AI_TIMEWEB_PROBE_ENABLED', false),
+                'synthetic_only' => (bool) env('AI_TIMEWEB_SYNTHETIC_ONLY', true),
+                'max_rub' => env('AI_TIMEWEB_PROBE_MAX_RUB', ''),
+                'max_input_tokens' => (int) env('AI_TIMEWEB_PROBE_MAX_INPUT_TOKENS', 0),
+                'max_output_tokens' => (int) env('AI_TIMEWEB_PROBE_MAX_OUTPUT_TOKENS', 0),
+                'max_requests' => (int) env('AI_TIMEWEB_PROBE_MAX_REQUESTS', 0),
+                'max_wall_clock_seconds' => (int) env('AI_TIMEWEB_PROBE_MAX_WALL_CLOCK_SECONDS', 120),
+                'residency_expiry_days' => (int) env('AI_TIMEWEB_RESIDENCY_EXPIRY_DAYS', 30),
+                'pricing_snapshot_version' => env('AI_TIMEWEB_PRICING_SNAPSHOT_VERSION', ''),
+            ],
+        ],
     ],
 
     /* Metadata only: no adapters, URLs, credentials or activation flags. */
     'future_provider_codes' => [
-        'timeweb_ai_gateway' => ['local_ru', 'external_sanitized'],
         'proxyapi' => ['external_sanitized'],
     ],
 

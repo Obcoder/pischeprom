@@ -11,7 +11,7 @@ final readonly class AiProviderInputItem
         public string $label,
         public array $data,
     ) {
-        if (! in_array($type, ['instruction', 'sanitized_data', 'tool_result'], true)) {
+        if (! in_array($type, ['instruction', 'sanitized_data', 'assistant_tool_call', 'tool_result'], true)) {
             throw new InvalidArgumentException('Unsupported provider input item type.');
         }
 

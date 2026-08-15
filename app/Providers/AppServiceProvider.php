@@ -24,6 +24,8 @@ use App\Domain\Banking\Services\BankNotificationService;
 use App\Domain\Banking\Services\BankProviderManager;
 use App\Infrastructure\AiSales\Providers\FakeExternalSanitizedAiProvider;
 use App\Infrastructure\AiSales\Providers\FakeLocalRuAiProvider;
+use App\Infrastructure\AiSales\Providers\TimewebExternalSanitizedProvider;
+use App\Infrastructure\AiSales\Providers\TimewebLocalRuProvider;
 use App\Models\AiAgentDefinition;
 use App\Models\AiAgentRun;
 use App\Models\BankAuditEvent;
@@ -83,8 +85,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
         $this->app->singleton(AiProviderRegistry::class, function ($app): AiProviderRegistry {
             $registry = new AiProviderRegistry;
-            $registry->register($app->make(FakeLocalRuAiProvider::class));
-            $registry->register($app->make(FakeExternalSanitizedAiProvider::class));
+
+            if (config('ai-sales.transport_mode') === 'timeweb_synthetic_only') {
+                $registry->register($app->make(TimewebLocalRuProvider::class));
+                $registry->register($app->make(TimewebExternalSanitizedProvider::class));
+            } else {
+                $registry->register($app->make(FakeLocalRuAiProvider::class));
+                $registry->register($app->make(FakeExternalSanitizedAiProvider::class));
+            }
 
             return $registry;
         });

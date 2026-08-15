@@ -4,18 +4,24 @@ namespace App\Domain\AiSales\Providers;
 
 use App\Domain\AiSales\Contracts\AiProviderInterface;
 use App\Domain\AiSales\Contracts\FakeAiProviderInterface;
+use App\Domain\AiSales\Contracts\TimewebAiProviderInterface;
 use App\Domain\AiSales\Enums\AiProviderRoute;
 use LogicException;
 
 class AiProviderRegistry
 {
-    /** @var array<string, FakeAiProviderInterface> */
+    /** @var array<string, AiProviderInterface> */
     private array $providers = [];
 
     public function register(AiProviderInterface $provider): void
     {
-        if (! $provider instanceof FakeAiProviderInterface) {
-            throw new LogicException('Stage 04 accepts fake AI providers only.');
+        if (! $provider instanceof FakeAiProviderInterface && ! $provider instanceof TimewebAiProviderInterface) {
+            throw new LogicException('Only approved fake or Timeweb AI provider contracts may be registered.');
+        }
+
+        if ($provider instanceof TimewebAiProviderInterface
+            && config('ai-sales.transport_mode') !== 'timeweb_synthetic_only') {
+            throw new LogicException('Timeweb providers require the explicit synthetic-only transport mode.');
         }
 
         $key = $this->key($provider->code(), $provider->route());
@@ -27,15 +33,15 @@ class AiProviderRegistry
         $this->providers[$key] = $provider;
     }
 
-    public function forRoute(AiProviderRoute $route): FakeAiProviderInterface
+    public function forRoute(AiProviderRoute $route): AiProviderInterface
     {
         $matches = array_values(array_filter(
             $this->providers,
-            fn (FakeAiProviderInterface $provider): bool => $provider->route() === $route,
+            fn (AiProviderInterface $provider): bool => $provider->route() === $route,
         ));
 
         if (count($matches) !== 1) {
-            throw new LogicException('Stage 04 requires exactly one fake provider per processing route.');
+            throw new LogicException('Exactly one approved provider must be registered per processing route.');
         }
 
         return $matches[0];

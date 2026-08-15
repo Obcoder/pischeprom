@@ -12,7 +12,12 @@ class AiStage04FeatureGuard
     public function assertEnabled(AiProcessingContour $contour): void
     {
         if (config('ai-sales.transport_mode') !== 'fake_only') {
-            throw new PolicyViolation('stage04_fake_only', 'Stage 04 permits fake providers only.');
+            throw new PolicyViolation(
+                config('ai-sales.transport_mode') === 'timeweb_synthetic_only'
+                    ? 'timeweb_domain_runtime_blocked'
+                    : 'unsupported_ai_transport_mode',
+                'Unit-derived AI runs remain fake-only; Timeweb Stage 05 is CLI synthetic-only.',
+            );
         }
 
         if ((bool) config('ai-sales.external_calls_enabled', false)) {

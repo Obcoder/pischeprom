@@ -54,3 +54,7 @@ Run creation accepts only definition code/version, Unit/context IDs and a caller
 Definitions and feature flags are disabled by default. Kill-switch records are seeded open (`false`), but a missing setting is interpreted as active (`true`). Local execution additionally requires an unexpired, exact provider/route/model RU verification with a human `verified_by`. Capability rows missing current verified evidence fail closed.
 
 Stage 04 is not approval to enable production execution. Database deployment/backfill, external provider integration, email delivery and automatic Entity changes are outside this stage.
+
+## Stage 05 extension
+
+Stage 05 adds safe Timeweb inventory/capability visibility to the same permission boundary. The UI exposes no writable provider operation and no prompt/model/URL input. Network-capable adapters are default-off and synthetic-only; the existing Unit-derived run remains fake-only. See [TIMEWEB_AI_GATEWAY.md](TIMEWEB_AI_GATEWAY.md) and [TIMEWEB_DATA_PROCESSING_AND_RETENTION.md](TIMEWEB_DATA_PROCESSING_AND_RETENTION.md).

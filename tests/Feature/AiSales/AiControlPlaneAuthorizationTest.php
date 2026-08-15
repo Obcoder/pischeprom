@@ -2,10 +2,51 @@
 
 namespace Tests\Feature\AiSales;
 
+use App\Domain\AiSales\Enums\AiProviderEndpointProfile;
 use App\Models\AiAgentRun;
+use App\Models\AiProviderModel;
 
 class AiControlPlaneAuthorizationTest extends Stage04TestCase
 {
+    public function test_timeweb_inventory_and_key_fingerprints_are_capability_admin_only(): void
+    {
+        AiProviderModel::query()->create([
+            'provider_code' => 'timeweb',
+            'provider_route' => 'external_sanitized',
+            'model_id' => 'synthetic/admin-visible-model',
+            'display_label' => 'Synthetic model',
+            'endpoint_profile' => AiProviderEndpointProfile::ChatCompletions,
+            'active_in_inventory' => true,
+            'first_seen_at' => now(),
+            'last_seen_at' => now(),
+            'safe_metadata' => ['object' => 'model'],
+            'source_reference' => 'test:/models',
+            'metadata_hash' => hash('sha256', 'synthetic/admin-visible-model'),
+        ]);
+        config()->set([
+            'app.key' => 'stage05-admin-test-app-key',
+            'ai-sales.providers.timeweb.routes.local_ru.api_key' => 'stage05-admin-local-fixture',
+            'ai-sales.providers.timeweb.routes.external_sanitized.api_key' => 'stage05-admin-external-fixture',
+        ]);
+        $viewer = $this->aiUser(['sales']);
+        $admin = $this->aiUser(['sales'], ['ai_sales.capabilities.view']);
+
+        $this->actingAs($viewer)->getJson('/api/ai-sales/control-plane')
+            ->assertOk()
+            ->assertJsonPath('data.provider_models', [])
+            ->assertJsonPath('data.timeweb', null);
+
+        $response = $this->actingAs($admin)->getJson('/api/ai-sales/control-plane')
+            ->assertOk()
+            ->assertJsonPath('data.provider_models.0.model', 'synthetic/admin-visible-model')
+            ->assertJsonPath('data.timeweb.local_ru.key_configured', true)
+            ->assertJsonPath('data.timeweb.external_sanitized.key_configured', true);
+        $encoded = $response->getContent();
+        $this->assertStringNotContainsString('stage05-admin-local-fixture', $encoded);
+        $this->assertStringNotContainsString('stage05-admin-external-fixture', $encoded);
+        $this->assertDoesNotMatchRegularExpression('/api[_-]?key/i', $encoded);
+    }
+
     public function test_all_control_plane_endpoints_require_authentication_and_permissions(): void
     {
         $unit = $this->unit();

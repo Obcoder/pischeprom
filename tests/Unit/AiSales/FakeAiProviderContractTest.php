@@ -3,6 +3,7 @@
 namespace Tests\Unit\AiSales;
 
 use App\Domain\AiSales\Contracts\AiProviderInterface;
+use App\Domain\AiSales\Contracts\TimewebAiProviderInterface;
 use App\Domain\AiSales\DTO\Providers\AiProviderInputItem;
 use App\Domain\AiSales\DTO\Providers\AiProviderRequest;
 use App\Domain\AiSales\DTO\Providers\AiRequestRequirements;
@@ -91,8 +92,29 @@ class FakeAiProviderContractTest extends TestCase
         $provider = Mockery::mock(AiProviderInterface::class);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('fake AI providers only');
+        $this->expectExceptionMessage('approved fake or Timeweb AI provider contracts');
         $registry->register($provider);
+    }
+
+    public function test_timeweb_marker_requires_explicit_synthetic_only_registry_mode(): void
+    {
+        $provider = Mockery::mock(TimewebAiProviderInterface::class);
+        config()->set('ai-sales.transport_mode', 'fake_only');
+
+        try {
+            (new AiProviderRegistry)->register($provider);
+            $this->fail('Timeweb provider must be disabled in fake-only mode.');
+        } catch (LogicException $exception) {
+            $this->assertStringContainsString('synthetic-only transport mode', $exception->getMessage());
+        }
+
+        config()->set('ai-sales.transport_mode', 'timeweb_synthetic_only');
+        $provider->shouldReceive('code')->andReturn('timeweb');
+        $provider->shouldReceive('route')->andReturn(\App\Domain\AiSales\Enums\AiProviderRoute::ExternalSanitized);
+        $registry = new AiProviderRegistry;
+        $registry->register($provider);
+
+        $this->assertSame([$provider], $registry->all());
     }
 
     private function request(

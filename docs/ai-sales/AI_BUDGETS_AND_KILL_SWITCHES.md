@@ -33,3 +33,7 @@ Only a user with `ai_sales.control.manage` can change a switch through the prote
 ## Recovery
 
 Operators cancel pending runs or activate a contour/global switch. Stage 04 does not automatically resume, retry or move blocked runs to another contour. After policy, residency, capability or budget correction, an authorized human creates a new idempotent run.
+
+## Stage 05 probe budgets
+
+Timeweb operational commands have an independent in-memory hard budget for request count, reserved input/output tokens, RUB and wall-clock time. All caps must be positive before HTTP. Exact-model calls additionally require a current immutable `ai_provider_pricing_snapshots` record matching the configured version; missing usage is costed at the reserved worst-case amount. Inventory uses one zero-token reservation. Budget breach blocks the next request without retry or contour failover.
