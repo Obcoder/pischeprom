@@ -48,6 +48,10 @@ class AiControlPlaneController extends Controller
                 'timeweb_enabled' => (bool) config('ai-sales.providers.timeweb.enabled', false),
                 'timeweb_probe_enabled' => (bool) config('ai-sales.providers.timeweb.probe.enabled', false),
                 'timeweb_synthetic_only' => (bool) config('ai-sales.providers.timeweb.probe.synthetic_only', true),
+                'tools_enabled' => (bool) config('ai-sales.tools.enabled', false),
+                'workflows_enabled' => (bool) config('ai-sales.workflows.enabled', false),
+                'provider_native_tools_enabled' => (bool) config('ai-sales.provider_native_tools_enabled', false),
+                'live_business_workflows_enabled' => (bool) config('ai-sales.live_business_workflows_enabled', false),
             ],
             'kill_switches' => $killSwitches->all(),
             'counts' => [
@@ -92,6 +96,7 @@ class AiControlPlaneController extends Controller
             'permissions' => [
                 'manage_kill_switches' => $authorization->canManage($request->user()),
                 'view_capabilities' => $canViewCapabilities,
+                'view_tooling' => $authorization->canViewTooling($request->user()),
             ],
         ]]);
     }

@@ -5,6 +5,7 @@ use App\Http\Controllers\API\AiPriceLists\PriceListItemController as AiPriceList
 use App\Http\Controllers\API\AiSales\AiAgentDefinitionController as AiSalesAgentDefinitionController;
 use App\Http\Controllers\API\AiSales\AiAgentRunController as AiSalesAgentRunController;
 use App\Http\Controllers\API\AiSales\AiControlPlaneController as AiSalesControlPlaneController;
+use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesToolingDiagnosticsController;
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
 use App\Http\Controllers\API\AiSales\UnitAliasController as AiSalesUnitAliasController;
 use App\Http\Controllers\API\AiSales\UnitBusinessContextController as AiSalesUnitBusinessContextController;
@@ -159,6 +160,7 @@ Route::prefix('ai-sales')
     ->middleware(['auth:sanctum', 'verified', 'throttle:ai-sales'])
     ->group(function (): void {
         Route::get('/control-plane', [AiSalesControlPlaneController::class, 'show'])->name('control-plane.show');
+        Route::get('/tooling', AiSalesToolingDiagnosticsController::class)->name('tooling.show');
         Route::patch('/control-plane/kill-switches/{scope}', [AiSalesControlPlaneController::class, 'updateKillSwitch'])
             ->whereIn('scope', ['global', 'local_ru', 'external_sanitized'])
             ->name('control-plane.kill-switches.update');

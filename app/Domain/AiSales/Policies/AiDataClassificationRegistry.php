@@ -8,8 +8,11 @@ use App\Domain\AiSales\DTO\Units\CustomerOfferSummary;
 use App\Domain\AiSales\DTO\Units\PublicBusinessContactSummary;
 use App\Domain\AiSales\DTO\Units\PublicGoodSummary;
 use App\Domain\AiSales\DTO\Units\SanitizedEntityLegalSummary;
+use App\Domain\AiSales\DTO\Units\SupportedRegionSummary;
 use App\Domain\AiSales\DTO\Units\UnitBusinessContextSummary;
+use App\Domain\AiSales\DTO\Units\UnitDuplicateCandidateSummary;
 use App\Domain\AiSales\DTO\Units\UnitSharedPublicProfile;
+use App\Domain\AiSales\DTO\Units\VerifiedPublicObservationEvidence;
 use App\Domain\AiSales\Enums\AiAudience;
 use App\Domain\AiSales\Enums\AiPurpose;
 use App\Domain\AiSales\Enums\DataClassification;
@@ -41,6 +44,18 @@ class AiDataClassificationRegistry
             'name', 'aliases', 'industries', 'cities', 'public_uris', 'observations',
         ], DataClassification::Public, UnitVisibilityScope::SharedPublic, $allPurposes, $allAudiences, true, 'none', 'Verified shared-public Unit profile.');
 
+        $this->registerMany(SupportedRegionSummary::class, [
+            'name', 'country',
+        ], DataClassification::Public, UnitVisibilityScope::SharedPublic, $publicResearchPurposes, $allAudiences, true, 'none', 'Published geographic labels only.');
+
+        $this->registerMany(VerifiedPublicObservationEvidence::class, [
+            'observation_key', 'summary', 'source_label', 'source_reference', 'observed_at',
+        ], DataClassification::Public, UnitVisibilityScope::SharedPublic, [
+            AiPurpose::UnitResearch->value,
+            AiPurpose::BuyerDiscovery->value,
+            AiPurpose::SupplierDiscovery->value,
+        ], $allAudiences, true, 'none', 'Verified shared-public evidence with bounded provenance metadata.');
+
         $customerAudiences = [AiAudience::Internal->value, AiAudience::Customer->value, AiAudience::ProspectiveCustomer->value];
         $this->registerMany(CustomerOfferSummary::class, [
             'good_name', 'price', 'currency', 'measure', 'valid_until',
@@ -54,6 +69,12 @@ class AiDataClassificationRegistry
             'context_reference', 'lane', 'role_code', 'stage', 'status', 'owner_label',
             'reviewer_label', 'primary_good_name', 'last_activity_at',
         ], DataClassification::Internal, UnitVisibilityScope::InternalOnly, $allPurposes, [AiAudience::Internal->value], false, 'none', 'Operational CRM context remains local.');
+
+        $this->registerMany(UnitDuplicateCandidateSummary::class, [
+            'candidate_reference', 'match_reason',
+        ], DataClassification::Internal, UnitVisibilityScope::InternalOnly, [
+            AiPurpose::UnitResearch->value,
+        ], [AiAudience::Internal->value], false, 'none', 'Opaque duplicate candidates are local-only and require an authorized Unit context.');
 
         $this->registerMany(SanitizedEntityLegalSummary::class, [
             'legal_name', 'entity_type', 'country',

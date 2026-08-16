@@ -40,6 +40,10 @@
         <env name="AI_OUTREACH_DRAFTING_ENABLED" value="false" force="true"/>
         <env name="AI_OUTREACH_SENDING_ENABLED" value="false" force="true"/>
         <env name="AI_AUTONOMOUS_CAMPAIGNS_ENABLED" value="false" force="true"/>
+        <env name="AI_TOOLS_ENABLED" value="false" force="true"/>
+        <env name="AI_WORKFLOWS_ENABLED" value="false" force="true"/>
+        <env name="AI_PROVIDER_NATIVE_TOOLS_ENABLED" value="false" force="true"/>
+        <env name="AI_LIVE_BUSINESS_WORKFLOWS_ENABLED" value="false" force="true"/>
         <env name="AI_SALES_TRANSPORT_MODE" value="fake_only" force="true"/>
         <env name="AI_TIMEWEB_ENABLED" value="false" force="true"/>
         <env name="AI_TIMEWEB_BASE_URL" value="https://api.timeweb.ai/v1" force="true"/>

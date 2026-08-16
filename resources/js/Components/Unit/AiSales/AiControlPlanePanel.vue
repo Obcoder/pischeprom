@@ -14,6 +14,7 @@ const control = ref(null)
 const definitions = ref([])
 const runs = ref([])
 const contexts = ref([])
+const tooling = ref(null)
 const runDialog = ref(false)
 const capabilities = computed(() => props.initialCapabilities || {})
 const runForm = reactive({ definition: null, contextId: null })
@@ -35,12 +36,16 @@ async function load() {
             axios.get('/api/ai-sales/agent-definitions'),
             axios.get(`/api/ai-sales/runs?unit_id=${props.unitId}`),
             axios.get(`/api/ai-sales/units/${props.unitId}/dossier`),
+            capabilities.value.view_ai_tooling
+                ? axios.get('/api/ai-sales/tooling')
+                : Promise.resolve({ data: { data: null } }),
         ]
-        const [controlResponse, definitionsResponse, runsResponse, dossierResponse] = await Promise.all(requests)
+        const [controlResponse, definitionsResponse, runsResponse, dossierResponse, toolingResponse] = await Promise.all(requests)
         control.value = controlResponse.data?.data || null
         definitions.value = definitionsResponse.data?.data || []
         runs.value = runsResponse.data?.data || []
         contexts.value = dossierResponse.data?.data?.contexts || []
+        tooling.value = toolingResponse.data?.data || null
     } catch (exception) {
         error.value = exception.response?.data?.message || 'Не удалось загрузить AI Control Plane.'
     } finally {
@@ -116,8 +121,8 @@ onMounted(load)
     <v-card rounded="xl" variant="outlined">
         <v-card-title class="d-flex justify-space-between align-center ga-3">
             <div>
-                <div class="text-overline">Stage 05 · Timeweb default-off</div>
-                <div class="text-h6">AI Control Plane и два контура</div>
+                <div class="text-overline">Stage 07 · workflows default-off</div>
+                <div class="text-h6">AI Control Plane, контуры и safe tools</div>
             </div>
             <div class="d-flex ga-2">
                 <v-btn
@@ -161,6 +166,18 @@ onMounted(load)
                             </v-list-item>
                             <v-list-item title="Timeweb synthetic probes">
                                 <template #append><v-chip size="x-small" :color="control.features.timeweb_probe_enabled ? 'warning' : 'success'">{{ control.features.timeweb_probe_enabled ? 'ON' : 'OFF' }}</v-chip></template>
+                            </v-list-item>
+                            <v-list-item title="Server-owned tools">
+                                <template #append><v-chip size="x-small" :color="control.features.tools_enabled ? 'warning' : 'success'">{{ control.features.tools_enabled ? 'DEV/TEST' : 'OFF' }}</v-chip></template>
+                            </v-list-item>
+                            <v-list-item title="Server-owned workflows">
+                                <template #append><v-chip size="x-small" :color="control.features.workflows_enabled ? 'warning' : 'success'">{{ control.features.workflows_enabled ? 'DEV/TEST' : 'OFF' }}</v-chip></template>
+                            </v-list-item>
+                            <v-list-item title="Provider-native tools">
+                                <template #append><v-chip size="x-small" :color="control.features.provider_native_tools_enabled ? 'error' : 'success'">{{ control.features.provider_native_tools_enabled ? 'BLOCK REQUIRED' : 'OFF' }}</v-chip></template>
+                            </v-list-item>
+                            <v-list-item title="Live business workflows">
+                                <template #append><v-chip size="x-small" :color="control.features.live_business_workflows_enabled ? 'error' : 'success'">{{ control.features.live_business_workflows_enabled ? 'BLOCK REQUIRED' : 'OFF' }}</v-chip></template>
                             </v-list-item>
                             <v-list-item v-for="(enabled, scope) in control.kill_switches" :key="scope" :title="`Kill switch: ${scope}`">
                                 <template #append>
@@ -232,6 +249,58 @@ onMounted(load)
                         </template>
                     </v-col>
                 </v-row>
+
+                <template v-if="tooling && capabilities.view_ai_tooling">
+                    <v-divider class="my-5" />
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <strong>Code-owned Tool / Workflow Registry</strong>
+                        <span class="text-caption text-medium-emphasis">Read-only diagnostics · no browser execution</span>
+                    </div>
+                    <v-alert type="info" density="compact" variant="tonal" class="mb-3">
+                        Browser не передаёт tool code, arguments, workflow, prompt, provider, model, URL или contour. Live business eligibility отсутствует.
+                    </v-alert>
+                    <v-row>
+                        <v-col cols="12" lg="7">
+                            <div class="text-caption font-weight-medium mb-1">Tools</div>
+                            <v-list density="compact" class="border rounded-lg">
+                                <v-list-item
+                                    v-for="tool in tooling.tools"
+                                    :key="`${tool.code}:${tool.version}`"
+                                    :title="`${tool.code}:${tool.version}`"
+                                    :subtitle="`${tool.allowed_contours.join(', ')} · ${tool.allowed_lanes.join(', ')} · ceiling ${tool.maximum_classification}`"
+                                >
+                                    <template #append>
+                                        <v-chip size="x-small" :color="tool.enabled ? 'success' : 'grey'">{{ tool.block_reason || 'eligible' }}</v-chip>
+                                    </template>
+                                </v-list-item>
+                            </v-list>
+                        </v-col>
+                        <v-col cols="12" lg="5">
+                            <div class="text-caption font-weight-medium mb-1">Server-owned workflows</div>
+                            <v-list density="compact" class="border rounded-lg">
+                                <v-list-item
+                                    v-for="workflow in tooling.workflows"
+                                    :key="`${workflow.code}:${workflow.version}`"
+                                    :title="`${workflow.code}:${workflow.version}`"
+                                    :subtitle="`${workflow.required_contour} · ${workflow.ordered_steps.map(step => step.tool_code).join(' → ')}`"
+                                >
+                                    <template #append><v-chip size="x-small" color="grey">{{ workflow.block_reason }}</v-chip></template>
+                                </v-list-item>
+                            </v-list>
+                        </v-col>
+                    </v-row>
+
+                    <div class="text-caption font-weight-medium mt-4 mb-1">Последние safe execution records</div>
+                    <v-list density="compact" class="border rounded-lg">
+                        <v-list-item
+                            v-for="execution in tooling.executions.slice(0, 12)"
+                            :key="`${execution.run_id}:${execution.tool_code}:${execution.created_at}`"
+                            :title="`${execution.tool_code}:${execution.tool_version} · ${execution.status}`"
+                            :subtitle="`${execution.contour} · ${execution.row_count} rows · ${execution.byte_count} bytes · ${execution.query_count} queries · ${execution.duration_ms ?? 0} ms · ${execution.block_reason || 'allow'}`"
+                        />
+                        <v-list-item v-if="!tooling.executions.length" title="Safe tool executions пока отсутствуют" />
+                    </v-list>
+                </template>
 
                 <v-divider class="my-5" />
                 <div class="d-flex align-center justify-space-between mb-2">

@@ -21,6 +21,8 @@ class AiControlPlaneAuthorizationService
 
     public const VIEW_CAPABILITIES = 'ai_sales.capabilities.view';
 
+    public const VIEW_TOOLING = 'ai_sales.tools.view';
+
     public function __construct(private readonly UnitContextAuthorizationService $units) {}
 
     public function canView(?User $user): bool
@@ -64,6 +66,11 @@ class AiControlPlaneAuthorizationService
         return $this->canView($user) && $this->units->hasPermission($user, self::VIEW_CAPABILITIES);
     }
 
+    public function canViewTooling(?User $user): bool
+    {
+        return $this->canView($user) && $this->units->hasPermission($user, self::VIEW_TOOLING);
+    }
+
     public function capabilities(?User $user, Unit $unit): array
     {
         return [
@@ -73,6 +80,7 @@ class AiControlPlaneAuthorizationService
             'cancel_ai_run' => $this->canView($user) && $this->units->hasPermission($user, self::CANCEL_RUNS),
             'manage_ai_kill_switches' => $this->canManage($user),
             'view_ai_capabilities' => $this->canViewCapabilities($user),
+            'view_ai_tooling' => $this->canViewTooling($user),
             'unit_id' => $unit->id,
         ];
     }

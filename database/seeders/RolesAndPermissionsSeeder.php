@@ -57,6 +57,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'ai_sales.capabilities.view',
             'ai_sales.residency.verify',
             'ai_sales.pricing.verify',
+            'ai_sales.tools.view',
+            'ai_sales.tools.execute',
+            'ai_sales.workflows.execute',
 
             'users.view',
             'users.edit',
@@ -118,6 +121,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ai_sales.research.run',
             'ai_sales.runs.view',
             'ai_sales.runs.cancel',
+            'ai_sales.tools.view',
             'bank.view',
             'bank.view_sensitive',
             'bank.sync',

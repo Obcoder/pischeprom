@@ -14,6 +14,8 @@ use App\Domain\AiPriceLists\Services\NullFileScanner;
 use App\Domain\AiSales\Contracts\EntityCreateLinkGuard;
 use App\Domain\AiSales\Providers\AiProviderRegistry;
 use App\Domain\AiSales\Services\DeterministicEntityCreateLinkGuard;
+use App\Domain\AiSales\Tools\AiToolRegistry;
+use App\Domain\AiSales\Workflows\AiWorkflowRegistry;
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Banking\Contracts\BankProviderInterface;
 use App\Domain\Banking\Events\BankConnectionRequiresAttention;
@@ -83,6 +85,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AvitoApiCatalog::class);
         $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
+        $this->app->singleton(AiToolRegistry::class);
+        $this->app->singleton(AiWorkflowRegistry::class);
         $this->app->singleton(AiProviderRegistry::class, function ($app): AiProviderRegistry {
             $registry = new AiProviderRegistry;
 

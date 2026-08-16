@@ -20,6 +20,16 @@ return [
     'outreach_drafting_enabled' => (bool) env('AI_OUTREACH_DRAFTING_ENABLED', false),
     'outreach_sending_enabled' => (bool) env('AI_OUTREACH_SENDING_ENABLED', false),
     'autonomous_campaigns_enabled' => (bool) env('AI_AUTONOMOUS_CAMPAIGNS_ENABLED', false),
+    'provider_native_tools_enabled' => (bool) env('AI_PROVIDER_NATIVE_TOOLS_ENABLED', false),
+    'live_business_workflows_enabled' => (bool) env('AI_LIVE_BUSINESS_WORKFLOWS_ENABLED', false),
+
+    'tools' => [
+        'enabled' => (bool) env('AI_TOOLS_ENABLED', false),
+        'aggregate_minimum_cohort' => 5,
+    ],
+    'workflows' => [
+        'enabled' => (bool) env('AI_WORKFLOWS_ENABLED', false),
+    ],
 
     'transport_mode' => env('AI_SALES_TRANSPORT_MODE', 'fake_only'),
     'queue' => [
@@ -32,6 +42,8 @@ return [
         'disclosure' => 'stage03-v1',
         'processing_contour' => 'stage04-v1',
         'dlp' => 'stage04-v1',
+        'tool_dlp' => 'stage07-v1',
+        'tool_execution' => 'stage07-v1',
     ],
 
     'limits' => [

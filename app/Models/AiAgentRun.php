@@ -93,4 +93,9 @@ class AiAgentRun extends Model
     {
         return $this->hasMany(AiUsageRecord::class);
     }
+
+    public function toolCalls(): HasMany
+    {
+        return $this->hasMany(AiToolCall::class);
+    }
 }
