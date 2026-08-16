@@ -102,4 +102,9 @@ class UnitBusinessContext extends Model
     {
         return $this->hasMany(UnitGoodMatch::class);
     }
+
+    public function productMatches(): HasMany
+    {
+        return $this->hasMany(UnitProductMatch::class);
+    }
 }

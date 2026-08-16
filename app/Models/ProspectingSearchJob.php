@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\AiSales\Enums\BusinessLane;
+use App\Domain\AiSales\Enums\ProductMappingState;
 use App\Domain\AiSales\Enums\ProspectingJobStatus;
 use App\Domain\AiSales\Enums\ProspectingPurpose;
 use App\Domain\AiSales\Enums\UnitRoleCode;
@@ -21,6 +22,7 @@ class ProspectingSearchJob extends Model
         'max_queries', 'max_candidates', 'max_results_per_query', 'max_rows', 'max_bytes',
         'max_searches', 'max_cost_rub', 'safe_objective', 'criteria_snapshot', 'policy_version',
         'workflow_version', 'schema_hash', 'status', 'auto_create_unit', 'retention_profile',
+        'product_mapping_state', 'product_mapping_reason_code',
         'approved_by', 'approved_at', 'ai_agent_run_id', 'started_at', 'completed_at', 'cancelled_at',
     ];
 
@@ -31,6 +33,7 @@ class ProspectingSearchJob extends Model
             'lane' => BusinessLane::class,
             'default_role_code' => UnitRoleCode::class,
             'status' => ProspectingJobStatus::class,
+            'product_mapping_state' => ProductMappingState::class,
             'criteria_snapshot' => 'array',
             'auto_create_unit' => 'boolean',
             'max_cost_rub' => 'decimal:4',
@@ -92,7 +95,13 @@ class ProspectingSearchJob extends Model
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class, 'prospecting_search_job_goods')
-            ->withPivot('role')->withTimestamps();
+            ->withPivot(['role', 'source_origin', 'compatibility_state'])->withTimestamps();
+    }
+
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'prospecting_search_job_products')
+            ->withPivot(['role', 'source_origin'])->withTimestamps();
     }
 
     public function queries(): HasMany

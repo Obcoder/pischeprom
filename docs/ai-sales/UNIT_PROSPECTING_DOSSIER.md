@@ -13,3 +13,7 @@ All browser routes are authenticated, verified, throttled and policy protected. 
 - explicit context is required for a mixed-role Unit;
 - `entity_unit`, Sales and Purchases remain source-of-truth relations;
 - no `Lead` or `unit_contacts` aggregate is introduced.
+
+## Stage 08R correction
+
+Durable prospecting data is now Product-first. The dossier projects context-bound Product needs/offers before optional Good offer fits. Historical Good-first rows are retained as permission-gated diagnostics. See [UNIT_PRODUCT_MATCHES.md](UNIT_PRODUCT_MATCHES.md) and [GOOD_OFFER_FIT.md](GOOD_OFFER_FIT.md).

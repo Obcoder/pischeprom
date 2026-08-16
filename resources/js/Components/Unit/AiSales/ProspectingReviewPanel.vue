@@ -1,14 +1,22 @@
 <script setup>
 import axios from 'axios'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 const tab = ref('jobs')
 const loading = ref(false)
 const error = ref('')
 const jobs = ref([])
 const candidates = ref([])
+const products = ref([])
+const goods = ref([])
 const dialog = ref(false)
-const form = reactive({ purpose: 'buyer_discovery', safe_objective: '', criteria: { segments: [] } })
+const form = reactive({
+    purpose: 'buyer_discovery',
+    safe_objective: '',
+    primary_product_id: null,
+    originating_good_ids: [],
+    criteria: { segments: [] },
+})
 
 const reviewCandidates = computed(() => candidates.value.filter((item) => [
     'exact_existing_unit', 'probable_existing_review', 'new_unit_review',
@@ -22,12 +30,14 @@ async function load() {
     loading.value = true
     error.value = ''
     try {
-        const [jobResponse, candidateResponse] = await Promise.all([
+        const [jobResponse, candidateResponse, productResponse] = await Promise.all([
             axios.get('/api/ai-sales/prospecting/jobs?per_page=50'),
             axios.get('/api/ai-sales/prospecting/candidates?per_page=50'),
+            axios.get('/api/ai-sales/prospecting/catalog/products?limit=50'),
         ])
         jobs.value = jobResponse.data.data || []
         candidates.value = candidateResponse.data.data || []
+        products.value = productResponse.data.data || []
     } catch (requestError) {
         error.value = requestError.response?.status === 404
             ? 'Stage 08 выключен feature flag.'
@@ -41,8 +51,18 @@ async function createJob() {
     await axios.post('/api/ai-sales/prospecting/jobs', form)
     dialog.value = false
     form.safe_objective = ''
+    form.primary_product_id = null
+    form.originating_good_ids = []
     await load()
 }
+
+watch(() => form.primary_product_id, async (productId) => {
+    form.originating_good_ids = []
+    goods.value = []
+    if (!productId) return
+    const response = await axios.get(`/api/ai-sales/prospecting/catalog/products/${productId}/goods?limit=50`)
+    goods.value = response.data.data || []
+})
 
 async function jobAction(job, action) {
     await axios.post(`/api/ai-sales/prospecting/jobs/${job.id}/${action}`, {})
@@ -76,7 +96,7 @@ onMounted(load)
     <v-card variant="outlined" class="prospecting-review">
         <v-card-title class="d-flex align-center ga-3">
             <span>AI-поиск покупателей</span>
-            <v-chip size="small" color="amber">Stage 08 · review only</v-chip>
+            <v-chip size="small" color="amber">Stage 08R · Product-first review</v-chip>
             <v-spacer />
             <v-btn size="small" variant="tonal" :disabled="loading" @click="load">Обновить</v-btn>
             <v-btn size="small" color="primary" @click="dialog = true">Новое задание</v-btn>
@@ -96,6 +116,9 @@ onMounted(load)
             <v-tabs-window-item value="jobs">
                 <v-list lines="two">
                     <v-list-item v-for="job in jobs" :key="job.id" :title="job.safe_objective" :subtitle="`${job.purpose} · ${job.lane} · ${job.status}`">
+                        <div class="text-caption">Products: {{ job.products?.filter(item => item.role !== 'exclude').map(item => item.name).join(', ') || 'не выбраны' }}</div>
+                        <div v-if="job.originating_goods?.length" class="text-caption text-medium-emphasis">Optional Goods: {{ job.originating_goods.map(item => item.name).join(', ') }}</div>
+                        <v-alert v-if="!['mapped', 'not_applicable'].includes(job.product_mapping_state)" density="compact" type="warning" variant="tonal">Требуется проверка Good→Product: {{ job.product_mapping_reason_code }}</v-alert>
                         <template #append>
                             <v-btn v-if="job.status === 'draft'" size="small" variant="text" @click="jobAction(job, 'submit')">На проверку</v-btn>
                             <v-btn v-if="job.status === 'review_required'" size="small" variant="text" color="success" @click="jobAction(job, 'approve')">Одобрить</v-btn>
@@ -121,6 +144,14 @@ onMounted(load)
                     <v-card-title>{{ candidate.working_name }}</v-card-title>
                     <v-card-subtitle>{{ candidate.relevance_summary || 'Обоснование не задано' }}</v-card-subtitle>
                     <v-card-text>
+                        <div class="font-weight-medium mb-1">Product scope</div>
+                        <div v-for="product in candidate.products" :key="product.id" class="mb-1">
+                            {{ product.name }} · {{ product.status }} · {{ product.safe_rationale }}
+                        </div>
+                        <div v-if="candidate.originating_goods?.length" class="mt-2">
+                            Optional Good offers: {{ candidate.originating_goods.map(item => item.name).join(', ') }}
+                        </div>
+                        <v-alert v-if="!['mapped', 'not_applicable'].includes(candidate.product_mapping_state)" density="compact" type="warning" variant="tonal">Product mapping требует review; автоматическая догадка запрещена.</v-alert>
                         <div v-for="source in candidate.sources" :key="source.evidence_hash">{{ source.title || source.domain || source.reference }}</div>
                         <div v-for="match in candidate.unit_matches" :key="`${match.unit.id}-${match.signal_code}`">
                             {{ match.unit.name || `Unit #${match.unit.id}` }} · {{ match.signal_code }}
@@ -147,8 +178,26 @@ onMounted(load)
                         { title: 'Поставщики', value: 'supplier_discovery' },
                     ]" />
                     <v-textarea v-model="form.safe_objective" label="Безопасная цель" maxlength="512" counter />
+                    <v-autocomplete
+                        v-model="form.primary_product_id"
+                        label="Основной Product"
+                        :items="products"
+                        item-title="name"
+                        item-value="id"
+                        clearable
+                    />
+                    <v-select
+                        v-model="form.originating_good_ids"
+                        label="Конкретные Goods для будущего предложения (необязательно)"
+                        :items="goods"
+                        item-title="name"
+                        item-value="id"
+                        multiple
+                        chips
+                        :disabled="!form.primary_product_id"
+                    />
                 </v-card-text>
-                <v-card-actions><v-spacer /><v-btn @click="dialog = false">Отмена</v-btn><v-btn color="primary" :disabled="!form.safe_objective" @click="createJob">Создать черновик</v-btn></v-card-actions>
+                <v-card-actions><v-spacer /><v-btn @click="dialog = false">Отмена</v-btn><v-btn color="primary" :disabled="!form.safe_objective || !form.primary_product_id" @click="createJob">Создать Product-first черновик</v-btn></v-card-actions>
             </v-card>
         </v-dialog>
     </v-card>

@@ -10,6 +10,7 @@ use App\Domain\AiSales\Services\ProspectingFeatureGuard;
 use App\Domain\AiSales\Services\UnitContextAuthorizationService;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AiSales\UnitGoodMatchResource;
+use App\Http\Resources\AiSales\UnitProductMatchResource;
 use App\Models\AiToolCall;
 use App\Models\Unit;
 use App\Models\UnitBusinessContext;
@@ -79,8 +80,16 @@ class UnitProspectingDossierController extends Controller
                 'summary' => $observation->summary, 'verification_status' => $observation->verification_status->value,
                 'observed_at' => $observation->observed_at?->toISOString(),
             ])->values()->all();
-        $matches = $unit->goodMatches()->where('unit_business_context_id', $context->id)
-            ->with('good:id,name')->latest('id')->limit(100)->get();
+        $productMatches = $unit->productMatches()->where('unit_business_context_id', $context->id)
+            ->with(['product' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.eng'])])
+            ->latest('id')->limit(100)->get();
+        $goodOfferFits = $unit->goodMatches()->where('unit_business_context_id', $context->id)
+            ->whereNotNull('unit_product_match_id')->with('good:id,name')->latest('id')->limit(100)->get();
+        $canViewLegacyDiagnostics = $contextAuthorization->hasPermission($request->user(), UnitContextAuthorizationService::VIEW_CLASSIFICATIONS);
+        $legacyGoodDiagnostics = $canViewLegacyDiagnostics
+            ? $unit->goodMatches()->where('unit_business_context_id', $context->id)
+                ->whereNull('unit_product_match_id')->with('good:id,name')->latest('id')->limit(100)->get()
+            : collect();
         $hasAnySalesContext = $unit->businessContexts()->where('lane', 'sales')->whereNull('archived_at')->exists();
         $hasAnyProcurementContext = $unit->businessContexts()->where('lane', 'procurement')->whereNull('archived_at')->exists();
         $canViewAllIdentityLanes = (! $hasAnySalesContext || $contextAuthorization->canViewLane($request->user(), BusinessLane::Sales))
@@ -129,7 +138,11 @@ class UnitProspectingDossierController extends Controller
             'sources' => $sources,
             'aliases' => $aliases,
             'observations' => $observations,
-            'good_matches' => UnitGoodMatchResource::collection($matches)->resolve($request),
+            'product_matches' => UnitProductMatchResource::collection($productMatches)->resolve($request),
+            'good_offer_fits' => UnitGoodMatchResource::collection($goodOfferFits)->resolve($request),
+            'legacy_good_match_diagnostics' => $canViewLegacyDiagnostics
+                ? UnitGoodMatchResource::collection($legacyGoodDiagnostics)->resolve($request)
+                : [],
             'linked_entities' => $entities,
             'transaction_count' => $transactions->transactionCount($request->user(), $context),
             'communications' => [

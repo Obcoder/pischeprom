@@ -3,11 +3,14 @@
 namespace Tests\Feature\AiSales;
 
 use App\Domain\AiSales\Enums\UnitGoodMatchType;
+use App\Domain\AiSales\Enums\UnitProductMatchType;
 use App\Domain\AiSales\Services\UnitGoodMatchService;
+use App\Domain\AiSales\Services\UnitProductMatchService;
 use App\Models\Email;
 use App\Models\Entity;
 use App\Models\Good;
 use App\Models\MailMessage;
+use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\UnitBusinessContext;
@@ -115,21 +118,34 @@ class ProspectingTimelineIsolationTest extends Stage08TestCase
         $actor = $this->prospectingUser(['sales', 'procurement']);
         $unit = $this->unit();
         $sales = UnitBusinessContext::query()->findOrFail($this->createContext($actor, $unit, ['lane' => 'sales', 'role_code' => 'prospective_customer'])['id']);
-        $good = Good::query()->create(['name' => 'Synthetic timeline Good']);
+        $product = Product::query()->without(['category', 'manufacturers'])->create([
+            'rus' => 'Синтетический продукт timeline',
+            'is_published' => true,
+        ]);
+        $good = Good::query()->create(['name' => 'Synthetic timeline Good', 'is_published' => true]);
+        $good->products()->attach($product->id);
+        $productMatch = app(UnitProductMatchService::class)->suggest($unit, $sales, [
+            'product_id' => $product->id,
+            'match_type' => UnitProductMatchType::PotentialNeed,
+            'safe_rationale' => 'Public synthetic Product need signal.',
+            'origin' => 'rule',
+        ], $actor);
         $service = app(UnitGoodMatchService::class);
         $match = $service->suggest($unit, $sales, [
+            'unit_product_match_id' => $productMatch->id,
             'good_id' => $good->id,
             'match_type' => UnitGoodMatchType::PotentialNeed,
-            'relevance' => 75,
+            'fit_confidence' => 75,
             'safe_rationale' => 'Public synthetic need signal.',
             'origin' => 'rule',
         ], $actor);
         $this->assertSame($sales->id, $match->unit_business_context_id);
         $this->expectException(ValidationException::class);
         $service->suggest($unit, $sales, [
+            'unit_product_match_id' => $productMatch->id,
             'good_id' => $good->id,
             'match_type' => UnitGoodMatchType::PotentialOffer,
-            'relevance' => 75,
+            'fit_confidence' => 75,
             'safe_rationale' => 'supplier_secret must not cross lanes',
         ], $actor);
     }

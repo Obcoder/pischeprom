@@ -177,6 +177,11 @@ class Unit extends Model
         return $this->hasMany(UnitGoodMatch::class);
     }
 
+    public function productMatches(): HasMany
+    {
+        return $this->hasMany(UnitProductMatch::class);
+    }
+
     public function resolvedProspectingCandidates(): HasMany
     {
         return $this->hasMany(ProspectingCandidate::class, 'resolved_unit_id');

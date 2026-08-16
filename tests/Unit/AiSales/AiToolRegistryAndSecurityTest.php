@@ -28,7 +28,14 @@ class AiToolRegistryAndSecurityTest extends TestCase
         $first = $registry->get('catalog.get_synthetic_good', '1');
         $second = (new AiToolRegistry)->get('catalog.get_synthetic_good', '1');
 
-        $this->assertCount(13, $registry->all());
+        $this->assertCount(16, $registry->all());
+        foreach ([
+            'catalog.search_public_products',
+            'catalog.get_public_product_summary',
+            'catalog.get_public_goods_for_product',
+        ] as $productTool) {
+            $this->assertSame($productTool, $registry->get($productTool, '1')->code);
+        }
         $this->assertSame($first->schemaHash, $second->schemaHash);
         $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $first->schemaHash);
         $this->assertTrue($first->syntheticOnly);

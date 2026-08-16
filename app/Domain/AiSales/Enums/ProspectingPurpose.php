@@ -31,6 +31,14 @@ enum ProspectingPurpose: string
         };
     }
 
+    public function productMatchType(): UnitProductMatchType
+    {
+        return match ($this) {
+            self::BuyerDiscovery => UnitProductMatchType::PotentialNeed,
+            self::SupplierDiscovery => UnitProductMatchType::PotentialOffer,
+        };
+    }
+
     public static function values(): array
     {
         return array_column(self::cases(), 'value');

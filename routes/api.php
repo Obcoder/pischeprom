@@ -8,12 +8,14 @@ use App\Http\Controllers\API\AiSales\AiControlPlaneController as AiSalesControlP
 use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesToolingDiagnosticsController;
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
 use App\Http\Controllers\API\AiSales\ProspectingCandidateController as AiSalesProspectingCandidateController;
+use App\Http\Controllers\API\AiSales\ProspectingCatalogController as AiSalesProspectingCatalogController;
 use App\Http\Controllers\API\AiSales\ProspectingSearchJobController as AiSalesProspectingSearchJobController;
 use App\Http\Controllers\API\AiSales\UnitAliasController as AiSalesUnitAliasController;
 use App\Http\Controllers\API\AiSales\UnitBusinessContextController as AiSalesUnitBusinessContextController;
 use App\Http\Controllers\API\AiSales\UnitDossierController as AiSalesUnitDossierController;
 use App\Http\Controllers\API\AiSales\UnitGoodMatchController as AiSalesUnitGoodMatchController;
 use App\Http\Controllers\API\AiSales\UnitObservationController as AiSalesUnitObservationController;
+use App\Http\Controllers\API\AiSales\UnitProductMatchController as AiSalesUnitProductMatchController;
 use App\Http\Controllers\API\AiSales\UnitProspectingDossierController as AiSalesUnitProspectingDossierController;
 use App\Http\Controllers\API\AiSales\UnitRoleController as AiSalesUnitRoleController;
 use App\Http\Controllers\API\AiSales\UnitSourceController as AiSalesUnitSourceController;
@@ -176,6 +178,9 @@ Route::prefix('ai-sales')
         Route::post('/runs/{aiAgentRun}/cancel', [AiSalesAgentRunController::class, 'cancel'])->name('runs.cancel');
 
         Route::get('/prospecting/jobs', [AiSalesProspectingSearchJobController::class, 'index'])->name('prospecting.jobs.index');
+        Route::get('/prospecting/catalog/products', [AiSalesProspectingCatalogController::class, 'products'])->name('prospecting.catalog.products');
+        Route::get('/prospecting/catalog/products/{productId}/goods', [AiSalesProspectingCatalogController::class, 'goods'])
+            ->whereNumber('productId')->name('prospecting.catalog.product-goods');
         Route::post('/prospecting/jobs', [AiSalesProspectingSearchJobController::class, 'store'])->name('prospecting.jobs.store');
         Route::get('/prospecting/jobs/{prospectingSearchJob}', [AiSalesProspectingSearchJobController::class, 'show'])->name('prospecting.jobs.show');
         Route::patch('/prospecting/jobs/{prospectingSearchJob}', [AiSalesProspectingSearchJobController::class, 'update'])->name('prospecting.jobs.update');
@@ -191,6 +196,7 @@ Route::prefix('ai-sales')
         Route::post('/prospecting/candidates/{prospectingCandidate}/create-unit', [AiSalesProspectingCandidateController::class, 'createUnit'])->name('prospecting.candidates.create-unit');
         Route::post('/prospecting/candidates/{prospectingCandidate}/reject', [AiSalesProspectingCandidateController::class, 'reject'])->name('prospecting.candidates.reject');
         Route::post('/prospecting/good-matches/{unitGoodMatch}/review', [AiSalesUnitGoodMatchController::class, 'review'])->name('prospecting.good-matches.review');
+        Route::post('/prospecting/product-matches/{unitProductMatch}/review', [AiSalesUnitProductMatchController::class, 'review'])->name('prospecting.product-matches.review');
     });
 
 Route::prefix('ai/price-lists')

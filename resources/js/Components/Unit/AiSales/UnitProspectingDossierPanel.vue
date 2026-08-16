@@ -45,7 +45,7 @@ onMounted(loadContexts)
         <template v-if="dossier">
             <v-tabs v-model="tab" show-arrows>
                 <v-tab value="overview">Обзор</v-tab><v-tab value="contexts">Контексты</v-tab><v-tab value="sources">Источники</v-tab>
-                <v-tab value="observations">Наблюдения</v-tab><v-tab value="contacts">Контакты</v-tab><v-tab value="goods">Товары</v-tab>
+                <v-tab value="observations">Наблюдения</v-tab><v-tab value="contacts">Контакты</v-tab><v-tab value="products">Продукты</v-tab><v-tab value="goods">Goods-предложения</v-tab>
                 <v-tab value="communications">Переписка</v-tab><v-tab value="entities">Entities и сделки</v-tab><v-tab value="runs">AI-запуски</v-tab><v-tab value="timeline">История</v-tab>
             </v-tabs>
             <v-tabs-window v-model="tab">
@@ -54,7 +54,15 @@ onMounted(loadContexts)
                 <v-tabs-window-item value="sources"><v-list><v-list-item v-for="source in dossier.sources" :key="source.id" :title="source.label || source.type" :subtitle="source.reference" /></v-list></v-tabs-window-item>
                 <v-tabs-window-item value="observations"><v-list><v-list-item v-for="observation in dossier.observations" :key="observation.id" :title="observation.key" :subtitle="observation.summary" /></v-list></v-tabs-window-item>
                 <v-tabs-window-item value="contacts"><v-list><v-list-item v-for="link in dossier.contact_links" :key="link.id" :title="link.channel_type" :subtitle="`${link.contact_role} · ${link.verification_status} · ${link.communication_state}`" /></v-list></v-tabs-window-item>
-                <v-tabs-window-item value="goods"><v-list><v-list-item v-for="match in dossier.good_matches" :key="match.id" :title="match.good?.name" :subtitle="`${match.match_type} · ${match.status} · ${match.relevance}/100`" /></v-list></v-tabs-window-item>
+                <v-tabs-window-item value="products">
+                    <v-card-text class="font-weight-medium">Продукты и потенциальные потребности/предложения</v-card-text>
+                    <v-list><v-list-item v-for="match in dossier.product_matches" :key="match.id" :title="match.product?.name" :subtitle="`${match.match_type} · ${match.status} · evidence ${match.evidence_confidence ?? 'unknown'}`" /></v-list>
+                </v-tabs-window-item>
+                <v-tabs-window-item value="goods">
+                    <v-card-text class="font-weight-medium">Конкретные Goods и коммерческие предложения</v-card-text>
+                    <v-list><v-list-item v-for="fit in dossier.good_offer_fits" :key="fit.id" :title="fit.good?.name" :subtitle="`${fit.offer_direction} · ${fit.fit_status} · ${fit.compatibility_state}`" /></v-list>
+                    <v-alert v-if="dossier.legacy_good_match_diagnostics?.length" type="warning" density="compact" variant="tonal">Legacy Good-first rows доступны только как внутренние diagnostics и требуют reconciliation.</v-alert>
+                </v-tabs-window-item>
                 <v-tabs-window-item value="communications"><v-card-text>Сообщений: {{ dossier.communications.message_count }} · вложений: {{ dossier.communications.attachment_count }}. Raw correspondence не отображается и не экспортируется.</v-card-text></v-tabs-window-item>
                 <v-tabs-window-item value="entities"><v-card-text>Транзакций: {{ dossier.transaction_count }}</v-card-text><v-list><v-list-item v-for="entity in dossier.linked_entities" :key="entity.id" :title="entity.name" /></v-list></v-tabs-window-item>
                 <v-tabs-window-item value="runs">

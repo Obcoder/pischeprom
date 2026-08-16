@@ -30,6 +30,23 @@ class ProspectingCandidateResource extends JsonResource
                 'id' => $this->resolvedUnit->id, 'name' => $this->resolvedUnit->name,
             ] : null),
             'sources' => ProspectingCandidateSourceResource::collection($this->whenLoaded('sources')),
+            'products' => $this->whenLoaded('products', fn () => $this->products->map(fn ($candidateProduct) => [
+                'id' => $candidateProduct->product_id,
+                'name' => $candidateProduct->product?->rus,
+                'english_name' => $candidateProduct->product?->eng,
+                'source' => $candidateProduct->source->value,
+                'status' => $candidateProduct->status->value,
+                'safe_rationale' => $candidateProduct->safe_rationale,
+                'evidence_reference' => $candidateProduct->evidence_reference,
+                'confidence' => $candidateProduct->confidence,
+            ])->all()),
+            'originating_goods' => $this->whenLoaded('job', fn () => $this->job?->relationLoaded('goods')
+                ? $this->job->goods->map(fn ($good) => [
+                    'id' => $good->id,
+                    'name' => $good->name,
+                    'compatibility_state' => $good->pivot->compatibility_state,
+                ])->all() : []),
+            'product_mapping_state' => $this->whenLoaded('job', fn () => $this->job?->product_mapping_state?->value),
             'channel_summary' => $this->whenLoaded('channels', fn () => $this->channels->groupBy(fn ($channel) => $channel->channel_kind->value)->map->count()->all()),
             'unit_matches' => $this->whenLoaded('unitMatches', fn () => $this->unitMatches->map(fn ($match) => [
                 'unit' => $match->unit ? ['id' => $match->unit->id, 'name' => $match->unit->name] : ['id' => $match->unit_id],

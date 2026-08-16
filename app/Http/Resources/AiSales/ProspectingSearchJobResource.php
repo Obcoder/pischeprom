@@ -15,6 +15,8 @@ class ProspectingSearchJobResource extends JsonResource
             'lane' => $this->lane->value,
             'default_role_code' => $this->default_role_code->value,
             'status' => $this->status->value,
+            'product_mapping_state' => $this->product_mapping_state->value,
+            'product_mapping_reason_code' => $this->product_mapping_reason_code,
             'safe_objective' => $this->safe_objective,
             'criteria' => $this->criteria_snapshot ?? [],
             'locale' => $this->locale,
@@ -31,13 +33,33 @@ class ProspectingSearchJobResource extends JsonResource
             'execution_available' => false,
             'owner' => $this->whenLoaded('owner', fn () => ['id' => $this->owner->id, 'name' => $this->owner->name]),
             'reviewer' => $this->whenLoaded('reviewer', fn () => $this->reviewer ? ['id' => $this->reviewer->id, 'name' => $this->reviewer->name] : null),
-            'primary_good' => $this->whenLoaded('primaryGood', fn () => $this->primaryGood ? ['id' => $this->primaryGood->id, 'name' => $this->primaryGood->name] : null),
-            'goods' => $this->whenLoaded('goods', fn () => $this->goods->map(fn ($good) => [
-                'id' => $good->id, 'name' => $good->name, 'role' => $good->pivot->role,
+            'products' => $this->whenLoaded('products', fn () => $this->products->map(fn ($product) => [
+                'id' => $product->id, 'name' => $product->rus, 'english_name' => $product->eng,
+                'role' => $product->pivot->role, 'source_origin' => $product->pivot->source_origin,
             ])->all()),
+            'originating_goods' => $this->whenLoaded('goods', fn () => $this->goods->map(fn ($good) => [
+                'id' => $good->id, 'name' => $good->name, 'role' => $good->pivot->role,
+                'compatibility_state' => $good->pivot->compatibility_state,
+            ])->all()),
+            'legacy_good_diagnostics' => $this->when(
+                $this->canViewLegacyDiagnostics($request),
+                fn () => $this->whenLoaded('primaryGood', fn () => $this->primaryGood ? [
+                    'deprecated_primary_good_id' => $this->primaryGood->id,
+                    'name' => $this->primaryGood->name,
+                ] : null),
+            ),
             'approved_at' => $this->approved_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];
+    }
+
+    private function canViewLegacyDiagnostics(Request $request): bool
+    {
+        try {
+            return (bool) $request->user()?->hasPermissionTo('ai_sales.classifications.view_internal', 'crm');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

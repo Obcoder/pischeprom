@@ -12,6 +12,7 @@ use App\Domain\AiSales\Services\ResolveProspectingCandidate;
 use App\Domain\AiSales\Services\UnitBusinessContextService;
 use App\Models\Entity;
 use App\Models\Good;
+use App\Models\Product;
 use App\Models\ProspectingCandidate;
 use App\Models\Unit;
 use App\Models\UnitContactContextLink;
@@ -79,16 +80,27 @@ class RunSyntheticCandidateResolutionCommand extends Command
                 'ai_sales.view', 'ai_sales.sales.view', 'ai_sales.unit_roles.manage', 'ai_sales.contexts.manage',
                 'ai_sales.prospecting.view', 'ai_sales.prospecting.jobs.manage', 'ai_sales.prospecting.review',
                 'ai_sales.prospecting.resolve', 'ai_sales.good_matches.review', 'ai_sales.timeline.view',
+                'ai_sales.product_matches.review',
             ];
             foreach ($permissions as $permission) {
                 Permission::query()->firstOrCreate(['name' => $permission, 'guard_name' => 'crm']);
             }
             $actor->givePermissionTo($permissions);
-            $good = Good::query()->create(['name' => 'Synthetic stage08 food ingredient']);
+            $product = Product::query()->without(['category', 'manufacturers'])->create([
+                'rus' => 'Синтетический пищевой ингредиент',
+                'eng' => 'Synthetic food ingredient',
+                'is_published' => true,
+            ]);
+            $good = Good::query()->create([
+                'name' => 'Synthetic stage08 offer',
+                'is_published' => true,
+            ]);
+            $good->products()->attach($product->id);
             $job = $jobs->createDraft([
                 'purpose' => 'buyer_discovery',
                 'safe_objective' => 'Repository-owned fictional buyer resolution fixture.',
-                'primary_good_id' => $good->id,
+                'primary_product_id' => $product->id,
+                'originating_good_ids' => [$good->id],
                 'criteria' => ['segments' => ['synthetic-only']],
             ], $actor);
             $jobs->submit($job, $actor);

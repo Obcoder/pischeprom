@@ -37,7 +37,8 @@ class ProspectingCandidateController extends Controller
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['job_id'] ?? null, fn ($query, $id) => $query->whereHas('job', fn ($job) => $job->where('public_id', $id)))
             ->with([
-                'job:id,public_id', 'sources',
+                'job:id,public_id,product_mapping_state,product_mapping_reason_code', 'job.goods:id,name', 'sources',
+                'products.product' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.eng']),
                 'channels:id,prospecting_candidate_id,channel_kind,contact_role,data_classification,communication_state',
                 'unitMatches.unit' => fn ($query) => $query->without(['fields', 'labels', 'telephones', 'uris'])->select(['units.id', 'units.name']),
                 'resolvedUnit' => fn ($query) => $query->without(['fields', 'labels', 'telephones', 'uris'])->select(['units.id', 'units.name']),
@@ -55,7 +56,9 @@ class ProspectingCandidateController extends Controller
         $features->dossier();
         Gate::authorize('view', $prospectingCandidate);
         $candidate = $prospectingCandidate->load([
-            'job:id,public_id', 'sources', 'channels:id,prospecting_candidate_id,channel_kind,contact_role,data_classification,communication_state',
+            'job:id,public_id,product_mapping_state,product_mapping_reason_code', 'job.goods:id,name', 'sources',
+            'products.product' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.eng']),
+            'channels:id,prospecting_candidate_id,channel_kind,contact_role,data_classification,communication_state',
             'resolvedUnit' => fn ($query) => $query->without(['fields', 'labels', 'telephones', 'uris'])->select(['units.id', 'units.name']),
             'unitMatches.unit' => fn ($query) => $query->without(['fields', 'labels', 'telephones', 'uris'])->select(['units.id', 'units.name']),
         ]);

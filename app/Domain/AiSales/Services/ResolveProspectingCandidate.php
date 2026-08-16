@@ -3,6 +3,7 @@
 namespace App\Domain\AiSales\Services;
 
 use App\Domain\AiSales\DTO\Prospecting\CandidateResolutionDecision;
+use App\Domain\AiSales\Enums\CandidateProductStatus;
 use App\Domain\AiSales\Enums\CandidateResolutionOutcome;
 use App\Domain\AiSales\Enums\DataClassification;
 use App\Domain\AiSales\Enums\ProspectingCandidateStatus;
@@ -12,6 +13,7 @@ use App\Domain\AiSales\Enums\UnitAliasType;
 use App\Domain\AiSales\Enums\UnitContextStage;
 use App\Domain\AiSales\Enums\UnitContextStatus;
 use App\Domain\AiSales\Enums\UnitGoodMatchOrigin;
+use App\Domain\AiSales\Enums\UnitProductMatchOrigin;
 use App\Domain\AiSales\Enums\UnitVisibilityScope;
 use App\Models\Email;
 use App\Models\ProspectingCandidate;
@@ -38,7 +40,9 @@ class ResolveProspectingCandidate
         private readonly UnitSourceService $sources,
         private readonly UnitAliasService $aliases,
         private readonly UnitObservationService $observations,
+        private readonly UnitProductMatchService $productMatches,
         private readonly UnitGoodMatchService $goodMatches,
+        private readonly GoodProductMappingResolver $productMappings,
         private readonly UnitDossierAuditLogger $audit,
     ) {}
 
@@ -208,8 +212,7 @@ class ResolveProspectingCandidate
             'status' => UnitContextStatus::Active,
             'confidence' => $candidate->confidence_components['relevance'] ?? null,
             'owner_user_id' => $actor->id,
-            'primary_good_id' => $candidate->job?->primary_good_id,
-            'source' => 'prospecting_stage08',
+            'source' => 'prospecting_stage08r_product_first',
         ], $actor);
     }
 
@@ -219,7 +222,12 @@ class ResolveProspectingCandidate
         UnitBusinessContext $context,
         User $actor,
     ): void {
-        $candidate->loadMissing(['sources', 'channels', 'job']);
+        $candidate->loadMissing(['sources', 'channels', 'products.product', 'job.goods']);
+        $approvedCandidateProducts = $candidate->products
+            ->filter(fn ($candidateProduct) => $candidateProduct->status === CandidateProductStatus::Approved);
+        if ($approvedCandidateProducts->isEmpty()) {
+            throw ValidationException::withMessages(['products' => 'Resolution requires an approved Candidate Product scope.']);
+        }
         $visibility = $candidate->lane->value === 'sales'
             ? UnitVisibilityScope::SalesLane : UnitVisibilityScope::ProcurementLane;
         $unitSources = collect();
@@ -280,17 +288,39 @@ class ResolveProspectingCandidate
         foreach ($candidate->channels as $channel) {
             $this->transferChannel($unit, $context, $primarySource, $channel, $actor, $visibility);
         }
-        if ($candidate->job?->primary_good_id) {
+        $createdProductMatches = collect();
+        foreach ($approvedCandidateProducts as $candidateProduct) {
+            $productMatch = $this->productMatches->suggest($unit, $context, [
+                'product_id' => $candidateProduct->product_id,
+                'unit_source_id' => $primarySource?->id,
+                'prospecting_candidate_product_id' => $candidateProduct->id,
+                'match_type' => $candidate->purpose->productMatchType(),
+                'evidence_confidence' => $candidateProduct->confidence,
+                'safe_rationale' => $candidateProduct->safe_rationale,
+                'evidence_reference' => $candidateProduct->evidence_reference,
+                'evidence_hash' => $candidateProduct->evidence_hash,
+                'origin' => UnitProductMatchOrigin::Candidate,
+                'rules_version' => ProspectingCandidateNormalizer::RULES_VERSION,
+            ], $actor);
+            $createdProductMatches->put((int) $candidateProduct->product_id, $productMatch);
+        }
+        foreach ($candidate->job?->goods ?? [] as $good) {
+            $productId = $this->productMappings->exactProductId((int) $good->id);
+            $productMatch = $productId ? $createdProductMatches->get($productId) : null;
+            if (! $productMatch) {
+                continue;
+            }
             $this->goodMatches->suggest($unit, $context, [
-                'good_id' => $candidate->job->primary_good_id,
+                'unit_product_match_id' => $productMatch->id,
+                'good_id' => $good->id,
                 'unit_source_id' => $primarySource?->id,
                 'prospecting_candidate_id' => $candidate->id,
                 'match_type' => $candidate->purpose->goodMatchType(),
-                'relevance' => $candidate->confidence_components['relevance'] ?? 0,
-                'confidence' => $candidate->confidence_components['identity'] ?? null,
-                'safe_rationale' => $candidate->relevance_summary ?: 'Связь предложена по human-reviewed prospecting candidate.',
+                'fit_confidence' => 0,
+                'confidence' => null,
+                'safe_rationale' => 'Human-selected originating Good maps exactly to this Product; commercial fit remains unscored and review-required.',
                 'evidence_reference' => $primarySource?->source_reference,
-                'evidence_hash' => $primarySource?->source_key ?? $candidate->normalized_payload_hash,
+                'evidence_hash' => hash('sha256', $candidate->normalized_payload_hash.'|good|'.$good->id.'|product|'.$productId),
                 'origin' => UnitGoodMatchOrigin::Candidate,
                 'rules_version' => ProspectingCandidateNormalizer::RULES_VERSION,
             ], $actor);

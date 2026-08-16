@@ -102,23 +102,38 @@ class ProspectingAuthorizationAndApiTest extends Stage08TestCase
         $context = \App\Models\UnitBusinessContext::query()->findOrFail(
             $this->createContext($actor, $unit, ['lane' => 'sales', 'role_code' => 'prospective_customer'])['id'],
         );
-        $good = \App\Models\Good::query()->create(['name' => 'Default-off synthetic Good']);
+        $product = \App\Models\Product::query()->without(['category', 'manufacturers'])->create([
+            'rus' => 'Синтетический продукт default-off',
+            'is_published' => true,
+        ]);
+        $good = \App\Models\Good::query()->create([
+            'name' => 'Default-off synthetic Good',
+            'is_published' => true,
+        ]);
+        $good->products()->attach($product->id);
+        $productMatch = app(\App\Domain\AiSales\Services\UnitProductMatchService::class)->suggest($unit, $context, [
+            'product_id' => $product->id,
+            'match_type' => 'potential_need',
+            'safe_rationale' => 'Synthetic default-off Product relation fixture.',
+            'origin' => 'manual',
+        ], $actor);
         $match = app(\App\Domain\AiSales\Services\UnitGoodMatchService::class)->suggest($unit, $context, [
+            'unit_product_match_id' => $productMatch->id,
             'good_id' => $good->id,
             'match_type' => 'potential_need',
-            'relevance' => 80,
+            'fit_confidence' => 80,
             'safe_rationale' => 'Synthetic default-off guard fixture.',
             'origin' => 'manual',
         ], $actor);
         $this->actingAs($actor)->postJson('/api/ai-sales/prospecting/good-matches/'.$match->id.'/review', [
-            'status' => 'reviewed',
+            'status' => 'preferred_offer',
             'prompt' => 'arbitrary browser prompt',
             'entity_id' => 1,
         ])->assertUnprocessable()->assertJsonValidationErrors(['prompt', 'entity_id']);
         config()->set('ai-sales.prospecting.dossier_enabled', false);
         $this->actingAs($actor)->getJson('/api/ai-sales/prospecting/candidates')->assertNotFound();
         $this->actingAs($actor)->postJson('/api/ai-sales/prospecting/good-matches/'.$match->id.'/review', [
-            'status' => 'approved',
+            'status' => 'approved_for_offer',
         ])->assertNotFound();
     }
 }

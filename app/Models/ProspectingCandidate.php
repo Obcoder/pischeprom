@@ -95,6 +95,11 @@ class ProspectingCandidate extends Model
         return $this->hasMany(ProspectingCandidateUnitMatch::class);
     }
 
+    public function products(): HasMany
+    {
+        return $this->hasMany(ProspectingCandidateProduct::class);
+    }
+
     public function goodMatches(): HasMany
     {
         return $this->hasMany(UnitGoodMatch::class);

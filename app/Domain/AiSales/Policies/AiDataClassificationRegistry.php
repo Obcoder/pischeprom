@@ -7,6 +7,7 @@ use App\Domain\AiSales\DTO\Units\AggregateSupplySummary;
 use App\Domain\AiSales\DTO\Units\CustomerOfferSummary;
 use App\Domain\AiSales\DTO\Units\PublicBusinessContactSummary;
 use App\Domain\AiSales\DTO\Units\PublicGoodSummary;
+use App\Domain\AiSales\DTO\Units\PublicProductSummary;
 use App\Domain\AiSales\DTO\Units\SanitizedEntityLegalSummary;
 use App\Domain\AiSales\DTO\Units\SupportedRegionSummary;
 use App\Domain\AiSales\DTO\Units\UnitBusinessContextSummary;
@@ -39,6 +40,10 @@ class AiDataClassificationRegistry
         $this->registerMany(PublicGoodSummary::class, [
             'name', 'description', 'published_attributes',
         ], DataClassification::Public, UnitVisibilityScope::SharedPublic, $publicResearchPurposes, $allAudiences, true, 'none', 'Published catalogue fields only.');
+
+        $this->registerMany(PublicProductSummary::class, [
+            'product_id', 'name', 'english_name', 'category',
+        ], DataClassification::Public, UnitVisibilityScope::SharedPublic, $publicResearchPurposes, $allAudiences, true, 'none', 'Explicit published Product fields; manufacturers, consumers, components, suppliers, prices, and margins are excluded.');
 
         $this->registerMany(UnitSharedPublicProfile::class, [
             'name', 'aliases', 'industries', 'cities', 'public_uris', 'observations',

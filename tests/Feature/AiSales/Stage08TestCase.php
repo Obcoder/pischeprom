@@ -5,6 +5,7 @@ namespace Tests\Feature\AiSales;
 use App\Domain\AiSales\Services\ProspectingCandidateService;
 use App\Domain\AiSales\Services\ProspectingSearchJobService;
 use App\Models\Good;
+use App\Models\Product;
 use App\Models\ProspectingCandidate;
 use App\Models\ProspectingSearchJob;
 use App\Models\User;
@@ -40,19 +41,35 @@ abstract class Stage08TestCase extends UnitContextsTestCase
             'ai_sales.prospecting.review',
             'ai_sales.prospecting.resolve',
             'ai_sales.good_matches.review',
+            'ai_sales.product_matches.review',
             'ai_sales.timeline.view',
             ...$extra,
         ])));
     }
 
-    protected function approvedJob(User $actor, string $purpose = 'buyer_discovery', ?Good $good = null): ProspectingSearchJob
-    {
-        $good ??= Good::query()->create(['name' => 'Synthetic Good '.uniqid()]);
+    protected function approvedJob(
+        User $actor,
+        string $purpose = 'buyer_discovery',
+        ?Good $good = null,
+        ?Product $product = null,
+    ): ProspectingSearchJob {
+        $good ??= Good::query()->create([
+            'name' => 'Synthetic Good '.uniqid(),
+            'is_published' => true,
+        ]);
+        $product ??= $good->products()->without(['category', 'manufacturers'])->first();
+        $product ??= Product::query()->without(['category', 'manufacturers'])->create([
+            'rus' => 'Синтетический продукт '.uniqid(),
+            'eng' => 'Synthetic Product '.uniqid(),
+            'is_published' => true,
+        ]);
+        $good->products()->syncWithoutDetaching([$product->id]);
         $service = app(ProspectingSearchJobService::class);
         $job = $service->createDraft([
             'purpose' => $purpose,
             'safe_objective' => 'Repository-owned Stage 08 test fixture.',
-            'primary_good_id' => $good->id,
+            'primary_product_id' => $product->id,
+            'originating_good_ids' => [$good->id],
             'criteria' => ['segments' => ['synthetic']],
         ], $actor);
         $service->submit($job, $actor);

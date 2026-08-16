@@ -2,6 +2,9 @@
 
 namespace App\Domain\AiSales\Services;
 
+use App\Domain\AiSales\Enums\CandidateProductSource;
+use App\Domain\AiSales\Enums\CandidateProductStatus;
+use App\Domain\AiSales\Enums\ProductScopeRole;
 use App\Domain\AiSales\Enums\ProspectingCandidateStatus;
 use App\Domain\AiSales\Enums\ProspectingJobStatus;
 use App\Models\ProspectingCandidate;
@@ -34,12 +37,24 @@ class ProspectingCandidateService
             throw ValidationException::withMessages(['job' => 'Candidate import requires a human-approved prospecting job.']);
         }
         $normalized = $this->normalizer->normalize($input, $job->purpose);
+        $availableProductIds = $job->products()
+            ->wherePivotIn('role', [ProductScopeRole::Primary->value, ProductScopeRole::Additional->value])
+            ->pluck('products.id')->map(fn ($id) => (int) $id)->unique()->values();
+        if ($availableProductIds->isEmpty()) {
+            throw ValidationException::withMessages(['products' => 'Candidate import requires an approved Product-first job scope.']);
+        }
+        $candidateProductIds = collect($input['product_ids'] ?? $availableProductIds->all())
+            ->map(fn ($id) => (int) $id)->unique()->take(25)->values();
+        if ($candidateProductIds->isEmpty() || $candidateProductIds->diff($availableProductIds)->isNotEmpty()) {
+            throw ValidationException::withMessages(['product_ids' => 'Candidate Products must be a non-empty subset of the approved Job Product scope.']);
+        }
+        $normalized['normalized_payload_hash'] = hash('sha256', $normalized['normalized_payload_hash'].'|'.$candidateProductIds->sort()->implode(','));
 
         if ($searchQuery && (int) $searchQuery->prospecting_search_job_id !== (int) $job->id) {
             throw ValidationException::withMessages(['query' => 'Search query fixture belongs to another job.']);
         }
 
-        return DB::transaction(function () use ($job, $normalized, $searchQuery): ProspectingCandidate {
+        return DB::transaction(function () use ($job, $normalized, $searchQuery, $candidateProductIds): ProspectingCandidate {
             $candidate = ProspectingCandidate::query()->firstOrCreate(
                 [
                     'prospecting_search_job_id' => $job->id,
@@ -55,7 +70,7 @@ class ProspectingCandidateService
                 ],
             );
             if (! $candidate->wasRecentlyCreated && $candidate->status->terminal()) {
-                return $candidate->fresh(['sources', 'channels', 'unitMatches']);
+                return $candidate->fresh(['sources', 'channels', 'unitMatches', 'products.product']);
             }
 
             foreach ($normalized['sources'] as $sourceData) {
@@ -67,6 +82,23 @@ class ProspectingCandidateService
                     'normalized_hash' => $channelData['normalized_hash'],
                 ], $channelData);
             }
+            foreach ($candidateProductIds as $productId) {
+                $rationale = mb_substr(
+                    $normalized['relevance_summary'] ?: 'Product scope inherited from the human-approved prospecting job.',
+                    0,
+                    1000,
+                );
+                $candidate->products()->firstOrCreate(['product_id' => $productId], [
+                    'source' => CandidateProductSource::Job,
+                    'status' => CandidateProductStatus::Approved,
+                    'safe_rationale' => $rationale,
+                    'evidence_reference' => 'prospecting-job:'.$job->public_id,
+                    'evidence_hash' => hash('sha256', $job->schema_hash.'|product|'.$productId),
+                    'confidence' => $normalized['confidence_components']['relevance'] ?? null,
+                    'reviewed_by' => $job->approved_by,
+                    'reviewed_at' => $job->approved_at,
+                ]);
+            }
             $candidate->update([
                 'source_count' => $candidate->sources()->count(),
                 'normalized_payload_hash' => $normalized['normalized_payload_hash'],
@@ -75,7 +107,7 @@ class ProspectingCandidateService
                 $searchQuery->increment('candidate_count');
             }
 
-            return $candidate->fresh(['sources', 'channels', 'unitMatches']);
+            return $candidate->fresh(['sources', 'channels', 'unitMatches', 'products.product']);
         }, 3);
     }
 }

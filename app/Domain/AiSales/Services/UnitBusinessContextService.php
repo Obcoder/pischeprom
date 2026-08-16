@@ -57,7 +57,9 @@ class UnitBusinessContextService
                 'confidence' => $attributes['confidence'] ?? null,
                 'owner_user_id' => $attributes['owner_user_id'] ?? $actor->id,
                 'reviewer_user_id' => $attributes['reviewer_user_id'] ?? null,
-                'primary_good_id' => $attributes['primary_good_id'] ?? null,
+                'primary_good_id' => array_key_exists('primary_good_id', $attributes)
+                    ? $attributes['primary_good_id']
+                    : $context->primary_good_id,
                 'primary_segment' => $attributes['primary_segment'] ?? null,
                 'source' => mb_substr((string) ($attributes['source'] ?? 'manual'), 0, 64),
                 'first_activity_at' => $attributes['first_activity_at'] ?? ($context->first_activity_at ?? now()),

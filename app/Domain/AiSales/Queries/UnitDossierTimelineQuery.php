@@ -76,11 +76,25 @@ class UnitDossierTimelineQuery
         $visibleContactLinks->each(fn ($row) => $items->push(new UnitDossierTimelineItem(
             'unit.contact_link', 'Контактный канал '.$row->channel_type.' ('.$row->communication_state->value.').', 'unit_contact_context_link', $row->id, $row->created_at,
         )));
-        $unit->goodMatches()->where('unit_business_context_id', $context->id)
+        $unit->productMatches()->where('unit_business_context_id', $context->id)
             ->select(['id', 'match_type', 'status', 'created_at'])->latest('id')->limit(100)->get()
             ->each(fn ($row) => $items->push(new UnitDossierTimelineItem(
-                'unit.good_match', 'Связь с товаром: '.$row->match_type->value.' / '.$row->status->value.'.', 'unit_good_match', $row->id, $row->created_at,
+                'unit.product_match', 'Product match: '.$row->match_type->value.' / '.$row->status->value.'.', 'unit_product_match', $row->id, $row->created_at,
             )));
+        $unit->goodMatches()->where('unit_business_context_id', $context->id)
+            ->whereNotNull('unit_product_match_id')
+            ->select(['id', 'fit_status', 'compatibility_state', 'created_at'])->latest('id')->limit(100)->get()
+            ->each(fn ($row) => $items->push(new UnitDossierTimelineItem(
+                'unit.good_offer_fit', 'Good offer fit: '.($row->fit_status?->value ?? 'review_required').' / '.$row->compatibility_state->value.'.', 'unit_good_match', $row->id, $row->created_at,
+            )));
+        if ($this->contextAuthorization->hasPermission($actor, UnitContextAuthorizationService::VIEW_CLASSIFICATIONS)) {
+            $unit->goodMatches()->where('unit_business_context_id', $context->id)
+                ->whereNull('unit_product_match_id')
+                ->select(['id', 'status', 'compatibility_state', 'created_at'])->latest('id')->limit(100)->get()
+                ->each(fn ($row) => $items->push(new UnitDossierTimelineItem(
+                    'unit.good_match.legacy', 'Legacy Good-first diagnostic: '.$row->status->value.' / '.$row->compatibility_state->value.'.', 'unit_good_match', $row->id, $row->created_at,
+                )));
+        }
         $unit->resolvedProspectingCandidates()->where('lane', $context->lane->value)
             ->where('role_code', $context->role_code->value)
             ->select(['id', 'public_id', 'status', 'reviewed_at', 'created_at'])->latest('id')->limit(100)->get()

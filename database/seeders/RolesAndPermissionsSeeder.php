@@ -65,6 +65,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ai_sales.prospecting.review',
             'ai_sales.prospecting.resolve',
             'ai_sales.good_matches.review',
+            'ai_sales.product_matches.review',
             'ai_sales.timeline.view',
 
             'users.view',
@@ -133,6 +134,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ai_sales.prospecting.review',
             'ai_sales.prospecting.resolve',
             'ai_sales.good_matches.review',
+            'ai_sales.product_matches.review',
             'ai_sales.timeline.view',
             'bank.view',
             'bank.view_sensitive',

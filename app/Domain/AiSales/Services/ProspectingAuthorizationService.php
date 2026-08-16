@@ -18,6 +18,8 @@ class ProspectingAuthorizationService
 
     public const REVIEW_GOOD_MATCHES = 'ai_sales.good_matches.review';
 
+    public const REVIEW_PRODUCT_MATCHES = 'ai_sales.product_matches.review';
+
     public const VIEW_TIMELINE = 'ai_sales.timeline.view';
 
     public function __construct(private readonly UnitContextAuthorizationService $contexts) {}

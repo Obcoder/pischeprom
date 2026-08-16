@@ -48,6 +48,7 @@ use App\Models\Unit;
 use App\Models\UnitBusinessContext;
 use App\Models\UnitGoodMatch;
 use App\Models\UnitObservation;
+use App\Models\UnitProductMatch;
 use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
@@ -60,6 +61,7 @@ use App\Policies\AiSales\UnitBusinessContextPolicy;
 use App\Policies\AiSales\UnitGoodMatchPolicy;
 use App\Policies\AiSales\UnitObservationPolicy;
 use App\Policies\AiSales\UnitPolicy;
+use App\Policies\AiSales\UnitProductMatchPolicy;
 use App\Policies\BankAuditEventPolicy;
 use App\Policies\BankConnectionPolicy;
 use App\Policies\BankPaymentOrderDraftPolicy;
@@ -248,6 +250,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProspectingSearchJob::class, ProspectingSearchJobPolicy::class);
         Gate::policy(ProspectingCandidate::class, ProspectingCandidatePolicy::class);
         Gate::policy(UnitGoodMatch::class, UnitGoodMatchPolicy::class);
+        Gate::policy(UnitProductMatch::class, UnitProductMatchPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

@@ -66,11 +66,13 @@ class ProspectingDomainBoundaryTest extends Stage08TestCase
         $sourceCount = $resolved->sources()->count();
         $aliasCount = $resolved->aliases()->count();
         $contactCount = $resolved->contactContextLinks()->count();
+        $productMatchCount = $resolved->productMatches()->count();
         $goodMatchCount = $resolved->goodMatches()->count();
         app(ResolveProspectingCandidate::class)->enrichExisting($candidate->fresh(), $unit, $actor);
         $this->assertSame($sourceCount, $resolved->sources()->count());
         $this->assertSame($aliasCount, $resolved->aliases()->count());
         $this->assertSame($contactCount, $resolved->contactContextLinks()->count());
+        $this->assertSame($productMatchCount, $resolved->productMatches()->count());
         $this->assertSame($goodMatchCount, $resolved->goodMatches()->count());
 
         $secondJob = $this->approvedJob($actor, 'buyer_discovery', $job->primaryGood);
@@ -83,11 +85,20 @@ class ProspectingDomainBoundaryTest extends Stage08TestCase
         $this->assertSame($sourceCount, $resolved->sources()->count());
         $this->assertSame($aliasCount, $resolved->aliases()->count());
         $this->assertSame($contactCount, $resolved->contactContextLinks()->count());
+        $this->assertSame($productMatchCount, $resolved->productMatches()->count());
         $this->assertSame($goodMatchCount, $resolved->goodMatches()->count());
         $this->assertSame('Existing canonical name', $unit->fresh()->name);
         $this->assertSame($entitiesBefore, Entity::query()->count());
         $this->assertDatabaseHas('unit_aliases', ['unit_id' => $unit->id, 'normalized_alias' => 'observed trade alias']);
-        $this->assertDatabaseHas('unit_good_matches', ['unit_id' => $unit->id, 'match_type' => 'potential_need', 'origin' => 'candidate']);
+        $this->assertDatabaseHas('unit_product_matches', ['unit_id' => $unit->id, 'match_type' => 'potential_need', 'origin' => 'candidate']);
+        $this->assertDatabaseHas('unit_good_matches', [
+            'unit_id' => $unit->id,
+            'match_type' => 'potential_need',
+            'fit_status' => 'offer_candidate',
+            'compatibility_state' => 'mapped',
+            'origin' => 'candidate',
+        ]);
+        $this->assertNotNull($unit->goodMatches()->firstOrFail()->unit_product_match_id);
     }
 
     public function test_human_approved_new_unit_reuses_contacts_but_creates_no_entity_transaction_or_consent(): void
@@ -118,6 +129,7 @@ class ProspectingDomainBoundaryTest extends Stage08TestCase
         $this->assertDatabaseHas('unit_business_contexts', ['unit_id' => $unit->id, 'lane' => 'sales', 'role_code' => 'prospective_customer', 'stage' => 'researching']);
         $this->assertDatabaseHas('unit_sources', ['unit_id' => $unit->id, 'source_type' => 'prospecting_candidate']);
         $this->assertDatabaseHas('unit_dossier_audit_events', ['unit_id' => $unit->id, 'event_type' => 'prospecting.candidate.created_unit']);
+        $this->assertDatabaseHas('unit_product_matches', ['unit_id' => $unit->id, 'origin' => 'candidate']);
         $this->assertDatabaseHas('emails', ['address' => 'office@new-stage08.example']);
         $this->assertDatabaseHas('telephones', ['number' => '+79990001122']);
         $this->assertDatabaseHas('unit_contact_context_links', ['unit_id' => $unit->id, 'data_classification' => 'personal_data', 'visibility_scope' => 'internal_only', 'review_required' => 1]);

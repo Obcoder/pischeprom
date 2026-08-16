@@ -7,6 +7,7 @@ use App\Domain\AiSales\DTO\Units\AggregateSupplySummary;
 use App\Domain\AiSales\DTO\Units\CustomerOfferSummary;
 use App\Domain\AiSales\DTO\Units\PublicBusinessContactSummary;
 use App\Domain\AiSales\DTO\Units\PublicGoodSummary;
+use App\Domain\AiSales\DTO\Units\PublicProductSummary;
 use App\Domain\AiSales\DTO\Units\SupportedRegionSummary;
 use App\Domain\AiSales\DTO\Units\UnitBusinessContextSummary;
 use App\Domain\AiSales\DTO\Units\UnitDuplicateCandidateSummary;
@@ -25,13 +26,16 @@ use App\Domain\AiSales\Tools\Handlers\FindUnitDuplicateCandidatesToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetAggregateDemandSummaryToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetAggregateSupplySummaryToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetCustomerOfferSummaryToolHandler;
+use App\Domain\AiSales\Tools\Handlers\GetPublicGoodsForProductToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetPublicGoodSummaryToolHandler;
+use App\Domain\AiSales\Tools\Handlers\GetPublicProductSummaryToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetSupportedRegionsToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetUnitBusinessContextSummaryToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetUnitPublicBusinessContactsToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetUnitSharedPublicProfileToolHandler;
 use App\Domain\AiSales\Tools\Handlers\GetVerifiedPublicObservationEvidenceToolHandler;
 use App\Domain\AiSales\Tools\Handlers\SearchPublicGoodsToolHandler;
+use App\Domain\AiSales\Tools\Handlers\SearchPublicProductsToolHandler;
 use App\Domain\AiSales\Tools\Handlers\SyntheticGoodToolHandler;
 use LogicException;
 
@@ -90,6 +94,12 @@ class AiToolRegistry
                 'additionalProperties' => ['type' => 'string', 'maxLength' => 255],
             ],
         ], ['name', 'description', 'published_attributes']);
+        $publicProduct = $this->object([
+            'product_id' => ['type' => 'integer', 'minimum' => 1],
+            'name' => $this->nullableString(255),
+            'english_name' => $this->nullableString(255),
+            'category' => $this->nullableString(255),
+        ], ['product_id', 'name', 'english_name', 'category']);
 
         return [
             $this->definition(
@@ -132,6 +142,71 @@ class AiToolRegistry
                 DataClassification::Public,
                 $publicScopes,
                 SearchPublicGoodsToolHandler::class,
+                20,
+                40_960,
+                1,
+            ),
+            $this->definition(
+                'catalog.search_public_products',
+                'Search bounded published Product summaries without commercial relations.',
+                $this->object([
+                    'query' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120],
+                    'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20],
+                    'sort' => ['type' => 'string', 'enum' => ['name_asc', 'name_desc']],
+                ], ['query']),
+                $this->listOutput($publicProduct, 20),
+                [PublicProductSummary::class],
+                $execute,
+                $purposes,
+                $audiences,
+                $lanes,
+                $roles,
+                $contours,
+                DataClassification::Public,
+                $publicScopes,
+                SearchPublicProductsToolHandler::class,
+                20,
+                40_960,
+                1,
+            ),
+            $this->definition(
+                'catalog.get_public_product_summary',
+                'Read one bounded published Product summary without commercial relations.',
+                $this->object(['product_id' => ['type' => 'integer', 'minimum' => 1]], ['product_id']),
+                $this->listOutput($publicProduct, 1),
+                [PublicProductSummary::class],
+                $execute,
+                $purposes,
+                $audiences,
+                $lanes,
+                $roles,
+                $contours,
+                DataClassification::Public,
+                $publicScopes,
+                GetPublicProductSummaryToolHandler::class,
+                1,
+                8_192,
+                1,
+            ),
+            $this->definition(
+                'catalog.get_public_goods_for_product',
+                'Read bounded published Goods for one published Product without supply-chain data.',
+                $this->object([
+                    'product_id' => ['type' => 'integer', 'minimum' => 1],
+                    'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20],
+                    'sort' => ['type' => 'string', 'enum' => ['name_asc', 'name_desc']],
+                ], ['product_id']),
+                $this->listOutput($publicGood, 20),
+                [PublicGoodSummary::class],
+                $execute,
+                $purposes,
+                $audiences,
+                $lanes,
+                $roles,
+                $contours,
+                DataClassification::Public,
+                $publicScopes,
+                GetPublicGoodsForProductToolHandler::class,
                 20,
                 40_960,
                 1,

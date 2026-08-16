@@ -37,7 +37,10 @@ class ProspectingSearchJobController extends Controller
         $jobs = ProspectingSearchJob::query()->whereIn('lane', $lanes)
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['purpose'] ?? null, fn ($query, $purpose) => $query->where('purpose', $purpose))
-            ->with(['owner:id,name', 'reviewer:id,name', 'primaryGood:id,name'])
+            ->with([
+                'owner:id,name', 'reviewer:id,name', 'primaryGood:id,name', 'goods:id,name',
+                'products' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.eng']),
+            ])
             ->latest('id')->paginate($filters['per_page'] ?? 25);
 
         return response()->json([
@@ -62,7 +65,10 @@ class ProspectingSearchJobController extends Controller
         Gate::authorize('view', $prospectingSearchJob);
 
         return response()->json(['data' => (new ProspectingSearchJobResource(
-            $prospectingSearchJob->load(['owner:id,name', 'reviewer:id,name', 'primaryGood:id,name', 'goods:id,name'])
+            $prospectingSearchJob->load([
+                'owner:id,name', 'reviewer:id,name', 'primaryGood:id,name', 'goods:id,name',
+                'products' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.eng']),
+            ])
         ))->resolve($request)]);
     }
 
