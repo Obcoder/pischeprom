@@ -13,6 +13,7 @@ import UnitManufacturesCard from '@/Components/Unit/UnitManufacturesCard.vue'
 import UnitTradeTabsCard from '@/Components/Unit/UnitTradeTabsCard.vue'
 import UnitBusinessContextsPanel from '@/Components/Unit/AiSales/UnitBusinessContextsPanel.vue'
 import AiControlPlanePanel from '@/Components/Unit/AiSales/AiControlPlanePanel.vue'
+import UnitProspectingDossierPanel from '@/Components/Unit/AiSales/UnitProspectingDossierPanel.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -137,6 +138,10 @@ onMounted(async () => {
                     :initial-capabilities="aiSales.capabilities || {}"
                 />
             </div>
+        </section>
+
+        <section class="unit-page__band unit-page__band--contexts">
+            <div><UnitProspectingDossierPanel :unit-id="Number(unit.id)" /></div>
         </section>
 
         <section class="unit-page__band unit-page__band--trade-tabs">

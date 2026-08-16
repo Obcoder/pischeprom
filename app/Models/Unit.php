@@ -172,6 +172,16 @@ class Unit extends Model
         return $this->hasMany(AiAgentRun::class);
     }
 
+    public function goodMatches(): HasMany
+    {
+        return $this->hasMany(UnitGoodMatch::class);
+    }
+
+    public function resolvedProspectingCandidates(): HasMany
+    {
+        return $this->hasMany(ProspectingCandidate::class, 'resolved_unit_id');
+    }
+
     public function fields(): BelongsToMany
     {
         return $this->belongsToMany(Field::class);

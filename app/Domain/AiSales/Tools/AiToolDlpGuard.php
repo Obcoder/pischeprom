@@ -28,14 +28,22 @@ class AiToolDlpGuard
 
     public function assertSafe(array $payload, AiToolExecutionContext $context): AiToolDlpResult
     {
-        $scan = $this->scanner->scan($payload, $context->contour);
+        return $this->assertPayloadSafe($payload, $context->contour, $context->lane);
+    }
+
+    public function assertPayloadSafe(
+        array $payload,
+        AiProcessingContour $contour,
+        BusinessLane $lane,
+    ): AiToolDlpResult {
+        $scan = $this->scanner->scan($payload, $contour);
 
         if ($scan->blocked()) {
             throw new PolicyViolation('tool_dlp_sensitive_material_blocked', 'Tool DLP blocked sensitive material.');
         }
 
         $findings = 0;
-        $this->walk($payload, $context->contour, $context->lane, $findings);
+        $this->walk($payload, $contour, $lane, $findings);
 
         return new AiToolDlpResult('allow', $findings);
     }

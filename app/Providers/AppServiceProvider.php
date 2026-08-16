@@ -42,8 +42,11 @@ use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripExpense;
 use App\Models\MailMessageAttachment;
 use App\Models\PriceListImport;
+use App\Models\ProspectingCandidate;
+use App\Models\ProspectingSearchJob;
 use App\Models\Unit;
 use App\Models\UnitBusinessContext;
+use App\Models\UnitGoodMatch;
 use App\Models\UnitObservation;
 use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
@@ -51,7 +54,10 @@ use App\Observers\MailMessageAttachmentObserver;
 use App\Policies\AiSales\AiAgentDefinitionPolicy;
 use App\Policies\AiSales\AiAgentRunPolicy;
 use App\Policies\AiSales\EntityCandidateProposalPolicy;
+use App\Policies\AiSales\ProspectingCandidatePolicy;
+use App\Policies\AiSales\ProspectingSearchJobPolicy;
 use App\Policies\AiSales\UnitBusinessContextPolicy;
+use App\Policies\AiSales\UnitGoodMatchPolicy;
 use App\Policies\AiSales\UnitObservationPolicy;
 use App\Policies\AiSales\UnitPolicy;
 use App\Policies\BankAuditEventPolicy;
@@ -239,6 +245,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(EntityCandidateProposal::class, EntityCandidateProposalPolicy::class);
         Gate::policy(AiAgentDefinition::class, AiAgentDefinitionPolicy::class);
         Gate::policy(AiAgentRun::class, AiAgentRunPolicy::class);
+        Gate::policy(ProspectingSearchJob::class, ProspectingSearchJobPolicy::class);
+        Gate::policy(ProspectingCandidate::class, ProspectingCandidatePolicy::class);
+        Gate::policy(UnitGoodMatch::class, UnitGoodMatchPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

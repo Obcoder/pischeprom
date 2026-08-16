@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Domain\AiSales\Enums\DataClassification;
 use App\Domain\AiSales\Enums\ObservationVerificationStatus;
+use App\Domain\AiSales\Enums\ProspectingCommunicationState;
 use App\Domain\AiSales\Enums\UnitVisibilityScope;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
@@ -20,13 +21,17 @@ class UnitContactContextLink extends Model
         'telephone_id',
         'uri_id',
         'channel_value_snapshot',
+        'normalized_hash',
         'contact_role',
         'verification_status',
         'confidence',
         'data_classification',
         'visibility_scope',
+        'communication_state',
+        'review_required',
         'first_seen_at',
         'last_seen_at',
+        'last_verified_at',
         'created_by',
         'reviewed_by',
         'reviewed_at',
@@ -42,6 +47,9 @@ class UnitContactContextLink extends Model
             'confidence' => 'integer',
             'first_seen_at' => 'datetime',
             'last_seen_at' => 'datetime',
+            'last_verified_at' => 'datetime',
+            'review_required' => 'boolean',
+            'communication_state' => ProspectingCommunicationState::class,
             'reviewed_at' => 'datetime',
             'archived_at' => 'datetime',
         ];

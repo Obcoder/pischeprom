@@ -31,6 +31,27 @@ return [
         'enabled' => (bool) env('AI_WORKFLOWS_ENABLED', false),
     ],
 
+    'prospecting' => [
+        'dossier_enabled' => (bool) env('AI_PROSPECTING_DOSSIER_ENABLED', false),
+        'jobs_enabled' => (bool) env('AI_PROSPECTING_JOBS_ENABLED', false),
+        'candidate_import_enabled' => (bool) env('AI_PROSPECTING_CANDIDATE_IMPORT_ENABLED', false),
+        'auto_create_unit' => (bool) env('AI_PROSPECTING_AUTO_CREATE_UNIT', false),
+        'live_search_enabled' => (bool) env('AI_PROSPECTING_LIVE_SEARCH_ENABLED', false),
+        'new_unit_min_relevance' => 60,
+        'limits' => [
+            'max_queries' => 20,
+            'max_candidates' => 250,
+            'max_human_unit_creates_per_day' => 20,
+        ],
+        'retention' => [
+            'profile' => 'prospecting-transient-v1',
+            'unresolved_days' => 30,
+            'resolved_days' => 14,
+            'rejected_days' => 7,
+            'personal_channel_days' => 7,
+        ],
+    ],
+
     'transport_mode' => env('AI_SALES_TRANSPORT_MODE', 'fake_only'),
     'queue' => [
         'connection' => env('AI_SALES_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'sync')),

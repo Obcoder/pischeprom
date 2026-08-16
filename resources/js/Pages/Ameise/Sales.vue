@@ -6,6 +6,7 @@ import {useDate} from "vuetify";
 import {useForm} from "@inertiajs/vue3";
 import {format} from "date-fns";
 import {route} from "ziggy-js";
+import ProspectingReviewPanel from '@/Components/Unit/AiSales/ProspectingReviewPanel.vue'
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -261,8 +262,12 @@ onMounted(()=>{
                     >
                         <v-tab value="sales">Продажи</v-tab>
                         <v-tab value="entities">Entities</v-tab>
+                        <v-tab value="ai-prospecting">AI-поиск покупателей</v-tab>
                     </v-tabs>
                     <v-tabs-window v-model="tab">
+                        <v-tabs-window-item value="ai-prospecting">
+                            <v-container fluid><ProspectingReviewPanel /></v-container>
+                        </v-tabs-window-item>
                         <v-tabs-window-item value="sales">
                             <v-container fluid>
                                 <v-row>

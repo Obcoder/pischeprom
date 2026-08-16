@@ -97,4 +97,9 @@ class UnitBusinessContext extends Model
     {
         return $this->hasMany(AiAgentRun::class);
     }
+
+    public function goodMatches(): HasMany
+    {
+        return $this->hasMany(UnitGoodMatch::class);
+    }
 }
