@@ -13,6 +13,8 @@ class YandexSearchService
 {
     private const ALLOWLISTED_HOST = 'searchapi.api.cloud.yandex.net';
 
+    public const ENDPOINT_PATH = '/v2/web/search';
+
     public function __construct(
         protected HttpFactory $http,
         protected YandexSearchProfileRegistry $profiles,
@@ -71,7 +73,7 @@ class YandexSearchService
                     'allow_redirects' => false,
                     'decode_content' => false,
                 ])
-                ->post("https://{$host}/v2/web/search", $payload);
+                ->post('https://'.$host.self::ENDPOINT_PATH, $payload);
         } catch (ConnectionException) {
             throw new YandexSearchException('network', 'yandex_search_connection_failed');
         }

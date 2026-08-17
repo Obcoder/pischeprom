@@ -6,6 +6,7 @@ use App\Domain\AiSales\Enums\ProspectingJobStatus;
 use App\Jobs\AiSales\ExecuteProspectingSearchQueryJob;
 use App\Models\ProspectingSearchJob;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 
 class ExecuteProspectingSearchJob
@@ -20,6 +21,9 @@ class ExecuteProspectingSearchJob
     {
         $this->features->searchExecution();
         $this->authorization->authorize($actor, ProspectingAuthorizationService::EXECUTE_SEARCH, $job->lane);
+        if ($job->isFindBuyersWorkflow()) {
+            throw new AuthorizationException('Find Buyers live execution is operator-only.');
+        }
         if ($job->status !== ProspectingJobStatus::Approved || $job->cancelled_at !== null) {
             throw ValidationException::withMessages(['job' => 'Search execution requires a current approved Job.']);
         }

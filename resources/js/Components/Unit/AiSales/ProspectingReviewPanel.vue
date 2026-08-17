@@ -202,6 +202,7 @@ onMounted(load)
                             @click="searchAction(job, 'search-plan/approve')"
                         >Одобрить план</v-btn>
                         <v-btn
+                            v-if="!job.find_buyers?.wizard_version"
                             size="small"
                             color="primary"
                             :disabled="!job.execution_available || !searchByJob[job.id]?.queries?.some(item => item.plan_status === 'approved')"

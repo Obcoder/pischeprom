@@ -80,6 +80,12 @@ class ProspectingSearchJob extends Model
         return 'public_id';
     }
 
+    public function isFindBuyersWorkflow(): bool
+    {
+        return in_array($this->launch_source_type, ['product', 'good'], true)
+            && filled($this->wizard_version);
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_user_id');

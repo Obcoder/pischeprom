@@ -87,7 +87,8 @@ class ProspectingSearchJobResource extends JsonResource
 
     private function searchExecutionAvailable(Request $request): bool
     {
-        if (! (bool) config('ai-sales.prospecting.search_execution_enabled', false)
+        if ($this->isFindBuyersWorkflow()
+            || ! (bool) config('ai-sales.prospecting.search_execution_enabled', false)
             || ! (bool) config('ai-sales.prospecting.existing_yandex_provider_enabled', false)
             || ! (bool) config('ai-sales.web_search_enabled', false)
             || $this->status->value !== 'approved') {
