@@ -47,7 +47,9 @@ use App\Models\LogisticsCityDistance;
 use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripExpense;
 use App\Models\MailMessageAttachment;
+use App\Models\OutreachDispatch;
 use App\Models\OutreachDraft;
+use App\Models\OutreachReplyLink;
 use App\Models\PriceListImport;
 use App\Models\ProspectingCandidate;
 use App\Models\ProspectingSearchJob;
@@ -67,7 +69,9 @@ use App\Policies\AiSales\AiAgentRunPolicy;
 use App\Policies\AiSales\CommunicationPermissionPolicy;
 use App\Policies\AiSales\CommunicationSuppressionPolicy;
 use App\Policies\AiSales\EntityCandidateProposalPolicy;
+use App\Policies\AiSales\OutreachDispatchPolicy;
 use App\Policies\AiSales\OutreachDraftPolicy;
+use App\Policies\AiSales\OutreachReplyLinkPolicy;
 use App\Policies\AiSales\ProspectingCandidatePolicy;
 use App\Policies\AiSales\ProspectingScoreSnapshotPolicy;
 use App\Policies\AiSales\ProspectingSearchJobPolicy;
@@ -179,6 +183,8 @@ class AppServiceProvider extends ServiceProvider
             ->by((string) ($request->user()?->id ?? $request->ip())));
         RateLimiter::for('mail-send', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('ai-sales-outreach-dispatch', fn (Request $request) => Limit::perMinute(10)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
 
         Gate::before(function ($user, string $ability) {
             if (Str::startsWith($ability, 'ai_price_lists.')) {
@@ -277,6 +283,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(UnitGoodFitSnapshot::class, ProspectingScoreSnapshotPolicy::class);
         Gate::policy(UnitProspectPrioritySnapshot::class, ProspectingScoreSnapshotPolicy::class);
         Gate::policy(OutreachDraft::class, OutreachDraftPolicy::class);
+        Gate::policy(OutreachDispatch::class, OutreachDispatchPolicy::class);
+        Gate::policy(OutreachReplyLink::class, OutreachReplyLinkPolicy::class);
         Gate::policy(CommunicationPermission::class, CommunicationPermissionPolicy::class);
         Gate::policy(CommunicationSuppression::class, CommunicationSuppressionPolicy::class);
 

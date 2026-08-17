@@ -20,6 +20,7 @@ use App\Http\Requests\AiSales\StoreCommunicationPermissionRequest;
 use App\Http\Requests\AiSales\StoreOutreachDraftRequest;
 use App\Models\CommunicationPermission;
 use App\Models\CommunicationSuppression;
+use App\Models\OutreachDispatch;
 use App\Models\OutreachDraft;
 use App\Models\OutreachDraftRevision;
 use App\Models\Unit;
@@ -64,6 +65,11 @@ class UnitOutreachController extends Controller
             ->where('unit_id', $unit->id)->whereIn('unit_business_context_id', $contexts->pluck('id'))
             ->with(['businessContext', 'contactLink.email', 'productMatch.product', 'goodMatch.good', 'revisions.claims', 'reviews'])
             ->latest('id')->limit(100)->get();
+        $dispatches = OutreachDispatch::query()
+            ->where('unit_id', $unit->id)
+            ->whereIn('unit_business_context_id', $contextIdsFor(OutreachAuthorizationService::VIEW_DISPATCH))
+            ->with(['followUpPlan', 'replies'])
+            ->latest('id')->limit(100)->get();
         $permissions = CommunicationPermission::query()
             ->where('unit_id', $unit->id)->whereIn('unit_business_context_id', $permissionContextIds)
             ->with(['contactLink.email', 'evidence'])->latest('id')->limit(100)->get();
@@ -89,6 +95,27 @@ class UnitOutreachController extends Controller
                     $eligibility,
                     $contactContextIds->contains($draft->unit_business_context_id),
                 )),
+                'dispatches' => $dispatches->map(fn (OutreachDispatch $dispatch) => [
+                    'id' => $dispatch->id,
+                    'public_id' => $dispatch->public_id,
+                    'draft_id' => $dispatch->outreach_draft_id,
+                    'revision_id' => $dispatch->outreach_draft_revision_id,
+                    'context_id' => $dispatch->unit_business_context_id,
+                    'state' => $dispatch->state->value,
+                    'request_profile' => $dispatch->request_profile,
+                    'mail_message_id' => $dispatch->mail_message_id,
+                    'sending_id' => $dispatch->sending_id,
+                    'safe_summary' => $dispatch->safe_summary,
+                    'last_block_reason' => $dispatch->last_block_reason,
+                    'last_revalidated_at' => $dispatch->last_revalidated_at?->toISOString(),
+                    'reply_count' => $dispatch->replies->count(),
+                    'follow_up' => $dispatch->followUpPlan ? [
+                        'status' => $dispatch->followUpPlan->status->value,
+                        'max_follow_ups' => $dispatch->followUpPlan->max_follow_ups,
+                        'recommendation_code' => $dispatch->followUpPlan->recommendation_code,
+                        'cancellation_reason' => $dispatch->followUpPlan->cancellation_reason,
+                    ] : null,
+                ]),
                 'permissions' => $permissions->map(fn (CommunicationPermission $permission) => $this->permissionPayload($permission)),
                 'suppressions' => $suppressions->map(fn (CommunicationSuppression $suppression) => $this->suppressionPayload($suppression)),
                 'product_matches' => $productMatches->map(fn (UnitProductMatch $match) => [
@@ -119,6 +146,14 @@ class UnitOutreachController extends Controller
                     'can_view_permissions' => $permissionContextIds->isNotEmpty(),
                     'can_manage_permissions' => $contextIdsFor(OutreachAuthorizationService::MANAGE_PERMISSIONS)->isNotEmpty(),
                     'can_manage_suppressions' => $contextIdsFor(OutreachAuthorizationService::MANAGE_SUPPRESSIONS)->isNotEmpty(),
+                    'can_view_dispatch' => $contextIdsFor(OutreachAuthorizationService::VIEW_DISPATCH)->isNotEmpty(),
+                    'can_prepare_dispatch' => $contextIdsFor(OutreachAuthorizationService::PREPARE_DISPATCH)->isNotEmpty(),
+                    'can_queue_dispatch' => $contextIdsFor(OutreachAuthorizationService::QUEUE_DISPATCH)->isNotEmpty(),
+                    'can_cancel_dispatch' => $contextIdsFor(OutreachAuthorizationService::CANCEL_DISPATCH)->isNotEmpty(),
+                    'can_view_events' => $contextIdsFor(OutreachAuthorizationService::VIEW_EVENTS)->isNotEmpty(),
+                    'can_view_replies' => $contextIdsFor(OutreachAuthorizationService::VIEW_REPLIES)->isNotEmpty(),
+                    'can_review_replies' => $contextIdsFor(OutreachAuthorizationService::REVIEW_REPLIES)->isNotEmpty(),
+                    'can_manage_followups' => $contextIdsFor(OutreachAuthorizationService::MANAGE_FOLLOWUPS)->isNotEmpty(),
                 ],
                 'feature_state' => $features->state(),
             ],

@@ -26,6 +26,22 @@ class OutreachAuthorizationService
 
     public const MANAGE_SUPPRESSIONS = 'ai_sales.communication_suppressions.manage';
 
+    public const VIEW_DISPATCH = 'ai_sales.outreach.dispatch.view';
+
+    public const PREPARE_DISPATCH = 'ai_sales.outreach.dispatch.prepare';
+
+    public const QUEUE_DISPATCH = 'ai_sales.outreach.dispatch.queue';
+
+    public const CANCEL_DISPATCH = 'ai_sales.outreach.dispatch.cancel';
+
+    public const VIEW_EVENTS = 'ai_sales.outreach.events.view';
+
+    public const VIEW_REPLIES = 'ai_sales.outreach.replies.view';
+
+    public const REVIEW_REPLIES = 'ai_sales.outreach.replies.review';
+
+    public const MANAGE_FOLLOWUPS = 'ai_sales.outreach.followups.manage';
+
     public function __construct(private readonly UnitContextAuthorizationService $contexts) {}
 
     public function can(User $actor, string $permission, UnitBusinessContext $context): bool

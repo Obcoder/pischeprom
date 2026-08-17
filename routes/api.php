@@ -8,6 +8,8 @@ use App\Http\Controllers\API\AiSales\AiControlPlaneController as AiSalesControlP
 use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesToolingDiagnosticsController;
 use App\Http\Controllers\API\AiSales\CommunicationSuppressionController as AiSalesCommunicationSuppressionController;
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
+use App\Http\Controllers\API\AiSales\OutreachDispatchController as AiSalesOutreachDispatchController;
+use App\Http\Controllers\API\AiSales\OutreachReplyController as AiSalesOutreachReplyController;
 use App\Http\Controllers\API\AiSales\ProspectingCandidateController as AiSalesProspectingCandidateController;
 use App\Http\Controllers\API\AiSales\ProspectingCatalogController as AiSalesProspectingCatalogController;
 use App\Http\Controllers\API\AiSales\ProspectingScoringController as AiSalesProspectingScoringController;
@@ -174,6 +176,26 @@ Route::prefix('ai-sales/units/{unit}')
         Route::post('/outreach/permissions/{communicationPermission}/revoke', [AiSalesUnitOutreachController::class, 'revokePermission'])->name('outreach.permissions.revoke');
         Route::post('/outreach/suppressions', [AiSalesCommunicationSuppressionController::class, 'store'])->name('outreach.suppressions.store');
         Route::post('/outreach/suppressions/{communicationSuppression}/clear', [AiSalesCommunicationSuppressionController::class, 'clear'])->name('outreach.suppressions.clear');
+        Route::get('/outreach/drafts/{outreachDraft}/dispatch-eligibility', [AiSalesOutreachDispatchController::class, 'eligibility'])
+            ->name('outreach.dispatch-eligibility.show');
+        Route::post('/outreach/drafts/{outreachDraft}/dispatches', [AiSalesOutreachDispatchController::class, 'store'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.store');
+        Route::post('/outreach/dispatches/{outreachDispatch}/queue', [AiSalesOutreachDispatchController::class, 'queue'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.queue');
+        Route::post('/outreach/dispatches/{outreachDispatch}/cancel', [AiSalesOutreachDispatchController::class, 'cancel'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.cancel');
+        Route::get('/outreach/dispatches/{outreachDispatch}', [AiSalesOutreachDispatchController::class, 'show'])
+            ->name('outreach.dispatches.show');
+        Route::get('/outreach/dispatches/{outreachDispatch}/events', [AiSalesOutreachDispatchController::class, 'events'])
+            ->name('outreach.dispatches.events');
+        Route::get('/outreach/dispatches/{outreachDispatch}/reply', [AiSalesOutreachDispatchController::class, 'reply'])
+            ->name('outreach.dispatches.reply');
+        Route::post('/outreach/replies/{outreachReply}/review', [AiSalesOutreachReplyController::class, 'review'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.replies.review');
+        Route::post('/outreach/replies/{outreachReply}/fake-triage', [AiSalesOutreachReplyController::class, 'triage'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.replies.triage');
+        Route::post('/outreach/dispatches/{outreachDispatch}/follow-up-plan', [AiSalesOutreachDispatchController::class, 'followUpPlan'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.follow-up-plan');
     });
 
 Route::prefix('ai-sales')

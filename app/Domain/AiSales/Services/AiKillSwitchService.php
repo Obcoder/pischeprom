@@ -38,6 +38,13 @@ class AiKillSwitchService
         }
     }
 
+    public function assertGlobalOpen(): void
+    {
+        if ($this->all()['global']) {
+            throw new PolicyViolation('ai_kill_switch_active', 'AI Sales is disabled by the server-side global kill switch.');
+        }
+    }
+
     public function set(string $scope, bool $enabled, User $actor): array
     {
         $key = match ($scope) {

@@ -127,4 +127,9 @@ class UnitBusinessContext extends Model
     {
         return $this->hasMany(CommunicationSuppression::class);
     }
+
+    public function outreachDispatches(): HasMany
+    {
+        return $this->hasMany(OutreachDispatch::class);
+    }
 }

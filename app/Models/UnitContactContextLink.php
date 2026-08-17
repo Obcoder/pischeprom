@@ -112,4 +112,9 @@ class UnitContactContextLink extends Model
     {
         return $this->hasMany(OutreachDraft::class);
     }
+
+    public function outreachDispatches(): HasMany
+    {
+        return $this->hasMany(OutreachDispatch::class);
+    }
 }

@@ -5,11 +5,14 @@ namespace App\Domain\AiSales\Outreach;
 use App\Domain\AiSales\Exceptions\PolicyViolation;
 use App\Domain\AiSales\Outreach\Enums\CommunicationSuppressionReason;
 use App\Domain\AiSales\Outreach\Enums\CommunicationSuppressionScope;
+use App\Domain\AiSales\Outreach\Enums\OutreachDispatchState;
+use App\Domain\AiSales\Outreach\Enums\OutreachFollowUpStatus;
 use App\Domain\AiSales\Support\AiCanonicalJson;
 use App\Models\CommunicationSuppression;
 use App\Models\CommunicationSuppressionDecision;
 use App\Models\MailingContact;
 use App\Models\MailingSuppression;
+use App\Models\OutreachDispatch;
 use App\Models\Unit;
 use App\Models\UnitBusinessContext;
 use App\Models\UnitContactContextLink;
@@ -24,6 +27,8 @@ class CommunicationSuppressionService
         private readonly OutreachAuthorizationService $authorization,
         private readonly OutreachFeatureGuard $features,
         private readonly CommunicationPermissionService $permissions,
+        private readonly OutreachDispatchStateMachine $states,
+        private readonly OutreachFollowUpCancellationService $followUps,
     ) {}
 
     public function create(User $actor, Unit $unit, UnitBusinessContext $context, array $data): CommunicationSuppression
@@ -33,6 +38,7 @@ class CommunicationSuppressionService
         $scope = CommunicationSuppressionScope::from($data['scope']);
         $endpointHash = null;
         $domainHash = null;
+        $normalizedDomain = null;
 
         if ($scope === CommunicationSuppressionScope::Endpoint) {
             $contact = UnitContactContextLink::query()->with('email')->findOrFail($data['unit_contact_context_link_id']);
@@ -42,11 +48,11 @@ class CommunicationSuppressionService
             $endpointHash = $this->permissions->endpointHash($contact->email->address);
         }
         if ($scope === CommunicationSuppressionScope::Domain) {
-            $domain = Str::lower(trim((string) ($data['domain'] ?? '')));
-            if (! preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $domain)) {
+            $normalizedDomain = Str::lower(trim((string) ($data['domain'] ?? '')));
+            if (! preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $normalizedDomain)) {
                 throw new PolicyViolation('suppression_domain_invalid', 'Suppression domain is invalid.');
             }
-            $domainHash = hash('sha256', $domain);
+            $domainHash = hash('sha256', $normalizedDomain);
         }
 
         $payload = [
@@ -65,9 +71,19 @@ class CommunicationSuppressionService
             'reason' => $payload['reason'], 'source' => $payload['source'], 'evidence_hash' => $payload['evidence_hash'],
         ]);
 
-        return DB::transaction(function () use ($payload, $actor): CommunicationSuppression {
+        return DB::transaction(function () use ($payload, $actor, $unit, $context, $data, $normalizedDomain): CommunicationSuppression {
+            Unit::query()->whereKey($unit->id)->lockForUpdate()->firstOrFail();
+            UnitBusinessContext::query()->whereKey($context->id)->lockForUpdate()->firstOrFail();
+            if (! empty($data['unit_contact_context_link_id'])) {
+                UnitContactContextLink::query()->whereKey($data['unit_contact_context_link_id'])->lockForUpdate()->firstOrFail();
+            }
             $suppression = CommunicationSuppression::query()->create($payload);
             $this->recordDecision($suppression, 'created', 'suppression_created', $actor);
+            $this->blockMatchingDispatches(
+                $suppression,
+                isset($data['unit_contact_context_link_id']) ? (int) $data['unit_contact_context_link_id'] : null,
+                $normalizedDomain,
+            );
 
             return $suppression;
         });
@@ -165,7 +181,75 @@ class CommunicationSuppressionService
         return array_values(array_unique($reasons));
     }
 
-    private function recordDecision(CommunicationSuppression $suppression, string $action, string $reason, User $actor, ?string $note = null): void
+    public function createSystemEndpointSuppression(
+        OutreachDispatch $dispatch,
+        CommunicationSuppressionReason $reason,
+        string $source,
+        string $safeReference,
+    ): CommunicationSuppression {
+        $dispatch->loadMissing(['unit', 'businessContext', 'contactLink.email']);
+        if (! $dispatch->contactLink?->email) {
+            throw new PolicyViolation('suppression_contact_missing', 'Outreach contact is unavailable for suppression.');
+        }
+
+        $endpointHash = $this->permissions->endpointHash($dispatch->contactLink->email->address);
+
+        return DB::transaction(function () use ($dispatch, $reason, $source, $safeReference, $endpointHash): CommunicationSuppression {
+            Unit::query()->whereKey($dispatch->unit_id)->lockForUpdate()->firstOrFail();
+            UnitBusinessContext::query()->whereKey($dispatch->unit_business_context_id)->lockForUpdate()->firstOrFail();
+            UnitContactContextLink::query()->whereKey($dispatch->unit_contact_context_link_id)->lockForUpdate()->firstOrFail();
+            $existing = CommunicationSuppression::query()
+                ->where('scope', CommunicationSuppressionScope::Endpoint->value)
+                ->where('channel', 'email')
+                ->where('endpoint_hash', $endpointHash)
+                ->where('unit_business_context_id', $dispatch->unit_business_context_id)
+                ->where('reason', $reason->value)
+                ->whereNull('cleared_at')
+                ->lockForUpdate()
+                ->first();
+            if ($existing) {
+                $this->blockMatchingDispatches($existing, $dispatch->unit_contact_context_link_id, null);
+
+                return $existing;
+            }
+
+            $publicId = (string) Str::uuid();
+            $evidenceHash = AiCanonicalJson::hash([
+                'dispatch_public_id' => $dispatch->public_id,
+                'reason' => $reason->value,
+                'source' => $source,
+                'safe_reference' => $safeReference,
+            ]);
+            $suppression = CommunicationSuppression::query()->create([
+                'public_id' => $publicId,
+                'scope' => CommunicationSuppressionScope::Endpoint,
+                'channel' => 'email',
+                'endpoint_hash' => $endpointHash,
+                'unit_id' => $dispatch->unit_id,
+                'unit_business_context_id' => $dispatch->unit_business_context_id,
+                'reason' => $reason,
+                'source' => mb_substr($source, 0, 64),
+                'safe_evidence_reference' => mb_substr($safeReference, 0, 512),
+                'evidence_hash' => $evidenceHash,
+                'active_from' => now(),
+                'audit_hash' => AiCanonicalJson::hash([
+                    'public_id' => $publicId,
+                    'scope' => CommunicationSuppressionScope::Endpoint->value,
+                    'endpoint_hash' => $endpointHash,
+                    'context_id' => $dispatch->unit_business_context_id,
+                    'reason' => $reason->value,
+                    'source' => $source,
+                    'evidence_hash' => $evidenceHash,
+                ]),
+            ]);
+            $this->recordDecision($suppression, 'created', 'system_verified_'.$reason->value, null);
+            $this->blockMatchingDispatches($suppression, $dispatch->unit_contact_context_link_id, null);
+
+            return $suppression;
+        });
+    }
+
+    private function recordDecision(CommunicationSuppression $suppression, string $action, string $reason, ?User $actor, ?string $note = null): void
     {
         $sequence = $suppression->decisions()->count() + 1;
         CommunicationSuppressionDecision::query()->create([
@@ -173,9 +257,58 @@ class CommunicationSuppressionService
             'reason_code' => $reason, 'safe_note' => $note,
             'decision_hash' => AiCanonicalJson::hash([
                 'suppression_public_id' => $suppression->public_id, 'action' => $action,
-                'reason' => $reason, 'note' => $note, 'actor_id' => $actor->id, 'sequence' => $sequence,
+                'reason' => $reason, 'note' => $note, 'actor_id' => $actor?->id, 'sequence' => $sequence,
             ]),
-            'decided_by' => $actor->id, 'decided_at' => now(),
+            'decided_by' => $actor?->id, 'decided_at' => now(),
         ]);
+    }
+
+    private function blockMatchingDispatches(
+        CommunicationSuppression $suppression,
+        ?int $contactLinkId,
+        ?string $domain,
+    ): void {
+        $query = OutreachDispatch::query();
+        $endpointEmailId = $suppression->scope === CommunicationSuppressionScope::Endpoint && $contactLinkId
+            ? UnitContactContextLink::query()->whereKey($contactLinkId)->value('email_id')
+            : null;
+        match ($suppression->scope) {
+            CommunicationSuppressionScope::Global => null,
+            CommunicationSuppressionScope::Unit => $query->where('unit_id', $suppression->unit_id),
+            CommunicationSuppressionScope::Context => $query->where('unit_business_context_id', $suppression->unit_business_context_id),
+            CommunicationSuppressionScope::Endpoint => $query->where(function ($endpointQuery) use ($suppression, $contactLinkId, $endpointEmailId): void {
+                $endpointQuery->where('unit_contact_context_link_id', $contactLinkId ?: 0)
+                    ->orWhereHas(
+                        'contactLink',
+                        fn ($contactQuery) => $contactQuery
+                            ->where('normalized_hash', $suppression->endpoint_hash)
+                            ->when($endpointEmailId, fn ($emailQuery) => $emailQuery->orWhere('email_id', $endpointEmailId)),
+                    );
+            }),
+            CommunicationSuppressionScope::Domain => $query->whereHas(
+                'contactLink.email',
+                fn ($emailQuery) => $emailQuery->where('address', 'like', '%@'.($domain ?: '__invalid__')),
+            ),
+        };
+
+        foreach ($query->lockForUpdate()->get() as $dispatch) {
+            if (in_array($dispatch->state, [
+                OutreachDispatchState::Prepared,
+                OutreachDispatchState::ReviewRequired,
+                OutreachDispatchState::Ready,
+                OutreachDispatchState::QueuePending,
+                OutreachDispatchState::Queued,
+            ], true)) {
+                $this->states->transition($dispatch, OutreachDispatchState::Blocked, 'communication_suppression_created');
+            }
+            $followUpStatus = $suppression->reason === CommunicationSuppressionReason::HardBounce
+                ? OutreachFollowUpStatus::CancelledBounce
+                : OutreachFollowUpStatus::CancelledSuppression;
+            $this->followUps->cancel(
+                $dispatch,
+                $followUpStatus,
+                'communication_suppression_'.$suppression->reason->value,
+            );
+        }
     }
 }

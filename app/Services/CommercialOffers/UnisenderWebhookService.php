@@ -2,6 +2,7 @@
 
 namespace App\Services\CommercialOffers;
 
+use App\Domain\AiSales\Outreach\OutreachNormalizedEventService;
 use App\Models\MailingCampaignRecipient;
 use App\Models\MailingContact;
 use App\Models\MailingEvent;
@@ -23,6 +24,7 @@ class UnisenderWebhookService
     public function __construct(
         private readonly UnisenderGoClient $client,
         private readonly MailingCampaignService $campaigns,
+        private readonly OutreachNormalizedEventService $outreachEvents,
     ) {}
 
     /**
@@ -94,6 +96,8 @@ class UnisenderWebhookService
                 $contact = $recipient?->contact
                     ?: ($event->contact_id ? MailingContact::query()->lockForUpdate()->find($event->contact_id) : null);
 
+                $outreachApplied = $this->outreachEvents->apply($event);
+
                 $this->applyStatus(
                     (string) $event->normalized_status,
                     $recipient,
@@ -104,7 +108,7 @@ class UnisenderWebhookService
                 $event->update([
                     'processed_at' => now(),
                     'safe_error_code' => null,
-                    'safe_summary' => $recipient || $contact
+                    'safe_summary' => $recipient || $contact || $outreachApplied
                         ? 'normalized_event_applied'
                         : 'normalized_event_unmatched',
                 ]);

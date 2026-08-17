@@ -97,6 +97,11 @@ class OutreachDraft extends Model
         return $this->hasMany(OutreachDispatchDecision::class);
     }
 
+    public function dispatches(): HasMany
+    {
+        return $this->hasMany(OutreachDispatch::class);
+    }
+
     public function currentRevision(): ?OutreachDraftRevision
     {
         if ($this->current_revision_number < 1) {

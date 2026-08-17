@@ -11,7 +11,7 @@ class OutreachDispatchDecision extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'public_id', 'outreach_draft_id', 'outreach_draft_revision_id', 'communication_permission_id',
+        'public_id', 'outreach_draft_id', 'outreach_draft_revision_id', 'outreach_dispatch_id', 'checkpoint', 'communication_permission_id',
         'eligible', 'block_reasons', 'decision_hash', 'policy_version', 'evaluated_by', 'evaluated_at',
     ];
 
@@ -43,5 +43,10 @@ class OutreachDispatchDecision extends Model
     public function permission(): BelongsTo
     {
         return $this->belongsTo(CommunicationPermission::class, 'communication_permission_id');
+    }
+
+    public function dispatch(): BelongsTo
+    {
+        return $this->belongsTo(OutreachDispatch::class, 'outreach_dispatch_id');
     }
 }

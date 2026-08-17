@@ -57,4 +57,9 @@ class OutreachDraftRevision extends Model
     {
         return $this->hasMany(OutreachDraftReview::class);
     }
+
+    public function dispatches(): HasMany
+    {
+        return $this->hasMany(OutreachDispatch::class);
+    }
 }

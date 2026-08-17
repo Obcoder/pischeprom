@@ -3,18 +3,22 @@ import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
 
 const props = defineProps({ unitId: { type: Number, required: true } })
-const data = ref({ contexts: [], drafts: [], permissions: [], suppressions: [], product_matches: [], good_matches: [], contacts: [], feature_state: {} })
+const data = ref({ contexts: [], drafts: [], dispatches: [], permissions: [], suppressions: [], product_matches: [], good_matches: [], contacts: [], capabilities: {}, feature_state: {} })
 const loading = ref(false)
 const busy = ref('')
 const error = ref('')
 const notice = ref('')
 const selectedDraftId = ref(null)
+const selectedDispatchId = ref(null)
+const dispatchEvents = ref([])
+const dispatchReplies = ref([])
 const draftForm = ref({ unit_business_context_id: null, unit_contact_context_link_id: null, unit_product_match_id: null, unit_good_match_id: null, purpose: 'advertising_outreach' })
 const permissionForm = ref({ unit_business_context_id: null, unit_contact_context_link_id: null, product_id: null, evidence_type: 'other_reviewed', reference: '', content_hash: '', valid_until: '' })
 const suppressionForm = ref({ unit_business_context_id: null, scope: 'endpoint', unit_contact_context_link_id: null, reason: 'manual_block', source: 'unit_outreach_ui', evidence_reference: '', evidence_hash: '' })
 const revisionForm = ref(null)
 
 const selectedDraft = computed(() => data.value.drafts.find(item => Number(item.id) === Number(selectedDraftId.value)) || null)
+const selectedDispatch = computed(() => data.value.dispatches.find(item => Number(item.id) === Number(selectedDispatchId.value)) || null)
 const contextProducts = computed(() => data.value.product_matches.filter(item => Number(item.context_id) === Number(draftForm.value.unit_business_context_id)))
 const contextContacts = computed(() => data.value.contacts.filter(item => Number(item.context_id) === Number(draftForm.value.unit_business_context_id)))
 const contextGoods = computed(() => data.value.good_matches.filter(item => Number(item.product_match_id) === Number(draftForm.value.unit_product_match_id)))
@@ -33,8 +37,9 @@ async function load() {
         const response = await axios.get(`/api/ai-sales/units/${props.unitId}/outreach`)
         data.value = response.data.data
         if (!selectedDraftId.value && data.value.drafts.length) selectedDraftId.value = data.value.drafts[0].id
+        if (!selectedDispatchId.value && data.value.dispatches.length) selectedDispatchId.value = data.value.dispatches[0].id
     } catch (requestError) {
-        error.value = requestError.response?.data?.message || 'Stage 12 outreach недоступен.'
+        error.value = requestError.response?.data?.message || 'Outreach lifecycle недоступен.'
     } finally {
         loading.value = false
     }
@@ -129,18 +134,76 @@ async function createSuppression() {
     await action('suppression', () => axios.post(`/api/ai-sales/units/${props.unitId}/outreach/suppressions`, suppressionForm.value), 'Suppression записан и имеет приоритет над permission.')
 }
 
+async function prepareDispatch() {
+    if (!selectedDraft.value || !window.crypto?.randomUUID) return
+    await action('prepare-dispatch', async () => {
+        const response = await axios.post(
+            `/api/ai-sales/units/${props.unitId}/outreach/drafts/${selectedDraft.value.id}/dispatches`,
+            { idempotency_key: window.crypto.randomUUID() },
+        )
+        selectedDispatchId.value = response.data.data.id
+    }, 'Dispatch подготовлен атомарно; письмо не поставлено в очередь и не отправлено.')
+}
+
+async function loadDispatchDetails() {
+    if (!selectedDispatch.value) return
+    busy.value = 'dispatch-details'
+    error.value = ''
+    dispatchEvents.value = []
+    dispatchReplies.value = []
+    try {
+        const eventRequest = data.value.capabilities?.can_view_events
+            ? axios.get(`/api/ai-sales/units/${props.unitId}/outreach/dispatches/${selectedDispatch.value.id}/events`)
+            : Promise.resolve({ data: { data: [] } })
+        const replyRequest = data.value.capabilities?.can_view_replies
+            ? axios.get(`/api/ai-sales/units/${props.unitId}/outreach/dispatches/${selectedDispatch.value.id}/reply`)
+            : Promise.resolve({ data: { data: [] } })
+        const [events, replies] = await Promise.all([eventRequest, replyRequest])
+        dispatchEvents.value = events.data.data
+        dispatchReplies.value = replies.data.data
+    } catch (requestError) {
+        error.value = requestError.response?.data?.message || 'Lifecycle metadata недоступны.'
+    } finally {
+        busy.value = ''
+    }
+}
+
+async function cancelDispatch() {
+    if (!selectedDispatch.value) return
+    await action('cancel-dispatch', () => axios.post(
+        `/api/ai-sales/units/${props.unitId}/outreach/dispatches/${selectedDispatch.value.id}/cancel`,
+        { reason_code: 'human_cancelled' },
+    ), 'Dispatch отменён; provider не вызывался.')
+}
+
+async function recommendFollowUp() {
+    if (!selectedDispatch.value) return
+    await action('follow-up', () => axios.post(
+        `/api/ai-sales/units/${props.unitId}/outreach/dispatches/${selectedDispatch.value.id}/follow-up-plan`,
+        {},
+    ), 'Сохранена только рекомендация; scheduling и auto-send отключены.')
+}
+
+async function triageReply(reply) {
+    await action(`triage-${reply.id}`, () => axios.post(
+        `/api/ai-sales/units/${props.unitId}/outreach/replies/${reply.id}/fake-triage`,
+        {},
+    ), 'Fake-only triage выполнен; ответ не создан и не отправлен.')
+    await loadDispatchDetails()
+}
+
 onMounted(load)
 </script>
 
 <template>
     <v-card variant="outlined" :loading="loading">
         <v-card-title class="d-flex align-center justify-space-between">
-            <span>Outreach drafts · Stage 12</span>
-            <v-chip color="error" variant="tonal" size="small">dispatch OFF</v-chip>
+            <span>Outreach · drafts and reviewed dispatch lifecycle</span>
+            <v-chip color="error" variant="tonal" size="small">provider send {{ data.feature_state?.provider_send ? 'guarded' : 'OFF' }}</v-chip>
         </v-card-title>
         <v-card-text>
             <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
-                Только черновик и human review. Публичный email не означает consent; approval не отправляет письмо.
+                Human review обязателен. Публичный email не означает consent; approval и prepare не отправляют письмо. Автоответы и follow-up отключены.
             </v-alert>
             <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">{{ error }}</v-alert>
             <v-alert v-if="notice" type="success" variant="tonal" density="compact" class="mb-3">{{ notice }}</v-alert>
@@ -173,6 +236,15 @@ onMounted(load)
                                 <v-btn size="small" :loading="busy === 'generate'" @click="generateDraft">Fake structured generate</v-btn>
                                 <v-btn size="small" :disabled="!selectedDraft.current_revision" @click="beginRevision">Новая ручная ревизия</v-btn>
                                 <v-btn size="small" :disabled="!selectedDraft.current_revision" :loading="busy === 'eligibility'" @click="previewEligibility">Eligibility preview</v-btn>
+                                <v-btn
+                                    v-if="data.capabilities?.can_prepare_dispatch"
+                                    size="small"
+                                    color="primary"
+                                    variant="tonal"
+                                    :disabled="!data.feature_state?.dispatch_pipeline || !selectedDraft.current_revision"
+                                    :loading="busy === 'prepare-dispatch'"
+                                    @click="prepareDispatch"
+                                >Prepare dispatch (no send)</v-btn>
                             </div>
                             <template v-if="selectedDraft.current_revision">
                                 <h4>{{ selectedDraft.current_revision.subject }}</h4>
@@ -190,6 +262,96 @@ onMounted(load)
                                 <v-btn color="primary" :loading="busy === 'revision'" @click="saveRevision">Сохранить append-only ревизию</v-btn>
                             </v-card-text></v-card>
                         </template>
+                    </v-expansion-panel-text>
+                </v-expansion-panel>
+
+                <v-expansion-panel v-if="data.capabilities?.can_view_dispatch" title="Reviewed dispatch, events, replies and follow-up">
+                    <v-expansion-panel-text>
+                        <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+                            Queue/provider send не доступны из этого UI. retries=0, failover=0, max follow-ups=0.
+                        </v-alert>
+                        <v-select
+                            v-model="selectedDispatchId"
+                            :items="data.dispatches"
+                            item-value="id"
+                            :item-title="item => `#${item.id} · revision ${item.revision_id} · ${item.state}`"
+                            label="Dispatch"
+                            @update:model-value="loadDispatchDetails"
+                        />
+                        <template v-if="selectedDispatch">
+                            <div class="d-flex flex-wrap ga-2 mb-3">
+                                <v-chip>{{ selectedDispatch.state }}</v-chip>
+                                <v-chip variant="tonal">profile: {{ selectedDispatch.request_profile }}</v-chip>
+                                <v-chip variant="tonal">idempotent</v-chip>
+                                <v-chip color="error" variant="tonal">auto-send OFF</v-chip>
+                            </div>
+                            <v-alert v-if="selectedDispatch.last_block_reason" type="warning" variant="tonal" density="compact" class="mb-3">
+                                Safe block reason: {{ selectedDispatch.last_block_reason }}
+                            </v-alert>
+                            <div class="text-caption mb-3">
+                                Последняя revalidation: {{ selectedDispatch.last_revalidated_at || 'ещё не выполнялась' }} ·
+                                MailMessage #{{ selectedDispatch.mail_message_id }} · Sending #{{ selectedDispatch.sending_id }}
+                            </div>
+                            <div class="d-flex flex-wrap ga-2 mb-4">
+                                <v-btn size="small" :loading="busy === 'dispatch-details'" @click="loadDispatchDetails">Обновить lifecycle</v-btn>
+                                <v-btn
+                                    v-if="data.capabilities?.can_cancel_dispatch"
+                                    size="small"
+                                    color="error"
+                                    variant="tonal"
+                                    :loading="busy === 'cancel-dispatch'"
+                                    @click="cancelDispatch"
+                                >Отменить без отправки</v-btn>
+                                <v-btn
+                                    v-if="data.capabilities?.can_manage_followups"
+                                    size="small"
+                                    variant="tonal"
+                                    :disabled="!data.feature_state?.followup_planning"
+                                    :loading="busy === 'follow-up'"
+                                    @click="recommendFollowUp"
+                                >Рекомендация follow-up</v-btn>
+                            </div>
+
+                            <h4 class="mb-2">Normalized provider events</h4>
+                            <v-table density="compact" class="mb-4">
+                                <thead><tr><th>Type/status</th><th>Provider time</th><th>Processed</th><th>Safe summary</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="item in dispatchEvents" :key="item.id">
+                                        <td>{{ item.type }} / {{ item.status }}</td><td>{{ item.event_time || '—' }}</td>
+                                        <td>{{ item.processed_at || '—' }}</td><td>{{ item.safe_error_code || item.safe_summary || '—' }}</td>
+                                    </tr>
+                                    <tr v-if="!dispatchEvents.length"><td colspan="4">Нет доступных normalized events.</td></tr>
+                                </tbody>
+                            </v-table>
+
+                            <h4 class="mb-2">Correlated replies</h4>
+                            <v-card v-for="reply in dispatchReplies" :key="reply.id" variant="tonal" class="mb-2">
+                                <v-card-text>
+                                    <div class="d-flex flex-wrap ga-2 mb-2">
+                                        <v-chip size="small">{{ reply.triage_status }}</v-chip>
+                                        <v-chip size="small" variant="tonal">{{ reply.triage_class || 'review required' }}</v-chip>
+                                        <v-chip size="small" variant="tonal">{{ reply.correlation_method }}</v-chip>
+                                    </div>
+                                    <p>{{ reply.restricted_preview || 'Preview скрыт.' }}</p>
+                                    <v-btn
+                                        v-if="data.capabilities?.can_review_replies"
+                                        size="x-small"
+                                        :disabled="!data.feature_state?.reply_triage"
+                                        :loading="busy === `triage-${reply.id}`"
+                                        @click="triageReply(reply)"
+                                    >Fake-only triage</v-btn>
+                                </v-card-text>
+                            </v-card>
+                            <div v-if="!dispatchReplies.length" class="text-body-2 mb-4">Нет точно коррелированных ответов.</div>
+
+                            <h4 class="mb-2">Follow-up recommendation</h4>
+                            <div v-if="selectedDispatch.follow_up" class="text-body-2">
+                                {{ selectedDispatch.follow_up.status }} · max={{ selectedDispatch.follow_up.max_follow_ups }} ·
+                                {{ selectedDispatch.follow_up.recommendation_code || selectedDispatch.follow_up.cancellation_reason || '—' }} · auto-send OFF
+                            </div>
+                            <div v-else class="text-body-2">План отсутствует; автоматическое планирование выключено.</div>
+                        </template>
+                        <div v-else class="text-body-2">Подготовленных dispatch пока нет.</div>
                     </v-expansion-panel-text>
                 </v-expansion-panel>
 
