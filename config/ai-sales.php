@@ -37,6 +37,7 @@ return [
         'candidate_import_enabled' => (bool) env('AI_PROSPECTING_CANDIDATE_IMPORT_ENABLED', false),
         'auto_create_unit' => (bool) env('AI_PROSPECTING_AUTO_CREATE_UNIT', false),
         'live_search_enabled' => (bool) env('AI_PROSPECTING_LIVE_SEARCH_ENABLED', false),
+        'live_probe_enabled' => (bool) env('AI_PROSPECTING_LIVE_PROBE_ENABLED', false),
         'query_planning_enabled' => (bool) env('AI_PROSPECTING_QUERY_PLANNING_ENABLED', false),
         'search_execution_enabled' => (bool) env('AI_PROSPECTING_SEARCH_EXECUTION_ENABLED', false),
         'existing_yandex_provider_enabled' => (bool) env('AI_PROSPECTING_EXISTING_YANDEX_PROVIDER_ENABLED', false),

@@ -12,6 +12,7 @@ use App\Domain\AiPriceLists\Providers\YandexVisionOcrProvider;
 use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
 use App\Domain\AiPriceLists\Services\NullFileScanner;
 use App\Domain\AiSales\Contracts\EntityCreateLinkGuard;
+use App\Domain\AiSales\Contracts\GitRepositoryStateInspectorInterface;
 use App\Domain\AiSales\Providers\AiProviderRegistry;
 use App\Domain\AiSales\Search\SearchProviderRegistry;
 use App\Domain\AiSales\Services\DeterministicEntityCreateLinkGuard;
@@ -25,6 +26,7 @@ use App\Domain\Banking\Events\BankTransactionChanged;
 use App\Domain\Banking\Events\ReceivablePaymentStatusChanged;
 use App\Domain\Banking\Services\BankNotificationService;
 use App\Domain\Banking\Services\BankProviderManager;
+use App\Infrastructure\AiSales\Probes\RealGitRepositoryStateInspector;
 use App\Infrastructure\AiSales\Providers\FakeExternalSanitizedAiProvider;
 use App\Infrastructure\AiSales\Providers\FakeLocalRuAiProvider;
 use App\Infrastructure\AiSales\Providers\TimewebExternalSanitizedProvider;
@@ -95,6 +97,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AvitoApiCatalog::class);
         $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
+        $this->app->bind(GitRepositoryStateInspectorInterface::class, RealGitRepositoryStateInspector::class);
         $this->app->singleton(AiToolRegistry::class);
         $this->app->singleton(AiWorkflowRegistry::class);
         $this->app->singleton(SearchProviderRegistry::class, function ($app): SearchProviderRegistry {

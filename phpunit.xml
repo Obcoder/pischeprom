@@ -49,6 +49,7 @@
         <env name="AI_PROSPECTING_CANDIDATE_IMPORT_ENABLED" value="false" force="true"/>
         <env name="AI_PROSPECTING_AUTO_CREATE_UNIT" value="false" force="true"/>
         <env name="AI_PROSPECTING_LIVE_SEARCH_ENABLED" value="false" force="true"/>
+        <env name="AI_PROSPECTING_LIVE_PROBE_ENABLED" value="false" force="true"/>
         <env name="AI_PROSPECTING_QUERY_PLANNING_ENABLED" value="false" force="true"/>
         <env name="AI_PROSPECTING_SEARCH_EXECUTION_ENABLED" value="false" force="true"/>
         <env name="AI_PROSPECTING_EXISTING_YANDEX_PROVIDER_ENABLED" value="false" force="true"/>

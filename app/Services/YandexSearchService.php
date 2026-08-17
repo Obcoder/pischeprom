@@ -11,6 +11,8 @@ use JsonException;
 
 class YandexSearchService
 {
+    private const ALLOWLISTED_HOST = 'searchapi.api.cloud.yandex.net';
+
     public function __construct(
         protected HttpFactory $http,
         protected YandexSearchProfileRegistry $profiles,
@@ -24,7 +26,7 @@ class YandexSearchService
         $profile = $this->profiles->get($profileCode);
         $apiKey = config('services.yandex_search.api_key');
         $folderId = config('services.yandex_search.folder_id');
-        $host = config('services.yandex_search.host', 'searchapi.api.cloud.yandex.net');
+        $host = config('services.yandex_search.host', self::ALLOWLISTED_HOST);
 
         if (! $apiKey || ! $folderId) {
             throw new YandexSearchException('configuration', 'yandex_search_not_configured');
@@ -37,9 +39,7 @@ class YandexSearchService
         if ($page < 0 || $page >= $profile->maxPages) {
             throw new YandexSearchException('validation', 'yandex_search_page_out_of_bounds');
         }
-        if (! is_string($host)
-            || $host !== 'searchapi.api.cloud.yandex.net'
-            || preg_match('/^[a-z0-9.-]+$/', $host) !== 1) {
+        if (! $this->configuredHostIsAllowlisted()) {
             throw new YandexSearchException('configuration', 'yandex_search_host_not_allowlisted');
         }
 
@@ -125,6 +125,15 @@ class YandexSearchService
             'requestId' => $this->safeRequestId($response->header('X-Request-Id')
                 ?: $response->header('X-Yandex-Request-Id')),
         ];
+    }
+
+    public function configuredHostIsAllowlisted(): bool
+    {
+        $host = config('services.yandex_search.host', self::ALLOWLISTED_HOST);
+
+        return is_string($host)
+            && $host === self::ALLOWLISTED_HOST
+            && preg_match('/^[a-z0-9.-]+$/', $host) === 1;
     }
 
     public function parseXmlResults(
