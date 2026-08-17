@@ -43,6 +43,12 @@ abstract class Stage08TestCase extends UnitContextsTestCase
             'ai_sales.good_matches.review',
             'ai_sales.product_matches.review',
             'ai_sales.timeline.view',
+            'ai_sales.search.plan',
+            'ai_sales.search.review',
+            'ai_sales.search.execute',
+            'ai_sales.search.results.view',
+            'ai_sales.search.research',
+            'ai_sales.search.providers.view',
             ...$extra,
         ])));
     }
@@ -54,13 +60,13 @@ abstract class Stage08TestCase extends UnitContextsTestCase
         ?Product $product = null,
     ): ProspectingSearchJob {
         $good ??= Good::query()->create([
-            'name' => 'Synthetic Good '.uniqid(),
+            'name' => 'Repository Synthetic Good',
             'is_published' => true,
         ]);
         $product ??= $good->products()->without(['category', 'manufacturers'])->first();
         $product ??= Product::query()->without(['category', 'manufacturers'])->create([
-            'rus' => 'Синтетический продукт '.uniqid(),
-            'eng' => 'Synthetic Product '.uniqid(),
+            'rus' => 'Репозиторный синтетический продукт',
+            'eng' => 'Repository Synthetic Product',
             'is_published' => true,
         ]);
         $good->products()->syncWithoutDetaching([$product->id]);

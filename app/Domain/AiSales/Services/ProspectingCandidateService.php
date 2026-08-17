@@ -33,6 +33,50 @@ class ProspectingCandidateService
         if (! app()->environment(['local', 'testing']) || ! $repositoryOwnedSynthetic) {
             throw ValidationException::withMessages(['fixture' => 'Stage 08 accepts repository-owned synthetic fixtures only.']);
         }
+
+        return $this->persist(
+            $job,
+            $input,
+            $searchQuery,
+            CandidateProductSource::Job,
+            'prospecting-job:'.$job->public_id,
+            null,
+        );
+    }
+
+    public function createFromSearchResult(
+        ProspectingSearchJob $job,
+        array $input,
+        ProspectingSearchQuery $searchQuery,
+        string $evidenceReference,
+        string $evidenceHash,
+    ): ProspectingCandidate {
+        $this->features->candidateImport();
+        if ($searchQuery->prospecting_search_job_id !== $job->id
+            || $searchQuery->plan_status !== 'approved'
+            || ! preg_match('/^[a-f0-9]{64}$/', $evidenceHash)
+            || ! str_starts_with($evidenceReference, 'search-result:')) {
+            throw ValidationException::withMessages(['search_result' => 'Candidate search provenance is invalid or unapproved.']);
+        }
+
+        return $this->persist(
+            $job,
+            $input,
+            $searchQuery,
+            CandidateProductSource::Search,
+            mb_substr($evidenceReference, 0, 512),
+            $evidenceHash,
+        );
+    }
+
+    private function persist(
+        ProspectingSearchJob $job,
+        array $input,
+        ?ProspectingSearchQuery $searchQuery,
+        CandidateProductSource $productSource,
+        string $productEvidenceReference,
+        ?string $productEvidenceHash,
+    ): ProspectingCandidate {
         if ($job->status !== ProspectingJobStatus::Approved) {
             throw ValidationException::withMessages(['job' => 'Candidate import requires a human-approved prospecting job.']);
         }
@@ -54,7 +98,15 @@ class ProspectingCandidateService
             throw ValidationException::withMessages(['query' => 'Search query fixture belongs to another job.']);
         }
 
-        return DB::transaction(function () use ($job, $normalized, $searchQuery, $candidateProductIds): ProspectingCandidate {
+        return DB::transaction(function () use (
+            $job,
+            $normalized,
+            $searchQuery,
+            $candidateProductIds,
+            $productSource,
+            $productEvidenceReference,
+            $productEvidenceHash,
+        ): ProspectingCandidate {
             $candidate = ProspectingCandidate::query()->firstOrCreate(
                 [
                     'prospecting_search_job_id' => $job->id,
@@ -89,11 +141,13 @@ class ProspectingCandidateService
                     1000,
                 );
                 $candidate->products()->firstOrCreate(['product_id' => $productId], [
-                    'source' => CandidateProductSource::Job,
+                    'source' => $productSource,
                     'status' => CandidateProductStatus::Approved,
                     'safe_rationale' => $rationale,
-                    'evidence_reference' => 'prospecting-job:'.$job->public_id,
-                    'evidence_hash' => hash('sha256', $job->schema_hash.'|product|'.$productId),
+                    'evidence_reference' => $productEvidenceReference,
+                    'evidence_hash' => $productEvidenceHash
+                        ? hash('sha256', $productEvidenceHash.'|product|'.$productId)
+                        : hash('sha256', $job->schema_hash.'|product|'.$productId),
                     'confidence' => $normalized['confidence_components']['relevance'] ?? null,
                     'reviewed_by' => $job->approved_by,
                     'reviewed_at' => $job->approved_at,

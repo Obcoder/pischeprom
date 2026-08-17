@@ -49,6 +49,12 @@
         <env name="AI_PROSPECTING_CANDIDATE_IMPORT_ENABLED" value="false" force="true"/>
         <env name="AI_PROSPECTING_AUTO_CREATE_UNIT" value="false" force="true"/>
         <env name="AI_PROSPECTING_LIVE_SEARCH_ENABLED" value="false" force="true"/>
+        <env name="AI_PROSPECTING_QUERY_PLANNING_ENABLED" value="false" force="true"/>
+        <env name="AI_PROSPECTING_SEARCH_EXECUTION_ENABLED" value="false" force="true"/>
+        <env name="AI_PROSPECTING_EXISTING_YANDEX_PROVIDER_ENABLED" value="false" force="true"/>
+        <env name="AI_PROSPECTING_PAGE_FETCH_ENABLED" value="false" force="true"/>
+        <env name="AI_PROSPECTING_AUTO_CANDIDATE_INGESTION" value="false" force="true"/>
+        <env name="AI_PROSPECTING_PUBLIC_RESEARCH_ENABLED" value="false" force="true"/>
         <env name="AI_SALES_TRANSPORT_MODE" value="fake_only" force="true"/>
         <env name="AI_TIMEWEB_ENABLED" value="false" force="true"/>
         <env name="AI_TIMEWEB_BASE_URL" value="https://api.timeweb.ai/v1" force="true"/>

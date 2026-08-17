@@ -2,6 +2,7 @@
 
 namespace App\Domain\AiSales\Policies;
 
+use App\Domain\AiSales\DTO\Prospecting\PublicCompanyResearchInput;
 use App\Domain\AiSales\DTO\Units\AggregateDemandSummary;
 use App\Domain\AiSales\DTO\Units\AggregateSupplySummary;
 use App\Domain\AiSales\DTO\Units\CustomerOfferSummary;
@@ -44,6 +45,17 @@ class AiDataClassificationRegistry
         $this->registerMany(PublicProductSummary::class, [
             'product_id', 'name', 'english_name', 'category',
         ], DataClassification::Public, UnitVisibilityScope::SharedPublic, $publicResearchPurposes, $allAudiences, true, 'none', 'Explicit published Product fields; manufacturers, consumers, components, suppliers, prices, and margins are excluded.');
+
+        $this->registerMany(PublicCompanyResearchInput::class, [
+            'domain', 'page_title', 'meta_description', 'headings', 'visible_text',
+            'product_names', 'geography', 'trust_level', 'instruction_authority',
+        ], DataClassification::Public, UnitVisibilityScope::SharedPublic, [
+            AiPurpose::BuyerDiscovery->value,
+            AiPurpose::SupplierDiscovery->value,
+        ], [
+            AiAudience::ProspectiveCustomer->value,
+            AiAudience::ProspectiveSupplier->value,
+        ], true, 'none', 'Bounded public-web evidence marked untrusted; contact values and raw HTML are excluded.');
 
         $this->registerMany(UnitSharedPublicProfile::class, [
             'name', 'aliases', 'industries', 'cities', 'public_uris', 'observations',

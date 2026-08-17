@@ -13,6 +13,7 @@ use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
 use App\Domain\AiPriceLists\Services\NullFileScanner;
 use App\Domain\AiSales\Contracts\EntityCreateLinkGuard;
 use App\Domain\AiSales\Providers\AiProviderRegistry;
+use App\Domain\AiSales\Search\SearchProviderRegistry;
 use App\Domain\AiSales\Services\DeterministicEntityCreateLinkGuard;
 use App\Domain\AiSales\Tools\AiToolRegistry;
 use App\Domain\AiSales\Workflows\AiWorkflowRegistry;
@@ -28,6 +29,7 @@ use App\Infrastructure\AiSales\Providers\FakeExternalSanitizedAiProvider;
 use App\Infrastructure\AiSales\Providers\FakeLocalRuAiProvider;
 use App\Infrastructure\AiSales\Providers\TimewebExternalSanitizedProvider;
 use App\Infrastructure\AiSales\Providers\TimewebLocalRuProvider;
+use App\Infrastructure\AiSales\Search\ExistingYandexSearchProviderAdapter;
 use App\Models\AiAgentDefinition;
 use App\Models\AiAgentRun;
 use App\Models\BankAuditEvent;
@@ -95,6 +97,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
         $this->app->singleton(AiToolRegistry::class);
         $this->app->singleton(AiWorkflowRegistry::class);
+        $this->app->singleton(SearchProviderRegistry::class, function ($app): SearchProviderRegistry {
+            return new SearchProviderRegistry([
+                $app->make(ExistingYandexSearchProviderAdapter::class),
+            ]);
+        });
         $this->app->singleton(AiProviderRegistry::class, function ($app): AiProviderRegistry {
             $registry = new AiProviderRegistry;
 

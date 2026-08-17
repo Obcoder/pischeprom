@@ -30,7 +30,18 @@ class ProspectingSearchJobResource extends JsonResource
                 'max_cost_rub' => $this->max_cost_rub,
             ],
             'auto_create_unit' => false,
-            'execution_available' => false,
+            'execution_available' => $this->searchExecutionAvailable($request),
+            'search_discovery' => [
+                'query_planning_enabled' => (bool) config('ai-sales.prospecting.query_planning_enabled', false),
+                'search_execution_enabled' => (bool) config('ai-sales.prospecting.search_execution_enabled', false),
+                'page_fetch_enabled' => (bool) config('ai-sales.prospecting.page_fetch_enabled', false),
+                'public_research_enabled' => (bool) config('ai-sales.prospecting.public_research_enabled', false),
+                'auto_candidate_ingestion' => false,
+                'provider_code' => 'existing_yandex',
+                'profile_code' => 'prospecting_b2b_discovery',
+                'fallback_allowed' => false,
+                'stage10_scoring' => false,
+            ],
             'owner' => $this->whenLoaded('owner', fn () => ['id' => $this->owner->id, 'name' => $this->owner->name]),
             'reviewer' => $this->whenLoaded('reviewer', fn () => $this->reviewer ? ['id' => $this->reviewer->id, 'name' => $this->reviewer->name] : null),
             'products' => $this->whenLoaded('products', fn () => $this->products->map(fn ($product) => [
@@ -58,6 +69,22 @@ class ProspectingSearchJobResource extends JsonResource
     {
         try {
             return (bool) $request->user()?->hasPermissionTo('ai_sales.classifications.view_internal', 'crm');
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function searchExecutionAvailable(Request $request): bool
+    {
+        if (! (bool) config('ai-sales.prospecting.search_execution_enabled', false)
+            || ! (bool) config('ai-sales.prospecting.existing_yandex_provider_enabled', false)
+            || ! (bool) config('ai-sales.web_search_enabled', false)
+            || $this->status->value !== 'approved') {
+            return false;
+        }
+
+        try {
+            return (bool) $request->user()?->hasPermissionTo('ai_sales.search.execute', 'crm');
         } catch (\Throwable) {
             return false;
         }

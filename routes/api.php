@@ -9,6 +9,7 @@ use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesTo
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
 use App\Http\Controllers\API\AiSales\ProspectingCandidateController as AiSalesProspectingCandidateController;
 use App\Http\Controllers\API\AiSales\ProspectingCatalogController as AiSalesProspectingCatalogController;
+use App\Http\Controllers\API\AiSales\ProspectingSearchDiscoveryController as AiSalesProspectingSearchDiscoveryController;
 use App\Http\Controllers\API\AiSales\ProspectingSearchJobController as AiSalesProspectingSearchJobController;
 use App\Http\Controllers\API\AiSales\UnitAliasController as AiSalesUnitAliasController;
 use App\Http\Controllers\API\AiSales\UnitBusinessContextController as AiSalesUnitBusinessContextController;
@@ -188,6 +189,14 @@ Route::prefix('ai-sales')
         Route::post('/prospecting/jobs/{prospectingSearchJob}/approve', [AiSalesProspectingSearchJobController::class, 'approve'])->name('prospecting.jobs.approve');
         Route::post('/prospecting/jobs/{prospectingSearchJob}/cancel', [AiSalesProspectingSearchJobController::class, 'cancel'])->name('prospecting.jobs.cancel');
         Route::post('/prospecting/jobs/{prospectingSearchJob}/archive', [AiSalesProspectingSearchJobController::class, 'archive'])->name('prospecting.jobs.archive');
+        Route::get('/prospecting/search/providers', [AiSalesProspectingSearchDiscoveryController::class, 'providers'])->name('prospecting.search.providers');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan', [AiSalesProspectingSearchDiscoveryController::class, 'plan'])->name('prospecting.search.plan');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan/approve', [AiSalesProspectingSearchDiscoveryController::class, 'approvePlan'])->name('prospecting.search.plan.approve');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-execute', [AiSalesProspectingSearchDiscoveryController::class, 'execute'])->name('prospecting.search.execute');
+        Route::get('/prospecting/jobs/{prospectingSearchJob}/search', [AiSalesProspectingSearchDiscoveryController::class, 'index'])->name('prospecting.search.index');
+        Route::post('/prospecting/search-results/{prospectingSearchResult}/fetch', [AiSalesProspectingSearchDiscoveryController::class, 'fetch'])->name('prospecting.search-results.fetch');
+        Route::post('/prospecting/search-results/{prospectingSearchResult}/research', [AiSalesProspectingSearchDiscoveryController::class, 'research'])->name('prospecting.search-results.research');
+        Route::post('/prospecting/search-results/{prospectingSearchResult}/ingest-candidate', [AiSalesProspectingSearchDiscoveryController::class, 'ingestCandidate'])->name('prospecting.search-results.ingest-candidate');
 
         Route::get('/prospecting/candidates', [AiSalesProspectingCandidateController::class, 'index'])->name('prospecting.candidates.index');
         Route::get('/prospecting/candidates/{prospectingCandidate}', [AiSalesProspectingCandidateController::class, 'show'])->name('prospecting.candidates.show');
@@ -993,11 +1002,13 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
  * ---------------------------
  */
 
-Route::prefix('products/{product}')->group(function () {
-    Route::post('/yandex-search', [ProductSearchController::class, 'store']);
-    Route::get('/yandex-search/latest', [ProductSearchController::class, 'latest']);
-    Route::get('/yandex-search/{searchRequest}', [ProductSearchController::class, 'show']);
-});
+Route::prefix('products/{product}')
+    ->middleware(['auth:sanctum', 'verified', 'throttle:30,1'])
+    ->group(function () {
+        Route::post('/yandex-search', [ProductSearchController::class, 'store']);
+        Route::get('/yandex-search/latest', [ProductSearchController::class, 'latest']);
+        Route::get('/yandex-search/{searchRequest}', [ProductSearchController::class, 'show']);
+    });
 
 Route::prefix('logistics')
     ->name('api.logistics.')

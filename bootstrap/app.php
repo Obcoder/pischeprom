@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\AiSales\Exceptions\PolicyViolation;
+use App\Domain\AiSales\Search\SearchProviderException;
 use App\Domain\Avito\Exceptions\AvitoException;
 use App\Domain\Banking\Exceptions\BankingException;
 use App\Services\Logistics\Routing\Exceptions\RoutingException;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontReport(AvitoException::class);
         $exceptions->dontReport(RoutingException::class);
         $exceptions->dontReport(PolicyViolation::class);
+        $exceptions->dontReport(SearchProviderException::class);
 
         $exceptions->render(function (PolicyViolation $exception, Request $request) {
             if (! $request->expectsJson()) {
@@ -44,6 +46,26 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => $exception->getMessage(),
                 'code' => $exception->errorCode,
                 'field' => $exception->field,
+            ], $status);
+        });
+
+        $exceptions->render(function (SearchProviderException $exception, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            $status = match ($exception->category) {
+                'validation', 'url_policy', 'fetch_policy', 'robots', 'page_parse', 'policy', 'protocol', 'idempotency' => 422,
+                'authentication' => 502,
+                'rate_limit' => 429,
+                'network', 'provider_unavailable', 'provider_rejected', 'response' => 502,
+                default => 500,
+            };
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'category' => $exception->category,
+                'code' => $exception->safeCode,
             ], $status);
         });
 

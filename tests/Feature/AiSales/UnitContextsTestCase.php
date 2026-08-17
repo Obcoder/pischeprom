@@ -14,6 +14,8 @@ abstract class UnitContextsTestCase extends TestCase
 {
     use RefreshDatabase;
 
+    protected bool $allowExpectedHttpRequests = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -23,7 +25,9 @@ abstract class UnitContextsTestCase extends TestCase
 
     protected function tearDown(): void
     {
-        Http::assertNothingSent();
+        if (! $this->allowExpectedHttpRequests) {
+            Http::assertNothingSent();
+        }
 
         parent::tearDown();
     }

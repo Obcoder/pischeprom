@@ -113,4 +113,14 @@ class ProspectingSearchJob extends Model
     {
         return $this->hasMany(ProspectingCandidate::class);
     }
+
+    public function searchExecutions(): HasMany
+    {
+        return $this->hasMany(ProspectingSearchExecution::class);
+    }
+
+    public function searchResults(): HasMany
+    {
+        return $this->hasMany(ProspectingSearchResult::class);
+    }
 }

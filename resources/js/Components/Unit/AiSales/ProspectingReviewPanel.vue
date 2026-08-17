@@ -9,6 +9,9 @@ const jobs = ref([])
 const candidates = ref([])
 const products = ref([])
 const goods = ref([])
+const searchByJob = reactive({})
+const searchBusy = ref('')
+const searchError = ref('')
 const dialog = ref(false)
 const form = reactive({
     purpose: 'buyer_discovery',
@@ -25,6 +28,7 @@ const exceptions = computed(() => candidates.value.filter((item) => [
     'rejected', 'expired', 'anonymized',
 ].includes(item.status)))
 const resolvedUnits = computed(() => candidates.value.filter((item) => item.resolved_unit))
+const discoveryJobs = computed(() => jobs.value.filter((item) => item.status === 'approved'))
 
 async function load() {
     loading.value = true
@@ -89,6 +93,47 @@ async function reject(candidate) {
     await load()
 }
 
+async function loadSearch(job) {
+    searchBusy.value = `load:${job.id}`
+    searchError.value = ''
+    try {
+        const { data } = await axios.get(`/api/ai-sales/prospecting/jobs/${job.id}/search`)
+        searchByJob[job.id] = data.data
+    } catch (requestError) {
+        searchError.value = requestError.response?.data?.message || 'Не удалось загрузить discovery evidence.'
+    } finally {
+        searchBusy.value = ''
+    }
+}
+
+async function searchAction(job, action) {
+    searchBusy.value = `${action}:${job.id}`
+    searchError.value = ''
+    try {
+        await axios.post(`/api/ai-sales/prospecting/jobs/${job.id}/${action}`, {})
+        await loadSearch(job)
+        await load()
+    } catch (requestError) {
+        searchError.value = requestError.response?.data?.message || 'Search action заблокирован policy.'
+    } finally {
+        searchBusy.value = ''
+    }
+}
+
+async function resultAction(job, result, action) {
+    searchBusy.value = `${action}:${result.id}`
+    searchError.value = ''
+    try {
+        await axios.post(`/api/ai-sales/prospecting/search-results/${result.id}/${action}`, {})
+        await loadSearch(job)
+        if (action === 'ingest-candidate') await load()
+    } catch (requestError) {
+        searchError.value = requestError.response?.data?.message || 'Evidence action заблокирован policy.'
+    } finally {
+        searchBusy.value = ''
+    }
+}
+
 onMounted(load)
 </script>
 
@@ -96,17 +141,18 @@ onMounted(load)
     <v-card variant="outlined" class="prospecting-review">
         <v-card-title class="d-flex align-center ga-3">
             <span>AI-поиск покупателей</span>
-            <v-chip size="small" color="amber">Stage 08R · Product-first review</v-chip>
+            <v-chip size="small" color="amber">Stage 09 · Product-first discovery</v-chip>
             <v-spacer />
             <v-btn size="small" variant="tonal" :disabled="loading" @click="load">Обновить</v-btn>
             <v-btn size="small" color="primary" @click="dialog = true">Новое задание</v-btn>
         </v-card-title>
         <v-alert v-if="error" type="info" variant="tonal" class="ma-3">{{ error }}</v-alert>
         <v-alert type="warning" variant="tonal" density="compact" class="mx-3">
-            Live search, AI execution и автоматическое создание Unit/Entity выключены. Lane и роль выводятся сервером.
+            Все discovery-флаги default-off. Запросы, provider/profile и URL задаются только сервером; auto Unit/Entity, email и Stage 10 scoring отсутствуют.
         </v-alert>
         <v-tabs v-model="tab" class="mt-2">
             <v-tab value="jobs">Задания</v-tab>
+            <v-tab value="discovery">Поиск и evidence</v-tab>
             <v-tab value="candidates">Кандидаты</v-tab>
             <v-tab value="units">Units</v-tab>
             <v-tab value="review">На проверке</v-tab>
@@ -128,6 +174,94 @@ onMounted(load)
                     </v-list-item>
                     <v-list-item v-if="!jobs.length" title="Заданий нет" />
                 </v-list>
+            </v-tabs-window-item>
+            <v-tabs-window-item value="discovery">
+                <v-alert v-if="searchError" type="warning" variant="tonal" class="ma-3">{{ searchError }}</v-alert>
+                <v-card v-for="job in discoveryJobs" :key="job.id" variant="outlined" class="ma-3">
+                    <v-card-title class="d-flex align-center ga-2 flex-wrap">
+                        <span>{{ job.safe_objective }}</span>
+                        <v-chip size="x-small">{{ job.purpose }}</v-chip>
+                        <v-spacer />
+                        <v-btn size="small" variant="text" :loading="searchBusy === `load:${job.id}`" @click="loadSearch(job)">Evidence</v-btn>
+                        <v-btn
+                            size="small"
+                            variant="tonal"
+                            :disabled="!job.search_discovery?.query_planning_enabled"
+                            :loading="searchBusy === `search-plan:${job.id}`"
+                            @click="searchAction(job, 'search-plan')"
+                        >Сформировать план</v-btn>
+                        <v-btn
+                            size="small"
+                            color="success"
+                            variant="tonal"
+                            :disabled="!searchByJob[job.id]?.queries?.some(item => item.plan_status === 'review_required')"
+                            :loading="searchBusy === `search-plan/approve:${job.id}`"
+                            @click="searchAction(job, 'search-plan/approve')"
+                        >Одобрить план</v-btn>
+                        <v-btn
+                            size="small"
+                            color="primary"
+                            :disabled="!job.execution_available || !searchByJob[job.id]?.queries?.some(item => item.plan_status === 'approved')"
+                            :loading="searchBusy === `search-execute:${job.id}`"
+                            @click="searchAction(job, 'search-execute')"
+                        >Выполнить</v-btn>
+                    </v-card-title>
+                    <v-card-text v-if="searchByJob[job.id]">
+                        <v-alert density="compact" variant="tonal" type="info" class="mb-3">
+                            Provider: existing_yandex · profile: prospecting_b2b_discovery · retries/failovers: 0/0 · auto-ingestion: off
+                        </v-alert>
+                        <div class="text-subtitle-2 mb-1">Code-owned query plan</div>
+                        <v-list density="compact" class="mb-3">
+                            <v-list-item
+                                v-for="queryItem in searchByJob[job.id].queries"
+                                :key="queryItem.id"
+                                :title="queryItem.query"
+                                :subtitle="`${queryItem.template_code} · ${queryItem.plan_status} · results: ${queryItem.result_count}`"
+                            />
+                        </v-list>
+                        <div class="text-caption mb-3">
+                            Budget: {{ searchByJob[job.id].budgets.max_search_requests_per_job }} requests/job,
+                            {{ searchByJob[job.id].budgets.max_results_per_query }} results/query.
+                        </div>
+                        <div class="text-subtitle-2 mb-1">Domains, evidence и research</div>
+                        <v-card v-for="result in searchByJob[job.id].results" :key="result.id" variant="flat" class="border mb-2 pa-2">
+                            <div class="d-flex align-center ga-2 flex-wrap">
+                                <a :href="result.url" target="_blank" rel="noopener noreferrer">{{ result.title || result.domain }}</a>
+                                <v-chip size="x-small">{{ result.domain }}</v-chip>
+                                <v-chip v-if="result.duplicate" size="x-small" color="grey">duplicate</v-chip>
+                                <v-chip size="x-small" color="orange">untrusted · authority none</v-chip>
+                                <v-spacer />
+                                <v-btn
+                                    size="x-small"
+                                    variant="text"
+                                    :disabled="result.duplicate || !job.search_discovery?.page_fetch_enabled || !!result.fetch"
+                                    @click="resultAction(job, result, 'fetch')"
+                                >Fetch</v-btn>
+                                <v-btn
+                                    size="x-small"
+                                    variant="text"
+                                    :disabled="result.fetch?.status !== 'completed' || !job.search_discovery?.public_research_enabled || !!result.research"
+                                    @click="resultAction(job, result, 'research')"
+                                >Fake research</v-btn>
+                                <v-btn
+                                    size="x-small"
+                                    color="success"
+                                    variant="text"
+                                    :disabled="result.fetch?.status !== 'completed' || !!result.candidate_id"
+                                    @click="resultAction(job, result, 'ingest-candidate')"
+                                >В Candidate review</v-btn>
+                            </div>
+                            <div class="text-caption">{{ result.snippet }}</div>
+                            <div v-if="result.fetch" class="text-caption">Fetch: {{ result.fetch.status }} · robots: {{ result.fetch.robots_status || '—' }} · contacts: {{ result.fetch.channel_count }}</div>
+                            <div v-if="result.research" class="text-caption">Research: {{ result.research.status }} · {{ result.research.summary || result.research.error_code }}</div>
+                            <v-alert v-if="result.fetch?.error_code || result.research?.error_code" density="compact" type="warning" variant="tonal" class="mt-1">
+                                {{ result.fetch?.error_code || result.research?.error_code }}
+                            </v-alert>
+                        </v-card>
+                        <div v-if="!searchByJob[job.id].results.length" class="text-medium-emphasis">Результатов пока нет.</div>
+                    </v-card-text>
+                </v-card>
+                <v-list-item v-if="!discoveryJobs.length" title="Нет одобренных Product-first заданий" />
             </v-tabs-window-item>
             <v-tabs-window-item value="candidates">
                 <v-list lines="three">

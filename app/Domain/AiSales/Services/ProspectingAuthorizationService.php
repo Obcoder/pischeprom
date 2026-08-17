@@ -22,6 +22,18 @@ class ProspectingAuthorizationService
 
     public const VIEW_TIMELINE = 'ai_sales.timeline.view';
 
+    public const PLAN_SEARCH = 'ai_sales.search.plan';
+
+    public const REVIEW_SEARCH = 'ai_sales.search.review';
+
+    public const EXECUTE_SEARCH = 'ai_sales.search.execute';
+
+    public const VIEW_SEARCH_RESULTS = 'ai_sales.search.results.view';
+
+    public const RESEARCH_SEARCH_RESULTS = 'ai_sales.search.research';
+
+    public const VIEW_SEARCH_PROVIDERS = 'ai_sales.search.providers.view';
+
     public function __construct(private readonly UnitContextAuthorizationService $contexts) {}
 
     public function can(User $actor, string $permission, BusinessLane $lane): bool
