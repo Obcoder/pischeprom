@@ -46,6 +46,8 @@ return [
         'webhook_url' => env('UNISENDER_GO_WEBHOOK_URL'),
         'webhook_max_parallel' => env('UNISENDER_GO_WEBHOOK_MAX_PARALLEL', 10),
         'webhook_delivery_info' => env('UNISENDER_GO_WEBHOOK_DELIVERY_INFO', true),
+        'webhook_queue_connection' => env('UNISENDER_GO_WEBHOOK_QUEUE_CONNECTION', 'database'),
+        'webhook_queue' => env('UNISENDER_GO_WEBHOOK_QUEUE', 'mailing-webhooks'),
         'timeout' => env('UNISENDER_GO_TIMEOUT', 20),
     ],
 

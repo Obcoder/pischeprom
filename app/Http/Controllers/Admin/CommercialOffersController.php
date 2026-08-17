@@ -18,6 +18,8 @@ use App\Models\PriceType;
 use App\Models\Unit;
 use App\Services\CommercialOffers\MailingAuditLogger;
 use App\Services\CommercialOffers\MailingCampaignService;
+use App\Services\CommercialOffers\MailProviderException;
+use App\Services\CommercialOffers\MailProviderSafeErrorCode;
 use App\Services\CommercialOffers\ProductOfferBuilder;
 use App\Services\CommercialOffers\RecipientSetService;
 use App\Services\CommercialOffers\UnisenderGoClient;
@@ -130,14 +132,16 @@ class CommercialOffersController extends Controller
         try {
             return response()->json($this->campaigns->sendTest($id, (string) $email, $request->user()?->id)->toArray());
         } catch (Throwable $exception) {
+            $safeCode = $this->safeProviderErrorCode($exception);
             Log::warning('Commercial offer test send failed', [
                 'campaign_id' => $id,
                 'exception' => $exception::class,
-                'message' => $exception->getMessage(),
+                'safe_error_code' => $safeCode,
             ]);
 
             return response()->json([
-                'message' => 'Test email failed: '.$exception->getMessage(),
+                'message' => 'Test email failed safely.',
+                'code' => $safeCode,
             ], 422);
         }
     }
@@ -815,15 +819,17 @@ class CommercialOffersController extends Controller
         try {
             return response()->json($this->campaigns->sendTest($campaign, (string) ($request->input('email') ?: config('services.mailings.test_recipient')), $request->user()?->id)->toArray());
         } catch (Throwable $exception) {
+            $safeCode = $this->safeProviderErrorCode($exception);
             Log::warning('Commercial offer template test send failed', [
                 'template_id' => $id,
                 'campaign_id' => $campaign->id,
                 'exception' => $exception::class,
-                'message' => $exception->getMessage(),
+                'safe_error_code' => $safeCode,
             ]);
 
             return response()->json([
-                'message' => 'Test email failed: '.$exception->getMessage(),
+                'message' => 'Test email failed safely.',
+                'code' => $safeCode,
             ], 422);
         }
     }
@@ -973,9 +979,38 @@ class CommercialOffersController extends Controller
     {
         $this->authorizeSales('sales_mailings.view');
         $items = MailingEvent::query()
+            ->select([
+                'id',
+                'provider',
+                'event_fingerprint',
+                'provider_event_id',
+                'campaign_id',
+                'campaign_recipient_id',
+                'contact_id',
+                'unisender_job_id',
+                'provider_message_id',
+                'mailing_message_id',
+                'sending_id',
+                'mail_message_id',
+                'event_name',
+                'normalized_event_type',
+                'status',
+                'normalized_status',
+                'event_time',
+                'verified_at',
+                'processed_at',
+                'safe_error_code',
+                'safe_summary',
+                'created_at',
+            ])
             ->when($request->integer('campaign_id'), fn ($query, $id) => $query->where('campaign_id', $id))
             ->when($request->string('status')->toString(), fn ($query, $status) => $query->where('status', $status))
-            ->when($request->string('q')->toString(), fn ($query, $q) => $query->where('email', 'like', "%{$q}%"))
+            ->when($request->string('q')->toString(), fn ($query, $q) => $query->whereIn(
+                'campaign_recipient_id',
+                MailingCampaignRecipient::query()
+                    ->select('id')
+                    ->where('normalized_email', 'like', "%{$q}%")
+            ))
             ->latest('created_at')
             ->paginate($request->integer('per_page', 100));
 
@@ -1061,28 +1096,21 @@ class CommercialOffersController extends Controller
                 'response' => $this->client->listSuppression(['limit' => 1]),
             ]);
         } catch (Throwable $exception) {
-            $message = $exception->getMessage();
-            $apiBase = (string) config('services.unisender_go.api_base');
-            $lowerMessage = Str::lower($message);
-            $isAuthError = Str::contains($lowerMessage, [
-                'user not found',
-                'unauthorized',
-                'forbidden',
-                'invalid api key',
-                'api key',
-            ]) || preg_match('/user\s+.*not\s+found/i', $message) === 1;
+            $safeCode = $this->safeProviderErrorCode($exception);
+            $isAuthError = $safeCode === MailProviderSafeErrorCode::AuthenticationFailed->value;
 
             Log::warning('Unisender Go API test failed', [
                 'provider' => 'unisender_go',
                 'exception' => $exception::class,
-                'message' => $message,
+                'safe_error_code' => $safeCode,
             ]);
 
             return response()->json([
                 'status' => 'error',
                 'message' => $isAuthError
-                    ? 'Unisender Go rejected API key/account: '.$message.'. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and UNISENDER_GO_API_BASE uses your Go host, for example https://go1.unisender.ru/en/transactional/api/v1. Current API base: '.$apiBase.'. After env changes run php artisan config:clear.'
-                    : 'Unisender Go API test failed: '.$message,
+                    ? 'Unisender Go authentication failed. Verify the account-scoped key and endpoint configuration.'
+                    : 'Unisender Go API test failed safely.',
+                'code' => $safeCode,
             ], $isAuthError ? 422 : 502);
         }
     }
@@ -1189,7 +1217,8 @@ class CommercialOffersController extends Controller
             'delivered_at' => $recipient->delivered_at,
             'open_count' => $recipient->open_count,
             'click_count' => $recipient->click_count,
-            'last_clicked_url' => $recipient->last_clicked_url,
+            'safe_error_code' => $recipient->safe_error_code,
+            'safe_summary' => $recipient->safe_summary,
         ];
     }
 
@@ -1333,5 +1362,18 @@ class CommercialOffersController extends Controller
                 'source_email_last_seen_at' => $lastSeenAt instanceof \DateTimeInterface ? $lastSeenAt->format('Y-m-d H:i:s') : $lastSeenAt,
             ],
         ], fn ($value) => $value !== null);
+    }
+
+    private function safeProviderErrorCode(Throwable $exception): string
+    {
+        if ($exception instanceof MailProviderException) {
+            return $exception->safeCode->value;
+        }
+
+        if ($exception->getPrevious() instanceof MailProviderException) {
+            return $exception->getPrevious()->safeCode->value;
+        }
+
+        return MailProviderSafeErrorCode::ProcessingFailedSafe->value;
     }
 }

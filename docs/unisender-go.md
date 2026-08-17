@@ -19,6 +19,8 @@ UNISENDER_GO_GLOBAL_LANGUAGE=ru
 UNISENDER_GO_WEBHOOK_URL=https://example.ru/webhooks/unisender-go
 UNISENDER_GO_WEBHOOK_MAX_PARALLEL=10
 UNISENDER_GO_WEBHOOK_DELIVERY_INFO=true
+UNISENDER_GO_WEBHOOK_QUEUE_CONNECTION=database
+UNISENDER_GO_WEBHOOK_QUEUE=mailing-webhooks
 
 MAILINGS_BATCH_SIZE=500
 MAILINGS_DAILY_LIMIT=500
@@ -58,7 +60,11 @@ GET  /webhooks/unisender-go
 POST /webhooks/unisender-go
 ```
 
-GET возвращает `200 OK` для проверки URL. POST принимает JSON body, сохраняет raw payload в `mailing_webhook_calls`, проверяет auth и обрабатывает события.
+GET возвращает `200 OK` для проверки URL. POST принимает только `application/json` без content encoding. Текущая provider-конфигурация использует `event_format=json_post`, поэтому gzip не принимается.
+
+До любой domain-записи запрос проходит dedicated throttle, code-owned лимит encoded body, in-memory JSON parsing, documented Unisender auth verification через `hash_equals`, schema validation и лимит batch. Raw body, parsed provider object, recipient, URL, IP, User-Agent и headers не сохраняются. После успешной проверки сохраняются только request hash, deterministic event fingerprint, allowlisted provider/internal IDs, нормализованные event/status и безопасные timestamps/codes. Worker получает только event IDs, имеет `tries=1` и никогда не читает или не восстанавливает provider body.
+
+Invalid signature/content/schema создают `0` webhook/event rows и `0` jobs. Повторный valid request или event отвечает безопасным `200`, но не создаёт повторное событие и не применяет его второй раз.
 
 Настройка через команду:
 
@@ -146,15 +152,15 @@ php artisan mailings:import-contacts storage/app/imports/contacts.csv --set-id=1
 
 ## Статусы и события
 
-Unisender события сохраняются в `mailing_events`. Если Unisender не прислал event id, модуль создаёт `event_fingerprint = sha256(provider + job_id + email + status + event_time + url + campaign_recipient_id)`. Повторный webhook не увеличивает counters.
+Unisender события сохраняются в `mailing_events` в нормализованном виде. Если Unisender не прислал безопасный event id, модуль создаёт SHA-256 fingerprint из allowlisted identifiers/status/time и односторонних hash recipient/URL, не сохраняя их исходные значения. Повторный webhook не увеличивает counters.
 
 Обработка статусов:
 
 ```text
 delivered: delivered_at
 opened: open_count, first_opened_at, last_opened_at, contact.last_opened_at
-clicked: click_count, last_clicked_url, contact.last_clicked_at
-unsubscribed: contact.do_not_email=true, local suppression, Unisender suppression
+clicked: click_count, contact.last_clicked_at; raw provider URL не сохраняется
+unsubscribed: contact.do_not_email=true, local suppression; provider-origin webhook does not call Unisender again
 soft_bounced: soft_bounce_count, temporary suppression после 3 soft bounces
 hard_bounced: do_not_email=true, permanent suppression
 spam: do_not_email=true, complained suppression, проверка автоостановки
@@ -228,8 +234,13 @@ php artisan mailings:unisender:set-webhook
 php artisan mailings:unisender:test-api
 php artisan mailings:unisender:sync-template {templateId}
 php artisan mailings:import-contacts {file}
-php artisan mailings:cleanup-old-webhook-calls
+php artisan mailings:provider-payloads:audit
+php artisan mailings:provider-payloads:purge
 ```
+
+`mailings:provider-payloads:purge` работает как dry-run без `--apply`, обрабатывает строки chunks и выводит только counters/approximate bytes/timestamp bounds. `--apply` разрешён только в local/testing/staging и заблокирован в production. Исторический alias `mailings:cleanup-old-webhook-calls` больше не удаляет rows и также является dry-run-first.
+
+Legacy `raw_payload`, `parsed_payload`, event `payload`, outbound `request_payload`/`response_payload`/`failed_emails`, recipient `last_clicked_url`/`failure_reason`/`delivery_info` и raw error columns оставлены nullable/deprecated для совместимости схемы. Eloquent запрещает новые non-null writes. Production cleanup выполняется только после отдельного owner approval; deploy не запускает purge автоматически.
 
 ## Удаление старого Mailgun
 
