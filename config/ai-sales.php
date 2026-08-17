@@ -116,6 +116,16 @@ return [
         /* Process-local Stage 12B CLI guard; deliberately not environment-controlled. */
         'live_synthetic_canary_enabled' => false,
         'live_synthetic_canary_model_id' => 'openai/gpt-5.6-luna',
+        /* Stage 13B secrets/evidence are read only by the CLI-only owner canary. */
+        'owner_canary' => [
+            'environment' => env('AI_OUTREACH_CANARY_ENVIRONMENT'),
+            'recipient' => env('AI_OUTREACH_CANARY_RECIPIENT'),
+            'permission_evidence_reference' => env('AI_OUTREACH_CANARY_PERMISSION_EVIDENCE_REFERENCE'),
+            'permission_evidence_sha256' => env('AI_OUTREACH_CANARY_PERMISSION_EVIDENCE_SHA256'),
+            'security_evidence_reference' => env('AI_OUTREACH_CANARY_SECURITY_EVIDENCE_REFERENCE'),
+            'security_evidence_sha256' => env('AI_OUTREACH_CANARY_SECURITY_EVIDENCE_SHA256'),
+            'security_verified_at' => env('AI_OUTREACH_CANARY_SECURITY_VERIFIED_AT'),
+        ],
         'auto_send_enabled' => (bool) env('AI_OUTREACH_AUTO_SEND_ENABLED', false),
         'transport_mode' => env('AI_OUTREACH_TRANSPORT_MODE', 'fake_only'),
         'policy_version' => 'stage12-v1',
