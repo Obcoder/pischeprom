@@ -11,6 +11,7 @@ use App\Domain\AiSales\Enums\UnitGoodMatchType;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UnitGoodMatch extends Model
 {
@@ -106,5 +107,10 @@ class UnitGoodMatch extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function fitSnapshots(): HasMany
+    {
+        return $this->hasMany(UnitGoodFitSnapshot::class);
     }
 }

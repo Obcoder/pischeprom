@@ -82,6 +82,11 @@ class UnitProductMatch extends Model
         return $this->hasMany(UnitGoodMatch::class);
     }
 
+    public function relevanceSnapshots(): HasMany
+    {
+        return $this->hasMany(UnitProductRelevanceSnapshot::class);
+    }
+
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');

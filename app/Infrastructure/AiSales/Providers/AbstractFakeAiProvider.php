@@ -88,7 +88,7 @@ abstract class AbstractFakeAiProvider implements FakeAiProviderInterface
 
         return match ($this->scenario) {
             FakeAiProviderScenario::Normal => $this->success($request, [
-                new AiProviderOutputItem('structured', ['summary' => 'Synthetic fake response.']),
+                new AiProviderOutputItem('structured', $this->normalStructuredOutput($request)),
             ]),
             FakeAiProviderScenario::StructuredOutput => $this->success($request, [
                 new AiProviderOutputItem('structured', ['summary' => 'Synthetic structured response.']),
@@ -154,5 +154,31 @@ abstract class AbstractFakeAiProvider implements FakeAiProviderInterface
     private function requestId(AiProviderRequest $request): string
     {
         return 'fake-'.substr(hash('sha256', $request->runPublicId.':'.$request->stepSequence.':'.$this->route()->value), 0, 24);
+    }
+
+    private function normalStructuredOutput(AiProviderRequest $request): array
+    {
+        if (! array_key_exists('factor_candidates', (array) ($request->responseSchema['properties'] ?? []))) {
+            return ['summary' => 'Synthetic fake response.'];
+        }
+
+        $references = [];
+        foreach ($request->inputItems as $item) {
+            if ($item->label === 'stage10_product_evidence') {
+                $references = array_values(array_filter((array) ($item->data['evidence_references'] ?? []), 'is_string'));
+            }
+        }
+
+        return [
+            'factor_candidates' => $references === [] ? [] : [[
+                'factor_code' => 'direct_product_mention',
+                'evidence_reference_ids' => [$references[0]],
+                'polarity' => 'positive',
+                'claim' => 'Synthetic evidence candidate requires deterministic validation.',
+                'contradiction' => false,
+                'model_confidence' => 50,
+            ]],
+            'missing_evidence' => $references === [] ? ['direct_product_mention'] : [],
+        ];
     }
 }

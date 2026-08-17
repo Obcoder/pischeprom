@@ -107,4 +107,9 @@ class UnitBusinessContext extends Model
     {
         return $this->hasMany(UnitProductMatch::class);
     }
+
+    public function prospectPrioritySnapshots(): HasMany
+    {
+        return $this->hasMany(UnitProspectPrioritySnapshot::class);
+    }
 }

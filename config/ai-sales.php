@@ -44,6 +44,11 @@ return [
         'page_fetch_enabled' => (bool) env('AI_PROSPECTING_PAGE_FETCH_ENABLED', false),
         'auto_candidate_ingestion_enabled' => (bool) env('AI_PROSPECTING_AUTO_CANDIDATE_INGESTION', false),
         'public_research_enabled' => (bool) env('AI_PROSPECTING_PUBLIC_RESEARCH_ENABLED', false),
+        'scoring_enabled' => (bool) env('AI_PROSPECTING_SCORING_ENABLED', false),
+        'auto_scoring_enabled' => (bool) env('AI_PROSPECTING_AUTO_SCORING_ENABLED', false),
+        'score_overrides_enabled' => (bool) env('AI_PROSPECTING_SCORE_OVERRIDES_ENABLED', false),
+        'ai_evidence_enabled' => (bool) env('AI_PROSPECTING_AI_EVIDENCE_ENABLED', false),
+        'live_scoring_enabled' => (bool) env('AI_PROSPECTING_LIVE_SCORING_ENABLED', false),
         'new_unit_min_relevance' => 60,
         'limits' => [
             'max_queries' => 20,
@@ -88,6 +93,7 @@ return [
         'search_query_planning' => 'stage09-v1',
         'public_fetch' => 'stage09-v1',
         'public_research' => 'stage09-v1',
+        'prospecting_scoring' => 'stage10-v1',
     ],
 
     'limits' => [

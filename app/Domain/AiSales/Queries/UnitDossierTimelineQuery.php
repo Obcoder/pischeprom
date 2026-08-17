@@ -87,6 +87,25 @@ class UnitDossierTimelineQuery
             ->each(fn ($row) => $items->push(new UnitDossierTimelineItem(
                 'unit.good_offer_fit', 'Good offer fit: '.($row->fit_status?->value ?? 'review_required').' / '.$row->compatibility_state->value.'.', 'unit_good_match', $row->id, $row->created_at,
             )));
+        if ((bool) config('ai-sales.prospecting.scoring_enabled', false)
+            && $this->authorization->can($actor, ProspectingAuthorizationService::VIEW_SCORING, $context->lane)) {
+            foreach ([
+                'unit_product_relevance_snapshots' => ['score.product_relevance', 'unit_product_relevance_snapshot'],
+                'unit_good_fit_snapshots' => ['score.good_fit', 'unit_good_fit_snapshot'],
+                'unit_prospect_priority_snapshots' => ['score.prospect_priority', 'unit_prospect_priority_snapshot'],
+            ] as $table => [$type, $referenceType]) {
+                DB::table($table)->where('unit_business_context_id', $context->id)
+                    ->select(['id', 'computed_score', 'effective_score', 'band', 'eligibility', 'created_at'])
+                    ->orderByDesc('id')->limit(100)->get()
+                    ->each(fn ($row) => $items->push(new UnitDossierTimelineItem(
+                        $type,
+                        "Score: computed {$row->computed_score}; effective {$row->effective_score}; {$row->band}; {$row->eligibility}.",
+                        $referenceType,
+                        $row->id,
+                        CarbonImmutable::parse($row->created_at),
+                    )));
+            }
+        }
         if ($this->contextAuthorization->hasPermission($actor, UnitContextAuthorizationService::VIEW_CLASSIFICATIONS)) {
             $unit->goodMatches()->where('unit_business_context_id', $context->id)
                 ->whereNull('unit_product_match_id')

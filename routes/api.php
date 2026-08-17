@@ -9,6 +9,7 @@ use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesTo
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
 use App\Http\Controllers\API\AiSales\ProspectingCandidateController as AiSalesProspectingCandidateController;
 use App\Http\Controllers\API\AiSales\ProspectingCatalogController as AiSalesProspectingCatalogController;
+use App\Http\Controllers\API\AiSales\ProspectingScoringController as AiSalesProspectingScoringController;
 use App\Http\Controllers\API\AiSales\ProspectingSearchDiscoveryController as AiSalesProspectingSearchDiscoveryController;
 use App\Http\Controllers\API\AiSales\ProspectingSearchJobController as AiSalesProspectingSearchJobController;
 use App\Http\Controllers\API\AiSales\UnitAliasController as AiSalesUnitAliasController;
@@ -206,6 +207,18 @@ Route::prefix('ai-sales')
         Route::post('/prospecting/candidates/{prospectingCandidate}/reject', [AiSalesProspectingCandidateController::class, 'reject'])->name('prospecting.candidates.reject');
         Route::post('/prospecting/good-matches/{unitGoodMatch}/review', [AiSalesUnitGoodMatchController::class, 'review'])->name('prospecting.good-matches.review');
         Route::post('/prospecting/product-matches/{unitProductMatch}/review', [AiSalesUnitProductMatchController::class, 'review'])->name('prospecting.product-matches.review');
+
+        Route::get('/scoring/definitions', [AiSalesProspectingScoringController::class, 'definitions'])->name('scoring.definitions');
+        Route::get('/scoring/units/{unit}/contexts/{context}', [AiSalesProspectingScoringController::class, 'scores'])->name('scoring.context.scores');
+        Route::post('/scoring/product-matches/{unitProductMatch}/recalculate', [AiSalesProspectingScoringController::class, 'recalculateProduct'])->name('scoring.product.recalculate');
+        Route::post('/scoring/good-matches/{unitGoodMatch}/recalculate', [AiSalesProspectingScoringController::class, 'recalculateGood'])->name('scoring.good.recalculate');
+        Route::post('/scoring/contexts/{context}/priority/recalculate', [AiSalesProspectingScoringController::class, 'recalculatePriority'])->name('scoring.priority.recalculate');
+        Route::post('/scoring/product-relevance-snapshots/{snapshot}/review', [AiSalesProspectingScoringController::class, 'reviewProduct'])->name('scoring.product.review');
+        Route::post('/scoring/good-fit-snapshots/{snapshot}/review', [AiSalesProspectingScoringController::class, 'reviewGood'])->name('scoring.good.review');
+        Route::post('/scoring/prospect-priority-snapshots/{snapshot}/review', [AiSalesProspectingScoringController::class, 'reviewPriority'])->name('scoring.priority.review');
+        Route::post('/scoring/product-relevance-snapshots/{snapshot}/override', [AiSalesProspectingScoringController::class, 'overrideProduct'])->name('scoring.product.override');
+        Route::post('/scoring/good-fit-snapshots/{snapshot}/override', [AiSalesProspectingScoringController::class, 'overrideGood'])->name('scoring.good.override');
+        Route::post('/scoring/prospect-priority-snapshots/{snapshot}/override', [AiSalesProspectingScoringController::class, 'overridePriority'])->name('scoring.priority.override');
     });
 
 Route::prefix('ai/price-lists')

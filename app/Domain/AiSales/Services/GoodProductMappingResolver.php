@@ -8,12 +8,17 @@ use Illuminate\Support\Facades\DB;
 class GoodProductMappingResolver
 {
     /** @return list<int> */
-    public function distinctProductIds(int $goodId): array
+    public function distinctProductIds(int $goodId, ?int $limit = null): array
     {
-        return DB::table('good_product')
+        $query = DB::table('good_product')
             ->where('good_id', $goodId)
             ->distinct()
-            ->orderBy('product_id')
+            ->orderBy('product_id');
+        if ($limit !== null) {
+            $query->limit(max(1, $limit));
+        }
+
+        return $query
             ->pluck('product_id')
             ->map(static fn ($id): int => (int) $id)
             ->all();

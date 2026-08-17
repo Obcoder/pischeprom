@@ -21,8 +21,7 @@ class UnitTransactionAggregateQuery
         $entityIds = DB::table('entity_unit')
             ->where('unit_id', $context->unit_id)
             ->select('entity_id')
-            ->distinct()
-            ->pluck('entity_id');
+            ->distinct();
 
         return match ($context->lane) {
             BusinessLane::Sales => Sale::query()->whereIn('entity_id', $entityIds)->distinct()->count('id'),

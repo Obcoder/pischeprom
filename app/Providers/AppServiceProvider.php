@@ -50,9 +50,12 @@ use App\Models\ProspectingCandidate;
 use App\Models\ProspectingSearchJob;
 use App\Models\Unit;
 use App\Models\UnitBusinessContext;
+use App\Models\UnitGoodFitSnapshot;
 use App\Models\UnitGoodMatch;
 use App\Models\UnitObservation;
 use App\Models\UnitProductMatch;
+use App\Models\UnitProductRelevanceSnapshot;
+use App\Models\UnitProspectPrioritySnapshot;
 use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
@@ -60,6 +63,7 @@ use App\Policies\AiSales\AiAgentDefinitionPolicy;
 use App\Policies\AiSales\AiAgentRunPolicy;
 use App\Policies\AiSales\EntityCandidateProposalPolicy;
 use App\Policies\AiSales\ProspectingCandidatePolicy;
+use App\Policies\AiSales\ProspectingScoreSnapshotPolicy;
 use App\Policies\AiSales\ProspectingSearchJobPolicy;
 use App\Policies\AiSales\UnitBusinessContextPolicy;
 use App\Policies\AiSales\UnitGoodMatchPolicy;
@@ -261,6 +265,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProspectingCandidate::class, ProspectingCandidatePolicy::class);
         Gate::policy(UnitGoodMatch::class, UnitGoodMatchPolicy::class);
         Gate::policy(UnitProductMatch::class, UnitProductMatchPolicy::class);
+        Gate::policy(UnitProductRelevanceSnapshot::class, ProspectingScoreSnapshotPolicy::class);
+        Gate::policy(UnitGoodFitSnapshot::class, ProspectingScoreSnapshotPolicy::class);
+        Gate::policy(UnitProspectPrioritySnapshot::class, ProspectingScoreSnapshotPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

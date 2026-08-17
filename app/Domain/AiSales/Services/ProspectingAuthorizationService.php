@@ -34,6 +34,16 @@ class ProspectingAuthorizationService
 
     public const VIEW_SEARCH_PROVIDERS = 'ai_sales.search.providers.view';
 
+    public const VIEW_SCORING = 'ai_sales.scoring.view';
+
+    public const VIEW_SCORING_DEFINITIONS = 'ai_sales.scoring.definitions.view';
+
+    public const RECALCULATE_SCORING = 'ai_sales.scoring.recalculate';
+
+    public const REVIEW_SCORING = 'ai_sales.scoring.review';
+
+    public const OVERRIDE_SCORING = 'ai_sales.scoring.override';
+
     public function __construct(private readonly UnitContextAuthorizationService $contexts) {}
 
     public function can(User $actor, string $permission, BusinessLane $lane): bool
