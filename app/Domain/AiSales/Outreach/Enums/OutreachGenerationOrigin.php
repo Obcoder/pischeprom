@@ -8,6 +8,7 @@ enum OutreachGenerationOrigin: string
     case FakeStructured = 'fake_structured';
     case HumanEdit = 'human_edit';
     case FutureLiveAi = 'future_live_ai';
+    case LiveSyntheticCanary = 'live_synthetic_canary';
 
     public static function values(): array
     {

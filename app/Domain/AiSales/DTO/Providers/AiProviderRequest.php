@@ -30,6 +30,7 @@ final readonly class AiProviderRequest
         public bool $containsLocalOnlyData,
         public int $timeoutSeconds,
         public bool $syntheticOnly = false,
+        public string $responseSchemaName = 'synthetic_probe_result',
     ) {
         if ($contour === AiProcessingContour::None) {
             throw new InvalidArgumentException('A provider request cannot target the NONE contour.');
@@ -57,6 +58,10 @@ final readonly class AiProviderRequest
 
         if (count($toolSchemas) > 8) {
             throw new InvalidArgumentException('Provider tool schema count exceeds its cap.');
+        }
+
+        if (preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $responseSchemaName) !== 1) {
+            throw new InvalidArgumentException('Provider response schema name must be a bounded code-owned identifier.');
         }
 
         $this->inputItems = array_values($inputItems);

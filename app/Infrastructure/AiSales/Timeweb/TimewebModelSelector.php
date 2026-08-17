@@ -12,6 +12,9 @@ class TimewebModelSelector
     {
         if ($route === AiProviderRoute::LocalRu) {
             $model = $this->allowedModels($route)[0] ?? null;
+        } elseif ($profile === AiModelProfile::OutreachDrafting
+            && config('ai-sales.outreach.live_synthetic_canary_enabled', false)) {
+            $model = config('ai-sales.outreach.live_synthetic_canary_model_id');
         } else {
             $logical = match ($profile) {
                 AiModelProfile::HighVolumeExtraction, AiModelProfile::Validation => 'luna',
@@ -40,6 +43,11 @@ class TimewebModelSelector
         $configured = $route === AiProviderRoute::LocalRu
             ? (array) config('ai-sales.providers.timeweb.routes.local_ru.model_ids', [])
             : array_values((array) config('ai-sales.providers.timeweb.routes.external_sanitized.models', []));
+
+        if ($route === AiProviderRoute::ExternalSanitized
+            && config('ai-sales.outreach.live_synthetic_canary_enabled', false)) {
+            $configured[] = config('ai-sales.outreach.live_synthetic_canary_model_id');
+        }
 
         $models = [];
 

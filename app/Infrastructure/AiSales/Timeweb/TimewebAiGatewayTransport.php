@@ -4,6 +4,7 @@ namespace App\Infrastructure\AiSales\Timeweb;
 
 use App\Domain\AiSales\Enums\AiProviderErrorCategory;
 use App\Domain\AiSales\Enums\AiProviderRoute;
+use App\Domain\AiSales\Exceptions\PolicyViolation;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -73,6 +74,8 @@ class TimewebAiGatewayTransport
 
             return $this->normalizeResponse($response);
         } catch (TimewebTransportException $exception) {
+            throw $exception;
+        } catch (PolicyViolation $exception) {
             throw $exception;
         } catch (ConnectionException $exception) {
             throw $this->connectionFailure($exception);

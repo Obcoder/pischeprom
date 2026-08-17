@@ -43,7 +43,7 @@ class TimewebRequestMapper
             $payload['response_format'] = [
                 'type' => 'json_schema',
                 'json_schema' => [
-                    'name' => 'synthetic_probe_result',
+                    'name' => $request->responseSchemaName,
                     'strict' => true,
                     'schema' => $request->responseSchema,
                 ],
@@ -89,7 +89,7 @@ class TimewebRequestMapper
             $payload['text'] = [
                 'format' => [
                     'type' => 'json_schema',
-                    'name' => 'synthetic_probe_result',
+                    'name' => $request->responseSchemaName,
                     'strict' => true,
                     'schema' => $request->responseSchema,
                 ],

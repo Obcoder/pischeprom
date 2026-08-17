@@ -105,6 +105,9 @@ return [
         'suppression_management_enabled' => (bool) env('AI_COMMUNICATION_SUPPRESSION_MANAGEMENT_ENABLED', false),
         'dispatch_enabled' => (bool) env('AI_OUTREACH_DISPATCH_ENABLED', false),
         'live_generation_enabled' => (bool) env('AI_OUTREACH_LIVE_GENERATION_ENABLED', false),
+        /* Process-local Stage 12B CLI guard; deliberately not environment-controlled. */
+        'live_synthetic_canary_enabled' => false,
+        'live_synthetic_canary_model_id' => 'openai/gpt-5.6-luna',
         'auto_send_enabled' => (bool) env('AI_OUTREACH_AUTO_SEND_ENABLED', false),
         'transport_mode' => env('AI_OUTREACH_TRANSPORT_MODE', 'fake_only'),
         'policy_version' => 'stage12-v1',

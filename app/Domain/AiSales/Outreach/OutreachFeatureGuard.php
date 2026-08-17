@@ -36,6 +36,26 @@ class OutreachFeatureGuard
         $this->assertFlag('permission_ledger_enabled');
     }
 
+    public function liveSyntheticCanary(): void
+    {
+        $this->drafts();
+
+        if (! app()->environment('testing')
+            || ! config('ai-sales.outreach.live_synthetic_canary_enabled', false)
+            || ! config('ai-sales.outreach.live_generation_enabled', false)
+            || config('ai-sales.outreach.transport_mode') !== 'timeweb_synthetic_only'
+            || config('ai-sales.transport_mode') !== 'timeweb_synthetic_only'
+            || ! config('ai-sales.external_calls_enabled', false)
+            || ! config('ai-sales.external_sanitized_calls_enabled', false)
+            || config('ai-sales.provider_failover_enabled', false)
+            || config('ai-sales.provider_native_tools_enabled', false)
+            || config('ai-sales.outreach_sending_enabled', false)
+            || config('ai-sales.outreach.dispatch_enabled', false)
+            || config('ai-sales.outreach.auto_send_enabled', false)) {
+            throw new PolicyViolation('outreach_live_canary_blocked', 'The bounded testing-only outreach canary is not explicitly enabled.');
+        }
+    }
+
     public function suppressionManagement(): void
     {
         $this->assertFlag('suppression_management_enabled');

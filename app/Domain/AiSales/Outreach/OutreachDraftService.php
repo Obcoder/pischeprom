@@ -124,6 +124,31 @@ class OutreachDraftService
         );
     }
 
+    public function appendLiveSyntheticCanaryRevision(
+        OutreachDraft $draft,
+        User $actor,
+        array $content,
+        string $inputHash,
+        bool $providerCalled = true,
+    ): OutreachDraftRevision {
+        $this->features->liveSyntheticCanary();
+        $this->loadDraft($draft);
+        $this->authorization->authorize($actor, OutreachAuthorizationService::DRAFT, $draft->unit, $draft->businessContext);
+        $this->assertDraftEvidenceCurrent($draft);
+
+        if (preg_match('/^[a-f0-9]{64}$/D', $inputHash) !== 1) {
+            throw new PolicyViolation('outreach_canary_input_hash_invalid', 'The synthetic canary input hash is invalid.');
+        }
+
+        return $this->appendRevision(
+            $draft,
+            $actor,
+            $content,
+            $providerCalled ? OutreachGenerationOrigin::LiveSyntheticCanary : OutreachGenerationOrigin::FakeStructured,
+            $inputHash,
+        );
+    }
+
     public function review(
         OutreachDraft $draft,
         OutreachDraftRevision $revision,
