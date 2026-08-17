@@ -38,6 +38,8 @@ use App\Models\BankAuditEvent;
 use App\Models\BankConnection;
 use App\Models\BankPaymentOrderDraft;
 use App\Models\BankTransaction;
+use App\Models\CommunicationPermission;
+use App\Models\CommunicationSuppression;
 use App\Models\EntityCandidateProposal;
 use App\Models\GoodStockMovement;
 use App\Models\LogisticsCity;
@@ -45,6 +47,7 @@ use App\Models\LogisticsCityDistance;
 use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripExpense;
 use App\Models\MailMessageAttachment;
+use App\Models\OutreachDraft;
 use App\Models\PriceListImport;
 use App\Models\ProspectingCandidate;
 use App\Models\ProspectingSearchJob;
@@ -61,7 +64,10 @@ use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
 use App\Policies\AiSales\AiAgentDefinitionPolicy;
 use App\Policies\AiSales\AiAgentRunPolicy;
+use App\Policies\AiSales\CommunicationPermissionPolicy;
+use App\Policies\AiSales\CommunicationSuppressionPolicy;
 use App\Policies\AiSales\EntityCandidateProposalPolicy;
+use App\Policies\AiSales\OutreachDraftPolicy;
 use App\Policies\AiSales\ProspectingCandidatePolicy;
 use App\Policies\AiSales\ProspectingScoreSnapshotPolicy;
 use App\Policies\AiSales\ProspectingSearchJobPolicy;
@@ -171,6 +177,8 @@ class AppServiceProvider extends ServiceProvider
         )->by('yandex-price-list-ai'));
         RateLimiter::for('ai-sales', fn (Request $request) => Limit::perMinute(30)
             ->by((string) ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('mail-send', fn (Request $request) => Limit::perMinute(5)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
 
         Gate::before(function ($user, string $ability) {
             if (Str::startsWith($ability, 'ai_price_lists.')) {
@@ -235,13 +243,13 @@ class AppServiceProvider extends ServiceProvider
             }
 
             if (! method_exists($user, 'hasPermissionTo')) {
-                return true;
+                return false;
             }
 
             try {
                 return $user->hasPermissionTo($ability, 'crm') ?: null;
             } catch (Throwable) {
-                return true;
+                return false;
             }
         });
 
@@ -268,6 +276,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(UnitProductRelevanceSnapshot::class, ProspectingScoreSnapshotPolicy::class);
         Gate::policy(UnitGoodFitSnapshot::class, ProspectingScoreSnapshotPolicy::class);
         Gate::policy(UnitProspectPrioritySnapshot::class, ProspectingScoreSnapshotPolicy::class);
+        Gate::policy(OutreachDraft::class, OutreachDraftPolicy::class);
+        Gate::policy(CommunicationPermission::class, CommunicationPermissionPolicy::class);
+        Gate::policy(CommunicationSuppression::class, CommunicationSuppressionPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

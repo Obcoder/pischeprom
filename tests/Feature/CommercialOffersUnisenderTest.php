@@ -10,6 +10,7 @@ use App\Models\MailingContactSet;
 use App\Models\MailingOfferItem;
 use App\Models\MailingSuppression;
 use App\Models\MailingTemplate;
+use App\Models\User;
 use App\Services\CommercialOffers\MailingCampaignService;
 use App\Services\CommercialOffers\MailingRenderer;
 use App\Services\CommercialOffers\ProductOfferBuilder;
@@ -60,6 +61,16 @@ class CommercialOffersUnisenderTest extends TestCase
 
         DB::statement('create table regions (id integer primary key autoincrement, name varchar(255) null)');
         DB::statement('create table cities (id integer primary key autoincrement, name varchar(255) not null, region_id integer null)');
+
+        $actor = \Mockery::mock(User::class)->makePartial();
+        $actor->forceFill([
+            'id' => 1,
+            'email' => 'commercial-offers@example.test',
+            'email_verified_at' => now(),
+            'status' => 'active',
+        ]);
+        $actor->shouldReceive('hasPermissionTo')->andReturn(true);
+        $this->actingAs($actor);
     }
 
     public function test_unisender_client_builds_send_payload_and_webhook_auth(): void
@@ -571,11 +582,11 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->assertDatabaseHas('mailing_suppression_list', ['email' => 'optout@example.test', 'cause' => 'unsubscribed']);
     }
 
-    public function test_ameise_commercial_offers_page_does_not_redirect_guest_to_login(): void
+    public function test_ameise_commercial_offers_page_rejects_guest(): void
     {
-        $this->get('/Ameise/commercial-offers')
-            ->assertOk()
-            ->assertHeaderMissing('Location');
+        $this->app['auth']->forgetGuards();
+
+        $this->getJson('/Ameise/commercial-offers')->assertUnauthorized();
     }
 
     public function test_unisender_test_api_reports_missing_key_without_server_error(): void

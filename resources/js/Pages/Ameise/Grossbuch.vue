@@ -347,13 +347,17 @@ function getManufacturers(){
 
 let message = ref('');
 let successMessage = ref('');
+let mailIdempotencyKey = ref(crypto.randomUUID());
 async function sendMail() {
     try {
-        const response = await axios.post('/api/mail', {
-            'email': email.value,
-            'message': message.value,
+        const response = await axios.post('/api/mail-messages/send', {
+            idempotency_key: mailIdempotencyKey.value,
+            to: [email.value],
+            subject: 'Сообщение ПИЩЕПРОМ-СЕРВЕР',
+            body: message.value,
         });
         successMessage.value = response.data.message;
+        mailIdempotencyKey.value = crypto.randomUUID();
     } catch(error){
         console.log(error);
     }

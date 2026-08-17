@@ -9,6 +9,7 @@ use App\Domain\AiSales\Enums\UnitVisibilityScope;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UnitContactContextLink extends Model
 {
@@ -100,5 +101,15 @@ class UnitContactContextLink extends Model
     public function uri(): BelongsTo
     {
         return $this->belongsTo(Uri::class);
+    }
+
+    public function communicationPermissions(): HasMany
+    {
+        return $this->hasMany(CommunicationPermission::class);
+    }
+
+    public function outreachDrafts(): HasMany
+    {
+        return $this->hasMany(OutreachDraft::class);
     }
 }

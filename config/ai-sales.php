@@ -97,6 +97,31 @@ return [
         ],
     ],
 
+    'outreach' => [
+        'ui_enabled' => (bool) env('AI_OUTREACH_UI_ENABLED', false),
+        'drafts_enabled' => (bool) env('AI_OUTREACH_DRAFTS_ENABLED', false),
+        'fake_generation_enabled' => (bool) env('AI_OUTREACH_FAKE_GENERATION_ENABLED', false),
+        'permission_ledger_enabled' => (bool) env('AI_COMMUNICATION_PERMISSION_LEDGER_ENABLED', false),
+        'suppression_management_enabled' => (bool) env('AI_COMMUNICATION_SUPPRESSION_MANAGEMENT_ENABLED', false),
+        'dispatch_enabled' => (bool) env('AI_OUTREACH_DISPATCH_ENABLED', false),
+        'live_generation_enabled' => (bool) env('AI_OUTREACH_LIVE_GENERATION_ENABLED', false),
+        'auto_send_enabled' => (bool) env('AI_OUTREACH_AUTO_SEND_ENABLED', false),
+        'transport_mode' => env('AI_OUTREACH_TRANSPORT_MODE', 'fake_only'),
+        'policy_version' => 'stage12-v1',
+        'renderer_version' => 'stage12-renderer-v1',
+        'template_profile' => 'product-first-corporate-v1',
+        'template_version' => '1',
+        'sender_scope' => 'pischeprom-manual-review',
+        'limits' => [
+            'subject_chars' => 160,
+            'paragraphs' => 6,
+            'plain_bytes' => 12_000,
+            'html_bytes' => 24_000,
+            'claims' => 10,
+            'revisions' => 25,
+        ],
+    ],
+
     'transport_mode' => env('AI_SALES_TRANSPORT_MODE', 'fake_only'),
     'queue' => [
         'connection' => env('AI_SALES_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'sync')),
@@ -115,6 +140,11 @@ return [
         'public_research' => 'stage09-v1',
         'prospecting_scoring' => 'stage10-v1',
         'find_buyers_disclosure' => 'stage11-v1',
+        'outreach_permission' => 'stage12-v1',
+        'outreach_suppression' => 'stage12-v1',
+        'outreach_dlp' => 'stage12-v1',
+        'outreach_rendering' => 'stage12-v1',
+        'outreach_dispatch_eligibility' => 'stage12-v1',
     ],
 
     'limits' => [

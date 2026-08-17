@@ -8,6 +8,8 @@ use App\Models\User;
 
 class UnitPolicy
 {
+    public const SEND_MAIL = 'mail.send';
+
     public function __construct(private readonly UnitContextAuthorizationService $authorization) {}
 
     public function view(User $user, Unit $unit): bool
@@ -43,5 +45,11 @@ class UnitPolicy
     {
         return $this->view($user, $unit)
             && $this->authorization->hasPermission($user, UnitContextAuthorizationService::PROPOSE_ENTITY);
+    }
+
+    public function sendMail(User $user, Unit $unit): bool
+    {
+        return $this->view($user, $unit)
+            && $this->authorization->hasPermission($user, self::SEND_MAIL);
     }
 }

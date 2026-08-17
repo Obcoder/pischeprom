@@ -112,4 +112,19 @@ class UnitBusinessContext extends Model
     {
         return $this->hasMany(UnitProspectPrioritySnapshot::class);
     }
+
+    public function outreachDrafts(): HasMany
+    {
+        return $this->hasMany(OutreachDraft::class);
+    }
+
+    public function communicationPermissions(): HasMany
+    {
+        return $this->hasMany(CommunicationPermission::class);
+    }
+
+    public function communicationSuppressions(): HasMany
+    {
+        return $this->hasMany(CommunicationSuppression::class);
+    }
 }

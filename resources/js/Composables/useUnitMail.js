@@ -83,6 +83,10 @@ export function useUnitMail(unitId) {
         sending.value = true
 
         try {
+            if (payload instanceof FormData && !payload.has('idempotency_key')) {
+                payload.append('idempotency_key', crypto.randomUUID())
+            }
+
             await axios.post(`/api/units/${unitId}/mail/send`, payload, {
                 headers: {
                     'Content-Type': 'multipart/form-data',

@@ -14,6 +14,7 @@ import UnitTradeTabsCard from '@/Components/Unit/UnitTradeTabsCard.vue'
 import UnitBusinessContextsPanel from '@/Components/Unit/AiSales/UnitBusinessContextsPanel.vue'
 import AiControlPlanePanel from '@/Components/Unit/AiSales/AiControlPlanePanel.vue'
 import UnitProspectingDossierPanel from '@/Components/Unit/AiSales/UnitProspectingDossierPanel.vue'
+import UnitOutreachPanel from '@/Components/Unit/AiSales/UnitOutreachPanel.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -142,6 +143,10 @@ onMounted(async () => {
 
         <section class="unit-page__band unit-page__band--contexts">
             <div><UnitProspectingDossierPanel :unit-id="Number(unit.id)" /></div>
+        </section>
+
+        <section v-if="aiSales.outreach_enabled" class="unit-page__band unit-page__band--contexts">
+            <div><UnitOutreachPanel :unit-id="Number(unit.id)" /></div>
         </section>
 
         <section class="unit-page__band unit-page__band--trade-tabs">

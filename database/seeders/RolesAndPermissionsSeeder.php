@@ -27,6 +27,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'products.view',
             'products.edit',
 
+            'mail.send',
+
             'ai_price_lists.view',
             'ai_price_lists.process',
             'ai_price_lists.review',
@@ -78,6 +80,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'ai_sales.scoring.recalculate',
             'ai_sales.scoring.review',
             'ai_sales.scoring.override',
+            'ai_sales.outreach.view',
+            'ai_sales.outreach.draft',
+            'ai_sales.outreach.review',
+            'ai_sales.outreach.claims.review',
+            'ai_sales.communication_permissions.view',
+            'ai_sales.communication_permissions.manage',
+            'ai_sales.communication_suppressions.manage',
 
             'users.view',
             'users.edit',

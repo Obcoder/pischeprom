@@ -69,6 +69,8 @@ class UnitController extends Controller
                 ],
             ],
             'aiSales' => [
+                'outreach_enabled' => (bool) config('ai-sales.enabled', false)
+                    && (bool) config('ai-sales.outreach.ui_enabled', false),
                 'capabilities' => [
                     ...$aiSalesAuthorization->capabilities($request->user(), $unit),
                     ...$aiControlAuthorization->capabilities($request->user(), $unit),

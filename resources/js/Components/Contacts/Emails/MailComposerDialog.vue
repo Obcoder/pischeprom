@@ -61,6 +61,7 @@ const templateLoadError = ref(null)
 const sending = ref(false)
 const error = ref(null)
 const fileInput = ref(null)
+const idempotencyKey = ref(crypto.randomUUID())
 
 const isReply = computed(() => Boolean(props.replyContext?.id))
 
@@ -218,6 +219,7 @@ function resetForm() {
     templatesDialog.value = false
     templateLoadError.value = null
     error.value = null
+    idempotencyKey.value = crypto.randomUUID()
 
     if (fileInput.value) {
         fileInput.value.value = ''
@@ -259,6 +261,8 @@ async function submit() {
     error.value = null
 
     const formData = new FormData()
+
+    formData.append('idempotency_key', idempotencyKey.value)
 
     normalizedTo.value.forEach((address) => formData.append('to[]', address))
     normalizedCc.value.forEach((address) => formData.append('cc[]', address))

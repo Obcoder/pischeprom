@@ -55,6 +55,7 @@ const selectedTemplateId = ref(null)
 const templatesDialog = ref(false)
 const loadingTemplates = ref(false)
 const fileInput = ref(null)
+const idempotencyKey = ref(crypto.randomUUID())
 
 const isReply = computed(() => Boolean(props.replyContext?.id))
 const mailboxItems = computed(() => {
@@ -248,6 +249,8 @@ function removeLocalFile(index) {
 async function submit() {
     const formData = new FormData()
 
+    formData.append('idempotency_key', idempotencyKey.value)
+
     to.value.forEach((address) => formData.append('to[]', address))
     cc.value.forEach((address) => formData.append('cc[]', address))
 
@@ -294,6 +297,7 @@ function resetForm() {
     storageFiles.value = [...props.initialStorageFiles]
     selectedTemplateId.value = null
     templatesDialog.value = false
+    idempotencyKey.value = crypto.randomUUID()
 
     if (fileInput.value) {
         fileInput.value.value = ''

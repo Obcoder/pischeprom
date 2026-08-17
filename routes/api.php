@@ -6,6 +6,7 @@ use App\Http\Controllers\API\AiSales\AiAgentDefinitionController as AiSalesAgent
 use App\Http\Controllers\API\AiSales\AiAgentRunController as AiSalesAgentRunController;
 use App\Http\Controllers\API\AiSales\AiControlPlaneController as AiSalesControlPlaneController;
 use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesToolingDiagnosticsController;
+use App\Http\Controllers\API\AiSales\CommunicationSuppressionController as AiSalesCommunicationSuppressionController;
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
 use App\Http\Controllers\API\AiSales\ProspectingCandidateController as AiSalesProspectingCandidateController;
 use App\Http\Controllers\API\AiSales\ProspectingCatalogController as AiSalesProspectingCatalogController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\API\AiSales\UnitBusinessContextController as AiSalesUni
 use App\Http\Controllers\API\AiSales\UnitDossierController as AiSalesUnitDossierController;
 use App\Http\Controllers\API\AiSales\UnitGoodMatchController as AiSalesUnitGoodMatchController;
 use App\Http\Controllers\API\AiSales\UnitObservationController as AiSalesUnitObservationController;
+use App\Http\Controllers\API\AiSales\UnitOutreachController as AiSalesUnitOutreachController;
 use App\Http\Controllers\API\AiSales\UnitProductMatchController as AiSalesUnitProductMatchController;
 use App\Http\Controllers\API\AiSales\UnitProspectingDossierController as AiSalesUnitProspectingDossierController;
 use App\Http\Controllers\API\AiSales\UnitRoleController as AiSalesUnitRoleController;
@@ -132,7 +134,6 @@ use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
-use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnforceAiPriceListAuthorization;
 use Illuminate\Http\Request;
@@ -162,6 +163,17 @@ Route::prefix('ai-sales/units/{unit}')
 
         Route::post('/entity-proposals', [AiSalesEntityCandidateProposalController::class, 'store'])->name('entity-proposals.store');
         Route::get('/prospecting-dossier', AiSalesUnitProspectingDossierController::class)->name('prospecting-dossier.show');
+        Route::get('/outreach', [AiSalesUnitOutreachController::class, 'index'])->name('outreach.index');
+        Route::post('/outreach/drafts', [AiSalesUnitOutreachController::class, 'storeDraft'])->name('outreach.drafts.store');
+        Route::post('/outreach/drafts/{outreachDraft}/generate', [AiSalesUnitOutreachController::class, 'generate'])->name('outreach.drafts.generate');
+        Route::post('/outreach/drafts/{outreachDraft}/revisions', [AiSalesUnitOutreachController::class, 'revise'])->name('outreach.drafts.revisions.store');
+        Route::post('/outreach/drafts/{outreachDraft}/reviews', [AiSalesUnitOutreachController::class, 'review'])->name('outreach.drafts.reviews.store');
+        Route::post('/outreach/drafts/{outreachDraft}/eligibility-preview', [AiSalesUnitOutreachController::class, 'eligibility'])->name('outreach.drafts.eligibility');
+        Route::post('/outreach/permissions', [AiSalesUnitOutreachController::class, 'storePermission'])->name('outreach.permissions.store');
+        Route::post('/outreach/permissions/{communicationPermission}/review', [AiSalesUnitOutreachController::class, 'reviewPermission'])->name('outreach.permissions.review');
+        Route::post('/outreach/permissions/{communicationPermission}/revoke', [AiSalesUnitOutreachController::class, 'revokePermission'])->name('outreach.permissions.revoke');
+        Route::post('/outreach/suppressions', [AiSalesCommunicationSuppressionController::class, 'store'])->name('outreach.suppressions.store');
+        Route::post('/outreach/suppressions/{communicationSuppression}/clear', [AiSalesCommunicationSuppressionController::class, 'clear'])->name('outreach.suppressions.clear');
     });
 
 Route::prefix('ai-sales')
@@ -337,6 +349,7 @@ Route::apiResource('mailboxes', MailboxController::class)
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
     ->name('mail-messages.folders');
 Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
+    ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
     ->name('mail-messages.send');
 Route::get('mail-messages', [MailMessageController::class, 'index'])
     ->name('mail-messages.index');
@@ -588,6 +601,7 @@ Route::prefix('units/{unit}')->group(function () {
         ->name('api.units.mail-messages.index');
 
     Route::post('/mail/send', [UnitMailController::class, 'send'])
+        ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
         ->name('api.units.mail.send');
 });
 
@@ -809,14 +823,6 @@ Route::post('phone-calls/{phoneCall}/create-entity', [PhoneCallController::class
 Route::apiResource('leads', LeadController::class)
     ->only(['index', 'show', 'update']);
 //  E N D  T E L E P H O N Y
-
-/*
- * -----------------------------
- *       M A I L  S E N D
- * -----------------------------
- */
-Route::post('/mail', [MailController::class, 'sendMail'])
-    ->name('api.mail');
 
 /*
  * ------------------
