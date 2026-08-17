@@ -77,6 +77,26 @@ return [
         ],
     ],
 
+    'find_buyers' => [
+        'ui_enabled' => (bool) env('AI_FIND_BUYERS_UI_ENABLED', false),
+        'drafts_enabled' => (bool) env('AI_FIND_BUYERS_DRAFTS_ENABLED', false),
+        'live_execution_enabled' => (bool) env('AI_FIND_BUYERS_LIVE_EXECUTION_ENABLED', false),
+        'auto_research_enabled' => (bool) env('AI_FIND_BUYERS_AUTO_RESEARCH_ENABLED', false),
+        'auto_scoring_enabled' => (bool) env('AI_FIND_BUYERS_AUTO_SCORING_ENABLED', false),
+        'wizard_version' => 'stage11-v1',
+        'limits' => [
+            'additional_products' => 10,
+            'excluded_products' => 10,
+            'industries' => 10,
+            'categories' => 10,
+            'max_queries' => 10,
+            'max_results_per_query' => 20,
+            'max_domains' => 10,
+            'max_page_fetch_attempts' => 5,
+            'max_candidates' => 50,
+        ],
+    ],
+
     'transport_mode' => env('AI_SALES_TRANSPORT_MODE', 'fake_only'),
     'queue' => [
         'connection' => env('AI_SALES_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'sync')),
@@ -94,6 +114,7 @@ return [
         'public_fetch' => 'stage09-v1',
         'public_research' => 'stage09-v1',
         'prospecting_scoring' => 'stage10-v1',
+        'find_buyers_disclosure' => 'stage11-v1',
     ],
 
     'limits' => [

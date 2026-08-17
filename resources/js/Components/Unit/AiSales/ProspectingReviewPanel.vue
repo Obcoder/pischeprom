@@ -1,6 +1,7 @@
 <script setup>
 import axios from 'axios'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import FindBuyersDashboard from '@/Components/AiSales/FindBuyersDashboard.vue'
 
 const tab = ref('jobs')
 const loading = ref(false)
@@ -138,6 +139,8 @@ onMounted(load)
 </script>
 
 <template>
+    <div id="prospecting-review">
+    <FindBuyersDashboard />
     <v-card variant="outlined" class="prospecting-review">
         <v-card-title class="d-flex align-center ga-3">
             <span>AI-поиск покупателей</span>
@@ -148,7 +151,7 @@ onMounted(load)
         </v-card-title>
         <v-alert v-if="error" type="info" variant="tonal" class="ma-3">{{ error }}</v-alert>
         <v-alert type="warning" variant="tonal" density="compact" class="mx-3">
-            Все discovery-флаги default-off. Запросы, provider/profile и URL задаются только сервером; auto Unit/Entity, email и Stage 10 scoring отсутствуют.
+            Live discovery остаётся default-off. Запросы, provider/profile и URL задаются только сервером; auto Unit/Entity и email отсутствуют. Stage 10 scoring показывается только как read-only projection.
         </v-alert>
         <v-tabs v-model="tab" class="mt-2">
             <v-tab value="jobs">Задания</v-tab>
@@ -335,4 +338,5 @@ onMounted(load)
             </v-card>
         </v-dialog>
     </v-card>
+    </div>
 </template>

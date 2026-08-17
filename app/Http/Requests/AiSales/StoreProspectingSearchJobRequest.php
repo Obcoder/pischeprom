@@ -50,6 +50,7 @@ class StoreProspectingSearchJobRequest extends FormRequest
             'prompt' => ['prohibited'], 'tool' => ['prohibited'], 'tools' => ['prohibited'],
             'url' => ['prohibited'], 'auto_create_unit' => ['prohibited'], 'execute' => ['prohibited'],
             'entity_id' => ['prohibited'],
+            'explicit_good_product_selection' => ['prohibited'],
         ];
     }
 }

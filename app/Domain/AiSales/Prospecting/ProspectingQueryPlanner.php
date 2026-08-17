@@ -53,9 +53,16 @@ class ProspectingQueryPlanner
             ->values();
 
         $productIds = $products->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $primaryProductId = (int) $products->firstWhere('role', ProductScopeRole::Primary->value)->id;
+        $explicitStage11Selection = $job->launch_source_type === 'good'
+            && $job->wizard_version === (string) config('ai-sales.find_buyers.wizard_version', 'stage11-v1')
+            && $job->product_mapping_state?->value === 'mapped';
         foreach ($job->goods()->pluck('goods.id')->map(fn ($id): int => (int) $id)->unique() as $goodId) {
             $mappedProductId = $this->productMappings->exactProductId($goodId);
-            if ($mappedProductId === null || ! in_array($mappedProductId, $productIds, true)) {
+            $explicitlyMapped = $explicitStage11Selection
+                && $this->productMappings->stateForExplicitProduct($goodId, $primaryProductId)->value === 'mapped';
+            if ((! $explicitlyMapped && $mappedProductId === null)
+                || ($mappedProductId !== null && ! in_array($mappedProductId, $productIds, true))) {
                 throw ValidationException::withMessages([
                     'originating_goods' => 'Every originating Good must map to exactly one selected Product before planning.',
                 ]);
@@ -64,6 +71,9 @@ class ProspectingQueryPlanner
 
         $geography = $this->geography($job);
         $criteria = $this->criteriaTerms($job->criteria_snapshot ?? []);
+        $excludedCriteria = collect((array) (($job->criteria_snapshot ?? [])['excluded_categories'] ?? []))
+            ->map(fn ($value): string => $this->cleanTerm((string) $value))
+            ->filter()->unique()->take(5)->values()->all();
         $excludedTerms = $excluded->map(fn ($product): string => $this->cleanTerm((string) ($product->rus ?: $product->eng)))
             ->filter()->take(5)->values()->all();
         $scopePayload = [
@@ -107,6 +117,9 @@ class ProspectingQueryPlanner
                 }
                 foreach ($excludedTerms as $excludedTerm) {
                     $parts[] = '-"'.$excludedTerm.'"';
+                }
+                foreach ($excludedCriteria as $excludedCriterion) {
+                    $parts[] = '-"'.$excludedCriterion.'"';
                 }
                 $queryText = mb_substr(trim(preg_replace('/\s+/u', ' ', implode(' ', array_filter($parts))) ?? ''), 0, 512);
                 $this->dlp->assertPayloadSafe(

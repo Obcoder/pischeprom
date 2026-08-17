@@ -208,6 +208,16 @@ Route::prefix('ai-sales')
         Route::post('/prospecting/good-matches/{unitGoodMatch}/review', [AiSalesUnitGoodMatchController::class, 'review'])->name('prospecting.good-matches.review');
         Route::post('/prospecting/product-matches/{unitProductMatch}/review', [AiSalesUnitProductMatchController::class, 'review'])->name('prospecting.product-matches.review');
 
+        Route::get('/find-buyers/launch-context', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'launchContext'])->name('find-buyers.launch-context');
+        Route::get('/find-buyers/geography', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'geography'])->name('find-buyers.geography');
+        Route::get('/find-buyers/dashboard', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'dashboard'])->name('find-buyers.dashboard');
+        Route::post('/find-buyers/drafts', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'store'])->name('find-buyers.drafts.store');
+        Route::patch('/find-buyers/drafts/{prospectingSearchJob}', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'update'])->name('find-buyers.drafts.update');
+        Route::post('/find-buyers/drafts/{prospectingSearchJob}/plan', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'plan'])->name('find-buyers.drafts.plan');
+        Route::post('/find-buyers/drafts/{prospectingSearchJob}/submit', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'submit'])->name('find-buyers.drafts.submit');
+        Route::post('/find-buyers/jobs/{prospectingSearchJob}/cancel', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'cancel'])->name('find-buyers.jobs.cancel');
+        Route::get('/find-buyers/jobs/{prospectingSearchJob}/progress', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'progress'])->name('find-buyers.jobs.progress');
+
         Route::get('/scoring/definitions', [AiSalesProspectingScoringController::class, 'definitions'])->name('scoring.definitions');
         Route::get('/scoring/units/{unit}/contexts/{context}', [AiSalesProspectingScoringController::class, 'scores'])->name('scoring.context.scores');
         Route::post('/scoring/product-matches/{unitProductMatch}/recalculate', [AiSalesProspectingScoringController::class, 'recalculateProduct'])->name('scoring.product.recalculate');

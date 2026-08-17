@@ -61,6 +61,11 @@
         <env name="AI_PROSPECTING_SCORE_OVERRIDES_ENABLED" value="false" force="true"/>
         <env name="AI_PROSPECTING_AI_EVIDENCE_ENABLED" value="false" force="true"/>
         <env name="AI_PROSPECTING_LIVE_SCORING_ENABLED" value="false" force="true"/>
+        <env name="AI_FIND_BUYERS_UI_ENABLED" value="false" force="true"/>
+        <env name="AI_FIND_BUYERS_DRAFTS_ENABLED" value="false" force="true"/>
+        <env name="AI_FIND_BUYERS_LIVE_EXECUTION_ENABLED" value="false" force="true"/>
+        <env name="AI_FIND_BUYERS_AUTO_RESEARCH_ENABLED" value="false" force="true"/>
+        <env name="AI_FIND_BUYERS_AUTO_SCORING_ENABLED" value="false" force="true"/>
         <env name="AI_SALES_TRANSPORT_MODE" value="fake_only" force="true"/>
         <env name="AI_TIMEWEB_ENABLED" value="false" force="true"/>
         <env name="AI_TIMEWEB_BASE_URL" value="https://api.timeweb.ai/v1" force="true"/>

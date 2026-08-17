@@ -50,4 +50,16 @@ class GoodProductMappingResolver
 
         return count($productIds) === 1 ? $productIds[0] : null;
     }
+
+    public function stateForExplicitProduct(int $goodId, int $selectedProductId): ProductMappingState
+    {
+        $productIds = $this->distinctProductIds($goodId);
+        if ($productIds === []) {
+            return ProductMappingState::MissingProductMapping;
+        }
+
+        return in_array($selectedProductId, $productIds, true)
+            ? ProductMappingState::Mapped
+            : ProductMappingState::ProductScopeMismatch;
+    }
 }

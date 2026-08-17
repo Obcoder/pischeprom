@@ -4,6 +4,7 @@ import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import ProductYandexSearchCard from '@/Components/ProductYandexSearchCard.vue'
+import FindBuyersLauncher from '@/Components/AiSales/FindBuyersLauncher.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import {
     emptyProductTranslationForm,
@@ -237,6 +238,7 @@ onMounted(loadProduct)
                 </div>
 
                 <div v-if="product" class="d-flex align-center ga-2 flex-wrap">
+                    <FindBuyersLauncher source-type="product" :source-id="product.id" />
                     <v-chip size="small" variant="outlined">ID: {{ product.id }}</v-chip>
                     <v-chip size="small" variant="outlined">
                         {{ product.category?.rus || product.category?.name || 'Без категории' }}

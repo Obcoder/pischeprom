@@ -23,6 +23,8 @@ class ProspectingSearchJob extends Model
         'max_searches', 'max_cost_rub', 'safe_objective', 'criteria_snapshot', 'policy_version',
         'workflow_version', 'schema_hash', 'status', 'auto_create_unit', 'retention_profile',
         'product_mapping_state', 'product_mapping_reason_code',
+        'launch_source_type', 'launch_source_id', 'wizard_version', 'disclosure_policy_hash',
+        'draft_idempotency_key_hash', 'submitted_by', 'submitted_at',
         'approved_by', 'approved_at', 'ai_agent_run_id', 'started_at', 'completed_at', 'cancelled_at',
     ];
 
@@ -38,6 +40,7 @@ class ProspectingSearchJob extends Model
             'auto_create_unit' => 'boolean',
             'max_cost_rub' => 'decimal:4',
             'approved_at' => 'datetime',
+            'submitted_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
@@ -85,6 +88,11 @@ class ProspectingSearchJob extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_user_id');
+    }
+
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     public function primaryGood(): BelongsTo

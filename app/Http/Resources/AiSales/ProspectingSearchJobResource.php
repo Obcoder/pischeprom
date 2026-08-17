@@ -30,6 +30,17 @@ class ProspectingSearchJobResource extends JsonResource
                 'max_cost_rub' => $this->max_cost_rub,
             ],
             'auto_create_unit' => false,
+            'find_buyers' => [
+                'launch_source' => $this->launch_source_type ? [
+                    'type' => $this->launch_source_type,
+                    'id' => (int) $this->launch_source_id,
+                ] : null,
+                'wizard_version' => $this->wizard_version,
+                'disclosure_policy_hash' => $this->disclosure_policy_hash,
+                'idempotency_key_stored_as_hash' => $this->draft_idempotency_key_hash !== null,
+                'submitted_at' => $this->submitted_at?->toISOString(),
+                'live_execution_allowed' => false,
+            ],
             'execution_available' => $this->searchExecutionAvailable($request),
             'search_discovery' => [
                 'query_planning_enabled' => (bool) config('ai-sales.prospecting.query_planning_enabled', false),

@@ -34,7 +34,12 @@ class ProspectingSearchJobService
         $this->assertModernGoodInputHasProduct($attributes, $productScope, $goodIds);
         $this->assertPublishedProducts($productScope['all']);
         $this->assertPublishedGoods($goodIds);
-        $mapping = $this->mappingSummary($goodIds, $productScope['discovery']);
+        $mapping = $this->mappingSummary(
+            $goodIds,
+            $productScope['discovery'],
+            (bool) ($attributes['explicit_good_product_selection'] ?? false),
+            $productScope['primary'],
+        );
 
         return DB::transaction(function () use ($attributes, $actor, $purpose, $criteria, $safeObjective, $productScope, $goodIds, $mapping): ProspectingSearchJob {
             $job = ProspectingSearchJob::query()->create([
@@ -88,7 +93,12 @@ class ProspectingSearchJobService
         $this->assertModernGoodInputHasProduct($attributes, $productScope, $goodIds, true);
         $this->assertPublishedProducts($productScope['all']);
         $this->assertPublishedGoods($goodIds);
-        $mapping = $this->mappingSummary($goodIds, $productScope['discovery']);
+        $mapping = $this->mappingSummary(
+            $goodIds,
+            $productScope['discovery'],
+            (bool) ($attributes['explicit_good_product_selection'] ?? false),
+            $productScope['primary'],
+        );
 
         return DB::transaction(function () use ($job, $attributes, $purpose, $criteria, $safeObjective, $productScope, $goodIds, $mapping): ProspectingSearchJob {
             $job->fill([
@@ -242,14 +252,20 @@ class ProspectingSearchJobService
         ])->map(fn ($id) => (int) $id)->unique()->take(25)->values()->all();
     }
 
-    private function mappingSummary(array $goodIds, array $selectedProductIds): array
-    {
+    private function mappingSummary(
+        array $goodIds,
+        array $selectedProductIds,
+        bool $explicitProductSelection = false,
+        ?int $primaryProductId = null,
+    ): array {
         if ($goodIds === []) {
             return ['state' => ProductMappingState::NotApplicable, 'reason_code' => null, 'per_good' => []];
         }
         $perGood = [];
         foreach ($goodIds as $goodId) {
-            $perGood[$goodId] = $this->productMappings->state($goodId, $selectedProductIds);
+            $perGood[$goodId] = $explicitProductSelection && $primaryProductId
+                ? $this->productMappings->stateForExplicitProduct($goodId, $primaryProductId)
+                : $this->productMappings->state($goodId, $selectedProductIds);
         }
         $priority = [
             ProductMappingState::MissingProductMapping,
@@ -345,11 +361,20 @@ class ProspectingSearchJobService
 
     private function criteria(array $criteria): array
     {
-        $allowed = collect($criteria)->only(['segments', 'industries', 'categories', 'notes']);
+        $allowed = collect($criteria)->only([
+            'segments', 'industries', 'categories', 'excluded_categories', 'company_types',
+            'max_domains', 'max_page_fetch_attempts', 'notes',
+        ]);
 
         return $allowed->map(function ($value, $key) {
             if ($key === 'notes') {
                 return mb_substr(trim((string) $value), 0, 500);
+            }
+            if ($key === 'max_domains') {
+                return max(1, min((int) $value, (int) config('ai-sales.find_buyers.limits.max_domains', 10)));
+            }
+            if ($key === 'max_page_fetch_attempts') {
+                return max(0, min((int) $value, (int) config('ai-sales.find_buyers.limits.max_page_fetch_attempts', 5)));
             }
 
             return collect((array) $value)->take(25)->map(fn ($item) => mb_substr(trim((string) $item), 0, 120))->filter()->values()->all();
