@@ -8,21 +8,21 @@ No production migration or cleanup is performed by application boot, scheduler, 
 
 ## Verified ingress
 
-`POST /webhooks/unisender-go` has only:
+`POST /webhooks/unisender-go` is registered in a dedicated stateless route file and has only:
 
-1. dedicated burst-aware throttle;
-2. exact `application/json` / identity encoding guard;
-3. 256 KiB encoded body cap;
-4. bounded in-memory JSON parse;
+1. exact `application/json` / identity encoding guard;
+2. 256 KiB encoded body cap;
+3. bounded in-memory JSON parse;
+4. schema and 100-event cap;
 5. documented Unisender auth verification using constant-time comparison;
-6. schema and 100-event cap;
+6. code-owned post-verification rate limit;
 7. allowlisted normalization;
 8. one minimal DB transaction;
 9. ID-only async job dispatch.
 
 The configured provider format is `json_post`; gzip is rejected. The route opts out of cookie, session, CSRF, bindings and Inertia middleware. Provider signature is the authentication boundary; `auth:sanctum` is intentionally not used.
 
-Invalid requests persist nothing and dispatch nothing. Request hashes and event fingerprints provide replay/dedupe without inventing a timestamp window. A duplicate valid request returns safe HTTP 200. The worker uses normalized event rows only, is idempotent, has one try and applies deterministic terminal precedence (`spam` > `unsubscribed` > `hard_bounced`).
+Invalid requests mutate no application DB table, including database cache, session or queue. The post-verification limiter may use the configured cache only after a valid provider signature. Request hashes and event fingerprints provide replay/dedupe without inventing a timestamp window. A duplicate valid request returns safe HTTP 200. The worker uses normalized event rows only, is idempotent, has one try and applies deterministic terminal precedence (`spam` > `unsubscribed` > `hard_bounced`).
 
 ## Normalized schema
 

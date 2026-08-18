@@ -577,26 +577,6 @@ Route::get('/email/open/{token}', [EmailTrackingController::class, 'open'])
 Route::get('/email/click/{token}', [EmailTrackingController::class, 'click'])
     ->name('email.click');
 
-Route::withoutMiddleware([
-    \Illuminate\Cookie\Middleware\EncryptCookies::class,
-    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-    \Illuminate\Session\Middleware\StartSession::class,
-    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-    \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
-    \Illuminate\Routing\Middleware\SubstituteBindings::class,
-    \Laravel\Jetstream\Http\Middleware\ShareInertiaData::class,
-    \App\Http\Middleware\HandleInertiaRequests::class,
-    \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-])->group(function (): void {
-    Route::get('/webhooks/unisender-go', [\App\Http\Controllers\Public\UnisenderWebhookController::class, 'verify'])
-        ->name('webhooks.unisender-go.verify');
-    Route::post('/webhooks/unisender-go', [\App\Http\Controllers\Public\UnisenderWebhookController::class, 'handle'])
-        ->middleware([
-            'throttle:unisender-webhook',
-            \App\Http\Middleware\VerifyUnisenderWebhookRequest::class,
-        ])
-        ->name('webhooks.unisender-go.handle');
-});
 Route::get('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\MailingUnsubscribeController::class, 'show'])
     ->name('mailings.unsubscribe.show');
 Route::post('/mailings/unsubscribe/{token}', [\App\Http\Controllers\Public\MailingUnsubscribeController::class, 'unsubscribe'])

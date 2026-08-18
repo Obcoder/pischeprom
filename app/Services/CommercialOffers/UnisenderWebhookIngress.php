@@ -19,7 +19,7 @@ final class UnisenderWebhookIngress
         private readonly SafeMailProviderIdentifier $identifiers,
     ) {}
 
-    public function verifyAndNormalize(string $rawBody): VerifiedUnisenderWebhookRequest
+    public function authenticate(string $rawBody): AuthenticatedUnisenderWebhookRequest
     {
         try {
             $payload = json_decode($rawBody, true, 32, JSON_THROW_ON_ERROR);
@@ -29,10 +29,6 @@ final class UnisenderWebhookIngress
 
         if (! is_array($payload)) {
             throw new UnisenderWebhookRequestException(MailProviderSafeErrorCode::MalformedPayload, 400);
-        }
-
-        if (! $this->client->verifyWebhookRawBodyWithPayload($rawBody, $payload)) {
-            throw new UnisenderWebhookRequestException(MailProviderSafeErrorCode::InvalidSignature, 403);
         }
 
         $groups = $payload['events_by_user'] ?? null;
@@ -55,11 +51,30 @@ final class UnisenderWebhookIngress
                     throw new UnisenderWebhookRequestException(MailProviderSafeErrorCode::PayloadTooLarge, 413);
                 }
 
-                $events[] = $this->normalizeEvent($event);
+                $events[] = $event;
             }
         }
 
-        return new VerifiedUnisenderWebhookRequest(hash('sha256', $rawBody), $events);
+        if (! $this->client->verifyWebhookRawBodyWithPayload($rawBody, $payload)) {
+            throw new UnisenderWebhookRequestException(MailProviderSafeErrorCode::InvalidSignature, 403);
+        }
+
+        return new AuthenticatedUnisenderWebhookRequest(hash('sha256', $rawBody), $events);
+    }
+
+    public function normalize(AuthenticatedUnisenderWebhookRequest $authenticated): VerifiedUnisenderWebhookRequest
+    {
+        $events = array_map(
+            fn (array $event): NormalizedUnisenderEvent => $this->normalizeEvent($event),
+            $authenticated->providerEvents(),
+        );
+
+        return new VerifiedUnisenderWebhookRequest($authenticated->requestHash, $events);
+    }
+
+    public function verifyAndNormalize(string $rawBody): VerifiedUnisenderWebhookRequest
+    {
+        return $this->normalize($this->authenticate($rawBody));
     }
 
     private function normalizeEvent(array $event): NormalizedUnisenderEvent

@@ -62,9 +62,9 @@ POST /webhooks/unisender-go
 
 GET возвращает `200 OK` для проверки URL. POST принимает только `application/json` без content encoding. Текущая provider-конфигурация использует `event_format=json_post`, поэтому gzip не принимается.
 
-До любой domain-записи запрос проходит dedicated throttle, code-owned лимит encoded body, in-memory JSON parsing, documented Unisender auth verification через `hash_equals`, schema validation и лимит batch. Raw body, parsed provider object, recipient, URL, IP, User-Agent и headers не сохраняются. После успешной проверки сохраняются только request hash, deterministic event fingerprint, allowlisted provider/internal IDs, нормализованные event/status и безопасные timestamps/codes. Worker получает только event IDs, имеет `tries=1` и никогда не читает или не восстанавливает provider body.
+Callback зарегистрирован вне `web`/`api` middleware groups. До подписи выполняются только stateless guards: exact content type/encoding, code-owned encoded body limit, bounded in-memory JSON parsing, schema и batch cap. Затем documented Unisender auth проверяется через `hash_equals`. Только подписанный request допускается к code-owned post-verification limiter; после него выполняются allowlisted normalization, minimal transaction и ID-only queue dispatch. Raw body, parsed provider object, recipient, URL, IP, User-Agent и headers не сохраняются. Worker имеет `tries=1` и никогда не читает или не восстанавливает provider body.
 
-Invalid signature/content/schema создают `0` webhook/event rows и `0` jobs. Повторный valid request или event отвечает безопасным `200`, но не создаёт повторное событие и не применяет его второй раз.
+Invalid signature/content/schema создают `0` записей во всей application DB, включая database cache/session/queue, не устанавливают cookie и не ставят jobs. Повторный valid request или event отвечает безопасным `200`, но не создаёт повторное событие и не применяет его второй раз.
 
 Настройка через команду:
 

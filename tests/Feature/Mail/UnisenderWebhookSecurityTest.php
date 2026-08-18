@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Mail;
 
+use App\Http\Middleware\ThrottleVerifiedUnisenderWebhookRequest;
+use App\Http\Middleware\VerifyUnisenderWebhookRequest;
 use App\Jobs\ProcessUnisenderWebhookJob;
 use App\Models\MailingCampaign;
 use App\Models\MailingCampaignRecipient;
@@ -19,6 +21,7 @@ use App\Services\CommercialOffers\UnisenderGoClient;
 use App\Services\CommercialOffers\UnisenderRequestProfile;
 use App\Services\CommercialOffers\UnisenderWebhookIngress;
 use App\Services\CommercialOffers\UnisenderWebhookService;
+use App\Services\CommercialOffers\VerifiedUnisenderWebhookRateLimiter;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -71,7 +74,7 @@ class UnisenderWebhookSecurityTest extends TestCase
         Http::preventStrayRequests();
         Mail::fake();
         Queue::fake();
-        RateLimiter::clear($this->rateLimitKey('127.0.0.1'));
+        RateLimiter::clear(VerifiedUnisenderWebhookRateLimiter::CACHE_KEY);
     }
 
     public function test_wrong_or_missing_content_type_is_rejected_before_persistence(): void
@@ -561,28 +564,46 @@ class UnisenderWebhookSecurityTest extends TestCase
         $this->assertSame(self::RAW_CANARY, DB::table('mailing_webhook_calls')->value('raw_payload'));
     }
 
-    public function test_dedicated_rate_limit_rejects_safely_before_persistence(): void
+    public function test_dedicated_rate_limit_rejects_safely_only_after_signature_verification(): void
     {
-        $key = $this->rateLimitKey('127.0.0.1');
-        for ($attempt = 0; $attempt < 120; $attempt++) {
-            RateLimiter::hit($key, 60);
+        $limiter = app(VerifiedUnisenderWebhookRateLimiter::class);
+        for ($attempt = 0; $attempt < $limiter->maxAttempts(); $attempt++) {
+            RateLimiter::hit(VerifiedUnisenderWebhookRateLimiter::CACHE_KEY, 60);
         }
 
-        $this->rawPost('{"auth":"invalid"}')
+        $this->rawPost($this->signedBody([$this->event('event-rate-limited', 'delivered')]))
             ->assertStatus(429)
             ->assertJsonPath('code', MailProviderSafeErrorCode::RateLimited->value);
 
         $this->assertNoWebhookMutation();
     }
 
-    public function test_route_registry_has_dedicated_throttle_and_pre_persistence_verifier(): void
+    public function test_exhausted_verified_limiter_does_not_hide_invalid_signature_rejection(): void
+    {
+        $limiter = app(VerifiedUnisenderWebhookRateLimiter::class);
+        for ($attempt = 0; $attempt < $limiter->maxAttempts(); $attempt++) {
+            RateLimiter::hit(VerifiedUnisenderWebhookRateLimiter::CACHE_KEY, 60);
+        }
+
+        $this->rawPost('{"events_by_user":[],"auth":"00000000000000000000000000000000"}')
+            ->assertStatus(403)
+            ->assertJsonPath('code', MailProviderSafeErrorCode::InvalidSignature->value);
+
+        $this->assertNoWebhookMutation();
+    }
+
+    public function test_route_registry_is_stateless_and_orders_signature_before_verified_limiter(): void
     {
         $route = Route::getRoutes()->getByName('webhooks.unisender-go.handle');
         $middleware = $route?->gatherMiddleware() ?? [];
 
         $this->assertNotNull($route);
-        $this->assertContains('throttle:unisender-webhook', $middleware);
-        $this->assertContains(\App\Http\Middleware\VerifyUnisenderWebhookRequest::class, $middleware);
+        $this->assertSame([
+            VerifyUnisenderWebhookRequest::class,
+            ThrottleVerifiedUnisenderWebhookRequest::class,
+        ], array_values($middleware));
+        $this->assertNotContains('web', $middleware);
+        $this->assertNotContains('throttle:unisender-webhook', $middleware);
         $this->assertNotContains('auth:sanctum', $middleware);
         $this->assertNotContains(\Illuminate\Session\Middleware\StartSession::class, $middleware);
         $this->assertNotContains(\Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class, $middleware);
@@ -743,16 +764,5 @@ class UnisenderWebhookSecurityTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-    }
-
-    private function rateLimitKey(string $ip): string
-    {
-        $limitKey = 'unisender-webhook:'.hash_hmac(
-            'sha256',
-            $ip,
-            (string) (config('app.key') ?: 'unisender-webhook-rate-limit'),
-        );
-
-        return md5('unisender-webhook'.$limitKey);
     }
 }

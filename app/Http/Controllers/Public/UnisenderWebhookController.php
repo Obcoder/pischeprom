@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Public;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessUnisenderWebhookJob;
 use App\Models\MailingWebhookCall;
+use App\Services\CommercialOffers\AuthenticatedUnisenderWebhookRequest;
 use App\Services\CommercialOffers\MailProviderSafeErrorCode;
+use App\Services\CommercialOffers\UnisenderWebhookIngress;
 use App\Services\CommercialOffers\UnisenderWebhookPersistenceService;
-use App\Services\CommercialOffers\VerifiedUnisenderWebhookRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -20,16 +21,20 @@ class UnisenderWebhookController extends Controller
         return response()->json(['status' => 'ok', 'provider' => 'unisender_go']);
     }
 
-    public function handle(Request $request, UnisenderWebhookPersistenceService $persistence): JsonResponse
-    {
-        $verified = $request->attributes->get(VerifiedUnisenderWebhookRequest::REQUEST_ATTRIBUTE);
-        if (! $verified instanceof VerifiedUnisenderWebhookRequest) {
+    public function handle(
+        Request $request,
+        UnisenderWebhookIngress $ingress,
+        UnisenderWebhookPersistenceService $persistence,
+    ): JsonResponse {
+        $authenticated = $request->attributes->get(AuthenticatedUnisenderWebhookRequest::REQUEST_ATTRIBUTE);
+        if (! $authenticated instanceof AuthenticatedUnisenderWebhookRequest) {
             return response()->json([
                 'status' => 'rejected',
                 'code' => MailProviderSafeErrorCode::InvalidSignature->value,
             ], 403);
         }
 
+        $verified = $ingress->normalize($authenticated);
         $persisted = $persistence->persist($verified);
 
         if ($persisted->eventIdsToQueue !== []) {

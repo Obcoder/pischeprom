@@ -35,12 +35,12 @@ final class VerifyUnisenderWebhookRequest
         }
 
         try {
-            $verified = $this->ingress->verifyAndNormalize($rawBody);
+            $authenticated = $this->ingress->authenticate($rawBody);
         } catch (UnisenderWebhookRequestException $exception) {
             return $this->reject($exception->safeCode, $exception->httpStatus);
         }
 
-        $request->attributes->set($verified::REQUEST_ATTRIBUTE, $verified);
+        $request->attributes->set($authenticated::REQUEST_ATTRIBUTE, $authenticated);
 
         return $next($request);
     }
