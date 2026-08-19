@@ -15,7 +15,7 @@ use Illuminate\Support\Carbon;
 final class CampaignReviewQueue
 {
     public const CATEGORIES = [
-        'query_plan_review', 'candidate_duplicate_review', 'new_unit_review',
+        'query_plan_review', 'candidate_ingestion_review', 'candidate_duplicate_review', 'new_unit_review',
         'product_match_review', 'outreach_content_review', 'outreach_claim_review',
         'permission_review', 'policy_block', 'provider_error', 'budget_block',
     ];
@@ -108,14 +108,20 @@ final class CampaignReviewQueue
             ->whereIn('status', ['requires_action', 'blocked', 'failed'])->limit($limit)->get()
             ->each(function ($row) use ($campaign, $items, $linksByRun): void {
                 $code = (string) ($row->safe_error_code ?: 'policy_block');
-                $category = str_contains($code, 'budget') ? 'budget_block'
-                    : (str_contains($code, 'provider') || str_contains($code, 'search') ? 'provider_error' : 'policy_block');
+                $candidateIngestionReview = $code === 'candidate_ingestion_review_required';
+                $category = $candidateIngestionReview ? 'candidate_ingestion_review'
+                    : (str_contains($code, 'budget') ? 'budget_block'
+                    : (str_contains($code, 'provider') || str_contains($code, 'search') ? 'provider_error' : 'policy_block'));
+                $link = $linksByRun->get($row->ai_agent_run_id);
                 $items->push($this->item($campaign, $category, 'ai_agent_run_step', $row->id,
-                    null, null, $code, 'Review the safe campaign-stage outcome.', $row->created_at, [
-                        'run_id' => $linksByRun->get($row->ai_agent_run_id)?->run?->public_id,
-                        'step' => $row->sequence,
-                        'safe_evidence' => $row->normalized_output_metadata,
-                    ]));
+                    $candidateIngestionReview ? $link?->prospecting_search_job_id : null,
+                    null, $code, $candidateIngestionReview
+                        ? 'Use the protected manual Candidate ingestion action.'
+                        : 'Review the safe campaign-stage outcome.', $row->created_at, [
+                            'run_id' => $link?->run?->public_id,
+                            'step' => $row->sequence,
+                            'safe_evidence' => $row->normalized_output_metadata,
+                        ]));
             });
 
         return $items->sortBy(fn (array $item) => $item['created_at'])->take($limit)->values()->all();

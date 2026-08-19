@@ -11,11 +11,12 @@ final class ClientAcquisitionCampaignBudgetGuard
 {
     public function assertCanStart(ClientAcquisitionCampaign $campaign): void
     {
+        $this->assertWithinGlobalCeilings($campaign);
+
         $globalActive = (int) config('ai-sales.campaigns.limits.max_active_runs', 0);
         $globalDaily = (int) config('ai-sales.campaigns.limits.max_runs_per_day', 0);
         $globalMonthly = (int) config('ai-sales.campaigns.limits.max_runs_per_month', 0);
-        if ($globalActive < 1 || $globalDaily < 1 || $globalMonthly < 1
-            || $campaign->max_active_runs < 1 || $campaign->max_runs_per_day < 1
+        if ($campaign->max_active_runs < 1 || $campaign->max_runs_per_day < 1
             || $campaign->max_runs_per_month < 1 || $campaign->max_requests_per_run < 1
             || $campaign->max_requests_per_day < 1 || $campaign->max_requests_per_month < 1
             || $campaign->max_tokens_per_run < 1 || $campaign->max_tokens_per_day < 1
@@ -59,6 +60,8 @@ final class ClientAcquisitionCampaignBudgetGuard
 
     public function assertRunWithinBudget(ClientAcquisitionCampaign $campaign, AiAgentRun $run): void
     {
+        $this->assertWithinGlobalCeilings($campaign);
+
         $runIds = $campaign->runLinks()->pluck('ai_agent_run_id');
         $day = AiAgentRun::query()->whereIn('id', $runIds)->where('created_at', '>=', now()->startOfDay());
         $month = AiAgentRun::query()->whereIn('id', $runIds)->where('created_at', '>=', now()->startOfMonth());
@@ -75,6 +78,47 @@ final class ClientAcquisitionCampaignBudgetGuard
             || (float) (clone $day)->sum('accumulated_cost_rub') > (float) $campaign->max_cost_rub_per_day
             || (float) (clone $month)->sum('accumulated_cost_rub') > (float) $campaign->max_cost_rub_per_month) {
             throw new PolicyViolation('campaign_run_budget_exceeded', 'Campaign run exceeded a frozen budget.');
+        }
+    }
+
+    private function assertWithinGlobalCeilings(ClientAcquisitionCampaign $campaign): void
+    {
+        $global = [
+            'active_runs' => (int) config('ai-sales.campaigns.limits.max_active_runs', 0),
+            'runs_per_day' => (int) config('ai-sales.campaigns.limits.max_runs_per_day', 0),
+            'runs_per_month' => (int) config('ai-sales.campaigns.limits.max_runs_per_month', 0),
+            'search_requests_per_run' => (int) config('ai-sales.campaigns.limits.max_search_requests_per_run', 0),
+            'search_results_per_run' => (int) config('ai-sales.campaigns.limits.max_search_results_per_run', 0),
+            'research_pages_per_run' => (int) config('ai-sales.campaigns.limits.max_research_pages_per_run', 0),
+            'domains_per_run' => (int) config('ai-sales.campaigns.limits.max_domains_per_run', 0),
+            'candidates_per_run' => (int) config('ai-sales.campaigns.limits.max_candidates_per_run', 0),
+        ];
+        if (collect($global)->contains(fn (int $value): bool => $value < 1)) {
+            throw new PolicyViolation('campaign_budget_missing', 'Campaign ceilings are missing or zero.');
+        }
+
+        $criteria = $campaign->criteria_snapshot ?? [];
+        $resultsPerQuery = (int) ($criteria['max_results_per_query'] ?? 0);
+        $domainsPerRun = (int) ($criteria['max_domains'] ?? 0);
+        $pageFetchAttempts = (int) ($criteria['max_page_fetch_attempts'] ?? 0);
+        $searchResultsPerRun = (int) $campaign->max_search_requests_per_run * $resultsPerQuery;
+        if ((int) $campaign->max_search_requests_per_run < 1
+            || (int) $campaign->max_research_pages_per_run < 1
+            || (int) $campaign->max_candidates_per_run < 1
+            || $resultsPerQuery < 1 || $domainsPerRun < 1 || $pageFetchAttempts < 1) {
+            throw new PolicyViolation('campaign_budget_missing', 'Campaign run scope is missing or zero.');
+        }
+
+        if ((int) $campaign->max_active_runs > $global['active_runs']
+            || (int) $campaign->max_runs_per_day > $global['runs_per_day']
+            || (int) $campaign->max_runs_per_month > $global['runs_per_month']
+            || (int) $campaign->max_search_requests_per_run > $global['search_requests_per_run']
+            || $searchResultsPerRun > $global['search_results_per_run']
+            || (int) $campaign->max_research_pages_per_run > $global['research_pages_per_run']
+            || $pageFetchAttempts > $global['research_pages_per_run']
+            || $domainsPerRun > $global['domains_per_run']
+            || (int) $campaign->max_candidates_per_run > $global['candidates_per_run']) {
+            throw new PolicyViolation('campaign_budget_exceeds_global', 'Campaign run scope exceeds code-owned global ceilings.');
         }
     }
 }

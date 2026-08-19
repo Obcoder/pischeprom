@@ -3,12 +3,14 @@
 namespace App\Domain\AiSales\Campaigns;
 
 use App\Domain\AiSales\Campaigns\Contracts\ClientAcquisitionCampaignStageProcessorInterface;
+use App\Domain\AiSales\Campaigns\Enums\ClientAcquisitionAutomationMode;
 use App\Domain\AiSales\Enums\ProspectingCandidateStatus;
 use App\Domain\AiSales\Exceptions\PolicyViolation;
 use App\Domain\AiSales\Scoring\ProspectingScoreRecalculationService;
 use App\Domain\AiSales\Services\ExecuteProspectingSearchJob;
 use App\Domain\AiSales\Services\IngestProspectingSearchCandidate;
 use App\Domain\AiSales\Services\PlanProspectingQueries;
+use App\Domain\AiSales\Services\ProspectingFeatureGuard;
 use App\Domain\AiSales\Services\ResolveProspectingCandidate;
 use App\Domain\AiSales\Web\SafePublicPageFetcher;
 use App\Domain\AiSales\Workflows\PublicCompanyResearchWorkflow;
@@ -30,6 +32,7 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
         private readonly ExecuteProspectingSearchJob $searchExecution,
         private readonly SafePublicPageFetcher $fetcher,
         private readonly PublicCompanyResearchWorkflow $research,
+        private readonly ProspectingFeatureGuard $prospectingFeatures,
         private readonly IngestProspectingSearchCandidate $ingest,
         private readonly ResolveProspectingCandidate $resolution,
         private readonly ProspectingScoreRecalculationService $scoring,
@@ -174,8 +177,43 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
 
     private function ingest(ClientAcquisitionCampaign $campaign, AiAgentRun $run, User $actor): ClientAcquisitionCampaignStageOutcome
     {
-        $this->features->autoIngest();
         $job = $this->job($run);
+        $candidateCount = $job->candidates()->count();
+        if ($campaign->automation_mode !== ClientAcquisitionAutomationMode::AutonomousReviewed) {
+            if ($candidateCount > 0) {
+                return ClientAcquisitionCampaignStageOutcome::completed([
+                    'created' => 0, 'candidates' => $candidateCount, 'manual_ingestion' => true, 'retries' => 0,
+                ]);
+            }
+
+            return ClientAcquisitionCampaignStageOutcome::requiresAction(
+                'candidate_ingestion_review_required',
+                'Protected manual Candidate ingestion is required before the campaign can continue.',
+                [
+                    'reviewable_results' => $job->searchResults()->whereNull('duplicate_of_id')
+                        ->whereNull('prospecting_candidate_id')->where('fetch_status', 'completed')->count(),
+                    'candidates' => 0,
+                    'automatic_ingestion' => false,
+                    'retries' => 0,
+                ],
+            );
+        }
+        if (! (bool) config('ai-sales.campaigns.auto_ingest_enabled', false)) {
+            return ClientAcquisitionCampaignStageOutcome::blocked(
+                'campaign_auto_ingest_disabled',
+                'Autonomous-reviewed Candidate ingestion is disabled.',
+            );
+        }
+
+        $this->features->autoIngest();
+        try {
+            $this->prospectingFeatures->candidateImport();
+        } catch (Throwable) {
+            return ClientAcquisitionCampaignStageOutcome::blocked(
+                'campaign_candidate_ingestion_policy_blocked',
+                'Autonomous-reviewed Candidate ingestion failed a required feature or policy guard.',
+            );
+        }
         $remaining = max(0, min((int) $campaign->max_candidates_per_run, (int) $job->max_candidates) - $job->candidates()->count());
         $created = 0;
         foreach ($job->searchResults()->whereNull('duplicate_of_id')->whereNull('prospecting_candidate_id')
@@ -184,7 +222,11 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
                 $this->ingest->handle($result, $actor);
                 $created++;
             } catch (Throwable) {
-                // The safe source record remains available to the review queue; no retry is attempted.
+                return ClientAcquisitionCampaignStageOutcome::blocked(
+                    'campaign_candidate_ingestion_policy_blocked',
+                    'Autonomous-reviewed Candidate ingestion failed a required DLP, dedupe, evidence or approval guard.',
+                    ['created' => $created, 'candidates' => $job->candidates()->count(), 'retries' => 0],
+                );
             }
         }
 
