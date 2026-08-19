@@ -19,11 +19,51 @@ use App\Models\ProspectingSearchResult;
 use App\Models\ProspectingSearchUsageRecord;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 
 final class Stage14ActivationCResumeTest extends Stage14TestCase
 {
+    public function test_find_buyers_read_projections_coexist_with_production_shaped_activation_c_state(): void
+    {
+        [$actor, $campaign, $run, $job] = $this->activationCFixture([
+            'completed',
+            'completed',
+            'page_dtd_blocked',
+        ]);
+        Http::fake();
+        $before = $this->sideEffectCounts($job);
+        $productId = (int) $campaign->products()->wherePivot('role', 'primary')->value('products.id');
+
+        $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/dashboard?limit=25')
+            ->assertOk()
+            ->assertJsonPath('data.runtime.search_execution_enabled', true)
+            ->assertJsonPath('data.live_execution_action_available', false)
+            ->assertJsonFragment(['id' => $job->public_id]);
+        $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/launch-context?source_type=product&source_id='.$productId)
+            ->assertOk()
+            ->assertJsonPath('data.runtime.search_execution_enabled', true)
+            ->assertJsonPath('data.runtime.live_execution_allowed', false);
+        $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/jobs/'.$job->public_id.'/progress')
+            ->assertOk()
+            ->assertJsonPath('data.counts.executions.total', 1)
+            ->assertJsonPath('data.counts.executions.request_count', 1)
+            ->assertJsonPath('data.counts.results.total', 10)
+            ->assertJsonPath('data.counts.fetches.total', 3)
+            ->assertJsonPath('data.counts.research.total', 0);
+        $this->actingAs($actor)->getJson('/api/ai-sales/prospecting/jobs/'.$job->public_id.'/search')
+            ->assertOk()
+            ->assertJsonCount(10, 'data.results');
+
+        $this->assertSame($before, $this->sideEffectCounts($job));
+        $this->assertSame(AiRunStatus::RequiresAction, $run->fresh()->status);
+        $this->assertSame('public_research_review_required', $run->fresh()->safe_error_code);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
     public function test_production_shaped_activation_c_resume_reuses_search_and_reaches_idempotent_ingestion_review(): void
     {
         [$actor, $campaign, $run, $job] = $this->activationCFixture([

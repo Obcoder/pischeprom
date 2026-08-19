@@ -3,7 +3,7 @@
 namespace App\Domain\AiSales\FindBuyers;
 
 use App\Domain\AiSales\Services\ProspectingFeatureGuard;
-use LogicException;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class FindBuyersFeatureGuard
@@ -14,7 +14,7 @@ final class FindBuyersFeatureGuard
     {
         $this->prospecting->jobs();
         $this->enabled('ui_enabled');
-        $this->assertStage11ExecutionIsOff();
+        $this->assertBrowserAutomationIsOff();
     }
 
     public function drafts(): void
@@ -29,28 +29,28 @@ final class FindBuyersFeatureGuard
         $this->prospecting->queryPlanning();
     }
 
-    public function assertStage11ExecutionIsOff(): void
+    public function assertBrowserAutomationIsOff(): void
     {
+        // These flags would turn the Find Buyers browser workflow itself into an
+        // execution or automation surface. Protected server-side Campaign search,
+        // fetch and research flags are intentionally independent of read projections.
         $unsafe = [
             'find_buyers.live_execution_enabled',
             'find_buyers.auto_research_enabled',
             'find_buyers.auto_scoring_enabled',
-            'prospecting.search_execution_enabled',
-            'prospecting.page_fetch_enabled',
-            'prospecting.public_research_enabled',
             'prospecting.auto_candidate_ingestion_enabled',
             'prospecting.auto_scoring_enabled',
         ];
 
         foreach ($unsafe as $key) {
             if ((bool) config("ai-sales.{$key}", false)) {
-                throw new LogicException("Stage 11 is code-only; {$key} must remain disabled.");
+                throw new ConflictHttpException('find_buyers_browser_automation_conflict');
             }
         }
 
         if ((bool) config('ai-sales.external_calls_enabled', false)
             || (bool) config('ai-sales.provider_failover_enabled', false)) {
-            throw new LogicException('Stage 11 external calls and provider failover must remain disabled.');
+            throw new ConflictHttpException('find_buyers_runtime_safety_conflict');
         }
     }
 

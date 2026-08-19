@@ -8,7 +8,9 @@ use App\Models\Entity;
 use App\Models\Good;
 use App\Models\Product;
 use App\Models\ProspectingCandidate;
+use App\Models\ProspectingSearchExecution;
 use App\Models\Unit;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -192,7 +194,111 @@ class FindBuyersLaunchAndWorkflowTest extends Stage11TestCase
             ->assertNotFound();
         config()->set(['ai-sales.find_buyers.ui_enabled' => true, 'ai-sales.prospecting.search_execution_enabled' => true]);
         $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/launch-context?source_type=product&source_id='.$product->id)
-            ->assertServerError();
+            ->assertOk()
+            ->assertJsonPath('data.runtime.search_execution_enabled', true)
+            ->assertJsonPath('data.runtime.live_execution_allowed', false);
+        Http::assertNothingSent();
+    }
+
+    public function test_ui_and_assisted_search_execution_coexistence_matrix_is_read_only_and_fail_closed(): void
+    {
+        Http::fake();
+        Bus::fake();
+        $actor = $this->prospectingUser();
+        $product = $this->product('Coexistence Product');
+        $draft = $this->actingAs($actor)->postJson('/api/ai-sales/find-buyers/drafts', [
+            'source_type' => 'product',
+            'source_id' => $product->id,
+            'idempotency_key' => (string) Str::uuid(),
+        ])->assertCreated();
+        $jobId = $draft->json('data.id');
+        $before = [
+            'executions' => ProspectingSearchExecution::query()->count(),
+            'candidates' => ProspectingCandidate::query()->count(),
+            'units' => Unit::query()->count(),
+            'entities' => Entity::query()->without(['buildings', 'classification', 'country'])->count(),
+        ];
+
+        // UI-only mode remains available while execution is disabled.
+        $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/dashboard?limit=25')
+            ->assertOk()
+            ->assertJsonPath('data.runtime.search_execution_enabled', false)
+            ->assertJsonPath('data.live_execution_action_available', false);
+        $this->actingAs($actor)
+            ->postJson("/api/ai-sales/prospecting/jobs/{$jobId}/search-execute", [])
+            ->assertNotFound();
+
+        // Server-side assisted execution may be enabled, but a Find Buyers browser
+        // job still cannot use the generic execution action.
+        config()->set([
+            'ai-sales.web_search_enabled' => true,
+            'ai-sales.prospecting.search_execution_enabled' => true,
+            'ai-sales.prospecting.existing_yandex_provider_enabled' => true,
+        ]);
+        $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/dashboard?limit=25')
+            ->assertOk()
+            ->assertJsonPath('data.runtime.search_execution_enabled', true)
+            ->assertJsonPath('data.live_execution_action_available', false);
+        $this->actingAs($actor)
+            ->postJson("/api/ai-sales/prospecting/jobs/{$jobId}/search-execute", [])
+            ->assertForbidden();
+        $this->actingAs($actor)->postJson("/api/ai-sales/prospecting/jobs/{$jobId}/search-execute", [
+            'query' => 'browser supplied query',
+            'provider' => 'browser-provider',
+            'model' => 'browser-model',
+            'url' => 'https://example.org',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['query', 'provider', 'model', 'url']);
+
+        // Bounded server-side research flags can coexist with read projections;
+        // they do not add a browser execution action.
+        config()->set([
+            'ai-sales.prospecting.page_fetch_enabled' => true,
+            'ai-sales.prospecting.public_research_enabled' => true,
+        ]);
+        $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/dashboard?limit=25')
+            ->assertOk()
+            ->assertJsonPath('data.live_execution_action_available', false);
+
+        $this->assertSame($before, [
+            'executions' => ProspectingSearchExecution::query()->count(),
+            'candidates' => ProspectingCandidate::query()->count(),
+            'units' => Unit::query()->count(),
+            'entities' => Entity::query()->without(['buildings', 'classification', 'country'])->count(),
+        ]);
+        Bus::assertNothingDispatched();
+        Http::assertNothingSent();
+    }
+
+    public function test_disabled_and_browser_automation_conflicts_return_safe_non_500_responses(): void
+    {
+        Http::fake();
+        $actor = $this->prospectingUser();
+
+        config()->set('ai-sales.find_buyers.ui_enabled', false);
+        $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/dashboard')->assertNotFound();
+        config()->set('ai-sales.find_buyers.ui_enabled', true);
+
+        foreach ([
+            'ai-sales.find_buyers.live_execution_enabled',
+            'ai-sales.find_buyers.auto_research_enabled',
+            'ai-sales.find_buyers.auto_scoring_enabled',
+            'ai-sales.prospecting.auto_candidate_ingestion_enabled',
+            'ai-sales.prospecting.auto_scoring_enabled',
+        ] as $key) {
+            config()->set($key, true);
+            $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/dashboard')
+                ->assertConflict()
+                ->assertJsonPath('message', 'find_buyers_browser_automation_conflict');
+            config()->set($key, false);
+        }
+
+        foreach (['ai-sales.external_calls_enabled', 'ai-sales.provider_failover_enabled'] as $key) {
+            config()->set($key, true);
+            $this->actingAs($actor)->getJson('/api/ai-sales/find-buyers/dashboard')
+                ->assertConflict()
+                ->assertJsonPath('message', 'find_buyers_runtime_safety_conflict');
+            config()->set($key, false);
+        }
         Http::assertNothingSent();
     }
 

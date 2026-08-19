@@ -32,8 +32,15 @@ class Stage11DefaultOffAndCliTest extends TestCase
             $this->assertContains('verified', $middleware);
             $this->assertContains('throttle:ai-sales', $middleware);
         }
+        $campaignRun = app('router')->getRoutes()->getByName('api.ai-sales.campaigns.run');
+        $this->assertNotNull($campaignRun);
+        $campaignMiddleware = $campaignRun->gatherMiddleware();
+        foreach (['auth:sanctum', 'verified', 'throttle:ai-sales', 'throttle:ai-sales-campaigns'] as $middleware) {
+            $this->assertContains($middleware, $campaignMiddleware);
+        }
         $routes = file_get_contents(base_path('routes/api.php'));
         $this->assertStringNotContainsString('find-buyers/jobs/{prospectingSearchJob}/execute', $routes);
+        $this->assertStringNotContainsString('find-buyers/jobs/{prospectingSearchJob}/live', $routes);
     }
 
     public function test_existing_product_yandex_card_is_not_duplicated_by_find_buyers_ui(): void
