@@ -29,7 +29,8 @@ return new class extends Migration
             $table->id();
             $table->uuid('public_id')->unique();
             $table->foreignId('prospecting_search_job_id')->constrained('prospecting_search_jobs')->restrictOnDelete();
-            $table->foreignId('prospecting_search_query_id')->constrained('prospecting_search_queries')->restrictOnDelete();
+            $table->foreignId('prospecting_search_query_id')
+                ->constrained('prospecting_search_queries', indexName: 'ps_executions_query_fk')->restrictOnDelete();
             $table->foreignId('initiated_by')->constrained('users')->restrictOnDelete();
             $table->string('profile_code', 64);
             $table->string('provider_code', 64);
@@ -62,7 +63,8 @@ return new class extends Migration
         Schema::create('prospecting_search_results', function (Blueprint $table): void {
             $table->id();
             $table->uuid('public_id')->unique();
-            $table->foreignId('prospecting_search_execution_id')->constrained('prospecting_search_executions')->restrictOnDelete();
+            $table->foreignId('prospecting_search_execution_id')
+                ->constrained('prospecting_search_executions', indexName: 'ps_results_execution_fk')->restrictOnDelete();
             $table->foreignId('prospecting_search_job_id')->constrained('prospecting_search_jobs')->restrictOnDelete();
             $table->foreignId('prospecting_search_query_id')->constrained('prospecting_search_queries')->restrictOnDelete();
             $table->unsignedSmallInteger('rank');
@@ -99,8 +101,8 @@ return new class extends Migration
 
         Schema::create('prospecting_search_usage_records', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('prospecting_search_execution_id')->unique()
-                ->constrained('prospecting_search_executions')->restrictOnDelete();
+            $table->foreignId('prospecting_search_execution_id')->unique('ps_usage_execution_unique')
+                ->constrained('prospecting_search_executions', indexName: 'ps_usage_execution_fk')->restrictOnDelete();
             $table->string('provider_code', 64);
             $table->string('profile_code', 64);
             $table->unsignedSmallInteger('request_count')->default(0);
@@ -143,8 +145,8 @@ return new class extends Migration
 
         Schema::create('prospecting_public_research_records', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('prospecting_search_result_id')->unique()
-                ->constrained('prospecting_search_results')->restrictOnDelete();
+            $table->foreignId('prospecting_search_result_id')->unique('ps_research_result_unique')
+                ->constrained('prospecting_search_results', indexName: 'ps_research_result_fk')->restrictOnDelete();
             $table->string('workflow_code', 96);
             $table->string('workflow_version', 32);
             $table->char('workflow_hash', 64);

@@ -42,7 +42,8 @@ return new class extends Migration
 
         Schema::create('communication_permission_evidence', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('communication_permission_id')->constrained('communication_permissions')->restrictOnDelete();
+            $table->foreignId('communication_permission_id')
+                ->constrained('communication_permissions', indexName: 'comm_perm_evidence_permission_fk')->restrictOnDelete();
             $table->string('evidence_type', 48);
             $table->string('safe_reference', 512);
             $table->char('content_hash', 64);
@@ -61,7 +62,8 @@ return new class extends Migration
 
         Schema::create('communication_permission_decisions', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('communication_permission_id')->constrained('communication_permissions')->restrictOnDelete();
+            $table->foreignId('communication_permission_id')
+                ->constrained('communication_permissions', indexName: 'comm_perm_decisions_permission_fk')->restrictOnDelete();
             $table->string('from_status', 24)->nullable();
             $table->string('to_status', 24);
             $table->string('reason_code', 64);
@@ -104,7 +106,8 @@ return new class extends Migration
 
         Schema::create('communication_suppression_decisions', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('communication_suppression_id')->constrained('communication_suppressions')->restrictOnDelete();
+            $table->foreignId('communication_suppression_id')
+                ->constrained('communication_suppressions', indexName: 'comm_supp_decisions_suppression_fk')->restrictOnDelete();
             $table->string('action', 24);
             $table->string('reason_code', 64);
             $table->string('safe_note', 500)->nullable();

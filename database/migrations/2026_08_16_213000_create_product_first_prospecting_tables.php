@@ -10,7 +10,8 @@ return new class extends Migration
     {
         Schema::create('prospecting_search_job_products', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('prospecting_search_job_id')->constrained('prospecting_search_jobs')->restrictOnDelete();
+            $table->foreignId('prospecting_search_job_id')
+                ->constrained('prospecting_search_jobs', indexName: 'ps_job_products_job_fk')->restrictOnDelete();
             $table->foreignId('product_id')->constrained('products')->restrictOnDelete();
             $table->string('role', 16);
             $table->string('source_origin', 32)->default('manual_review');

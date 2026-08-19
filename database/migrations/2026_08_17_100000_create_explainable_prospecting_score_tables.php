@@ -12,7 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('unit_product_match_id')->constrained('unit_product_matches')->restrictOnDelete();
             $table->foreignId('unit_id')->constrained('units')->restrictOnDelete();
-            $table->foreignId('unit_business_context_id')->constrained('unit_business_contexts')->restrictOnDelete();
+            $table->foreignId('unit_business_context_id')
+                ->constrained('unit_business_contexts', indexName: 'upr_snapshots_context_fk')->restrictOnDelete();
             $this->snapshotColumns($table, 'product_relevance');
             $table->foreign('base_snapshot_id', 'product_relevance_base_fk')->references('id')->on('unit_product_relevance_snapshots')->restrictOnDelete();
             $table->foreign('superseded_by_snapshot_id', 'product_relevance_superseded_fk')->references('id')->on('unit_product_relevance_snapshots')->restrictOnDelete();
@@ -22,7 +23,8 @@ return new class extends Migration
 
         Schema::create('unit_product_relevance_factors', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('unit_product_relevance_snapshot_id')->constrained('unit_product_relevance_snapshots')->restrictOnDelete();
+            $table->foreignId('unit_product_relevance_snapshot_id')
+                ->constrained('unit_product_relevance_snapshots', indexName: 'upr_factors_snapshot_fk')->restrictOnDelete();
             $this->factorColumns($table, 'product_relevance');
             $table->unique(['unit_product_relevance_snapshot_id', 'factor_code'], 'product_relevance_factor_unique');
         });
@@ -49,7 +51,8 @@ return new class extends Migration
 
         Schema::create('unit_prospect_priority_snapshots', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('unit_business_context_id')->constrained('unit_business_contexts')->restrictOnDelete();
+            $table->foreignId('unit_business_context_id')
+                ->constrained('unit_business_contexts', indexName: 'upp_snapshots_context_fk')->restrictOnDelete();
             $table->foreignId('unit_id')->constrained('units')->restrictOnDelete();
             $this->snapshotColumns($table, 'prospect_priority');
             $table->foreign('base_snapshot_id', 'prospect_priority_base_fk')->references('id')->on('unit_prospect_priority_snapshots')->restrictOnDelete();
@@ -60,7 +63,8 @@ return new class extends Migration
 
         Schema::create('unit_prospect_priority_factors', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('unit_prospect_priority_snapshot_id')->constrained('unit_prospect_priority_snapshots')->restrictOnDelete();
+            $table->foreignId('unit_prospect_priority_snapshot_id')
+                ->constrained('unit_prospect_priority_snapshots', indexName: 'upp_factors_snapshot_fk')->restrictOnDelete();
             $this->factorColumns($table, 'prospect_priority');
             $table->unique(['unit_prospect_priority_snapshot_id', 'factor_code'], 'prospect_priority_factor_unique');
         });
