@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import FindBuyersDashboard from '@/Components/AiSales/FindBuyersDashboard.vue'
+import ClientAcquisitionCampaignDashboard from '@/Components/AiSales/ClientAcquisitionCampaignDashboard.vue'
 
 const tab = ref('jobs')
 const loading = ref(false)
@@ -141,6 +142,7 @@ onMounted(load)
 <template>
     <div id="prospecting-review">
     <FindBuyersDashboard />
+    <ClientAcquisitionCampaignDashboard />
     <v-card variant="outlined" class="prospecting-review">
         <v-card-title class="d-flex align-center ga-3">
             <span>AI-поиск покупателей</span>

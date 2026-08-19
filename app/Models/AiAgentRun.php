@@ -13,6 +13,7 @@ use App\Domain\AiSales\Enums\UnitRoleCode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class AiAgentRun extends Model
 {
@@ -97,5 +98,10 @@ class AiAgentRun extends Model
     public function toolCalls(): HasMany
     {
         return $this->hasMany(AiToolCall::class);
+    }
+
+    public function clientAcquisitionCampaignLink(): HasOne
+    {
+        return $this->hasOne(ClientAcquisitionCampaignRunLink::class, 'ai_agent_run_id');
     }
 }

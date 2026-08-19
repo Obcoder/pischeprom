@@ -11,6 +11,8 @@ use App\Domain\AiPriceLists\Providers\YandexAiStudioProvider;
 use App\Domain\AiPriceLists\Providers\YandexVisionOcrProvider;
 use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
 use App\Domain\AiPriceLists\Services\NullFileScanner;
+use App\Domain\AiSales\Campaigns\Contracts\ClientAcquisitionCampaignStageProcessorInterface;
+use App\Domain\AiSales\Campaigns\DefaultClientAcquisitionCampaignStageProcessor;
 use App\Domain\AiSales\Contracts\EntityCreateLinkGuard;
 use App\Domain\AiSales\Contracts\GitRepositoryStateInspectorInterface;
 use App\Domain\AiSales\Providers\AiProviderRegistry;
@@ -38,6 +40,7 @@ use App\Models\BankAuditEvent;
 use App\Models\BankConnection;
 use App\Models\BankPaymentOrderDraft;
 use App\Models\BankTransaction;
+use App\Models\ClientAcquisitionCampaign;
 use App\Models\CommunicationPermission;
 use App\Models\CommunicationSuppression;
 use App\Models\EntityCandidateProposal;
@@ -66,6 +69,7 @@ use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
 use App\Policies\AiSales\AiAgentDefinitionPolicy;
 use App\Policies\AiSales\AiAgentRunPolicy;
+use App\Policies\AiSales\ClientAcquisitionCampaignPolicy;
 use App\Policies\AiSales\CommunicationPermissionPolicy;
 use App\Policies\AiSales\CommunicationSuppressionPolicy;
 use App\Policies\AiSales\EntityCandidateProposalPolicy;
@@ -112,6 +116,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AvitoApiCatalog::class);
         $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
         $this->app->bind(GitRepositoryStateInspectorInterface::class, RealGitRepositoryStateInspector::class);
+        $this->app->bind(ClientAcquisitionCampaignStageProcessorInterface::class, DefaultClientAcquisitionCampaignStageProcessor::class);
         $this->app->singleton(AiToolRegistry::class);
         $this->app->singleton(AiWorkflowRegistry::class);
         $this->app->singleton(SearchProviderRegistry::class, function ($app): SearchProviderRegistry {
@@ -180,6 +185,8 @@ class AppServiceProvider extends ServiceProvider
             max(1, (int) config('ai-price-lists.ai.requests_per_minute', 30))
         )->by('yandex-price-list-ai'));
         RateLimiter::for('ai-sales', fn (Request $request) => Limit::perMinute(30)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('ai-sales-campaigns', fn (Request $request) => Limit::perMinute(20)
             ->by((string) ($request->user()?->id ?? $request->ip())));
         RateLimiter::for('mail-send', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->id ?? $request->ip())));
@@ -287,6 +294,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(OutreachReplyLink::class, OutreachReplyLinkPolicy::class);
         Gate::policy(CommunicationPermission::class, CommunicationPermissionPolicy::class);
         Gate::policy(CommunicationSuppression::class, CommunicationSuppressionPolicy::class);
+        Gate::policy(ClientAcquisitionCampaign::class, ClientAcquisitionCampaignPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

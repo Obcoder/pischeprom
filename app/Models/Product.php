@@ -102,6 +102,16 @@ class Product extends Model
             ->withTimestamps();
     }
 
+    public function clientAcquisitionCampaigns(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ClientAcquisitionCampaign::class,
+            'ai_sales_campaign_products',
+            'product_id',
+            'ai_sales_campaign_id',
+        )->withPivot(['role', 'source_origin'])->withTimestamps();
+    }
+
     public function unitProductMatches(): HasMany
     {
         return $this->hasMany(UnitProductMatch::class);

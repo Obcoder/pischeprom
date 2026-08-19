@@ -2,6 +2,8 @@
 
 namespace App\Domain\AiSales\Services;
 
+use App\Domain\AiSales\Campaigns\AutonomousUnitCreationPolicy;
+use App\Domain\AiSales\Campaigns\ClientAcquisitionCampaignAuthorizationService;
 use App\Domain\AiSales\DTO\Prospecting\CandidateResolutionDecision;
 use App\Domain\AiSales\Enums\CandidateProductStatus;
 use App\Domain\AiSales\Enums\CandidateResolutionOutcome;
@@ -15,6 +17,7 @@ use App\Domain\AiSales\Enums\UnitContextStatus;
 use App\Domain\AiSales\Enums\UnitGoodMatchOrigin;
 use App\Domain\AiSales\Enums\UnitProductMatchOrigin;
 use App\Domain\AiSales\Enums\UnitVisibilityScope;
+use App\Models\ClientAcquisitionCampaign;
 use App\Models\Email;
 use App\Models\ProspectingCandidate;
 use App\Models\Telephone;
@@ -26,6 +29,7 @@ use App\Models\UnitSource;
 use App\Models\Uri;
 use App\Models\User;
 use DomainException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -44,6 +48,8 @@ class ResolveProspectingCandidate
         private readonly UnitGoodMatchService $goodMatches,
         private readonly GoodProductMappingResolver $productMappings,
         private readonly UnitDossierAuditLogger $audit,
+        private readonly AutonomousUnitCreationPolicy $autonomousUnitPolicy,
+        private readonly ClientAcquisitionCampaignAuthorizationService $campaignAuthorization,
     ) {}
 
     public function evaluate(ProspectingCandidate $candidate, User $actor): CandidateResolutionDecision
@@ -138,30 +144,37 @@ class ResolveProspectingCandidate
                 throw ValidationException::withMessages(['rate' => 'Daily reviewed Unit creation limit reached.']);
             }
 
-            $unit = Unit::query()->create([
-                'name' => mb_substr($locked->working_name ?: (string) $locked->normalized_domain, 0, 255),
-                'is_customer' => false,
-                'is_supplier' => false,
-            ]);
-            $context = $this->ensureContext($unit, $locked, $actor);
-            $this->transferDossier($locked, $unit, $context, $actor);
-            $locked->update([
-                'status' => ProspectingCandidateStatus::NewUnitCreated,
-                'resolution_outcome' => CandidateResolutionOutcome::NewUnitAllowed,
-                'resolved_unit_id' => $unit->id,
-                'reviewed_by' => $actor->id,
-                'reviewed_at' => now(),
-                'resolution_reason_code' => 'human_approved_new_unit',
-                'lock_version' => $locked->lock_version + 1,
-                'expires_at' => now()->addDays((int) config('ai-sales.prospecting.retention.resolved_days', 14)),
-            ]);
-            $this->audit->record($unit, 'prospecting.candidate.created_unit', 'После human review создано рабочее досье Unit; Entity не создавалась.', $actor, $context, 'prospecting_candidate', $locked->id, [
-                'candidate_public_id' => $locked->public_id,
-                'entity_mutation' => false,
-            ]);
-
-            return $unit->fresh();
+            return $this->persistNewUnit($locked, $actor, 'human_approved_new_unit', false);
         }, 3);
+    }
+
+    public function createNewUnitAutonomously(
+        ProspectingCandidate $candidate,
+        ClientAcquisitionCampaign $campaign,
+        User $actor,
+    ): Unit {
+        $this->features->dossier();
+        $this->campaignAuthorization->authorize($actor, ClientAcquisitionCampaignAuthorizationService::OPERATE);
+
+        return Cache::lock('ai-sales:auto-unit:'.$candidate->fingerprint_hash, 15)->block(3, function () use ($candidate, $campaign, $actor): Unit {
+            return DB::transaction(function () use ($candidate, $campaign, $actor): Unit {
+                $locked = ProspectingCandidate::query()->lockForUpdate()->findOrFail($candidate->id);
+                if ($locked->status === ProspectingCandidateStatus::NewUnitCreated && $locked->resolved_unit_id) {
+                    return Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])->findOrFail($locked->resolved_unit_id);
+                }
+                if ($locked->status->terminal()) {
+                    throw new DomainException('Candidate already has a terminal resolution.');
+                }
+                $this->assertApprovedJob($locked);
+                $decision = $this->resolver->evaluate($locked);
+                if ($decision->outcome !== CandidateResolutionOutcome::NewUnitAllowed) {
+                    throw ValidationException::withMessages(['candidate' => 'Final duplicate recheck blocked autonomous Unit creation.']);
+                }
+                $this->autonomousUnitPolicy->assertEligible($campaign->fresh(), $locked->fresh());
+
+                return $this->persistNewUnit($locked->fresh(), $actor, 'autonomous_unit_creation_v1', true);
+            }, 3);
+        });
     }
 
     public function reject(ProspectingCandidate $candidate, User $actor, string $reasonCode): ProspectingCandidate
@@ -214,6 +227,51 @@ class ResolveProspectingCandidate
             'owner_user_id' => $actor->id,
             'source' => 'prospecting_stage08r_product_first',
         ], $actor);
+    }
+
+    private function persistNewUnit(
+        ProspectingCandidate $candidate,
+        User $actor,
+        string $reasonCode,
+        bool $autonomous,
+    ): Unit {
+        $unit = Unit::query()->create([
+            'name' => mb_substr($candidate->working_name ?: (string) $candidate->normalized_domain, 0, 255),
+            'is_customer' => false,
+            'is_supplier' => false,
+        ]);
+        $context = $this->ensureContext($unit, $candidate, $actor);
+        $this->transferDossier($candidate, $unit, $context, $actor);
+        $candidate->update([
+            'status' => ProspectingCandidateStatus::NewUnitCreated,
+            'resolution_outcome' => CandidateResolutionOutcome::NewUnitAllowed,
+            'resolved_unit_id' => $unit->id,
+            'reviewed_by' => $actor->id,
+            'reviewed_at' => now(),
+            'resolution_reason_code' => $reasonCode,
+            'lock_version' => $candidate->lock_version + 1,
+            'expires_at' => now()->addDays((int) config('ai-sales.prospecting.retention.resolved_days', 14)),
+        ]);
+        $this->audit->record(
+            $unit,
+            'prospecting.candidate.created_unit',
+            $autonomous
+                ? 'Создано рабочее досье Unit по строгой Stage 14 policy; Entity не создавалась.'
+                : 'После human review создано рабочее досье Unit; Entity не создавалась.',
+            $actor,
+            $context,
+            'prospecting_candidate',
+            $candidate->id,
+            [
+                'candidate_public_id' => $candidate->public_id,
+                'policy_code' => $autonomous ? AutonomousUnitCreationPolicy::CODE : null,
+                'autonomous' => $autonomous,
+                'entity_mutation' => false,
+                'consent_mutation' => false,
+            ],
+        );
+
+        return $unit->fresh();
     }
 
     private function transferDossier(

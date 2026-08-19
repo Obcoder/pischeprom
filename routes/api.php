@@ -6,6 +6,7 @@ use App\Http\Controllers\API\AiSales\AiAgentDefinitionController as AiSalesAgent
 use App\Http\Controllers\API\AiSales\AiAgentRunController as AiSalesAgentRunController;
 use App\Http\Controllers\API\AiSales\AiControlPlaneController as AiSalesControlPlaneController;
 use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesToolingDiagnosticsController;
+use App\Http\Controllers\API\AiSales\ClientAcquisitionCampaignController as AiSalesClientAcquisitionCampaignController;
 use App\Http\Controllers\API\AiSales\CommunicationSuppressionController as AiSalesCommunicationSuppressionController;
 use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
 use App\Http\Controllers\API\AiSales\OutreachDispatchController as AiSalesOutreachDispatchController;
@@ -212,6 +213,21 @@ Route::prefix('ai-sales')
         Route::post('/runs', [AiSalesAgentRunController::class, 'store'])->name('runs.store');
         Route::get('/runs/{aiAgentRun}', [AiSalesAgentRunController::class, 'show'])->name('runs.show');
         Route::post('/runs/{aiAgentRun}/cancel', [AiSalesAgentRunController::class, 'cancel'])->name('runs.cancel');
+
+        Route::prefix('campaigns')->name('campaigns.')->middleware('throttle:ai-sales-campaigns')->group(function (): void {
+            Route::get('/', [AiSalesClientAcquisitionCampaignController::class, 'index'])->name('index');
+            Route::post('/', [AiSalesClientAcquisitionCampaignController::class, 'store'])->name('store');
+            Route::get('/{clientAcquisitionCampaign}', [AiSalesClientAcquisitionCampaignController::class, 'show'])->name('show');
+            Route::patch('/{clientAcquisitionCampaign}', [AiSalesClientAcquisitionCampaignController::class, 'update'])->name('update');
+            Route::post('/{clientAcquisitionCampaign}/submit', [AiSalesClientAcquisitionCampaignController::class, 'submit'])->name('submit');
+            Route::post('/{clientAcquisitionCampaign}/approve', [AiSalesClientAcquisitionCampaignController::class, 'approve'])->name('approve');
+            Route::post('/{clientAcquisitionCampaign}/pause', [AiSalesClientAcquisitionCampaignController::class, 'pause'])->name('pause');
+            Route::post('/{clientAcquisitionCampaign}/resume', [AiSalesClientAcquisitionCampaignController::class, 'resume'])->name('resume');
+            Route::post('/{clientAcquisitionCampaign}/cancel', [AiSalesClientAcquisitionCampaignController::class, 'cancel'])->name('cancel');
+            Route::post('/{clientAcquisitionCampaign}/manual-run', [AiSalesClientAcquisitionCampaignController::class, 'run'])->name('run');
+            Route::get('/{clientAcquisitionCampaign}/progress', [AiSalesClientAcquisitionCampaignController::class, 'progress'])->name('progress');
+            Route::get('/{clientAcquisitionCampaign}/review-queue', [AiSalesClientAcquisitionCampaignController::class, 'reviewQueue'])->name('review-queue');
+        });
 
         Route::get('/prospecting/jobs', [AiSalesProspectingSearchJobController::class, 'index'])->name('prospecting.jobs.index');
         Route::get('/prospecting/catalog/products', [AiSalesProspectingCatalogController::class, 'products'])->name('prospecting.catalog.products');

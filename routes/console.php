@@ -169,3 +169,14 @@ Schedule::command('price-lists:recover-stale')
     ->everyTenMinutes()
     ->onOneServer()
     ->withoutOverlapping(10);
+
+Schedule::command('ai-sales:run-due-campaigns --apply')
+    ->name('ai-sales-client-acquisition-campaigns')
+    ->everyMinute()
+    ->when(fn () => ! app()->environment('production')
+        && (bool) config('ai-sales.enabled', false)
+        && (bool) config('ai-sales.autonomous_campaigns_enabled', false)
+        && (bool) config('ai-sales.campaigns.enabled', false)
+        && (bool) config('ai-sales.campaigns.scheduler_enabled', false))
+    ->onOneServer()
+    ->withoutOverlapping(10);

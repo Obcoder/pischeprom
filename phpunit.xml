@@ -40,6 +40,15 @@
         <env name="AI_OUTREACH_DRAFTING_ENABLED" value="false" force="true"/>
         <env name="AI_OUTREACH_SENDING_ENABLED" value="false" force="true"/>
         <env name="AI_AUTONOMOUS_CAMPAIGNS_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGNS_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_SCHEDULER_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_LIVE_SEARCH_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_LIVE_RESEARCH_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_AUTO_INGEST_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_AUTO_CREATE_UNIT_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_AUTO_SCORING_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_AUTO_DRAFT_ENABLED" value="false" force="true"/>
+        <env name="AI_SALES_CAMPAIGN_NOTIFICATIONS_ENABLED" value="false" force="true"/>
         <env name="AI_TOOLS_ENABLED" value="false" force="true"/>
         <env name="AI_WORKFLOWS_ENABLED" value="false" force="true"/>
         <env name="AI_PROVIDER_NATIVE_TOOLS_ENABLED" value="false" force="true"/>

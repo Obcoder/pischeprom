@@ -97,6 +97,47 @@ return [
         ],
     ],
 
+    'campaigns' => [
+        'enabled' => (bool) env('AI_SALES_CAMPAIGNS_ENABLED', false),
+        'scheduler_enabled' => (bool) env('AI_SALES_CAMPAIGN_SCHEDULER_ENABLED', false),
+        'live_search_enabled' => (bool) env('AI_SALES_CAMPAIGN_LIVE_SEARCH_ENABLED', false),
+        'live_research_enabled' => (bool) env('AI_SALES_CAMPAIGN_LIVE_RESEARCH_ENABLED', false),
+        'auto_ingest_enabled' => (bool) env('AI_SALES_CAMPAIGN_AUTO_INGEST_ENABLED', false),
+        'auto_create_unit_enabled' => (bool) env('AI_SALES_CAMPAIGN_AUTO_CREATE_UNIT_ENABLED', false),
+        'auto_scoring_enabled' => (bool) env('AI_SALES_CAMPAIGN_AUTO_SCORING_ENABLED', false),
+        'auto_draft_enabled' => (bool) env('AI_SALES_CAMPAIGN_AUTO_DRAFT_ENABLED', false),
+        'notifications_enabled' => (bool) env('AI_SALES_CAMPAIGN_NOTIFICATIONS_ENABLED', false),
+        /* Process-local command/test guard; deliberately not environment-controlled. */
+        'synthetic_fixture_mode' => false,
+        'workflow_code' => 'buyer_acquisition_campaign.v1',
+        'workflow_version' => '1',
+        'wizard_version' => 'stage14-campaign-v1',
+        'policies' => [
+            'auto_unit' => [
+                'code' => 'autonomous_unit_creation.v1',
+                'version' => '1',
+                'minimum_independent_sources' => 2,
+            ],
+            'auto_draft' => [
+                'code' => 'autonomous_outreach_draft.v1',
+                'version' => '1',
+                'minimum_product_relevance' => 60,
+                'minimum_confidence' => 70,
+                'minimum_prospect_priority' => 50,
+            ],
+        ],
+        'limits' => [
+            'scheduler_batch' => 0,
+            'max_active_runs' => 0,
+            'max_runs_per_day' => 0,
+            'max_runs_per_month' => 0,
+            'global_units_per_day' => 0,
+            'global_units_per_month' => 0,
+            'global_drafts_per_day' => 0,
+            'global_drafts_per_month' => 0,
+        ],
+    ],
+
     'outreach' => [
         'ui_enabled' => (bool) env('AI_OUTREACH_UI_ENABLED', false),
         'drafts_enabled' => (bool) env('AI_OUTREACH_DRAFTS_ENABLED', false),
@@ -177,6 +218,9 @@ return [
         'outreach_dispatch' => 'stage13-v1',
         'outreach_reply_triage' => 'stage13-v1',
         'outreach_followup' => 'stage13-v1',
+        'campaign_orchestration' => 'stage14-v1',
+        'autonomous_unit_creation' => 'autonomous_unit_creation.v1',
+        'autonomous_outreach_draft' => 'autonomous_outreach_draft.v1',
     ],
 
     'limits' => [
