@@ -22,7 +22,6 @@ use App\Domain\AiSales\Tools\AiToolSchemaValidator;
 use App\Models\ProspectingPublicResearchRecord;
 use App\Models\ProspectingSearchResult;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class PublicCompanyResearchWorkflow
@@ -46,6 +45,7 @@ class PublicCompanyResearchWorkflow
     public function __construct(
         private readonly ProspectingFeatureGuard $features,
         private readonly ProspectingAuthorizationService $authorization,
+        private readonly PublicResearchProductScope $productScope,
         private readonly PublicResearchSafeDtoPolicy $policy,
         private readonly AiProviderRegistry $providers,
         private readonly AiToolSchemaValidator $schemas,
@@ -70,16 +70,7 @@ class PublicCompanyResearchWorkflow
             throw new PolicyViolation('public_research_replay_blocked', 'Failed or blocked research is not retried automatically.');
         }
 
-        $productNames = DB::table('prospecting_search_job_products as scope')
-            ->join('products', 'products.id', '=', 'scope.product_id')
-            ->where('scope.prospecting_search_job_id', $result->job->id)
-            ->whereIn('scope.role', ['primary', 'additional'])
-            ->where('products.is_published', true)
-            ->orderBy('products.id')
-            ->distinct()
-            ->get(['products.rus', 'products.eng'])
-            ->flatMap(fn ($product) => array_filter([$product->rus, $product->eng]))
-            ->unique()->take(25)->values()->all();
+        $productNames = $this->productScope->namesForJob($result->job->id);
         $dto = new PublicCompanyResearchInput(
             mb_strtolower((string) parse_url($result->publicFetch->final_url, PHP_URL_HOST)),
             $result->publicFetch->page_title,
