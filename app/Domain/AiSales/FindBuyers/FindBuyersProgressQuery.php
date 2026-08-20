@@ -135,7 +135,8 @@ final class FindBuyersProgressQuery
                     'name' => mb_substr((string) $candidate->unit_name, 0, 255),
                     'url' => '/Ameise/unit/'.(int) $candidate->resolved_unit_id,
                 ] : null,
-                'review_url' => '/Ameise/Sales/?prospecting_candidate='.rawurlencode((string) $candidate->public_id).'#prospecting-review',
+                'review_url' => '/Ameise/ai-sales?tab=review&candidate='.
+                    rawurlencode((string) $candidate->public_id).'#candidate-review',
                 'review_api' => '/api/ai-sales/prospecting/candidates/'.$candidate->public_id,
             ])->all(),
             'scoring' => $scoring,

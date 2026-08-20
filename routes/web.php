@@ -391,6 +391,24 @@ Route::get('/Ameise/Sales/', function () {
     return Inertia::render('Ameise/Sales');
 })->name('Ameise.sales');
 
+Route::get('/Ameise/ai-sales', function (
+    \App\Domain\AiSales\FindBuyers\FindBuyersFeatureGuard $findBuyers,
+    \App\Domain\AiSales\Campaigns\ClientAcquisitionCampaignFeatureGuard $campaigns,
+) {
+    $findBuyers->ui();
+    $campaigns->campaigns();
+
+    return Inertia::render('Ameise/AiSales');
+})->middleware([
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+    'verified',
+    'throttle:ai-sales',
+    'can:ai_sales.view',
+    'can:ai_sales.sales.view',
+    'can:ai_sales.prospecting.view',
+])->name('Ameise.ai-sales');
+
 /*
 |--------------------------------------------------------------------------
 | S E O

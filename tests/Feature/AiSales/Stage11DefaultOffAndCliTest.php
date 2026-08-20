@@ -47,12 +47,16 @@ class Stage11DefaultOffAndCliTest extends TestCase
     {
         $productPage = file_get_contents(resource_path('js/Pages/Ameise/Product_02.vue'));
         $goodPage = file_get_contents(resource_path('js/Pages/Ameise/Good.vue'));
+        $productAiSalesCard = file_get_contents(resource_path('js/Components/AiSales/ProductAiSalesCampaignCard.vue'));
         $yandexCard = file_get_contents(resource_path('js/Components/ProductYandexSearchCard.vue'));
         $wizard = file_get_contents(resource_path('js/Components/AiSales/FindBuyersWizard.vue'));
 
         $this->assertSame(1, substr_count($productPage, '<ProductYandexSearchCard'));
-        $this->assertSame(1, substr_count($productPage, '<FindBuyersLauncher'));
+        $this->assertSame(1, substr_count($productPage, '<ProductAiSalesCampaignCard'));
+        $this->assertSame(1, substr_count($productAiSalesCard, '<FindBuyersLauncher'));
         $this->assertSame(1, substr_count($goodPage, '<FindBuyersLauncher'));
+        $this->assertStringContainsString('Legacy manual Yandex search', $productPage);
+        $this->assertStringContainsString('AI-поиск покупателей', $productAiSalesCard);
         $this->assertStringContainsString('/api/products/${props.productId}/yandex-search', $yandexCard);
         $this->assertStringNotContainsString('FindBuyers', $yandexCard);
         $this->assertStringContainsString('Live execution выключен', $wizard);

@@ -113,6 +113,13 @@ final class CampaignReviewQueue
                     : (str_contains($code, 'budget') ? 'budget_block'
                     : (str_contains($code, 'provider') || str_contains($code, 'search') ? 'provider_error' : 'policy_block'));
                 $link = $linksByRun->get($row->ai_agent_run_id);
+                if ($candidateIngestionReview && $link?->prospecting_search_job_id
+                    && ProspectingCandidate::query()
+                        ->where('prospecting_search_job_id', $link->prospecting_search_job_id)
+                        ->whereIn('status', ['probable_existing_review', 'new_unit_review'])
+                        ->exists()) {
+                    return;
+                }
                 $items->push($this->item($campaign, $category, 'ai_agent_run_step', $row->id,
                     $candidateIngestionReview ? $link?->prospecting_search_job_id : null,
                     null, $code, $candidateIngestionReview

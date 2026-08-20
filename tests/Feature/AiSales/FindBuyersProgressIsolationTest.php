@@ -158,7 +158,7 @@ class FindBuyersProgressIsolationTest extends Stage11TestCase
             ->assertJsonPath('data.counts.matches.sales_contexts', 1)
             ->assertJsonPath('data.counts.scores.prospect_priority_snapshots', 1)
             ->assertJsonPath('data.scoring.prospect_priority.0.eligibility', 'blocked_do_not_contact')
-            ->assertJsonPath('data.candidates.0.review_url', '/Ameise/Sales/?prospecting_candidate='.$candidate->public_id.'#prospecting-review')
+            ->assertJsonPath('data.candidates.0.review_url', '/Ameise/ai-sales?tab=review&candidate='.$candidate->public_id.'#candidate-review')
             ->assertJsonPath('data.source_of_truth.progress_is_projection', true)
             ->assertJsonPath('data.source_of_truth.copied_event_rows', 0)
             ->json('data');

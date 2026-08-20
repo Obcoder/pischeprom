@@ -120,7 +120,7 @@ onMounted(loadContexts)
 </script>
 
 <template>
-    <v-card variant="outlined">
+    <v-card id="prospecting-dossier" variant="outlined">
         <v-card-title>Prospecting dossier Unit</v-card-title>
         <v-card-text>
             <v-alert type="info" variant="tonal" density="compact" class="mb-3">Контекст обязателен; sales и procurement никогда не объединяются по умолчанию.</v-alert>

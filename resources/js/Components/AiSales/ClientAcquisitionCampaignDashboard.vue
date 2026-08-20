@@ -2,6 +2,13 @@
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
 
+const props = defineProps({
+    initialCampaignId: {
+        type: String,
+        default: null,
+    },
+})
+
 const visible = ref(false)
 const loading = ref(false)
 const error = ref('')
@@ -50,7 +57,12 @@ async function load() {
         campaigns.value = campaignResponse.data.data || []
         products.value = productResponse.data.data || []
         visible.value = true
-        if (selected.value) await open(campaigns.value.find(item => item.id === selected.value.id) || campaigns.value[0])
+        const requested = props.initialCampaignId
+            ? campaigns.value.find(item => item.id === props.initialCampaignId)
+            : null
+        if (requested || selected.value) {
+            await open(requested || campaigns.value.find(item => item.id === selected.value.id) || campaigns.value[0])
+        }
     } catch (requestError) {
         if ([401, 403, 404].includes(requestError?.response?.status)) visible.value = false
         else {

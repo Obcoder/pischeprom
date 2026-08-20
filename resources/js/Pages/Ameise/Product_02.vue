@@ -1,10 +1,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
-import { Link } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
+import ProductAiSalesCampaignCard from '@/Components/AiSales/ProductAiSalesCampaignCard.vue'
 import ProductYandexSearchCard from '@/Components/ProductYandexSearchCard.vue'
-import FindBuyersLauncher from '@/Components/AiSales/FindBuyersLauncher.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import {
     emptyProductTranslationForm,
@@ -19,6 +19,7 @@ const props = defineProps({
         required: true,
     },
 })
+const page = usePage()
 
 const loading = ref(false)
 const error = ref('')
@@ -40,6 +41,7 @@ const productTitle = computed(() => {
     if (!p) return 'Продукт'
     return p.rus || p.eng || `Продукт #${p.id}`
 })
+const canViewAiSales = computed(() => Boolean(page.props.auth?.permissions?.ai_sales?.view))
 
 const languageRows = computed(() => {
     const p = product.value || {}
@@ -238,7 +240,6 @@ onMounted(loadProduct)
                 </div>
 
                 <div v-if="product" class="d-flex align-center ga-2 flex-wrap">
-                    <FindBuyersLauncher source-type="product" :source-id="product.id" />
                     <v-chip size="small" variant="outlined">ID: {{ product.id }}</v-chip>
                     <v-chip size="small" variant="outlined">
                         {{ product.category?.rus || product.category?.name || 'Без категории' }}
@@ -455,11 +456,28 @@ onMounted(loadProduct)
                                     </v-card>
                                 </v-col>
 
-                                <v-col>
-                                    <ProductYandexSearchCard
-                                        :product-id="product.id"
-                                        :product-name="product.rus"
-                                    />
+                                <v-col v-if="canViewAiSales" cols="12">
+                                    <ProductAiSalesCampaignCard :product-id="product.id" />
+                                </v-col>
+
+                                <v-col cols="12">
+                                    <section aria-labelledby="legacy-yandex-search-title">
+                                        <div class="d-flex align-center ga-2 mb-2">
+                                            <v-icon icon="mdi-magnify" color="blue" />
+                                            <div>
+                                                <div id="legacy-yandex-search-title" class="text-subtitle-1 font-weight-bold">
+                                                    Legacy manual Yandex search
+                                                </div>
+                                                <div class="text-caption text-medium-emphasis">
+                                                    Независимый legacy-блок «Выдача Яндекса»; его контракт не изменён.
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <ProductYandexSearchCard
+                                            :product-id="product.id"
+                                            :product-name="product.rus"
+                                        />
+                                    </section>
                                 </v-col>
                             </v-row>
                         </div>
