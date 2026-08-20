@@ -220,7 +220,7 @@ class RunSyntheticFindBuyersCommand extends Command
                 ]],
             ], $actor, true, $query);
             $primaryResult->update(['prospecting_candidate_id' => $candidate->id]);
-            $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor);
+            $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor, $candidate->working_name);
             $context = $unit->businessContexts()->where('lane', 'sales')->firstOrFail();
             $match = $context->productMatches()->where('product_id', $product->id)->firstOrFail();
             $scoring = app(ProspectingScoreRecalculationService::class);

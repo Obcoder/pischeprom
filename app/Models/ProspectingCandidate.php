@@ -80,6 +80,16 @@ class ProspectingCandidate extends Model
         return $this->belongsTo(Unit::class, 'resolved_unit_id');
     }
 
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class);
+    }
+
+    public function region(): BelongsTo
+    {
+        return $this->belongsTo(Region::class);
+    }
+
     public function sources(): HasMany
     {
         return $this->hasMany(ProspectingCandidateSource::class);
@@ -98,6 +108,11 @@ class ProspectingCandidate extends Model
     public function products(): HasMany
     {
         return $this->hasMany(ProspectingCandidateProduct::class);
+    }
+
+    public function searchResults(): HasMany
+    {
+        return $this->hasMany(ProspectingSearchResult::class);
     }
 
     public function goodMatches(): HasMany

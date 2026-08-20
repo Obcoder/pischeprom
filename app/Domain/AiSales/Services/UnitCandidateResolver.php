@@ -20,10 +20,15 @@ class UnitCandidateResolver
 {
     public function __construct(private readonly ProspectingCandidateNormalizer $normalizer) {}
 
-    public function evaluate(ProspectingCandidate $candidate): CandidateResolutionDecision
-    {
+    public function evaluate(
+        ProspectingCandidate $candidate,
+        ?string $normalizedNameOverride = null,
+        ?string $workingNameOverride = null,
+    ): CandidateResolutionDecision {
         $candidate->loadMissing(['sources:id,prospecting_candidate_id,evidence_hash', 'channels']);
-        if ($candidate->sources->isEmpty() || ($candidate->normalized_name === '' && $candidate->normalized_domain === null)) {
+        $normalizedName = $normalizedNameOverride ?? $candidate->normalized_name;
+        $workingName = $workingNameOverride ?? $candidate->working_name;
+        if ($candidate->sources->isEmpty() || ($normalizedName === '' && $candidate->normalized_domain === null)) {
             return $this->persist($candidate, new CandidateResolutionDecision(
                 CandidateResolutionOutcome::RejectedInvalid,
                 ['valid_source_missing'], [], [], ['valid_source' => 0], true,
@@ -76,12 +81,12 @@ class UnitCandidateResolver
             return $this->persist($candidate, $this->decision(CandidateResolutionOutcome::ProbableExistingReview, $strong), $strong);
         }
 
-        $nameLocation = $this->nameAndLocationSignals($candidate);
+        $nameLocation = $this->nameAndLocationSignals($candidate, $normalizedName);
         if ($nameLocation->isNotEmpty()) {
             return $this->persist($candidate, $this->decision(CandidateResolutionOutcome::ProbableExistingReview, $nameLocation), $nameLocation);
         }
 
-        $nameOnly = $this->nameOnlySignals($candidate);
+        $nameOnly = $this->nameOnlySignals($candidate, $normalizedName, $workingName);
         if ($nameOnly->isNotEmpty()) {
             return $this->persist($candidate, $this->decision(CandidateResolutionOutcome::ProbableExistingReview, $nameOnly), $nameOnly);
         }
@@ -112,9 +117,9 @@ class UnitCandidateResolver
             ->map(fn ($unitId) => $this->signal((int) $unitId, $code, $strength));
     }
 
-    private function nameAndLocationSignals(ProspectingCandidate $candidate): Collection
+    private function nameAndLocationSignals(ProspectingCandidate $candidate, string $normalizedName): Collection
     {
-        if ((! $candidate->city_id && ! $candidate->region_id) || $candidate->normalized_name === '') {
+        if ((! $candidate->city_id && ! $candidate->region_id) || $normalizedName === '') {
             return collect();
         }
         $locationConstraint = function ($query) use ($candidate): void {
@@ -126,13 +131,14 @@ class UnitCandidateResolver
             $query->where('cities.region_id', $candidate->region_id);
         };
         $unitIds = $this->visibleAliases($candidate)
-            ->where('normalized_alias', $candidate->normalized_name)
+            ->where('normalized_alias', $normalizedName)
             ->whereHas('unit.cities', $locationConstraint)
             ->limit(20)->pluck('unit_id');
         Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])
+            ->whereHas('businessContexts', fn ($context) => $context->where('lane', $candidate->lane->value))
             ->whereHas('cities', $locationConstraint)
             ->select(['id', 'name'])->limit(100)->get()
-            ->filter(fn (Unit $unit) => $this->normalizer->normalizeName($unit->name) === $candidate->normalized_name)
+            ->filter(fn (Unit $unit) => $this->normalizer->normalizeName($unit->name) === $normalizedName)
             ->pluck('id')->each(fn ($id) => $unitIds->push($id));
 
         $signalCode = $candidate->city_id ? 'normalized_name_exact_city' : 'normalized_name_exact_region';
@@ -140,26 +146,28 @@ class UnitCandidateResolver
         return $unitIds->unique()->values()->map(fn ($unitId) => $this->signal((int) $unitId, $signalCode, 70));
     }
 
-    private function nameOnlySignals(ProspectingCandidate $candidate): Collection
+    private function nameOnlySignals(ProspectingCandidate $candidate, string $normalizedName, string $workingName): Collection
     {
-        if ($candidate->normalized_name === '') {
+        if ($normalizedName === '') {
             return collect();
         }
-        $unitIds = $this->visibleAliases($candidate)->where('normalized_alias', $candidate->normalized_name)
+        $unitIds = $this->visibleAliases($candidate)->where('normalized_alias', $normalizedName)
             ->limit(20)->pluck('unit_id');
         Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])
-            ->where('name', $candidate->working_name)->select(['id', 'name'])->limit(20)->get()
-            ->filter(fn (Unit $unit) => $this->normalizer->normalizeName($unit->name) === $candidate->normalized_name)
+            ->whereHas('businessContexts', fn ($context) => $context->where('lane', $candidate->lane->value))
+            ->where('name', $workingName)->select(['id', 'name'])->limit(20)->get()
+            ->filter(fn (Unit $unit) => $this->normalizer->normalizeName($unit->name) === $normalizedName)
             ->pluck('id')->each(fn ($id) => $unitIds->push($id));
 
-        if ($unitIds->isEmpty() && mb_strlen($candidate->normalized_name) >= 4) {
-            $prefix = mb_substr($candidate->normalized_name, 0, 3);
+        if ($unitIds->isEmpty() && mb_strlen($normalizedName) >= 4) {
+            $prefix = mb_substr($normalizedName, 0, 3);
             Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])
+                ->whereHas('businessContexts', fn ($context) => $context->where('lane', $candidate->lane->value))
                 ->where('name', 'like', $prefix.'%')->select(['id', 'name'])->limit(250)->get()
-                ->filter(function (Unit $unit) use ($candidate): bool {
+                ->filter(function (Unit $unit) use ($normalizedName): bool {
                     similar_text(
                         $this->normalizer->normalizeName($unit->name),
-                        $candidate->normalized_name,
+                        $normalizedName,
                         $percentage,
                     );
 

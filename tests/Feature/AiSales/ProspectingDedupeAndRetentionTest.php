@@ -22,6 +22,8 @@ class ProspectingDedupeAndRetentionTest extends Stage08TestCase
         $cityId = DB::table('cities')->insertGetId(['name' => 'Synthetic City', 'region_id' => $regionId]);
         $first = $this->unit(['name' => 'Same Synthetic Name']);
         $second = $this->unit(['name' => 'Same Synthetic Name']);
+        $this->createContext($actor, $first, ['lane' => 'sales', 'role_code' => 'prospective_customer']);
+        $this->createContext($actor, $second, ['lane' => 'sales', 'role_code' => 'prospective_customer']);
         $first->cities()->attach($cityId);
         $second->cities()->attach($cityId);
         $candidate = $this->candidate($job, $actor, [
@@ -37,7 +39,7 @@ class ProspectingDedupeAndRetentionTest extends Stage08TestCase
         $unitsBefore = DB::table('units')->count();
         $this->expectException(ValidationException::class);
         try {
-            app(ResolveProspectingCandidate::class)->createNewUnit($candidate->fresh(), $actor);
+            app(ResolveProspectingCandidate::class)->createNewUnit($candidate->fresh(), $actor, $candidate->working_name);
         } finally {
             $this->assertSame($unitsBefore, DB::table('units')->count());
             $this->assertDatabaseCount('entity_unit', 0);
@@ -52,6 +54,7 @@ class ProspectingDedupeAndRetentionTest extends Stage08TestCase
         $regionId = DB::table('regions')->insertGetId(['name' => 'Synthetic Match Region', 'country_id' => $countryId]);
         $cityId = DB::table('cities')->insertGetId(['name' => 'Synthetic Region City', 'region_id' => $regionId]);
         $unit = $this->unit(['name' => 'Regional Synthetic Name']);
+        $this->createContext($actor, $unit, ['lane' => 'sales', 'role_code' => 'prospective_customer']);
         $unit->cities()->attach($cityId);
         $candidate = $this->candidate($job, $actor, [
             'working_name' => 'Regional Synthetic Name',
@@ -108,7 +111,8 @@ class ProspectingDedupeAndRetentionTest extends Stage08TestCase
     public function test_fuzzy_or_name_only_signal_requires_review_and_never_auto_creates(): void
     {
         $actor = $this->prospectingUser();
-        $this->unit(['name' => 'Fuzzy Synthetic Company']);
+        $unit = $this->unit(['name' => 'Fuzzy Synthetic Company']);
+        $this->createContext($actor, $unit, ['lane' => 'sales', 'role_code' => 'prospective_customer']);
         $candidate = $this->candidate($this->approvedJob($actor), $actor, [
             'working_name' => 'Fuzzy Synthetic Compny',
             'website' => null,

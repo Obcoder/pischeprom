@@ -214,7 +214,7 @@ class ProductFirstProspectingTest extends Stage08TestCase
         ]);
         $entityCount = Entity::query()->without(['buildings', 'classification', 'country'])->count();
         $contextFreeProductUnitCount = DB::table('product_unit')->count();
-        $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor);
+        $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor, $candidate->working_name);
         $context = $unit->businessContexts()->where('lane', 'sales')->firstOrFail();
 
         $this->assertDatabaseHas('unit_product_matches', [

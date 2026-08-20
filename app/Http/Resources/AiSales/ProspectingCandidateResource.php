@@ -9,6 +9,10 @@ class ProspectingCandidateResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $investigation = $this->resource->relationLoaded('searchResults')
+            ? (new CandidateInvestigationResource($this->resource))->toArray($request)
+            : null;
+
         return [
             'id' => $this->public_id,
             'job_id' => $this->whenLoaded('job', fn () => $this->job?->public_id),
@@ -48,14 +52,15 @@ class ProspectingCandidateResource extends JsonResource
                 ])->all() : []),
             'product_mapping_state' => $this->whenLoaded('job', fn () => $this->job?->product_mapping_state?->value),
             'channel_summary' => $this->whenLoaded('channels', fn () => $this->channels->groupBy(fn ($channel) => $channel->channel_kind->value)->map->count()->all()),
-            'unit_matches' => $this->whenLoaded('unitMatches', fn () => $this->unitMatches->map(fn ($match) => [
-                'unit' => $match->unit ? ['id' => $match->unit->id, 'name' => $match->unit->name] : ['id' => $match->unit_id],
-                'signal_code' => $match->signal_code,
-                'strength' => $match->strength,
-                'rank' => $match->rank,
-                'evidence_reference' => $match->evidence_reference,
-                'review_status' => $match->review_status,
-            ])->all()),
+            'unit_matches' => $investigation === null ? [] : collect($investigation['duplicates'])->map(fn (array $match): array => [
+                'unit' => $match['unit'],
+                'signal_code' => $match['reason_code'],
+                'strength' => $match['confidence'],
+                'rank' => $match['rank'],
+                'evidence_reference' => $match['evidence_reference'],
+                'review_status' => $match['review_status'],
+            ])->all(),
+            'investigation' => $investigation,
             'reviewed_at' => $this->reviewed_at?->toISOString(),
             'expires_at' => $this->expires_at?->toISOString(),
             'anonymized_at' => $this->anonymized_at?->toISOString(),

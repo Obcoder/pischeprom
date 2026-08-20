@@ -119,9 +119,9 @@ class ProspectingDomainBoundaryTest extends Stage08TestCase
         $entities = Entity::query()->count();
         $sales = DB::table('sales')->count();
         $purchases = DB::table('purchases')->count();
-        $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor);
+        $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor, $candidate->working_name);
         $unitCount = Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])->count();
-        $replayedUnit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate->fresh(), $actor);
+        $replayedUnit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate->fresh(), $actor, $candidate->working_name);
 
         $this->assertSame('Synthetic Working Dossier', $unit->name);
         $this->assertSame($unit->id, $replayedUnit->id);
@@ -190,7 +190,7 @@ class ProspectingDomainBoundaryTest extends Stage08TestCase
         $this->assertSame(CandidateResolutionOutcome::RejectedInvalid, $decision->outcome);
         $units = Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])->count();
         try {
-            app(ResolveProspectingCandidate::class)->createNewUnit($candidate->fresh(), $actor);
+            app(ResolveProspectingCandidate::class)->createNewUnit($candidate->fresh(), $actor, $candidate->working_name);
             $this->fail('Invalid candidate must not create a Unit.');
         } catch (\DomainException) {
             $this->assertSame($units, Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])->count());

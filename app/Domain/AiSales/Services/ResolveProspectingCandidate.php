@@ -112,12 +112,17 @@ class ResolveProspectingCandidate
         }, 3);
     }
 
-    public function createNewUnit(ProspectingCandidate $candidate, User $actor): Unit
+    public function createNewUnit(ProspectingCandidate $candidate, User $actor, string $reviewedWorkingName): Unit
     {
         $this->features->dossier();
         $this->authorization->authorize($actor, ProspectingAuthorizationService::RESOLVE, $candidate->lane);
+        $reviewedWorkingName = trim($reviewedWorkingName);
+        $normalizedReviewedName = $this->normalizer->normalizeName($reviewedWorkingName);
+        if ($normalizedReviewedName === '') {
+            throw ValidationException::withMessages(['reviewed_working_name' => 'A human-reviewed Unit working name is required.']);
+        }
 
-        return DB::transaction(function () use ($candidate, $actor): Unit {
+        return DB::transaction(function () use ($candidate, $actor, $reviewedWorkingName, $normalizedReviewedName): Unit {
             $locked = ProspectingCandidate::query()->lockForUpdate()->findOrFail($candidate->id);
             if ($locked->status === ProspectingCandidateStatus::NewUnitCreated && $locked->resolved_unit_id) {
                 return Unit::query()->without(['fields', 'labels', 'telephones', 'uris'])->findOrFail($locked->resolved_unit_id);
@@ -126,7 +131,7 @@ class ResolveProspectingCandidate
                 throw new DomainException('Candidate already has a terminal resolution.');
             }
             $this->assertApprovedJob($locked);
-            $decision = $this->resolver->evaluate($locked);
+            $decision = $this->resolver->evaluate($locked, $normalizedReviewedName, $reviewedWorkingName);
             if ($decision->outcome !== CandidateResolutionOutcome::NewUnitAllowed) {
                 throw ValidationException::withMessages(['candidate' => 'Exact, probable, ambiguous, or invalid candidates cannot create another Unit.']);
             }
@@ -144,7 +149,13 @@ class ResolveProspectingCandidate
                 throw ValidationException::withMessages(['rate' => 'Daily reviewed Unit creation limit reached.']);
             }
 
-            return $this->persistNewUnit($locked, $actor, 'human_approved_new_unit', false);
+            return $this->persistNewUnit(
+                $locked,
+                $actor,
+                'human_approved_new_unit',
+                false,
+                $reviewedWorkingName,
+            );
         }, 3);
     }
 
@@ -172,7 +183,13 @@ class ResolveProspectingCandidate
                 }
                 $this->autonomousUnitPolicy->assertEligible($campaign->fresh(), $locked->fresh());
 
-                return $this->persistNewUnit($locked->fresh(), $actor, 'autonomous_unit_creation_v1', true);
+                return $this->persistNewUnit(
+                    $locked->fresh(),
+                    $actor,
+                    'autonomous_unit_creation_v1',
+                    true,
+                    (string) $locked->working_name,
+                );
             }, 3);
         });
     }
@@ -234,9 +251,10 @@ class ResolveProspectingCandidate
         User $actor,
         string $reasonCode,
         bool $autonomous,
+        string $unitName,
     ): Unit {
         $unit = Unit::query()->create([
-            'name' => mb_substr($candidate->working_name ?: (string) $candidate->normalized_domain, 0, 255),
+            'name' => mb_substr(trim($unitName), 0, 255),
             'is_customer' => false,
             'is_supplier' => false,
         ]);
@@ -280,7 +298,10 @@ class ResolveProspectingCandidate
         UnitBusinessContext $context,
         User $actor,
     ): void {
-        $candidate->loadMissing(['sources', 'channels', 'products.product', 'job.goods']);
+        // The duplicate resolver intentionally loads only source evidence hashes. Reload the
+        // complete dossier before transferring provenance or deciding whether a page title
+        // is safe to retain as an alias.
+        $candidate->load(['sources', 'channels', 'products.product', 'job.goods']);
         $approvedCandidateProducts = $candidate->products
             ->filter(fn ($candidateProduct) => $candidateProduct->status === CandidateProductStatus::Approved);
         if ($approvedCandidateProducts->isEmpty()) {
@@ -303,7 +324,13 @@ class ResolveProspectingCandidate
         }
         /** @var UnitSource|null $primarySource */
         $primarySource = $unitSources->first();
-        if ($this->normalizer->normalizeName($unit->name) !== $candidate->normalized_name && $candidate->working_name !== '') {
+        $workingNameCameFromPageTitle = $candidate->sources->contains(
+            fn ($source) => filled($source->title)
+                && hash_equals((string) $source->title, (string) $candidate->working_name),
+        );
+        if (! $workingNameCameFromPageTitle
+            && $this->normalizer->normalizeName($unit->name) !== $candidate->normalized_name
+            && $candidate->working_name !== '') {
             $this->addAliasIfMissing($unit, $context, [
                 'unit_business_context_id' => $context->id,
                 'unit_source_id' => $primarySource?->id,

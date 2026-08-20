@@ -135,7 +135,7 @@ class RunSyntheticCandidateResolutionCommand extends Command
 
             $new = $candidates->createFixture($job, $this->fixture('Synthetic New Unit', 'https://synthetic-new.example', true), $actor, true, $query);
             $newDecision = $resolution->evaluate($new, $actor);
-            $newUnit = $resolution->createNewUnit($new->fresh(), $actor);
+            $newUnit = $resolution->createNewUnit($new->fresh(), $actor, $new->working_name);
 
             $invalid = $candidates->createFixture($job, $this->fixture('Synthetic Invalid', null, false), $actor, true, $query);
             $invalidDecision = $resolution->evaluate($invalid, $actor);

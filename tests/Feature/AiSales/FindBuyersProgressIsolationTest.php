@@ -116,7 +116,7 @@ class FindBuyersProgressIsolationTest extends Stage11TestCase
             ]],
         ], $actor, true, $query);
         $result->update(['prospecting_candidate_id' => $candidate->id]);
-        $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor);
+        $unit = app(ResolveProspectingCandidate::class)->createNewUnit($candidate, $actor, $candidate->working_name);
         $salesContext = $unit->businessContexts()->where('lane', 'sales')->firstOrFail();
         $salesMatch = $salesContext->productMatches()->where('product_id', $product->id)->firstOrFail();
         $salesContext->update(['stage' => 'do_not_contact']);
