@@ -2,6 +2,7 @@
 
 namespace App\Jobs\AiSales;
 
+use App\Domain\AiSales\Campaigns\ResumeClientAcquisitionCampaignRun;
 use App\Domain\AiSales\Services\ExecuteProspectingSearchQuery;
 use App\Models\ProspectingSearchQuery;
 use App\Models\User;
@@ -41,11 +42,15 @@ class ExecuteProspectingSearchQueryJob implements ShouldBeUniqueUntilProcessing,
         return [(new WithoutOverlapping($this->uniqueId()))->dontRelease()->expireAfter($this->timeout + 10)];
     }
 
-    public function handle(ExecuteProspectingSearchQuery $service): void
-    {
-        $service->handle(
-            ProspectingSearchQuery::query()->findOrFail($this->queryId),
-            User::query()->findOrFail($this->actorUserId),
-        );
+    public function handle(
+        ExecuteProspectingSearchQuery $service,
+        ResumeClientAcquisitionCampaignRun $campaignRuns,
+    ): void {
+        $query = ProspectingSearchQuery::query()->with('job')->findOrFail($this->queryId);
+        try {
+            $service->handle($query, User::query()->findOrFail($this->actorUserId));
+        } finally {
+            $campaignRuns->afterSearchBatchSettled($query->job);
+        }
     }
 }

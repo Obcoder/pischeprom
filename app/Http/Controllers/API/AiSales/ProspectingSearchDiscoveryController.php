@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API\AiSales;
 
+use App\Domain\AiSales\Campaigns\ResumeClientAcquisitionCampaignRun;
 use App\Domain\AiSales\Enums\BusinessLane;
 use App\Domain\AiSales\Prospecting\ResultBusinessRoleClassifier;
 use App\Domain\AiSales\Services\ApproveProspectingQueryPlan;
@@ -63,11 +64,16 @@ class ProspectingSearchDiscoveryController extends Controller
         SearchDiscoveryActionRequest $request,
         ProspectingSearchJob $prospectingSearchJob,
         ApproveProspectingQueryPlan $service,
+        ResumeClientAcquisitionCampaignRun $campaignRuns,
     ): JsonResponse {
         Gate::authorize('review', $prospectingSearchJob);
         $queries = $service->handle($prospectingSearchJob, $request->user());
+        $resumeQueued = $campaignRuns->afterQueryPlanApproval($prospectingSearchJob->fresh());
 
-        return response()->json(['data' => $this->queries($queries)]);
+        return response()->json([
+            'data' => $this->queries($queries),
+            'meta' => ['campaign_resume_queued' => $resumeQueued],
+        ]);
     }
 
     public function execute(

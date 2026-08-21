@@ -7,6 +7,7 @@ use App\Models\ClientAcquisitionCampaign;
 use App\Models\CommunicationPermission;
 use App\Models\OutreachDraft;
 use App\Models\ProspectingCandidate;
+use App\Models\ProspectingSearchJob;
 use App\Models\ProspectingSearchQuery;
 use App\Models\UnitProductMatch;
 use App\Models\User;
@@ -37,14 +38,31 @@ final class CampaignReviewQueue
         $linksByRun = $campaign->runLinks()->with('run:id,public_id')->get()->keyBy('ai_agent_run_id');
         $items = collect();
 
+        $jobsById = ProspectingSearchJob::query()->whereIn('id', $jobIds)
+            ->get(['id', 'public_id'])->keyBy('id');
         ProspectingSearchQuery::query()->whereIn('prospecting_search_job_id', $jobIds)
-            ->where('plan_status', 'review_required')->limit($limit)->get()
-            ->each(fn ($row) => $items->push($this->item(
-                $campaign, 'query_plan_review', 'prospecting_search_query', $row->id,
-                $row->prospecting_search_job_id, null, 'query_plan_review_required',
-                'Review and approve the server-owned query plan.', $row->created_at,
-                ['run_id' => $linksByJob->get($row->prospecting_search_job_id)?->run?->public_id],
-            )));
+            ->where('plan_status', 'review_required')->orderBy('sequence')->limit($limit)->get()
+            ->groupBy(fn ($row): string => $row->prospecting_search_job_id.'|'.$row->plan_hash)
+            ->each(function ($rows) use ($campaign, $items, $linksByJob, $jobsById): void {
+                $first = $rows->first();
+                $job = $jobsById->get($first->prospecting_search_job_id);
+                $items->push($this->item(
+                    $campaign, 'query_plan_review', 'prospecting_search_job', $first->prospecting_search_job_id,
+                    $first->prospecting_search_job_id, null, 'query_plan_review_required',
+                    'Review and approve the server-owned query plan.', $first->created_at,
+                    [
+                        'run_id' => $linksByJob->get($first->prospecting_search_job_id)?->run?->public_id,
+                        'search_job_public_id' => $job?->public_id,
+                        'safe_evidence' => [
+                            'query_count' => $rows->count(),
+                            'queries' => $rows->map(fn ($row): array => [
+                                'query' => $row->safe_display_query,
+                                'template' => $row->template_code,
+                            ])->values()->all(),
+                        ],
+                    ],
+                ));
+            });
         ProspectingCandidate::query()->whereIn('prospecting_search_job_id', $jobIds)
             ->whereIn('status', ['probable_existing_review', 'new_unit_review'])->with('products')->limit($limit)->get()
             ->each(function ($row) use ($campaign, $items, $linksByJob): void {
@@ -109,6 +127,7 @@ final class CampaignReviewQueue
             ->each(function ($row) use ($campaign, $items, $linksByRun): void {
                 $code = (string) ($row->safe_error_code ?: 'policy_block');
                 $candidateIngestionReview = $code === 'candidate_ingestion_review_required';
+                $queryPlanReview = $code === 'query_plan_review_required';
                 $category = $candidateIngestionReview ? 'candidate_ingestion_review'
                     : (str_contains($code, 'budget') ? 'budget_block'
                     : (str_contains($code, 'provider') || str_contains($code, 'search') ? 'provider_error' : 'policy_block'));
@@ -118,6 +137,12 @@ final class CampaignReviewQueue
                         ->where('prospecting_search_job_id', $link->prospecting_search_job_id)
                         ->whereIn('status', ['probable_existing_review', 'new_unit_review'])
                         ->exists()) {
+                    return;
+                }
+                if ($queryPlanReview && $link?->prospecting_search_job_id
+                    && ProspectingSearchQuery::query()
+                        ->where('prospecting_search_job_id', $link->prospecting_search_job_id)
+                        ->where('plan_status', 'review_required')->exists()) {
                     return;
                 }
                 $items->push($this->item($campaign, $category, 'ai_agent_run_step', $row->id,
@@ -155,6 +180,7 @@ final class CampaignReviewQueue
             'source_type' => $sourceType,
             'source_id' => $sourceId,
             'search_job_id' => $jobId,
+            'search_job_public_id' => $context['search_job_public_id'] ?? null,
             'unit_id' => $unitId,
             'unit_business_context_id' => $context['context_id'] ?? null,
             'product_id' => $context['product_id'] ?? null,

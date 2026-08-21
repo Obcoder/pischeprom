@@ -20,6 +20,7 @@ const reviewQueue = ref([])
 const dialog = ref(false)
 const editingCampaign = ref(null)
 const funnelFilter = ref('all')
+const reviewActionLoading = ref('')
 
 const sections = computed(() => ({
     scheduled: campaigns.value.filter(item => item.status === 'scheduled').length,
@@ -104,6 +105,23 @@ async function open(campaign) {
     reviewQueue.value = queueResponse.data.data || []
 }
 
+async function approveQueryPlan(item) {
+    const jobId = item?.search_job_public_id
+    const queryCount = Number(item?.safe_evidence?.query_count || 0)
+    if (!jobId || queryCount < 1) return
+    if (!window.confirm(`Одобрить server-owned план из ${queryCount} запросов и продолжить текущий Campaign run?`)) return
+    reviewActionLoading.value = jobId
+    error.value = ''
+    try {
+        await axios.post(`/api/ai-sales/prospecting/jobs/${encodeURIComponent(jobId)}/search-plan/approve`, {})
+        await load()
+    } catch (requestError) {
+        error.value = requestError?.response?.data?.message || 'Не удалось одобрить query plan.'
+    } finally {
+        reviewActionLoading.value = ''
+    }
+}
+
 onMounted(load)
 </script>
 
@@ -182,7 +200,31 @@ onMounted(load)
                         </v-list>
                         <v-list density="compact" lines="two">
                             <v-list-subheader>Единая очередь human review</v-list-subheader>
-                            <v-list-item v-for="item in reviewQueue" :key="`${item.source_type}-${item.source_id}-${item.category}`" :title="item.category" :subtitle="`${item.reason_code} · ${item.next_permitted_action}`" />
+                            <v-list-item
+                                v-for="item in reviewQueue"
+                                :key="`${item.source_type}-${item.source_id}-${item.category}`"
+                                :title="item.category === 'query_plan_review' ? `План поисковых запросов · ${item.safe_evidence?.query_count || 0}` : item.category"
+                                :subtitle="item.category === 'query_plan_review' ? 'Проверьте server-owned запросы перед обращением к Yandex.' : `${item.reason_code} · ${item.next_permitted_action}`"
+                            >
+                                <div v-if="item.category === 'query_plan_review'" class="mt-2">
+                                    <v-list density="compact" class="border rounded mb-2">
+                                        <v-list-item
+                                            v-for="(queryItem, index) in item.safe_evidence?.queries || []"
+                                            :key="`${item.source_id}-${index}`"
+                                            :title="queryItem.query"
+                                            :subtitle="queryItem.template"
+                                        />
+                                    </v-list>
+                                    <v-btn
+                                        size="small"
+                                        color="success"
+                                        variant="tonal"
+                                        :loading="reviewActionLoading === item.search_job_public_id"
+                                        :disabled="!item.search_job_public_id"
+                                        @click="approveQueryPlan(item)"
+                                    >Одобрить план и продолжить</v-btn>
+                                </div>
+                            </v-list-item>
                             <v-list-item v-if="!reviewQueue.length" title="Открытых review items нет" />
                         </v-list>
                     </template>
