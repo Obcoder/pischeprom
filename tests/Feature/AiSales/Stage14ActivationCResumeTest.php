@@ -9,6 +9,7 @@ use App\Domain\AiSales\Campaigns\StartClientAcquisitionCampaignRun;
 use App\Domain\AiSales\Enums\AiRunStatus;
 use App\Domain\AiSales\Services\ApproveProspectingQueryPlan;
 use App\Domain\AiSales\Services\PlanProspectingQueries;
+use App\Jobs\AiSales\ExecuteClientAcquisitionCampaignRunJob;
 use App\Models\AiAgentRun;
 use App\Models\ClientAcquisitionCampaign;
 use App\Models\ProspectingPublicFetch;
@@ -52,9 +53,20 @@ final class Stage14ActivationCResumeTest extends Stage14TestCase
             ->assertJsonPath('data.counts.results.total', 10)
             ->assertJsonPath('data.counts.fetches.total', 3)
             ->assertJsonPath('data.counts.research.total', 0);
-        $this->actingAs($actor)->getJson('/api/ai-sales/prospecting/jobs/'.$job->public_id.'/search')
+        $projection = $this->actingAs($actor)->getJson('/api/ai-sales/prospecting/jobs/'.$job->public_id.'/search')
             ->assertOk()
-            ->assertJsonCount(10, 'data.results');
+            ->assertJsonCount(10, 'data.results')
+            ->assertJsonPath('data.candidate_ingestion_review.job_id', $job->public_id)
+            ->assertJsonPath('data.candidate_ingestion_review.budget.source', 'campaign')
+            ->assertJsonPath('data.candidate_ingestion_review.budget.current', true)
+            ->assertJsonPath('data.candidate_ingestion_review.budget.pages_limit', 3)
+            ->assertJsonPath('data.candidate_ingestion_review.budget.pages_used', 3);
+        $this->assertNotEmpty($projection->json('data.candidate_ingestion_review.domains'));
+
+        $researchReview = collect(app(CampaignReviewQueue::class)->forCampaign($campaign->fresh(), $actor))
+            ->where('category', 'public_research_review')->sole();
+        $this->assertSame($job->id, $researchReview['search_job_id']);
+        $this->assertSame($job->public_id, $researchReview['search_job_public_id']);
 
         $this->assertSame($before, $this->sideEffectCounts($job));
         $this->assertSame(AiRunStatus::RequiresAction, $run->fresh()->status);
@@ -62,6 +74,168 @@ final class Stage14ActivationCResumeTest extends Stage14TestCase
         Http::assertNothingSent();
         Mail::assertNothingSent();
         Queue::assertNothingPushed();
+    }
+
+    public function test_research_stage_backfills_past_ineligible_top_ranked_results(): void
+    {
+        [$actor, , $run, $job] = $this->activationCFixture([]);
+        $job->searchResults()->get()->each(fn (ProspectingSearchResult $result) => $result->update([
+            'title' => 'Оптовый поставщик — купить оптом',
+            'snippet' => 'Продажа оптом и прайс-лист.',
+        ]));
+        $buyer = $job->searchResults()->where('rank', 4)->firstOrFail();
+        $buyer->update([
+            'title' => 'North Food Factory | About',
+            'snippet' => 'Manufacturer of ready meals and frozen products.',
+        ]);
+        $this->createFetch($buyer->fresh(), 'completed');
+
+        $resumed = app(AdvanceClientAcquisitionCampaignRun::class)->handle($run, $actor);
+
+        $this->assertSame(AiRunStatus::RequiresAction, $resumed->status);
+        $this->assertSame('candidate_ingestion_review_required', $resumed->safe_error_code);
+        $this->assertDatabaseHas('prospecting_public_research_records', [
+            'prospecting_search_result_id' => $buyer->id,
+            'status' => 'completed',
+        ]);
+        $this->assertSame(1, ProspectingPublicResearchRecord::query()->count());
+        $this->assertDatabaseCount('prospecting_candidates', 0);
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_blocked_buyer_like_fetch_does_not_create_false_candidate_readiness(): void
+    {
+        [$actor, , $run, $job] = $this->activationCFixture([
+            'completed',
+            'page_dtd_blocked',
+        ]);
+        $completed = $job->searchResults()->where('rank', 1)->firstOrFail()->publicFetch;
+        $completed->update([
+            'page_title' => 'North public profile',
+            'meta_description' => 'Public company profile.',
+            'headings' => ['About'],
+            'text_excerpt' => 'Bounded public profile evidence.',
+        ]);
+        $blockedBuyer = $job->searchResults()->where('rank', 2)->firstOrFail();
+        $blockedBuyer->update([
+            'title' => 'North Food Factory | About',
+            'snippet' => 'Manufacturer of ready meals and frozen products.',
+        ]);
+        $job->searchResults()->where('rank', '>', 2)->update([
+            'title' => 'Оптовый поставщик — купить оптом',
+            'snippet' => 'Продажа оптом и прайс-лист.',
+        ]);
+
+        $waiting = app(AdvanceClientAcquisitionCampaignRun::class)->handle($run, $actor);
+
+        $this->assertSame(AiRunStatus::RequiresAction, $waiting->status);
+        $this->assertSame('public_research_review_required', $waiting->safe_error_code);
+        $this->assertSame(1, ProspectingPublicResearchRecord::query()->where('status', 'completed')->count());
+        $this->assertSame('blocked', $blockedBuyer->fresh()->publicFetch->status);
+        $this->assertDatabaseCount('prospecting_candidates', 0);
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_manual_candidate_ingestion_resumes_exact_campaign_without_unit_entity_or_provider_calls(): void
+    {
+        [$actor, , $run, $job] = $this->activationCFixture(['completed']);
+        config()->set('ai-sales.prospecting.candidate_import_enabled', true);
+        $waiting = app(AdvanceClientAcquisitionCampaignRun::class)->handle($run, $actor);
+        $this->assertSame('candidate_ingestion_review_required', $waiting->safe_error_code);
+        $result = $job->searchResults()->where('rank', 1)->firstOrFail();
+        $before = $this->sideEffectCounts($job);
+        Queue::fake();
+
+        $this->actingAs($actor)
+            ->postJson('/api/ai-sales/prospecting/search-results/'.$result->public_id.'/ingest-candidate', [])
+            ->assertCreated()
+            ->assertJsonPath('campaign_resume_queued', true)
+            ->assertJsonPath('unit_created', false)
+            ->assertJsonPath('entity_created', false)
+            ->assertJsonPath('entity_linked', false);
+        $this->actingAs($actor)
+            ->postJson('/api/ai-sales/prospecting/search-results/'.$result->public_id.'/ingest-candidate', [])
+            ->assertCreated()
+            ->assertJsonPath('campaign_resume_queued', true);
+
+        $this->assertSame($before['executions'], $job->searchExecutions()->count());
+        $this->assertSame($before['requests'], (int) $job->searchExecutions()->sum('request_count'));
+        $this->assertSame($before['results'], $job->searchResults()->count());
+        $this->assertSame($before['units'], DB::table('units')->count());
+        $this->assertSame($before['entities'], DB::table('entities')->count());
+        $this->assertSame(1, $job->candidates()->count());
+        Queue::assertPushed(ExecuteClientAcquisitionCampaignRunJob::class, 1);
+        Queue::assertPushed(ExecuteClientAcquisitionCampaignRunJob::class, fn ($queued): bool => $queued->runId === $run->id
+            && $queued->actorUserId === $run->initiator_user_id);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+    }
+
+    public function test_candidate_ingested_from_public_research_review_resumes_without_more_fetches(): void
+    {
+        [$actor, , $run, $job] = $this->activationCFixture(['completed']);
+        config()->set('ai-sales.prospecting.candidate_import_enabled', true);
+        $result = $job->searchResults()->where('rank', 1)->firstOrFail();
+        $fetchesBefore = ProspectingPublicFetch::query()->count();
+        $unitsBefore = DB::table('units')->count();
+        $entitiesBefore = DB::table('entities')->count();
+        Queue::fake();
+
+        $this->actingAs($actor)
+            ->postJson('/api/ai-sales/prospecting/search-results/'.$result->public_id.'/ingest-candidate', [])
+            ->assertCreated()
+            ->assertJsonPath('campaign_resume_queued', true);
+        $completed = app(AdvanceClientAcquisitionCampaignRun::class)->handle($run->fresh(), $actor);
+
+        $this->assertSame(AiRunStatus::Completed, $completed->status);
+        $this->assertSame('new_unit_review', $job->candidates()->sole()->status->value);
+        $this->assertSame($fetchesBefore, ProspectingPublicFetch::query()->count());
+        $this->assertSame(0, ProspectingPublicResearchRecord::query()->count());
+        $this->assertSame($unitsBefore, DB::table('units')->count());
+        $this->assertSame($entitiesBefore, DB::table('entities')->count());
+        Queue::assertPushed(ExecuteClientAcquisitionCampaignRunJob::class, 1);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+    }
+
+    public function test_manual_public_fetch_stops_at_current_campaign_budget_before_http(): void
+    {
+        [$actor, , , $job] = $this->activationCFixture([
+            'completed',
+            'page_dtd_blocked',
+            'robots_unavailable',
+        ]);
+        $unfetched = $job->searchResults()->where('rank', 4)->firstOrFail();
+
+        $this->actingAs($actor)
+            ->postJson('/api/ai-sales/prospecting/search-results/'.$unfetched->public_id.'/fetch', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('research')
+            ->assertJsonPath('errors.research.0', 'public_research_page_budget_exhausted');
+
+        $this->assertDatabaseCount('prospecting_public_fetches', 3);
+        $this->assertSame('not_requested', $unfetched->fresh()->fetch_status);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_ai_sales_review_ui_uses_only_protected_saved_result_actions(): void
+    {
+        $panel = file_get_contents(resource_path('js/Components/AiSales/CandidateIngestionReviewPanel.vue'));
+        $page = file_get_contents(resource_path('js/Pages/Ameise/AiSales.vue'));
+
+        $this->assertStringContainsString('/api/ai-sales/prospecting/search-results/', $panel);
+        $this->assertStringContainsString('/fetch', $panel);
+        $this->assertStringContainsString('/research', $panel);
+        $this->assertStringContainsString('/ingest-candidate', $panel);
+        $this->assertStringContainsString('CandidateIngestionReviewPanel', $page);
+        $this->assertStringNotContainsString('/search-execute', $panel);
+        $this->assertStringNotContainsString('v-model="query"', $panel);
+        $this->assertStringNotContainsString('v-model="url"', $panel);
+        $this->assertStringNotContainsString('v-model="provider"', $panel);
     }
 
     public function test_production_shaped_activation_c_resume_reuses_search_and_reaches_idempotent_ingestion_review(): void

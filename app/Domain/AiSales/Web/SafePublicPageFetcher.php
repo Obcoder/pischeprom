@@ -4,15 +4,18 @@ namespace App\Domain\AiSales\Web;
 
 use App\Domain\AiSales\Enums\AiProcessingContour;
 use App\Domain\AiSales\Exceptions\PolicyViolation;
+use App\Domain\AiSales\Prospecting\ProspectingResearchBudget;
 use App\Domain\AiSales\Search\SearchProviderException;
 use App\Domain\AiSales\Services\ProspectingAuthorizationService;
 use App\Domain\AiSales\Services\ProspectingFeatureGuard;
 use App\Domain\AiSales\Tools\AiToolDlpGuard;
 use App\Models\ProspectingPublicFetch;
+use App\Models\ProspectingSearchJob;
 use App\Models\ProspectingSearchResult;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class SafePublicPageFetcher
@@ -25,6 +28,7 @@ class SafePublicPageFetcher
         private readonly PublicPageTextExtractor $extractor,
         private readonly AiToolDlpGuard $dlp,
         private readonly HttpFactory $http,
+        private readonly ProspectingResearchBudget $budgets,
     ) {}
 
     public function fetch(ProspectingSearchResult $result, User $actor): ProspectingPublicFetch
@@ -42,19 +46,31 @@ class SafePublicPageFetcher
             throw new SearchProviderException('fetch_policy', 'persisted_search_result_integrity_blocked');
         }
 
-        $existing = $result->publicFetch()->first();
-        if ($existing?->status === 'completed') {
-            return $existing;
+        [$result, $fetch, $reserved] = DB::transaction(function () use ($result): array {
+            $job = ProspectingSearchJob::query()->lockForUpdate()->findOrFail($result->prospecting_search_job_id);
+            $lockedResult = ProspectingSearchResult::query()->with('publicFetch')
+                ->lockForUpdate()->findOrFail($result->id);
+            $lockedResult->setRelation('job', $job);
+            $existing = $lockedResult->publicFetch;
+            if ($existing?->status === 'completed') {
+                return [$lockedResult, $existing, false];
+            }
+            if ($existing !== null) {
+                throw new SearchProviderException('idempotency', 'public_fetch_replay_blocked');
+            }
+            $this->budgets->assertCanFetch($job, (string) $lockedResult->domain_hash);
+            $fetch = $lockedResult->publicFetch()->create([
+                'status' => 'processing',
+                'trust_level' => 'untrusted',
+                'instruction_authority' => 'none',
+            ]);
+            $lockedResult->update(['fetch_status' => 'processing']);
+
+            return [$lockedResult, $fetch, true];
+        }, 3);
+        if (! $reserved) {
+            return $fetch;
         }
-        if ($existing !== null) {
-            throw new SearchProviderException('idempotency', 'public_fetch_replay_blocked');
-        }
-        $fetch = $result->publicFetch()->create([
-            'status' => 'processing',
-            'trust_level' => 'untrusted',
-            'instruction_authority' => 'none',
-        ]);
-        $result->update(['fetch_status' => 'processing']);
         $startedAt = hrtime(true);
 
         try {

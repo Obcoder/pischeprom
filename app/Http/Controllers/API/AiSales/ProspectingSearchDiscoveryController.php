@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API\AiSales;
 
 use App\Domain\AiSales\Campaigns\ResumeClientAcquisitionCampaignRun;
 use App\Domain\AiSales\Enums\BusinessLane;
+use App\Domain\AiSales\Prospecting\CandidateIngestionReviewProjection;
 use App\Domain\AiSales\Prospecting\ResultBusinessRoleClassifier;
 use App\Domain\AiSales\Services\ApproveProspectingQueryPlan;
 use App\Domain\AiSales\Services\ExecuteProspectingSearchJob;
@@ -98,6 +99,7 @@ class ProspectingSearchDiscoveryController extends Controller
         ProspectingFeatureGuard $features,
         ProspectingAuthorizationService $authorization,
         ResultBusinessRoleClassifier $businessRoles,
+        CandidateIngestionReviewProjection $candidateReviews,
     ): JsonResponse {
         $features->queryPlanning();
         Gate::authorize('view', $prospectingSearchJob);
@@ -112,8 +114,9 @@ class ProspectingSearchDiscoveryController extends Controller
         $results = $prospectingSearchJob->searchResults()
             ->with([
                 'candidate:id,public_id',
-                'publicFetch:id,prospecting_search_result_id,status,page_title,meta_description,channel_count,robots_status,error_category,error_code,fetched_at',
-                'research:id,prospecting_search_result_id,status,safe_summary,schema_valid,error_category,error_code,completed_at',
+                'searchQuery:id,geography',
+                'publicFetch:id,prospecting_search_result_id,status,registrable_domain,page_title,meta_description,headings,text_excerpt,channel_count,robots_status,error_category,error_code,fetched_at',
+                'research:id,prospecting_search_result_id,status,safe_summary,activity_mentions,location_hints,product_mentions,schema_valid,error_category,error_code,completed_at',
             ])
             ->orderBy('rank')->limit(250)->get();
 
@@ -155,6 +158,7 @@ class ProspectingSearchDiscoveryController extends Controller
                 'retries' => 0,
                 'failovers' => 0,
             ],
+            'candidate_ingestion_review' => $candidateReviews->forJob($prospectingSearchJob, $results),
         ]]);
     }
 
@@ -199,11 +203,14 @@ class ProspectingSearchDiscoveryController extends Controller
         SearchDiscoveryActionRequest $request,
         ProspectingSearchResult $prospectingSearchResult,
         IngestProspectingSearchCandidate $service,
+        ResumeClientAcquisitionCampaignRun $campaignRuns,
     ): JsonResponse {
         $candidate = $service->handle($prospectingSearchResult, $request->user());
+        $resumeQueued = $campaignRuns->afterCandidateIngestion($prospectingSearchResult->job()->firstOrFail());
 
         return response()->json([
             'data' => (new ProspectingCandidateResource($candidate))->resolve($request),
+            'campaign_resume_queued' => $resumeQueued,
             'unit_created' => false,
             'entity_created' => false,
             'entity_linked' => false,

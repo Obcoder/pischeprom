@@ -8,6 +8,8 @@ use App\Domain\AiSales\Campaigns\ClientAcquisitionCampaignSearchJobService;
 use App\Domain\AiSales\Campaigns\StartClientAcquisitionCampaignRun;
 use App\Domain\AiSales\Enums\AiRunStatus;
 use App\Domain\AiSales\Exceptions\PolicyViolation;
+use App\Domain\AiSales\Prospecting\ProspectingResearchBudget;
+use App\Domain\AiSales\Services\ProspectingSearchJobService;
 use App\Models\ClientAcquisitionCampaign;
 use App\Models\ProspectingSearchJob;
 use App\Models\User;
@@ -159,6 +161,63 @@ class Stage14ActivationReadinessTest extends Stage14TestCase
         ] as $name) {
             $this->assertStringContainsString("{$name}=0", $example);
         }
+    }
+
+    public function test_campaign_owned_research_limits_are_not_clamped_by_browser_draft_limits(): void
+    {
+        config()->set([
+            'ai-sales.campaigns.limits.max_research_pages_per_run' => 30,
+            'ai-sales.campaigns.limits.max_domains_per_run' => 30,
+            'ai-sales.find_buyers.limits.max_page_fetch_attempts' => 5,
+            'ai-sales.find_buyers.limits.max_domains' => 10,
+        ]);
+        $actor = $this->campaignUser();
+        $product = $this->campaignProduct('Campaign research ceilings');
+        $campaign = $this->approvedCampaign($actor, $product, [
+            'criteria' => [
+                'segments' => ['archetype:food_manufacturer'],
+                'max_domains' => 30,
+                'max_page_fetch_attempts' => 30,
+                'max_results_per_query' => 10,
+            ],
+            'limits' => array_replace($this->campaignLimits(), [
+                'max_research_pages_per_run' => 30,
+            ]),
+        ]);
+        $run = app(StartClientAcquisitionCampaignRun::class)
+            ->handle($campaign, $actor, 'campaign-owned-research-limits');
+        $campaignJob = app(ClientAcquisitionCampaignSearchJobService::class)->ensure($campaign, $run);
+
+        $this->assertSame(30, $campaignJob->criteria_snapshot['max_domains']);
+        $this->assertSame(30, $campaignJob->criteria_snapshot['max_page_fetch_attempts']);
+
+        $browserJob = app(ProspectingSearchJobService::class)->createDraft([
+            'purpose' => 'buyer_discovery',
+            'safe_objective' => 'Bounded browser-owned draft remains under Find Buyers limits.',
+            'primary_product_id' => $product->id,
+            'criteria' => [
+                'segments' => ['synthetic'],
+                'max_domains' => 30,
+                'max_page_fetch_attempts' => 30,
+            ],
+        ], $actor);
+        $this->assertSame(10, $browserJob->criteria_snapshot['max_domains']);
+        $this->assertSame(5, $browserJob->criteria_snapshot['max_page_fetch_attempts']);
+
+        // Existing production jobs keep their immutable snapshot, while the current
+        // approved Campaign remains the source of truth for its reviewed run budget.
+        $campaignJob->update(['criteria_snapshot' => array_replace($campaignJob->criteria_snapshot, [
+            'max_domains' => 10,
+            'max_page_fetch_attempts' => 5,
+        ])]);
+        $budget = app(ProspectingResearchBudget::class)->snapshot($campaignJob->fresh());
+        $this->assertSame('campaign', $budget['source']);
+        $this->assertTrue($budget['current']);
+        $this->assertSame(30, $budget['domains_limit']);
+        $this->assertSame(30, $budget['pages_limit']);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
     }
 
     private function assertCampaignStartBlocked(string $expectedCode): void

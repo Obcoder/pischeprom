@@ -44,7 +44,20 @@ final class ResumeClientAcquisitionCampaignRun
         return $this->dispatchLinkedRun($job, 'search_jobs_dispatched');
     }
 
-    private function dispatchLinkedRun(ProspectingSearchJob $job, string $expectedReason): bool
+    public function afterCandidateIngestion(ProspectingSearchJob $job): bool
+    {
+        if (! $job->candidates()->exists()) {
+            return false;
+        }
+
+        return $this->dispatchLinkedRun($job, [
+            'public_research_review_required',
+            'candidate_ingestion_review_required',
+        ]);
+    }
+
+    /** @param string|list<string> $expectedReason */
+    private function dispatchLinkedRun(ProspectingSearchJob $job, string|array $expectedReason): bool
     {
         $link = ClientAcquisitionCampaignRunLink::query()
             ->with(['run', 'campaign'])
@@ -52,9 +65,12 @@ final class ResumeClientAcquisitionCampaignRun
             ->first();
         $run = $link?->run;
         $campaign = $link?->campaign;
+        $expectedReasons = (array) $expectedReason;
         if (! $run || ! $campaign
             || $run->status !== AiRunStatus::RequiresAction
-            || ! hash_equals($expectedReason, (string) $run->safe_error_code)
+            || ! collect($expectedReasons)->contains(
+                fn (string $reason): bool => hash_equals($reason, (string) $run->safe_error_code),
+            )
             || $campaign->status !== ClientAcquisitionCampaignStatus::Running
             || ! $this->hashes->isCurrent($campaign)
             || $run->initiator_user_id === null) {

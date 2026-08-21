@@ -43,7 +43,17 @@ final class ClientAcquisitionCampaignSearchJobService
                 'max_rows' => max(1, min(1000, (int) $campaign->max_candidates_per_run)),
                 'max_bytes' => 1_048_576,
                 'criteria' => $criteria,
-            ], $owner);
+            ], $owner, [
+                'max_domains' => min(
+                    (int) ($criteria['max_domains'] ?? 0),
+                    (int) config('ai-sales.campaigns.limits.max_domains_per_run', 0),
+                ),
+                'max_page_fetch_attempts' => min(
+                    (int) $campaign->max_research_pages_per_run,
+                    (int) ($criteria['max_page_fetch_attempts'] ?? 0),
+                    (int) config('ai-sales.campaigns.limits.max_research_pages_per_run', 0),
+                ),
+            ]);
             $job->update([
                 'launch_source_type' => 'campaign',
                 'launch_source_id' => $campaign->id,

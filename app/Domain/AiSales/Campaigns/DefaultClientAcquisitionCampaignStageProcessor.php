@@ -154,6 +154,14 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
     {
         $this->features->liveResearch();
         $job = $this->job($run);
+        $existingCandidates = $job->candidates()->count();
+        if ($existingCandidates > 0) {
+            return ClientAcquisitionCampaignStageOutcome::completed([
+                'completed' => $job->searchResults()->where('research_status', 'completed')->count(),
+                'candidates' => $existingCandidates,
+                'manual_candidate_evidence_accepted' => true,
+            ]);
+        }
         $limit = min((int) $campaign->max_research_pages_per_run, (int) ($job->criteria_snapshot['max_page_fetch_attempts'] ?? 0));
         if ($limit < 1) {
             return ClientAcquisitionCampaignStageOutcome::blocked('campaign_research_budget_missing', 'Campaign research-page budget is zero.');
@@ -165,10 +173,10 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
         $available = $job->searchResults()->whereNull('duplicate_of_id')
             ->with(['publicFetch', 'research', 'job:id,lane'])
             ->orderBy('rank')->limit(max($limit * 5, 100))->get();
-        $results = $this->domainInvestigations->select($available, $domainLimit, $limit)
-            ->filter(fn ($item): bool => $this->businessRoles->classify($item)->researchEligible)
-            ->take($limit)
-            ->values();
+        $eligible = $available->filter(
+            fn ($item): bool => $this->businessRoles->classify($item)->researchEligible,
+        );
+        $results = $this->domainInvestigations->select($eligible, $domainLimit, $limit);
         $completed = 0;
         $blocked = 0;
         foreach ($results as $result) {
@@ -208,7 +216,12 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
                 $job->lane,
             );
             $identity = $this->companyIdentities->resolve($domainResults);
-            if ($decision->candidateEligible && $identity->resolved()) {
+            $completedSameDomainFetch = $domainResults->contains(fn ($result): bool => $result->publicFetch?->status === 'completed'
+                && hash_equals(
+                    (string) $result->registrable_domain,
+                    (string) $result->publicFetch->registrable_domain,
+                ));
+            if ($completedSameDomainFetch && $decision->candidateEligible && $identity->resolved()) {
                 $reviewableDomains++;
             } else {
                 $domainsRequiringReview++;

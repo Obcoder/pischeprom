@@ -21,13 +21,14 @@ class ProspectingSearchJobService
         private readonly GoodProductMappingResolver $productMappings,
     ) {}
 
-    public function createDraft(array $attributes, User $actor): ProspectingSearchJob
+    /** @param array{max_domains?: int, max_page_fetch_attempts?: int}|null $serverOwnedCriteriaLimits */
+    public function createDraft(array $attributes, User $actor, ?array $serverOwnedCriteriaLimits = null): ProspectingSearchJob
     {
         $this->features->jobs();
         $this->features->assertNoLiveSearch();
         $purpose = ProspectingPurpose::from($attributes['purpose']);
         $this->authorization->authorize($actor, ProspectingAuthorizationService::MANAGE_JOBS, $purpose->lane());
-        $criteria = $this->criteria($attributes['criteria'] ?? []);
+        $criteria = $this->criteria($attributes['criteria'] ?? [], $serverOwnedCriteriaLimits);
         $safeObjective = $this->safeObjective((string) ($attributes['safe_objective'] ?? ''));
         $productScope = $this->productScope($attributes);
         $goodIds = $this->originatingGoodIds($attributes);
@@ -359,22 +360,29 @@ class ProspectingSearchJobService
         }
     }
 
-    private function criteria(array $criteria): array
+    /** @param array{max_domains?: int, max_page_fetch_attempts?: int}|null $serverOwnedLimits */
+    private function criteria(array $criteria, ?array $serverOwnedLimits = null): array
     {
         $allowed = collect($criteria)->only([
             'segments', 'industries', 'categories', 'excluded_categories', 'company_types',
             'max_domains', 'max_page_fetch_attempts', 'notes',
         ]);
 
-        return $allowed->map(function ($value, $key) {
+        return $allowed->map(function ($value, $key) use ($serverOwnedLimits) {
             if ($key === 'notes') {
                 return mb_substr(trim((string) $value), 0, 500);
             }
             if ($key === 'max_domains') {
-                return max(1, min((int) $value, (int) config('ai-sales.find_buyers.limits.max_domains', 10)));
+                $ceiling = (int) ($serverOwnedLimits['max_domains']
+                    ?? config('ai-sales.find_buyers.limits.max_domains', 10));
+
+                return max(1, min((int) $value, max(1, $ceiling)));
             }
             if ($key === 'max_page_fetch_attempts') {
-                return max(0, min((int) $value, (int) config('ai-sales.find_buyers.limits.max_page_fetch_attempts', 5)));
+                $ceiling = (int) ($serverOwnedLimits['max_page_fetch_attempts']
+                    ?? config('ai-sales.find_buyers.limits.max_page_fetch_attempts', 5));
+
+                return max(0, min((int) $value, max(0, $ceiling)));
             }
 
             return collect((array) $value)->take(25)->map(fn ($item) => mb_substr(trim((string) $item), 0, 120))->filter()->values()->all();

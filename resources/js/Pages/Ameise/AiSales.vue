@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { Head, usePage } from '@inertiajs/vue3'
 import { computed, nextTick, onMounted, ref } from 'vue'
+import CandidateIngestionReviewPanel from '@/Components/AiSales/CandidateIngestionReviewPanel.vue'
 import CandidateReviewCard from '@/Components/AiSales/CandidateReviewCard.vue'
 import ClientAcquisitionCampaignDashboard from '@/Components/AiSales/ClientAcquisitionCampaignDashboard.vue'
 import FindBuyersDashboard from '@/Components/AiSales/FindBuyersDashboard.vue'
@@ -30,7 +31,9 @@ const error = ref('')
 const candidates = ref([])
 const campaigns = ref([])
 const campaignReviewItems = ref([])
+const ingestionReviews = ref({})
 const candidateQualityFilter = ref('all')
+const assistedResearchCategories = new Set(['public_research_review', 'candidate_ingestion_review'])
 
 const filteredCandidates = computed(() => {
     let rows = candidates.value
@@ -48,7 +51,21 @@ const filteredCandidates = computed(() => {
 const candidatesForReview = computed(() => filteredCandidates.value.filter(isCandidateReview))
 const resolvedCandidates = computed(() => filteredCandidates.value.filter(candidate => candidate.resolved_unit))
 const normalizedReviewItems = computed(() => normalizeReviewItems(campaignReviewItems.value))
+const actionableResearchItems = computed(() => normalizedReviewItems.value.filter(item =>
+    assistedResearchCategories.has(item?.category) && item?.search_job_public_id && reviewFor(item),
+))
+const otherReviewItems = computed(() => normalizedReviewItems.value.filter(item =>
+    !actionableResearchItems.value.includes(item),
+))
 const reviewBadge = computed(() => reviewBadgeCount(normalizedReviewItems.value, candidatesForReview.value))
+
+function reviewFor(item) {
+    return ingestionReviews.value[item?.search_job_public_id] || null
+}
+
+function campaignName(item) {
+    return campaigns.value.find(campaign => campaign.id === item?.campaign_id)?.safe_name || 'Campaign'
+}
 
 async function safeGet(url, fallback) {
     try {
@@ -84,6 +101,19 @@ async function load() {
             [],
         )))
         campaignReviewItems.value = queues.flat()
+        const reviewJobIds = [...new Set(campaignReviewItems.value
+            .filter(item => assistedResearchCategories.has(item?.category))
+            .map(item => item?.search_job_public_id)
+            .filter(Boolean))]
+        const reviewResponses = await Promise.all(reviewJobIds.map(async jobId => {
+            const data = await safeGet(
+                `/api/ai-sales/prospecting/jobs/${encodeURIComponent(jobId)}/search`,
+                null,
+            )
+
+            return [jobId, data?.candidate_ingestion_review || null]
+        }))
+        ingestionReviews.value = Object.fromEntries(reviewResponses.filter(([, review]) => review))
 
         await nextTick()
         if (requestedCandidateId && typeof document !== 'undefined') {
@@ -165,15 +195,24 @@ onMounted(load)
                             @updated="load"
                         />
 
-                        <v-alert v-if="!candidatesForReview.length" type="info" variant="tonal">
+                        <CandidateIngestionReviewPanel
+                            v-for="item in actionableResearchItems"
+                            :key="`${item.campaign_id}-${item.search_job_public_id}-${item.category}`"
+                            :item="item"
+                            :review="reviewFor(item)"
+                            :campaign-name="campaignName(item)"
+                            @updated="load"
+                        />
+
+                        <v-alert v-if="!candidatesForReview.length && !actionableResearchItems.length" type="info" variant="tonal">
                             Candidate review items отсутствуют.
                         </v-alert>
 
-                        <v-card v-if="normalizedReviewItems.length" variant="tonal">
+                        <v-card v-if="otherReviewItems.length" variant="tonal">
                             <v-card-title>Campaign Review Queue</v-card-title>
                             <v-list density="compact">
                                 <v-list-item
-                                    v-for="item in normalizedReviewItems"
+                                    v-for="item in otherReviewItems"
                                     :key="`${item.campaign_id}-${item.source_type}-${item.source_id}-${item.category}`"
                                     :title="item.category"
                                     :subtitle="`${item.reason_code} · ${item.next_permitted_action}`"

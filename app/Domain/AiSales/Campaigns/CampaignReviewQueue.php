@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
 final class CampaignReviewQueue
 {
     public const CATEGORIES = [
-        'query_plan_review', 'candidate_ingestion_review', 'candidate_duplicate_review', 'new_unit_review',
+        'query_plan_review', 'public_research_review', 'candidate_ingestion_review', 'candidate_duplicate_review', 'new_unit_review',
         'product_match_review', 'outreach_content_review', 'outreach_claim_review',
         'permission_review', 'policy_block', 'provider_error', 'budget_block',
     ];
@@ -35,7 +35,9 @@ final class CampaignReviewQueue
         $runIds = $campaign->runLinks()->pluck('ai_agent_run_id');
         $linksByJob = $campaign->runLinks()->with('run:id,public_id')->whereNotNull('prospecting_search_job_id')
             ->get()->keyBy('prospecting_search_job_id');
-        $linksByRun = $campaign->runLinks()->with('run:id,public_id')->get()->keyBy('ai_agent_run_id');
+        $linksByRun = $campaign->runLinks()->with([
+            'run:id,public_id', 'searchJob:id,public_id',
+        ])->get()->keyBy('ai_agent_run_id');
         $items = collect();
 
         $jobsById = ProspectingSearchJob::query()->whereIn('id', $jobIds)
@@ -127,10 +129,15 @@ final class CampaignReviewQueue
             ->each(function ($row) use ($campaign, $items, $linksByRun): void {
                 $code = (string) ($row->safe_error_code ?: 'policy_block');
                 $candidateIngestionReview = $code === 'candidate_ingestion_review_required';
+                $publicResearchReview = $code === 'public_research_review_required';
                 $queryPlanReview = $code === 'query_plan_review_required';
-                $category = $candidateIngestionReview ? 'candidate_ingestion_review'
-                    : (str_contains($code, 'budget') ? 'budget_block'
-                    : (str_contains($code, 'provider') || str_contains($code, 'search') ? 'provider_error' : 'policy_block'));
+                $category = match (true) {
+                    $candidateIngestionReview => 'candidate_ingestion_review',
+                    $publicResearchReview => 'public_research_review',
+                    str_contains($code, 'budget') => 'budget_block',
+                    str_contains($code, 'provider'), str_contains($code, 'search') => 'provider_error',
+                    default => 'policy_block',
+                };
                 $link = $linksByRun->get($row->ai_agent_run_id);
                 if ($candidateIngestionReview && $link?->prospecting_search_job_id
                     && ProspectingCandidate::query()
@@ -145,15 +152,20 @@ final class CampaignReviewQueue
                         ->where('plan_status', 'review_required')->exists()) {
                     return;
                 }
+                $nextAction = match (true) {
+                    $candidateIngestionReview => 'Use the protected manual Candidate ingestion action.',
+                    $publicResearchReview => 'Review bounded saved results and continue public research manually.',
+                    default => 'Review the safe campaign-stage outcome.',
+                };
                 $items->push($this->item($campaign, $category, 'ai_agent_run_step', $row->id,
-                    $candidateIngestionReview ? $link?->prospecting_search_job_id : null,
-                    null, $code, $candidateIngestionReview
-                        ? 'Use the protected manual Candidate ingestion action.'
-                        : 'Review the safe campaign-stage outcome.', $row->created_at, [
-                            'run_id' => $link?->run?->public_id,
-                            'step' => $row->sequence,
-                            'safe_evidence' => $row->normalized_output_metadata,
-                        ]));
+                    ($candidateIngestionReview || $publicResearchReview) ? $link?->prospecting_search_job_id : null,
+                    null, $code, $nextAction, $row->created_at, [
+                        'run_id' => $link?->run?->public_id,
+                        'search_job_public_id' => ($candidateIngestionReview || $publicResearchReview)
+                            ? $link?->searchJob?->public_id : null,
+                        'step' => $row->sequence,
+                        'safe_evidence' => $row->normalized_output_metadata,
+                    ]));
             });
 
         return $items->sortBy(fn (array $item) => $item['created_at'])->take($limit)->values()->all();
