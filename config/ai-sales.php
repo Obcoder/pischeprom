@@ -126,6 +126,11 @@ return [
                 'minimum_prospect_priority' => 50,
             ],
         ],
+        'draft_form_limits' => [
+            'max_additional_products' => 10,
+            'max_excluded_products' => 10,
+            'max_segments' => 25,
+        ],
         'limits' => [
             'scheduler_batch' => (int) env('AI_SALES_CAMPAIGN_SCHEDULER_BATCH', 0),
             'max_active_runs' => (int) env('AI_SALES_CAMPAIGN_MAX_ACTIVE_RUNS', 0),

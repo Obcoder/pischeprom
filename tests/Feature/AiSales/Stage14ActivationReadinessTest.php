@@ -201,7 +201,7 @@ class Stage14ActivationReadinessTest extends Stage14TestCase
     {
         return [
             'criteria' => [
-                'segments' => ['synthetic food producers'],
+                'segments' => ['archetype:food_manufacturer'],
                 'max_domains' => 3,
                 'max_page_fetch_attempts' => 3,
                 'max_results_per_query' => 10,

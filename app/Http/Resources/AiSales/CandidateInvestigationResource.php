@@ -6,6 +6,7 @@ use App\Domain\AiSales\Enums\DataClassification;
 use App\Domain\AiSales\Enums\ObservationVerificationStatus;
 use App\Domain\AiSales\Enums\UnitAliasType;
 use App\Domain\AiSales\Enums\UnitVisibilityScope;
+use App\Domain\AiSales\Prospecting\ResultBusinessRoleClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
@@ -16,6 +17,7 @@ class CandidateInvestigationResource extends JsonResource
     public function toArray(Request $request): array
     {
         $sources = $this->sourceItems();
+        $classification = $this->buyerClassification();
 
         return [
             'candidate' => [
@@ -45,12 +47,34 @@ class CandidateInvestigationResource extends JsonResource
                     : ($this->normalized_domain ? 'public_site_observed_company_identity_unverified' : 'company_identity_evidence_missing'),
                 'requires_human_name_confirmation' => $this->resolvedUnit === null,
             ],
+            'buyer_classification' => $classification,
             'product_scope' => $this->productScopeItems(),
             'sources' => $sources->values()->all(),
             'facts' => $this->factItems(),
             'public_contacts' => $this->publicContactItems(),
             'duplicates' => $this->duplicateItems($request),
         ];
+    }
+
+    private function buyerClassification(): array
+    {
+        $results = $this->loadedCollection('searchResults');
+        if ($results->isEmpty()) {
+            return [
+                'role' => 'unknown', 'reason_codes' => ['search_evidence_missing'],
+                'confidence' => 0, 'research_eligible' => false, 'candidate_eligible' => false,
+            ];
+        }
+        $classifier = app(ResultBusinessRoleClassifier::class);
+        $combined = $results->map(fn ($result): string => implode(' ', array_filter([
+            $result->title, $result->snippet, $result->publicFetch?->page_title,
+            $result->publicFetch?->meta_description, $result->publicFetch?->text_excerpt,
+            ...((array) ($result->publicFetch?->headings ?? [])),
+            $result->research?->safe_summary,
+            ...((array) ($result->research?->activity_mentions ?? [])),
+        ])))->implode(' ');
+
+        return $classifier->classifyEvidence($combined, (string) $this->normalized_domain, $this->lane)->safeArray();
     }
 
     private function sourceItems(): Collection

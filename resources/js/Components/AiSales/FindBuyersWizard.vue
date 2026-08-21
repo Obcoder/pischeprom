@@ -40,7 +40,7 @@ const form = reactive({
     region_id: null,
     city_id: null,
     limits: {
-        max_queries: 4,
+        max_queries: 10,
         max_results_per_query: 10,
         max_domains: 5,
         max_page_fetch_attempts: 0,

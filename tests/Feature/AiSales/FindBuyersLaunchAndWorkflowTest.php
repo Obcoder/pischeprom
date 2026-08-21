@@ -127,8 +127,9 @@ class FindBuyersLaunchAndWorkflowTest extends Stage11TestCase
         $plan = $this->actingAs($actor)->postJson("/api/ai-sales/find-buyers/drafts/{$jobId}/plan", [])
             ->assertCreated()->assertJsonPath('data.0.plan_status', 'review_required')->json('data');
         $this->assertNotEmpty($plan);
-        $this->assertTrue(collect($plan)->every(fn (array $row): bool => str_contains(mb_strtolower($row['query']), 'брокколи')
-            && ! str_contains($row['query'], $good->name)));
+        $this->assertTrue(collect($plan)->contains(fn (array $row): bool => str_contains(mb_strtolower($row['query']), 'брокколи')));
+        $this->assertTrue(collect($plan)->contains(fn (array $row): bool => ! str_contains(mb_strtolower($row['query']), 'брокколи')));
+        $this->assertTrue(collect($plan)->every(fn (array $row): bool => ! str_contains($row['query'], $good->name)));
         $this->actingAs($actor)->postJson("/api/ai-sales/find-buyers/drafts/{$jobId}/submit", [])
             ->assertOk()->assertJsonPath('data.status', 'review_required');
         $this->actingAs($actor)->postJson("/api/ai-sales/find-buyers/jobs/{$jobId}/cancel", [])

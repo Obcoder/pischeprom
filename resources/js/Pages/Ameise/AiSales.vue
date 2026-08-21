@@ -30,12 +30,20 @@ const error = ref('')
 const candidates = ref([])
 const campaigns = ref([])
 const campaignReviewItems = ref([])
+const candidateQualityFilter = ref('all')
 
 const filteredCandidates = computed(() => {
-    if (!requestedProductId) return candidates.value
+    let rows = candidates.value
+    if (requestedProductId) {
+        rows = rows.filter(candidate => (candidate.products || [])
+            .some(product => Number(product.id) === Number(requestedProductId)))
+    }
+    if (candidateQualityFilter.value === 'needs_review') return rows.filter(isCandidateReview)
+    if (candidateQualityFilter.value !== 'all') {
+        return rows.filter(candidate => candidate.investigation?.buyer_classification?.role === candidateQualityFilter.value)
+    }
 
-    return candidates.value.filter(candidate => (candidate.products || [])
-        .some(product => Number(product.id) === Number(requestedProductId)))
+    return rows
 })
 const candidatesForReview = computed(() => filteredCandidates.value.filter(isCandidateReview))
 const resolvedCandidates = computed(() => filteredCandidates.value.filter(candidate => candidate.resolved_unit))
@@ -177,6 +185,12 @@ onMounted(load)
 
                 <v-tabs-window-item value="candidates">
                     <div class="pa-3 pa-md-4 ai-sales-stack">
+                        <v-btn-toggle v-model="candidateQualityFilter" mandatory density="compact" divided>
+                            <v-btn value="all">Все</v-btn>
+                            <v-btn value="potential_buyer">Потенциальные покупатели</v-btn>
+                            <v-btn value="possible_buyer">Возможные покупатели</v-btn>
+                            <v-btn value="needs_review">Нужна проверка</v-btn>
+                        </v-btn-toggle>
                         <CandidateReviewCard
                             v-for="candidate in filteredCandidates"
                             :key="candidate.id"

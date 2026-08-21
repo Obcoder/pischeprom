@@ -2,6 +2,7 @@
 
 namespace App\Domain\AiSales\Campaigns;
 
+use App\Domain\AiSales\Prospecting\ResultBusinessRoleClassifier;
 use App\Models\AiAgentRun;
 use App\Models\AiUsageRecord;
 use App\Models\ClientAcquisitionCampaign;
@@ -20,6 +21,7 @@ final class ClientAcquisitionCampaignMetrics
     public function __construct(
         private readonly ClientAcquisitionCampaignAuthorizationService $authorization,
         private readonly CampaignReviewQueue $reviews,
+        private readonly ResultBusinessRoleClassifier $businessRoles,
     ) {}
 
     /** @return array<string, mixed> */
@@ -43,6 +45,38 @@ final class ClientAcquisitionCampaignMetrics
         );
         $aiUsage = AiUsageRecord::query()->whereIn('ai_agent_run_id', $runIds);
         $reviews = $this->reviews->forCampaign($campaign, $actor, 200);
+        $searchResults = ProspectingSearchResult::query()->whereIn('prospecting_search_job_id', $jobIds)
+            ->whereNull('duplicate_of_id')->with(['job:id,lane', 'publicFetch', 'research'])
+            ->orderBy('prospecting_search_job_id')->orderBy('rank')->get();
+        $domainDecisions = $searchResults->groupBy('domain_hash')->map(function ($results): array {
+            /** @var ProspectingSearchResult $first */
+            $first = $results->first();
+            $combinedEvidence = $results->map(fn (ProspectingSearchResult $result): string => implode(' ', array_filter([
+                $result->title, $result->snippet, $result->publicFetch?->page_title,
+                $result->publicFetch?->meta_description, $result->publicFetch?->text_excerpt,
+                ...((array) ($result->publicFetch?->headings ?? [])),
+                $result->research?->safe_summary,
+                ...((array) ($result->research?->activity_mentions ?? [])),
+            ])))->implode(' ');
+            $decision = $this->businessRoles->classifyEvidence(
+                $combinedEvidence,
+                (string) $first->registrable_domain,
+                $first->job->lane,
+            );
+
+            return [
+                'domain' => $first->registrable_domain,
+                'classification' => $decision->role->value,
+                'reason_codes' => $decision->reasonCodes,
+                'confidence' => $decision->confidence,
+                'result_count' => $results->count(),
+                'fetch_completed' => $results->where('fetch_status', 'completed')->count(),
+                'research_completed' => $results->filter(
+                    fn (ProspectingSearchResult $result): bool => $result->research?->status === 'completed',
+                )->count(),
+            ];
+        })->values();
+        $domainRoles = $domainDecisions->pluck('classification');
 
         return [
             'campaign_id' => $campaign->public_id,
@@ -58,8 +92,16 @@ final class ClientAcquisitionCampaignMetrics
             'research' => [
                 'results' => ProspectingSearchResult::query()->whereIn('prospecting_search_job_id', $jobIds)->count(),
                 'unique_domains' => ProspectingSearchResult::query()->whereIn('prospecting_search_job_id', $jobIds)->whereNull('duplicate_of_id')->distinct()->count('domain_hash'),
+                'buyer_like_domains' => $domainRoles->filter(fn (string $role): bool => in_array($role, ['potential_buyer', 'possible_buyer'], true))->count(),
+                'researched_companies' => $searchResults->filter(fn (ProspectingSearchResult $result): bool => $result->research?->status === 'completed')
+                    ->unique('domain_hash')->count(),
                 'fetch_completed' => ProspectingSearchResult::query()->whereIn('prospecting_search_job_id', $jobIds)->where('fetch_status', 'completed')->count(),
                 'fetch_blocked' => ProspectingSearchResult::query()->whereIn('prospecting_search_job_id', $jobIds)->where('fetch_status', 'blocked')->count(),
+                'classifications' => $domainRoles->countBy()->all(),
+                'domain_breakdown' => $domainDecisions->take(100)->all(),
+                'rejected_supplier' => $domainRoles->filter(fn (string $role): bool => $role === 'supplier_or_competitor')->count(),
+                'rejected_marketplace' => $domainRoles->filter(fn (string $role): bool => $role === 'marketplace')->count(),
+                'directory_evidence_only' => $domainRoles->filter(fn (string $role): bool => $role === 'directory')->count(),
             ],
             'candidates' => [
                 'total' => (clone $candidate)->count(),

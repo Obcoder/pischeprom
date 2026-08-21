@@ -107,7 +107,7 @@ final class RunSyntheticClientAcquisitionCampaignCommand extends Command
                 'schedule_cadence' => 'manual',
                 'criteria' => [
                     'country_id' => $countryId, 'region_id' => $regionId, 'city_id' => $cityId,
-                    'segments' => ['food producers'], 'categories' => ['frozen vegetables'],
+                    'segments' => ['archetype:food_manufacturer'], 'categories' => ['frozen vegetables'],
                     'max_domains' => 3, 'max_page_fetch_attempts' => 2, 'max_results_per_query' => 2,
                 ],
                 'limits' => $this->limits(),

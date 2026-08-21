@@ -29,8 +29,8 @@ class Stage09SyntheticCommandsTest extends Stage09TestCase
         $this->assertSame('sqlite', DB::connection()->getDriverName());
         $this->assertFalse((bool) config('ai-sales.provider_failover_enabled'));
         $this->assertFalse((bool) config('ai-sales.prospecting.auto_candidate_ingestion_enabled'));
-        $this->assertDatabaseCount('prospecting_search_executions', 2);
-        $this->assertDatabaseCount('prospecting_search_results', 4);
+        $this->assertDatabaseCount('prospecting_search_executions', 10);
+        $this->assertDatabaseCount('prospecting_search_results', 20);
         Http::assertNothingSent();
     }
 }

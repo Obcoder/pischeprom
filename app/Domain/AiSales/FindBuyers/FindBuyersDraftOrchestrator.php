@@ -145,7 +145,7 @@ final class FindBuyersDraftOrchestrator
             'region_id' => $geography['region_id'],
             'city_id' => $geography['city_id'],
             'locale' => 'ru-RU',
-            'max_queries' => (int) ($limits['max_queries'] ?? $job?->max_queries ?? 4),
+            'max_queries' => (int) ($limits['max_queries'] ?? $job?->max_queries ?? 10),
             'max_candidates' => (int) ($limits['max_candidates'] ?? $job?->max_candidates ?? 25),
             'max_results_per_query' => (int) ($limits['max_results_per_query'] ?? $job?->max_results_per_query ?? 10),
             'max_rows' => min(250, (int) ($limits['max_candidates'] ?? $job?->max_rows ?? 25)),

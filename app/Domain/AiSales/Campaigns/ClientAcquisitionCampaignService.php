@@ -11,6 +11,8 @@ use App\Domain\AiSales\Enums\AiRunStepStatus;
 use App\Domain\AiSales\Enums\BusinessLane;
 use App\Domain\AiSales\Enums\ProspectingPurpose;
 use App\Domain\AiSales\Enums\UnitRoleCode;
+use App\Domain\AiSales\FindBuyers\FindBuyersGeographyService;
+use App\Domain\AiSales\Prospecting\BuyerSegmentCatalog;
 use App\Domain\AiSales\Services\GoodProductMappingResolver;
 use App\Models\ClientAcquisitionCampaign;
 use App\Models\Product;
@@ -37,6 +39,8 @@ final class ClientAcquisitionCampaignService
         private readonly ClientAcquisitionCampaignWorkflowRegistry $workflow,
         private readonly ClientAcquisitionCampaignStateMachine $states,
         private readonly GoodProductMappingResolver $goodMappings,
+        private readonly FindBuyersGeographyService $geography,
+        private readonly BuyerSegmentCatalog $segments,
     ) {}
 
     public function create(array $input, User $actor): ClientAcquisitionCampaign
@@ -48,6 +52,7 @@ final class ClientAcquisitionCampaignService
         $mode = ClientAcquisitionAutomationMode::from($input['automation_mode'] ?? 'manual');
         $automation = $this->automationSettings($input, $actor, $mode);
         $criteria = $this->criteria($input);
+        $criteria = $this->validatedCriteria($criteria);
         $limits = $this->limits($input['limits'] ?? []);
 
         return DB::transaction(function () use ($input, $actor, $scope, $mode, $automation, $criteria, $limits): ClientAcquisitionCampaign {
@@ -103,6 +108,7 @@ final class ClientAcquisitionCampaignService
             'auto_draft_approved' => $input['auto_draft_approved'] ?? $campaign->auto_draft_approved,
         ], $actor, $mode);
         $criteria = $this->criteria($input, $campaign);
+        $criteria = $this->validatedCriteria($criteria, $campaign);
         $limits = $this->limits($input['limits'] ?? [], $campaign);
 
         return DB::transaction(function () use ($campaign, $input, $scope, $originatingGoodId, $mode, $automation, $criteria, $limits): ClientAcquisitionCampaign {
@@ -329,6 +335,24 @@ final class ClientAcquisitionCampaignService
 
             return $value;
         })->sortKeys()->all();
+    }
+
+    private function validatedCriteria(array $criteria, ?ClientAcquisitionCampaign $campaign = null): array
+    {
+        $geography = $this->geography->validate(
+            isset($criteria['country_id']) ? (int) $criteria['country_id'] : null,
+            isset($criteria['region_id']) ? (int) $criteria['region_id'] : null,
+            isset($criteria['city_id']) ? (int) $criteria['city_id'] : null,
+        );
+        foreach (['country_id', 'region_id', 'city_id'] as $key) {
+            $criteria[$key] = $geography[$key];
+        }
+        $segments = array_values(array_filter((array) ($criteria['segments'] ?? []), 'is_string'));
+        $legacy = collect((array) (($campaign?->criteria_snapshot ?? [])['segments'] ?? []));
+        $this->segments->assertAllowed(collect($segments)->reject(fn (string $value): bool => $legacy->contains($value))->values()->all());
+        $criteria['segments'] = $segments;
+
+        return collect($criteria)->sortKeys()->all();
     }
 
     private function limits(array $input, ?ClientAcquisitionCampaign $campaign = null): array

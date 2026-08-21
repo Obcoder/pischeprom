@@ -2,6 +2,9 @@
 
 namespace App\Domain\AiSales\Services;
 
+use App\Domain\AiSales\Prospecting\ProductRelevanceEvidenceComposer;
+use App\Domain\AiSales\Prospecting\PublicCompanyIdentityResolver;
+use App\Domain\AiSales\Prospecting\ResultBusinessRoleClassifier;
 use App\Models\ProspectingCandidate;
 use App\Models\ProspectingSearchResult;
 use App\Models\User;
@@ -14,6 +17,9 @@ class IngestProspectingSearchCandidate
         private readonly ProspectingFeatureGuard $features,
         private readonly ProspectingAuthorizationService $authorization,
         private readonly ProspectingCandidateService $candidates,
+        private readonly ResultBusinessRoleClassifier $roles,
+        private readonly PublicCompanyIdentityResolver $identities,
+        private readonly ProductRelevanceEvidenceComposer $relevance,
     ) {}
 
     public function handle(ProspectingSearchResult $result, User $actor): ProspectingCandidate
@@ -30,20 +36,43 @@ class IngestProspectingSearchCandidate
             ]);
         }
 
-        $sourceHost = mb_strtolower((string) parse_url($result->canonical_url, PHP_URL_HOST));
         $sameDomainResults = $result->job->searchResults()
             ->where('domain_hash', $result->domain_hash)
             ->whereNull('duplicate_of_id')
-            ->with('publicFetch')
+            ->with(['publicFetch', 'research', 'searchQuery'])
             ->orderBy('rank')
             ->limit(100)
             ->get()
             ->filter(fn (ProspectingSearchResult $item): bool => hash_equals(
-                $sourceHost,
-                mb_strtolower((string) parse_url($item->canonical_url, PHP_URL_HOST)),
+                (string) $result->registrable_domain,
+                (string) $item->registrable_domain,
             ))
             ->take(20)
             ->values();
+        $existingCandidateId = $sameDomainResults->pluck('prospecting_candidate_id')->filter()->unique()->first();
+        if ($existingCandidateId) {
+            return ProspectingCandidate::query()->findOrFail($existingCandidateId)
+                ->load(['job.goods', 'sources', 'channels', 'unitMatches', 'products.product']);
+        }
+        $combinedEvidence = $sameDomainResults->map(fn (ProspectingSearchResult $item): string => implode(' ', array_filter([
+            $item->title, $item->snippet, $item->publicFetch?->page_title,
+            $item->publicFetch?->meta_description, $item->publicFetch?->text_excerpt,
+            ...((array) ($item->publicFetch?->headings ?? [])),
+            $item->research?->safe_summary,
+            ...((array) ($item->research?->activity_mentions ?? [])),
+        ])))->implode(' ');
+        $role = $this->roles->classifyEvidence($combinedEvidence, (string) $result->registrable_domain, $result->job->lane);
+        if (! $role->candidateEligible) {
+            throw ValidationException::withMessages([
+                'search_result' => 'buyer_role_not_candidate_eligible:'.$role->role->value,
+            ]);
+        }
+        $identity = $this->identities->resolve($sameDomainResults);
+        if (! $identity->resolved()) {
+            throw ValidationException::withMessages([
+                'search_result' => 'identity_unresolved_review_required',
+            ]);
+        }
         $sources = $sameDomainResults->map(function (ProspectingSearchResult $item): array {
             $excerpt = $item->publicFetch?->text_excerpt ?: $item->snippet;
 
@@ -59,26 +88,31 @@ class IngestProspectingSearchCandidate
         if ($sources === []) {
             throw ValidationException::withMessages(['search_result' => 'At least one fetched public source is required.']);
         }
-        $channels = collect($result->publicFetch->protected_channels ?? [])->map(fn (array $channel): array => [
-            'kind' => $channel['kind'],
-            'value' => $channel['value'],
-            'contact_role' => $channel['contact_role'],
-            'communication_state' => 'review_required',
-        ])->take(20)->all();
+        $channels = $sameDomainResults->flatMap(fn (ProspectingSearchResult $item) => $item->publicFetch?->protected_channels ?? [])
+            ->unique(fn (array $channel): string => ($channel['kind'] ?? '').'|'.($channel['value'] ?? ''))
+            ->map(fn (array $channel): array => [
+                'kind' => $channel['kind'],
+                'value' => $channel['value'],
+                'contact_role' => $channel['contact_role'],
+                'communication_state' => 'review_required',
+            ])->take(20)->values()->all();
         $productIds = $result->job->products()
             ->wherePivotIn('role', ['primary', 'additional'])
             ->pluck('products.id')->map(fn ($id): int => (int) $id)->unique()->values()->all();
-        $activity = $result->research?->safe_summary
-            ?: $result->publicFetch->meta_description
-            ?: mb_substr((string) $result->publicFetch->text_excerpt, 0, 1000);
+        $evidence = $this->relevance->compose($sameDomainResults, $role);
         $evidenceHash = hash('sha256', $sameDomainResults->pluck('result_hash')->sort()->implode('|'));
 
         $candidate = $this->candidates->createFromSearchResult($result->job, [
-            'working_name' => $result->publicFetch->page_title ?: $result->title ?: $result->registrable_domain,
-            'website' => $result->publicFetch->final_url,
-            'location_display' => $result->searchQuery->geography,
-            'public_activity_summary' => mb_substr((string) $activity, 0, 1000),
-            'relevance_summary' => 'Public Product-first search evidence requires human review; no Stage 10 score was calculated.',
+            'working_name' => $identity->workingName,
+            'website' => $sameDomainResults->pluck('publicFetch.final_url')->filter()->first() ?: $result->canonical_url,
+            'location_display' => $identity->geography ?: $result->searchQuery->geography,
+            'public_activity_summary' => $identity->activitySummary,
+            'relevance_summary' => $evidence['summary'].' Factors: '.implode(', ', $evidence['factors']),
+            'confidence_components' => [
+                'identity' => $identity->confidence,
+                'relevance' => $evidence['confidence'],
+                'buyer_role' => $role->confidence,
+            ],
             'sources' => $sources,
             'channels' => $channels,
             'product_ids' => $productIds,

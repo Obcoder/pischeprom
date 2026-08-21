@@ -30,6 +30,7 @@ const sources = computed(() => investigation.value.sources || [])
 const facts = computed(() => investigation.value.facts || [])
 const publicContacts = computed(() => investigation.value.public_contacts || [])
 const duplicates = computed(() => investigation.value.duplicates || [])
+const buyerClassification = computed(() => investigation.value.buyer_classification || { role: 'unknown', reason_codes: [] })
 const identityResolved = computed(() => identity.value.verification_status !== 'unresolved')
 const displayIdentityName = computed(() => identity.value.inferred_company_name
     || identity.value.public_site_name
@@ -163,6 +164,14 @@ function reject() {
         <v-card-text>
             <v-alert v-if="error" type="warning" variant="tonal" density="compact" class="mb-4">
                 {{ error }}
+            </v-alert>
+
+            <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+                Buyer classification: <strong>{{ buyerClassification.role }}</strong>
+                · confidence {{ confidenceLabel(buyerClassification.confidence) }}
+                <span v-if="buyerClassification.reason_codes?.length">
+                    · {{ buyerClassification.reason_codes.join(', ') }}
+                </span>
             </v-alert>
 
             <section class="investigation-section">

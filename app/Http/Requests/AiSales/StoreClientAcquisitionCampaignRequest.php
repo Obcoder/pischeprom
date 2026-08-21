@@ -4,6 +4,7 @@ namespace App\Http\Requests\AiSales;
 
 use App\Domain\AiSales\Campaigns\Enums\ClientAcquisitionAutomationMode;
 use App\Domain\AiSales\Campaigns\Enums\ClientAcquisitionCampaignCadence;
+use App\Domain\AiSales\Prospecting\BuyerSegmentCatalog;
 use App\Models\ClientAcquisitionCampaign;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -33,9 +34,9 @@ class StoreClientAcquisitionCampaignRequest extends FormRequest
             'safe_objective' => ['required', 'string', 'max:512'],
             'reviewer_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'primary_product_id' => ['required', 'integer', 'exists:products,id'],
-            'additional_product_ids' => ['sometimes', 'array', 'max:25'],
+            'additional_product_ids' => ['sometimes', 'array', 'max:'.config('ai-sales.campaigns.draft_form_limits.max_additional_products', 10)],
             'additional_product_ids.*' => ['integer', 'distinct', 'exists:products,id'],
-            'excluded_product_ids' => ['sometimes', 'array', 'max:25'],
+            'excluded_product_ids' => ['sometimes', 'array', 'max:'.config('ai-sales.campaigns.draft_form_limits.max_excluded_products', 10)],
             'excluded_product_ids.*' => ['integer', 'distinct', 'exists:products,id'],
             'originating_good_id' => ['nullable', 'integer', 'exists:goods,id'],
             'automation_mode' => ['sometimes', Rule::enum(ClientAcquisitionAutomationMode::class)],
@@ -48,8 +49,8 @@ class StoreClientAcquisitionCampaignRequest extends FormRequest
             'criteria.country_id' => ['nullable', 'integer', 'exists:countries,id'],
             'criteria.region_id' => ['nullable', 'integer', 'exists:regions,id'],
             'criteria.city_id' => ['nullable', 'integer', 'exists:cities,id'],
-            'criteria.segments' => ['sometimes', 'array', 'max:25'],
-            'criteria.segments.*' => ['string', 'max:120'],
+            'criteria.segments' => ['sometimes', 'array', 'max:'.config('ai-sales.campaigns.draft_form_limits.max_segments', 25)],
+            'criteria.segments.*' => ['string', 'distinct', Rule::in($this->allowedSegmentCodes())],
             'criteria.industries' => ['sometimes', 'array', 'max:25'],
             'criteria.industries.*' => ['string', 'max:120'],
             'criteria.categories' => ['sometimes', 'array', 'max:25'],
@@ -59,7 +60,7 @@ class StoreClientAcquisitionCampaignRequest extends FormRequest
             'criteria.company_types' => ['sometimes', 'array', 'max:25'],
             'criteria.company_types.*' => ['string', 'max:120'],
             'criteria.max_domains' => ['sometimes', 'integer', 'min:1', 'max:100'],
-            'criteria.max_page_fetch_attempts' => ['sometimes', 'integer', 'min:1', 'max:25'],
+            'criteria.max_page_fetch_attempts' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'criteria.max_results_per_query' => ['sometimes', 'integer', 'min:1', 'max:50'],
             'limits' => ['required', 'array:'.implode(',', self::LIMITS)],
             'purpose' => ['prohibited'], 'lane' => ['prohibited'], 'role_code' => ['prohibited'],
@@ -76,5 +77,17 @@ class StoreClientAcquisitionCampaignRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /** @return list<string> */
+    private function allowedSegmentCodes(): array
+    {
+        $codes = app(BuyerSegmentCatalog::class)->options()->pluck('id');
+        $campaign = $this->route('clientAcquisitionCampaign');
+        if ($campaign instanceof ClientAcquisitionCampaign) {
+            $codes = $codes->merge((array) (($campaign->criteria_snapshot ?? [])['segments'] ?? []));
+        }
+
+        return $codes->filter(fn ($value): bool => is_string($value) && $value !== '')->unique()->values()->all();
     }
 }

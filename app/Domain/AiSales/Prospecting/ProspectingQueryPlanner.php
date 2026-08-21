@@ -7,6 +7,7 @@ use App\Domain\AiSales\Enums\ProductScopeRole;
 use App\Domain\AiSales\Services\GoodProductMappingResolver;
 use App\Domain\AiSales\Support\AiCanonicalJson;
 use App\Domain\AiSales\Tools\AiToolDlpGuard;
+use App\Models\Product;
 use App\Models\ProspectingSearchJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -17,6 +18,8 @@ class ProspectingQueryPlanner
         private readonly ProspectingQueryTemplateRegistry $templates,
         private readonly GoodProductMappingResolver $productMappings,
         private readonly AiToolDlpGuard $dlp,
+        private readonly ProductBuyerArchetypePlanner $archetypes,
+        private readonly BuyerSegmentCatalog $segments,
     ) {}
 
     public function plan(ProspectingSearchJob $job): ProspectingQueryPlan
@@ -97,57 +100,16 @@ class ProspectingQueryPlanner
             (int) config('ai-sales.prospecting.limits.max_queries', 20),
         );
 
-        foreach ($products as $product) {
-            foreach ($this->templates->forPurpose($job->purpose) as $template) {
-                if (count($items) >= $maxQueries) {
-                    break 2;
-                }
-                $preferred = $template['name_source'] === 'eng' ? $product->eng : $product->rus;
-                $name = $this->cleanTerm((string) ($preferred ?: $product->rus ?: $product->eng));
-                if ($name === '') {
-                    continue;
-                }
-                $parts = ['"'.$name.'"', ...$template['terms']];
-                if ($product->category_published && filled($product->category_name)) {
-                    $parts[] = $this->cleanTerm((string) $product->category_name);
-                }
-                array_push($parts, ...$criteria);
-                if ($geography !== null) {
-                    $parts[] = $geography;
-                }
-                foreach ($excludedTerms as $excludedTerm) {
-                    $parts[] = '-"'.$excludedTerm.'"';
-                }
-                foreach ($excludedCriteria as $excludedCriterion) {
-                    $parts[] = '-"'.$excludedCriterion.'"';
-                }
-                $queryText = mb_substr(trim(preg_replace('/\s+/u', ' ', implode(' ', array_filter($parts))) ?? ''), 0, 512);
-                $this->dlp->assertPayloadSafe(
-                    ['public_search_query' => $queryText],
-                    AiProcessingContour::ExternalSanitized,
-                    $job->lane,
-                );
-                $templateHash = $this->templates->templateHash($template);
-                $queryHash = AiCanonicalJson::hash([
-                    'query' => mb_strtolower($queryText),
-                    'language' => $job->locale,
-                    'geography' => $geography,
-                    'product_id' => (int) $product->id,
-                    'template_hash' => $templateHash,
-                ]);
-                $items[] = new ProspectingQueryPlanItem(
-                    count($items) + 1,
-                    (int) $product->id,
-                    $template['code'],
-                    $template['version'],
-                    $templateHash,
-                    $queryText,
-                    $queryHash,
-                    $job->locale,
-                    $geography,
-                    $template['intent'],
-                );
-            }
+        if ($job->purpose->value === 'buyer_discovery') {
+            $items = $this->buyerMatrix(
+                $job, $products, $maxQueries, $geography, $criteria,
+                $excludedTerms, $excludedCriteria,
+            );
+        } else {
+            $items = $this->legacyMatrix(
+                $job, $products, $maxQueries, $geography, $criteria,
+                $excludedTerms, $excludedCriteria,
+            );
         }
 
         if ($items === []) {
@@ -164,6 +126,150 @@ class ProspectingQueryPlanner
         ]);
 
         return new ProspectingQueryPlan($job->id, $productScopeHash, $registryHash, $planHash, $items);
+    }
+
+    /** @return list<ProspectingQueryPlanItem> */
+    private function buyerMatrix(
+        ProspectingSearchJob $job,
+        $products,
+        int $maxQueries,
+        ?string $geography,
+        array $criteria,
+        array $excludedTerms,
+        array $excludedCriteria,
+    ): array {
+        $matrixGroups = [];
+        $selectedSegments = (array) (($job->criteria_snapshot ?? [])['segments'] ?? []);
+        $templates = collect($this->templates->forPurpose($job->purpose))->keyBy('intent');
+        $discoveryIntents = ['company_discovery', 'manufacturer_discovery', 'production_activity', 'company_discovery', 'institutional_buyer', 'manufacturer_discovery'];
+        foreach ($products as $productRow) {
+            $product = Product::query()->without(['category', 'manufacturers'])->findOrFail($productRow->id);
+            $matrixGroups[] = [$productRow, $this->archetypes->plan($product, $selectedSegments, 6)];
+        }
+
+        $matrix = collect();
+        foreach ($matrixGroups as [$productRow, $archetypeGroup]) {
+            $evidenceCovered = collect();
+            foreach (collect($archetypeGroup)->chunk(2) as $chunkIndex => $chunk) {
+                foreach ($chunk->values() as $localIndex => $archetype) {
+                    $index = ($chunkIndex * 2) + $localIndex;
+                    $matrix->push([$productRow, $archetype, $templates[$discoveryIntents[$index % count($discoveryIntents)]]]);
+                }
+                $evidenceArchetype = $chunk->values()[$chunkIndex % $chunk->count()];
+                $evidenceIntent = $chunkIndex % 2 === 0 ? 'product_usage_evidence' : 'procurement_evidence';
+                $matrix->push([$productRow, $evidenceArchetype, $templates[$evidenceIntent]]);
+                $evidenceCovered->push($evidenceArchetype->code);
+            }
+            foreach ($archetypeGroup as $index => $archetype) {
+                if ($evidenceCovered->contains($archetype->code)) {
+                    continue;
+                }
+                $intent = $index % 2 === 0 ? 'product_usage_evidence' : 'procurement_evidence';
+                $matrix->push([$productRow, $archetype, $templates[$intent]]);
+            }
+            foreach ($archetypeGroup as $archetype) {
+                $matrix->push([$productRow, $archetype, $templates['institutional_buyer']]);
+            }
+        }
+
+        $items = [];
+        foreach ($matrix as [$product, $archetype, $template]) {
+            if (count($items) >= $maxQueries) {
+                break;
+            }
+            $name = $this->cleanTerm((string) ($product->rus ?: $product->eng));
+            $phraseIndex = (count($items) + (int) $product->id) % count($archetype->discoveryPhrases);
+            $parts = [$archetype->discoveryPhrases[$phraseIndex], ...$template['terms']];
+            if (in_array($template['intent'], ['product_usage_evidence', 'procurement_evidence'], true) && $name !== '') {
+                $parts[] = '"'.$name.'"';
+            }
+            if ($geography !== null) {
+                $parts[] = $geography;
+            }
+            $parts = [...$parts, ...$criteria];
+            foreach ($excludedTerms as $term) {
+                $parts[] = '-"'.$term.'"';
+            }
+            foreach ($excludedCriteria as $term) {
+                $parts[] = '-"'.$term.'"';
+            }
+            $ownedTemplate = [...$template, 'archetype' => $archetype->hashPayload()];
+            $items[] = $this->item($job, $product, $ownedTemplate, $parts, $geography, $archetype->code.':'.$template['intent'], count($items));
+        }
+
+        return $items;
+    }
+
+    /** @return list<ProspectingQueryPlanItem> */
+    private function legacyMatrix(
+        ProspectingSearchJob $job,
+        $products,
+        int $maxQueries,
+        ?string $geography,
+        array $criteria,
+        array $excludedTerms,
+        array $excludedCriteria,
+    ): array {
+        $items = [];
+        foreach ($products as $product) {
+            foreach ($this->templates->forPurpose($job->purpose) as $template) {
+                if (count($items) >= $maxQueries) {
+                    break 2;
+                }
+                $preferred = $template['name_source'] === 'eng' ? $product->eng : $product->rus;
+                $name = $this->cleanTerm((string) ($preferred ?: $product->rus ?: $product->eng));
+                if ($name === '') {
+                    continue;
+                }
+                $parts = ['"'.$name.'"', ...$template['terms'], ...$criteria];
+                if ($geography !== null) {
+                    $parts[] = $geography;
+                }
+                foreach ($excludedTerms as $term) {
+                    $parts[] = '-"'.$term.'"';
+                }
+                foreach ($excludedCriteria as $term) {
+                    $parts[] = '-"'.$term.'"';
+                }
+                $items[] = $this->item($job, $product, $template, $parts, $geography, $template['intent'], count($items));
+            }
+        }
+
+        return $items;
+    }
+
+    private function item(
+        ProspectingSearchJob $job,
+        object $product,
+        array $template,
+        array $parts,
+        ?string $geography,
+        string $industryIntent,
+        int $sequence,
+    ): ProspectingQueryPlanItem {
+        $queryText = mb_substr(trim(preg_replace('/\s+/u', ' ', implode(' ', array_filter($parts))) ?? ''), 0, 512);
+        $this->dlp->assertPayloadSafe(['public_search_query' => $queryText], AiProcessingContour::ExternalSanitized, $job->lane);
+        $templateHash = $this->templates->templateHash($template);
+        $queryHash = AiCanonicalJson::hash([
+            'query' => mb_strtolower($queryText),
+            'language' => $job->locale,
+            'geography' => $geography,
+            'product_id' => (int) $product->id,
+            'template_hash' => $templateHash,
+        ]);
+
+        return new ProspectingQueryPlanItem(
+            $sequence + 1,
+            (int) $product->id,
+            $template['code'],
+            $template['version'],
+            $templateHash,
+            $queryText,
+            $queryHash,
+            $job->locale,
+            $geography,
+            $industryIntent,
+        );
     }
 
     private function geography(ProspectingSearchJob $job): ?string
@@ -185,8 +291,13 @@ class ProspectingQueryPlanner
     /** @return list<string> */
     private function criteriaTerms(array $criteria): array
     {
-        return collect(['segments', 'industries', 'categories'])
-            ->flatMap(fn (string $key) => (array) ($criteria[$key] ?? []))
+        $segmentValues = (array) ($criteria['segments'] ?? []);
+        $resolvedSegments = $this->segments->labels(array_values(array_filter($segmentValues, 'is_string')));
+
+        return collect($resolvedSegments)
+            ->merge(collect(['segments', 'industries', 'categories'])
+                ->flatMap(fn (string $key) => (array) ($criteria[$key] ?? []))
+                ->reject(fn ($value): bool => is_string($value) && preg_match('/^(archetype|industry|segment):/', $value) === 1))
             ->map(fn ($value): string => $this->cleanTerm((string) $value))
             ->filter()
             ->unique()

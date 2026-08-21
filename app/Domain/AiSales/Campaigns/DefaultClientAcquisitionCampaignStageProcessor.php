@@ -6,6 +6,9 @@ use App\Domain\AiSales\Campaigns\Contracts\ClientAcquisitionCampaignStageProcess
 use App\Domain\AiSales\Campaigns\Enums\ClientAcquisitionAutomationMode;
 use App\Domain\AiSales\Enums\ProspectingCandidateStatus;
 use App\Domain\AiSales\Exceptions\PolicyViolation;
+use App\Domain\AiSales\Prospecting\DomainInvestigationPlanner;
+use App\Domain\AiSales\Prospecting\PublicCompanyIdentityResolver;
+use App\Domain\AiSales\Prospecting\ResultBusinessRoleClassifier;
 use App\Domain\AiSales\Scoring\ProspectingScoreRecalculationService;
 use App\Domain\AiSales\Services\ExecuteProspectingSearchJob;
 use App\Domain\AiSales\Services\IngestProspectingSearchCandidate;
@@ -20,6 +23,7 @@ use App\Models\ClientAcquisitionCampaign;
 use App\Models\ClientAcquisitionCampaignRunLink;
 use App\Models\ProspectingSearchJob;
 use App\Models\User;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcquisitionCampaignStageProcessorInterface
@@ -37,6 +41,9 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
         private readonly ResolveProspectingCandidate $resolution,
         private readonly ProspectingScoreRecalculationService $scoring,
         private readonly AutonomousOutreachDraftService $drafts,
+        private readonly ResultBusinessRoleClassifier $businessRoles,
+        private readonly DomainInvestigationPlanner $domainInvestigations,
+        private readonly PublicCompanyIdentityResolver $companyIdentities,
     ) {}
 
     public function process(
@@ -151,7 +158,17 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
         if ($limit < 1) {
             return ClientAcquisitionCampaignStageOutcome::blocked('campaign_research_budget_missing', 'Campaign research-page budget is zero.');
         }
-        $results = $job->searchResults()->whereNull('duplicate_of_id')->orderBy('rank')->limit($limit)->get();
+        $domainLimit = min(
+            max(1, (int) ($job->criteria_snapshot['max_domains'] ?? $limit)),
+            max(1, (int) config('ai-sales.campaigns.limits.max_domains_per_run', 0)),
+        );
+        $available = $job->searchResults()->whereNull('duplicate_of_id')
+            ->with(['publicFetch', 'research', 'job:id,lane'])
+            ->orderBy('rank')->limit(max($limit * 5, 100))->get();
+        $results = $this->domainInvestigations->select($available, $domainLimit, $limit)
+            ->filter(fn ($item): bool => $this->businessRoles->classify($item)->researchEligible)
+            ->take($limit)
+            ->values();
         $completed = 0;
         $blocked = 0;
         foreach ($results as $result) {
@@ -172,7 +189,49 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
             );
         }
 
-        return ClientAcquisitionCampaignStageOutcome::completed(['completed' => $completed, 'blocked' => $blocked]);
+        $reviewableDomains = 0;
+        $domainsRequiringReview = 0;
+        $investigated = $job->searchResults()->whereIn('domain_hash', $results->pluck('domain_hash')->unique())
+            ->whereNull('duplicate_of_id')->with(['publicFetch', 'research', 'searchQuery', 'job:id,lane'])
+            ->orderBy('rank')->get()->groupBy('domain_hash');
+        foreach ($investigated as $domainResults) {
+            $combined = $domainResults->map(fn ($item): string => implode(' ', array_filter([
+                $item->title, $item->snippet, $item->publicFetch?->page_title,
+                $item->publicFetch?->meta_description, $item->publicFetch?->text_excerpt,
+                ...((array) ($item->publicFetch?->headings ?? [])),
+                $item->research?->safe_summary,
+                ...((array) ($item->research?->activity_mentions ?? [])),
+            ])))->implode(' ');
+            $decision = $this->businessRoles->classifyEvidence(
+                $combined,
+                (string) $domainResults->first()->registrable_domain,
+                $job->lane,
+            );
+            $identity = $this->companyIdentities->resolve($domainResults);
+            if ($decision->candidateEligible && $identity->resolved()) {
+                $reviewableDomains++;
+            } else {
+                $domainsRequiringReview++;
+            }
+        }
+        if ($reviewableDomains < 1) {
+            return ClientAcquisitionCampaignStageOutcome::requiresAction(
+                'public_research_review_required',
+                'Public evidence did not establish both a buyer-like business role and a reviewable company identity.',
+                [
+                    'completed' => $completed,
+                    'buyer_identity_ready_domains' => 0,
+                    'domains_requiring_review' => $domainsRequiringReview,
+                ],
+            );
+        }
+
+        return ClientAcquisitionCampaignStageOutcome::completed([
+            'completed' => $completed,
+            'blocked' => $blocked,
+            'buyer_identity_ready_domains' => $reviewableDomains,
+            'domains_requiring_review' => $domainsRequiringReview,
+        ]);
     }
 
     private function ingest(ClientAcquisitionCampaign $campaign, AiAgentRun $run, User $actor): ClientAcquisitionCampaignStageOutcome
@@ -216,11 +275,28 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
         }
         $remaining = max(0, min((int) $campaign->max_candidates_per_run, (int) $job->max_candidates) - $job->candidates()->count());
         $created = 0;
-        foreach ($job->searchResults()->whereNull('duplicate_of_id')->whereNull('prospecting_candidate_id')
-            ->where('fetch_status', 'completed')->orderBy('rank')->limit($remaining)->get() as $result) {
+        $reviewRequired = 0;
+        $results = $job->searchResults()->whereNull('duplicate_of_id')->whereNull('prospecting_candidate_id')
+            ->where('fetch_status', 'completed')->orderBy('rank')->limit(max(100, $remaining * 5))->get()
+            ->groupBy('domain_hash')->map->first()->take($remaining);
+        foreach ($results as $result) {
             try {
                 $this->ingest->handle($result, $actor);
                 $created++;
+            } catch (ValidationException $exception) {
+                $code = collect($exception->errors())->flatten()->first();
+                if (is_string($code) && (str_contains($code, 'identity_unresolved_review_required')
+                    || str_contains($code, 'buyer_role_not_candidate_eligible'))) {
+                    $reviewRequired++;
+
+                    continue;
+                }
+
+                return ClientAcquisitionCampaignStageOutcome::blocked(
+                    'campaign_candidate_ingestion_policy_blocked',
+                    'Autonomous-reviewed Candidate ingestion failed a required DLP, dedupe, evidence or approval guard.',
+                    ['created' => $created, 'candidates' => $job->candidates()->count(), 'retries' => 0],
+                );
             } catch (Throwable) {
                 return ClientAcquisitionCampaignStageOutcome::blocked(
                     'campaign_candidate_ingestion_policy_blocked',
@@ -230,8 +306,17 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
             }
         }
 
+        if ($created === 0 && $reviewRequired > 0) {
+            return ClientAcquisitionCampaignStageOutcome::requiresAction(
+                'public_research_review_required',
+                'Buyer role or company identity evidence requires human review before Candidate creation.',
+                ['domains_requiring_review' => $reviewRequired, 'automatic_candidates' => 0, 'retries' => 0],
+            );
+        }
+
         return ClientAcquisitionCampaignStageOutcome::completed([
-            'created' => $created, 'candidates' => $job->candidates()->count(), 'retries' => 0,
+            'created' => $created, 'candidates' => $job->candidates()->count(),
+            'domains_requiring_review' => $reviewRequired, 'retries' => 0,
         ]);
     }
 

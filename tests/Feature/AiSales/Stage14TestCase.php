@@ -93,7 +93,7 @@ abstract class Stage14TestCase extends Stage13TestCase
             'automation_mode' => 'manual',
             'schedule_cadence' => 'manual',
             'criteria' => [
-                'segments' => ['synthetic food producers'],
+                'segments' => ['archetype:food_manufacturer'],
                 'max_domains' => 3,
                 'max_page_fetch_attempts' => 2,
                 'max_results_per_query' => 5,

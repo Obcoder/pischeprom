@@ -7,27 +7,29 @@ use App\Domain\AiSales\Support\AiCanonicalJson;
 
 class ProspectingQueryTemplateRegistry
 {
-    public const VERSION = 'stage09-v1';
+    public const VERSION = 'buyer-query-matrix-v2';
+
+    private const BUYER_INTENTS = [
+        'company_discovery' => ['компания', 'официальный сайт'],
+        'manufacturer_discovery' => ['производитель', 'производство'],
+        'production_activity' => ['производственная компания', 'виды деятельности'],
+        'product_usage_evidence' => ['продукция', 'состав', 'ассортимент'],
+        'procurement_evidence' => ['закупки', 'сырье', 'ингредиенты'],
+        'institutional_buyer' => ['комбинат питания', 'центральная кухня'],
+    ];
 
     /** @return list<array{code: string, version: string, name_source: string, intent: string, terms: list<string>}> */
     public function forPurpose(ProspectingPurpose $purpose): array
     {
         return match ($purpose) {
             ProspectingPurpose::BuyerDiscovery => [
-                [
-                    'code' => 'buyer.product_consumers_ru',
+                ...collect(self::BUYER_INTENTS)->map(fn (array $terms, string $intent): array => [
+                    'code' => 'buyer.matrix.'.$intent,
                     'version' => self::VERSION,
                     'name_source' => 'rus',
-                    'intent' => 'b2b_product_buyer',
-                    'terms' => ['производитель', 'закупает', 'оптом'],
-                ],
-                [
-                    'code' => 'buyer.product_users_bilingual',
-                    'version' => self::VERSION,
-                    'name_source' => 'eng',
-                    'intent' => 'b2b_product_consumer',
-                    'terms' => ['manufacturer', 'buyer', 'wholesale'],
-                ],
+                    'intent' => $intent,
+                    'terms' => $terms,
+                ])->values()->all(),
             ],
             ProspectingPurpose::SupplierDiscovery => [
                 [
@@ -46,6 +48,12 @@ class ProspectingQueryTemplateRegistry
                 ],
             ],
         };
+    }
+
+    /** @return list<string> */
+    public function buyerIntentCodes(): array
+    {
+        return array_keys(self::BUYER_INTENTS);
     }
 
     public function templateHash(array $template): string

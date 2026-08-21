@@ -231,6 +231,10 @@ Route::prefix('ai-sales')
 
         Route::get('/prospecting/jobs', [AiSalesProspectingSearchJobController::class, 'index'])->name('prospecting.jobs.index');
         Route::get('/prospecting/catalog/products', [AiSalesProspectingCatalogController::class, 'products'])->name('prospecting.catalog.products');
+        Route::get('/prospecting/catalog/countries', [AiSalesProspectingCatalogController::class, 'countries'])->name('prospecting.catalog.countries');
+        Route::get('/prospecting/catalog/regions', [AiSalesProspectingCatalogController::class, 'regions'])->name('prospecting.catalog.regions');
+        Route::get('/prospecting/catalog/cities', [AiSalesProspectingCatalogController::class, 'cities'])->name('prospecting.catalog.cities');
+        Route::get('/prospecting/catalog/segments', [AiSalesProspectingCatalogController::class, 'segments'])->name('prospecting.catalog.segments');
         Route::get('/prospecting/catalog/products/{productId}/goods', [AiSalesProspectingCatalogController::class, 'goods'])
             ->whereNumber('productId')->name('prospecting.catalog.product-goods');
         Route::post('/prospecting/jobs', [AiSalesProspectingSearchJobController::class, 'store'])->name('prospecting.jobs.store');

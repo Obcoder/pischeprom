@@ -42,15 +42,16 @@ class ProductFirstSearchDiscoveryTest extends Stage09TestCase
 
         $first = app(PlanProspectingQueries::class)->handle($job, $actor);
         $second = app(PlanProspectingQueries::class)->handle($job, $actor);
-        $this->assertCount(2, $first);
+        $this->assertCount(10, $first);
         $this->assertSame($first->pluck('id')->all(), $second->pluck('id')->all());
         $this->assertCount(1, $first->pluck('plan_hash')->unique());
         $this->assertTrue($first->every(fn ($query) => strlen($query->template_hash) === 64));
-        $this->assertTrue($first->every(fn ($query) => str_contains(mb_strtolower($query->safe_display_query), 'пектин')
-            || str_contains(mb_strtolower($query->safe_display_query), 'pectin')));
+        $this->assertTrue($first->contains(fn ($query) => str_contains(mb_strtolower($query->safe_display_query), 'пектин')));
+        $this->assertTrue($first->contains(fn ($query) => ! str_contains(mb_strtolower($query->safe_display_query), 'пектин')));
+        $this->assertTrue($first->every(fn ($query) => str_starts_with($query->template_code, 'buyer.matrix.')));
         $this->assertTrue($first->every(fn ($query) => ! str_contains($query->safe_display_query, '999')));
         $this->assertTrue($first->every(fn ($query) => ! str_contains($query->safe_display_query, '25 кг')));
-        $this->assertDatabaseCount('prospecting_search_queries', 2);
+        $this->assertDatabaseCount('prospecting_search_queries', 10);
     }
 
     public function test_api_requires_permissions_prohibits_runtime_choices_and_executes_with_fake_without_http(): void
@@ -91,10 +92,10 @@ class ProductFirstSearchDiscoveryTest extends Stage09TestCase
             ->assertJsonPath('data.failover_allowed', false)
             ->assertJsonPath('data.retries', 0);
 
-        $this->assertDatabaseCount('prospecting_search_executions', 2);
-        $this->assertDatabaseCount('prospecting_search_usage_records', 2);
-        $this->assertDatabaseCount('prospecting_search_results', 4);
-        $this->assertSame(2, ProspectingSearchResult::query()->whereNotNull('duplicate_of_id')->count());
+        $this->assertDatabaseCount('prospecting_search_executions', 10);
+        $this->assertDatabaseCount('prospecting_search_usage_records', 10);
+        $this->assertDatabaseCount('prospecting_search_results', 20);
+        $this->assertSame(18, ProspectingSearchResult::query()->whereNotNull('duplicate_of_id')->count());
         $this->assertSame(0, ProspectingSearchExecution::query()->sum('blocked_result_count'));
         $payload = $this->actingAs($actor)
             ->getJson("/api/ai-sales/prospecting/jobs/{$job->public_id}/search")

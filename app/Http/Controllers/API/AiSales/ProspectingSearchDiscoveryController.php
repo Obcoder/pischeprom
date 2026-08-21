@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API\AiSales;
 
 use App\Domain\AiSales\Enums\BusinessLane;
+use App\Domain\AiSales\Prospecting\ResultBusinessRoleClassifier;
 use App\Domain\AiSales\Services\ApproveProspectingQueryPlan;
 use App\Domain\AiSales\Services\ExecuteProspectingSearchJob;
 use App\Domain\AiSales\Services\IngestProspectingSearchCandidate;
@@ -90,6 +91,7 @@ class ProspectingSearchDiscoveryController extends Controller
         ProspectingSearchJob $prospectingSearchJob,
         ProspectingFeatureGuard $features,
         ProspectingAuthorizationService $authorization,
+        ResultBusinessRoleClassifier $businessRoles,
     ): JsonResponse {
         $features->queryPlanning();
         Gate::authorize('view', $prospectingSearchJob);
@@ -138,6 +140,7 @@ class ProspectingSearchDiscoveryController extends Controller
                     'error_code' => $result->research->error_code,
                 ] : null,
                 'candidate_id' => $result->candidate?->public_id,
+                'buyer_classification' => $businessRoles->classify($result, $prospectingSearchJob->lane)->safeArray(),
             ])->all(),
             'budgets' => [
                 'max_queries' => $prospectingSearchJob->max_queries,

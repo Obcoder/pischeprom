@@ -143,7 +143,7 @@ final class Stage14ActivationCResumeTest extends Stage14TestCase
         $campaign = $this->approvedCampaign($actor, $product, [
             'automation_mode' => 'assisted',
             'criteria' => [
-                'segments' => ['synthetic food producers'],
+                'segments' => ['archetype:food_manufacturer'],
                 'max_domains' => 3,
                 'max_page_fetch_attempts' => 3,
                 'max_results_per_query' => 10,
@@ -305,10 +305,10 @@ final class Stage14ActivationCResumeTest extends Stage14TestCase
                 'content_type' => 'text/html',
                 'byte_count' => 128,
                 'duration_ms' => 10,
-                'page_title' => 'Synthetic public buyer',
-                'meta_description' => 'Fictional public buyer profile.',
-                'headings' => ['About'],
-                'text_excerpt' => 'Public company evidence for a reviewed Product scope.',
+                'page_title' => 'Synthetic Food Factory',
+                'meta_description' => 'Fictional manufacturer of ready meals and frozen vegetable mixes.',
+                'headings' => ['About the food factory'],
+                'text_excerpt' => 'Public company evidence describes food production and a reviewed Product scope.',
                 'same_domain_links' => [],
                 'protected_channels' => [],
                 'channel_count' => 0,
