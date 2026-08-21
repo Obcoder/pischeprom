@@ -189,9 +189,23 @@ onMounted(load)
                             <v-list-item
                                 v-for="domain in filteredDomains"
                                 :key="domain.domain"
-                                :title="domain.domain"
                                 :subtitle="`${domain.classification} · результатов ${domain.result_count} · research ${domain.research_completed}`"
                             >
+                                <template #title>
+                                    <a
+                                        v-if="domain.source_url"
+                                        :href="domain.source_url"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="text-primary text-decoration-none font-weight-medium"
+                                        :aria-label="`Открыть публичный сайт ${domain.domain}`"
+                                        @click.stop
+                                    >
+                                        {{ domain.domain }}
+                                        <v-icon icon="mdi-open-in-new" size="x-small" class="ml-1" />
+                                    </a>
+                                    <span v-else>{{ domain.domain }}</span>
+                                </template>
                                 <template #append>
                                     <v-chip size="x-small" variant="tonal">{{ domain.confidence }}%</v-chip>
                                 </template>

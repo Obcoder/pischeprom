@@ -173,6 +173,10 @@ class CampaignDraftReferenceDataTest extends Stage14TestCase
         $this->assertStringContainsString('Потенциальные покупатели', $dashboard);
         $this->assertStringContainsString('Отклонённые поставщики', $dashboard);
         $this->assertStringContainsString('Маркетплейсы/справочники', $dashboard);
+        $this->assertStringContainsString('domain.source_url', $dashboard);
+        $this->assertStringContainsString('target="_blank"', $dashboard);
+        $this->assertStringContainsString('rel="noopener noreferrer"', $dashboard);
+        $this->assertStringContainsString('mdi-open-in-new', $dashboard);
         $this->assertStringNotContainsString('Country ID', $component);
         $this->assertStringNotContainsString('Region ID', $component);
         $this->assertStringNotContainsString('City ID', $component);

@@ -51,6 +51,8 @@ final class ClientAcquisitionCampaignMetrics
         $domainDecisions = $searchResults->groupBy('domain_hash')->map(function ($results): array {
             /** @var ProspectingSearchResult $first */
             $first = $results->first();
+            $sourceUrl = $results->map(fn (ProspectingSearchResult $result): ?string => $this->safeSourceUrl($result))
+                ->filter()->first();
             $combinedEvidence = $results->map(fn (ProspectingSearchResult $result): string => implode(' ', array_filter([
                 $result->title, $result->snippet, $result->publicFetch?->page_title,
                 $result->publicFetch?->meta_description, $result->publicFetch?->text_excerpt,
@@ -66,6 +68,7 @@ final class ClientAcquisitionCampaignMetrics
 
             return [
                 'domain' => $first->registrable_domain,
+                'source_url' => $sourceUrl,
                 'classification' => $decision->role->value,
                 'reason_codes' => $decision->reasonCodes,
                 'confidence' => $decision->confidence,
@@ -133,5 +136,31 @@ final class ClientAcquisitionCampaignMetrics
                 'emails_sent' => 0,
             ],
         ];
+    }
+
+    private function safeSourceUrl(ProspectingSearchResult $result): ?string
+    {
+        $url = (string) $result->canonical_url;
+        $domain = mb_strtolower(rtrim((string) $result->registrable_domain, '.'));
+        if ($url === '' || $domain === '' || ! is_string($result->url_hash)
+            || ! hash_equals($result->url_hash, hash('sha256', $url))
+            || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        $parts = parse_url($url);
+        if (! is_array($parts) || isset($parts['user']) || isset($parts['pass'])) {
+            return null;
+        }
+        $scheme = mb_strtolower((string) ($parts['scheme'] ?? ''));
+        $host = mb_strtolower(rtrim((string) ($parts['host'] ?? ''), '.'));
+        $port = isset($parts['port']) ? (int) $parts['port'] : null;
+        if (! in_array($scheme, ['http', 'https'], true)
+            || ($port !== null && ! in_array($port, [80, 443], true))
+            || ($host !== $domain && ! str_ends_with($host, '.'.$domain))) {
+            return null;
+        }
+
+        return $url;
     }
 }

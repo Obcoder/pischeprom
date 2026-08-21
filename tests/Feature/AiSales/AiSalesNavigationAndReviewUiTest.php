@@ -113,6 +113,7 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
             ->assertOk()
             ->assertJsonPath('data.queries.executed', 1)
             ->assertJsonPath('data.research.results', 10)
+            ->assertJsonPath('data.research.domain_breakdown.0.source_url', 'https://ui-buyer-1.example/about')
             ->assertJsonPath('data.candidates.total', 1)
             ->assertJsonPath('data.review_items', 1)
             ->assertJsonPath('data.usage.yandex_requests', 1)
@@ -139,6 +140,37 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
         $this->assertSame('candidate_ingestion_review_required', $run->fresh()->safe_error_code);
         $this->assertSame($before, $this->domainCounts());
         $this->assertSame(1, ProspectingSearchUsageRecord::query()->sum('request_count'));
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_campaign_domain_projection_rejects_non_http_or_integrity_mismatched_links(): void
+    {
+        [$actor, $campaign, , $job] = $this->productionShapedReviewFixture();
+        $first = $job->searchResults()->where('rank', 1)->firstOrFail();
+        $first->update([
+            'canonical_url' => 'javascript:alert(1)',
+            'url_hash' => hash('sha256', 'javascript:alert(1)'),
+        ]);
+        $second = $job->searchResults()->where('rank', 2)->firstOrFail();
+        $second->update(['url_hash' => hash('sha256', 'integrity-mismatch')]);
+        $third = $job->searchResults()->where('rank', 3)->firstOrFail();
+        $third->update([
+            'canonical_url' => 'https://different-domain.example/about',
+            'url_hash' => hash('sha256', 'https://different-domain.example/about'),
+        ]);
+        $before = $this->domainCounts();
+
+        $domains = $this->actingAs($actor)
+            ->getJson('/api/ai-sales/campaigns/'.$campaign->public_id.'/progress')
+            ->assertOk()
+            ->json('data.research.domain_breakdown');
+
+        $this->assertNull(collect($domains)->firstWhere('domain', 'ui-buyer-1.example')['source_url']);
+        $this->assertNull(collect($domains)->firstWhere('domain', 'ui-buyer-2.example')['source_url']);
+        $this->assertNull(collect($domains)->firstWhere('domain', 'ui-buyer-3.example')['source_url']);
+        $this->assertSame($before, $this->domainCounts());
         Http::assertNothingSent();
         Mail::assertNothingSent();
         Queue::assertNothingPushed();
