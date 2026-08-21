@@ -11,6 +11,7 @@ const emit = defineEmits(['updated'])
 
 const actionLoading = ref('')
 const error = ref('')
+const actionFeedback = ref({})
 const domains = computed(() => props.review?.domains || [])
 
 const actionLabels = {
@@ -21,6 +22,32 @@ const actionLabels = {
 
 function statusColor(status) {
     return ({ completed: 'success', blocked: 'warning', failed: 'error', not_requested: 'grey' })[status] || 'grey'
+}
+
+function outcomeMessage(code) {
+    return ({
+        robots_unavailable: 'Robots policy сайта недоступна. Домен безопасно пропущен; повторный fetch не выполняется.',
+        robots_content_type_blocked: 'Robots policy сайта имеет недопустимый формат. Домен безопасно пропущен.',
+        robots_compression_blocked: 'Robots policy сайта использует запрещённое сжатие. Домен безопасно пропущен.',
+        robots_disallow_blocked: 'Владелец сайта запретил исследование этой страницы через robots.txt.',
+        tool_dlp_sensitive_material_blocked: 'Страница отклонена защитой данных. Содержимое не сохранено.',
+        public_fetch_http_403: 'Сайт отклонил безопасный публичный запрос (HTTP 403).',
+        public_fetch_connection_failed: 'Публичный сайт не ответил в разрешённое время.',
+        public_research_page_budget_exhausted: 'Лимит страниц для этой кампании исчерпан.',
+        public_research_domain_budget_exhausted: 'Лимит исследуемых доменов для этой кампании исчерпан.',
+    })[code] || (code ? `Действие безопасно остановлено: ${code}.` : 'Действие безопасно остановлено policy.')
+}
+
+function feedbackFor(domain) {
+    const local = actionFeedback.value[domain?.domain]
+    if (local) return local
+    const attempts = domain?.fetch_attempts
+    if (!attempts?.latest_error_code) return null
+
+    return {
+        type: attempts.domain_terminal ? 'warning' : 'info',
+        message: outcomeMessage(attempts.latest_error_code),
+    }
 }
 
 async function perform(domain) {
@@ -44,14 +71,28 @@ async function perform(domain) {
             ingest_candidate: `${base}/ingest-candidate`,
         }[action]
         await axios.post(endpoint, {})
-        emit('updated')
+        actionFeedback.value = {
+            ...actionFeedback.value,
+            [domain.domain]: {
+                type: 'success',
+                message: action === 'fetch'
+                    ? 'Публичная страница безопасно сохранена. Обновляю следующий шаг.'
+                    : 'Действие выполнено. Обновляю карточку.',
+            },
+        }
     } catch (requestError) {
         const validation = requestError?.response?.data?.errors
-        error.value = Object.values(validation || {}).flat()[0]
-            || requestError?.response?.data?.message
-            || 'Действие безопасно заблокировано policy.'
+        const code = requestError?.response?.data?.code
+            || Object.values(validation || {}).flat()[0]
+        const message = outcomeMessage(code)
+        actionFeedback.value = {
+            ...actionFeedback.value,
+            [domain.domain]: { type: 'warning', message },
+        }
+        error.value = message
     } finally {
         actionLoading.value = ''
+        emit('updated')
     }
 }
 </script>
@@ -107,6 +148,13 @@ async function perform(domain) {
                         </div>
                     </v-expansion-panel-title>
                     <v-expansion-panel-text>
+                        <v-alert
+                            v-if="feedbackFor(domain)"
+                            :type="feedbackFor(domain).type"
+                            variant="tonal"
+                            density="compact"
+                            class="mb-3"
+                        >{{ feedbackFor(domain).message }}</v-alert>
                         <v-row dense>
                             <v-col cols="12" md="4">
                                 <div class="text-caption">Identity</div>
@@ -120,6 +168,9 @@ async function perform(domain) {
                                     {{ domain.source?.fetch_status || 'not_requested' }}
                                 </v-chip>
                                 <div class="text-caption mt-1">{{ domain.source?.fetch_error_code }}</div>
+                                <div v-if="domain.fetch_attempts?.total" class="text-caption mt-1">
+                                    Попытки: {{ domain.fetch_attempts.total }} · blocked: {{ domain.fetch_attempts.blocked }}
+                                </div>
                             </v-col>
                             <v-col cols="12" md="4">
                                 <div class="text-caption">Research</div>

@@ -9,6 +9,21 @@ use Illuminate\Support\Collection;
 
 final class CandidateIngestionReviewProjection
 {
+    /**
+     * A retry against another page cannot change these host/domain-wide safety outcomes.
+     * Path-specific, content and transient failures deliberately remain reviewable.
+     */
+    private const TERMINAL_DOMAIN_FETCH_CODES = [
+        'robots_unavailable',
+        'robots_content_type_blocked',
+        'robots_compression_blocked',
+        'private_or_reserved_dns_blocked',
+        'public_dns_resolution_failed',
+        'dns_rebinding_blocked',
+        'public_fetch_dns_pinning_unavailable',
+        'per_domain_page_budget_blocked',
+    ];
+
     public function __construct(
         private readonly ResultBusinessRoleClassifier $roles,
         private readonly PublicCompanyIdentityResolver $identities,
@@ -75,11 +90,17 @@ final class CandidateIngestionReviewProjection
         $completed = $domainResults->first(fn (ProspectingSearchResult $result): bool => $this->completedFetch($result));
         $researchable = $domainResults->first(fn (ProspectingSearchResult $result): bool => $this->completedFetch($result)
             && $result->research === null);
-        $unfetched = $domainResults->sortBy(fn (ProspectingSearchResult $result): string => sprintf(
+        $terminalBlock = $domainResults->sortByDesc(fn (ProspectingSearchResult $result): int => (int) ($result->publicFetch?->id ?? 0))
+            ->first(fn (ProspectingSearchResult $result): bool => in_array(
+                (string) $result->publicFetch?->error_code,
+                self::TERMINAL_DOMAIN_FETCH_CODES,
+                true,
+            ));
+        $unfetched = $terminalBlock === null ? $domainResults->sortBy(fn (ProspectingSearchResult $result): string => sprintf(
             '%d|%010d',
             $this->pagePriority((string) parse_url((string) $result->canonical_url, PHP_URL_PATH)),
             (int) $result->rank,
-        ))->first(fn (ProspectingSearchResult $result): bool => $result->publicFetch === null);
+        ))->first(fn (ProspectingSearchResult $result): bool => $result->publicFetch === null) : null;
         $domainReserved = $domainResults->contains(fn (ProspectingSearchResult $result): bool => $result->publicFetch !== null);
         $canIngest = $candidate === null && $completed !== null && $role->candidateEligible && $identity->resolved();
         $canResearch = ! $canIngest && $researchable !== null && $role->researchEligible;
@@ -90,8 +111,9 @@ final class CandidateIngestionReviewProjection
             $candidate !== null => ['open_candidate', null, 'candidate_already_created', 0],
             $canIngest => ['ingest_candidate', $completed, 'buyer_identity_ready', 0],
             $canResearch => ['research', $researchable, 'completed_fetch_requires_safe_research', 1],
-            $canFetch => ['fetch', $unfetched, 'bounded_public_fetch_required', 2],
             ! $role->researchEligible => ['none', null, 'buyer_role_not_research_eligible', 5],
+            $terminalBlock !== null => ['none', $terminalBlock, (string) $terminalBlock->publicFetch->error_code, 1],
+            $canFetch => ['fetch', $unfetched, 'bounded_public_fetch_required', 2],
             ! $budget['current'] => ['none', null, 'campaign_research_approval_stale', 4],
             $budget['pages_remaining'] < 1 => ['none', null, 'public_research_page_budget_exhausted', 4],
             default => ['none', null, $this->blockedReason($domainResults, $role, $identity), 3],
@@ -119,6 +141,7 @@ final class CandidateIngestionReviewProjection
                 'research_error_code' => $source->research?->error_code,
                 'research_summary' => $source->research?->safe_summary,
             ],
+            'fetch_attempts' => $this->fetchAttempts($domainResults),
             'candidate_id' => $candidate?->public_id,
             'next_action' => $nextAction,
             'reason_code' => $reason,
@@ -130,6 +153,33 @@ final class CandidateIngestionReviewProjection
     {
         return $result->publicFetch?->status === 'completed'
             && hash_equals((string) $result->registrable_domain, (string) $result->publicFetch->registrable_domain);
+    }
+
+    /** @param Collection<int, ProspectingSearchResult> $results
+     * @return array{total: int, completed: int, blocked: int, failed: int, latest_status: ?string, latest_error_code: ?string, domain_terminal: bool}
+     */
+    private function fetchAttempts(Collection $results): array
+    {
+        $fetches = $results->pluck('publicFetch')->filter()
+            ->sortByDesc(fn ($fetch): int => (int) $fetch->id)->values();
+        $latest = $fetches->first();
+        $latestError = is_string($latest?->error_code) && $latest->error_code !== ''
+            ? $latest->error_code
+            : null;
+
+        return [
+            'total' => $fetches->count(),
+            'completed' => $fetches->where('status', 'completed')->count(),
+            'blocked' => $fetches->where('status', 'blocked')->count(),
+            'failed' => $fetches->where('status', 'failed')->count(),
+            'latest_status' => $latest?->status,
+            'latest_error_code' => $latestError,
+            'domain_terminal' => $fetches->contains(fn ($fetch): bool => in_array(
+                (string) $fetch->error_code,
+                self::TERMINAL_DOMAIN_FETCH_CODES,
+                true,
+            )),
+        ];
     }
 
     /** @param Collection<int, ProspectingSearchResult> $results */

@@ -231,11 +231,67 @@ final class Stage14ActivationCResumeTest extends Stage14TestCase
         $this->assertStringContainsString('/fetch', $panel);
         $this->assertStringContainsString('/research', $panel);
         $this->assertStringContainsString('/ingest-candidate', $panel);
+        $this->assertStringContainsString("emit('updated')", $panel);
+        $this->assertStringContainsString('feedbackFor(domain)', $panel);
+        $this->assertStringContainsString('fetch_attempts', $panel);
+        $this->assertStringContainsString('robots_unavailable', $panel);
         $this->assertStringContainsString('CandidateIngestionReviewPanel', $page);
         $this->assertStringNotContainsString('/search-execute', $panel);
         $this->assertStringNotContainsString('v-model="query"', $panel);
         $this->assertStringNotContainsString('v-model="url"', $panel);
         $this->assertStringNotContainsString('v-model="provider"', $panel);
+    }
+
+    public function test_terminal_domain_fetch_block_is_visible_and_does_not_offer_another_page(): void
+    {
+        [$actor, , , $job] = $this->activationCFixture([]);
+        $domain = 'terminal-buyer.example';
+        $first = $job->searchResults()->where('rank', 1)->firstOrFail();
+        $second = $job->searchResults()->where('rank', 2)->firstOrFail();
+        foreach ([[$first, '/'], [$second, '/about']] as [$result, $path]) {
+            $url = 'https://'.$domain.$path;
+            $result->update([
+                'title' => 'North Food Factory',
+                'snippet' => 'Manufacturer of ready meals and frozen products.',
+                'url' => $url,
+                'canonical_url' => $url,
+                'url_hash' => hash('sha256', $url),
+                'registrable_domain' => $domain,
+                'domain_hash' => hash('sha256', $domain),
+            ]);
+        }
+        $job->searchResults()->where('rank', '>', 2)->update([
+            'title' => 'Оптовый поставщик — купить оптом',
+            'snippet' => 'Продажа оптом и прайс-лист.',
+        ]);
+        $this->createFetch($first->fresh(), 'robots_unavailable');
+        $before = $this->sideEffectCounts($job);
+
+        $response = $this->actingAs($actor)
+            ->getJson('/api/ai-sales/prospecting/jobs/'.$job->public_id.'/search')
+            ->assertOk();
+        $projected = collect($response->json('data.candidate_ingestion_review.domains'))
+            ->firstWhere('domain', $domain);
+
+        $this->assertIsArray($projected);
+        $this->assertSame('none', $projected['next_action']);
+        $this->assertSame('robots_unavailable', $projected['reason_code']);
+        $this->assertSame('blocked', $projected['source']['fetch_status']);
+        $this->assertSame('robots_unavailable', $projected['source']['fetch_error_code']);
+        $this->assertSame([
+            'total' => 1,
+            'completed' => 0,
+            'blocked' => 1,
+            'failed' => 0,
+            'latest_status' => 'blocked',
+            'latest_error_code' => 'robots_unavailable',
+            'domain_terminal' => true,
+        ], $projected['fetch_attempts']);
+        $this->assertSame('not_requested', $second->fresh()->fetch_status);
+        $this->assertSame($before, $this->sideEffectCounts($job));
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
     }
 
     public function test_production_shaped_activation_c_resume_reuses_search_and_reaches_idempotent_ingestion_review(): void
