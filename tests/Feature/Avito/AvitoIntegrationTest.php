@@ -103,6 +103,58 @@ class AvitoIntegrationTest extends TestCase
             ->assertJsonPath('catalog_total', 245);
     }
 
+    public function test_capability_catalog_hydrates_only_the_latest_call_per_capability(): void
+    {
+        $capabilityIds = collect(app(AvitoApiCatalog::class)->capabilities())
+            ->take(2)
+            ->pluck('id')
+            ->values();
+        $now = now();
+        $history = $capabilityIds->flatMap(fn (string $capabilityId) => collect(range(1, 300))
+            ->map(fn (int $sequence): array => [
+                'request_id' => (string) \Illuminate\Support\Str::uuid(),
+                'capability_id' => $capabilityId,
+                'method' => 'GET',
+                'endpoint' => 'https://api.avito.ru/test',
+                'status' => 'historical',
+                'http_status' => 200,
+                'created_at' => $now->copy()->subSeconds(301 - $sequence),
+                'updated_at' => $now->copy()->subSeconds(301 - $sequence),
+            ]));
+
+        $history->chunk(100)->each(fn ($chunk) => DB::table('avito_api_calls')->insert($chunk->all()));
+        AvitoApiCall::query()->create([
+            'request_id' => (string) \Illuminate\Support\Str::uuid(),
+            'capability_id' => $capabilityIds[0],
+            'method' => 'GET',
+            'endpoint' => 'https://api.avito.ru/test',
+            'status' => 'latest-success',
+            'http_status' => 200,
+        ]);
+        AvitoApiCall::query()->create([
+            'request_id' => (string) \Illuminate\Support\Str::uuid(),
+            'capability_id' => $capabilityIds[1],
+            'method' => 'GET',
+            'endpoint' => 'https://api.avito.ru/test',
+            'status' => 'latest-remote-error',
+            'http_status' => 402,
+        ]);
+
+        $retrievedCalls = 0;
+        AvitoApiCall::retrieved(function () use (&$retrievedCalls): void {
+            $retrievedCalls++;
+        });
+
+        $items = collect($this->getJson('/api/avito/capabilities')
+            ->assertOk()
+            ->assertJsonCount(245, 'items')
+            ->json('items'));
+
+        $this->assertSame('latest-success', $items->firstWhere('id', $capabilityIds[0])['last_status']);
+        $this->assertSame('latest-remote-error', $items->firstWhere('id', $capabilityIds[1])['last_status']);
+        $this->assertSame(2, $retrievedCalls, 'Historical Avito API calls must not be hydrated into PHP.');
+    }
+
     public function test_read_preflight_uses_server_token_and_records_redacted_audit(): void
     {
         Http::fake([

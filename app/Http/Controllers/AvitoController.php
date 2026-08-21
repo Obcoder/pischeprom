@@ -57,10 +57,14 @@ class AvitoController extends Controller
     public function capabilities(Request $request, AvitoApiCatalog $catalog): JsonResponse
     {
         $settings = AvitoCapabilitySetting::query()->get()->keyBy('capability_id');
+        $latestCallIds = AvitoApiCall::query()
+            ->selectRaw('MAX(id) AS id')
+            ->groupBy('capability_id')
+            ->toBase()
+            ->pluck('id');
         $lastCalls = AvitoApiCall::query()
-            ->latest('id')
+            ->whereKey($latestCallIds)
             ->get(['id', 'capability_id', 'status', 'http_status', 'created_at'])
-            ->unique('capability_id')
             ->keyBy('capability_id');
         $search = Str::lower(trim($request->string('search')->toString()));
         $section = $request->string('section')->toString();
