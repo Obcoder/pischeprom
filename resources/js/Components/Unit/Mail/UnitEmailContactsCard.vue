@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import axios from 'axios'
 
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
@@ -25,16 +25,12 @@ const props = defineProps({
 
 const emit = defineEmits(['compose', 'refresh'])
 
-const attachDialog = ref(false)
-const createDialog = ref(false)
+const emailDialog = ref(false)
 const saving = ref(false)
 const feedback = ref(null)
 const errors = ref({})
-const selectedEmailId = ref(null)
-const newEmail = reactive({
-    address: '',
-    name: '',
-})
+const selectedEmail = ref(null)
+const emailSearch = ref('')
 
 const directEmails = computed(() => props.unit?.emails || [])
 const directEmailIds = computed(() => new Set(directEmails.value.map((email) => Number(email.id))))
@@ -47,6 +43,31 @@ const availableEmails = computed(() => {
             title: email.name ? `${email.address} — ${email.name}` : email.address,
         }))
 })
+
+const selectedEmailId = computed(() => {
+    if (selectedEmail.value && typeof selectedEmail.value === 'object') {
+        return selectedEmail.value.id || null
+    }
+
+    return null
+})
+
+const typedEmailAddress = computed(() => {
+    if (selectedEmailId.value) return ''
+
+    if (typeof selectedEmail.value === 'string' && selectedEmail.value.trim()) {
+        return selectedEmail.value.trim()
+    }
+
+    return String(emailSearch.value || '').trim()
+})
+
+const canSubmitEmail = computed(() => Boolean(selectedEmailId.value || typedEmailAddress.value))
+
+const emailErrors = computed(() => [
+    ...(errors.value.email_id || []),
+    ...(errors.value.address || []),
+])
 
 const entityEmails = computed(() => {
     const directAddresses = new Set(
@@ -71,20 +92,14 @@ function clearFeedback() {
     errors.value = {}
 }
 
-function openAttachDialog() {
+function openEmailDialog() {
     clearFeedback()
-    selectedEmailId.value = null
-    attachDialog.value = true
+    selectedEmail.value = null
+    emailSearch.value = ''
+    emailDialog.value = true
 }
 
-function openCreateDialog() {
-    clearFeedback()
-    newEmail.address = ''
-    newEmail.name = ''
-    createDialog.value = true
-}
-
-async function store(payload, successMessage) {
+async function store(payload) {
     saving.value = true
     errors.value = {}
 
@@ -93,10 +108,15 @@ async function store(payload, successMessage) {
 
         feedback.value = {
             tone: 'success',
-            text: data.attached ? successMessage : 'Этот email уже привязан к Unit.',
+            text: !data.attached
+                ? 'Этот email уже привязан к Unit.'
+                : data.created
+                    ? 'Новый email создан и привязан к Unit.'
+                    : 'Email из базы привязан к Unit.',
         }
-        attachDialog.value = false
-        createDialog.value = false
+        emailDialog.value = false
+        selectedEmail.value = null
+        emailSearch.value = ''
         emit('refresh')
     } catch (error) {
         errors.value = error.response?.data?.errors || {}
@@ -109,17 +129,15 @@ async function store(payload, successMessage) {
     }
 }
 
-async function attachExisting() {
-    if (!selectedEmailId.value) return
+async function attachEmail() {
+    if (selectedEmailId.value) {
+        await store({ email_id: selectedEmailId.value })
+        return
+    }
 
-    await store({ email_id: selectedEmailId.value }, 'Email привязан к Unit.')
-}
-
-async function createAndAttach() {
-    await store({
-        address: newEmail.address,
-        name: newEmail.name || null,
-    }, 'Новый email создан и привязан к Unit.')
+    if (typedEmailAddress.value) {
+        await store({ address: typedEmailAddress.value })
+    }
 }
 </script>
 
@@ -146,18 +164,9 @@ async function createAndAttach() {
                     size="small"
                     variant="outlined"
                     color="white"
-                    @click="openAttachDialog"
+                    @click="openEmailDialog"
                 >
-                    Привязать из базы
-                </v-btn>
-                <v-btn
-                    v-if="canManage"
-                    size="small"
-                    variant="outlined"
-                    color="white"
-                    @click="openCreateDialog"
-                >
-                    Создать и привязать
+                    Добавить email
                 </v-btn>
             </div>
         </template>
@@ -222,73 +231,37 @@ async function createAndAttach() {
             {{ feedback.text }}
         </v-alert>
 
-        <v-dialog v-model="attachDialog" max-width="620">
+        <v-dialog v-model="emailDialog" max-width="620">
             <v-card rounded="xl">
-                <v-card-title>Привязать существующий email</v-card-title>
+                <v-card-title>Выбрать или создать email</v-card-title>
                 <v-card-text>
-                    <v-autocomplete
-                        v-model="selectedEmailId"
+                    <v-combobox
+                        v-model="selectedEmail"
+                        v-model:search="emailSearch"
                         :items="availableEmails"
                         item-title="title"
                         item-value="id"
                         label="Email"
-                        placeholder="Начните вводить адрес"
+                        hint="Выберите email из базы или введите новый прямо в этом поле"
+                        persistent-hint
                         variant="outlined"
                         density="comfortable"
                         clearable
-                        :error-messages="errors.email_id || []"
-                        no-data-text="Подходящих email нет"
+                        return-object
+                        :error-messages="emailErrors"
+                        no-data-text="Введите новый email"
+                        @keydown.enter.prevent="attachEmail"
                     />
                 </v-card-text>
                 <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="attachDialog = false">Отмена</v-btn>
+                    <v-btn variant="text" @click="emailDialog = false">Отмена</v-btn>
                     <v-btn
                         color="teal-darken-2"
-                        :disabled="!selectedEmailId"
+                        :disabled="!canSubmitEmail"
                         :loading="saving"
-                        @click="attachExisting"
+                        @click="attachEmail"
                     >
-                        Привязать
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
-        <v-dialog v-model="createDialog" max-width="620">
-            <v-card rounded="xl">
-                <v-card-title>Создать email и привязать к Unit</v-card-title>
-                <v-card-text>
-                    <v-text-field
-                        v-model="newEmail.address"
-                        label="Email *"
-                        placeholder="company@example.ru"
-                        type="email"
-                        variant="outlined"
-                        density="comfortable"
-                        autofocus
-                        :error-messages="errors.address || []"
-                    />
-                    <v-text-field
-                        v-model="newEmail.name"
-                        label="Подпись или назначение"
-                        placeholder="Например, отдел закупок"
-                        variant="outlined"
-                        density="comfortable"
-                        :error-messages="errors.name || []"
-                    />
-                    <div class="text-caption text-medium-emphasis">
-                        Если такой адрес уже есть в базе, он будет переиспользован без создания дубля.
-                    </div>
-                </v-card-text>
-                <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="createDialog = false">Отмена</v-btn>
-                    <v-btn
-                        color="teal-darken-2"
-                        :disabled="!newEmail.address"
-                        :loading="saving"
-                        @click="createAndAttach"
-                    >
-                        Создать и привязать
+                        Добавить
                     </v-btn>
                 </v-card-actions>
             </v-card>

@@ -229,9 +229,22 @@ class UnitPageEmailManagementTest extends TestCase
             $this->assertStringContainsString($tab, $page);
         }
 
-        foreach (['Написать письмо', 'Привязать из базы', 'Создать и привязать'] as $action) {
+        foreach ([
+            'Написать письмо',
+            'Добавить email',
+            'Выбрать или создать email',
+            'Выберите email из базы или введите новый прямо в этом поле',
+        ] as $action) {
             $this->assertStringContainsString($action, $emailCard);
         }
+
+        $this->assertStringContainsString('<v-combobox', $emailCard);
+        $this->assertStringContainsString('v-model:search="emailSearch"', $emailCard);
+        $this->assertStringContainsString('return-object', $emailCard);
+        $this->assertStringNotContainsString('Привязать из базы', $emailCard);
+        $this->assertStringNotContainsString('Создать и привязать', $emailCard);
+        $this->assertStringNotContainsString('createDialog', $emailCard);
+        $this->assertStringNotContainsString('newEmail', $emailCard);
 
         $this->assertStringNotContainsString('mdi-dots-vertical', $overview);
         $this->assertStringNotContainsString("route('emailgood.store')", $overview);
