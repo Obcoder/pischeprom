@@ -59,9 +59,9 @@ class StoreClientAcquisitionCampaignRequest extends FormRequest
             'criteria.excluded_categories.*' => ['string', 'max:120'],
             'criteria.company_types' => ['sometimes', 'array', 'max:25'],
             'criteria.company_types.*' => ['string', 'max:120'],
-            'criteria.max_domains' => ['sometimes', 'integer', 'min:1', 'max:100'],
-            'criteria.max_page_fetch_attempts' => ['sometimes', 'integer', 'min:1', 'max:100'],
-            'criteria.max_results_per_query' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'criteria.max_domains' => ['sometimes', 'integer', 'min:1', 'max:'.config('ai-sales.campaigns.draft_form_limits.max_domains_per_run', 100)],
+            'criteria.max_page_fetch_attempts' => ['sometimes', 'integer', 'min:1', 'max:'.config('ai-sales.campaigns.draft_form_limits.max_research_pages_per_run', 30)],
+            'criteria.max_results_per_query' => ['sometimes', 'integer', 'min:1', 'max:'.config('ai-sales.campaigns.draft_form_limits.max_results_per_query', 50)],
             'limits' => ['required', 'array:'.implode(',', self::LIMITS)],
             'purpose' => ['prohibited'], 'lane' => ['prohibited'], 'role_code' => ['prohibited'],
             'workflow' => ['prohibited'], 'workflow_code' => ['prohibited'], 'stage' => ['prohibited'],
@@ -74,6 +74,19 @@ class StoreClientAcquisitionCampaignRequest extends FormRequest
             $rules['limits.'.$field] = str_starts_with($field, 'max_cost_')
                 ? ['required', 'numeric', 'min:0', 'max:1000000']
                 : ['required', 'integer', 'min:0', 'max:1000000000'];
+        }
+        foreach ([
+            'max_active_runs' => 'max_active_runs',
+            'max_runs_per_day' => 'max_runs_per_day',
+            'max_runs_per_month' => 'max_runs_per_month',
+            'max_search_requests_per_run' => 'max_search_requests_per_run',
+            'max_research_pages_per_run' => 'max_research_pages_per_run',
+            'max_candidates_per_run' => 'max_candidates_per_run',
+        ] as $field => $ceiling) {
+            $rules['limits.'.$field] = [
+                'required', 'integer', 'min:0',
+                'max:'.config('ai-sales.campaigns.draft_form_limits.'.$ceiling),
+            ];
         }
 
         return $rules;

@@ -14,6 +14,7 @@ const visible = ref(false)
 const loading = ref(false)
 const error = ref('')
 const campaigns = ref([])
+const campaignLimitProfile = ref({})
 const selected = ref(null)
 const metrics = ref(null)
 const reviewQueue = ref([])
@@ -55,6 +56,7 @@ async function load() {
     try {
         const campaignResponse = await axios.get('/api/ai-sales/campaigns')
         campaigns.value = campaignResponse.data.data || []
+        campaignLimitProfile.value = campaignResponse.data.meta?.draft_limits || {}
         visible.value = true
         const requested = props.initialCampaignId
             ? campaigns.value.find(item => item.id === props.initialCampaignId)
@@ -247,5 +249,5 @@ onMounted(load)
         </v-card-text>
     </v-card>
 
-    <CampaignDraftForm v-model="dialog" :campaign="editingCampaign" @saved="load" />
+    <CampaignDraftForm v-model="dialog" :campaign="editingCampaign" :limit-profile="campaignLimitProfile" @saved="load" />
 </template>

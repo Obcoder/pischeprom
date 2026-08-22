@@ -5,6 +5,7 @@ import { computed, reactive, ref, watch } from 'vue'
 const props = defineProps({
     modelValue: Boolean,
     campaign: { type: Object, default: null },
+    limitProfile: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['update:modelValue', 'saved'])
 
@@ -30,24 +31,44 @@ const segmentSearch = ref('')
 const segmentLoading = ref(false)
 const timers = new Map()
 
+function profileLimit(name, fallback) {
+    if (!Object.prototype.hasOwnProperty.call(props.limitProfile || {}, name)) return fallback
+    const value = Number(props.limitProfile?.[name])
+
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
+}
+
+const formCeilings = computed(() => ({
+    max_active_runs: profileLimit('max_active_runs', 1),
+    max_runs_per_day: profileLimit('max_runs_per_day', 2),
+    max_runs_per_month: profileLimit('max_runs_per_month', 20),
+    max_search_requests_per_run: profileLimit('max_search_requests_per_run', 20),
+    max_search_results_per_run: profileLimit('max_search_results_per_run', 1000),
+    max_results_per_query: profileLimit('max_results_per_query', 50),
+    max_research_pages_per_run: profileLimit('max_research_pages_per_run', 30),
+    max_page_fetch_attempts: profileLimit('max_page_fetch_attempts', 30),
+    max_domains_per_run: profileLimit('max_domains_per_run', 100),
+    max_candidates_per_run: profileLimit('max_candidates_per_run', 50),
+}))
+
 const defaultLimits = () => ({
-    max_active_runs: 1,
-    max_runs_per_day: 2,
-    max_runs_per_month: 20,
-    max_search_requests_per_run: 10,
-    max_search_requests_per_day: 20,
-    max_search_requests_per_month: 200,
-    max_research_pages_per_run: 30,
-    max_candidates_per_run: 15,
+    max_active_runs: formCeilings.value.max_active_runs,
+    max_runs_per_day: formCeilings.value.max_runs_per_day,
+    max_runs_per_month: formCeilings.value.max_runs_per_month,
+    max_search_requests_per_run: formCeilings.value.max_search_requests_per_run,
+    max_search_requests_per_day: formCeilings.value.max_search_requests_per_run * formCeilings.value.max_runs_per_day,
+    max_search_requests_per_month: formCeilings.value.max_search_requests_per_run * formCeilings.value.max_runs_per_month,
+    max_research_pages_per_run: formCeilings.value.max_research_pages_per_run,
+    max_candidates_per_run: formCeilings.value.max_candidates_per_run,
     max_units_per_run: 0,
     max_units_per_day: 0,
     max_units_per_month: 0,
     max_drafts_per_run: 0,
     max_drafts_per_day: 0,
     max_drafts_per_month: 0,
-    max_requests_per_run: 10,
-    max_requests_per_day: 20,
-    max_requests_per_month: 200,
+    max_requests_per_run: formCeilings.value.max_search_requests_per_run,
+    max_requests_per_day: formCeilings.value.max_search_requests_per_run * formCeilings.value.max_runs_per_day,
+    max_requests_per_month: formCeilings.value.max_search_requests_per_run * formCeilings.value.max_runs_per_month,
     max_tokens_per_run: 4000,
     max_tokens_per_day: 8000,
     max_tokens_per_month: 80000,
@@ -75,9 +96,9 @@ const freshForm = () => ({
         segments: [],
         industries: [],
         categories: [],
-        max_domains: 30,
-        max_page_fetch_attempts: 30,
-        max_results_per_query: 10,
+        max_domains: formCeilings.value.max_domains_per_run,
+        max_page_fetch_attempts: formCeilings.value.max_page_fetch_attempts,
+        max_results_per_query: formCeilings.value.max_results_per_query,
     },
     limits: defaultLimits(),
 })
@@ -257,9 +278,48 @@ async function hydrate() {
     hydrating.value = false
 }
 
+function synchronizeAggregateBudgets() {
+    const requestsPerRun = Math.max(0, Number(form.limits.max_search_requests_per_run) || 0)
+    const runsPerDay = Math.max(0, Number(form.limits.max_runs_per_day) || 0)
+    const runsPerMonth = Math.max(0, Number(form.limits.max_runs_per_month) || 0)
+
+    form.limits.max_search_requests_per_day = requestsPerRun * runsPerDay
+    form.limits.max_search_requests_per_month = requestsPerRun * runsPerMonth
+    form.limits.max_requests_per_run = requestsPerRun
+    form.limits.max_requests_per_day = requestsPerRun * runsPerDay
+    form.limits.max_requests_per_month = requestsPerRun * runsPerMonth
+}
+
+function validateCampaignScope() {
+    const checks = [
+        ['Запусков в день', form.limits.max_runs_per_day, formCeilings.value.max_runs_per_day],
+        ['Запусков в месяц', form.limits.max_runs_per_month, formCeilings.value.max_runs_per_month],
+        ['Поисковых запросов за запуск', form.limits.max_search_requests_per_run, formCeilings.value.max_search_requests_per_run],
+        ['Результатов на запрос', form.criteria.max_results_per_query, formCeilings.value.max_results_per_query],
+        ['Доменов за запуск', form.criteria.max_domains, formCeilings.value.max_domains_per_run],
+        ['Страниц для исследования', form.limits.max_research_pages_per_run, formCeilings.value.max_research_pages_per_run],
+        ['Попыток исследования', form.criteria.max_page_fetch_attempts, formCeilings.value.max_page_fetch_attempts],
+        ['Кандидатов за запуск', form.limits.max_candidates_per_run, formCeilings.value.max_candidates_per_run],
+    ]
+    const invalid = checks.find(([, value, ceiling]) => !Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > ceiling)
+    if (invalid) {
+        error.value = `${invalid[0]}: допустимо от 1 до ${invalid[2]}.`
+        return false
+    }
+    const resultBudget = Number(form.limits.max_search_requests_per_run) * Number(form.criteria.max_results_per_query)
+    if (resultBudget > formCeilings.value.max_search_results_per_run) {
+        error.value = `Общий лимит результатов за запуск — ${formCeilings.value.max_search_results_per_run}. Уменьшите запросы или результаты на запрос.`
+        return false
+    }
+
+    return true
+}
+
 async function save() {
-    busy.value = true
     error.value = ''
+    if (!validateCampaignScope()) return
+    synchronizeAggregateBudgets()
+    busy.value = true
     try {
         if (props.campaign) {
             await axios.patch(`/api/ai-sales/campaigns/${encodeURIComponent(props.campaign.id)}`, form)
@@ -475,15 +535,18 @@ watch(segmentSearch, () => debounce('segments', loadSegments))
                                 После утверждения кампании лимиты фиксируются до повторной проверки. Глобальные production ceilings остаются fail-closed.
                             </div>
                             <v-row dense>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_runs_per_day" type="number" min="0" label="Запусков в день" /></v-col>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_runs_per_month" type="number" min="0" label="Запусков в месяц" /></v-col>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_search_requests_per_run" type="number" min="0" label="Поисковых запросов за запуск" /></v-col>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.criteria.max_results_per_query" type="number" min="1" max="50" label="Результатов на запрос" /></v-col>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.criteria.max_domains" type="number" min="1" max="100" label="Доменов за запуск" /></v-col>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_research_pages_per_run" type="number" min="0" label="Страниц для исследования" /></v-col>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.criteria.max_page_fetch_attempts" type="number" min="1" max="100" label="Попыток исследования" /></v-col>
-                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_candidates_per_run" type="number" min="0" label="Кандидатов за запуск" /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_runs_per_day" type="number" min="1" :max="formCeilings.max_runs_per_day" label="Запусков в день" :hint="`Максимум ${formCeilings.max_runs_per_day}`" persistent-hint /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_runs_per_month" type="number" min="1" :max="formCeilings.max_runs_per_month" label="Запусков в месяц" :hint="`Максимум ${formCeilings.max_runs_per_month}`" persistent-hint /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_search_requests_per_run" type="number" min="1" :max="formCeilings.max_search_requests_per_run" label="Поисковых запросов за запуск" :hint="`Реальные Yandex-запросы, максимум ${formCeilings.max_search_requests_per_run}`" persistent-hint /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.criteria.max_results_per_query" type="number" min="1" :max="formCeilings.max_results_per_query" label="Результатов на запрос" :hint="`Максимум ${formCeilings.max_results_per_query}`" persistent-hint /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.criteria.max_domains" type="number" min="1" :max="formCeilings.max_domains_per_run" label="Доменов за запуск" :hint="`Максимум ${formCeilings.max_domains_per_run}`" persistent-hint /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_research_pages_per_run" type="number" min="1" :max="formCeilings.max_research_pages_per_run" label="Страниц для исследования" :hint="`Максимум ${formCeilings.max_research_pages_per_run}`" persistent-hint /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.criteria.max_page_fetch_attempts" type="number" min="1" :max="formCeilings.max_page_fetch_attempts" label="Попыток исследования" :hint="`Максимум ${formCeilings.max_page_fetch_attempts}`" persistent-hint /></v-col>
+                                <v-col cols="6" md="3"><v-text-field v-model.number="form.limits.max_candidates_per_run" type="number" min="1" :max="formCeilings.max_candidates_per_run" label="Кандидатов за запуск" :hint="`Максимум ${formCeilings.max_candidates_per_run}`" persistent-hint /></v-col>
                             </v-row>
+                            <v-alert type="success" variant="tonal" density="compact" class="mb-2">
+                                Широкий ручной профиль: до {{ formCeilings.max_search_requests_per_run }} запросов × {{ formCeilings.max_results_per_query }} результатов = {{ formCeilings.max_search_results_per_run }} результатов, {{ formCeilings.max_domains_per_run }} доменов и {{ formCeilings.max_candidates_per_run }} Candidates за запуск.
+                            </v-alert>
                             <v-alert type="info" variant="tonal" density="compact">
                                 Автоматическое создание Candidate/Unit, scoring, drafts, dispatch, Entity и email эта форма не включает.
                             </v-alert>

@@ -177,10 +177,109 @@ class CampaignDraftReferenceDataTest extends Stage14TestCase
         $this->assertStringContainsString('target="_blank"', $dashboard);
         $this->assertStringContainsString('rel="noopener noreferrer"', $dashboard);
         $this->assertStringContainsString('mdi-open-in-new', $dashboard);
+        $this->assertStringContainsString(':limit-profile="campaignLimitProfile"', $dashboard);
+        $this->assertStringContainsString('synchronizeAggregateBudgets', $component);
+        $this->assertStringContainsString('max_search_results_per_run', $component);
+        $this->assertStringContainsString('Реальные Yandex-запросы', $component);
         $this->assertStringNotContainsString('Country ID', $component);
         $this->assertStringNotContainsString('Region ID', $component);
         $this->assertStringNotContainsString('City ID', $component);
         $this->assertStringContainsString('<CampaignDraftForm', $dashboard);
+        Http::assertNothingSent();
+    }
+
+    public function test_campaign_form_exposes_only_effective_code_owned_and_global_ceilings(): void
+    {
+        $actor = $this->campaignUser();
+
+        $this->actingAs($actor)->getJson('/api/ai-sales/campaigns')
+            ->assertOk()
+            ->assertJsonPath('meta.draft_limits.max_active_runs', 1)
+            ->assertJsonPath('meta.draft_limits.max_runs_per_day', 2)
+            ->assertJsonPath('meta.draft_limits.max_runs_per_month', 20)
+            ->assertJsonPath('meta.draft_limits.max_search_requests_per_run', 10)
+            ->assertJsonPath('meta.draft_limits.max_search_results_per_run', 200)
+            ->assertJsonPath('meta.draft_limits.max_results_per_query', 20)
+            ->assertJsonPath('meta.draft_limits.max_research_pages_per_run', 10)
+            ->assertJsonPath('meta.draft_limits.max_domains_per_run', 10)
+            ->assertJsonPath('meta.draft_limits.max_candidates_per_run', 50);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_wide_bounded_manual_campaign_profile_is_accepted_without_live_execution(): void
+    {
+        config()->set([
+            'ai-sales.campaigns.limits.max_active_runs' => 1,
+            'ai-sales.campaigns.limits.max_runs_per_day' => 2,
+            'ai-sales.campaigns.limits.max_runs_per_month' => 20,
+            'ai-sales.campaigns.limits.max_search_requests_per_run' => 20,
+            'ai-sales.campaigns.limits.max_search_results_per_run' => 1_000,
+            'ai-sales.campaigns.limits.max_research_pages_per_run' => 30,
+            'ai-sales.campaigns.limits.max_domains_per_run' => 100,
+            'ai-sales.campaigns.limits.max_candidates_per_run' => 50,
+        ]);
+        $actor = $this->campaignUser();
+        $payload = $this->campaignPayload(null, [
+            'criteria' => [
+                'segments' => ['archetype:food_manufacturer'],
+                'max_domains' => 100,
+                'max_page_fetch_attempts' => 30,
+                'max_results_per_query' => 50,
+            ],
+            'limits' => [
+                'max_runs_per_day' => 2,
+                'max_runs_per_month' => 20,
+                'max_search_requests_per_run' => 20,
+                'max_search_requests_per_day' => 40,
+                'max_search_requests_per_month' => 400,
+                'max_research_pages_per_run' => 30,
+                'max_candidates_per_run' => 50,
+                'max_requests_per_run' => 20,
+                'max_requests_per_day' => 40,
+                'max_requests_per_month' => 400,
+            ],
+        ]);
+
+        $this->actingAs($actor)->postJson('/api/ai-sales/campaigns', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.limits.max_search_requests_per_run', 20)
+            ->assertJsonPath('data.limits.max_research_pages_per_run', 30)
+            ->assertJsonPath('data.limits.max_candidates_per_run', 50)
+            ->assertJsonPath('data.criteria.max_domains', 100)
+            ->assertJsonPath('data.criteria.max_results_per_query', 50);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_campaign_profile_above_real_execution_bounds_is_rejected(): void
+    {
+        $actor = $this->campaignUser();
+        $payload = $this->campaignPayload(null, [
+            'criteria' => [
+                'segments' => ['archetype:food_manufacturer'],
+                'max_domains' => 101,
+                'max_page_fetch_attempts' => 31,
+                'max_results_per_query' => 51,
+            ],
+            'limits' => [
+                'max_search_requests_per_run' => 21,
+                'max_research_pages_per_run' => 31,
+                'max_candidates_per_run' => 51,
+            ],
+        ]);
+
+        $this->actingAs($actor)->postJson('/api/ai-sales/campaigns', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'criteria.max_domains',
+                'criteria.max_page_fetch_attempts',
+                'criteria.max_results_per_query',
+                'limits.max_search_requests_per_run',
+                'limits.max_research_pages_per_run',
+                'limits.max_candidates_per_run',
+            ]);
+
         Http::assertNothingSent();
     }
 }

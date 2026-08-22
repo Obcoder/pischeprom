@@ -31,7 +31,10 @@ final class ClientAcquisitionCampaignController extends Controller
                 ->orWhere('reviewer_user_id', $userId)->orWhere('approved_by', $userId));
         }
 
-        return response()->json(['data' => ClientAcquisitionCampaignResource::collection($query->limit(100)->get())->resolve($request)]);
+        return response()->json([
+            'data' => ClientAcquisitionCampaignResource::collection($query->limit(100)->get())->resolve($request),
+            'meta' => ['draft_limits' => $this->draftLimits()],
+        ]);
     }
 
     public function store(StoreClientAcquisitionCampaignRequest $request, ClientAcquisitionCampaignService $service): JsonResponse
@@ -131,6 +134,39 @@ final class ClientAcquisitionCampaignController extends Controller
             'owner:id,name', 'reviewer:id,name',
             'products' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.eng']),
             'runLinks.run',
+        ];
+    }
+
+    /** @return array<string, int> */
+    private function draftLimits(): array
+    {
+        $effective = static function (string $global, string $form): int {
+            $globalValue = (int) config('ai-sales.campaigns.limits.'.$global, 0);
+            $formValue = (int) config('ai-sales.campaigns.draft_form_limits.'.$form, 0);
+
+            return $globalValue > 0 && $formValue > 0 ? min($globalValue, $formValue) : 0;
+        };
+
+        $searchRequests = $effective('max_search_requests_per_run', 'max_search_requests_per_run');
+        $searchResults = $effective('max_search_results_per_run', 'max_search_results_per_run');
+        $resultsPerQuery = $searchRequests > 0 && $searchResults > 0
+            ? min(
+                (int) config('ai-sales.campaigns.draft_form_limits.max_results_per_query', 0),
+                intdiv($searchResults, $searchRequests),
+            )
+            : 0;
+
+        return [
+            'max_active_runs' => $effective('max_active_runs', 'max_active_runs'),
+            'max_runs_per_day' => $effective('max_runs_per_day', 'max_runs_per_day'),
+            'max_runs_per_month' => $effective('max_runs_per_month', 'max_runs_per_month'),
+            'max_search_requests_per_run' => $searchRequests,
+            'max_search_results_per_run' => $searchResults,
+            'max_results_per_query' => $resultsPerQuery,
+            'max_research_pages_per_run' => $effective('max_research_pages_per_run', 'max_research_pages_per_run'),
+            'max_page_fetch_attempts' => $effective('max_research_pages_per_run', 'max_research_pages_per_run'),
+            'max_domains_per_run' => $effective('max_domains_per_run', 'max_domains_per_run'),
+            'max_candidates_per_run' => $effective('max_candidates_per_run', 'max_candidates_per_run'),
         ];
     }
 }
