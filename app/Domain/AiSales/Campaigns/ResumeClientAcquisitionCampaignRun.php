@@ -4,6 +4,7 @@ namespace App\Domain\AiSales\Campaigns;
 
 use App\Domain\AiSales\Campaigns\Enums\ClientAcquisitionCampaignStatus;
 use App\Domain\AiSales\Enums\AiRunStatus;
+use App\Domain\AiSales\Exceptions\PolicyViolation;
 use App\Jobs\AiSales\ExecuteClientAcquisitionCampaignRunJob;
 use App\Models\ClientAcquisitionCampaignRunLink;
 use App\Models\ProspectingSearchExecution;
@@ -11,7 +12,10 @@ use App\Models\ProspectingSearchJob;
 
 final class ResumeClientAcquisitionCampaignRun
 {
-    public function __construct(private readonly ClientAcquisitionCampaignHashes $hashes) {}
+    public function __construct(
+        private readonly ClientAcquisitionCampaignHashes $hashes,
+        private readonly ClientAcquisitionCampaignBudgetGuard $budgets,
+    ) {}
 
     public function afterQueryPlanApproval(ProspectingSearchJob $job): bool
     {
@@ -75,6 +79,16 @@ final class ResumeClientAcquisitionCampaignRun
             || ! $this->hashes->isCurrent($campaign)
             || $run->initiator_user_id === null) {
             return false;
+        }
+
+        try {
+            $this->budgets->assertExecutionSlotAvailable($run);
+        } catch (PolicyViolation $exception) {
+            if ($exception->errorCode === 'campaign_active_run_limit') {
+                return false;
+            }
+
+            throw $exception;
         }
 
         ExecuteClientAcquisitionCampaignRunJob::dispatch($run->id, $run->initiator_user_id)->afterCommit();

@@ -9,6 +9,10 @@ use App\Models\ClientAcquisitionCampaignRunLink;
 
 final class ClientAcquisitionCampaignBudgetGuard
 {
+    private const EXECUTION_ACTIVE_STATUSES = [
+        'queued', 'preparing', 'policy_check', 'ready', 'sent', 'processing',
+    ];
+
     public function assertCanStart(ClientAcquisitionCampaign $campaign): void
     {
         $this->assertWithinGlobalCeilings($campaign);
@@ -34,16 +38,13 @@ final class ClientAcquisitionCampaignBudgetGuard
             || (clone $runs)->where('created_at', '>=', now()->startOfMonth())->count() >= $campaign->max_runs_per_month) {
             throw new PolicyViolation('campaign_run_budget_exhausted', 'Campaign run budget is exhausted.');
         }
-        $activeStatuses = ['queued', 'preparing', 'policy_check', 'ready', 'requires_action', 'processing'];
         $campaignActive = ClientAcquisitionCampaignRunLink::query()
             ->where('ai_sales_campaign_id', $campaign->id)
-            ->whereHas('run', fn ($query) => $query->whereIn('status', $activeStatuses))->count();
-        $globalActiveCount = AiAgentRun::query()
-            ->where('definition_code', ClientAcquisitionCampaignWorkflowRegistry::CODE)
-            ->whereIn('status', $activeStatuses)->count();
-        if ($campaignActive >= $campaign->max_active_runs || $globalActiveCount >= $globalActive) {
+            ->whereHas('run', fn ($query) => $query->whereIn('status', self::EXECUTION_ACTIVE_STATUSES))->count();
+        if ($campaignActive >= $campaign->max_active_runs) {
             throw new PolicyViolation('campaign_active_run_limit', 'Campaign active-run limit is reached.');
         }
+        $this->assertExecutionSlotAvailable();
 
         $runIds = (clone $runs)->pluck('ai_agent_run_id');
         $day = AiAgentRun::query()->whereIn('id', $runIds)->where('created_at', '>=', now()->startOfDay());
@@ -55,6 +56,24 @@ final class ClientAcquisitionCampaignBudgetGuard
             || (float) (clone $day)->sum('accumulated_cost_rub') >= (float) $campaign->max_cost_rub_per_day
             || (float) (clone $month)->sum('accumulated_cost_rub') >= (float) $campaign->max_cost_rub_per_month) {
             throw new PolicyViolation('campaign_aggregate_budget_exhausted', 'Campaign day or month budget is exhausted.');
+        }
+    }
+
+    public function assertExecutionSlotAvailable(?AiAgentRun $except = null): void
+    {
+        $globalActive = (int) config('ai-sales.campaigns.limits.max_active_runs', 0);
+        if ($globalActive < 1) {
+            throw new PolicyViolation('campaign_budget_missing', 'Campaign active-run ceiling is missing or zero.');
+        }
+
+        $active = AiAgentRun::query()
+            ->where('definition_code', ClientAcquisitionCampaignWorkflowRegistry::CODE)
+            ->whereIn('status', self::EXECUTION_ACTIVE_STATUSES);
+        if ($except !== null) {
+            $active->whereKeyNot($except->getKey());
+        }
+        if ($active->count() >= $globalActive) {
+            throw new PolicyViolation('campaign_active_run_limit', 'Campaign active-run limit is reached.');
         }
     }
 

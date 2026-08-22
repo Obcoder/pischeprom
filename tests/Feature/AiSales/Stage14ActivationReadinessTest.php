@@ -59,6 +59,52 @@ class Stage14ActivationReadinessTest extends Stage14TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_waiting_human_review_does_not_consume_the_global_execution_slot(): void
+    {
+        $this->configureBoundedCeilings();
+        $actor = $this->campaignUser();
+        $waitingCampaign = $this->approvedCampaign($actor, null, $this->boundedCampaignOverrides());
+        $waitingRun = app(StartClientAcquisitionCampaignRun::class)
+            ->handle($waitingCampaign, $actor, 'waiting-human-review');
+        $waitingRun->update([
+            'status' => AiRunStatus::RequiresAction,
+            'safe_error_code' => 'candidate_ingestion_review_required',
+        ]);
+        $waitingCampaign->update(['status' => 'paused']);
+
+        $nextCampaign = $this->approvedCampaign($actor, null, $this->boundedCampaignOverrides());
+        $nextRun = app(StartClientAcquisitionCampaignRun::class)
+            ->handle($nextCampaign, $actor, 'next-bounded-run');
+
+        $this->assertSame(AiRunStatus::Queued, $nextRun->status);
+        $this->assertSame(AiRunStatus::RequiresAction, $waitingRun->fresh()->status);
+        $this->assertDatabaseCount('ai_sales_campaign_run_links', 2);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_real_execution_still_consumes_the_global_active_run_slot(): void
+    {
+        $this->configureBoundedCeilings();
+        $actor = $this->campaignUser();
+        $activeCampaign = $this->approvedCampaign($actor, null, $this->boundedCampaignOverrides());
+        app(StartClientAcquisitionCampaignRun::class)->handle($activeCampaign, $actor, 'active-run');
+        $nextCampaign = $this->approvedCampaign($actor, null, $this->boundedCampaignOverrides());
+
+        try {
+            app(StartClientAcquisitionCampaignRun::class)->handle($nextCampaign, $actor, 'blocked-parallel-run');
+            $this->fail('A real queued execution must retain the global active-run slot.');
+        } catch (PolicyViolation $exception) {
+            $this->assertSame('campaign_active_run_limit', $exception->errorCode);
+        }
+
+        $this->assertDatabaseCount('ai_sales_campaign_run_links', 1);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
     public function test_attempted_value_above_global_ceiling_blocks(): void
     {
         $this->configureBoundedCeilings();

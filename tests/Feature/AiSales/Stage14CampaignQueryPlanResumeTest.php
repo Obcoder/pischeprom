@@ -90,6 +90,25 @@ class Stage14CampaignQueryPlanResumeTest extends Stage14TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_waiting_run_is_not_dispatched_while_another_execution_uses_the_slot(): void
+    {
+        config()->set('ai-sales.campaigns.limits.max_active_runs', 1);
+        [$actor, , $run, $job] = $this->waitingPlanFixture();
+        $otherCampaign = $this->approvedCampaign($actor);
+        $activeRun = app(StartClientAcquisitionCampaignRun::class)
+            ->handle($otherCampaign, $actor, 'other-real-execution');
+        app(ApproveProspectingQueryPlan::class)->handle($job, $actor);
+
+        $resumed = app(ResumeClientAcquisitionCampaignRun::class)->afterQueryPlanApproval($job->fresh());
+
+        $this->assertFalse($resumed);
+        $this->assertSame('queued', $activeRun->fresh()->status->value);
+        $this->assertSame('requires_action', $run->fresh()->status->value);
+        Queue::assertNotPushed(ExecuteClientAcquisitionCampaignRunJob::class);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+    }
+
     private function waitingPlanFixture(): array
     {
         $actor = $this->campaignUser();
