@@ -247,6 +247,7 @@ Route::prefix('ai-sales')
         Route::post('/prospecting/jobs/{prospectingSearchJob}/archive', [AiSalesProspectingSearchJobController::class, 'archive'])->name('prospecting.jobs.archive');
         Route::get('/prospecting/search/providers', [AiSalesProspectingSearchDiscoveryController::class, 'providers'])->name('prospecting.search.providers');
         Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan', [AiSalesProspectingSearchDiscoveryController::class, 'plan'])->name('prospecting.search.plan');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan/rebuild', [AiSalesProspectingSearchDiscoveryController::class, 'rebuildPlan'])->name('prospecting.search.plan.rebuild');
         Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan/approve', [AiSalesProspectingSearchDiscoveryController::class, 'approvePlan'])->name('prospecting.search.plan.approve');
         Route::post('/prospecting/jobs/{prospectingSearchJob}/search-execute', [AiSalesProspectingSearchDiscoveryController::class, 'execute'])->name('prospecting.search.execute');
         Route::get('/prospecting/jobs/{prospectingSearchJob}/search', [AiSalesProspectingSearchDiscoveryController::class, 'index'])->name('prospecting.search.index');

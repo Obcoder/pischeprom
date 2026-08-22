@@ -2,6 +2,9 @@
 
 namespace App\Domain\AiSales\Campaigns;
 
+use App\Domain\AiSales\Prospecting\BuyerArchetype;
+use App\Domain\AiSales\Prospecting\BuyerArchetypeRegistry;
+use App\Domain\AiSales\Prospecting\ProspectingQueryTemplateRegistry;
 use App\Models\AiAgentRunStep;
 use App\Models\ClientAcquisitionCampaign;
 use App\Models\CommunicationPermission;
@@ -12,6 +15,7 @@ use App\Models\ProspectingSearchQuery;
 use App\Models\UnitProductMatch;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 final class CampaignReviewQueue
 {
@@ -21,7 +25,11 @@ final class CampaignReviewQueue
         'permission_review', 'policy_block', 'provider_error', 'budget_block',
     ];
 
-    public function __construct(private readonly ClientAcquisitionCampaignAuthorizationService $authorization) {}
+    public function __construct(
+        private readonly ClientAcquisitionCampaignAuthorizationService $authorization,
+        private readonly BuyerArchetypeRegistry $archetypes,
+        private readonly ProspectingQueryTemplateRegistry $templates,
+    ) {}
 
     /** @return list<array<string, mixed>> */
     public function forCampaign(ClientAcquisitionCampaign $campaign, User $actor, int $limit = 100): array
@@ -41,13 +49,32 @@ final class CampaignReviewQueue
         $items = collect();
 
         $jobsById = ProspectingSearchJob::query()->whereIn('id', $jobIds)
-            ->get(['id', 'public_id'])->keyBy('id');
+            ->get(['id', 'public_id', 'max_queries', 'criteria_snapshot'])->keyBy('id');
+        $productCounts = DB::table('prospecting_search_job_products')
+            ->whereIn('prospecting_search_job_id', $jobIds)
+            ->whereIn('role', ['primary', 'additional'])
+            ->selectRaw('prospecting_search_job_id, COUNT(*) as aggregate')
+            ->groupBy('prospecting_search_job_id')
+            ->pluck('aggregate', 'prospecting_search_job_id');
         ProspectingSearchQuery::query()->whereIn('prospecting_search_job_id', $jobIds)
             ->where('plan_status', 'review_required')->orderBy('sequence')->limit($limit)->get()
             ->groupBy(fn ($row): string => $row->prospecting_search_job_id.'|'.$row->plan_hash)
-            ->each(function ($rows) use ($campaign, $items, $linksByJob, $jobsById): void {
+            ->each(function ($rows) use ($campaign, $items, $linksByJob, $jobsById, $productCounts): void {
                 $first = $rows->first();
                 $job = $jobsById->get($first->prospecting_search_job_id);
+                $preferences = (array) (($job?->criteria_snapshot ?? [])['query_plan_preferences'] ?? []);
+                $selectedArchetypes = collect((array) ($preferences['buyer_archetypes'] ?? []));
+                if ($selectedArchetypes->isEmpty()) {
+                    $selectedArchetypes = $rows->pluck('industry_intent')->map(
+                        fn ($value): string => explode(':', (string) $value, 2)[0],
+                    )->filter()->unique()->values();
+                }
+                $selectedIntents = collect((array) ($preferences['intents'] ?? []));
+                if ($selectedIntents->isEmpty()) {
+                    $selectedIntents = $rows->pluck('template_code')->map(
+                        fn ($value): string => str_replace('buyer.matrix.', '', (string) $value),
+                    )->filter()->unique()->values();
+                }
                 $items->push($this->item(
                     $campaign, 'query_plan_review', 'prospecting_search_job', $first->prospecting_search_job_id,
                     $first->prospecting_search_job_id, null, 'query_plan_review_required',
@@ -57,6 +84,21 @@ final class CampaignReviewQueue
                         'search_job_public_id' => $job?->public_id,
                         'safe_evidence' => [
                             'query_count' => $rows->count(),
+                            'max_queries' => (int) ($job?->max_queries ?? $rows->count()),
+                            'product_count' => (int) ($productCounts[$first->prospecting_search_job_id] ?? 1),
+                            'preferences' => [
+                                'target_query_count' => (int) ($preferences['target_query_count'] ?? $rows->count()),
+                                'buyer_archetypes' => $selectedArchetypes->all(),
+                                'intents' => $selectedIntents->all(),
+                            ],
+                            'available_archetypes' => collect($this->archetypes->all())->map(
+                                fn (BuyerArchetype $archetype): array => [
+                                    'code' => $archetype->code,
+                                    'label' => $archetype->label,
+                                    'segment' => $archetype->segmentLabel,
+                                ],
+                            )->all(),
+                            'available_intents' => $this->templates->buyerIntentOptions(),
                             'queries' => $rows->map(fn ($row): array => [
                                 'query' => $row->safe_display_query,
                                 'template' => $row->template_code,

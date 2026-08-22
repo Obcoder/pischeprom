@@ -18,6 +18,15 @@ class ProspectingQueryTemplateRegistry
         'institutional_buyer' => ['комбинат питания', 'центральная кухня'],
     ];
 
+    private const BUYER_INTENT_LABELS = [
+        'company_discovery' => 'Поиск компаний',
+        'manufacturer_discovery' => 'Поиск производителей',
+        'production_activity' => 'Производственная деятельность',
+        'product_usage_evidence' => 'Признаки использования продукта',
+        'procurement_evidence' => 'Признаки закупки сырья',
+        'institutional_buyer' => 'Институциональные покупатели',
+    ];
+
     /** @return list<array{code: string, version: string, name_source: string, intent: string, terms: list<string>}> */
     public function forPurpose(ProspectingPurpose $purpose): array
     {
@@ -54,6 +63,14 @@ class ProspectingQueryTemplateRegistry
     public function buyerIntentCodes(): array
     {
         return array_keys(self::BUYER_INTENTS);
+    }
+
+    /** @return list<array{code: string, label: string}> */
+    public function buyerIntentOptions(): array
+    {
+        return collect(self::BUYER_INTENT_LABELS)->map(
+            fn (string $label, string $code): array => ['code' => $code, 'label' => $label],
+        )->values()->all();
     }
 
     public function templateHash(array $template): string

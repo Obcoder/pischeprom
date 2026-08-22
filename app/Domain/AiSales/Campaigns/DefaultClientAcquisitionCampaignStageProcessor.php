@@ -92,7 +92,7 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
     private function plan(AiAgentRun $run, User $actor): ClientAcquisitionCampaignStageOutcome
     {
         $job = $this->job($run);
-        $queries = $job->queries()->whereNotNull('plan_hash')->get();
+        $queries = $job->queries()->whereNotNull('plan_hash')->where('plan_status', '!=', 'stale')->get();
         if ($queries->isEmpty()) {
             $queries = $this->queryPlanner->handle($job, $actor);
         }
@@ -105,7 +105,7 @@ final class DefaultClientAcquisitionCampaignStageProcessor implements ClientAcqu
     private function search(ClientAcquisitionCampaign $campaign, AiAgentRun $run, User $actor): ClientAcquisitionCampaignStageOutcome
     {
         $job = $this->job($run);
-        $queries = $job->queries()->whereNotNull('plan_hash')->get();
+        $queries = $job->queries()->whereNotNull('plan_hash')->where('plan_status', '!=', 'stale')->get();
         if ($queries->isEmpty() || $queries->contains(fn ($query) => $query->plan_status !== 'approved')) {
             return ClientAcquisitionCampaignStageOutcome::requiresAction(
                 'query_plan_review_required', 'Human review of the current code-owned query plan is required.',

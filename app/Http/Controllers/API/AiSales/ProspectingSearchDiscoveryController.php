@@ -12,9 +12,11 @@ use App\Domain\AiSales\Services\IngestProspectingSearchCandidate;
 use App\Domain\AiSales\Services\PlanProspectingQueries;
 use App\Domain\AiSales\Services\ProspectingAuthorizationService;
 use App\Domain\AiSales\Services\ProspectingFeatureGuard;
+use App\Domain\AiSales\Services\RebuildProspectingQueryPlan;
 use App\Domain\AiSales\Web\SafePublicPageFetcher;
 use App\Domain\AiSales\Workflows\PublicCompanyResearchWorkflow;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AiSales\RebuildProspectingQueryPlanRequest;
 use App\Http\Requests\AiSales\SearchDiscoveryActionRequest;
 use App\Http\Resources\AiSales\ProspectingCandidateResource;
 use App\Models\ProspectingSearchJob;
@@ -77,6 +79,24 @@ class ProspectingSearchDiscoveryController extends Controller
         ]);
     }
 
+    public function rebuildPlan(
+        RebuildProspectingQueryPlanRequest $request,
+        ProspectingSearchJob $prospectingSearchJob,
+        RebuildProspectingQueryPlan $service,
+    ): JsonResponse {
+        Gate::authorize('review', $prospectingSearchJob);
+        $queries = $service->handle($prospectingSearchJob, $request->validated(), $request->user());
+
+        return response()->json([
+            'data' => $this->queries($queries),
+            'meta' => [
+                'query_count' => $queries->count(),
+                'external_http' => 0,
+                'execution_started' => false,
+            ],
+        ]);
+    }
+
     public function execute(
         SearchDiscoveryActionRequest $request,
         ProspectingSearchJob $prospectingSearchJob,
@@ -109,6 +129,7 @@ class ProspectingSearchDiscoveryController extends Controller
             $prospectingSearchJob->lane,
         );
         $queries = $prospectingSearchJob->queries()->whereNotNull('plan_hash')
+            ->where('plan_status', '!=', 'stale')
             ->with(['executions.usage'])
             ->orderBy('sequence')->get();
         $results = $prospectingSearchJob->searchResults()

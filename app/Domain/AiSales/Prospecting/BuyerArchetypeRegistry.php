@@ -6,7 +6,7 @@ use App\Domain\AiSales\Support\AiCanonicalJson;
 
 final class BuyerArchetypeRegistry
 {
-    public const VERSION = 'buyer-archetypes-v1';
+    public const VERSION = 'buyer-archetypes-v2';
 
     /** @return list<BuyerArchetype> */
     public function all(): array
@@ -32,7 +32,25 @@ final class BuyerArchetypeRegistry
                 ['хлебопекарное производство', 'кондитерское производство'], ['хлебопекар', 'кондитер', 'bakery', 'confectionery']),
             new BuyerArchetype('beverage_producer', 'Производитель напитков', 'food_production', 'Производство продуктов питания',
                 ['производитель напитков', 'производство безалкогольных напитков'], ['напитки', 'beverage', 'соки', 'розлив']),
+            new BuyerArchetype('cosmetics_manufacturer', 'Производитель косметики', 'personal_care', 'Косметика и средства ухода',
+                ['косметическое производство', 'производитель косметики'], ['косметик', 'парфюм', 'средства ухода', 'personal care']),
+            new BuyerArchetype('pharmaceutical_manufacturer', 'Фармацевтический производитель', 'pharmaceuticals', 'Фармацевтическое производство',
+                ['фармацевтическое производство', 'производитель лекарственных средств'], ['фармацевт', 'фармация', 'лекарствен', 'pharmaceutical']),
+            new BuyerArchetype('household_chemicals_manufacturer', 'Производитель бытовой химии', 'chemical_products', 'Бытовая химия',
+                ['производство бытовой химии', 'производитель моющих средств'], ['бытовая химия', 'моющие средства', 'чистящие средства', 'household chemicals']),
+            new BuyerArchetype('soap_detergent_manufacturer', 'Производитель мыла и моющих средств', 'chemical_products', 'Бытовая химия',
+                ['производство мыла', 'завод моющих средств'], ['мыло', 'моющие средства', 'детергент', 'soap', 'detergent']),
+            new BuyerArchetype('paint_coatings_manufacturer', 'Производитель лакокрасочных материалов', 'industrial_chemistry', 'Промышленная химия',
+                ['производство лакокрасочных материалов', 'производитель красок и покрытий'], ['лакокрас', 'краски', 'покрытия', 'coatings']),
+            new BuyerArchetype('polymer_resin_manufacturer', 'Производитель полимеров и смол', 'industrial_chemistry', 'Промышленная химия',
+                ['производство полимеров и смол', 'производитель синтетических смол'], ['полимер', 'смолы', 'алкид', 'resin', 'polymer']),
         ];
+    }
+
+    /** @return list<string> */
+    public function codes(): array
+    {
+        return array_map(fn (BuyerArchetype $archetype): string => $archetype->code, $this->all());
     }
 
     public function find(string $code): ?BuyerArchetype

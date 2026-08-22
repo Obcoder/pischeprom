@@ -40,7 +40,8 @@ final class FindBuyersProgressQuery
             ->select(['goods.id', 'goods.name', 'scope.role', 'scope.compatibility_state'])
             ->orderBy('goods.id')->get()->unique('id')->values();
         $queryRows = DB::table('prospecting_search_queries')->where('prospecting_search_job_id', $job->id)
-            ->whereNotNull('plan_hash')->select(['id', 'plan_status', 'status'])->get();
+            ->whereNotNull('plan_hash')->where('plan_status', '!=', 'stale')
+            ->select(['id', 'plan_status', 'status'])->get();
         $executionRows = DB::table('prospecting_search_executions')->where('prospecting_search_job_id', $job->id)
             ->select(['id', 'prospecting_search_query_id', 'status', 'request_count', 'result_count', 'duplicate_count', 'blocked_result_count', 'error_code'])->get();
         $resultRows = DB::table('prospecting_search_results')->where('prospecting_search_job_id', $job->id)

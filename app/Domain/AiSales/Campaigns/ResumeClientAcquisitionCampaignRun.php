@@ -19,7 +19,9 @@ final class ResumeClientAcquisitionCampaignRun
 
     public function afterQueryPlanApproval(ProspectingSearchJob $job): bool
     {
-        $queries = $job->queries()->whereNotNull('plan_hash')->get(['id', 'plan_hash', 'plan_status']);
+        $queries = $job->queries()->whereNotNull('plan_hash')
+            ->whereIn('plan_status', ['review_required', 'approved'])
+            ->get(['id', 'plan_hash', 'plan_status']);
         if ($queries->isEmpty()
             || $queries->contains(fn ($query): bool => $query->plan_status !== 'approved')
             || $queries->pluck('plan_hash')->unique()->count() !== 1) {

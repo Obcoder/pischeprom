@@ -89,7 +89,8 @@ final class ClientAcquisitionCampaignMetrics
                 'blocked' => AiAgentRun::query()->whereIn('id', $runIds)->whereIn('status', ['failed', 'budget_exceeded', 'blocked_by_policy', 'blocked_by_dlp', 'blocked_by_contour', 'provider_unavailable'])->count(),
             ],
             'queries' => [
-                'planned' => ProspectingSearchQuery::query()->whereIn('prospecting_search_job_id', $jobIds)->count(),
+                'planned' => ProspectingSearchQuery::query()->whereIn('prospecting_search_job_id', $jobIds)
+                    ->where('plan_status', '!=', 'stale')->count(),
                 'executed' => ProspectingSearchExecution::query()->whereIn('prospecting_search_job_id', $jobIds)->where('status', 'completed')->count(),
             ],
             'research' => [

@@ -22,6 +22,8 @@ const dialog = ref(false)
 const editingCampaign = ref(null)
 const funnelFilter = ref('all')
 const reviewActionLoading = ref('')
+const queryPlanRebuildLoading = ref('')
+const queryPlanEditors = ref({})
 
 const sections = computed(() => ({
     scheduled: campaigns.value.filter(item => item.status === 'scheduled').length,
@@ -105,6 +107,7 @@ async function open(campaign) {
     ])
     metrics.value = metricsResponse.data.data
     reviewQueue.value = queueResponse.data.data || []
+    initializeQueryPlanEditors()
 }
 
 async function approveQueryPlan(item) {
@@ -121,6 +124,70 @@ async function approveQueryPlan(item) {
         error.value = requestError?.response?.data?.message || 'Не удалось одобрить query plan.'
     } finally {
         reviewActionLoading.value = ''
+    }
+}
+
+function initializeQueryPlanEditors() {
+    const editors = {}
+    reviewQueue.value.filter(item => item.category === 'query_plan_review').forEach(item => {
+        const evidence = item.safe_evidence || {}
+        const preferences = evidence.preferences || {}
+        editors[item.search_job_public_id] = {
+            target_query_count: Number(preferences.target_query_count || evidence.query_count || 1),
+            buyer_archetypes: [...(preferences.buyer_archetypes || [])],
+            intents: [...(preferences.intents || [])],
+        }
+    })
+    queryPlanEditors.value = editors
+}
+
+function planEditor(item) {
+    return queryPlanEditors.value[item.search_job_public_id]
+}
+
+function normalizedPlanSelection(value) {
+    return [...(value || [])].map(String).sort()
+}
+
+function planEditorIsDirty(item) {
+    const editor = planEditor(item)
+    const preferences = item.safe_evidence?.preferences || {}
+    if (!editor) return false
+
+    return Number(editor.target_query_count) !== Number(preferences.target_query_count || item.safe_evidence?.query_count || 1)
+        || JSON.stringify(normalizedPlanSelection(editor.buyer_archetypes)) !== JSON.stringify(normalizedPlanSelection(preferences.buyer_archetypes))
+        || JSON.stringify(normalizedPlanSelection(editor.intents)) !== JSON.stringify(normalizedPlanSelection(preferences.intents))
+}
+
+function planCombinationCount(item) {
+    const editor = planEditor(item)
+    if (!editor) return 0
+
+    return Number(item.safe_evidence?.product_count || 1)
+        * editor.buyer_archetypes.length
+        * editor.intents.length
+}
+
+async function rebuildQueryPlan(item) {
+    const jobId = item?.search_job_public_id
+    const editor = planEditor(item)
+    if (!jobId || !editor) return
+    queryPlanRebuildLoading.value = jobId
+    error.value = ''
+    try {
+        await axios.post(`/api/ai-sales/prospecting/jobs/${encodeURIComponent(jobId)}/search-plan/rebuild`, {
+            target_query_count: Number(editor.target_query_count),
+            buyer_archetypes: editor.buyer_archetypes,
+            intents: editor.intents,
+        })
+        await load()
+    } catch (requestError) {
+        const errors = requestError?.response?.data?.errors
+        error.value = errors
+            ? Object.values(errors).flat().join(' ')
+            : requestError?.response?.data?.message || 'Не удалось безопасно пересобрать query plan.'
+    } finally {
+        queryPlanRebuildLoading.value = ''
     }
 }
 
@@ -223,6 +290,15 @@ onMounted(load)
                                 :subtitle="item.category === 'query_plan_review' ? 'Проверьте server-owned запросы перед обращением к Yandex.' : `${item.reason_code} · ${item.next_permitted_action}`"
                             >
                                 <div v-if="item.category === 'query_plan_review'" class="mt-2">
+                                    <v-alert
+                                        v-if="Number(item.safe_evidence?.query_count || 0) < Number(item.safe_evidence?.max_queries || 0)"
+                                        type="info"
+                                        density="compact"
+                                        variant="tonal"
+                                        class="mb-2"
+                                    >
+                                        Сейчас сформировано {{ item.safe_evidence?.query_count || 0 }} из доступных {{ item.safe_evidence?.max_queries || 0 }} запросов.
+                                    </v-alert>
                                     <v-list density="compact" class="border rounded mb-2">
                                         <v-list-item
                                             v-for="(queryItem, index) in item.safe_evidence?.queries || []"
@@ -231,14 +307,75 @@ onMounted(load)
                                             :subtitle="queryItem.template"
                                         />
                                     </v-list>
-                                    <v-btn
-                                        size="small"
-                                        color="success"
-                                        variant="tonal"
-                                        :loading="reviewActionLoading === item.search_job_public_id"
-                                        :disabled="!item.search_job_public_id"
-                                        @click="approveQueryPlan(item)"
-                                    >Одобрить план и продолжить</v-btn>
+                                    <v-expansion-panels variant="accordion" class="mb-2">
+                                        <v-expansion-panel>
+                                            <v-expansion-panel-title>Настроить и пересобрать запросы</v-expansion-panel-title>
+                                            <v-expansion-panel-text v-if="planEditor(item)">
+                                                <v-alert type="info" density="compact" variant="tonal" class="mb-3">
+                                                    Вы выбираете отрасли покупателей и цели поиска. Фразы сформирует сервер; Yandex при пересборке не запускается.
+                                                </v-alert>
+                                                <v-row dense>
+                                                    <v-col cols="12" md="4">
+                                                        <v-text-field
+                                                            v-model.number="planEditor(item).target_query_count"
+                                                            type="number"
+                                                            min="1"
+                                                            :max="item.safe_evidence?.max_queries || 1"
+                                                            label="Количество запросов"
+                                                            :hint="`Лимит этого run: ${item.safe_evidence?.max_queries || 1}`"
+                                                            persistent-hint
+                                                        />
+                                                    </v-col>
+                                                    <v-col cols="12" md="8">
+                                                        <v-select
+                                                            v-model="planEditor(item).buyer_archetypes"
+                                                            :items="item.safe_evidence?.available_archetypes || []"
+                                                            item-title="label"
+                                                            item-value="code"
+                                                            label="Типы потенциальных покупателей"
+                                                            multiple
+                                                            chips
+                                                            closable-chips
+                                                        />
+                                                    </v-col>
+                                                    <v-col cols="12">
+                                                        <v-select
+                                                            v-model="planEditor(item).intents"
+                                                            :items="item.safe_evidence?.available_intents || []"
+                                                            item-title="label"
+                                                            item-value="code"
+                                                            label="Цели поиска"
+                                                            multiple
+                                                            chips
+                                                            closable-chips
+                                                        />
+                                                    </v-col>
+                                                </v-row>
+                                                <div class="text-caption text-medium-emphasis mb-2">
+                                                    Выбранная матрица даёт до {{ planCombinationCount(item) }} различных комбинаций.
+                                                </div>
+                                                <v-btn
+                                                    size="small"
+                                                    color="primary"
+                                                    variant="tonal"
+                                                    :loading="queryPlanRebuildLoading === item.search_job_public_id"
+                                                    :disabled="!planEditorIsDirty(item) || !planEditor(item).buyer_archetypes.length || !planEditor(item).intents.length || Number(planEditor(item).target_query_count) < 1 || Number(planEditor(item).target_query_count) > Number(item.safe_evidence?.max_queries || 0) || Number(planEditor(item).target_query_count) > planCombinationCount(item)"
+                                                    @click="rebuildQueryPlan(item)"
+                                                >Пересобрать план без запуска Yandex</v-btn>
+                                            </v-expansion-panel-text>
+                                        </v-expansion-panel>
+                                    </v-expansion-panels>
+                                    <div class="d-flex align-center ga-2 flex-wrap">
+                                        <v-btn
+                                            size="small"
+                                            color="success"
+                                            variant="tonal"
+                                            :loading="reviewActionLoading === item.search_job_public_id"
+                                            :disabled="!item.search_job_public_id || planEditorIsDirty(item)"
+                                            @click="approveQueryPlan(item)"
+                                        >Одобрить план и продолжить</v-btn>
+                                        <span v-if="planEditorIsDirty(item)" class="text-caption text-warning">Сначала пересоберите изменённый план.</span>
+                                    </div>
                                 </div>
                             </v-list-item>
                             <v-list-item v-if="!reviewQueue.length" title="Открытых review items нет" />

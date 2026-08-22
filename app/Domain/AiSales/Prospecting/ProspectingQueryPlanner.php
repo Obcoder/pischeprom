@@ -20,6 +20,7 @@ class ProspectingQueryPlanner
         private readonly AiToolDlpGuard $dlp,
         private readonly ProductBuyerArchetypePlanner $archetypes,
         private readonly BuyerSegmentCatalog $segments,
+        private readonly BuyerArchetypeRegistry $archetypeRegistry,
     ) {}
 
     public function plan(ProspectingSearchJob $job): ProspectingQueryPlan
@@ -138,6 +139,14 @@ class ProspectingQueryPlanner
         array $excludedTerms,
         array $excludedCriteria,
     ): array {
+        $preferences = (array) (($job->criteria_snapshot ?? [])['query_plan_preferences'] ?? []);
+        if (($preferences['version'] ?? null) === 'reviewed-query-plan-preferences-v1') {
+            return $this->reviewedBuyerMatrix(
+                $job, $products, $maxQueries, $geography, $criteria,
+                $excludedTerms, $excludedCriteria, $preferences,
+            );
+        }
+
         $matrixGroups = [];
         $selectedSegments = (array) (($job->criteria_snapshot ?? [])['segments'] ?? []);
         $templates = collect($this->templates->forPurpose($job->purpose))->keyBy('intent');
@@ -195,6 +204,87 @@ class ProspectingQueryPlanner
             }
             $ownedTemplate = [...$template, 'archetype' => $archetype->hashPayload()];
             $items[] = $this->item($job, $product, $ownedTemplate, $parts, $geography, $archetype->code.':'.$template['intent'], count($items));
+        }
+
+        return $items;
+    }
+
+    /** @return list<ProspectingQueryPlanItem> */
+    private function reviewedBuyerMatrix(
+        ProspectingSearchJob $job,
+        $products,
+        int $maxQueries,
+        ?string $geography,
+        array $criteria,
+        array $excludedTerms,
+        array $excludedCriteria,
+        array $preferences,
+    ): array {
+        $selectedCodes = collect((array) ($preferences['buyer_archetypes'] ?? []))
+            ->filter(fn ($code): bool => is_string($code))->unique()->values();
+        $archetypes = collect($this->archetypeRegistry->all())
+            ->filter(fn (BuyerArchetype $archetype): bool => $selectedCodes->contains($archetype->code))
+            ->values();
+        $selectedIntents = collect((array) ($preferences['intents'] ?? []))
+            ->filter(fn ($code): bool => is_string($code))->unique()->values();
+        $templates = collect($this->templates->forPurpose($job->purpose))
+            ->filter(fn (array $template): bool => $selectedIntents->contains($template['intent']))
+            ->keyBy('intent');
+        $target = min((int) ($preferences['target_query_count'] ?? 0), $maxQueries);
+
+        if ($target < 1 || $archetypes->isEmpty() || $templates->isEmpty()
+            || $archetypes->count() !== $selectedCodes->count()
+            || $templates->count() !== $selectedIntents->count()) {
+            throw ValidationException::withMessages([
+                'query_plan' => 'Reviewed query-plan preferences are missing or no longer code-owned.',
+            ]);
+        }
+
+        $intentCodes = $templates->keys()->values();
+        $items = [];
+        $seenQueries = [];
+        for ($round = 0; $round < $intentCodes->count() && count($items) < $target; $round++) {
+            foreach ($products as $product) {
+                foreach ($archetypes as $archetypeIndex => $archetype) {
+                    if (count($items) >= $target) {
+                        break 2;
+                    }
+                    $intent = $intentCodes[($round + $archetypeIndex) % $intentCodes->count()];
+                    $template = $templates[$intent];
+                    $name = $this->cleanTerm((string) ($product->rus ?: $product->eng));
+                    $phraseIndex = ($round + $archetypeIndex + (int) $product->id) % count($archetype->discoveryPhrases);
+                    $parts = [$archetype->discoveryPhrases[$phraseIndex], ...$template['terms']];
+                    if (in_array($intent, ['product_usage_evidence', 'procurement_evidence'], true) && $name !== '') {
+                        $parts[] = '"'.$name.'"';
+                    }
+                    if ($geography !== null) {
+                        $parts[] = $geography;
+                    }
+                    $parts = [...$parts, ...$criteria];
+                    foreach ($excludedTerms as $term) {
+                        $parts[] = '-"'.$term.'"';
+                    }
+                    foreach ($excludedCriteria as $term) {
+                        $parts[] = '-"'.$term.'"';
+                    }
+                    $queryText = mb_strtolower(trim(preg_replace('/\s+/u', ' ', implode(' ', array_filter($parts))) ?? ''));
+                    if (isset($seenQueries[$queryText])) {
+                        continue;
+                    }
+                    $seenQueries[$queryText] = true;
+                    $ownedTemplate = [...$template, 'archetype' => $archetype->hashPayload()];
+                    $items[] = $this->item(
+                        $job, $product, $ownedTemplate, $parts, $geography,
+                        $archetype->code.':'.$intent, count($items),
+                    );
+                }
+            }
+        }
+
+        if (count($items) !== $target) {
+            throw ValidationException::withMessages([
+                'target_query_count' => 'Select more buyer archetypes or search intents for the requested query count.',
+            ]);
         }
 
         return $items;
@@ -292,7 +382,10 @@ class ProspectingQueryPlanner
     private function criteriaTerms(array $criteria): array
     {
         $segmentValues = (array) ($criteria['segments'] ?? []);
-        $resolvedSegments = $this->segments->labels(array_values(array_filter($segmentValues, 'is_string')));
+        $preferences = (array) ($criteria['query_plan_preferences'] ?? []);
+        $resolvedSegments = ($preferences['version'] ?? null) === 'reviewed-query-plan-preferences-v1'
+            ? []
+            : $this->segments->labels(array_values(array_filter($segmentValues, 'is_string')));
 
         return collect($resolvedSegments)
             ->merge(collect(['segments', 'industries', 'categories'])
