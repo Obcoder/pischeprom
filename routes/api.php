@@ -122,6 +122,7 @@ use App\Http\Controllers\API\TaxiShiftController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
+use App\Http\Controllers\API\UnitEmailController;
 use App\Http\Controllers\API\UnitFileController;
 use App\Http\Controllers\API\UnitMailController;
 use App\Http\Controllers\API\UnitRelationController;
@@ -601,6 +602,10 @@ Route::prefix('max')
  */
 Route::prefix('units/{unit}')->group(function () {
     Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
+
+    Route::post('/emails', [UnitEmailController::class, 'store'])
+        ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:30,1'])
+        ->name('api.units.emails.store');
 
     Route::post('/uris', [UnitRelationController::class, 'attachUri'])->name('api.units.uris.attach');
     Route::delete('/uris/{uri}', [UnitRelationController::class, 'detachUri'])->name('api.units.uris.detach');

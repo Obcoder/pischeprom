@@ -41,6 +41,12 @@ class UnitPolicy
             && $this->authorization->hasPermission($user, UnitContextAuthorizationService::MANAGE_OBSERVATIONS);
     }
 
+    public function manageContacts(User $user, Unit $unit): bool
+    {
+        return $this->view($user, $unit)
+            && $this->authorization->hasPermission($user, UnitContextAuthorizationService::MANAGE_CONTEXTS);
+    }
+
     public function proposeEntity(User $user, Unit $unit): bool
     {
         return $this->view($user, $unit)

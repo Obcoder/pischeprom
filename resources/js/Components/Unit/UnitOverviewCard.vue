@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { router, useForm } from '@inertiajs/vue3'
+import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
 
@@ -115,9 +115,6 @@ async function deleteUnit() {
     }
 }
 
-const dialogAttachEmail = ref(false)
-const dialogAddEmail = ref(false)
-
 const dialogLabels = ref(false)
 const dialogFields = ref(false)
 const dialogTelephones = ref(false)
@@ -134,15 +131,6 @@ const savingEntityRelation = ref(false)
 const editingEntity = ref(null)
 const attachEntityId = ref(null)
 const entityErrors = ref({})
-
-const formAttachEmail = useForm({
-    email_id: null,
-    unit_id: props.unit.id,
-})
-
-const formAddEmail = useForm({
-    address: null,
-})
 
 const entityForm = reactive({
     name: '',
@@ -161,32 +149,6 @@ function getStrings(items = []) {
     return items
         .filter(item => typeof item === 'string' && item.trim() !== '')
         .map(item => item.trim())
-}
-
-function attachEmail() {
-    formAttachEmail.unit_id = props.unit.id
-
-    formAttachEmail.post(route('emailgood.store'), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            formAttachEmail.reset()
-            dialogAttachEmail.value = false
-            emit('refresh')
-        },
-    })
-}
-
-function storeEmail() {
-    formAddEmail.post(route('web.email.store'), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            formAddEmail.reset()
-            dialogAddEmail.value = false
-            emit('refresh')
-        },
-    })
 }
 
 async function syncLabels(payload) {
@@ -667,50 +629,19 @@ function openFileMail(file) {
     quickMailDialog.value = true
 }
 
-function openQuickMail() {
-    quickMailFiles.value = []
-    quickMailRecipients.value = cloneRecipients(unitMailRecipients.value)
-    quickMailDialog.value = true
-}
 </script>
 
 <template>
     <BaseSectionCard
-        title="Unit Overview"
+        title="Обзор Unit"
         icon="mdi-factory"
         header-color="teal"
         compact
     >
         <template #actions>
             <div class="unit-overview__header-actions">
-                <button type="button" @click="openAdmin('unit')">Unit CRUD</button>
+                <button type="button" @click="openAdmin('unit')">Редактировать Unit</button>
             </div>
-
-            <v-menu>
-                <template #activator="{ props: menuProps }">
-                    <v-btn
-                        v-bind="menuProps"
-                        icon="mdi-dots-vertical"
-                        variant="text"
-                        size="small"
-                        color="white"
-                    />
-                </template>
-
-                <v-list density="compact">
-                    <v-list-item
-                        title="Write email"
-                        prepend-icon="mdi-email-plus-outline"
-                        @click="openQuickMail"
-                    />
-
-                    <v-list-item
-                        title="Attach email"
-                        prepend-icon="mdi-email-link-outline"
-                        @click="dialogAttachEmail = true"
-                    />
-                </v-list>
-            </v-menu>
         </template>
 
         <div class="d-flex align-start justify-space-between mb-3">
@@ -765,11 +696,11 @@ function openQuickMail() {
         <div class="unit-overview__body-grid">
             <section class="unit-overview__tabs-panel">
                 <v-tabs v-model="activeTab" color="primary" density="compact">
-                    <v-tab value="info">Info</v-tab>
+                    <v-tab value="info">Общее</v-tab>
                     <v-tab value="okved">ОКВЭД</v-tab>
-                    <v-tab value="contacts">Contacts</v-tab>
-                    <v-tab value="files">Files</v-tab>
-                    <v-tab value="buildings">Buildings</v-tab>
+                    <v-tab value="contacts">Телефоны</v-tab>
+                    <v-tab value="files">Файлы</v-tab>
+                    <v-tab value="buildings">Адреса</v-tab>
                 </v-tabs>
 
                 <v-window v-model="activeTab" class="mt-4">
@@ -907,18 +838,6 @@ function openQuickMail() {
                             </div>
                         </div>
 
-                        <div>
-                            <div class="text-caption text-medium-emphasis mb-2">Emails</div>
-
-                            <v-list density="compact" lines="two">
-                                <v-list-item
-                                    v-for="email in (unit.emails || [])"
-                                    :key="email.id"
-                                    :title="email.address"
-                                    subtitle="Email"
-                                />
-                            </v-list>
-                        </div>
                     </v-window-item>
 
                     <v-window-item value="files">
@@ -1119,73 +1038,6 @@ function openQuickMail() {
                             Save Unit
                         </v-btn>
                     </div>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
-        <v-dialog v-model="dialogAttachEmail" max-width="720">
-            <v-card rounded="xl">
-                <v-card-title>Attach Email</v-card-title>
-
-                <v-card-text>
-                    <v-autocomplete
-                        v-model="formAttachEmail.email_id"
-                        :items="dict.emails || []"
-                        item-title="address"
-                        item-value="id"
-                        label="Emails"
-                        variant="outlined"
-                        density="comfortable"
-                    />
-
-                    <div class="mt-4">
-                        <v-btn variant="text" @click="dialogAddEmail = true">
-                            New email
-                        </v-btn>
-                    </div>
-                </v-card-text>
-
-                <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="dialogAttachEmail = false">
-                        Cancel
-                    </v-btn>
-
-                    <v-btn
-                        color="primary"
-                        :loading="formAttachEmail.processing"
-                        @click="attachEmail"
-                    >
-                        Attach
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
-        <v-dialog v-model="dialogAddEmail" max-width="640">
-            <v-card rounded="xl">
-                <v-card-title>New Email</v-card-title>
-
-                <v-card-text>
-                    <v-text-field
-                        v-model="formAddEmail.address"
-                        label="Email address"
-                        variant="outlined"
-                        density="comfortable"
-                    />
-                </v-card-text>
-
-                <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="dialogAddEmail = false">
-                        Cancel
-                    </v-btn>
-
-                    <v-btn
-                        color="primary"
-                        :loading="formAddEmail.processing"
-                        @click="storeEmail"
-                    >
-                        Save
-                    </v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>

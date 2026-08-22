@@ -23,6 +23,7 @@ use App\Models\Unit;
 use App\Models\Uri;
 use App\Services\Mail\UnansweredOutgoingMailService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -66,6 +67,14 @@ class UnitController extends Controller
                 'orders' => [
                     'view' => true,
                     'create' => true,
+                ],
+                'unit' => [
+                    'manage_emails' => $request->user()
+                        ? Gate::forUser($request->user())->allows('manageContacts', $unit)
+                        : false,
+                    'send_mail' => $request->user()
+                        ? Gate::forUser($request->user())->allows('sendMail', $unit)
+                        : false,
                 ],
             ],
             'aiSales' => [
