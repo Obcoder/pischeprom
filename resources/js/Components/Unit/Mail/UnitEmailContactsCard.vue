@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import axios from 'axios'
 
 import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
@@ -31,30 +31,43 @@ const feedback = ref(null)
 const errors = ref({})
 const selectedEmail = ref(null)
 const emailSearch = ref('')
+const searchedEmails = ref([])
+const loadingEmails = ref(false)
+let emailSearchTimer = null
+let emailSearchSequence = 0
 
 const directEmails = computed(() => props.unit?.emails || [])
 const directEmailIds = computed(() => new Set(directEmails.value.map((email) => Number(email.id))))
 
-const availableEmails = computed(() => {
-    return (props.emails || [])
-        .filter((email) => !directEmailIds.value.has(Number(email.id)))
-        .map((email) => ({
-            ...email,
-            title: email.name ? `${email.address} — ${email.name}` : email.address,
-        }))
-})
+const emailItems = computed(() => {
+    const itemsById = new Map()
 
-const selectedEmailId = computed(() => {
-    if (selectedEmail.value && typeof selectedEmail.value === 'object') {
-        return selectedEmail.value.id || null
+    for (const email of [...(props.emails || []), ...searchedEmails.value, ...directEmails.value]) {
+        if (!email?.id) continue
+
+        itemsById.set(Number(email.id), {
+            ...itemsById.get(Number(email.id)),
+            ...email,
+        })
     }
 
-    return null
+    return [...itemsById.values()].map((email) => {
+        const attached = Boolean(email.attached_to_unit)
+            || directEmailIds.value.has(Number(email.id))
+        const titleParts = [email.address]
+
+        if (email.name) titleParts.push(email.name)
+        if (attached) titleParts.push('уже привязан к этому Unit')
+
+        return {
+            ...email,
+            attached_to_unit: attached,
+            title: titleParts.join(' — '),
+        }
+    })
 })
 
-const typedEmailAddress = computed(() => {
-    if (selectedEmailId.value) return ''
-
+const enteredEmailAddress = computed(() => {
     if (typeof selectedEmail.value === 'string' && selectedEmail.value.trim()) {
         return selectedEmail.value.trim()
     }
@@ -62,7 +75,39 @@ const typedEmailAddress = computed(() => {
     return String(emailSearch.value || '').trim()
 })
 
-const canSubmitEmail = computed(() => Boolean(selectedEmailId.value || typedEmailAddress.value))
+const matchedEmail = computed(() => {
+    if (selectedEmail.value && typeof selectedEmail.value === 'object') {
+        return selectedEmail.value
+    }
+
+    const normalizedAddress = enteredEmailAddress.value.toLowerCase()
+
+    if (!normalizedAddress) return null
+
+    return emailItems.value.find(
+        (email) => String(email.address || '').trim().toLowerCase() === normalizedAddress,
+    ) || null
+})
+
+const selectedEmailId = computed(() => matchedEmail.value?.id || null)
+const selectedEmailAlreadyAttached = computed(() => Boolean(matchedEmail.value?.attached_to_unit))
+
+const typedEmailAddress = computed(() => {
+    if (selectedEmailId.value) return ''
+
+    return enteredEmailAddress.value
+})
+
+const canSubmitEmail = computed(() => (
+    Boolean(selectedEmailId.value || typedEmailAddress.value)
+    && !selectedEmailAlreadyAttached.value
+))
+
+const emailFieldHint = computed(() => (
+    selectedEmailAlreadyAttached.value
+        ? 'Email найден в базе и уже привязан к этому Unit.'
+        : 'Выберите email из базы или введите новый прямо в этом поле.'
+))
 
 const emailErrors = computed(() => [
     ...(errors.value.email_id || []),
@@ -97,7 +142,43 @@ function openEmailDialog() {
     selectedEmail.value = null
     emailSearch.value = ''
     emailDialog.value = true
+    loadEmailOptions('')
 }
+
+async function loadEmailOptions(search) {
+    const sequence = ++emailSearchSequence
+    loadingEmails.value = true
+
+    try {
+        const { data } = await axios.get(`/api/units/${props.unit.id}/emails/options`, {
+            params: {
+                search: String(search || '').trim(),
+                limit: 25,
+            },
+        })
+
+        if (sequence === emailSearchSequence) {
+            searchedEmails.value = Array.isArray(data?.data) ? data.data : []
+        }
+    } catch {
+        if (sequence === emailSearchSequence) {
+            searchedEmails.value = []
+        }
+    } finally {
+        if (sequence === emailSearchSequence) {
+            loadingEmails.value = false
+        }
+    }
+}
+
+watch(emailSearch, (search) => {
+    if (!emailDialog.value) return
+
+    clearTimeout(emailSearchTimer)
+    emailSearchTimer = setTimeout(() => loadEmailOptions(search), 250)
+})
+
+onBeforeUnmount(() => clearTimeout(emailSearchTimer))
 
 async function store(payload) {
     saving.value = true
@@ -105,6 +186,16 @@ async function store(payload) {
 
     try {
         const { data } = await axios.post(`/api/units/${props.unit.id}/emails`, payload)
+
+        if (data?.data?.id) {
+            searchedEmails.value = [
+                {
+                    ...data.data,
+                    attached_to_unit: true,
+                },
+                ...searchedEmails.value.filter((email) => Number(email.id) !== Number(data.data.id)),
+            ]
+        }
 
         feedback.value = {
             tone: 'success',
@@ -238,18 +329,19 @@ async function attachEmail() {
                     <v-combobox
                         v-model="selectedEmail"
                         v-model:search="emailSearch"
-                        :items="availableEmails"
+                        :items="emailItems"
                         item-title="title"
                         item-value="id"
                         label="Email"
-                        hint="Выберите email из базы или введите новый прямо в этом поле"
+                        :hint="emailFieldHint"
                         persistent-hint
                         variant="outlined"
                         density="comfortable"
                         clearable
                         return-object
+                        :loading="loadingEmails"
                         :error-messages="emailErrors"
-                        no-data-text="Введите новый email"
+                        no-data-text="Email в базе не найден — он будет создан при добавлении"
                         @keydown.enter.prevent="attachEmail"
                     />
                 </v-card-text>
@@ -261,7 +353,7 @@ async function attachEmail() {
                         :loading="saving"
                         @click="attachEmail"
                     >
-                        Добавить
+                        {{ selectedEmailAlreadyAttached ? 'Уже привязан' : 'Добавить' }}
                     </v-btn>
                 </v-card-actions>
             </v-card>

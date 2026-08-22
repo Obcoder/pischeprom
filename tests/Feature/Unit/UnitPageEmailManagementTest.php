@@ -102,6 +102,47 @@ class UnitPageEmailManagementTest extends TestCase
         $this->assertSame('Офис', $email->fresh()->name);
     }
 
+    public function test_unit_email_options_search_finds_an_attached_email_outside_the_first_page(): void
+    {
+        $actor = $this->actor(['ai_sales.view', 'ai_sales.contexts.manage']);
+        $unit = $this->unit();
+
+        foreach (range(1, 30) as $index) {
+            Email::query()->create([
+                'address' => sprintf('address-%02d@example.test', $index),
+                'source' => 'manual',
+                'is_active' => true,
+            ]);
+        }
+
+        $email = Email::query()->create([
+            'address' => 'warehouse@example.test',
+            'name' => 'Склад',
+            'source' => 'unit_manual',
+            'is_active' => true,
+        ]);
+        $unit->emails()->attach($email->id);
+
+        $emailCount = Email::query()->count();
+        $pivotCount = $unit->emails()->count();
+
+        $this->actingAs($actor)
+            ->getJson("/api/units/{$unit->id}/emails/options?search=warehouse%40example.test")
+            ->assertOk()
+            ->assertExactJson([
+                'data' => [[
+                    'id' => $email->id,
+                    'address' => 'warehouse@example.test',
+                    'name' => 'Склад',
+                    'attached_to_unit' => true,
+                ]],
+            ]);
+
+        $this->assertSame($emailCount, Email::query()->count());
+        $this->assertSame($pivotCount, $unit->emails()->count());
+        $this->assertDatabaseCount('entities', 0);
+    }
+
     public function test_soft_deleted_email_is_restored_instead_of_duplicated(): void
     {
         $actor = $this->actor(['ai_sales.view', 'ai_sales.contexts.manage']);
@@ -134,6 +175,8 @@ class UnitPageEmailManagementTest extends TestCase
         $payload = ['address' => 'secure@example.test'];
 
         $this->postJson("/api/units/{$unit->id}/emails", $payload)->assertUnauthorized();
+        $this->getJson("/api/units/{$unit->id}/emails/options?search=secure")
+            ->assertUnauthorized();
 
         $unverified = $this->actor(
             ['ai_sales.view', 'ai_sales.contexts.manage'],
@@ -142,10 +185,14 @@ class UnitPageEmailManagementTest extends TestCase
         $this->actingAs($unverified)
             ->postJson("/api/units/{$unit->id}/emails", $payload)
             ->assertForbidden();
+        $this->getJson("/api/units/{$unit->id}/emails/options?search=secure")
+            ->assertForbidden();
 
         $viewer = $this->actor(['ai_sales.view']);
         $this->actingAs($viewer)
             ->postJson("/api/units/{$unit->id}/emails", $payload)
+            ->assertForbidden();
+        $this->getJson("/api/units/{$unit->id}/emails/options?search=secure")
             ->assertForbidden();
 
         $this->assertDatabaseCount('emails', 0);
@@ -221,6 +268,15 @@ class UnitPageEmailManagementTest extends TestCase
         $this->assertContains('verified', $route->gatherMiddleware());
         $this->assertContains('can:manageContacts,unit', $route->gatherMiddleware());
 
+        $optionsRoute = collect(Route::getRoutes()->getRoutes())
+            ->first(fn ($candidate) => $candidate->uri() === 'api/units/{unit}/emails/options'
+                && in_array('GET', $candidate->methods(), true));
+
+        $this->assertNotNull($optionsRoute);
+        $this->assertContains('auth:sanctum', $optionsRoute->gatherMiddleware());
+        $this->assertContains('verified', $optionsRoute->gatherMiddleware());
+        $this->assertContains('can:manageContacts,unit', $optionsRoute->gatherMiddleware());
+
         $page = (string) file_get_contents(resource_path('js/Pages/Ameise/Unit.vue'));
         $overview = (string) file_get_contents(resource_path('js/Components/Unit/UnitOverviewCard.vue'));
         $emailCard = (string) file_get_contents(resource_path('js/Components/Unit/Mail/UnitEmailContactsCard.vue'));
@@ -234,6 +290,8 @@ class UnitPageEmailManagementTest extends TestCase
             'Добавить email',
             'Выбрать или создать email',
             'Выберите email из базы или введите новый прямо в этом поле',
+            'Email найден в базе и уже привязан к этому Unit.',
+            '/emails/options',
         ] as $action) {
             $this->assertStringContainsString($action, $emailCard);
         }
@@ -245,6 +303,10 @@ class UnitPageEmailManagementTest extends TestCase
         $this->assertStringNotContainsString('Создать и привязать', $emailCard);
         $this->assertStringNotContainsString('createDialog', $emailCard);
         $this->assertStringNotContainsString('newEmail', $emailCard);
+        $this->assertStringNotContainsString(
+            '.filter((email) => !directEmailIds.value.has(Number(email.id)))',
+            $emailCard,
+        );
 
         $this->assertStringNotContainsString('mdi-dots-vertical', $overview);
         $this->assertStringNotContainsString("route('emailgood.store')", $overview);

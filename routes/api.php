@@ -603,6 +603,10 @@ Route::prefix('max')
 Route::prefix('units/{unit}')->group(function () {
     Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
 
+    Route::get('/emails/options', [UnitEmailController::class, 'options'])
+        ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:60,1'])
+        ->name('api.units.emails.options');
+
     Route::post('/emails', [UnitEmailController::class, 'store'])
         ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:30,1'])
         ->name('api.units.emails.store');
