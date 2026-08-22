@@ -206,11 +206,18 @@ class UnitRelationController extends Controller
                                     ], 422);
         }
 
-        $label = !empty($data['label_id'])
-            ? Label::findOrFail($data['label_id'])
-            : Label::firstOrCreate([
-                                       'name' => trim($data['name']),
-                                   ]);
+        if (! empty($data['label_id'])) {
+            $label = Label::findOrFail($data['label_id']);
+        } else {
+            $name = trim($data['name']);
+            $label = Label::query()->where('name', $name)->first();
+
+            if (! $label) {
+                $label = new Label;
+                $label->name = $name;
+                $label->save();
+            }
+        }
 
         $unit->labels()->syncWithoutDetaching([$label->id]);
 

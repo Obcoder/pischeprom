@@ -557,7 +557,7 @@ Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
  */
 Route::prefix('telephones')->group(function () {
     Route::get('/meta', [TelephoneController::class, 'meta']);
-    Route::get('/', [TelephoneController::class, 'index']);
+    Route::get('/', [TelephoneController::class, 'index'])->name('telephones.index');
     Route::post('/', [TelephoneController::class, 'store']);
     Route::get('/{telephone}', [TelephoneController::class, 'show']);
     Route::put('/{telephone}', [TelephoneController::class, 'update']);

@@ -182,7 +182,7 @@ async function detachIndustry(industry) {
                 <v-card-title>{{ industryForm.id ? 'Редактировать ОКВЭД' : 'Создать ОКВЭД' }}</v-card-title>
                 <v-card-text>
                     <div class="unit-okved-tab__fields-2">
-                        <v-text-field v-model="industryForm.code" label="Code" variant="solo-filled" density="compact" :error-messages="industryErrors.code || []" autofocus />
+                        <v-text-field v-model="industryForm.code" label="Code" variant="solo-filled" density="compact" :error-messages="industryErrors.code || []" />
                         <v-text-field v-model="industryForm.title" label="Title" variant="solo-filled" density="compact" :error-messages="industryErrors.title || []" />
                     </div>
                 </v-card-text>
@@ -216,7 +216,6 @@ async function detachIndustry(industry) {
                         variant="solo-filled"
                         density="compact"
                         hide-details
-                        autofocus
                     >
                         <template #item="{ props: itemProps, item }">
                             <v-list-item v-bind="itemProps" :subtitle="item.raw.title" />

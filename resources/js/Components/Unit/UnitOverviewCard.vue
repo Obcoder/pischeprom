@@ -995,7 +995,6 @@ function openFileMail(file) {
                         variant="solo-filled"
                         density="compact"
                         :error-messages="unitErrors.name || []"
-                        autofocus
                     />
 
                     <div class="unit-overview__unit-switches">
