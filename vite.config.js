@@ -6,6 +6,16 @@ import inertia from '@inertiajs/vite'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
+    // MDI uses private-use Unicode code points. Keeping them escaped prevents
+    // embedded browsers from rendering their UTF-8 bytes as mojibake.
+    esbuild: {
+        charset: 'ascii',
+    },
+
+    build: {
+        cssMinify: 'esbuild',
+    },
+
     plugins: [
         laravel({
             input: ['resources/js/app.js'],

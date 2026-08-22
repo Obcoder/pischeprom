@@ -3,7 +3,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build && vite build --ssr resources/js/ssr.js"
+        "build": "vite build && vite build --ssr resources/js/ssr.js && node scripts/verify-icon-css-encoding.mjs"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^3.1.1",
@@ -14,6 +14,7 @@
         "autoprefixer": "^10.4.16",
         "axios": "^1.19.0",
         "deepmerge": "^4.3.1",
+        "esbuild": "0.28.2",
         "laravel-vite-plugin": "^3.1.0",
         "postcss": "^8.5.25",
         "sass": "^1.102.0",
