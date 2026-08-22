@@ -403,7 +403,7 @@ Route::get('/Ameise/ai-sales', function (
     'auth:sanctum',
     config('jetstream.auth_session'),
     'verified',
-    'throttle:ai-sales',
+    'throttle:ai-sales-ui',
     'can:ai_sales.view',
     'can:ai_sales.sales.view',
     'can:ai_sales.prospecting.view',

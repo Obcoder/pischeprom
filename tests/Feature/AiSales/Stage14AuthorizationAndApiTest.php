@@ -75,10 +75,15 @@ class Stage14AuthorizationAndApiTest extends Stage14TestCase
         }
 
         $actor = $this->campaignUser();
-        for ($request = 1; $request <= 20; $request++) {
+        for ($request = 1; $request <= 60; $request++) {
             $this->actingAs($actor)->getJson('/api/ai-sales/campaigns')->assertOk();
         }
         $this->actingAs($actor)->getJson('/api/ai-sales/campaigns')->assertTooManyRequests();
+
+        for ($request = 1; $request <= 20; $request++) {
+            $this->actingAs($actor)->postJson('/api/ai-sales/campaigns', [])->assertUnprocessable();
+        }
+        $this->actingAs($actor)->postJson('/api/ai-sales/campaigns', [])->assertTooManyRequests();
     }
 
     public function test_feature_is_not_discoverable_when_default_off(): void

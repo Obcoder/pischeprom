@@ -58,7 +58,7 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
 
         $route = app('router')->getRoutes()->getByName('Ameise.ai-sales');
         $this->assertNotNull($route);
-        foreach (['auth:sanctum', 'verified', 'throttle:ai-sales', 'can:ai_sales.view', 'can:ai_sales.sales.view', 'can:ai_sales.prospecting.view'] as $middleware) {
+        foreach (['auth:sanctum', 'verified', 'throttle:ai-sales-ui', 'can:ai_sales.view', 'can:ai_sales.sales.view', 'can:ai_sales.prospecting.view'] as $middleware) {
             $this->assertContains($middleware, $route->gatherMiddleware());
         }
 
@@ -80,6 +80,28 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
         }
 
         $this->assertSame($guestCounts, $this->domainCounts());
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_api_read_traffic_cannot_exhaust_the_ai_sales_page_limiter(): void
+    {
+        $this->configureUiRuntime();
+        $actor = $this->campaignUser();
+        $before = $this->domainCounts();
+
+        for ($request = 1; $request <= 30; $request++) {
+            $this->actingAs($actor)
+                ->getJson('/api/ai-sales/prospecting/candidates?per_page=50')
+                ->assertOk();
+        }
+
+        $this->actingAs($actor)->get(route('Ameise.ai-sales'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('Ameise/AiSales'));
+
+        $this->assertSame($before, $this->domainCounts());
         Http::assertNothingSent();
         Mail::assertNothingSent();
         Queue::assertNothingPushed();

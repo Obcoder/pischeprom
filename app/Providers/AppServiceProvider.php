@@ -184,10 +184,22 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('price-list-ai', fn () => Limit::perMinute(
             max(1, (int) config('ai-price-lists.ai.requests_per_minute', 30))
         )->by('yandex-price-list-ai'));
-        RateLimiter::for('ai-sales', fn (Request $request) => Limit::perMinute(30)
+        RateLimiter::for('ai-sales-ui', fn (Request $request) => Limit::perMinute(120)
             ->by((string) ($request->user()?->id ?? $request->ip())));
-        RateLimiter::for('ai-sales-campaigns', fn (Request $request) => Limit::perMinute(20)
-            ->by((string) ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('ai-sales', function (Request $request): Limit {
+            $actor = (string) ($request->user()?->id ?? $request->ip());
+
+            return $request->isMethod('GET')
+                ? Limit::perMinute(120)->by('read:'.$actor)
+                : Limit::perMinute(30)->by('mutation:'.$actor);
+        });
+        RateLimiter::for('ai-sales-campaigns', function (Request $request): Limit {
+            $actor = (string) ($request->user()?->id ?? $request->ip());
+
+            return $request->isMethod('GET')
+                ? Limit::perMinute(60)->by('read:'.$actor)
+                : Limit::perMinute(20)->by('mutation:'.$actor);
+        });
         RateLimiter::for('mail-send', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->id ?? $request->ip())));
         RateLimiter::for('ai-sales-outreach-dispatch', fn (Request $request) => Limit::perMinute(10)
