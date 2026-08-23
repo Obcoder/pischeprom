@@ -56,7 +56,7 @@ class Sale extends Model
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class)
-            ->withPivot('quantity', 'price', 'measure_id', 'total');
+            ->withPivot('id', 'quantity', 'price', 'measure_id', 'total');
     }
 
     public function bankAllocations(): MorphMany

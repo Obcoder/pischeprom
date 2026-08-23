@@ -16,8 +16,12 @@ const entityDialog = ref(false)
 const entitySaving = ref(false)
 const entityMetaLoading = ref(false)
 const detailsDialog = ref(false)
+const detailsAddOpen = ref(false)
+const detailsSaving = ref(false)
 const selectedSale = ref(null)
 const errorMessage = ref('')
+const detailsErrorMessage = ref('')
+const detailsMessage = ref('')
 
 const entities = ref([])
 const goods = ref([])
@@ -59,6 +63,8 @@ const saleForm = reactive({
     total: null,
     goods: [],
 })
+
+const detailsLine = reactive(makeLine())
 
 const headers = [
     { title: 'Дата', key: 'date', sortable: true, width: '92px' },
@@ -107,6 +113,21 @@ const canSubmitSale = computed(() => {
     })
 
     return hasBase && (hasManualTotal || hasLine)
+})
+
+const canAttachGood = computed(() => {
+    const filledValues = [
+        nullableNumber(detailsLine.quantity),
+        nullableNumber(detailsLine.price),
+        nullableNumber(detailsLine.total),
+    ].filter((value) => value !== null).length
+
+    return Boolean(
+        selectedSale.value?.id
+        && detailsLine.good_id
+        && detailsLine.measure_id
+        && filledValues >= 2
+    )
 })
 
 function normalizeSearchText(value) {
@@ -408,6 +429,10 @@ function openEntityCreate() {
 
 function openSaleDetails(item) {
     selectedSale.value = item
+    detailsAddOpen.value = false
+    detailsErrorMessage.value = ''
+    detailsMessage.value = ''
+    resetDetailsLine()
     detailsDialog.value = true
 }
 
@@ -418,6 +443,20 @@ function makeLine() {
         quantity: null,
         price: null,
         total: null,
+    }
+}
+
+function resetDetailsLine() {
+    Object.assign(detailsLine, makeLine())
+}
+
+function toggleDetailsAdd() {
+    detailsAddOpen.value = !detailsAddOpen.value
+    detailsErrorMessage.value = ''
+    detailsMessage.value = ''
+
+    if (detailsAddOpen.value) {
+        resetDetailsLine()
     }
 }
 
@@ -436,6 +475,12 @@ function handleGoodSelected(line) {
         line.measure_id = measures.value[0].id
     }
     return good
+}
+
+function handleDetailsGoodSelected() {
+    detailsErrorMessage.value = ''
+    detailsMessage.value = ''
+    handleGoodSelected(detailsLine)
 }
 
 function recalcLine(line, changed) {
@@ -496,6 +541,45 @@ async function submitSale() {
         console.error('submit sale error:', error?.response?.data || error)
     } finally {
         saving.value = false
+    }
+}
+
+async function attachGoodToSale() {
+    if (detailsSaving.value || !selectedSale.value?.id || !canAttachGood.value) {
+        return
+    }
+
+    detailsSaving.value = true
+    detailsErrorMessage.value = ''
+    detailsMessage.value = ''
+
+    try {
+        const saleId = selectedSale.value.id
+        const { data } = await axios.post(`/api/sales/${saleId}/goods`, {
+            good_id: detailsLine.good_id,
+            measure_id: detailsLine.measure_id,
+            quantity: nullableNumber(detailsLine.quantity),
+            price: nullableNumber(detailsLine.price),
+            total: nullableNumber(detailsLine.total),
+        })
+        const updatedSale = data.data
+        const rowIndex = rows.value.findIndex((item) => Number(item.id) === Number(saleId))
+
+        selectedSale.value = updatedSale
+
+        if (rowIndex >= 0) {
+            rows.value.splice(rowIndex, 1, updatedSale)
+        }
+
+        resetDetailsLine()
+        detailsMessage.value = 'Good добавлен в продажу.'
+    } catch (error) {
+        detailsErrorMessage.value = error?.response?.data?.message
+            || Object.values(error?.response?.data?.errors || {})?.flat()?.[0]
+            || 'Не удалось добавить Good в продажу'
+        console.error('attach sale good error:', error?.response?.data || error)
+    } finally {
+        detailsSaving.value = false
     }
 }
 
@@ -686,7 +770,18 @@ onMounted(async () => {
                         <span>Детали продажи</span>
                         <strong>{{ formatMoney(selectedSale?.total) }}</strong>
                     </div>
-                    <v-btn icon="mdi-close" variant="text" @click="detailsDialog = false" />
+
+                    <div class="sale-details__title-actions">
+                        <v-btn
+                            size="small"
+                            variant="outlined"
+                            :prepend-icon="detailsAddOpen ? 'mdi-minus' : 'mdi-plus'"
+                            @click="toggleDetailsAdd"
+                        >
+                            {{ detailsAddOpen ? 'Скрыть' : 'Good' }}
+                        </v-btn>
+                        <v-btn icon="mdi-close" variant="text" @click="detailsDialog = false" />
+                    </div>
                 </v-card-title>
 
                 <v-card-text v-if="selectedSale" class="sale-details__body">
@@ -737,7 +832,7 @@ onMounted(async () => {
 
                         <div
                             v-for="good in saleGoods(selectedSale)"
-                            :key="good.id"
+                            :key="good.pivot?.id || good.id"
                             class="sale-details__row"
                         >
                             <a :href="goodHref(good)">{{ good.name }}</a>
@@ -753,6 +848,140 @@ onMounted(async () => {
                             Товары не прикреплены к продаже
                         </div>
                     </div>
+
+                    <v-form
+                        v-if="detailsAddOpen"
+                        class="sale-details__add"
+                        @submit.prevent="attachGoodToSale"
+                    >
+                        <div class="sale-details__add-title">
+                            <div>
+                                <strong>Добавить Good</strong>
+                                <span>Укажите любые два значения: количество, цена или сумма.</span>
+                            </div>
+                            <small>Общий итог сохранённой продажи не изменится</small>
+                        </div>
+
+                        <v-alert
+                            v-if="detailsErrorMessage"
+                            type="error"
+                            variant="tonal"
+                            density="compact"
+                        >
+                            {{ detailsErrorMessage }}
+                        </v-alert>
+
+                        <v-alert
+                            v-if="detailsMessage"
+                            type="success"
+                            variant="tonal"
+                            density="compact"
+                        >
+                            {{ detailsMessage }}
+                        </v-alert>
+
+                        <div class="sale-details__add-grid">
+                            <div class="sale-details__add-head">
+                                <span>Good</span>
+                                <span>НДС</span>
+                                <span>Тарность</span>
+                                <span>Кол-во</span>
+                                <span>Ед.</span>
+                                <span>Цена</span>
+                                <span>Сумма</span>
+                            </div>
+
+                            <div class="sale-details__add-line">
+                                <v-autocomplete
+                                    v-model="detailsLine.good_id"
+                                    :items="goods"
+                                    :item-title="goodTitle"
+                                    item-value="id"
+                                    placeholder="Выберите Good"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                    clearable
+                                    theme="light"
+                                    @update:model-value="handleDetailsGoodSelected"
+                                />
+
+                                <span class="sale-details__add-meta">{{ goodVatText(lineGood(detailsLine)) }}</span>
+                                <span class="sale-details__add-meta">{{ lineGood(detailsLine)?.denominator || '—' }}</span>
+
+                                <v-text-field
+                                    v-model="detailsLine.quantity"
+                                    aria-label="Количество"
+                                    type="number"
+                                    min="0"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                    theme="light"
+                                    @update:model-value="recalcLine(detailsLine, 'quantity')"
+                                />
+
+                                <v-select
+                                    v-model="detailsLine.measure_id"
+                                    :items="measures"
+                                    item-title="name"
+                                    item-value="id"
+                                    aria-label="Единица измерения"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                    theme="light"
+                                />
+
+                                <v-text-field
+                                    v-model="detailsLine.price"
+                                    aria-label="Цена"
+                                    type="number"
+                                    min="0"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                    theme="light"
+                                    @update:model-value="recalcLine(detailsLine, 'price')"
+                                />
+
+                                <v-text-field
+                                    v-model="detailsLine.total"
+                                    aria-label="Сумма"
+                                    type="number"
+                                    min="0"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                    theme="light"
+                                    @update:model-value="recalcLine(detailsLine, 'total')"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="sale-details__add-actions">
+                            <span>
+                                Сумма позиции:
+                                <strong>{{ formatMoney(detailsLine.total) }}</strong>
+                            </span>
+                            <div>
+                                <v-btn size="small" variant="text" @click="resetDetailsLine">
+                                    Очистить
+                                </v-btn>
+                                <v-btn
+                                    type="submit"
+                                    size="small"
+                                    color="deep-purple"
+                                    variant="flat"
+                                    prepend-icon="mdi-plus"
+                                    :loading="detailsSaving"
+                                    :disabled="!canAttachGood"
+                                >
+                                    Добавить
+                                </v-btn>
+                            </div>
+                        </div>
+                    </v-form>
                 </v-card-text>
             </v-card>
         </v-dialog>
@@ -1265,6 +1494,12 @@ onMounted(async () => {
     font-size: 15px;
 }
 
+.sale-details__title .sale-details__title-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .sale-details__body {
     display: grid;
     gap: 8px;
@@ -1375,6 +1610,112 @@ onMounted(async () => {
     padding: 12px;
     color: #7c6b9c;
     font-size: 12px;
+}
+
+.sale-details__add {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid #b9a7e8;
+    background: #fff;
+}
+
+.sale-details__add-title {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sale-details__add-title > div {
+    display: grid;
+    gap: 2px;
+}
+
+.sale-details__add-title strong {
+    color: #3d237f;
+    font-size: 12px;
+}
+
+.sale-details__add-title span,
+.sale-details__add-title small {
+    color: #78659d;
+    font-size: 10px;
+}
+
+.sale-details__add-grid {
+    border: 1px solid #d6cdf0;
+    overflow-x: auto;
+}
+
+.sale-details__add-head,
+.sale-details__add-line {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) 88px 70px 82px 68px 92px 102px;
+    align-items: center;
+    min-width: 762px;
+}
+
+.sale-details__add-head {
+    min-height: 24px;
+    background: #eee8ff;
+    color: #4a3285;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.sale-details__add-head span {
+    padding: 3px 5px;
+    border-right: 1px solid #d6cdf0;
+}
+
+.sale-details__add-line {
+    gap: 3px;
+    padding: 4px;
+    border-top: 1px solid #d6cdf0;
+}
+
+.sale-details__add-line :deep(.v-field) {
+    min-height: 34px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.sale-details__add-line :deep(.v-field__input) {
+    min-height: 34px;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 11px;
+}
+
+.sale-details__add-meta {
+    overflow: hidden;
+    color: #6c5b93;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sale-details__add-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #6c5b93;
+    font-size: 11px;
+}
+
+.sale-details__add-actions > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sale-details__add-actions strong {
+    color: #2f1678;
+    font-family: 'Courier New', monospace;
 }
 
 .sale-dialog {
@@ -1726,6 +2067,12 @@ onMounted(async () => {
     .sale-details__head,
     .sale-details__row {
         grid-template-columns: 1fr;
+    }
+
+    .sale-details__add-title,
+    .sale-details__add-actions {
+        align-items: stretch;
+        flex-direction: column;
     }
 }
 </style>

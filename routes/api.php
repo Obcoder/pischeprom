@@ -580,6 +580,8 @@ Route::apiResource('products', ProductController::class);
 Route::apiResource('purchases', PurchaseController::class);
 Route::apiResource('quotations', QuotationController::class);
 Route::apiResource('regions', RegionController::class);
+Route::post('sales/{sale}/goods', [SaleController::class, 'storeGood'])
+    ->name('sales.goods.store');
 Route::apiResource('sales', SaleController::class);
 Route::apiResource('segments', SegmentController::class);
 Route::apiResource('sendings', SendingController::class);
