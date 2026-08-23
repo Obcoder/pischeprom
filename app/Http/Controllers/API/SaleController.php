@@ -124,6 +124,46 @@ class SaleController extends Controller
         return response()->json($this->serializeSale($sale));
     }
 
+    public function storeGood(Request $request, Sale $sale)
+    {
+        $validated = $request->validate([
+            'good_id' => ['required', 'integer', 'exists:goods,id'],
+            'measure_id' => ['required', 'integer', 'exists:measures,id'],
+            'quantity' => ['nullable', 'numeric', 'min:0'],
+            'price' => ['nullable', 'numeric', 'min:0'],
+            'total' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $line = $this->normalizeSaleLine($validated);
+        $sale = DB::transaction(function () use ($sale, $line): Sale {
+            $lockedSale = Sale::query()
+                ->whereKey($sale->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedSale->goods()->attach($line['good_id'], [
+                'quantity' => $line['quantity'],
+                'measure_id' => $line['measure_id'],
+                'price' => $line['price'],
+            ]);
+
+            return $lockedSale;
+        });
+
+        $sale->load([
+            'entity.units:id,name',
+            'entity.buildings.city:id,name',
+            'entity.cities:id,name',
+            'goods.vatRate:id,title,rate',
+        ]);
+
+        $this->attachPreviousSales(collect([$sale]));
+
+        return response()->json([
+            'data' => $this->serializeSale($sale),
+        ], 201);
+    }
+
     public function update(Request $request, string $id)
     {
         //
@@ -390,6 +430,7 @@ class SaleController extends Controller
                         'rate' => $good->vatRate->rate,
                     ] : null,
                     'pivot' => [
+                        'id' => (int) $good->pivot->id,
                         'quantity' => (float) $good->pivot->quantity,
                         'measure_id' => (int) $good->pivot->measure_id,
                         'price' => (float) $good->pivot->price,
