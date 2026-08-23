@@ -13,7 +13,7 @@ class SaleGoodAttachmentTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_good_can_be_added_to_an_existing_sale(): void
+    public function test_good_can_be_added_and_increases_existing_sale_total(): void
     {
         $entity = Entity::query()->create(['name' => 'Покупатель']);
         $good = Good::query()->create([
@@ -37,7 +37,7 @@ class SaleGoodAttachmentTest extends TestCase
         $response
             ->assertCreated()
             ->assertJsonPath('data.id', $sale->id)
-            ->assertJsonPath('data.total', 100)
+            ->assertJsonPath('data.total', 160)
             ->assertJsonPath('data.goods.0.id', $good->id)
             ->assertJsonPath('data.goods.0.pivot.quantity', 3)
             ->assertJsonPath('data.goods.0.pivot.price', 20)
@@ -57,9 +57,9 @@ class SaleGoodAttachmentTest extends TestCase
         ]);
         $this->assertDatabaseHas('sales', [
             'id' => $sale->id,
-            'total' => 100,
+            'total' => 160,
             'payment_status' => 'unpaid',
-            'outstanding_amount' => 100,
+            'outstanding_amount' => 160,
         ]);
     }
 

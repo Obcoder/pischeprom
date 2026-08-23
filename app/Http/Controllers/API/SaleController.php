@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Domain\Banking\Events\ReceivablePaymentStatusChanged;
+use App\Domain\Banking\Services\DecimalMoney;
+use App\Domain\Banking\Services\PaymentAllocationService;
 use App\Http\Controllers\Controller;
 use App\Models\Good;
 use App\Models\Sale;
@@ -124,8 +127,11 @@ class SaleController extends Controller
         return response()->json($this->serializeSale($sale));
     }
 
-    public function storeGood(Request $request, Sale $sale)
-    {
+    public function storeGood(
+        Request $request,
+        Sale $sale,
+        PaymentAllocationService $paymentAllocations,
+    ) {
         $validated = $request->validate([
             'good_id' => ['required', 'integer', 'exists:goods,id'],
             'measure_id' => ['required', 'integer', 'exists:measures,id'],
@@ -135,7 +141,8 @@ class SaleController extends Controller
         ]);
 
         $line = $this->normalizeSaleLine($validated);
-        $sale = DB::transaction(function () use ($sale, $line): Sale {
+        $statusChange = null;
+        $sale = DB::transaction(function () use ($sale, $line, $paymentAllocations, &$statusChange): Sale {
             $lockedSale = Sale::query()
                 ->whereKey($sale->id)
                 ->lockForUpdate()
@@ -147,8 +154,24 @@ class SaleController extends Controller
                 'price' => $line['price'],
             ]);
 
+            $lockedSale->forceFill([
+                'total' => DecimalMoney::add(
+                    (string) $lockedSale->total,
+                    number_format($line['total'], 2, '.', ''),
+                ),
+            ]);
+            $statusChange = $paymentAllocations->recalculateSaleLocked($lockedSale);
+
             return $lockedSale;
-        });
+        }, 3);
+
+        if ($statusChange !== null) {
+            ReceivablePaymentStatusChanged::dispatch(
+                $sale,
+                $statusChange['previous'],
+                $statusChange['current'],
+            );
+        }
 
         $sale->load([
             'entity.units:id,name',
