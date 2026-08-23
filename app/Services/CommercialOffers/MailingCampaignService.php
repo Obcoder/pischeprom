@@ -116,20 +116,33 @@ class MailingCampaignService
         $recipient->update(['contact_id' => $contact->id]);
 
         $message = $this->buildMessage($campaign, collect([$recipient]), true);
+        $mailingMessage = MailingMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'campaign_recipient_id' => $recipient->id,
+            'contact_id' => $contact->id,
+            'email' => $email,
+            'subject' => '[TEST] '.$campaign->subject,
+            'status' => 'queued',
+            'request_hash' => $this->requestHash($message),
+            'request_profile' => UnisenderRequestProfile::LegacyManual->value,
+            'safe_summary' => 'queued_for_provider',
+        ]);
 
         try {
             $result = $this->client->sendEmail($message);
         } catch (RuntimeException $exception) {
-            if (! $this->isTrackingDomainConfigurationError($exception)) {
+            if (! $this->isTrackingConfigurationRejection($exception)) {
                 $this->markRecipientSendFailed($recipient, $exception);
+                $this->markMailingMessageFailed($mailingMessage, $exception);
 
-                throw new RuntimeException($this->testSendFailureMessage($exception, $email), previous: $exception);
+                throw $exception;
             }
 
-            Log::warning('Retrying Unisender Go test send without tracking because tracking domain is not configured', [
+            Log::warning('Retrying Unisender test send with tracking disabled', [
                 'provider' => 'unisender_go',
                 'campaign_id' => $campaign->id,
-                'recipient_domain' => Str::after($email, '@'),
+                'safe_error_code' => MailProviderSafeErrorCode::PermissionDenied->value,
+                'safe_detail_code' => 'tracking_configuration_required',
             ]);
 
             $message['track_read'] = 0;
@@ -140,19 +153,20 @@ class MailingCampaignService
                 $retryResult = $this->client->sendEmail($message);
             } catch (RuntimeException $retryException) {
                 $this->markRecipientSendFailed($recipient, $retryException);
+                $this->markMailingMessageFailed($mailingMessage, $retryException);
 
-                throw new RuntimeException($this->testSendFailureMessage($retryException, $email), previous: $retryException);
+                throw $retryException;
             }
 
             $result = new UnisenderSendResult(
                 successful: $retryResult->successful,
                 jobId: $retryResult->jobId,
-                response: $retryResult->response + [
-                    'tracking_disabled_for_test' => true,
-                    'warning' => 'Tracking was disabled for this test send because Unisender requires a custom backend or tracking domain.',
-                ],
                 failedEmails: $retryResult->failedEmails,
-                error: $exception->getMessage(),
+                httpStatusCategory: $retryResult->httpStatusCategory,
+                safeRequestId: $retryResult->safeRequestId,
+                responseHash: $retryResult->responseHash,
+                requestProfile: $retryResult->requestProfile,
+                safeResponseMetadata: ['tracking_disabled_for_test' => true],
             );
         }
 
@@ -161,22 +175,25 @@ class MailingCampaignService
             'sent_at' => now(),
             'unisender_job_id' => $result->jobId,
             'idempotence_key' => $message['idempotence_key'],
+            'safe_error_code' => null,
+            'safe_summary' => 'provider_accepted',
         ]);
 
-        MailingMessage::query()->create([
-            'campaign_id' => $campaign->id,
-            'campaign_recipient_id' => $recipient->id,
-            'contact_id' => $contact->id,
-            'email' => $email,
-            'subject' => '[TEST] '.$campaign->subject,
+        $mailingMessage->update([
             'status' => 'accepted',
             'unisender_job_id' => $result->jobId,
-            'request_payload' => $this->safeRequestPayload($message),
-            'response_payload' => $result->response,
-            'failed_emails' => $result->failedEmails ?: null,
+            'request_hash' => $this->requestHash($message),
+            'response_hash' => $result->responseHash,
+            'request_profile' => $result->requestProfile->value,
+            'http_status_category' => $result->httpStatusCategory,
+            'safe_request_id' => $result->safeRequestId,
+            'safe_summary' => 'provider_accepted',
         ]);
 
-        $this->audit->log('campaign.test_sent', MailingCampaign::class, $campaign->id, null, ['email' => $email, 'job_id' => $result->jobId], userId: $userId);
+        $this->audit->log('campaign.test_sent', MailingCampaign::class, $campaign->id, null, [
+            'recipient_count' => 1,
+            'job_id' => $result->jobId,
+        ], userId: $userId);
 
         return $result;
     }
@@ -246,16 +263,37 @@ class MailingCampaignService
             }
 
             $message = $this->buildMessage($campaign, $chunk);
-            $mailingMessages = $this->createMailingMessages($campaign, $chunk, $message);
+            $mailingMessages = $this->createMailingMessages($campaign, $chunk);
             $message['recipients'] = $this->attachMessageIdsToRecipientMetadata($message['recipients'], $mailingMessages);
+            $requestHash = $this->requestHash($message);
+            $mailingMessages->each->update(['request_hash' => $requestHash]);
 
             try {
                 $result = $this->client->sendEmail($message);
             } catch (RuntimeException $exception) {
-                $campaign->update(['status' => 'failed']);
-                $chunk->each(fn (MailingCampaignRecipient $recipient) => $recipient->update(['status' => 'failed', 'failure_reason' => $exception->getMessage()]));
-                $mailingMessages->each->update(['status' => 'failed', 'error_message' => $exception->getMessage()]);
-                Log::error('Unisender campaign send failed', ['campaign_id' => $campaign->id, 'error' => $exception->getMessage()]);
+                $safeCode = $this->safeErrorCode($exception);
+                $ambiguous = $exception instanceof MailProviderException && $exception->ambiguousAcceptance;
+                $providerException = $exception instanceof MailProviderException ? $exception : null;
+                $campaign->update(['status' => $ambiguous ? 'paused_by_system' : 'failed']);
+                $chunk->each(fn (MailingCampaignRecipient $recipient) => $recipient->update([
+                    'status' => $ambiguous ? 'operator_review' : 'failed',
+                    'safe_error_code' => $safeCode,
+                    'safe_summary' => $ambiguous ? 'operator_review_no_resend' : 'provider_send_failed_safe',
+                ]));
+                $mailingMessages->each->update([
+                    'status' => $ambiguous ? 'operator_review' : 'failed',
+                    'safe_error_code' => $safeCode,
+                    'safe_summary' => $ambiguous ? 'operator_review_no_resend' : 'provider_send_failed_safe',
+                    'ambiguous_acceptance_at' => $ambiguous ? now() : null,
+                    'response_hash' => $providerException?->responseHash,
+                    'http_status_category' => $providerException?->httpStatusCategory,
+                    'safe_request_id' => $providerException?->safeRequestId,
+                ]);
+                Log::error('Unisender campaign send failed', [
+                    'campaign_id' => $campaign->id,
+                    'safe_error_code' => $safeCode,
+                    'exception_type' => $exception::class,
+                ]);
                 throw $exception;
             }
 
@@ -264,7 +302,8 @@ class MailingCampaignService
                 $failedReason = $failedEmails[$recipient->normalized_email] ?? null;
                 $recipient->update([
                     'status' => $failedReason ? 'failed' : 'accepted',
-                    'failure_reason' => $failedReason,
+                    'safe_error_code' => $failedReason,
+                    'safe_summary' => $failedReason ? 'recipient_rejected_safe' : 'provider_accepted',
                     'sent_at' => $failedReason ? null : now(),
                     'unisender_job_id' => $result->jobId,
                     'idempotence_key' => $message['idempotence_key'].'-'.$recipient->id,
@@ -281,9 +320,12 @@ class MailingCampaignService
                 $mailingMessage->update([
                     'status' => $failedReason ? 'failed' : 'accepted',
                     'unisender_job_id' => $result->jobId,
-                    'response_payload' => $result->response,
-                    'failed_emails' => $result->failedEmails ?: null,
-                    'error_message' => $failedReason,
+                    'response_hash' => $result->responseHash,
+                    'request_profile' => $result->requestProfile->value,
+                    'http_status_category' => $result->httpStatusCategory,
+                    'safe_request_id' => $result->safeRequestId,
+                    'safe_error_code' => $failedReason,
+                    'safe_summary' => $failedReason ? 'recipient_rejected_safe' : 'provider_accepted',
                 ]);
             });
 
@@ -543,7 +585,7 @@ class MailingCampaignService
         return $message;
     }
 
-    private function createMailingMessages(MailingCampaign $campaign, Collection|\Illuminate\Support\Collection $recipients, array $message): \Illuminate\Support\Collection
+    private function createMailingMessages(MailingCampaign $campaign, Collection|\Illuminate\Support\Collection $recipients): \Illuminate\Support\Collection
     {
         return $recipients->map(fn (MailingCampaignRecipient $recipient) => MailingMessage::query()->create([
             'campaign_id' => $campaign->id,
@@ -552,7 +594,8 @@ class MailingCampaignService
             'email' => $recipient->email,
             'subject' => $campaign->subject,
             'status' => 'queued',
-            'request_payload' => $this->safeRequestPayload($message),
+            'request_profile' => UnisenderRequestProfile::LegacyManual->value,
+            'safe_summary' => 'queued_for_provider',
         ]));
     }
 
@@ -589,14 +632,14 @@ class MailingCampaignService
         $map = [];
         foreach ($failedEmails as $entry) {
             if (is_string($entry)) {
-                $map[MailingContact::normalizeEmail($entry)] = 'Rejected by provider.';
+                $map[MailingContact::normalizeEmail($entry)] = MailProviderSafeErrorCode::PermissionDenied->value;
 
                 continue;
             }
             if (is_array($entry)) {
                 $email = MailingContact::normalizeEmail((string) ($entry['email'] ?? $entry['address'] ?? ''));
                 if ($email !== '') {
-                    $map[$email] = (string) ($entry['message'] ?? $entry['reason'] ?? $entry['error'] ?? 'Rejected by provider.');
+                    $map[$email] = MailProviderSafeErrorCode::PermissionDenied->value;
                 }
             }
         }
@@ -604,21 +647,9 @@ class MailingCampaignService
         return $map;
     }
 
-    private function safeRequestPayload(array $message): array
+    private function requestHash(array $message): string
     {
-        return [
-            'subject' => $message['subject'] ?? null,
-            'from_email' => $message['from_email'] ?? null,
-            'recipients_count' => count($message['recipients'] ?? []),
-            'html_bytes' => strlen((string) Arr::get($message, 'body.html', '')),
-            'plaintext_bytes' => strlen((string) Arr::get($message, 'body.plaintext', '')),
-            'track_links' => $message['track_links'] ?? null,
-            'track_read' => $message['track_read'] ?? null,
-            'template_id' => $message['template_id'] ?? null,
-            'global_metadata' => $message['global_metadata'] ?? null,
-            'tags' => $message['tags'] ?? null,
-            'idempotence_key' => $message['idempotence_key'] ?? null,
-        ];
+        return hash('sha256', json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 
     private function assertRenderedMessageIsSafe(array $message): void
@@ -682,26 +713,27 @@ class MailingCampaignService
 
     private function markRecipientSendFailed(MailingCampaignRecipient $recipient, RuntimeException $exception): void
     {
+        $ambiguous = $exception instanceof MailProviderException && $exception->ambiguousAcceptance;
         $recipient->update([
-            'status' => 'failed',
-            'failure_reason' => $exception->getMessage(),
+            'status' => $ambiguous ? 'operator_review' : 'failed',
+            'safe_error_code' => $this->safeErrorCode($exception),
+            'safe_summary' => $ambiguous ? 'operator_review_no_resend' : 'provider_send_failed_safe',
         ]);
     }
 
-    private function testSendFailureMessage(RuntimeException $exception, string $email): string
+    private function markMailingMessageFailed(MailingMessage $message, RuntimeException $exception): void
     {
-        $message = $exception->getMessage();
-        $lower = Str::lower($message);
-
-        if (str_contains($lower, 'no valid recipients')) {
-            return $message.' Attempted recipient: '.$email.'. Sender: '.$this->providerFromEmail().'. Check Unisender suppression/blocklist, free tier checked recipients/domains, recipient validity, and confirmed sender domain.';
-        }
-
-        if (str_contains($lower, 'message size limits') || str_contains($lower, 'exceeded google')) {
-            return $message.' Rendered email was rejected by recipient server because it is too large. Remove embedded/base64 media, video, or reduce offer content.';
-        }
-
-        return $message;
+        $providerException = $exception instanceof MailProviderException ? $exception : null;
+        $ambiguous = $providerException?->ambiguousAcceptance === true;
+        $message->update([
+            'status' => $ambiguous ? 'operator_review' : 'failed',
+            'response_hash' => $providerException?->responseHash,
+            'http_status_category' => $providerException?->httpStatusCategory,
+            'safe_request_id' => $providerException?->safeRequestId,
+            'safe_error_code' => $this->safeErrorCode($exception),
+            'safe_summary' => $ambiguous ? 'operator_review_no_resend' : 'provider_send_failed_safe',
+            'ambiguous_acceptance_at' => $ambiguous ? now() : null,
+        ]);
     }
 
     private function formatBytes(int $bytes): string
@@ -716,12 +748,17 @@ class MailingCampaignService
         return in_array($domain, ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'mail.ru', 'yandex.ru', 'ya.ru', 'rambler.ru'], true);
     }
 
-    private function isTrackingDomainConfigurationError(RuntimeException $exception): bool
+    private function safeErrorCode(RuntimeException $exception): string
     {
-        $message = Str::lower($exception->getMessage());
+        return $exception instanceof MailProviderException
+            ? $exception->safeCode->value
+            : MailProviderSafeErrorCode::ProcessingFailedSafe->value;
+    }
 
-        return str_contains($message, 'tracking domain')
-            || str_contains($message, 'custom backend domain');
+    private function isTrackingConfigurationRejection(RuntimeException $exception): bool
+    {
+        return $exception instanceof MailProviderException
+            && $exception->safeDetailCode === 'tracking_configuration_required';
     }
 
     private function campaign(MailingCampaign|int $campaign): MailingCampaign

@@ -2,6 +2,30 @@
 
 use App\Http\Controllers\API\AiPriceLists\PriceListImportController as AiPriceListImportController;
 use App\Http\Controllers\API\AiPriceLists\PriceListItemController as AiPriceListItemController;
+use App\Http\Controllers\API\AiSales\AiAgentDefinitionController as AiSalesAgentDefinitionController;
+use App\Http\Controllers\API\AiSales\AiAgentRunController as AiSalesAgentRunController;
+use App\Http\Controllers\API\AiSales\AiControlPlaneController as AiSalesControlPlaneController;
+use App\Http\Controllers\API\AiSales\AiToolingDiagnosticsController as AiSalesToolingDiagnosticsController;
+use App\Http\Controllers\API\AiSales\ClientAcquisitionCampaignController as AiSalesClientAcquisitionCampaignController;
+use App\Http\Controllers\API\AiSales\CommunicationSuppressionController as AiSalesCommunicationSuppressionController;
+use App\Http\Controllers\API\AiSales\EntityCandidateProposalController as AiSalesEntityCandidateProposalController;
+use App\Http\Controllers\API\AiSales\OutreachDispatchController as AiSalesOutreachDispatchController;
+use App\Http\Controllers\API\AiSales\OutreachReplyController as AiSalesOutreachReplyController;
+use App\Http\Controllers\API\AiSales\ProspectingCandidateController as AiSalesProspectingCandidateController;
+use App\Http\Controllers\API\AiSales\ProspectingCatalogController as AiSalesProspectingCatalogController;
+use App\Http\Controllers\API\AiSales\ProspectingScoringController as AiSalesProspectingScoringController;
+use App\Http\Controllers\API\AiSales\ProspectingSearchDiscoveryController as AiSalesProspectingSearchDiscoveryController;
+use App\Http\Controllers\API\AiSales\ProspectingSearchJobController as AiSalesProspectingSearchJobController;
+use App\Http\Controllers\API\AiSales\UnitAliasController as AiSalesUnitAliasController;
+use App\Http\Controllers\API\AiSales\UnitBusinessContextController as AiSalesUnitBusinessContextController;
+use App\Http\Controllers\API\AiSales\UnitDossierController as AiSalesUnitDossierController;
+use App\Http\Controllers\API\AiSales\UnitGoodMatchController as AiSalesUnitGoodMatchController;
+use App\Http\Controllers\API\AiSales\UnitObservationController as AiSalesUnitObservationController;
+use App\Http\Controllers\API\AiSales\UnitOutreachController as AiSalesUnitOutreachController;
+use App\Http\Controllers\API\AiSales\UnitProductMatchController as AiSalesUnitProductMatchController;
+use App\Http\Controllers\API\AiSales\UnitProspectingDossierController as AiSalesUnitProspectingDossierController;
+use App\Http\Controllers\API\AiSales\UnitRoleController as AiSalesUnitRoleController;
+use App\Http\Controllers\API\AiSales\UnitSourceController as AiSalesUnitSourceController;
 use App\Http\Controllers\API\BeelinePbxController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
@@ -98,6 +122,7 @@ use App\Http\Controllers\API\TaxiShiftController;
 use App\Http\Controllers\API\TelephoneController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
+use App\Http\Controllers\API\UnitEmailController;
 use App\Http\Controllers\API\UnitFileController;
 use App\Http\Controllers\API\UnitMailController;
 use App\Http\Controllers\API\UnitRelationController;
@@ -113,7 +138,6 @@ use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
-use App\Http\Controllers\MailController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnforceAiPriceListAuthorization;
 use Illuminate\Http\Request;
@@ -122,6 +146,146 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::prefix('ai-sales/units/{unit}')
+    ->name('api.ai-sales.units.')
+    ->middleware(['auth:sanctum', 'verified', 'throttle:60,1'])
+    ->group(function (): void {
+        Route::get('/dossier', AiSalesUnitDossierController::class)->name('dossier.show');
+
+        Route::post('/roles', [AiSalesUnitRoleController::class, 'store'])->name('roles.store');
+        Route::delete('/roles/{marketRole}', [AiSalesUnitRoleController::class, 'destroy'])->name('roles.destroy');
+
+        Route::post('/contexts', [AiSalesUnitBusinessContextController::class, 'store'])->name('contexts.store');
+        Route::patch('/contexts/{context}', [AiSalesUnitBusinessContextController::class, 'update'])->name('contexts.update');
+
+        Route::post('/sources', [AiSalesUnitSourceController::class, 'store'])->name('sources.store');
+        Route::post('/aliases', [AiSalesUnitAliasController::class, 'store'])->name('aliases.store');
+        Route::post('/observations', [AiSalesUnitObservationController::class, 'store'])->name('observations.store');
+        Route::post('/observations/{observation}/review', [AiSalesUnitObservationController::class, 'review'])->name('observations.review');
+        Route::post('/observations/{observation}/promote', [AiSalesUnitObservationController::class, 'promote'])->name('observations.promote');
+
+        Route::post('/entity-proposals', [AiSalesEntityCandidateProposalController::class, 'store'])->name('entity-proposals.store');
+        Route::get('/prospecting-dossier', AiSalesUnitProspectingDossierController::class)->name('prospecting-dossier.show');
+        Route::get('/outreach', [AiSalesUnitOutreachController::class, 'index'])->name('outreach.index');
+        Route::post('/outreach/drafts', [AiSalesUnitOutreachController::class, 'storeDraft'])->name('outreach.drafts.store');
+        Route::post('/outreach/drafts/{outreachDraft}/generate', [AiSalesUnitOutreachController::class, 'generate'])->name('outreach.drafts.generate');
+        Route::post('/outreach/drafts/{outreachDraft}/revisions', [AiSalesUnitOutreachController::class, 'revise'])->name('outreach.drafts.revisions.store');
+        Route::post('/outreach/drafts/{outreachDraft}/reviews', [AiSalesUnitOutreachController::class, 'review'])->name('outreach.drafts.reviews.store');
+        Route::post('/outreach/drafts/{outreachDraft}/eligibility-preview', [AiSalesUnitOutreachController::class, 'eligibility'])->name('outreach.drafts.eligibility');
+        Route::post('/outreach/permissions', [AiSalesUnitOutreachController::class, 'storePermission'])->name('outreach.permissions.store');
+        Route::post('/outreach/permissions/{communicationPermission}/review', [AiSalesUnitOutreachController::class, 'reviewPermission'])->name('outreach.permissions.review');
+        Route::post('/outreach/permissions/{communicationPermission}/revoke', [AiSalesUnitOutreachController::class, 'revokePermission'])->name('outreach.permissions.revoke');
+        Route::post('/outreach/suppressions', [AiSalesCommunicationSuppressionController::class, 'store'])->name('outreach.suppressions.store');
+        Route::post('/outreach/suppressions/{communicationSuppression}/clear', [AiSalesCommunicationSuppressionController::class, 'clear'])->name('outreach.suppressions.clear');
+        Route::get('/outreach/drafts/{outreachDraft}/dispatch-eligibility', [AiSalesOutreachDispatchController::class, 'eligibility'])
+            ->name('outreach.dispatch-eligibility.show');
+        Route::post('/outreach/drafts/{outreachDraft}/dispatches', [AiSalesOutreachDispatchController::class, 'store'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.store');
+        Route::post('/outreach/dispatches/{outreachDispatch}/queue', [AiSalesOutreachDispatchController::class, 'queue'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.queue');
+        Route::post('/outreach/dispatches/{outreachDispatch}/cancel', [AiSalesOutreachDispatchController::class, 'cancel'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.cancel');
+        Route::get('/outreach/dispatches/{outreachDispatch}', [AiSalesOutreachDispatchController::class, 'show'])
+            ->name('outreach.dispatches.show');
+        Route::get('/outreach/dispatches/{outreachDispatch}/events', [AiSalesOutreachDispatchController::class, 'events'])
+            ->name('outreach.dispatches.events');
+        Route::get('/outreach/dispatches/{outreachDispatch}/reply', [AiSalesOutreachDispatchController::class, 'reply'])
+            ->name('outreach.dispatches.reply');
+        Route::post('/outreach/replies/{outreachReply}/review', [AiSalesOutreachReplyController::class, 'review'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.replies.review');
+        Route::post('/outreach/replies/{outreachReply}/fake-triage', [AiSalesOutreachReplyController::class, 'triage'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.replies.triage');
+        Route::post('/outreach/dispatches/{outreachDispatch}/follow-up-plan', [AiSalesOutreachDispatchController::class, 'followUpPlan'])
+            ->middleware('throttle:ai-sales-outreach-dispatch')->name('outreach.dispatches.follow-up-plan');
+    });
+
+Route::prefix('ai-sales')
+    ->name('api.ai-sales.')
+    ->middleware(['auth:sanctum', 'verified', 'throttle:ai-sales'])
+    ->group(function (): void {
+        Route::get('/control-plane', [AiSalesControlPlaneController::class, 'show'])->name('control-plane.show');
+        Route::get('/tooling', AiSalesToolingDiagnosticsController::class)->name('tooling.show');
+        Route::patch('/control-plane/kill-switches/{scope}', [AiSalesControlPlaneController::class, 'updateKillSwitch'])
+            ->whereIn('scope', ['global', 'local_ru', 'external_sanitized'])
+            ->name('control-plane.kill-switches.update');
+        Route::get('/agent-definitions', [AiSalesAgentDefinitionController::class, 'index'])->name('agent-definitions.index');
+        Route::get('/runs', [AiSalesAgentRunController::class, 'index'])->name('runs.index');
+        Route::post('/runs', [AiSalesAgentRunController::class, 'store'])->name('runs.store');
+        Route::get('/runs/{aiAgentRun}', [AiSalesAgentRunController::class, 'show'])->name('runs.show');
+        Route::post('/runs/{aiAgentRun}/cancel', [AiSalesAgentRunController::class, 'cancel'])->name('runs.cancel');
+
+        Route::prefix('campaigns')->name('campaigns.')->middleware('throttle:ai-sales-campaigns')->group(function (): void {
+            Route::get('/', [AiSalesClientAcquisitionCampaignController::class, 'index'])->name('index');
+            Route::post('/', [AiSalesClientAcquisitionCampaignController::class, 'store'])->name('store');
+            Route::get('/{clientAcquisitionCampaign}', [AiSalesClientAcquisitionCampaignController::class, 'show'])->name('show');
+            Route::patch('/{clientAcquisitionCampaign}', [AiSalesClientAcquisitionCampaignController::class, 'update'])->name('update');
+            Route::post('/{clientAcquisitionCampaign}/submit', [AiSalesClientAcquisitionCampaignController::class, 'submit'])->name('submit');
+            Route::post('/{clientAcquisitionCampaign}/approve', [AiSalesClientAcquisitionCampaignController::class, 'approve'])->name('approve');
+            Route::post('/{clientAcquisitionCampaign}/pause', [AiSalesClientAcquisitionCampaignController::class, 'pause'])->name('pause');
+            Route::post('/{clientAcquisitionCampaign}/resume', [AiSalesClientAcquisitionCampaignController::class, 'resume'])->name('resume');
+            Route::post('/{clientAcquisitionCampaign}/cancel', [AiSalesClientAcquisitionCampaignController::class, 'cancel'])->name('cancel');
+            Route::post('/{clientAcquisitionCampaign}/manual-run', [AiSalesClientAcquisitionCampaignController::class, 'run'])->name('run');
+            Route::get('/{clientAcquisitionCampaign}/progress', [AiSalesClientAcquisitionCampaignController::class, 'progress'])->name('progress');
+            Route::get('/{clientAcquisitionCampaign}/review-queue', [AiSalesClientAcquisitionCampaignController::class, 'reviewQueue'])->name('review-queue');
+        });
+
+        Route::get('/prospecting/jobs', [AiSalesProspectingSearchJobController::class, 'index'])->name('prospecting.jobs.index');
+        Route::get('/prospecting/catalog/products', [AiSalesProspectingCatalogController::class, 'products'])->name('prospecting.catalog.products');
+        Route::get('/prospecting/catalog/countries', [AiSalesProspectingCatalogController::class, 'countries'])->name('prospecting.catalog.countries');
+        Route::get('/prospecting/catalog/regions', [AiSalesProspectingCatalogController::class, 'regions'])->name('prospecting.catalog.regions');
+        Route::get('/prospecting/catalog/cities', [AiSalesProspectingCatalogController::class, 'cities'])->name('prospecting.catalog.cities');
+        Route::get('/prospecting/catalog/segments', [AiSalesProspectingCatalogController::class, 'segments'])->name('prospecting.catalog.segments');
+        Route::get('/prospecting/catalog/products/{productId}/goods', [AiSalesProspectingCatalogController::class, 'goods'])
+            ->whereNumber('productId')->name('prospecting.catalog.product-goods');
+        Route::post('/prospecting/jobs', [AiSalesProspectingSearchJobController::class, 'store'])->name('prospecting.jobs.store');
+        Route::get('/prospecting/jobs/{prospectingSearchJob}', [AiSalesProspectingSearchJobController::class, 'show'])->name('prospecting.jobs.show');
+        Route::patch('/prospecting/jobs/{prospectingSearchJob}', [AiSalesProspectingSearchJobController::class, 'update'])->name('prospecting.jobs.update');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/submit', [AiSalesProspectingSearchJobController::class, 'submit'])->name('prospecting.jobs.submit');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/approve', [AiSalesProspectingSearchJobController::class, 'approve'])->name('prospecting.jobs.approve');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/cancel', [AiSalesProspectingSearchJobController::class, 'cancel'])->name('prospecting.jobs.cancel');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/archive', [AiSalesProspectingSearchJobController::class, 'archive'])->name('prospecting.jobs.archive');
+        Route::get('/prospecting/search/providers', [AiSalesProspectingSearchDiscoveryController::class, 'providers'])->name('prospecting.search.providers');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan', [AiSalesProspectingSearchDiscoveryController::class, 'plan'])->name('prospecting.search.plan');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan/rebuild', [AiSalesProspectingSearchDiscoveryController::class, 'rebuildPlan'])->name('prospecting.search.plan.rebuild');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-plan/approve', [AiSalesProspectingSearchDiscoveryController::class, 'approvePlan'])->name('prospecting.search.plan.approve');
+        Route::post('/prospecting/jobs/{prospectingSearchJob}/search-execute', [AiSalesProspectingSearchDiscoveryController::class, 'execute'])->name('prospecting.search.execute');
+        Route::get('/prospecting/jobs/{prospectingSearchJob}/search', [AiSalesProspectingSearchDiscoveryController::class, 'index'])->name('prospecting.search.index');
+        Route::post('/prospecting/search-results/{prospectingSearchResult}/fetch', [AiSalesProspectingSearchDiscoveryController::class, 'fetch'])->name('prospecting.search-results.fetch');
+        Route::post('/prospecting/search-results/{prospectingSearchResult}/research', [AiSalesProspectingSearchDiscoveryController::class, 'research'])->name('prospecting.search-results.research');
+        Route::post('/prospecting/search-results/{prospectingSearchResult}/ingest-candidate', [AiSalesProspectingSearchDiscoveryController::class, 'ingestCandidate'])->name('prospecting.search-results.ingest-candidate');
+
+        Route::get('/prospecting/candidates', [AiSalesProspectingCandidateController::class, 'index'])->name('prospecting.candidates.index');
+        Route::get('/prospecting/candidates/{prospectingCandidate}', [AiSalesProspectingCandidateController::class, 'show'])->name('prospecting.candidates.show');
+        Route::post('/prospecting/candidates/{prospectingCandidate}/evaluate', [AiSalesProspectingCandidateController::class, 'evaluate'])->name('prospecting.candidates.evaluate');
+        Route::post('/prospecting/candidates/{prospectingCandidate}/resolve-existing', [AiSalesProspectingCandidateController::class, 'resolveExisting'])->name('prospecting.candidates.resolve-existing');
+        Route::post('/prospecting/candidates/{prospectingCandidate}/create-unit', [AiSalesProspectingCandidateController::class, 'createUnit'])->name('prospecting.candidates.create-unit');
+        Route::post('/prospecting/candidates/{prospectingCandidate}/reject', [AiSalesProspectingCandidateController::class, 'reject'])->name('prospecting.candidates.reject');
+        Route::post('/prospecting/good-matches/{unitGoodMatch}/review', [AiSalesUnitGoodMatchController::class, 'review'])->name('prospecting.good-matches.review');
+        Route::post('/prospecting/product-matches/{unitProductMatch}/review', [AiSalesUnitProductMatchController::class, 'review'])->name('prospecting.product-matches.review');
+
+        Route::get('/find-buyers/launch-context', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'launchContext'])->name('find-buyers.launch-context');
+        Route::get('/find-buyers/geography', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'geography'])->name('find-buyers.geography');
+        Route::get('/find-buyers/dashboard', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'dashboard'])->name('find-buyers.dashboard');
+        Route::post('/find-buyers/drafts', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'store'])->name('find-buyers.drafts.store');
+        Route::patch('/find-buyers/drafts/{prospectingSearchJob}', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'update'])->name('find-buyers.drafts.update');
+        Route::post('/find-buyers/drafts/{prospectingSearchJob}/plan', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'plan'])->name('find-buyers.drafts.plan');
+        Route::post('/find-buyers/drafts/{prospectingSearchJob}/submit', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'submit'])->name('find-buyers.drafts.submit');
+        Route::post('/find-buyers/jobs/{prospectingSearchJob}/cancel', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'cancel'])->name('find-buyers.jobs.cancel');
+        Route::get('/find-buyers/jobs/{prospectingSearchJob}/progress', [\App\Http\Controllers\API\AiSales\FindBuyersController::class, 'progress'])->name('find-buyers.jobs.progress');
+
+        Route::get('/scoring/definitions', [AiSalesProspectingScoringController::class, 'definitions'])->name('scoring.definitions');
+        Route::get('/scoring/units/{unit}/contexts/{context}', [AiSalesProspectingScoringController::class, 'scores'])->name('scoring.context.scores');
+        Route::post('/scoring/product-matches/{unitProductMatch}/recalculate', [AiSalesProspectingScoringController::class, 'recalculateProduct'])->name('scoring.product.recalculate');
+        Route::post('/scoring/good-matches/{unitGoodMatch}/recalculate', [AiSalesProspectingScoringController::class, 'recalculateGood'])->name('scoring.good.recalculate');
+        Route::post('/scoring/contexts/{context}/priority/recalculate', [AiSalesProspectingScoringController::class, 'recalculatePriority'])->name('scoring.priority.recalculate');
+        Route::post('/scoring/product-relevance-snapshots/{snapshot}/review', [AiSalesProspectingScoringController::class, 'reviewProduct'])->name('scoring.product.review');
+        Route::post('/scoring/good-fit-snapshots/{snapshot}/review', [AiSalesProspectingScoringController::class, 'reviewGood'])->name('scoring.good.review');
+        Route::post('/scoring/prospect-priority-snapshots/{snapshot}/review', [AiSalesProspectingScoringController::class, 'reviewPriority'])->name('scoring.priority.review');
+        Route::post('/scoring/product-relevance-snapshots/{snapshot}/override', [AiSalesProspectingScoringController::class, 'overrideProduct'])->name('scoring.product.override');
+        Route::post('/scoring/good-fit-snapshots/{snapshot}/override', [AiSalesProspectingScoringController::class, 'overrideGood'])->name('scoring.good.override');
+        Route::post('/scoring/prospect-priority-snapshots/{snapshot}/override', [AiSalesProspectingScoringController::class, 'overridePriority'])->name('scoring.priority.override');
+    });
 
 Route::prefix('ai/price-lists')
     ->name('api.ai.price-lists.')
@@ -229,6 +393,7 @@ Route::apiResource('mailboxes', MailboxController::class)
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
     ->name('mail-messages.folders');
 Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
+    ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
     ->name('mail-messages.send');
 Route::get('mail-messages', [MailMessageController::class, 'index'])
     ->name('mail-messages.index');
@@ -393,7 +558,7 @@ Route::patch('goods/{good}/publish', [GoodController::class, 'togglePublish'])
  */
 Route::prefix('telephones')->group(function () {
     Route::get('/meta', [TelephoneController::class, 'meta']);
-    Route::get('/', [TelephoneController::class, 'index']);
+    Route::get('/', [TelephoneController::class, 'index'])->name('telephones.index');
     Route::post('/', [TelephoneController::class, 'store']);
     Route::get('/{telephone}', [TelephoneController::class, 'show']);
     Route::put('/{telephone}', [TelephoneController::class, 'update']);
@@ -439,6 +604,14 @@ Route::prefix('max')
 Route::prefix('units/{unit}')->group(function () {
     Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
 
+    Route::get('/emails/options', [UnitEmailController::class, 'options'])
+        ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:60,1'])
+        ->name('api.units.emails.options');
+
+    Route::post('/emails', [UnitEmailController::class, 'store'])
+        ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:30,1'])
+        ->name('api.units.emails.store');
+
     Route::post('/uris', [UnitRelationController::class, 'attachUri'])->name('api.units.uris.attach');
     Route::delete('/uris/{uri}', [UnitRelationController::class, 'detachUri'])->name('api.units.uris.detach');
 
@@ -480,6 +653,7 @@ Route::prefix('units/{unit}')->group(function () {
         ->name('api.units.mail-messages.index');
 
     Route::post('/mail/send', [UnitMailController::class, 'send'])
+        ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
         ->name('api.units.mail.send');
 });
 
@@ -705,14 +879,6 @@ Route::apiResource('leads', LeadController::class)
 //  E N D  T E L E P H O N Y
 
 /*
- * -----------------------------
- *       M A I L  S E N D
- * -----------------------------
- */
-Route::post('/mail', [MailController::class, 'sendMail'])
-    ->name('api.mail');
-
-/*
  * ------------------
  *  T E L E G R A M
  * __________________
@@ -919,11 +1085,13 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
  * ---------------------------
  */
 
-Route::prefix('products/{product}')->group(function () {
-    Route::post('/yandex-search', [ProductSearchController::class, 'store']);
-    Route::get('/yandex-search/latest', [ProductSearchController::class, 'latest']);
-    Route::get('/yandex-search/{searchRequest}', [ProductSearchController::class, 'show']);
-});
+Route::prefix('products/{product}')
+    ->middleware(['auth:sanctum', 'verified', 'throttle:30,1'])
+    ->group(function () {
+        Route::post('/yandex-search', [ProductSearchController::class, 'store']);
+        Route::get('/yandex-search/latest', [ProductSearchController::class, 'latest']);
+        Route::get('/yandex-search/{searchRequest}', [ProductSearchController::class, 'show']);
+    });
 
 Route::prefix('logistics')
     ->name('api.logistics.')

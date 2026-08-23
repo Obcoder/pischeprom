@@ -119,6 +119,74 @@ class Unit extends Model
             ->using(entity_unit::class);
     }
 
+    public function marketRoles(): BelongsToMany
+    {
+        return $this->belongsToMany(MarketRole::class)
+            ->withPivot(['source', 'assigned_by', 'removed_by', 'archived_at'])
+            ->wherePivotNull('archived_at')
+            ->withTimestamps();
+    }
+
+    public function marketRoleAssignments(): HasMany
+    {
+        return $this->hasMany(UnitMarketRole::class);
+    }
+
+    public function businessContexts(): HasMany
+    {
+        return $this->hasMany(UnitBusinessContext::class);
+    }
+
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(UnitAlias::class);
+    }
+
+    public function sources(): HasMany
+    {
+        return $this->hasMany(UnitSource::class);
+    }
+
+    public function observations(): HasMany
+    {
+        return $this->hasMany(UnitObservation::class);
+    }
+
+    public function contactContextLinks(): HasMany
+    {
+        return $this->hasMany(UnitContactContextLink::class);
+    }
+
+    public function entityCandidateProposals(): HasMany
+    {
+        return $this->hasMany(EntityCandidateProposal::class);
+    }
+
+    public function dossierAuditEvents(): HasMany
+    {
+        return $this->hasMany(UnitDossierAuditEvent::class);
+    }
+
+    public function aiAgentRuns(): HasMany
+    {
+        return $this->hasMany(AiAgentRun::class);
+    }
+
+    public function goodMatches(): HasMany
+    {
+        return $this->hasMany(UnitGoodMatch::class);
+    }
+
+    public function productMatches(): HasMany
+    {
+        return $this->hasMany(UnitProductMatch::class);
+    }
+
+    public function resolvedProspectingCandidates(): HasMany
+    {
+        return $this->hasMany(ProspectingCandidate::class, 'resolved_unit_id');
+    }
+
     public function fields(): BelongsToMany
     {
         return $this->belongsToMany(Field::class);

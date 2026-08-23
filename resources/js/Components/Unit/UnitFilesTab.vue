@@ -192,7 +192,6 @@ watch(() => props.unitId, (value, oldValue) => {
                         label="Folder name"
                         variant="solo-filled"
                         density="compact"
-                        autofocus
                         @keyup.enter="submitFolder"
                     />
                     <div class="text-caption text-medium-emphasis">
@@ -213,7 +212,7 @@ watch(() => props.unitId, (value, oldValue) => {
             <v-card rounded="xl">
                 <v-card-title>Rename</v-card-title>
                 <v-card-text>
-                    <v-text-field v-model="newName" label="New name" variant="outlined" density="compact" autofocus />
+                    <v-text-field v-model="newName" label="New name" variant="outlined" density="compact" />
                 </v-card-text>
                 <v-card-actions class="justify-end">
                     <v-btn variant="text" @click="renameDialog = false">Cancel</v-btn>

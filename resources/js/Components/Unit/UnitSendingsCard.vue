@@ -143,6 +143,8 @@ function openNewMessage() {
     composerDialog.value = true
 }
 
+defineExpose({ openNewMessage })
+
 async function replyToTableMessage(message) {
     await readMessage(message)
     replyToMessage(selectedMessage.value || message)

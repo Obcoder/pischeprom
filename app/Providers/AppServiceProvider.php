@@ -11,6 +11,15 @@ use App\Domain\AiPriceLists\Providers\YandexAiStudioProvider;
 use App\Domain\AiPriceLists\Providers\YandexVisionOcrProvider;
 use App\Domain\AiPriceLists\Services\ClamAvFileScanner;
 use App\Domain\AiPriceLists\Services\NullFileScanner;
+use App\Domain\AiSales\Campaigns\Contracts\ClientAcquisitionCampaignStageProcessorInterface;
+use App\Domain\AiSales\Campaigns\DefaultClientAcquisitionCampaignStageProcessor;
+use App\Domain\AiSales\Contracts\EntityCreateLinkGuard;
+use App\Domain\AiSales\Contracts\GitRepositoryStateInspectorInterface;
+use App\Domain\AiSales\Providers\AiProviderRegistry;
+use App\Domain\AiSales\Search\SearchProviderRegistry;
+use App\Domain\AiSales\Services\DeterministicEntityCreateLinkGuard;
+use App\Domain\AiSales\Tools\AiToolRegistry;
+use App\Domain\AiSales\Workflows\AiWorkflowRegistry;
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Banking\Contracts\BankProviderInterface;
 use App\Domain\Banking\Events\BankConnectionRequiresAttention;
@@ -19,20 +28,62 @@ use App\Domain\Banking\Events\BankTransactionChanged;
 use App\Domain\Banking\Events\ReceivablePaymentStatusChanged;
 use App\Domain\Banking\Services\BankNotificationService;
 use App\Domain\Banking\Services\BankProviderManager;
+use App\Infrastructure\AiSales\Probes\RealGitRepositoryStateInspector;
+use App\Infrastructure\AiSales\Providers\FakeExternalSanitizedAiProvider;
+use App\Infrastructure\AiSales\Providers\FakeLocalRuAiProvider;
+use App\Infrastructure\AiSales\Providers\TimewebExternalSanitizedProvider;
+use App\Infrastructure\AiSales\Providers\TimewebLocalRuProvider;
+use App\Infrastructure\AiSales\Search\ExistingYandexSearchProviderAdapter;
+use App\Models\AiAgentDefinition;
+use App\Models\AiAgentRun;
 use App\Models\BankAuditEvent;
 use App\Models\BankConnection;
 use App\Models\BankPaymentOrderDraft;
 use App\Models\BankTransaction;
+use App\Models\ClientAcquisitionCampaign;
+use App\Models\CommunicationPermission;
+use App\Models\CommunicationSuppression;
+use App\Models\EntityCandidateProposal;
 use App\Models\GoodStockMovement;
 use App\Models\LogisticsCity;
 use App\Models\LogisticsCityDistance;
 use App\Models\LogisticsTrip;
 use App\Models\LogisticsTripExpense;
 use App\Models\MailMessageAttachment;
+use App\Models\OutreachDispatch;
+use App\Models\OutreachDraft;
+use App\Models\OutreachReplyLink;
 use App\Models\PriceListImport;
+use App\Models\ProspectingCandidate;
+use App\Models\ProspectingSearchJob;
+use App\Models\Unit;
+use App\Models\UnitBusinessContext;
+use App\Models\UnitGoodFitSnapshot;
+use App\Models\UnitGoodMatch;
+use App\Models\UnitObservation;
+use App\Models\UnitProductMatch;
+use App\Models\UnitProductRelevanceSnapshot;
+use App\Models\UnitProspectPrioritySnapshot;
 use App\Models\Vehicle;
 use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
+use App\Policies\AiSales\AiAgentDefinitionPolicy;
+use App\Policies\AiSales\AiAgentRunPolicy;
+use App\Policies\AiSales\ClientAcquisitionCampaignPolicy;
+use App\Policies\AiSales\CommunicationPermissionPolicy;
+use App\Policies\AiSales\CommunicationSuppressionPolicy;
+use App\Policies\AiSales\EntityCandidateProposalPolicy;
+use App\Policies\AiSales\OutreachDispatchPolicy;
+use App\Policies\AiSales\OutreachDraftPolicy;
+use App\Policies\AiSales\OutreachReplyLinkPolicy;
+use App\Policies\AiSales\ProspectingCandidatePolicy;
+use App\Policies\AiSales\ProspectingScoreSnapshotPolicy;
+use App\Policies\AiSales\ProspectingSearchJobPolicy;
+use App\Policies\AiSales\UnitBusinessContextPolicy;
+use App\Policies\AiSales\UnitGoodMatchPolicy;
+use App\Policies\AiSales\UnitObservationPolicy;
+use App\Policies\AiSales\UnitPolicy;
+use App\Policies\AiSales\UnitProductMatchPolicy;
 use App\Policies\BankAuditEventPolicy;
 use App\Policies\BankConnectionPolicy;
 use App\Policies\BankPaymentOrderDraftPolicy;
@@ -63,6 +114,29 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AvitoApiCatalog::class);
+        $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
+        $this->app->bind(GitRepositoryStateInspectorInterface::class, RealGitRepositoryStateInspector::class);
+        $this->app->bind(ClientAcquisitionCampaignStageProcessorInterface::class, DefaultClientAcquisitionCampaignStageProcessor::class);
+        $this->app->singleton(AiToolRegistry::class);
+        $this->app->singleton(AiWorkflowRegistry::class);
+        $this->app->singleton(SearchProviderRegistry::class, function ($app): SearchProviderRegistry {
+            return new SearchProviderRegistry([
+                $app->make(ExistingYandexSearchProviderAdapter::class),
+            ]);
+        });
+        $this->app->singleton(AiProviderRegistry::class, function ($app): AiProviderRegistry {
+            $registry = new AiProviderRegistry;
+
+            if (config('ai-sales.transport_mode') === 'timeweb_synthetic_only') {
+                $registry->register($app->make(TimewebLocalRuProvider::class));
+                $registry->register($app->make(TimewebExternalSanitizedProvider::class));
+            } else {
+                $registry->register($app->make(FakeLocalRuAiProvider::class));
+                $registry->register($app->make(FakeExternalSanitizedAiProvider::class));
+            }
+
+            return $registry;
+        });
 
         $this->app->bind(FileScannerInterface::class, fn ($app) => match (config('ai-price-lists.scanner')) {
             'clamav' => $app->make(ClamAvFileScanner::class),
@@ -110,6 +184,26 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('price-list-ai', fn () => Limit::perMinute(
             max(1, (int) config('ai-price-lists.ai.requests_per_minute', 30))
         )->by('yandex-price-list-ai'));
+        RateLimiter::for('ai-sales-ui', fn (Request $request) => Limit::perMinute(120)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('ai-sales', function (Request $request): Limit {
+            $actor = (string) ($request->user()?->id ?? $request->ip());
+
+            return $request->isMethod('GET')
+                ? Limit::perMinute(120)->by('read:'.$actor)
+                : Limit::perMinute(30)->by('mutation:'.$actor);
+        });
+        RateLimiter::for('ai-sales-campaigns', function (Request $request): Limit {
+            $actor = (string) ($request->user()?->id ?? $request->ip());
+
+            return $request->isMethod('GET')
+                ? Limit::perMinute(60)->by('read:'.$actor)
+                : Limit::perMinute(20)->by('mutation:'.$actor);
+        });
+        RateLimiter::for('mail-send', fn (Request $request) => Limit::perMinute(5)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('ai-sales-outreach-dispatch', fn (Request $request) => Limit::perMinute(10)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
 
         Gate::before(function ($user, string $ability) {
             if (Str::startsWith($ability, 'ai_price_lists.')) {
@@ -174,13 +268,13 @@ class AppServiceProvider extends ServiceProvider
             }
 
             if (! method_exists($user, 'hasPermissionTo')) {
-                return true;
+                return false;
             }
 
             try {
                 return $user->hasPermissionTo($ability, 'crm') ?: null;
             } catch (Throwable) {
-                return true;
+                return false;
             }
         });
 
@@ -194,6 +288,25 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(LogisticsCity::class, LogisticsCityPolicy::class);
         Gate::policy(LogisticsCityDistance::class, LogisticsCityDistancePolicy::class);
         Gate::policy(PriceListImport::class, PriceListImportPolicy::class);
+        Gate::policy(Unit::class, UnitPolicy::class);
+        Gate::policy(UnitBusinessContext::class, UnitBusinessContextPolicy::class);
+        Gate::policy(UnitObservation::class, UnitObservationPolicy::class);
+        Gate::policy(EntityCandidateProposal::class, EntityCandidateProposalPolicy::class);
+        Gate::policy(AiAgentDefinition::class, AiAgentDefinitionPolicy::class);
+        Gate::policy(AiAgentRun::class, AiAgentRunPolicy::class);
+        Gate::policy(ProspectingSearchJob::class, ProspectingSearchJobPolicy::class);
+        Gate::policy(ProspectingCandidate::class, ProspectingCandidatePolicy::class);
+        Gate::policy(UnitGoodMatch::class, UnitGoodMatchPolicy::class);
+        Gate::policy(UnitProductMatch::class, UnitProductMatchPolicy::class);
+        Gate::policy(UnitProductRelevanceSnapshot::class, ProspectingScoreSnapshotPolicy::class);
+        Gate::policy(UnitGoodFitSnapshot::class, ProspectingScoreSnapshotPolicy::class);
+        Gate::policy(UnitProspectPrioritySnapshot::class, ProspectingScoreSnapshotPolicy::class);
+        Gate::policy(OutreachDraft::class, OutreachDraftPolicy::class);
+        Gate::policy(OutreachDispatch::class, OutreachDispatchPolicy::class);
+        Gate::policy(OutreachReplyLink::class, OutreachReplyLinkPolicy::class);
+        Gate::policy(CommunicationPermission::class, CommunicationPermissionPolicy::class);
+        Gate::policy(CommunicationSuppression::class, CommunicationSuppressionPolicy::class);
+        Gate::policy(ClientAcquisitionCampaign::class, ClientAcquisitionCampaignPolicy::class);
 
         Event::listen(
             ReceivablePaymentStatusChanged::class,

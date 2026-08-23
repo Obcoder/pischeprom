@@ -8,6 +8,7 @@ const MANAGER_PHONE = '79650160001'
 
 const page = usePage()
 const canViewOrders = computed(() => Boolean(page.props.auth?.permissions?.orders?.view))
+const canViewAiSales = computed(() => Boolean(page.props.auth?.permissions?.ai_sales?.view))
 const workingLeads = ref([])
 const workingLeadsTotal = ref(0)
 const loadingWorkingLeads = ref(false)
@@ -664,6 +665,18 @@ onMounted(fetchWorkingLeads)
                 >
                     <v-icon icon="mdi-robot-outline" size="19" />
                     <span class="ameise-nav-link__label">AI · Прайсы</span>
+                </Link>
+
+                <Link
+                    v-if="canViewAiSales"
+                    :href="route('Ameise.ai-sales')"
+                    class="ameise-header-control ameise-nav-link ameise-nav-link--ai-sales"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.ai-sales')) }"
+                    title="AI Sales · поиск покупателей"
+                    aria-label="AI Sales · поиск покупателей"
+                >
+                    <v-icon icon="mdi-account-search-outline" size="19" />
+                    <span class="ameise-nav-link__label">AI Sales</span>
                 </Link>
 
                 <Link

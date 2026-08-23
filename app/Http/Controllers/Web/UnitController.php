@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Domain\AiSales\Services\AiControlPlaneAuthorizationService;
+use App\Domain\AiSales\Services\UnitContextAuthorizationService;
 use App\Http\Controllers\Controller;
 use App\Models\Building;
 use App\Models\BuildingType;
@@ -20,14 +22,19 @@ use App\Models\Telephone;
 use App\Models\Unit;
 use App\Models\Uri;
 use App\Services\Mail\UnansweredOutgoingMailService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class UnitController extends Controller
 {
     public function show(
+        Request $request,
         Unit $unit,
-        UnansweredOutgoingMailService $mailService
+        UnansweredOutgoingMailService $mailService,
+        UnitContextAuthorizationService $aiSalesAuthorization,
+        AiControlPlaneAuthorizationService $aiControlAuthorization,
     ) {
         $unit->load(Unit::detailRelations(true));
         $this->attachConsumptionRequestCounts($unit);
@@ -60,6 +67,22 @@ class UnitController extends Controller
                 'orders' => [
                     'view' => true,
                     'create' => true,
+                ],
+                'unit' => [
+                    'manage_emails' => $request->user()
+                        ? Gate::forUser($request->user())->allows('manageContacts', $unit)
+                        : false,
+                    'send_mail' => $request->user()
+                        ? Gate::forUser($request->user())->allows('sendMail', $unit)
+                        : false,
+                ],
+            ],
+            'aiSales' => [
+                'outreach_enabled' => (bool) config('ai-sales.enabled', false)
+                    && (bool) config('ai-sales.outreach.ui_enabled', false),
+                'capabilities' => [
+                    ...$aiSalesAuthorization->capabilities($request->user(), $unit),
+                    ...$aiControlAuthorization->capabilities($request->user(), $unit),
                 ],
             ],
         ]);

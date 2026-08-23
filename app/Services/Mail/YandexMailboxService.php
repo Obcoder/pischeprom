@@ -3,6 +3,7 @@
 namespace App\Services\Mail;
 
 use App\Domain\AiPriceLists\Services\EmailPriceListIngestionDispatcher;
+use App\Domain\AiSales\Outreach\OutreachReplyCorrelationService;
 use App\Models\Email;
 use App\Models\MailMessage;
 use App\Models\MailMessageAttachment;
@@ -23,6 +24,7 @@ class YandexMailboxService
         private readonly MailboxRegistry $mailboxes,
         private readonly IncomingMailMaxNotificationDispatcher $maxNotifications,
         private readonly EmailPriceListIngestionDispatcher $priceListIngestion,
+        private readonly ?OutreachReplyCorrelationService $outreachReplies = null,
     ) {}
 
     public function mailboxes(): array
@@ -253,6 +255,8 @@ class YandexMailboxService
 
         $mailMessage->fill([
             'message_id' => $messageId,
+            'in_reply_to' => $this->boundedThreadHeader($message, 'in_reply_to'),
+            'references' => $this->boundedThreadHeader($message, 'references', 2_000),
             'direction' => $direction,
             'subject' => $subject,
             'message_date' => $messageDate,
@@ -305,6 +309,21 @@ class YandexMailboxService
         if ($isNewMessage || (! $previouslyHadAttachments && $mailMessage->has_attachments)) {
             $this->priceListIngestion->safeRegister($mailMessage);
         }
+
+        if ($isNewMessage && $direction === 'incoming') {
+            ($this->outreachReplies ?? app(OutreachReplyCorrelationService::class))
+                ->safeCorrelate($mailMessage);
+        }
+    }
+
+    private function boundedThreadHeader(mixed $message, string $name, int $limit = 512): ?string
+    {
+        $value = trim($this->stringValue($this->firstAttributeValue($this->attribute($message, $name))));
+        if ($value === '' || preg_match('/[\r\n]/', $value)) {
+            return null;
+        }
+
+        return mb_substr($value, 0, $limit);
     }
 
     protected function detectDirection(?array $from, ?string $ownAddress = null): string

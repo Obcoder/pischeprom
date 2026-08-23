@@ -88,6 +88,35 @@ class Product extends Model
         return $this->belongsToMany(Good::class);
     }
 
+    public function prospectingSearchJobs(): BelongsToMany
+    {
+        return $this->belongsToMany(ProspectingSearchJob::class, 'prospecting_search_job_products')
+            ->withPivot(['role', 'source_origin'])
+            ->withTimestamps();
+    }
+
+    public function prospectingCandidates(): BelongsToMany
+    {
+        return $this->belongsToMany(ProspectingCandidate::class, 'prospecting_candidate_products')
+            ->withPivot(['source', 'status', 'safe_rationale', 'evidence_reference', 'confidence'])
+            ->withTimestamps();
+    }
+
+    public function clientAcquisitionCampaigns(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ClientAcquisitionCampaign::class,
+            'ai_sales_campaign_products',
+            'product_id',
+            'ai_sales_campaign_id',
+        )->withPivot(['role', 'source_origin'])->withTimestamps();
+    }
+
+    public function unitProductMatches(): HasMany
+    {
+        return $this->hasMany(UnitProductMatch::class);
+    }
+
     public function manufacturers(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class, 'manufacturers', 'product_id', 'unit_id');
@@ -126,15 +155,14 @@ class Product extends Model
                 $q->orWhere($column, 'like', $like);
             }
 
-            $q->orWhereHas('category', fn (Builder $categoryQuery) =>
-                $categoryQuery->where('name', 'like', $like)
+            $q->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', $like)
             );
         });
     }
 
     public function scopeCategory(Builder $query, $categoryId): Builder
     {
-        if (!$categoryId) {
+        if (! $categoryId) {
             return $query;
         }
 

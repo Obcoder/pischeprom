@@ -7,15 +7,16 @@ use App\Models\MailingCampaign;
 use App\Models\MailingCampaignRecipient;
 use App\Models\MailingContact;
 use App\Models\MailingContactSet;
+use App\Models\MailingEvent;
 use App\Models\MailingOfferItem;
 use App\Models\MailingSuppression;
 use App\Models\MailingTemplate;
+use App\Models\User;
 use App\Services\CommercialOffers\MailingCampaignService;
 use App\Services\CommercialOffers\MailingRenderer;
 use App\Services\CommercialOffers\ProductOfferBuilder;
 use App\Services\CommercialOffers\RecipientSetService;
 use App\Services\CommercialOffers\UnisenderGoClient;
-use App\Services\CommercialOffers\UnisenderWebhookPayload;
 use App\Services\CommercialOffers\UnisenderWebhookService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -57,9 +58,23 @@ class CommercialOffersUnisenderTest extends TestCase
         DB::connection()->getPdo();
         $migration = include base_path('database/migrations/2026_06_21_130000_create_commercial_offer_mailings_tables.php');
         $migration->up();
+        DB::statement('create table sendings (id integer primary key autoincrement)');
+        DB::statement('create table mail_messages (id integer primary key autoincrement)');
+        $securityMigration = include base_path('database/migrations/2026_08_17_123000_harden_unisender_provider_persistence.php');
+        $securityMigration->up();
 
         DB::statement('create table regions (id integer primary key autoincrement, name varchar(255) null)');
         DB::statement('create table cities (id integer primary key autoincrement, name varchar(255) not null, region_id integer null)');
+
+        $actor = \Mockery::mock(User::class)->makePartial();
+        $actor->forceFill([
+            'id' => 1,
+            'email' => 'commercial-offers@example.test',
+            'email_verified_at' => now(),
+            'status' => 'active',
+        ]);
+        $actor->shouldReceive('hasPermissionTo')->andReturn(true);
+        $this->actingAs($actor);
     }
 
     public function test_unisender_client_builds_send_payload_and_webhook_auth(): void
@@ -222,8 +237,10 @@ class CommercialOffersUnisenderTest extends TestCase
         app(MailingCampaignService::class)->startSending($campaign);
 
         $this->assertDatabaseHas('mailing_campaign_recipients', ['email' => 'ok@example.test', 'status' => 'accepted', 'unisender_job_id' => 'job-42']);
-        $this->assertDatabaseHas('mailing_campaign_recipients', ['email' => 'bad@example.test', 'status' => 'failed', 'failure_reason' => 'invalid']);
+        $this->assertDatabaseHas('mailing_campaign_recipients', ['email' => 'bad@example.test', 'status' => 'failed', 'safe_error_code' => 'permission_denied']);
+        $this->assertDatabaseHas('mailing_campaign_recipients', ['email' => 'bad@example.test', 'failure_reason' => null]);
         $this->assertDatabaseCount('mailing_messages', 2);
+        $this->assertDatabaseMissing('mailing_messages', ['response_payload' => json_encode(['job_id' => 'job-42'])]);
         Http::assertSent(function ($request) {
             $recipients = $request->data()['message']['recipients'];
 
@@ -277,7 +294,8 @@ class CommercialOffersUnisenderTest extends TestCase
 
         $this->post("/Ameise/commercial-offers/campaigns/{$campaign->id}/send-test", ['email' => ''])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Test email failed: Valid test recipient email is required.');
+            ->assertJsonPath('message', 'Test email failed safely.')
+            ->assertJsonPath('code', 'processing_failed_safe');
     }
 
     public function test_campaign_test_send_does_not_require_contact_set(): void
@@ -346,7 +364,7 @@ class CommercialOffersUnisenderTest extends TestCase
             'email' => 'blocked@example.test',
         ])
             ->assertStatus(422)
-            ->assertJsonFragment(['message' => 'Test email failed: Recipient blocked@example.test is blocked in local suppression list: cause=permanent_unavailable, source=webhook. Remove suppression only if this block is known to be wrong.']);
+            ->assertJsonFragment(['message' => 'Test email failed safely.', 'code' => 'processing_failed_safe']);
 
         Http::assertNothingSent();
     }
@@ -452,7 +470,7 @@ class CommercialOffersUnisenderTest extends TestCase
         });
     }
 
-    public function test_campaign_test_send_retries_without_tracking_when_tracking_domain_is_required(): void
+    public function test_campaign_test_send_retries_without_tracking_on_safe_classified_rejection(): void
     {
         Http::fake([
             '*email/send.json*' => Http::sequence()
@@ -477,6 +495,7 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->assertDatabaseHas('mailing_messages', [
             'email' => 'single@example.test',
             'unisender_job_id' => 'test-job-no-tracking',
+            'response_payload' => null,
         ]);
     }
 
@@ -494,10 +513,9 @@ class CommercialOffersUnisenderTest extends TestCase
             'email' => 'buyer@gmail.com',
         ])
             ->assertStatus(422)
-            ->assertJsonPath(
-                'message',
-                'Test email failed: Unisender free_tier отклонил получателя: можно отправлять только на checked emails/domains в Unisender. Домен получателя: gmail.com. Добавьте email получателя/домен в проверенные в кабинете Unisender, укажите MAILINGS_TEST_RECIPIENT на проверенный адрес или смените тариф.'
-            );
+            ->assertJsonPath('message', 'Test email failed safely.')
+            ->assertJsonPath('code', 'permission_denied')
+            ->assertDontSee('gmail.com');
     }
 
     public function test_campaign_test_send_explains_no_valid_recipients_provider_error(): void
@@ -516,7 +534,8 @@ class CommercialOffersUnisenderTest extends TestCase
         ])
             ->assertStatus(422)
             ->assertJsonFragment([
-                'message' => 'Test email failed: Error ID:test. No valid recipients Attempted recipient: buyer@gmail.com. Sender: com@food-server.ru. Check Unisender suppression/blocklist, free tier checked recipients/domains, recipient validity, and confirmed sender domain.',
+                'message' => 'Test email failed safely.',
+                'code' => 'permission_denied',
             ]);
 
         $this->assertDatabaseHas('mailing_campaign_recipients', [
@@ -528,6 +547,7 @@ class CommercialOffersUnisenderTest extends TestCase
 
     public function test_webhook_updates_open_click_bounce_spam_and_is_idempotent(): void
     {
+        Queue::fake();
         Http::fake(['*suppression/set.json*' => Http::response(['ok' => true])]);
         $campaign = $this->campaign();
         $contact = MailingContact::query()->create(['email' => 'lead@example.test', 'normalized_email' => 'lead@example.test', 'consent_status' => 'confirmed']);
@@ -541,18 +561,21 @@ class CommercialOffersUnisenderTest extends TestCase
         ]);
         $service = app(UnisenderWebhookService::class);
 
-        $service->handlePayload(new UnisenderWebhookPayload([], [$this->event('opened', $recipient, '2026-06-21T10:00:00+00:00')]));
-        $service->handlePayload(new UnisenderWebhookPayload([], [$this->event('opened', $recipient, '2026-06-21T10:00:00+00:00')]));
+        $this->postSignedWebhook([$this->event('opened', $recipient, '2026-06-21T10:00:00+00:00')])->assertOk();
+        $service->processStoredEventIds([(int) MailingEvent::query()->latest('id')->value('id')]);
+        $this->postSignedWebhook([$this->event('opened', $recipient, '2026-06-21T10:00:00+00:00')])->assertOk();
         $recipient->refresh();
         $this->assertSame(1, $recipient->open_count);
         $this->assertDatabaseCount('mailing_events', 1);
 
-        $service->handlePayload(new UnisenderWebhookPayload([], [$this->event('clicked', $recipient, '2026-06-21T10:01:00+00:00', 'https://pischeprom.test/g/pump')]));
+        $this->postSignedWebhook([$this->event('clicked', $recipient, '2026-06-21T10:01:00+00:00', 'https://pischeprom.test/g/pump')], 'click')->assertOk();
+        $service->processStoredEventIds([(int) MailingEvent::query()->latest('id')->value('id')]);
         $recipient->refresh();
         $this->assertSame(1, $recipient->click_count);
-        $this->assertSame('https://pischeprom.test/g/pump', $recipient->last_clicked_url);
+        $this->assertNull($recipient->last_clicked_url);
 
-        $service->handlePayload(new UnisenderWebhookPayload([], [$this->event('hard_bounced', $recipient, '2026-06-21T10:02:00+00:00')]));
+        $this->postSignedWebhook([$this->event('hard_bounced', $recipient, '2026-06-21T10:02:00+00:00')], 'bounce')->assertOk();
+        $service->processStoredEventIds([(int) MailingEvent::query()->latest('id')->value('id')]);
         $this->assertDatabaseHas('mailing_contacts', ['email' => 'lead@example.test', 'do_not_email' => 1]);
         $this->assertDatabaseHas('mailing_suppression_list', ['email' => 'lead@example.test', 'cause' => 'permanent_unavailable']);
     }
@@ -571,11 +594,11 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->assertDatabaseHas('mailing_suppression_list', ['email' => 'optout@example.test', 'cause' => 'unsubscribed']);
     }
 
-    public function test_ameise_commercial_offers_page_does_not_redirect_guest_to_login(): void
+    public function test_ameise_commercial_offers_page_rejects_guest(): void
     {
-        $this->get('/Ameise/commercial-offers')
-            ->assertOk()
-            ->assertHeaderMissing('Location');
+        $this->app['auth']->forgetGuards();
+
+        $this->getJson('/Ameise/commercial-offers')->assertUnauthorized();
     }
 
     public function test_unisender_test_api_reports_missing_key_without_server_error(): void
@@ -599,7 +622,11 @@ class CommercialOffersUnisenderTest extends TestCase
         $this->post('/Ameise/commercial-offers/settings/test-api')
             ->assertStatus(422)
             ->assertJsonPath('status', 'error')
-            ->assertJsonFragment(['message' => "Unisender Go rejected API key/account: Error ID:CC8F8330-6DA8-11F1-BDEC-6E52618EE1EB. User with id '8252570' not found.. Check that UNISENDER_GO_API_KEY belongs to Unisender Go Transactional API, the correct project/account is active, the key has no extra spaces, and UNISENDER_GO_API_BASE uses your Go host, for example https://go1.unisender.ru/en/transactional/api/v1. Current API base: https://go1.unisender.test/en/transactional/api/v1. After env changes run php artisan config:clear."]);
+            ->assertJsonFragment([
+                'message' => 'Unisender Go authentication failed. Verify the account-scoped key and endpoint configuration.',
+                'code' => 'authentication_failed',
+            ])
+            ->assertDontSee('CC8F8330');
     }
 
     public function test_recipients_can_be_imported_from_existing_emails_table(): void
@@ -1109,6 +1136,24 @@ class CommercialOffersUnisenderTest extends TestCase
                 'delivery_info' => ['status' => $status, 'destination_response' => 'ok'],
             ],
         ];
+    }
+
+    private function postSignedWebhook(array $events, string $requestMarker = 'default'): \Illuminate\Testing\TestResponse
+    {
+        $payload = [
+            'events_by_user' => [[
+                'events' => $events,
+                'request_marker' => $requestMarker,
+            ]],
+            'auth' => 'signature-placeholder',
+        ];
+        $template = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $bodyForHash = str_replace('"signature-placeholder"', '"test-api-key"', $template);
+        $body = str_replace('signature-placeholder', md5($bodyForHash), $template);
+
+        return $this->call('POST', '/webhooks/unisender-go', [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+        ], $body);
     }
 
     private function createCatalogTables(): void

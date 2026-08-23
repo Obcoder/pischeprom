@@ -3,20 +3,15 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Email;
+use App\Http\Requests\Mail\SendUnitMailRequest;
 use App\Models\MailMessage;
 use App\Models\Unit;
-use App\Services\Mail\MailboxRegistry;
+use App\Services\Mail\AuthorizedMailDispatchService;
+use App\Services\Mail\MailDispatchException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Throwable;
 
 class UnitMailController extends Controller
 {
@@ -72,62 +67,62 @@ class UnitMailController extends Controller
         $paginator = $query->paginate($perPage);
 
         return response()->json([
-                                    'data' => $paginator
-                                        ->getCollection()
-                                        ->map(fn (MailMessage $message) => $this->serializeMailMessage($message))
-                                        ->values(),
+            'data' => $paginator
+                ->getCollection()
+                ->map(fn (MailMessage $message) => $this->serializeMailMessage($message))
+                ->values(),
 
-                                    'related_emails' => $this->collectUnitRecipientEmails($unit),
+            'related_emails' => $this->collectUnitRecipientEmails($unit),
 
-                                    'meta' => [
-                                        'current_page' => $paginator->currentPage(),
-                                        'last_page' => $paginator->lastPage(),
-                                        'per_page' => $paginator->perPage(),
-                                        'total' => $paginator->total(),
-                                    ],
-                                ]);
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
     }
 
     private function collectUnitRecipientEmails(Unit $unit): array
     {
         $unit->loadMissing([
-                               'emails',
-                               'entities.emails',
-                           ]);
+            'emails',
+            'entities.emails',
+        ]);
 
         $result = collect();
 
         foreach ($unit->emails as $email) {
-            if (!$email?->address) {
+            if (! $email?->address) {
                 continue;
             }
 
             $result->push([
-                              'id' => $email->id,
-                              'address' => $email->address,
-                              'name' => $email->name ?? null,
-                              'source' => 'unit',
-                              'source_label' => 'Unit',
-                              'entity_id' => null,
-                              'entity_name' => null,
-                          ]);
+                'id' => $email->id,
+                'address' => $email->address,
+                'name' => $email->name ?? null,
+                'source' => 'unit',
+                'source_label' => 'Unit',
+                'entity_id' => null,
+                'entity_name' => null,
+            ]);
         }
 
         foreach ($unit->entities as $entity) {
             foreach ($entity->emails as $email) {
-                if (!$email?->address) {
+                if (! $email?->address) {
                     continue;
                 }
 
                 $result->push([
-                                  'id' => $email->id,
-                                  'address' => $email->address,
-                                  'name' => $email->name ?? null,
-                                  'source' => 'entity',
-                                  'source_label' => 'Entity: ' . $entity->name,
-                                  'entity_id' => $entity->id,
-                                  'entity_name' => $entity->name,
-                              ]);
+                    'id' => $email->id,
+                    'address' => $email->address,
+                    'name' => $email->name ?? null,
+                    'source' => 'entity',
+                    'source_label' => 'Entity: '.$entity->name,
+                    'entity_id' => $entity->id,
+                    'entity_name' => $entity->name,
+                ]);
             }
         }
 
@@ -138,395 +133,27 @@ class UnitMailController extends Controller
             ->all();
     }
 
-    public function send(Request $request, Unit $unit, MailboxRegistry $mailboxes): JsonResponse
-    {
-        Log::info('DEBUG UnitMailController send started', [
-            'unit_id' => $unit->id,
-            'payload_keys' => array_keys($request->all()),
-            'files' => array_keys($request->allFiles()),
-            'to' => $request->input('to'),
-            'storage_files' => $request->input('storage_files'),
-        ]);
-
-        $request->validate([
-                               'subject' => ['nullable', 'string', 'max:998'],
-                               'body' => ['nullable', 'string'],
-                               'mailbox' => ['nullable', 'email'],
-
-                               'to' => ['required'],
-                               'cc' => ['nullable'],
-                               'bcc' => ['nullable'],
-
-                               'attachments' => ['nullable'],
-                               'attachments.*' => ['file', 'max:51200'],
-
-                               'storage_files' => ['nullable'],
-                               'storage_files.*' => ['nullable'],
-
-                               'reply_to_mail_message_id' => ['nullable', 'integer', 'exists:mail_messages,id'],
-                           ]);
-
-        $to = $this->normalizeRecipients($request->input('to'));
-        $cc = $this->normalizeRecipients($request->input('cc'));
-        $bcc = $this->normalizeRecipients($request->input('bcc'));
-        $replyToMessage = $this->resolveReplyToMessage($request->input('reply_to_mail_message_id'), $unit);
-        $replyHeaders = $this->replyHeaders($replyToMessage);
-
-        if (empty($to)) {
-            return response()->json([
-                                        'message' => 'Не указан получатель письма.',
-                                    ], 422);
-        }
-
-        $subject = trim((string) $request->input('subject'));
-
-        if ($subject === '') {
-            $subject = '(без темы)';
-        }
-
-        $body = (string) $request->input('body', '');
-        $bodyHtml = nl2br(e($body));
-
-        $requestedMailbox = $request->input('mailbox') ?: $replyToMessage?->mailbox;
-        $mailbox = $requestedMailbox ? $mailboxes->find($requestedMailbox) : null;
-
-        if ($requestedMailbox && !$mailbox) {
-            return response()->json([
-                'message' => 'Выбранный почтовый ящик не настроен.',
-            ], 422);
-        }
-
-        $mailbox = $mailbox ?: $mailboxes->findOrDefault(null);
-        $fromAddress = $mailbox['address'];
-        $fromName = $mailbox['from_name'] ?: $this->defaultFromName();
-        $mailerName = $mailboxes->registerMailer($mailbox);
-
-        $localAttachments = $this->normalizeUploadedFiles($request->file('attachments'));
-        $storageFiles = $this->normalizeStorageFiles($request->input('storage_files'));
-        $storageAttachments = $this->buildStorageAttachments($storageFiles);
-
-        Log::info('Unit mail send endpoint reached', [
-            'unit_id' => $unit->id,
-            'unit_name' => $unit->name,
-            'payload_keys' => array_keys($request->all()),
-            'to' => $to,
-            'cc' => $cc,
-            'bcc' => $bcc,
-            'subject' => $subject,
-            'has_local_attachments' => $localAttachments->isNotEmpty(),
-            'storage_files' => $storageFiles,
-        ]);
-
-        try {
-            Mail::mailer($mailerName)->html($bodyHtml, function ($message) use (
-                $to,
-                $cc,
-                $bcc,
-                $subject,
-                $fromAddress,
-                $fromName,
-                $localAttachments,
-                $storageAttachments,
-                $replyHeaders
-            ) {
-                $message->to($to);
-
-                if (!empty($cc)) {
-                    $message->cc($cc);
-                }
-
-                if (!empty($bcc)) {
-                    $message->bcc($bcc);
-                }
-
-                if ($fromAddress) {
-                    $message->from($fromAddress, $fromName);
-                }
-
-                $message->subject($subject);
-
-                if (!empty($replyHeaders)) {
-                    $headers = $message->getHeaders();
-
-                    if (!empty($replyHeaders['in_reply_to'])) {
-                        $headers->addTextHeader('In-Reply-To', $replyHeaders['in_reply_to']);
-                    }
-
-                    if (!empty($replyHeaders['references'])) {
-                        $headers->addTextHeader('References', $replyHeaders['references']);
-                    }
-                }
-
-                foreach ($localAttachments as $file) {
-                    $message->attach($file->getRealPath(), [
-                        'as' => $file->getClientOriginalName(),
-                        'mime' => $file->getMimeType() ?: 'application/octet-stream',
-                    ]);
-                }
-
-                foreach ($storageAttachments as $attachment) {
-                    $message->attachData(
-                        $attachment['data'],
-                        $attachment['name'],
-                        [
-                            'mime' => $attachment['mime'],
-                        ]
-                    );
-                }
-            });
-        } catch (Throwable $exception) {
-            Log::error('Unit mail send failed', [
-                'unit_id' => $unit->id,
-                'unit_name' => $unit->name,
-                'to' => $to,
-                'subject' => $subject,
-                'error' => $exception->getMessage(),
-            ]);
-
-            return response()->json([
-                                        'message' => 'Письмо не отправлено.',
-                                        'error' => $exception->getMessage(),
-                                    ], 500);
-        }
-
-        $storedMessage = null;
-        $stored = false;
-
-        try {
-            $storedMessage = $this->recordLocalSentMessage(
-                unit: $unit,
-                fromAddress: $fromAddress,
-                fromName: $fromName,
-                to: $to,
-                cc: $cc,
-                bcc: $bcc,
-                subject: $subject,
-                body: $body,
-                bodyHtml: $bodyHtml,
-                replyToMessage: $replyToMessage,
-                replyHeaders: $replyHeaders,
-            );
-
-            $stored = (bool) $storedMessage;
-        } catch (Throwable $exception) {
-            Log::error('Unit mail sent, but local mail message was not stored', [
-                'unit_id' => $unit->id,
-                'unit_name' => $unit->name,
-                'to' => $to,
-                'subject' => $subject,
-                'error' => $exception->getMessage(),
-            ]);
-        }
-
-        Log::info('Unit mail sent successfully', [
-            'unit_id' => $unit->id,
-            'unit_name' => $unit->name,
-            'to' => $to,
-            'subject' => $subject,
-            'local_attachments_count' => $localAttachments->count(),
-            'storage_files_count' => count($storageAttachments),
-            'stored_locally' => $stored,
-            'mail_message_id' => $storedMessage?->id,
-            'reply_to_mail_message_id' => $replyToMessage?->id,
-        ]);
-
-        return response()->json([
-                                    'message' => 'Письмо отправлено.',
-                                    'stored_locally' => $stored,
-                                    'mail_message' => $storedMessage
-                                        ? $this->serializeMailMessage($storedMessage)
-                                        : null,
-                                ]);
-    }
-
-    private function recordLocalSentMessage(
+    public function send(
+        SendUnitMailRequest $request,
         Unit $unit,
-        ?string $fromAddress,
-        ?string $fromName,
-        array $to,
-        array $cc,
-        array $bcc,
-        string $subject,
-        string $body,
-        string $bodyHtml,
-        ?MailMessage $replyToMessage = null,
-        array $replyHeaders = [],
-    ): ?MailMessage {
-        if (!Schema::hasTable('mail_messages')) {
-            return null;
+        AuthorizedMailDispatchService $dispatch,
+    ): JsonResponse {
+        try {
+            // Deliberate controller-level check; the service repeats it immediately before dispatch.
+            $dispatch->authorize($request->user(), $unit);
+            $data = $request->validated();
+            $data['attachments'] = $request->file('attachments', []);
+            $result = $dispatch->dispatchMessage($request->user(), $data, 'api.units.mail.send', $unit);
+
+            return response()->json([
+                'message' => $result['duplicate'] ? 'Письмо уже обработано.' : 'Письмо отправлено.',
+                'duplicate' => $result['duplicate'],
+                'stored_locally' => $result['mail_message'] !== null,
+                'mail_message' => $result['mail_message'] ? $this->serializeMailMessage($result['mail_message']) : null,
+            ]);
+        } catch (MailDispatchException $exception) {
+            return response()->json(['message' => $exception->getMessage(), 'code' => $exception->safeCode], $exception->httpStatus);
         }
-
-        $mailMessage = new MailMessage();
-
-        $payload = [
-            'mailbox' => $fromAddress,
-            'folder' => 'Sent',
-            'direction' => 'outgoing',
-            'imap_uid' => null,
-            'message_id' => $this->generateLocalMessageId(),
-            'reply_to_mail_message_id' => $replyToMessage?->id,
-            'in_reply_to' => $replyHeaders['in_reply_to'] ?? null,
-            'references' => $replyHeaders['references'] ?? null,
-
-            'subject' => $subject,
-            'preview' => Str::limit(trim(strip_tags($body)), 250),
-
-            'from_address' => $fromAddress,
-            'from_name' => $fromName,
-
-            'to' => $this->addressesToRecipients($to),
-            'cc' => $this->addressesToRecipients($cc),
-
-            'text' => $body,
-            'html' => $bodyHtml,
-
-            'message_date' => now(),
-            'body_loaded_at' => now(),
-            'has_attachments' => false,
-        ];
-
-        $payload = collect($payload)
-            ->filter(fn ($value, string $column) => Schema::hasColumn('mail_messages', $column))
-            ->all();
-
-        $payload = $this->prepareJsonColumnsForModel($mailMessage, $payload);
-
-        $mailMessage->forceFill($payload);
-        $mailMessage->save();
-
-        $recipientAddresses = collect([$to, $cc, $bcc])
-            ->flatten()
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
-        $recipientEmailIds = collect($recipientAddresses)
-            ->map(fn ($address) => $this->findOrCreateEmailId($address))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
-        $senderEmailId = null;
-
-        if ($fromAddress) {
-            $senderEmailId = Email::query()
-                ->where('address', $fromAddress)
-                ->value('id');
-        }
-
-        if ($senderEmailId) {
-            $this->attachEmailToMailMessage($mailMessage->id, (int) $senderEmailId, 'from');
-        }
-
-        foreach ($recipientEmailIds as $emailId) {
-            $this->attachEmailToMailMessage($mailMessage->id, (int) $emailId, 'to');
-        }
-
-        return $mailMessage;
-    }
-
-    private function resolveReplyToMessage(mixed $messageId, Unit $unit): ?MailMessage
-    {
-        if (!$messageId) {
-            return null;
-        }
-
-        $emailIds = $this->collectUnitEmailIds($unit);
-
-        if (empty($emailIds)) {
-            return null;
-        }
-
-        return MailMessage::query()
-            ->whereKey((int) $messageId)
-            ->whereIn('id', function ($subQuery) use ($emailIds) {
-                $subQuery
-                    ->select('mail_message_id')
-                    ->from('email_mail_message')
-                    ->whereIn('email_id', $emailIds);
-            })
-            ->first();
-    }
-
-    private function replyHeaders(?MailMessage $message): array
-    {
-        if (!$message?->message_id) {
-            return [];
-        }
-
-        $inReplyTo = $this->normalizeMessageId($message->message_id);
-        $references = collect([
-            ...$this->messageIdsFromReferences($message->references),
-            ...$this->messageIdsFromReferences($message->raw_headers),
-            $inReplyTo,
-        ])
-            ->filter()
-            ->unique()
-            ->implode(' ');
-
-        return [
-            'in_reply_to' => $inReplyTo,
-            'references' => $references ?: $inReplyTo,
-        ];
-    }
-
-    private function messageIdsFromReferences(?string $value): array
-    {
-        if (!$value) {
-            return [];
-        }
-
-        if (preg_match('/^References:\s*(.+)$/mi', $value, $matches)) {
-            $value = $matches[1];
-        }
-
-        preg_match_all('/<[^<>\s]+@[^<>\s]+>/', $value, $matches);
-
-        return $matches[0] ?? [];
-    }
-
-    private function normalizeMessageId(string $messageId): string
-    {
-        $messageId = trim($messageId);
-
-        if ($messageId === '') {
-            return $messageId;
-        }
-
-        return str_starts_with($messageId, '<')
-            ? $messageId
-            : "<{$messageId}>";
-    }
-
-    private function findOrCreateEmailId(string $address): ?int
-    {
-        $address = Str::lower(trim($address));
-
-        if (!filter_var($address, FILTER_VALIDATE_EMAIL)) {
-            return null;
-        }
-
-        $email = Email::withTrashed()->firstOrCreate(
-            ['address' => $address],
-            [
-                'source' => 'unit_mail',
-                'is_active' => true,
-                'last_seen_at' => now(),
-            ]
-        );
-
-        if ($email->trashed()) {
-            $email->restore();
-        }
-
-        $email->forceFill([
-            'last_seen_at' => now(),
-            'source' => $email->source ?: 'unit_mail',
-        ])->save();
-
-        return $email->id;
     }
 
     private function collectUnitEmailIds(Unit $unit): array
@@ -552,260 +179,6 @@ class UnitMailController extends Controller
             ->unique()
             ->values()
             ->all();
-    }
-
-    private function attachEmailToMailMessage(int $mailMessageId, int $emailId, string $role = 'to'): void
-    {
-        if (!Schema::hasTable('email_mail_message')) {
-            return;
-        }
-
-        $query = DB::table('email_mail_message')
-            ->where('email_id', $emailId)
-            ->where('mail_message_id', $mailMessageId);
-
-        if (Schema::hasColumn('email_mail_message', 'role')) {
-            $query->where('role', $role);
-        }
-
-        $exists = $query->exists();
-
-        if ($exists) {
-            $update = [];
-
-            if (Schema::hasColumn('email_mail_message', 'updated_at')) {
-                $update['updated_at'] = now();
-            }
-
-            if (!empty($update)) {
-                DB::table('email_mail_message')
-                    ->where('email_id', $emailId)
-                    ->where('mail_message_id', $mailMessageId)
-                    ->when(
-                        Schema::hasColumn('email_mail_message', 'role'),
-                        fn ($q) => $q->where('role', $role)
-                    )
-                    ->update($update);
-            }
-
-            return;
-        }
-
-        $payload = [
-            'email_id' => $emailId,
-            'mail_message_id' => $mailMessageId,
-        ];
-
-        if (Schema::hasColumn('email_mail_message', 'role')) {
-            $payload['role'] = $role;
-        }
-
-        if (Schema::hasColumn('email_mail_message', 'created_at')) {
-            $payload['created_at'] = now();
-        }
-
-        if (Schema::hasColumn('email_mail_message', 'updated_at')) {
-            $payload['updated_at'] = now();
-        }
-
-        DB::table('email_mail_message')->insert($payload);
-    }
-
-    private function normalizeRecipients(mixed $value): array
-    {
-        if ($value === null || $value === '') {
-            return [];
-        }
-
-        if (is_string($value)) {
-            $decoded = json_decode($value, true);
-
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $value = $decoded;
-            } else {
-                $value = preg_split('/[,;\s]+/', $value);
-            }
-        }
-
-        if (!is_array($value)) {
-            $value = [$value];
-        }
-
-        return collect($value)
-            ->map(function ($item) {
-                if (is_array($item)) {
-                    return $item['address'] ?? $item['email'] ?? null;
-                }
-
-                if (is_object($item)) {
-                    return $item->address ?? $item->email ?? null;
-                }
-
-                return $item;
-            })
-            ->map(fn ($address) => trim((string) $address))
-            ->filter(fn ($address) => filter_var($address, FILTER_VALIDATE_EMAIL))
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function normalizeUploadedFiles(mixed $files): \Illuminate\Support\Collection
-    {
-        if (!$files) {
-            return collect();
-        }
-
-        if ($files instanceof UploadedFile) {
-            return collect([$files]);
-        }
-
-        if (!is_array($files)) {
-            return collect();
-        }
-
-        return collect($files)
-            ->flatten()
-            ->filter(fn ($file) => $file instanceof UploadedFile)
-            ->values();
-    }
-
-    private function normalizeStorageFiles(mixed $value): array
-    {
-        if ($value === null || $value === '') {
-            return [];
-        }
-
-        if (is_string($value)) {
-            $decoded = json_decode($value, true);
-
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $value = $decoded;
-            } else {
-                $value = [$value];
-            }
-        }
-
-        if (!is_array($value)) {
-            $value = [$value];
-        }
-
-        return collect($value)
-            ->map(function ($item) {
-                if (is_array($item)) {
-                    return $item['path'] ?? $item['key'] ?? null;
-                }
-
-                if (is_object($item)) {
-                    return $item->path ?? $item->key ?? null;
-                }
-
-                return $item;
-            })
-            ->map(fn ($path) => $this->normalizeStoragePath($path))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function normalizeStoragePath(mixed $path): ?string
-    {
-        $path = trim((string) $path);
-
-        if ($path === '') {
-            return null;
-        }
-
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            $urlPath = parse_url($path, PHP_URL_PATH);
-            $path = $urlPath ? ltrim($urlPath, '/') : '';
-        }
-
-        $path = strtok($path, '?') ?: $path;
-        $path = ltrim($path, '/');
-
-        $bucket = (string) config('filesystems.disks.yandex.bucket');
-
-        if ($bucket !== '' && str_starts_with($path, $bucket . '/')) {
-            $path = Str::after($path, $bucket . '/');
-        }
-
-        return $path !== '' ? $path : null;
-    }
-
-    private function buildStorageAttachments(array $storageFiles): array
-    {
-        $attachments = [];
-        $disk = Storage::disk('yandex');
-
-        foreach ($storageFiles as $path) {
-            try {
-                if (!$disk->exists($path)) {
-                    Log::warning('Yandex storage attachment not found', [
-                        'path' => $path,
-                    ]);
-
-                    continue;
-                }
-
-                $data = $disk->get($path);
-
-                if ($data === null || $data === false) {
-                    Log::warning('Yandex storage attachment is empty or unreadable', [
-                        'path' => $path,
-                    ]);
-
-                    continue;
-                }
-
-                $attachments[] = [
-                    'path' => $path,
-                    'name' => basename($path),
-                    'mime' => $disk->mimeType($path) ?: 'application/octet-stream',
-                    'data' => $data,
-                ];
-            } catch (Throwable $exception) {
-                Log::warning('Yandex storage attachment read failed', [
-                    'path' => $path,
-                    'error' => $exception->getMessage(),
-                ]);
-            }
-        }
-
-        return $attachments;
-    }
-
-    private function addressesToRecipients(array $addresses): array
-    {
-        return collect($addresses)
-            ->map(fn ($address) => [
-                'address' => $address,
-                'name' => null,
-            ])
-            ->values()
-            ->all();
-    }
-
-    private function prepareJsonColumnsForModel(MailMessage $mailMessage, array $payload): array
-    {
-        foreach (['to', 'cc'] as $column) {
-            if (!array_key_exists($column, $payload)) {
-                continue;
-            }
-
-            if (!is_array($payload[$column])) {
-                continue;
-            }
-
-            if ($mailMessage->hasCast($column, ['array', 'json', 'object', 'collection'])) {
-                continue;
-            }
-
-            $payload[$column] = json_encode($payload[$column], JSON_UNESCAPED_UNICODE);
-        }
-
-        return $payload;
     }
 
     private function serializeMailMessage(MailMessage $message): array
@@ -850,7 +223,7 @@ class UnitMailController extends Controller
             return $value;
         }
 
-        if (!$value) {
+        if (! $value) {
             return [];
         }
 
@@ -863,32 +236,5 @@ class UnitMailController extends Controller
         }
 
         return [];
-    }
-
-    private function generateLocalMessageId(): string
-    {
-        $host = parse_url((string) config('app.url'), PHP_URL_HOST);
-
-        if (!$host) {
-            $host = 'local.pischeprom';
-        }
-
-        return Str::uuid()->toString() . '@' . $host;
-    }
-
-    private function defaultFromAddress(): ?string
-    {
-        return config('mail.from.address')
-            ?: env('MAIL_FROM_ADDRESS')
-                ?: env('YANDEX_MAIL_USERNAME')
-                    ?: env('YANDEX_IMAP_USERNAME')
-                        ?: 'office@180022.ru';
-    }
-
-    private function defaultFromName(): ?string
-    {
-        return config('mail.from.name')
-            ?: env('MAIL_FROM_NAME')
-                ?: config('app.name');
     }
 }

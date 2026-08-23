@@ -138,6 +138,11 @@ class Good extends Model
         return $this->hasMany(Quotation::class)->latest();
     }
 
+    public function unitGoodMatches(): HasMany
+    {
+        return $this->hasMany(UnitGoodMatch::class);
+    }
+
     public function sales(): BelongsToMany
     {
         return $this->belongsToMany(Sale::class)

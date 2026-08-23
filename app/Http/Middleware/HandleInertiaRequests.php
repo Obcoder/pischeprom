@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Domain\AiSales\Enums\BusinessLane;
+use App\Domain\AiSales\Services\ProspectingAuthorizationService;
 use App\Models\City;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route as LaravelRoute;
@@ -51,33 +53,57 @@ class HandleInertiaRequests extends Middleware
                         'edit' => true,
                         'delete' => true,
                     ],
+                    'ai_sales' => [
+                        'view' => (bool) config('ai-sales.enabled')
+                            && (bool) config('ai-sales.find_buyers.ui_enabled')
+                            && (bool) config('ai-sales.campaigns.enabled')
+                            && $request->user() !== null
+                            && $request->user()->can('ai_sales.campaigns.view')
+                            && app(ProspectingAuthorizationService::class)->can(
+                                $request->user(),
+                                ProspectingAuthorizationService::VIEW,
+                                BusinessLane::Sales,
+                            ),
+                        'review' => $request->user() !== null
+                            && app(ProspectingAuthorizationService::class)->can(
+                                $request->user(),
+                                ProspectingAuthorizationService::REVIEW,
+                                BusinessLane::Sales,
+                            ),
+                        'resolve' => $request->user() !== null
+                            && app(ProspectingAuthorizationService::class)->can(
+                                $request->user(),
+                                ProspectingAuthorizationService::RESOLVE,
+                                BusinessLane::Sales,
+                            ),
+                    ],
                     'ai_price_lists' => [
-                        'view' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.view'),
-                        'process' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.process'),
-                        'review' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.review'),
-                        'assign_supplier' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.assign_supplier'),
-                        'apply' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.apply'),
-                        'view_technical' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.view_technical'),
+                            'view' => ! config('ai-price-lists.authorization_enabled')
+                                || (bool) $request->user()?->can('ai_price_lists.view'),
+                            'process' => ! config('ai-price-lists.authorization_enabled')
+                                || (bool) $request->user()?->can('ai_price_lists.process'),
+                            'review' => ! config('ai-price-lists.authorization_enabled')
+                                || (bool) $request->user()?->can('ai_price_lists.review'),
+                            'assign_supplier' => ! config('ai-price-lists.authorization_enabled')
+                                || (bool) $request->user()?->can('ai_price_lists.assign_supplier'),
+                            'apply' => ! config('ai-price-lists.authorization_enabled')
+                                || (bool) $request->user()?->can('ai_price_lists.apply'),
+                            'view_technical' => ! config('ai-price-lists.authorization_enabled')
+                                || (bool) $request->user()?->can('ai_price_lists.view_technical'),
                     ],
                     'logistics' => [
-                        'view' => ! config('logistics.authorization_enabled')
-                            || (bool) $request->user()?->can('logistics.view'),
-                        'trips_manage' => ! config('logistics.authorization_enabled')
-                            || (bool) $request->user()?->can('logistics.trips.manage'),
-                        'vehicles_manage' => ! config('logistics.authorization_enabled')
-                            || (bool) $request->user()?->can('logistics.vehicles.manage'),
-                        'expenses_manage' => ! config('logistics.authorization_enabled')
-                            || (bool) $request->user()?->can('logistics.expenses.manage'),
-                        'matrix_manage' => ! config('logistics.authorization_enabled')
-                            || (bool) $request->user()?->can('logistics.matrix.manage'),
-                        'technical_view' => ! config('logistics.authorization_enabled')
-                            || (bool) $request->user()?->can('logistics.technical.view'),
+                            'view' => ! config('logistics.authorization_enabled')
+                                || (bool) $request->user()?->can('logistics.view'),
+                            'trips_manage' => ! config('logistics.authorization_enabled')
+                                || (bool) $request->user()?->can('logistics.trips.manage'),
+                            'vehicles_manage' => ! config('logistics.authorization_enabled')
+                                || (bool) $request->user()?->can('logistics.vehicles.manage'),
+                            'expenses_manage' => ! config('logistics.authorization_enabled')
+                                || (bool) $request->user()?->can('logistics.expenses.manage'),
+                            'matrix_manage' => ! config('logistics.authorization_enabled')
+                                || (bool) $request->user()?->can('logistics.matrix.manage'),
+                            'technical_view' => ! config('logistics.authorization_enabled')
+                                || (bool) $request->user()?->can('logistics.technical.view'),
                     ],
                 ],
             ],

@@ -14,6 +14,7 @@ import GoodPriceCalculationsTab from "@/Components/Goods/GoodPriceCalculationsTa
 import GoodPriceTypesTab from "@/Components/Goods/GoodPriceTypesTab.vue";
 import GoodPriceTypeValuesTab from "@/Components/Goods/GoodPriceTypeValuesTab.vue";
 import GoodMediaTab from "@/Components/Goods/GoodMediaTab.vue";
+import FindBuyersLauncher from "@/Components/AiSales/FindBuyersLauncher.vue";
 
 defineOptions({
     layout: VerwalterLayout,
@@ -732,6 +733,7 @@ onMounted(() => {
 
             <v-col cols="12" sm="10" v-if="goodData">
                 <div class="d-flex align-center justify-end ga-2">
+                    <FindBuyersLauncher source-type="good" :source-id="goodData.id" />
                     <v-chip
                         size="small"
                         variant="tonal"

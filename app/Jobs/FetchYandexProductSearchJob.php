@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ProductSearchRequest;
 use App\Models\ProductSearchResult;
+use App\Services\Yandex\YandexSearchException;
 use App\Services\YandexSearchService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,13 +32,14 @@ class FetchYandexProductSearchJob implements ShouldQueue
         $request = ProductSearchRequest::query()->findOrFail($this->requestId);
 
         $request->update([
-                             'status' => 'processing',
-                             'started_at' => now(),
-                             'error_message' => null,
-                         ]);
+            'status' => 'processing',
+            'started_at' => now(),
+            'error_message' => null,
+        ]);
 
         $perPage = 10;
-        $pages = (int) ceil($this->maxResults / $perPage);
+        $maxResults = max(10, min(100, $this->maxResults));
+        $pages = (int) ceil($maxResults / $perPage);
         $allResults = [];
 
         try {
@@ -50,7 +52,7 @@ class FetchYandexProductSearchJob implements ShouldQueue
                 }
 
                 foreach ($parsed as $item) {
-                    if (count($allResults) >= $this->maxResults) {
+                    if (count($allResults) >= $maxResults) {
                         break 2;
                     }
 
@@ -78,25 +80,32 @@ class FetchYandexProductSearchJob implements ShouldQueue
                     ];
                 }, $allResults);
 
-                if (!empty($rows)) {
+                if (! empty($rows)) {
                     ProductSearchResult::query()->insert($rows);
                 }
 
                 $request->update([
-                                     'status' => 'done',
-                                     'results_count' => count($rows),
-                                     'searched_at' => now(),
-                                     'finished_at' => now(),
-                                 ]);
+                    'status' => 'done',
+                    'results_count' => count($rows),
+                    'searched_at' => now(),
+                    'finished_at' => now(),
+                ]);
             });
         } catch (Throwable $e) {
+            $safeCode = $e instanceof YandexSearchException
+                ? $e->safeCode
+                : 'yandex_product_search_failed_safely';
             $request->update([
-                                 'status' => 'failed',
-                                 'error_message' => $e->getMessage(),
-                                 'finished_at' => now(),
-                             ]);
+                'status' => 'failed',
+                'error_message' => $safeCode,
+                'finished_at' => now(),
+            ]);
 
-            throw $e;
+            if ($e instanceof YandexSearchException) {
+                throw $e;
+            }
+
+            throw new YandexSearchException('internal', $safeCode);
         }
     }
 }

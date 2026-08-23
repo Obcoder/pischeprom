@@ -10,11 +10,20 @@ class Sending extends Model
 {
     protected $fillable = [
         'email_id',
+        'mail_message_id',
         'subject',
         'html',
         'text',
         'provider',
         'provider_message_id',
+        'request_profile',
+        'request_hash',
+        'response_hash',
+        'http_status_category',
+        'safe_request_id',
+        'safe_error_code',
+        'safe_summary',
+        'ambiguous_acceptance_at',
         'tracking_token',
         'status',
         'sent_at',
@@ -34,6 +43,7 @@ class Sending extends Model
         'opened_at' => 'datetime',
         'clicked_at' => 'datetime',
         'last_clicked_at' => 'datetime',
+        'ambiguous_acceptance_at' => 'datetime',
         'opens_count' => 'integer',
         'click_count' => 'integer',
         'clicks_count' => 'integer',
@@ -42,7 +52,7 @@ class Sending extends Model
     protected static function booted(): void
     {
         static::creating(function (Sending $sending) {
-            if (!$sending->tracking_token) {
+            if (! $sending->tracking_token) {
                 $sending->tracking_token = Str::uuid()->toString();
             }
         });
@@ -51,5 +61,15 @@ class Sending extends Model
     public function email(): BelongsTo
     {
         return $this->belongsTo(Email::class);
+    }
+
+    public function mailMessage(): BelongsTo
+    {
+        return $this->belongsTo(MailMessage::class);
+    }
+
+    public function outreachDispatch()
+    {
+        return $this->hasOne(OutreachDispatch::class);
     }
 }

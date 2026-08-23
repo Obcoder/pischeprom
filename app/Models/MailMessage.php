@@ -65,6 +65,16 @@ class MailMessage extends Model
         return $this->hasMany(MailMessageMaxDelivery::class);
     }
 
+    public function outreachDispatch()
+    {
+        return $this->hasOne(OutreachDispatch::class);
+    }
+
+    public function outreachReplyLink()
+    {
+        return $this->hasOne(OutreachReplyLink::class, 'incoming_mail_message_id');
+    }
+
     public function leads(): HasMany
     {
         return $this->hasMany(Lead::class);
