@@ -256,7 +256,12 @@ class PaymentAllocationService
             ->value('aggregate') ?? '0'));
     }
 
-    private function recalculateSaleLocked(Sale $sale): ?array
+    /**
+     * Recalculate payment fields for a sale whose row is already locked.
+     *
+     * @return array{previous: string, current: string}|null
+     */
+    public function recalculateSaleLocked(Sale $sale): ?array
     {
         $previous = (string) ($sale->payment_status ?: 'unpaid');
         $paid = $this->salePaidAmount($sale);

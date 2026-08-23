@@ -572,7 +572,7 @@ async function attachGoodToSale() {
         }
 
         resetDetailsLine()
-        detailsMessage.value = 'Good добавлен в продажу.'
+        detailsMessage.value = 'Good добавлен. Сумма продажи обновлена.'
     } catch (error) {
         detailsErrorMessage.value = error?.response?.data?.message
             || Object.values(error?.response?.data?.errors || {})?.flat()?.[0]
@@ -859,7 +859,7 @@ onMounted(async () => {
                                 <strong>Добавить Good</strong>
                                 <span>Укажите любые два значения: количество, цена или сумма.</span>
                             </div>
-                            <small>Общий итог сохранённой продажи не изменится</small>
+                            <small>Сумма позиции будет добавлена к итогу продажи</small>
                         </div>
 
                         <v-alert
