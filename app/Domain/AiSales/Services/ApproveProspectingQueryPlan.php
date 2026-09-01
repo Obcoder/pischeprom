@@ -28,7 +28,9 @@ class ApproveProspectingQueryPlan
 
         $plan = $this->planner->plan($job);
         $queries = $job->queries()->where('plan_hash', $plan->planHash)->orderBy('sequence')->get();
-        if ($queries->count() !== count($plan->items)
+        $plannedQueryHashes = collect($plan->items)->pluck('queryHash')->unique()->sort()->values();
+        if ($queries->count() !== $plannedQueryHashes->count()
+            || $queries->pluck('query_hash')->unique()->sort()->values()->all() !== $plannedQueryHashes->all()
             || $queries->contains(fn ($query) => ! hash_equals((string) $query->product_scope_hash, $plan->productScopeHash))) {
             throw ValidationException::withMessages(['plan' => 'The persisted query plan is missing or stale.']);
         }

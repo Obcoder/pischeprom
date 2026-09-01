@@ -4,6 +4,8 @@ namespace Tests\Feature\AiSales;
 
 use App\Domain\AiSales\Prospecting\BuyerArchetypeRegistry;
 use App\Domain\AiSales\Prospecting\ProductBuyerArchetypePlanner;
+use App\Domain\AiSales\Prospecting\ProspectingQueryPlanner;
+use App\Domain\AiSales\Services\ApproveProspectingQueryPlan;
 use App\Domain\AiSales\Services\PlanProspectingQueries;
 use App\Models\Category;
 use App\Models\Consumption;
@@ -53,5 +55,27 @@ class BuyerArchetypeAndQueryMatrixTest extends Stage09TestCase
         $this->assertTrue($first->contains(fn ($query): bool => ! str_contains(mb_strtolower($query->safe_display_query), 'брокколи')));
         $this->assertGreaterThanOrEqual(4, $first->map(fn ($query) => explode(':', $query->industry_intent)[0])->unique()->count());
         $this->assertTrue($first->every(fn ($query): bool => str_starts_with($query->template_code, 'buyer.matrix.')));
+    }
+
+    public function test_duplicate_matrix_items_do_not_make_persisted_plan_impossible_to_approve(): void
+    {
+        $actor = $this->prospectingUser();
+        $category = Category::query()->create(['name' => 'Овощи', 'is_published' => true]);
+        $product = Product::query()->without(['category', 'manufacturers'])->create([
+            'rus' => 'Брокколи', 'eng' => 'Broccoli', 'category_id' => $category->id, 'is_published' => true,
+        ]);
+        $job = $this->approvedJob($actor, product: $product);
+        $job->update(['max_queries' => 20]);
+
+        $plan = app(ProspectingQueryPlanner::class)->plan($job->fresh());
+        $uniqueQueryCount = collect($plan->items)->pluck('queryHash')->unique()->count();
+        $this->assertLessThan(count($plan->items), $uniqueQueryCount);
+
+        $persisted = app(PlanProspectingQueries::class)->handle($job->fresh(), $actor);
+        $this->assertCount($uniqueQueryCount, $persisted);
+
+        $approved = app(ApproveProspectingQueryPlan::class)->handle($job->fresh(), $actor);
+        $this->assertCount($uniqueQueryCount, $approved);
+        $this->assertTrue($approved->every(fn ($query): bool => $query->plan_status === 'approved'));
     }
 }
