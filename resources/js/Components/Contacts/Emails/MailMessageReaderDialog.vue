@@ -48,6 +48,11 @@ const newFolderPath = ref('')
 const lastSavedAttachment = ref(null)
 
 const currentMessage = computed(() => localMessage.value || props.message)
+const mailboxAddress = computed(() => String(currentMessage.value?.mailbox || '').trim() || 'Ящик не определён')
+const mailboxLabel = computed(() => currentMessage.value?.direction === 'incoming' ? 'На ящик' : 'С ящика')
+const mailboxIcon = computed(() => currentMessage.value?.direction === 'incoming'
+    ? 'mdi-inbox-arrow-down-outline'
+    : 'mdi-send-outline')
 
 const bodyHtml = computed(() => {
     return currentMessage.value?.html || null
@@ -636,6 +641,15 @@ watch(model, async (isOpen) => {
                 </div>
 
                 <div class="mail-reader-header__actions">
+                    <div
+                        class="mail-reader-header__mailbox"
+                        :title="`${mailboxLabel}: ${mailboxAddress}`"
+                    >
+                        <v-icon :icon="mailboxIcon" size="16" />
+                        <span>{{ mailboxLabel }}</span>
+                        <strong>{{ mailboxAddress }}</strong>
+                    </div>
+
                     <v-chip
                         size="x-small"
                         :color="currentMessage?.direction === 'incoming' ? 'purple' : 'blue'"
@@ -1166,6 +1180,39 @@ watch(model, async (isOpen) => {
     gap: 4px;
 }
 
+.mail-reader-header__mailbox {
+    align-items: center;
+    background: linear-gradient(135deg, rgba(14, 116, 144, 0.3), rgba(30, 58, 138, 0.28));
+    border: 1px solid rgba(103, 232, 249, 0.38);
+    border-radius: 6px;
+    color: #67e8f9;
+    display: flex;
+    gap: 5px;
+    max-width: min(360px, 28vw);
+    min-width: 0;
+    padding: 3px 7px;
+}
+
+.mail-reader-header__mailbox span {
+    color: #7dd3fc;
+    flex: 0 0 auto;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.mail-reader-header__mailbox strong {
+    color: #e0f2fe;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 800;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .mail-reader-body {
     display: flex;
     flex: 1;
@@ -1660,6 +1707,22 @@ watch(model, async (isOpen) => {
 
     .mail-attachments-sheet__row {
         grid-template-columns: 28px minmax(0, 1fr) 60px 42px 92px;
+    }
+}
+
+@media (max-width: 700px) {
+    .mail-reader-header {
+        flex-wrap: wrap;
+    }
+
+    .mail-reader-header__main,
+    .mail-reader-header__actions {
+        width: 100%;
+    }
+
+    .mail-reader-header__mailbox {
+        margin-right: auto;
+        max-width: min(360px, 72vw);
     }
 }
 </style>
