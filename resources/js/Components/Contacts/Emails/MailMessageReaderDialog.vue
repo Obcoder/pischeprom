@@ -581,8 +581,8 @@ watch(model, async (isOpen) => {
 <template>
     <v-dialog
         v-model="model"
-        width="1920"
-        max-width="98vw"
+        width="1600"
+        max-width="96vw"
         scrollable
     >
         <v-card class="mail-reader-card rounded border border-blue-900 bg-slate-950">
@@ -647,7 +647,7 @@ watch(model, async (isOpen) => {
                     :type="feedback.type"
                     variant="tonal"
                     density="compact"
-                    class="mb-2"
+                    class="mb-1"
                 >
                     {{ feedback.text }}
                 </v-alert>
@@ -657,7 +657,7 @@ watch(model, async (isOpen) => {
                     type="warning"
                     variant="tonal"
                     density="compact"
-                    class="mb-2"
+                    class="mb-1"
                 >
                     {{ syncError }}
                 </v-alert>
@@ -1020,7 +1020,7 @@ watch(model, async (isOpen) => {
                     v-if="currentMessage?.direction === 'incoming'"
                     color="teal"
                     variant="tonal"
-                    size="small"
+                    size="x-small"
                     prepend-icon="mdi-reply"
                     :disabled="loading"
                     @click="emit('reply', currentMessage)"
@@ -1033,7 +1033,7 @@ watch(model, async (isOpen) => {
                 <v-btn
                     text="Закрыть"
                     variant="text"
-                    size="small"
+                    size="x-small"
                     @click="model = false"
                 />
             </v-card-actions>
@@ -1045,17 +1045,17 @@ watch(model, async (isOpen) => {
 .mail-reader-card {
     display: flex;
     flex-direction: column;
-    height: 98vh;
-    max-height: 98vh;
+    height: 80vh;
+    max-height: 80vh;
 }
 
 .mail-reader-header {
     align-items: flex-start;
     display: flex;
-    gap: 12px;
+    gap: 8px;
     justify-content: space-between;
     min-width: 0;
-    padding: 8px 12px !important;
+    padding: 6px 10px !important;
 }
 
 .mail-reader-header__main {
@@ -1064,7 +1064,7 @@ watch(model, async (isOpen) => {
 
 .mail-reader-header__subject {
     color: #93c5fd;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
     line-height: 1.2;
 }
@@ -1074,9 +1074,9 @@ watch(model, async (isOpen) => {
     color: #94a3b8;
     display: flex;
     flex-wrap: wrap;
-    font-size: 11px;
-    gap: 6px 8px;
-    margin-top: 2px;
+    font-size: 10px;
+    gap: 3px 6px;
+    margin-top: 1px;
     min-width: 0;
 }
 
@@ -1116,22 +1116,24 @@ watch(model, async (isOpen) => {
     flex: 1;
     flex-direction: column;
     min-height: 0;
-    padding: 8px 12px 10px !important;
+    overflow: hidden;
+    padding: 6px 10px 8px !important;
 }
 
 .mail-reader-layout {
     display: grid;
     align-items: stretch;
     flex: 1;
-    gap: 8px;
+    gap: 6px;
     min-height: 0;
 }
 
 .mail-reader-main {
     display: grid;
     flex: 1;
-    gap: 8px;
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 24vw);
+    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 22vw);
+    min-height: 0;
     min-width: 0;
 }
 
@@ -1157,8 +1159,8 @@ watch(model, async (isOpen) => {
 }
 
 .mail-reader-actions {
-    min-height: 40px;
-    padding: 4px 8px !important;
+    min-height: 34px;
+    padding: 2px 6px !important;
 }
 
 .mail-tools-card,
@@ -1176,30 +1178,30 @@ watch(model, async (isOpen) => {
 }
 
 .mail-crm-card__title {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.04em;
-    padding: 5px 8px 2px !important;
+    padding: 4px 6px 1px !important;
     text-transform: uppercase;
 }
 
 .mail-crm-card__body {
     display: grid;
-    gap: 4px;
-    padding: 0 6px 6px !important;
+    gap: 3px;
+    padding: 0 5px 5px !important;
 }
 
 .mail-crm-card__row {
     align-items: center;
     display: grid;
-    gap: 4px;
+    gap: 3px;
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .mail-crm-history {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px;
+    gap: 2px;
 }
 
 .mail-attachments-card__title {
@@ -1223,29 +1225,29 @@ watch(model, async (isOpen) => {
 .mail-attachments-toolbar {
     align-items: center;
     display: grid;
-    gap: 6px;
-    grid-template-columns: minmax(160px, 1.2fr) minmax(120px, 0.9fr) auto auto;
-    margin-bottom: 6px;
+    gap: 4px;
+    grid-template-columns: minmax(140px, 1.2fr) minmax(110px, 0.9fr) auto auto;
+    margin-bottom: 4px;
 }
 
 .mail-attachments-quick-folders {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 3px;
 }
 
 .mail-attachments-workspace {
     display: grid;
     flex: 1;
-    gap: 8px;
-    grid-template-columns: minmax(210px, 240px) minmax(0, 1fr);
+    gap: 6px;
+    grid-template-columns: minmax(180px, 210px) minmax(0, 1fr);
     min-height: 0;
 }
 
 .mail-attachments-sidebar {
     display: grid;
-    gap: 8px;
+    gap: 6px;
     grid-template-rows: minmax(0, 1fr) auto;
     min-height: 0;
 }
@@ -1260,10 +1262,10 @@ watch(model, async (isOpen) => {
     display: flex;
     font-size: 10px;
     gap: 6px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     min-width: 0;
     overflow: hidden;
-    padding: 3px 6px;
+    padding: 2px 5px;
 }
 
 .mail-attachments-saved {
@@ -1422,10 +1424,10 @@ watch(model, async (isOpen) => {
     border-radius: 12px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
     min-height: 0;
     overflow: hidden;
-    padding: 8px;
+    padding: 6px;
 }
 
 .mail-attachment-preview__meta {
@@ -1476,7 +1478,7 @@ watch(model, async (isOpen) => {
     flex: 1 1 auto;
     font-size: 11px;
     font-weight: 800;
-    min-height: 220px;
+    min-height: 160px;
     place-items: center;
     text-align: center;
 }
@@ -1486,14 +1488,14 @@ watch(model, async (isOpen) => {
     color: #bfdbfe;
     display: grid;
     font-size: 10px;
-    gap: 4px;
+    gap: 3px;
     min-width: 0;
-    padding-top: 6px;
+    padding-top: 4px;
 }
 
 .mail-attachment-preview__storage div {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .mail-body,
@@ -1501,12 +1503,12 @@ watch(model, async (isOpen) => {
     font-family: 'Rubik-Medium', 'Roboto-Regular', 'Segoe UI', sans-serif;
     font-size: 12px;
     letter-spacing: -0.01em;
-    line-height: 1.28;
+    line-height: 1.25;
     height: 100%;
     max-height: none;
     min-height: 0;
     overflow: auto;
-    padding: 8px 10px;
+    padding: 6px 8px;
 }
 
 .mail-body :deep(p),
@@ -1517,7 +1519,7 @@ watch(model, async (isOpen) => {
 .mail-body :deep(a),
 .mail-body :deep(font) {
     font-family: 'Rubik-Medium', 'Roboto-Regular', 'Segoe UI', sans-serif !important;
-    line-height: 1.28;
+    line-height: 1.25;
 }
 
 .mail-body :deep(p) {
@@ -1536,7 +1538,7 @@ watch(model, async (isOpen) => {
 
 .mail-body :deep(img) {
     height: auto;
-    max-height: 72px;
+    max-height: 60px;
     max-width: 100%;
 }
 
@@ -1546,8 +1548,12 @@ watch(model, async (isOpen) => {
 
 @media (max-width: 1100px) {
     .mail-reader-card {
-        height: 98vh;
-        max-height: 98vh;
+        height: 80vh;
+        max-height: 80vh;
+    }
+
+    .mail-reader-body {
+        overflow: auto;
     }
 
     .mail-reader-main {
@@ -1558,12 +1564,12 @@ watch(model, async (isOpen) => {
     .mail-reader-main > .mail-body-text {
         grid-column: 1;
         grid-row: 2;
-        max-height: 200px;
+        max-height: 160px;
     }
 
     .mail-attachments-workspace {
         grid-template-columns: 1fr;
-        min-height: 360px;
+        min-height: 300px;
     }
 
     .mail-attachments-toolbar {
