@@ -590,6 +590,17 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
+                    :href="route('Ameise.purchases')"
+                    class="ameise-header-control ameise-nav-link ameise-nav-link--purchases"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.purchases')) }"
+                    title="Закупки"
+                    aria-label="Закупки"
+                >
+                    <v-icon icon="mdi-cart-arrow-down" size="19" />
+                    <span class="ameise-nav-link__label">Закупки</span>
+                </Link>
+
+                <Link
                     :href="route('Ameise.checks')"
                     class="ameise-header-control ameise-nav-link"
                     :class="{ 'is-active': isActiveUrl(route('Ameise.checks')) }"
@@ -1361,6 +1372,11 @@ onMounted(fetchWorkingLeads)
 
 .ameise-nav-link--mail {
     --ameise-glow: 6 182 212;
+}
+
+.ameise-nav-link--purchases {
+    --ameise-glow: 245 158 11;
+    color: #fde68a;
 }
 
 .ameise-nav-link--ai {

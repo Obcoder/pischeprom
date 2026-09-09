@@ -17,7 +17,6 @@ import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Fields from "@/Components/Dictionaries/Fields.vue";
 import GrossbuchSales from '@/Components/Grossbuch/GrossbuchSales.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
-import Purchases from "@/Pages/Purchases/Purchases.vue";
 import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
 import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
@@ -35,7 +34,7 @@ const GROSSBUCH_TAB_KEY = 'ameise:grossbuch:tab'
 const GROSSBUCH_CONTACTS_TAB_KEY = 'ameise:grossbuch:contacts-tab'
 const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
 const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
-const allowedTabs = ['units', 'contacts', 'segments', 'purchases', 'sales']
+const allowedTabs = ['units', 'contacts', 'segments', 'sales']
 const allowedContactTabs = ['telephones', 'uris', 'emails']
 
 function storedTab(key, fallback, allowed = null) {
@@ -80,7 +79,6 @@ const entityClassifications = ref([])
 const good = ref(null)
 const labels = ref([])
 const measures = ref([])
-const purchases = ref([])
 const sale = ref()
 const sales = ref([])
 const segments = ref([])
@@ -182,14 +180,6 @@ function indexLabels(){
 function indexMeasures(){
     axios.get(route('measures.index')).then(function (response){
         measures.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
-}
-//   P U R C H A S E S
-function indexPurchases(){
-    axios.get(route('purchases.index')).then(function (response){
-        purchases.value = response.data
     }).catch(function (error){
         console.error(error)
     })
@@ -371,7 +361,6 @@ onMounted(()=>{
     indexEntityClassifications()
     indexLabels()
     indexMeasures()
-    indexPurchases()
     indexSegments()
     indexUnits()
 
@@ -421,7 +410,6 @@ const style = `
                             <v-tab value="units">Объекты</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
-                            <v-tab value="purchases">Закупки</v-tab>
                             <v-tab value="sales">Продажи</v-tab>
                         </v-tabs>
 
@@ -480,11 +468,6 @@ const style = `
                                     <GrossbuchSales />
                                 </v-tabs-window-item>
                                 <!--      E N D  S A L E S      -->
-
-                                <v-tabs-window-item value="purchases">
-                                    <Purchases />
-                                </v-tabs-window-item>
-
 
                                 <!--        К Л А С С И Ф И К А Т О Р Ы        -->
                                 <v-tabs-window-item value="segments">

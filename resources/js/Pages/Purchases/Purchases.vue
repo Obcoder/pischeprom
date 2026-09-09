@@ -415,7 +415,7 @@ onMounted(async () => {
         <section class="purchases-board">
             <div class="purchases-toolbar">
                 <div class="purchases-toolbar__title">
-                    <span>Grossbuch / закупки</span>
+                    <span>Ameise / закупки</span>
                 </div>
 
                 <div class="purchases-toolbar__meta">
