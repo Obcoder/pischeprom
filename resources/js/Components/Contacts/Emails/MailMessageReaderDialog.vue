@@ -583,6 +583,8 @@ watch(model, async (isOpen) => {
         v-model="model"
         width="1600"
         max-width="96vw"
+        height="80vh"
+        max-height="80vh"
         scrollable
     >
         <v-card class="mail-reader-card rounded border border-blue-900 bg-slate-950">
@@ -696,7 +698,7 @@ watch(model, async (isOpen) => {
                                     />
 
                                     <v-btn
-                                        size="x-small"
+                                        size="small"
                                         color="blue"
                                         variant="tonal"
                                         prepend-icon="mdi-folder-plus-outline"
@@ -1020,7 +1022,7 @@ watch(model, async (isOpen) => {
                     v-if="currentMessage?.direction === 'incoming'"
                     color="teal"
                     variant="tonal"
-                    size="x-small"
+                    size="small"
                     prepend-icon="mdi-reply"
                     :disabled="loading"
                     @click="emit('reply', currentMessage)"
@@ -1033,7 +1035,7 @@ watch(model, async (isOpen) => {
                 <v-btn
                     text="Закрыть"
                     variant="text"
-                    size="x-small"
+                    size="small"
                     @click="model = false"
                 />
             </v-card-actions>
@@ -1045,8 +1047,8 @@ watch(model, async (isOpen) => {
 .mail-reader-card {
     display: flex;
     flex-direction: column;
-    height: 80vh;
-    max-height: 80vh;
+    height: 100%;
+    max-height: 100%;
 }
 
 .mail-reader-header {
@@ -1064,7 +1066,7 @@ watch(model, async (isOpen) => {
 
 .mail-reader-header__subject {
     color: #93c5fd;
-    font-size: 13px;
+    font-size: 16px;
     font-weight: 800;
     line-height: 1.2;
 }
@@ -1074,9 +1076,9 @@ watch(model, async (isOpen) => {
     color: #94a3b8;
     display: flex;
     flex-wrap: wrap;
-    font-size: 10px;
-    gap: 3px 6px;
-    margin-top: 1px;
+    font-size: 12px;
+    gap: 4px 8px;
+    margin-top: 2px;
     min-width: 0;
 }
 
@@ -1132,7 +1134,7 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 6px;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 22vw);
+    grid-template-columns: minmax(0, 1fr) minmax(400px, 30vw);
     min-height: 0;
     min-width: 0;
 }
@@ -1159,8 +1161,8 @@ watch(model, async (isOpen) => {
 }
 
 .mail-reader-actions {
-    min-height: 34px;
-    padding: 2px 6px !important;
+    min-height: 38px;
+    padding: 3px 8px !important;
 }
 
 .mail-tools-card,
@@ -1178,30 +1180,30 @@ watch(model, async (isOpen) => {
 }
 
 .mail-crm-card__title {
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.04em;
-    padding: 4px 6px 1px !important;
+    padding: 5px 8px 2px !important;
     text-transform: uppercase;
 }
 
 .mail-crm-card__body {
     display: grid;
-    gap: 3px;
-    padding: 0 5px 5px !important;
+    gap: 4px;
+    padding: 0 6px 6px !important;
 }
 
 .mail-crm-card__row {
     align-items: center;
     display: grid;
-    gap: 3px;
+    gap: 4px;
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .mail-crm-history {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px;
+    gap: 3px;
 }
 
 .mail-attachments-card__title {
@@ -1212,13 +1214,13 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachments-card__title span {
-    font-size: 0.8rem;
+    font-size: 14px;
     font-weight: 900;
 }
 
 .mail-attachments-card__title small {
     color: #93c5fd;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 800;
 }
 
@@ -1226,7 +1228,7 @@ watch(model, async (isOpen) => {
     align-items: center;
     display: grid;
     gap: 4px;
-    grid-template-columns: minmax(140px, 1.2fr) minmax(110px, 0.9fr) auto auto;
+    grid-template-columns: minmax(160px, 1.2fr) minmax(120px, 0.9fr) auto auto;
     margin-bottom: 4px;
 }
 
@@ -1241,7 +1243,7 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 6px;
-    grid-template-columns: minmax(180px, 210px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 250px) minmax(0, 1fr);
     min-height: 0;
 }
 
@@ -1260,7 +1262,7 @@ watch(model, async (isOpen) => {
     border-radius: 8px;
     color: #bfdbfe;
     display: flex;
-    font-size: 10px;
+    font-size: 12px;
     gap: 6px;
     margin-bottom: 4px;
     min-width: 0;
@@ -1277,7 +1279,7 @@ watch(model, async (isOpen) => {
 .mail-attachments-saved code,
 .mail-attachment-preview__storage code {
     color: #e0f2fe;
-    font-size: 10px;
+    font-size: 12px;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1288,7 +1290,7 @@ watch(model, async (isOpen) => {
 .mail-attachments-saved a,
 .mail-attachment-preview__storage a {
     color: #86efac;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 900;
     text-decoration: none;
 }
@@ -1315,9 +1317,9 @@ watch(model, async (isOpen) => {
     color: #dbeafe;
     cursor: pointer;
     display: grid;
-    font-size: 10px;
+    font-size: 12px;
     gap: 0;
-    grid-template-columns: 24px minmax(0, 1fr) 52px 36px 88px;
+    grid-template-columns: 28px minmax(0, 1fr) 60px 42px 92px;
     line-height: 1.15;
     padding: 0;
     text-align: left;
@@ -1325,10 +1327,10 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachments-sheet__row > span {
-    min-height: 26px;
+    min-height: 32px;
     min-width: 0;
     overflow: hidden;
-    padding: 4px 5px;
+    padding: 5px 6px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1341,7 +1343,7 @@ watch(model, async (isOpen) => {
     background: #1e3a8a;
     color: #eff6ff;
     cursor: default;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 950;
     letter-spacing: 0.06em;
     position: sticky;
@@ -1402,7 +1404,7 @@ watch(model, async (isOpen) => {
 .mail-attachments-sheet__s3 a,
 .mail-attachments-sheet__saved {
     color: #86efac;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 900;
     text-decoration: none;
 }
@@ -1424,10 +1426,10 @@ watch(model, async (isOpen) => {
     border-radius: 12px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     min-height: 0;
     overflow: hidden;
-    padding: 6px;
+    padding: 8px;
 }
 
 .mail-attachment-preview__meta {
@@ -1440,7 +1442,7 @@ watch(model, async (isOpen) => {
 
 .mail-attachment-preview__meta strong {
     color: #dbeafe;
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 900;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1450,7 +1452,7 @@ watch(model, async (isOpen) => {
 .mail-attachment-preview__meta span {
     color: #94a3b8;
     flex: 0 0 auto;
-    font-size: 10px;
+    font-size: 12px;
 }
 
 .mail-attachment-preview img {
@@ -1476,9 +1478,9 @@ watch(model, async (isOpen) => {
     color: #94a3b8;
     display: grid;
     flex: 1 1 auto;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 800;
-    min-height: 160px;
+    min-height: 180px;
     place-items: center;
     text-align: center;
 }
@@ -1487,28 +1489,28 @@ watch(model, async (isOpen) => {
     border-top: 1px solid rgba(147, 197, 253, 0.18);
     color: #bfdbfe;
     display: grid;
-    font-size: 10px;
-    gap: 3px;
+    font-size: 12px;
+    gap: 4px;
     min-width: 0;
-    padding-top: 4px;
+    padding-top: 6px;
 }
 
 .mail-attachment-preview__storage div {
     display: flex;
-    gap: 6px;
+    gap: 8px;
 }
 
 .mail-body,
 .mail-body-text {
     font-family: 'Rubik-Medium', 'Roboto-Regular', 'Segoe UI', sans-serif;
-    font-size: 12px;
+    font-size: 14px;
     letter-spacing: -0.01em;
-    line-height: 1.25;
+    line-height: 1.4;
     height: 100%;
     max-height: none;
     min-height: 0;
     overflow: auto;
-    padding: 6px 8px;
+    padding: 8px 10px;
 }
 
 .mail-body :deep(p),
@@ -1519,11 +1521,11 @@ watch(model, async (isOpen) => {
 .mail-body :deep(a),
 .mail-body :deep(font) {
     font-family: 'Rubik-Medium', 'Roboto-Regular', 'Segoe UI', sans-serif !important;
-    line-height: 1.25;
+    line-height: 1.4;
 }
 
 .mail-body :deep(p) {
-    margin: 0.2em 0;
+    margin: 0.35em 0;
 }
 
 .mail-body :deep(h1),
@@ -1531,14 +1533,14 @@ watch(model, async (isOpen) => {
 .mail-body :deep(h3),
 .mail-body :deep(h4) {
     font-family: 'Rubik-Medium', 'Roboto-Regular', sans-serif !important;
-    font-size: 13px !important;
-    line-height: 1.25;
-    margin: 0.25em 0;
+    font-size: 16px !important;
+    line-height: 1.3;
+    margin: 0.35em 0;
 }
 
 .mail-body :deep(img) {
     height: auto;
-    max-height: 60px;
+    max-height: 80px;
     max-width: 100%;
 }
 
@@ -1547,11 +1549,6 @@ watch(model, async (isOpen) => {
 }
 
 @media (max-width: 1100px) {
-    .mail-reader-card {
-        height: 80vh;
-        max-height: 80vh;
-    }
-
     .mail-reader-body {
         overflow: auto;
     }
@@ -1564,12 +1561,12 @@ watch(model, async (isOpen) => {
     .mail-reader-main > .mail-body-text {
         grid-column: 1;
         grid-row: 2;
-        max-height: 160px;
+        max-height: 240px;
     }
 
     .mail-attachments-workspace {
         grid-template-columns: 1fr;
-        min-height: 300px;
+        min-height: 360px;
     }
 
     .mail-attachments-toolbar {
@@ -1577,7 +1574,7 @@ watch(model, async (isOpen) => {
     }
 
     .mail-attachments-sheet__row {
-        grid-template-columns: 24px minmax(0, 1fr) 52px 36px 88px;
+        grid-template-columns: 28px minmax(0, 1fr) 60px 42px 92px;
     }
 }
 </style>
