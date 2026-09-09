@@ -3,10 +3,20 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
+import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
+import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
+import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 import { usePurchases } from '@/Composables/usePurchases.js'
 import { usePurchaseForm } from '@/Composables/usePurchaseForm.js'
 
 const PER_PAGE = 100
+
+const { getMeta: getEntityMeta, createOne: createEntityOne } = useEntityApi()
+const {
+    form: entityForm,
+    resetForm: resetEntityForm,
+    toPayload: entityPayload,
+} = useEntityForm()
 
 const {
     items,
@@ -38,6 +48,11 @@ const detailsLoading = ref(false)
 const selectedPurchase = ref(null)
 const saving = ref(false)
 const filtersMenu = ref(false)
+const entityCreatorOpen = ref(false)
+const entityCreating = ref(false)
+const entityMetaLoading = ref(false)
+const entityMetaLoaded = ref(false)
+const entitySearch = ref('')
 const entities = ref([])
 const units = ref([])
 const goodsOptions = ref([])
@@ -45,6 +60,20 @@ const measures = ref([])
 const currencies = ref([])
 const serverErrors = ref({})
 const errorMessage = ref('')
+const entityFormErrors = ref({})
+const entityFormError = ref('')
+
+const entityMeta = reactive({
+    classifications: [],
+    countries: [],
+    cities: [],
+    regions: [],
+    buildings: [],
+    emails: [],
+    telephones: [],
+    units: [],
+    chats: [],
+})
 
 const filters = reactive({
     search: '',
@@ -124,16 +153,26 @@ async function loadPurchases(targetPage = page.value) {
     }
 }
 
+async function fetchEntityOptions() {
+    const response = await axios.get('/api/entities', { params: { itemsPerPage: 5000 } })
+
+    return extractItems(response)
+}
+
+async function refreshEntityOptions() {
+    entities.value = await fetchEntityOptions()
+}
+
 async function loadDictionaries() {
-    const [entitiesRes, unitsRes, goodsRes, measuresRes, currenciesRes] = await Promise.all([
-        axios.get('/api/entities', { params: { itemsPerPage: 5000 } }),
+    const [entityOptions, unitsRes, goodsRes, measuresRes, currenciesRes] = await Promise.all([
+        fetchEntityOptions(),
         axios.get('/api/units'),
         axios.get('/api/goods', { params: { per_page: 9999 } }),
         axios.get('/api/measures'),
         axios.get('/api/currencies'),
     ])
 
-    entities.value = extractItems(entitiesRes)
+    entities.value = entityOptions
     units.value = extractItems(unitsRes)
     goodsOptions.value = extractItems(goodsRes)
     measures.value = extractItems(measuresRes)
@@ -314,6 +353,106 @@ function openCreate() {
     form.date = new Date().toISOString().slice(0, 10)
     serverErrors.value = {}
     dialog.value = true
+}
+
+async function loadEntityMeta() {
+    if (entityMetaLoaded.value || entityMetaLoading.value) {
+        return
+    }
+
+    entityMetaLoading.value = true
+
+    try {
+        Object.assign(entityMeta, await getEntityMeta())
+        entityMetaLoaded.value = true
+    } catch (error) {
+        entityFormError.value = error.response?.data?.message
+            || 'Не удалось загрузить справочники для формы Entity.'
+        console.error('load entity meta error:', error)
+    } finally {
+        entityMetaLoading.value = false
+    }
+}
+
+async function openEntityCreator() {
+    const suggestedName = entitySearch.value.trim()
+
+    resetEntityForm()
+    entityForm.name = suggestedName
+    entityFormErrors.value = {}
+    entityFormError.value = ''
+    entityCreatorOpen.value = true
+
+    await loadEntityMeta()
+}
+
+function mergeEntityMetaItem(key, item, compare) {
+    if (!item?.id) {
+        return
+    }
+
+    entityMeta[key] = [
+        item,
+        ...entityMeta[key].filter((candidate) => Number(candidate.id) !== Number(item.id)),
+    ].sort(compare)
+}
+
+function mergeEntityBuildingMeta(building) {
+    mergeEntityMetaItem('buildings', building, (left, right) => {
+        const cityComparison = (left.city?.name || '').localeCompare(right.city?.name || '', 'ru')
+
+        return cityComparison || (left.address || '').localeCompare(right.address || '', 'ru')
+    })
+}
+
+function mergeEntityTelephoneMeta(telephone) {
+    mergeEntityMetaItem('telephones', telephone, (left, right) => (
+        String(left.number || '').localeCompare(String(right.number || ''), 'ru')
+    ))
+}
+
+async function createPurchaseEntity() {
+    entityFormErrors.value = {}
+    entityFormError.value = ''
+
+    const name = entityForm.name.trim()
+
+    if (!name) {
+        entityFormErrors.value = { name: ['Укажите название Entity.'] }
+        return
+    }
+
+    entityCreating.value = true
+
+    try {
+        const entity = await createEntityOne({
+            ...entityPayload(),
+            name,
+        })
+
+        try {
+            await refreshEntityOptions()
+        } catch (error) {
+            console.error('refresh entity options after create error:', error)
+        }
+
+        if (!entities.value.some((item) => Number(item.id) === Number(entity.id))) {
+            entities.value = [entity, ...entities.value]
+        }
+
+        form.entity_id = entity.id
+        entitySearch.value = ''
+        entityCreatorOpen.value = false
+        resetEntityForm()
+        entityFormErrors.value = {}
+        entityFormError.value = ''
+    } catch (error) {
+        entityFormErrors.value = error.response?.data?.errors || {}
+        entityFormError.value = error.response?.data?.message || 'Не удалось создать Entity.'
+        console.error('create purchase entity error:', error)
+    } finally {
+        entityCreating.value = false
+    }
 }
 
 async function openEdit(id) {
@@ -946,23 +1085,41 @@ onMounted(async () => {
                                     Контрагент
                                     <span>*</span>
                                 </label>
-                                <v-autocomplete
-                                    id="purchase-entity"
-                                    v-model="form.entity_id"
-                                    :items="entities"
-                                    :item-title="entityTitle"
-                                    :custom-filter="entitySearchFilter"
-                                    item-value="id"
-                                    placeholder="Название, ИНН или Unit"
-                                    variant="outlined"
-                                    density="compact"
-                                    hide-details="auto"
-                                    color="#0f766e"
-                                    bg-color="#ffffff"
-                                    clearable
-                                    no-data-text="Контрагенты не найдены"
-                                    :error-messages="serverErrors.entity_id"
-                                />
+                                <div class="purchase-form__entity-picker">
+                                    <v-autocomplete
+                                        id="purchase-entity"
+                                        v-model="form.entity_id"
+                                        v-model:search="entitySearch"
+                                        :items="entities"
+                                        :item-title="entityTitle"
+                                        :custom-filter="entitySearchFilter"
+                                        item-value="id"
+                                        placeholder="Название, ИНН или Unit"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details="auto"
+                                        color="#0f766e"
+                                        bg-color="#ffffff"
+                                        clearable
+                                        no-data-text="Контрагенты не найдены"
+                                        :error-messages="serverErrors.entity_id"
+                                    />
+
+                                    <v-tooltip text="Создать нового контрагента">
+                                        <template #activator="{ props }">
+                                            <v-btn
+                                                v-bind="props"
+                                                class="purchase-form__new-entity"
+                                                color="#0f766e"
+                                                variant="tonal"
+                                                icon="mdi-domain-plus"
+                                                :loading="entityCreating"
+                                                aria-label="Создать Entity"
+                                                @click="openEntityCreator"
+                                            />
+                                        </template>
+                                    </v-tooltip>
+                                </div>
                             </div>
 
                             <div class="purchase-form__total" aria-live="polite">
@@ -1157,6 +1314,22 @@ onMounted(async () => {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <EntityFormDialog
+                v-model="entityCreatorOpen"
+                :loading="entityCreating"
+                :preparing="entityMetaLoading"
+                :is-edit="false"
+                :form="entityForm"
+                :meta="entityMeta"
+                :errors="entityFormErrors"
+                :error="entityFormError"
+                title="Новый Entity для закупки"
+                submit-text="Создать и выбрать"
+                @submit="createPurchaseEntity"
+                @building-created="mergeEntityBuildingMeta"
+                @telephone-created="mergeEntityTelephoneMeta"
+            />
         </section>
     </v-theme-provider>
 </template>
@@ -1786,6 +1959,25 @@ onMounted(async () => {
 
 .purchase-form__field > label span {
     color: #e11d48;
+}
+
+.purchase-form__entity-picker {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.purchase-form__entity-picker > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.purchase-form__new-entity {
+    flex: 0 0 auto;
+    min-width: 40px !important;
+    height: 40px !important;
+    border-radius: 8px !important;
 }
 
 .purchase-form__total {
