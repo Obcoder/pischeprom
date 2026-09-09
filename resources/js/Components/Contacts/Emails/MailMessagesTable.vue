@@ -66,32 +66,32 @@ const headers = computed(() => [
         title: 'Тип',
         key: 'direction',
         sortable: false,
-        width: '90px',
+        width: '76px',
     },
     {
         title: 'Дата',
         key: 'message_date',
         sortable: false,
-        width: '150px',
+        width: '128px',
     },
     {
         title: 'Ящик',
         key: 'mailbox',
         sortable: false,
-        width: '180px',
+        width: '155px',
     },
     {
         title: 'Связи',
         key: 'relations',
         sortable: false,
         align: 'center',
-        width: '180px',
+        width: '155px',
     },
     {
         title: 'От / Кому',
         key: 'contact',
         sortable: false,
-        width: '260px',
+        width: '230px',
     },
     {
         title: 'Тема',
@@ -103,7 +103,7 @@ const headers = computed(() => [
         key: 'actions',
         sortable: false,
         align: 'end',
-        width: '112px',
+        width: '80px',
     },
 ])
 
@@ -320,9 +320,41 @@ function folderLabel(folder) {
     return folder || '—'
 }
 
+function attachmentCount(item) {
+    return Number(item?.attachments_count || item?.attachments?.length || 0)
+}
+
+function hasAttachments(item) {
+    return Boolean(item?.has_attachments || attachmentCount(item))
+}
+
+function attachmentLabel(item) {
+    const count = attachmentCount(item)
+
+    if (!count) {
+        return 'Письмо с вложениями'
+    }
+
+    const remainder = count % 100
+    const lastDigit = count % 10
+    const noun = remainder >= 11 && remainder <= 14
+        ? 'вложений'
+        : lastDigit === 1
+            ? 'вложение'
+            : lastDigit >= 2 && lastDigit <= 4
+                ? 'вложения'
+                : 'вложений'
+
+    return `${count} ${noun}`
+}
+
 function rowProps({ item }) {
     return {
-        class: `mail-message-row mail-message-row--${folderKind(item?.folder)}`,
+        class: [
+            'mail-message-row',
+            `mail-message-row--${folderKind(item?.folder)}`,
+            hasAttachments(item) ? 'mail-message-row--with-attachments' : 'mail-message-row--text-only',
+        ].join(' '),
     }
 }
 </script>
@@ -349,6 +381,7 @@ function rowProps({ item }) {
         <template #item.direction="{ item }">
             <v-chip
                 size="x-small"
+                density="compact"
                 :color="item.direction === 'incoming' ? 'purple' : 'blue'"
                 variant="tonal"
             >
@@ -407,23 +440,40 @@ function rowProps({ item }) {
         </template>
 
         <template #item.subject="{ item }">
-            <div class="py-1 cursor-pointer">
-                <div class="text-sm text-blue-lighten-4 hover:text-white">
-                    {{ item.subject || 'Без темы' }}
+            <div class="mail-subject-cell">
+                <div class="mail-subject-line">
+                    <span
+                        class="mail-subject-kind"
+                        :class="hasAttachments(item) ? 'mail-subject-kind--attachment' : 'mail-subject-kind--text'"
+                        :title="hasAttachments(item) ? attachmentLabel(item) : 'Письмо только с текстом'"
+                    >
+                        <v-icon
+                            :icon="hasAttachments(item) ? 'mdi-paperclip' : 'mdi-text-long'"
+                            size="15"
+                        />
+                    </span>
+
+                    <span
+                        class="mail-subject-title"
+                        :title="item.subject || 'Без темы'"
+                    >
+                        {{ item.subject || 'Без темы' }}
+                    </span>
+
+                    <v-icon
+                        v-if="item.body_loaded_at"
+                        icon="mdi-check-circle-outline"
+                        size="13"
+                        color="teal-lighten-3"
+                        title="Тело письма загружено"
+                    />
                 </div>
 
                 <div
                     v-if="item.preview"
-                    class="text-[10px] text-grey-lighten-1 line-clamp-2 mt-1"
+                    class="mail-subject-preview line-clamp-1"
                 >
                     {{ item.preview }}
-                </div>
-
-                <div
-                    v-if="item.body_loaded_at"
-                    class="text-[9px] text-teal-lighten-3 mt-1"
-                >
-                    body cached
                 </div>
             </div>
         </template>
@@ -511,9 +561,9 @@ function rowProps({ item }) {
 </template>
 
 <style scoped>
-.line-clamp-2 {
+.line-clamp-1 {
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -535,11 +585,14 @@ function rowProps({ item }) {
 }
 
 .mail-messages-table :deep(table) {
-    min-width: 1180px;
+    min-width: 1060px;
     table-layout: fixed;
 }
 
 .mail-messages-table :deep(th) {
+    font-size: 11px;
+    height: 34px;
+    padding: 0 8px !important;
     white-space: nowrap;
 }
 
@@ -549,8 +602,65 @@ function rowProps({ item }) {
 }
 
 .mail-messages-table :deep(td) {
-    padding-top: 8px !important;
-    padding-bottom: 8px !important;
+    padding: 4px 8px !important;
+}
+
+.mail-messages-table :deep(.mail-message-row--with-attachments) {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), transparent 48%);
+}
+
+.mail-messages-table :deep(.mail-message-row--with-attachments > td:first-child) {
+    box-shadow: inset 3px 0 0 #fbbf24;
+}
+
+.mail-messages-table :deep(.mail-message-row--with-attachments:hover) {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.18), rgba(59, 130, 246, 0.08) 58%) !important;
+}
+
+.mail-subject-cell {
+    cursor: pointer;
+    min-width: 0;
+    padding: 1px 0;
+}
+
+.mail-subject-line {
+    align-items: center;
+    display: flex;
+    gap: 5px;
+    min-width: 0;
+}
+
+.mail-subject-kind {
+    display: inline-flex;
+    flex: 0 0 auto;
+}
+
+.mail-subject-kind--attachment {
+    color: #fbbf24;
+}
+
+.mail-subject-kind--text {
+    color: #64748b;
+}
+
+.mail-subject-title {
+    color: #dbeafe;
+    font-size: 13px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-subject-cell:hover .mail-subject-title {
+    color: #fff;
+}
+
+.mail-subject-preview {
+    color: #94a3b8;
+    font-size: 11px;
+    line-height: 1.2;
+    margin-top: 2px;
 }
 
 .mailbox-pill {
@@ -573,8 +683,8 @@ function rowProps({ item }) {
 
 .folder-badge {
     width: fit-content;
-    margin-top: 5px;
-    padding: 1px 6px;
+    margin-top: 2px;
+    padding: 1px 5px;
     border-radius: 999px;
     font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
     font-size: 8px;

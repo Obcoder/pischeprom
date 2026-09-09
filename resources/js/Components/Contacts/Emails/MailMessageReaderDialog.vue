@@ -583,8 +583,8 @@ watch(model, async (isOpen) => {
         v-model="model"
         width="1600"
         max-width="96vw"
-        height="80vh"
-        max-height="80vh"
+        height="88vh"
+        max-height="88vh"
         scrollable
     >
         <v-card class="mail-reader-card rounded border border-blue-900 bg-slate-950">
@@ -755,9 +755,12 @@ watch(model, async (isOpen) => {
                                     </a>
                                 </div>
 
-                                <div v-if="attachmentRows.length" class="mail-attachments-workspace">
+                                <div
+                                    class="mail-attachments-workspace"
+                                    :class="{ 'mail-attachments-workspace--empty': !attachmentRows.length }"
+                                >
                                     <div class="mail-attachments-sidebar">
-                                        <div class="mail-attachments-sheet">
+                                        <div v-if="attachmentRows.length" class="mail-attachments-sheet">
                                         <div class="mail-attachments-sheet__row is-head">
                                             <span>#</span>
                                             <span>Файл</span>
@@ -836,6 +839,10 @@ watch(model, async (isOpen) => {
                                                 </v-btn>
                                             </span>
                                         </div>
+                                        </div>
+
+                                        <div v-else class="mail-attachments-empty">
+                                            {{ hasAttachmentSignal ? 'Вложения ещё не загружены. Нажмите refresh письма.' : 'Вложений нет.' }}
                                         </div>
 
                                         <v-card variant="tonal" color="teal" class="mail-crm-card">
@@ -933,7 +940,7 @@ watch(model, async (isOpen) => {
                                         </v-card>
                                     </div>
 
-                                    <div class="mail-attachment-preview">
+                                    <div v-if="attachmentRows.length" class="mail-attachment-preview">
                                         <template v-if="selectedAttachment">
                                             <div class="mail-attachment-preview__meta">
                                                 <strong>{{ attachmentName(selectedAttachment) }}</strong>
@@ -990,9 +997,6 @@ watch(model, async (isOpen) => {
                                     </div>
                                 </div>
 
-                                <div v-else class="mail-attachments-empty">
-                                    {{ hasAttachmentSignal ? 'Вложения ещё не загружены. Нажмите refresh письма.' : 'Вложений нет.' }}
-                                </div>
                             </v-card-text>
                         </v-card>
 
@@ -1252,6 +1256,23 @@ watch(model, async (isOpen) => {
     gap: 6px;
     grid-template-rows: minmax(0, 1fr) auto;
     min-height: 0;
+}
+
+.mail-attachments-workspace--empty .mail-attachments-sidebar {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+    grid-template-rows: minmax(0, 1fr);
+}
+
+.mail-attachments-workspace--empty .mail-attachments-empty {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.mail-attachments-workspace--empty .mail-crm-card {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
 }
 
 .mail-attachments-target,
@@ -1567,6 +1588,21 @@ watch(model, async (isOpen) => {
     .mail-attachments-workspace {
         grid-template-columns: 1fr;
         min-height: 360px;
+    }
+
+    .mail-attachments-workspace--empty .mail-attachments-sidebar {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(180px, 1fr) auto;
+    }
+
+    .mail-attachments-workspace--empty .mail-attachments-empty {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .mail-attachments-workspace--empty .mail-crm-card {
+        grid-column: 1;
+        grid-row: 2;
     }
 
     .mail-attachments-toolbar {
