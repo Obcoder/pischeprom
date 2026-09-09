@@ -609,6 +609,30 @@ watch(model, async (isOpen) => {
                         </span>
                         <span class="mail-reader-header__date">{{ formatDate(currentMessage?.message_date) }}</span>
                     </div>
+
+                    <div v-if="feedback || syncError" class="mail-reader-header__notices">
+                        <div
+                            v-if="feedback"
+                            class="mail-reader-header__notice"
+                            :class="`mail-reader-header__notice--${feedback.type}`"
+                            :title="feedback.text"
+                        >
+                            <v-icon
+                                :icon="feedback.type === 'success' ? 'mdi-check-circle-outline' : 'mdi-alert-circle-outline'"
+                                size="14"
+                            />
+                            <span>{{ feedback.text }}</span>
+                        </div>
+
+                        <div
+                            v-if="syncError"
+                            class="mail-reader-header__notice mail-reader-header__notice--warning"
+                            :title="syncError"
+                        >
+                            <v-icon icon="mdi-alert-outline" size="14" />
+                            <span>{{ syncError }}</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mail-reader-header__actions">
@@ -644,26 +668,6 @@ watch(model, async (isOpen) => {
             <v-divider />
 
             <v-card-text class="mail-reader-body">
-                <v-alert
-                    v-if="feedback"
-                    :type="feedback.type"
-                    variant="tonal"
-                    density="compact"
-                    class="mb-1"
-                >
-                    {{ feedback.text }}
-                </v-alert>
-
-                <v-alert
-                    v-if="syncError"
-                    type="warning"
-                    variant="tonal"
-                    density="compact"
-                    class="mb-1"
-                >
-                    {{ syncError }}
-                </v-alert>
-
                 <div class="mail-reader-layout">
                     <div class="mail-reader-main">
                         <v-card variant="tonal" color="blue" class="mail-tools-card mail-attachments-card">
@@ -1062,9 +1066,11 @@ watch(model, async (isOpen) => {
     justify-content: space-between;
     min-width: 0;
     padding: 6px 10px !important;
+    white-space: normal;
 }
 
 .mail-reader-header__main {
+    flex: 1 1 auto;
     min-width: 0;
 }
 
@@ -1108,6 +1114,49 @@ watch(model, async (isOpen) => {
 .mail-reader-header__date {
     color: #64748b;
     margin-left: auto;
+}
+
+.mail-reader-header__notices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+    min-width: 0;
+}
+
+.mail-reader-header__notice {
+    align-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 5px;
+    color: #cbd5e1;
+    display: flex;
+    flex: 0 1 auto;
+    font-size: 11px;
+    font-weight: 700;
+    gap: 4px;
+    line-height: 16px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 1px 6px;
+}
+
+.mail-reader-header__notice span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-reader-header__notice--success {
+    background: rgba(20, 184, 166, 0.12);
+    border-color: rgba(45, 212, 191, 0.3);
+    color: #5eead4;
+}
+
+.mail-reader-header__notice--error,
+.mail-reader-header__notice--warning {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(251, 191, 36, 0.32);
+    color: #fbbf24;
 }
 
 .mail-reader-header__actions {
