@@ -581,8 +581,8 @@ watch(model, async (isOpen) => {
 <template>
     <v-dialog
         v-model="model"
-        width="1680"
-        max-width="96vw"
+        width="1920"
+        max-width="98vw"
         scrollable
     >
         <v-card class="mail-reader-card rounded border border-blue-900 bg-slate-950">
@@ -754,7 +754,8 @@ watch(model, async (isOpen) => {
                                 </div>
 
                                 <div v-if="attachmentRows.length" class="mail-attachments-workspace">
-                                    <div class="mail-attachments-sheet">
+                                    <div class="mail-attachments-sidebar">
+                                        <div class="mail-attachments-sheet">
                                         <div class="mail-attachments-sheet__row is-head">
                                             <span>#</span>
                                             <span>Файл</span>
@@ -833,6 +834,101 @@ watch(model, async (isOpen) => {
                                                 </v-btn>
                                             </span>
                                         </div>
+                                        </div>
+
+                                        <v-card variant="tonal" color="teal" class="mail-crm-card">
+                                            <v-card-title class="mail-crm-card__title">
+                                                CRM
+                                            </v-card-title>
+
+                                            <v-card-text class="mail-crm-card__body">
+                                                <v-text-field
+                                                    v-model="noteTitle"
+                                                    label="Заголовок"
+                                                    density="compact"
+                                                    variant="outlined"
+                                                    hide-details
+                                                />
+
+                                                <div class="mail-crm-card__row">
+                                                    <v-select
+                                                        v-model="noteImportance"
+                                                        :items="[
+                                                            { title: 'Important', value: 'important' },
+                                                            { title: 'Critical', value: 'critical' },
+                                                            { title: 'Normal', value: 'normal' },
+                                                        ]"
+                                                        label="Важность"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                        hide-details
+                                                    />
+
+                                                    <v-btn
+                                                        color="teal"
+                                                        variant="elevated"
+                                                        size="x-small"
+                                                        icon="mdi-content-save-outline"
+                                                        :loading="actionLoading"
+                                                        :disabled="!noteBody.trim()"
+                                                        @click="saveNote"
+                                                    />
+                                                </div>
+
+                                                <v-textarea
+                                                    v-model="noteBody"
+                                                    label="Важное из письма"
+                                                    density="compact"
+                                                    variant="outlined"
+                                                    rows="1"
+                                                    no-resize
+                                                    hide-details
+                                                />
+
+                                                <v-text-field
+                                                    v-model="leadTitle"
+                                                    label="Лид"
+                                                    density="compact"
+                                                    variant="outlined"
+                                                    hide-details
+                                                />
+
+                                                <v-btn
+                                                    block
+                                                    color="amber"
+                                                    variant="elevated"
+                                                    size="x-small"
+                                                    prepend-icon="mdi-account-plus-outline"
+                                                    :loading="actionLoading"
+                                                    :disabled="!leadTitle.trim()"
+                                                    @click="createLead"
+                                                >
+                                                    Создать лид
+                                                </v-btn>
+
+                                                <div v-if="notes.length || leads.length" class="mail-crm-history">
+                                                    <v-chip
+                                                        v-for="lead in leads"
+                                                        :key="`lead-${lead.id}`"
+                                                        size="x-small"
+                                                        color="amber"
+                                                        variant="tonal"
+                                                    >
+                                                        Lead #{{ lead.id }} {{ lead.title }}
+                                                    </v-chip>
+
+                                                    <v-chip
+                                                        v-for="note in notes"
+                                                        :key="`note-${note.id}`"
+                                                        size="x-small"
+                                                        :color="note.importance === 'critical' ? 'red' : 'teal'"
+                                                        variant="tonal"
+                                                    >
+                                                        {{ note.title || note.body }}
+                                                    </v-chip>
+                                                </div>
+                                            </v-card-text>
+                                        </v-card>
                                     </div>
 
                                     <div class="mail-attachment-preview">
@@ -916,104 +1012,6 @@ watch(model, async (isOpen) => {
                             class="mail-body-text rounded border border-blue-900 bg-slate-900 text-grey-lighten-2"
                         >{{ bodyText }}</pre>
                     </div>
-
-                    <aside class="mail-reader-crm">
-                        <v-card variant="tonal" color="teal" class="mail-crm-card">
-                            <v-card-title class="mail-crm-card__title">
-                                CRM
-                            </v-card-title>
-
-                            <v-card-text class="mail-crm-card__body">
-                                <v-text-field
-                                    v-model="noteTitle"
-                                    label="Заголовок"
-                                    density="compact"
-                                    variant="outlined"
-                                    hide-details
-                                />
-
-                                <div class="mail-crm-card__row">
-                                    <v-select
-                                        v-model="noteImportance"
-                                        :items="[
-                                            { title: 'Important', value: 'important' },
-                                            { title: 'Critical', value: 'critical' },
-                                            { title: 'Normal', value: 'normal' },
-                                        ]"
-                                        label="Важность"
-                                        density="compact"
-                                        variant="outlined"
-                                        hide-details
-                                    />
-
-                                    <v-btn
-                                        color="teal"
-                                        variant="elevated"
-                                        size="small"
-                                        prepend-icon="mdi-content-save-outline"
-                                        :loading="actionLoading"
-                                        :disabled="!noteBody.trim()"
-                                        @click="saveNote"
-                                    >
-                                        Сохранить
-                                    </v-btn>
-                                </div>
-
-                                <v-textarea
-                                    v-model="noteBody"
-                                    label="Важное из письма"
-                                    density="compact"
-                                    variant="outlined"
-                                    rows="2"
-                                    no-resize
-                                    hide-details
-                                />
-
-                                <v-text-field
-                                    v-model="leadTitle"
-                                    label="Лид"
-                                    density="compact"
-                                    variant="outlined"
-                                    hide-details
-                                />
-
-                                <v-btn
-                                    block
-                                    color="amber"
-                                    variant="elevated"
-                                    size="small"
-                                    prepend-icon="mdi-account-plus-outline"
-                                    :loading="actionLoading"
-                                    :disabled="!leadTitle.trim()"
-                                    @click="createLead"
-                                >
-                                    Создать лид
-                                </v-btn>
-
-                                <div v-if="notes.length || leads.length" class="mail-crm-history">
-                                    <v-chip
-                                        v-for="lead in leads"
-                                        :key="`lead-${lead.id}`"
-                                        size="x-small"
-                                        color="amber"
-                                        variant="tonal"
-                                    >
-                                        Lead #{{ lead.id }} {{ lead.title }}
-                                    </v-chip>
-
-                                    <v-chip
-                                        v-for="note in notes"
-                                        :key="`note-${note.id}`"
-                                        size="x-small"
-                                        :color="note.importance === 'critical' ? 'red' : 'teal'"
-                                        variant="tonal"
-                                    >
-                                        {{ note.title || note.body }}
-                                    </v-chip>
-                                </div>
-                            </v-card-text>
-                        </v-card>
-                    </aside>
                 </div>
             </v-card-text>
 
@@ -1047,7 +1045,8 @@ watch(model, async (isOpen) => {
 .mail-reader-card {
     display: flex;
     flex-direction: column;
-    max-height: 92vh;
+    height: 96vh;
+    max-height: 96vh;
 }
 
 .mail-reader-header {
@@ -1113,7 +1112,9 @@ watch(model, async (isOpen) => {
 }
 
 .mail-reader-body {
+    display: flex;
     flex: 1;
+    flex-direction: column;
     min-height: 0;
     padding: 8px 12px 10px !important;
 }
@@ -1121,25 +1122,38 @@ watch(model, async (isOpen) => {
 .mail-reader-layout {
     display: grid;
     align-items: stretch;
+    flex: 1;
     gap: 8px;
-    grid-template-columns: minmax(0, 1fr) 268px;
     min-height: 0;
 }
 
 .mail-reader-main {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    flex: 1;
     gap: 8px;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 24vw);
     min-width: 0;
 }
 
 .mail-reader-main > .mail-attachments-card {
-    flex: 1 1 auto;
+    grid-column: 1;
+    grid-row: 1;
     min-height: 0;
 }
 
-.mail-reader-crm {
-    min-width: 0;
+.mail-reader-main > .v-progress-linear {
+    align-self: start;
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0 !important;
+    z-index: 1;
+}
+
+.mail-reader-main > .mail-body,
+.mail-reader-main > .mail-body-text {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
 }
 
 .mail-reader-actions {
@@ -1162,31 +1176,30 @@ watch(model, async (isOpen) => {
 }
 
 .mail-crm-card__title {
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.04em;
-    padding: 6px 12px 4px !important;
+    padding: 5px 8px 2px !important;
     text-transform: uppercase;
 }
 
 .mail-crm-card__body {
     display: grid;
-    gap: 6px;
-    padding: 0 10px 10px !important;
+    gap: 4px;
+    padding: 0 6px 6px !important;
 }
 
 .mail-crm-card__row {
     align-items: center;
     display: grid;
-    gap: 6px;
+    gap: 4px;
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .mail-crm-history {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    padding-top: 2px;
+    gap: 3px;
 }
 
 .mail-attachments-card__title {
@@ -1226,8 +1239,15 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 8px;
-    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-    min-height: clamp(420px, 58vh, 720px);
+    grid-template-columns: minmax(210px, 240px) minmax(0, 1fr);
+    min-height: 0;
+}
+
+.mail-attachments-sidebar {
+    display: grid;
+    gap: 8px;
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-height: 0;
 }
 
 .mail-attachments-target,
@@ -1482,7 +1502,9 @@ watch(model, async (isOpen) => {
     font-size: 12px;
     letter-spacing: -0.01em;
     line-height: 1.28;
-    max-height: 156px;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
     overflow: auto;
     padding: 8px 10px;
 }
@@ -1523,8 +1545,20 @@ watch(model, async (isOpen) => {
 }
 
 @media (max-width: 1100px) {
-    .mail-reader-layout {
+    .mail-reader-card {
+        height: 98vh;
+        max-height: 98vh;
+    }
+
+    .mail-reader-main {
         grid-template-columns: 1fr;
+    }
+
+    .mail-reader-main > .mail-body,
+    .mail-reader-main > .mail-body-text {
+        grid-column: 1;
+        grid-row: 2;
+        max-height: 200px;
     }
 
     .mail-attachments-workspace {
