@@ -1045,8 +1045,8 @@ watch(model, async (isOpen) => {
 .mail-reader-card {
     display: flex;
     flex-direction: column;
-    height: 96vh;
-    max-height: 96vh;
+    height: 98vh;
+    max-height: 98vh;
 }
 
 .mail-reader-header {
