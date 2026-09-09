@@ -26,6 +26,7 @@ const {
     fillForm,
     payload,
     recalcItem,
+    recalcPrice,
     recalcAmount,
     emptyItem,
 } = usePurchaseForm()
@@ -359,8 +360,25 @@ function removeItemRow(index) {
     recalcAmount()
 }
 
-function onItemChanged(itemRow) {
+function onItemQuantityChanged(itemRow) {
+    if (itemRow.calculationSource === 'total') {
+        recalcPrice(itemRow)
+    } else {
+        recalcItem(itemRow)
+    }
+
+    recalcAmount()
+}
+
+function onItemPriceChanged(itemRow) {
+    itemRow.calculationSource = 'price'
     recalcItem(itemRow)
+    recalcAmount()
+}
+
+function onItemTotalChanged(itemRow) {
+    itemRow.calculationSource = 'total'
+    recalcPrice(itemRow)
     recalcAmount()
 }
 
@@ -960,7 +978,10 @@ onMounted(async () => {
                                     <strong>Товары</strong>
                                     <span>{{ form.items.length }} поз.</span>
                                 </div>
-                                <span>Сумма рассчитывается автоматически</span>
+                                <span class="purchase-form-lines__calculator-hint">
+                                    <v-icon icon="mdi-calculator-variant-outline" size="14" />
+                                    Цена × количество ↔ сумма
+                                </span>
                             </div>
 
                             <div class="purchase-form-lines__scroller">
@@ -1017,7 +1038,7 @@ onMounted(async () => {
                                         bg-color="#ffffff"
                                         :aria-label="`Количество, позиция ${index + 1}`"
                                         :error-messages="serverErrors[`items.${index}.quantity`]"
-                                        @update:model-value="onItemChanged(itemRow)"
+                                        @update:model-value="onItemQuantityChanged(itemRow)"
                                     />
 
                                     <v-select
@@ -1048,7 +1069,7 @@ onMounted(async () => {
                                         bg-color="#ffffff"
                                         :aria-label="`Цена, позиция ${index + 1}`"
                                         :error-messages="serverErrors[`items.${index}.price`]"
-                                        @update:model-value="onItemChanged(itemRow)"
+                                        @update:model-value="onItemPriceChanged(itemRow)"
                                     />
 
                                     <v-select
@@ -1067,15 +1088,20 @@ onMounted(async () => {
                                     />
 
                                     <v-text-field
-                                        :model-value="formatOptionalMoney(itemRow.total, '')"
-                                        placeholder="—"
+                                        v-model="itemRow.total"
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        placeholder="Введите"
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        bg-color="#f8fafc"
-                                        readonly
+                                        color="#0f766e"
+                                        bg-color="#f0fdfa"
+                                        class="purchase-form-line__total-input"
                                         :aria-label="`Сумма, позиция ${index + 1}`"
                                         :error-messages="serverErrors[`items.${index}.total`]"
+                                        @update:model-value="onItemTotalChanged(itemRow)"
                                     />
 
                                     <v-tooltip text="Удалить позицию">
@@ -1832,8 +1858,15 @@ onMounted(async () => {
 }
 
 .purchase-form-lines__bar > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     color: #7b879a;
     font-size: 10px;
+}
+
+.purchase-form-line__total-input :deep(.v-field) {
+    box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.08);
 }
 
 .purchase-form-lines__scroller {

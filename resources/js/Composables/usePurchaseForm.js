@@ -7,7 +7,24 @@ const emptyItem = () => ({
     price: '',
     currency_id: null,
     total: '',
+    calculationSource: 'price',
 })
+
+const decimalValue = (value) => {
+    if (value === '' || value === null || value === undefined) {
+        return null
+    }
+
+    if (typeof value === 'string' && value.trim() === '') {
+        return null
+    }
+
+    const number = Number(typeof value === 'string' ? value.replace(',', '.') : value)
+
+    return Number.isFinite(number) ? number : null
+}
+
+const rounded = (value, precision) => Number(value.toFixed(precision))
 
 export function usePurchaseForm() {
     const form = reactive({
@@ -21,34 +38,36 @@ export function usePurchaseForm() {
     const isEdit = computed(() => Boolean(form.id))
 
     const recalcItem = (item) => {
-        const hasQuantity = item.quantity !== '' && item.quantity !== null && item.quantity !== undefined
-        const hasPrice = item.price !== '' && item.price !== null && item.price !== undefined
+        const quantity = decimalValue(item.quantity)
+        const price = decimalValue(item.price)
 
-        if (!hasQuantity || !hasPrice) {
+        if (quantity === null || quantity <= 0 || price === null || price < 0) {
             item.total = ''
             return
         }
 
-        const quantity = Number(item.quantity)
-        const price = Number(item.price)
+        item.total = rounded(quantity * price, 2)
+    }
 
-        if (!Number.isFinite(quantity) || !Number.isFinite(price)) {
-            item.total = ''
+    const recalcPrice = (item) => {
+        const quantity = decimalValue(item.quantity)
+        const total = decimalValue(item.total)
+
+        if (quantity === null || quantity <= 0 || total === null || total < 0) {
+            item.price = ''
             return
         }
 
-        item.total = +(quantity * price).toFixed(2)
+        item.price = rounded(total / quantity, 6)
     }
 
     const recalcAmount = () => {
         const totals = form.items
-            .map(item => item.total)
-            .filter(total => total !== '' && total !== null && total !== undefined)
-            .map(Number)
-            .filter(Number.isFinite)
+            .map(item => decimalValue(item.total))
+            .filter(total => total !== null)
 
         form.amount = totals.length
-            ? +totals.reduce((sum, total) => sum + total, 0).toFixed(2)
+            ? rounded(totals.reduce((sum, total) => sum + total, 0), 2)
             : ''
     }
 
@@ -72,6 +91,7 @@ export function usePurchaseForm() {
             price: item.price === null || item.price === undefined ? '' : Number(item.price),
             currency_id: item.currency_id ?? null,
             total: item.total === null || item.total === undefined ? '' : Number(item.total),
+            calculationSource: 'price',
         }))
     }
 
@@ -83,9 +103,9 @@ export function usePurchaseForm() {
             .filter(item => item.good_id)
             .map(item => ({
                 good_id: item.good_id,
-                quantity: Number(item.quantity || 0),
+                quantity: decimalValue(item.quantity) ?? 0,
                 measure_id: item.measure_id || null,
-                price: Number(item.price || 0),
+                price: decimalValue(item.price) ?? 0,
                 currency_id: item.currency_id || null,
             })),
     }))
@@ -97,6 +117,7 @@ export function usePurchaseForm() {
         fillForm,
         payload,
         recalcItem,
+        recalcPrice,
         recalcAmount,
         emptyItem,
     }
