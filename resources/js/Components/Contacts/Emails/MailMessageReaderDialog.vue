@@ -581,24 +581,37 @@ watch(model, async (isOpen) => {
 <template>
     <v-dialog
         v-model="model"
-        width="1200"
+        width="1680"
+        max-width="96vw"
         scrollable
     >
-        <v-card class="rounded border border-blue-900 bg-slate-950">
-            <v-card-title class="d-flex justify-space-between align-start">
-                <div>
-                    <div class="text-blue-lighten-3 text-base">
+        <v-card class="mail-reader-card rounded border border-blue-900 bg-slate-950">
+            <v-card-title class="mail-reader-header">
+                <div class="mail-reader-header__main">
+                    <div class="mail-reader-header__subject">
                         {{ currentMessage?.subject || 'Без темы' }}
                     </div>
 
-                    <div class="text-[11px] text-grey mt-1">
-                        {{ formatDate(currentMessage?.message_date) }}
+                    <div class="mail-reader-header__meta">
+                        <span class="mail-reader-header__from">
+                            {{ currentMessage?.from_name || '' }}
+                            {{ currentMessage?.from_address || '—' }}
+                        </span>
+                        <span class="mail-reader-header__arrow">→</span>
+                        <span class="mail-reader-header__to">{{ recipients(currentMessage?.to) }}</span>
+                        <span
+                            v-if="currentMessage?.cc?.length"
+                            class="mail-reader-header__cc"
+                        >
+                            CC {{ recipients(currentMessage?.cc) }}
+                        </span>
+                        <span class="mail-reader-header__date">{{ formatDate(currentMessage?.message_date) }}</span>
                     </div>
                 </div>
 
-                <div class="d-flex ga-1">
+                <div class="mail-reader-header__actions">
                     <v-chip
-                        size="small"
+                        size="x-small"
                         :color="currentMessage?.direction === 'incoming' ? 'purple' : 'blue'"
                         variant="tonal"
                     >
@@ -607,7 +620,7 @@ watch(model, async (isOpen) => {
 
                     <v-btn
                         icon="mdi-refresh"
-                        size="small"
+                        size="x-small"
                         variant="text"
                         color="blue"
                         :loading="loading"
@@ -617,7 +630,7 @@ watch(model, async (isOpen) => {
                     <v-btn
                         v-if="currentMessage?.direction === 'incoming'"
                         icon="mdi-reply"
-                        size="small"
+                        size="x-small"
                         variant="text"
                         color="teal"
                         :disabled="loading"
@@ -628,42 +641,13 @@ watch(model, async (isOpen) => {
 
             <v-divider />
 
-            <v-card-text>
-                <v-row dense>
-                    <v-col cols="12" lg="6">
-                        <div class="text-[11px] text-grey">From</div>
-                        <div class="text-sm text-purple-lighten-3">
-                            {{ currentMessage?.from_name || '' }}
-                            {{ currentMessage?.from_address || '—' }}
-                        </div>
-                    </v-col>
-
-                    <v-col cols="12" lg="6">
-                        <div class="text-[11px] text-grey">To</div>
-                        <div class="text-sm text-blue-lighten-3">
-                            {{ recipients(currentMessage?.to) }}
-                        </div>
-
-                        <div
-                            v-if="currentMessage?.cc?.length"
-                            class="mt-1"
-                        >
-                            <div class="text-[11px] text-grey">CC</div>
-                            <div class="text-sm text-blue-lighten-3">
-                                {{ recipients(currentMessage?.cc) }}
-                            </div>
-                        </div>
-                    </v-col>
-                </v-row>
-
-                <v-divider class="my-4" />
-
+            <v-card-text class="mail-reader-body">
                 <v-alert
                     v-if="feedback"
                     :type="feedback.type"
                     variant="tonal"
                     density="compact"
-                    class="mb-3"
+                    class="mb-2"
                 >
                     {{ feedback.text }}
                 </v-alert>
@@ -673,27 +657,27 @@ watch(model, async (isOpen) => {
                     type="warning"
                     variant="tonal"
                     density="compact"
-                    class="mb-3"
+                    class="mb-2"
                 >
                     {{ syncError }}
                 </v-alert>
 
-                <v-row dense class="mb-4">
-                    <v-col cols="12" lg="7">
+                <div class="mail-reader-layout">
+                    <div class="mail-reader-main">
                         <v-card variant="tonal" color="blue" class="mail-tools-card mail-attachments-card">
-                            <v-card-title class="mail-attachments-card__title py-2">
+                            <v-card-title class="mail-attachments-card__title py-1">
                                 <span>Вложения</span>
                                 <small v-if="attachmentRows.length">{{ attachmentRows.length }} файлов</small>
                             </v-card-title>
 
-                            <v-card-text class="pt-0">
-                                <div v-if="attachmentRows.length" class="mail-attachments-controls">
+                            <v-card-text class="mail-attachments-card__body pt-0">
+                                <div v-if="attachmentRows.length" class="mail-attachments-toolbar">
                                     <v-combobox
                                         v-model="selectedFolderPath"
                                         :items="folderOptions"
                                         item-title="title"
                                         item-value="value"
-                                        label="Папка S3 / bucket"
+                                        label="Папка S3"
                                         density="compact"
                                         variant="outlined"
                                         hide-details
@@ -704,7 +688,7 @@ watch(model, async (isOpen) => {
 
                                     <v-text-field
                                         v-model="newFolderPath"
-                                        label="Новая папка или полный path"
+                                        label="Новая папка"
                                         density="compact"
                                         variant="outlined"
                                         hide-details
@@ -712,7 +696,7 @@ watch(model, async (isOpen) => {
                                     />
 
                                     <v-btn
-                                        size="small"
+                                        size="x-small"
                                         color="blue"
                                         variant="tonal"
                                         prepend-icon="mdi-folder-plus-outline"
@@ -722,25 +706,24 @@ watch(model, async (isOpen) => {
                                     >
                                         Создать
                                     </v-btn>
-                                </div>
 
-                                <div v-if="quickFolderTargets.length" class="mail-attachments-quick-folders">
-                                    <span>Quick:</span>
-                                    <v-btn
-                                        v-for="folder in quickFolderTargets"
-                                        :key="folder.path"
-                                        size="x-small"
-                                        density="compact"
-                                        variant="tonal"
-                                        color="blue"
-                                        @click="selectedFolderPath = folder.path"
-                                    >
-                                        {{ folder.path.startsWith('units/') ? 'Unit' : 'Mail' }}
-                                    </v-btn>
+                                    <div v-if="quickFolderTargets.length" class="mail-attachments-quick-folders">
+                                        <v-btn
+                                            v-for="folder in quickFolderTargets"
+                                            :key="folder.path"
+                                            size="x-small"
+                                            density="compact"
+                                            variant="tonal"
+                                            color="blue"
+                                            @click="selectedFolderPath = folder.path"
+                                        >
+                                            {{ folder.path.startsWith('units/') ? 'Unit' : 'Mail' }}
+                                        </v-btn>
+                                    </div>
                                 </div>
 
                                 <div v-if="attachmentRows.length" class="mail-attachments-target">
-                                    <span>S3 target:</span>
+                                    <span>S3:</span>
                                     <code>{{ targetFolderPath }}</code>
                                     <a
                                         v-if="targetFolder?.url"
@@ -775,7 +758,6 @@ watch(model, async (isOpen) => {
                                         <div class="mail-attachments-sheet__row is-head">
                                             <span>#</span>
                                             <span>Файл</span>
-                                            <span>Тип</span>
                                             <span>Размер</span>
                                             <span>ПК</span>
                                             <span>S3</span>
@@ -792,6 +774,7 @@ watch(model, async (isOpen) => {
                                                 'is-image': isAttachmentImage(attachment),
                                                 'is-saved': attachment.is_saved,
                                             }"
+                                            :title="attachmentMime(attachment)"
                                             @click="selectAttachment(attachment)"
                                             @keydown.enter.prevent="selectAttachment(attachment)"
                                         >
@@ -803,7 +786,6 @@ watch(model, async (isOpen) => {
                                                 />
                                                 <span>{{ attachmentName(attachment) }}</span>
                                             </span>
-                                            <span>{{ attachmentMime(attachment) }}</span>
                                             <span>{{ formatSize(attachment.size) }}</span>
                                             <span class="mail-attachments-sheet__download">
                                                 <v-btn
@@ -857,7 +839,7 @@ watch(model, async (isOpen) => {
                                         <template v-if="selectedAttachment">
                                             <div class="mail-attachment-preview__meta">
                                                 <strong>{{ attachmentName(selectedAttachment) }}</strong>
-                                                <span>{{ formatSize(selectedAttachment.size) }}</span>
+                                                <span>{{ attachmentMime(selectedAttachment) }} · {{ formatSize(selectedAttachment.size) }}</span>
                                             </div>
 
                                             <img
@@ -915,142 +897,132 @@ watch(model, async (isOpen) => {
                                 </div>
                             </v-card-text>
                         </v-card>
-                    </v-col>
 
-                    <v-col cols="12" lg="5">
-                        <v-card variant="tonal" color="teal" class="mail-tools-card">
-                            <v-card-title class="text-sm py-2">
+                        <v-progress-linear
+                            v-if="loading"
+                            indeterminate
+                            color="blue"
+                            class="my-2"
+                        />
+
+                        <div
+                            v-if="bodyHtml"
+                            class="mail-body bg-white text-black rounded"
+                            v-html="bodyHtml"
+                        />
+
+                        <pre
+                            v-else
+                            class="mail-body-text rounded border border-blue-900 bg-slate-900 text-grey-lighten-2"
+                        >{{ bodyText }}</pre>
+                    </div>
+
+                    <aside class="mail-reader-crm">
+                        <v-card variant="tonal" color="teal" class="mail-crm-card">
+                            <v-card-title class="mail-crm-card__title">
                                 CRM
                             </v-card-title>
 
-                            <v-card-text class="pt-0">
-                                <v-row dense>
-                                    <v-col cols="12" md="5">
-                                        <v-text-field
-                                            v-model="noteTitle"
-                                            label="Заголовок важного"
-                                            density="compact"
-                                            variant="outlined"
-                                            hide-details
-                                        />
-                                    </v-col>
+                            <v-card-text class="mail-crm-card__body">
+                                <v-text-field
+                                    v-model="noteTitle"
+                                    label="Заголовок"
+                                    density="compact"
+                                    variant="outlined"
+                                    hide-details
+                                />
 
-                                    <v-col cols="12" md="3">
-                                        <v-select
-                                            v-model="noteImportance"
-                                            :items="[
-                                                { title: 'Important', value: 'important' },
-                                                { title: 'Critical', value: 'critical' },
-                                                { title: 'Normal', value: 'normal' },
-                                            ]"
-                                            label="Важность"
-                                            density="compact"
-                                            variant="outlined"
-                                            hide-details
-                                        />
-                                    </v-col>
+                                <div class="mail-crm-card__row">
+                                    <v-select
+                                        v-model="noteImportance"
+                                        :items="[
+                                            { title: 'Important', value: 'important' },
+                                            { title: 'Critical', value: 'critical' },
+                                            { title: 'Normal', value: 'normal' },
+                                        ]"
+                                        label="Важность"
+                                        density="compact"
+                                        variant="outlined"
+                                        hide-details
+                                    />
 
-                                    <v-col cols="12" md="4">
-                                        <v-btn
-                                            block
-                                            color="teal"
-                                            variant="elevated"
-                                            prepend-icon="mdi-content-save-outline"
-                                            :loading="actionLoading"
-                                            :disabled="!noteBody.trim()"
-                                            @click="saveNote"
-                                        >
-                                            Сохранить
-                                        </v-btn>
-                                    </v-col>
+                                    <v-btn
+                                        color="teal"
+                                        variant="elevated"
+                                        size="small"
+                                        prepend-icon="mdi-content-save-outline"
+                                        :loading="actionLoading"
+                                        :disabled="!noteBody.trim()"
+                                        @click="saveNote"
+                                    >
+                                        Сохранить
+                                    </v-btn>
+                                </div>
 
-                                    <v-col cols="12">
-                                        <v-textarea
-                                            v-model="noteBody"
-                                            label="Важная информация из письма"
-                                            density="compact"
-                                            variant="outlined"
-                                            rows="2"
-                                            auto-grow
-                                            hide-details
-                                        />
-                                    </v-col>
+                                <v-textarea
+                                    v-model="noteBody"
+                                    label="Важное из письма"
+                                    density="compact"
+                                    variant="outlined"
+                                    rows="2"
+                                    no-resize
+                                    hide-details
+                                />
 
-                                    <v-col cols="12" md="8">
-                                        <v-text-field
-                                            v-model="leadTitle"
-                                            label="Лид"
-                                            density="compact"
-                                            variant="outlined"
-                                            hide-details
-                                        />
-                                    </v-col>
+                                <v-text-field
+                                    v-model="leadTitle"
+                                    label="Лид"
+                                    density="compact"
+                                    variant="outlined"
+                                    hide-details
+                                />
 
-                                    <v-col cols="12" md="4">
-                                        <v-btn
-                                            block
-                                            color="amber"
-                                            variant="elevated"
-                                            prepend-icon="mdi-account-plus-outline"
-                                            :loading="actionLoading"
-                                            :disabled="!leadTitle.trim()"
-                                            @click="createLead"
-                                        >
-                                            Создать лид
-                                        </v-btn>
-                                    </v-col>
-                                </v-row>
+                                <v-btn
+                                    block
+                                    color="amber"
+                                    variant="elevated"
+                                    size="small"
+                                    prepend-icon="mdi-account-plus-outline"
+                                    :loading="actionLoading"
+                                    :disabled="!leadTitle.trim()"
+                                    @click="createLead"
+                                >
+                                    Создать лид
+                                </v-btn>
+
+                                <div v-if="notes.length || leads.length" class="mail-crm-history">
+                                    <v-chip
+                                        v-for="lead in leads"
+                                        :key="`lead-${lead.id}`"
+                                        size="x-small"
+                                        color="amber"
+                                        variant="tonal"
+                                    >
+                                        Lead #{{ lead.id }} {{ lead.title }}
+                                    </v-chip>
+
+                                    <v-chip
+                                        v-for="note in notes"
+                                        :key="`note-${note.id}`"
+                                        size="x-small"
+                                        :color="note.importance === 'critical' ? 'red' : 'teal'"
+                                        variant="tonal"
+                                    >
+                                        {{ note.title || note.body }}
+                                    </v-chip>
+                                </div>
                             </v-card-text>
                         </v-card>
-                    </v-col>
-                </v-row>
-
-                <div v-if="notes.length || leads.length" class="mail-crm-history mb-4">
-                    <v-chip
-                        v-for="lead in leads"
-                        :key="`lead-${lead.id}`"
-                        size="x-small"
-                        color="amber"
-                        variant="tonal"
-                    >
-                        Lead #{{ lead.id }} {{ lead.title }}
-                    </v-chip>
-
-                    <v-chip
-                        v-for="note in notes"
-                        :key="`note-${note.id}`"
-                        size="x-small"
-                        :color="note.importance === 'critical' ? 'red' : 'teal'"
-                        variant="tonal"
-                    >
-                        {{ note.title || note.body }}
-                    </v-chip>
+                    </aside>
                 </div>
-
-                <v-progress-linear
-                    v-if="loading"
-                    indeterminate
-                    color="blue"
-                    class="mb-3"
-                />
-
-                <div
-                    v-if="bodyHtml"
-                    class="mail-body bg-white text-black rounded pa-4"
-                    v-html="bodyHtml"
-                />
-
-                <pre
-                    v-else
-                    class="mail-body-text rounded border border-blue-900 bg-slate-900 text-grey-lighten-2 pa-4"
-                >{{ bodyText }}</pre>
             </v-card-text>
 
-            <v-card-actions>
+            <v-card-actions class="mail-reader-actions">
                 <v-btn
                     v-if="currentMessage?.direction === 'incoming'"
                     color="teal"
                     variant="tonal"
+                    size="small"
                     prepend-icon="mdi-reply"
                     :disabled="loading"
                     @click="emit('reply', currentMessage)"
@@ -1063,6 +1035,7 @@ watch(model, async (isOpen) => {
                 <v-btn
                     text="Закрыть"
                     variant="text"
+                    size="small"
                     @click="model = false"
                 />
             </v-card-actions>
@@ -1071,27 +1044,149 @@ watch(model, async (isOpen) => {
 </template>
 
 <style scoped>
-.mail-body {
-    max-height: 620px;
-    overflow: auto;
+.mail-reader-card {
+    display: flex;
+    flex-direction: column;
+    max-height: 92vh;
 }
 
-.mail-body-text {
-    max-height: 620px;
-    overflow: auto;
-    white-space: pre-wrap;
+.mail-reader-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 8px 12px !important;
+}
+
+.mail-reader-header__main {
+    min-width: 0;
+}
+
+.mail-reader-header__subject {
+    color: #93c5fd;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.mail-reader-header__meta {
+    align-items: center;
+    color: #94a3b8;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 11px;
+    gap: 6px 8px;
+    margin-top: 2px;
+    min-width: 0;
+}
+
+.mail-reader-header__from {
+    color: #d8b4fe;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-reader-header__to,
+.mail-reader-header__cc {
+    color: #93c5fd;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-reader-header__arrow {
+    color: #64748b;
+}
+
+.mail-reader-header__date {
+    color: #64748b;
+    margin-left: auto;
+}
+
+.mail-reader-header__actions {
+    align-items: center;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+}
+
+.mail-reader-body {
+    flex: 1;
+    min-height: 0;
+    padding: 8px 12px 10px !important;
+}
+
+.mail-reader-layout {
+    display: grid;
+    align-items: stretch;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) 268px;
+    min-height: 0;
+}
+
+.mail-reader-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mail-reader-main > .mail-attachments-card {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.mail-reader-crm {
+    min-width: 0;
+}
+
+.mail-reader-actions {
+    min-height: 40px;
+    padding: 4px 8px !important;
+}
+
+.mail-tools-card,
+.mail-attachments-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.mail-attachments-card__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.mail-crm-card__title {
     font-size: 12px;
-    line-height: 1.5;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 6px 12px 4px !important;
+    text-transform: uppercase;
 }
 
-.mail-tools-card {
-    height: 100%;
+.mail-crm-card__body {
+    display: grid;
+    gap: 6px;
+    padding: 0 10px 10px !important;
+}
+
+.mail-crm-card__row {
+    align-items: center;
+    display: grid;
+    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .mail-crm-history {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
+    padding-top: 2px;
 }
 
 .mail-attachments-card__title {
@@ -1102,7 +1197,7 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachments-card__title span {
-    font-size: 0.88rem;
+    font-size: 0.8rem;
     font-weight: 900;
 }
 
@@ -1112,17 +1207,11 @@ watch(model, async (isOpen) => {
     font-weight: 800;
 }
 
-.mail-attachments-workspace {
+.mail-attachments-toolbar {
+    align-items: center;
     display: grid;
-    grid-template-columns: minmax(390px, 1.08fr) minmax(260px, 0.92fr);
-    gap: 10px;
-    min-height: 260px;
-}
-
-.mail-attachments-controls {
-    display: grid;
-    grid-template-columns: minmax(190px, 1fr) minmax(150px, 0.8fr) auto;
     gap: 6px;
+    grid-template-columns: minmax(160px, 1.2fr) minmax(120px, 0.9fr) auto auto;
     margin-bottom: 6px;
 }
 
@@ -1130,26 +1219,31 @@ watch(model, async (isOpen) => {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
-    margin-bottom: 6px;
-    color: #93c5fd;
-    font-size: 10px;
+    gap: 4px;
+}
+
+.mail-attachments-workspace {
+    display: grid;
+    flex: 1;
+    gap: 8px;
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+    min-height: clamp(420px, 58vh, 720px);
 }
 
 .mail-attachments-target,
 .mail-attachments-saved {
     align-items: center;
-    display: flex;
-    gap: 6px;
-    min-width: 0;
-    overflow: hidden;
+    background: rgba(15, 23, 42, 0.58);
     border: 1px solid rgba(147, 197, 253, 0.18);
     border-radius: 8px;
-    background: rgba(15, 23, 42, 0.58);
     color: #bfdbfe;
+    display: flex;
     font-size: 10px;
+    gap: 6px;
     margin-bottom: 6px;
-    padding: 4px 6px;
+    min-width: 0;
+    overflow: hidden;
+    padding: 3px 6px;
 }
 
 .mail-attachments-saved {
@@ -1160,10 +1254,10 @@ watch(model, async (isOpen) => {
 .mail-attachments-target code,
 .mail-attachments-saved code,
 .mail-attachment-preview__storage code {
-    min-width: 0;
-    overflow: hidden;
     color: #e0f2fe;
     font-size: 10px;
+    min-width: 0;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1184,34 +1278,35 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachments-sheet {
-    overflow: auto;
+    background: rgba(15, 23, 42, 0.78);
     border: 1px solid rgba(147, 197, 253, 0.28);
     border-radius: 10px;
-    background: rgba(15, 23, 42, 0.78);
+    min-height: 0;
+    overflow: auto;
 }
 
 .mail-attachments-sheet__row {
-    display: grid;
-    width: 100%;
-    grid-template-columns: 30px minmax(130px, 1fr) 78px 58px 46px 124px;
     align-items: center;
-    gap: 0;
+    background: transparent;
     border: 0;
     border-bottom: 1px solid rgba(147, 197, 253, 0.18);
-    background: transparent;
     color: #dbeafe;
     cursor: pointer;
+    display: grid;
     font-size: 10px;
+    gap: 0;
+    grid-template-columns: 24px minmax(0, 1fr) 52px 36px 88px;
     line-height: 1.15;
     padding: 0;
     text-align: left;
+    width: 100%;
 }
 
 .mail-attachments-sheet__row > span {
-    min-height: 28px;
+    min-height: 26px;
     min-width: 0;
     overflow: hidden;
-    padding: 5px 6px;
+    padding: 4px 5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1221,16 +1316,16 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachments-sheet__row.is-head {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     background: #1e3a8a;
     color: #eff6ff;
     cursor: default;
     font-size: 9px;
     font-weight: 950;
     letter-spacing: 0.06em;
+    position: sticky;
     text-transform: uppercase;
+    top: 0;
+    z-index: 1;
 }
 
 .mail-attachments-sheet__row:not(.is-head):nth-child(odd) {
@@ -1300,17 +1395,17 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachment-preview {
-    display: grid;
-    align-content: center;
-    gap: 8px;
-    min-height: 260px;
-    overflow: hidden;
-    border: 1px solid rgba(147, 197, 253, 0.28);
-    border-radius: 12px;
     background:
         linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92)),
         repeating-linear-gradient(45deg, rgba(147, 197, 253, 0.08) 0 8px, transparent 8px 16px);
-    padding: 10px;
+    border: 1px solid rgba(147, 197, 253, 0.28);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 8px;
 }
 
 .mail-attachment-preview__meta {
@@ -1322,10 +1417,10 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachment-preview__meta strong {
-    overflow: hidden;
     color: #dbeafe;
     font-size: 11px;
     font-weight: 900;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1337,41 +1432,43 @@ watch(model, async (isOpen) => {
 }
 
 .mail-attachment-preview img {
-    display: block;
-    max-height: 390px;
-    max-width: 100%;
-    justify-self: center;
     border-radius: 10px;
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
     object-fit: contain;
+    width: 100%;
 }
 
 .mail-attachment-preview__pdf {
-    width: 100%;
-    height: clamp(260px, 44vh, 460px);
+    background: #f8fafc;
     border: 1px solid rgba(191, 219, 254, 0.24);
     border-radius: 10px;
-    background: #f8fafc;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
 }
 
 .mail-attachment-preview__empty,
 .mail-attachments-empty {
-    display: grid;
-    min-height: 170px;
-    place-items: center;
     color: #94a3b8;
+    display: grid;
+    flex: 1 1 auto;
     font-size: 11px;
     font-weight: 800;
+    min-height: 220px;
+    place-items: center;
     text-align: center;
 }
 
 .mail-attachment-preview__storage {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
     border-top: 1px solid rgba(147, 197, 253, 0.18);
     color: #bfdbfe;
+    display: grid;
     font-size: 10px;
-    padding-top: 8px;
+    gap: 4px;
+    min-width: 0;
+    padding-top: 6px;
 }
 
 .mail-attachment-preview__storage div {
@@ -1379,17 +1476,68 @@ watch(model, async (isOpen) => {
     gap: 8px;
 }
 
-@media (max-width: 960px) {
-    .mail-attachments-workspace {
+.mail-body,
+.mail-body-text {
+    font-family: 'Rubik-Medium', 'Roboto-Regular', 'Segoe UI', sans-serif;
+    font-size: 12px;
+    letter-spacing: -0.01em;
+    line-height: 1.28;
+    max-height: 156px;
+    overflow: auto;
+    padding: 8px 10px;
+}
+
+.mail-body :deep(p),
+.mail-body :deep(div),
+.mail-body :deep(td),
+.mail-body :deep(li),
+.mail-body :deep(span),
+.mail-body :deep(a),
+.mail-body :deep(font) {
+    font-family: 'Rubik-Medium', 'Roboto-Regular', 'Segoe UI', sans-serif !important;
+    line-height: 1.28;
+}
+
+.mail-body :deep(p) {
+    margin: 0.2em 0;
+}
+
+.mail-body :deep(h1),
+.mail-body :deep(h2),
+.mail-body :deep(h3),
+.mail-body :deep(h4) {
+    font-family: 'Rubik-Medium', 'Roboto-Regular', sans-serif !important;
+    font-size: 13px !important;
+    line-height: 1.25;
+    margin: 0.25em 0;
+}
+
+.mail-body :deep(img) {
+    height: auto;
+    max-height: 72px;
+    max-width: 100%;
+}
+
+.mail-body-text {
+    white-space: pre-wrap;
+}
+
+@media (max-width: 1100px) {
+    .mail-reader-layout {
         grid-template-columns: 1fr;
     }
 
-    .mail-attachments-controls {
+    .mail-attachments-workspace {
+        grid-template-columns: 1fr;
+        min-height: 360px;
+    }
+
+    .mail-attachments-toolbar {
         grid-template-columns: 1fr;
     }
 
     .mail-attachments-sheet__row {
-        grid-template-columns: 30px minmax(120px, 1fr) 68px 54px 42px 112px;
+        grid-template-columns: 24px minmax(0, 1fr) 52px 36px 88px;
     }
 }
 </style>
