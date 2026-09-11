@@ -87,12 +87,37 @@ class EntityConsumptionController extends Controller
     public function forProduct(string $product): JsonResponse
     {
         $product = Product::query()->withoutEagerLoads()->findOrFail($product);
+        $consumptions = $product->entityConsumptions()->with([
+            ...$this->relations(),
+            'entity' => fn ($query) => $query->withoutEagerLoads()->select(['id', 'name', 'INN'])->with([
+                'cities' => fn ($query) => $query->withoutEagerLoads()->select(['cities.id', 'cities.name']),
+                'buildings' => fn ($query) => $query->withoutEagerLoads()->select(['buildings.id', 'buildings.city_id'])->with([
+                    'city' => fn ($query) => $query->withoutEagerLoads()->select(['id', 'name']),
+                ]),
+                'telephones' => fn ($query) => $query->select(['telephones.id', 'telephones.number'])
+                    ->orderBy('telephones.number')->orderBy('telephones.id'),
+            ]),
+        ])->latest('id')->get();
 
         return response()->json([
-            'data' => $product->entityConsumptions()->with([
-                ...$this->relations(),
-                'entity' => fn ($query) => $query->withoutEagerLoads()->select(['id', 'name', 'INN']),
-            ])->latest('id')->get(),
+            'data' => $consumptions->map(function (EntityConsumption $consumption): array {
+                $data = $consumption->toArray();
+                $entity = $consumption->entity;
+
+                if ($entity) {
+                    $data['entity'] = [
+                        ...$entity->only(['id', 'name', 'INN']),
+                        'cities' => $entity->cities->concat($entity->buildings->pluck('city'))
+                            ->filter(fn ($city) => $city?->id !== null)
+                            ->unique('id')->sortBy([['name', 'asc'], ['id', 'asc']])->values()
+                            ->map(fn ($city) => $city->only(['id', 'name']))->all(),
+                        'telephones' => $entity->telephones
+                            ->map(fn ($telephone) => $telephone->only(['id', 'number']))->all(),
+                    ];
+                }
+
+                return $data;
+            }),
         ]);
     }
 

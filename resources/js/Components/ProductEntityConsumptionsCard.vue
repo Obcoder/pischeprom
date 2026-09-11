@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
+import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
 
 const props = defineProps({
     productId: { type: [Number, String], required: true },
@@ -12,6 +13,7 @@ const loading = ref(false)
 const error = ref('')
 const search = ref('')
 let activeRequest = null
+const { formatPhone } = usePhoneFormatter()
 
 const statuses = {
     potential: { title: 'Потенциальная', color: 'primary' },
@@ -28,14 +30,34 @@ const headers = [
 const filteredConsumptions = computed(() => {
     const query = String(search.value ?? '').trim().toLocaleLowerCase('ru-RU')
     if (!query) return consumptions.value
+    const phoneQuery = /^[+\d\s().-]+$/.test(query) ? query.replace(/\D/g, '') : ''
 
-    return consumptions.value.filter(item => [
-        item.entity?.name,
-        item.entity?.INN,
-        item.comment,
-        statuses[item.status]?.title,
-    ].some(value => String(value ?? '').toLocaleLowerCase('ru-RU').includes(query)))
+    return consumptions.value.filter(item => {
+        const phones = entityPhones(item.entity)
+        return [
+            item.entity?.name,
+            item.entity?.INN,
+            item.comment,
+            statuses[item.status]?.title,
+            ...(item.entity?.cities || []).map(city => city.name),
+            ...phones.map(phone => phone.number),
+        ].some(value => String(value ?? '').toLocaleLowerCase('ru-RU').includes(query))
+            || (phoneQuery && phones.some(phone => phone.number.replace(/\D/g, '').includes(phoneQuery)))
+    })
 })
+
+function entityPhones(entity) {
+    return (entity?.telephones || []).filter(phone => String(phone.number || '').trim())
+        .map(phone => ({ ...phone, number: String(phone.number).trim() }))
+}
+
+function entityCities(entity) {
+    return (entity?.cities || []).map(city => city.name).filter(Boolean).join(', ')
+}
+
+function telephoneUrl(number) {
+    return `tel:${number.replace(/[^+\d]/g, '')}`
+}
 
 function entityUrl(item) {
     return `/Ameise/entity/${item.entity_id}#entity-consumptions`
@@ -124,7 +146,7 @@ onBeforeUnmount(() => activeRequest?.abort())
                 <v-text-field
                     v-model="search"
                     label="Поиск Entities"
-                    placeholder="Название, ИНН, статус, комментарий"
+                    placeholder="Название, ИНН, город, телефон"
                     prepend-inner-icon="mdi-magnify"
                     variant="outlined"
                     density="compact"
@@ -159,6 +181,21 @@ onBeforeUnmount(() => activeRequest?.abort())
                             <v-chip :color="statuses[item.status]?.color || 'grey'" size="x-small" variant="tonal">
                                 {{ statuses[item.status]?.title || item.status }}
                             </v-chip>
+                        </div>
+                        <div v-if="entityCities(item.entity) || entityPhones(item.entity).length" class="entity-needs-contacts">
+                            <span v-if="entityCities(item.entity)" class="entity-needs-cities">
+                                <v-icon icon="mdi-map-marker-outline" size="13" aria-hidden="true" />
+                                <span>{{ entityCities(item.entity) }}</span>
+                            </span>
+                            <span v-if="entityPhones(item.entity).length" class="entity-needs-phones">
+                                <v-icon icon="mdi-phone-outline" size="13" aria-hidden="true" />
+                                <a
+                                    v-for="phone in entityPhones(item.entity)"
+                                    :key="phone.id || phone.number"
+                                    :href="telephoneUrl(phone.number)"
+                                    :aria-label="`Позвонить: ${formatPhone(phone.number)}`"
+                                >{{ formatPhone(phone.number) }}</a>
+                            </span>
                         </div>
                         <div v-if="item.comment" class="entity-needs-comment text-caption text-medium-emphasis">
                             {{ item.comment }}
@@ -219,6 +256,14 @@ onBeforeUnmount(() => activeRequest?.abort())
     min-width: 0;
     padding: 8px 0;
 }
+
+.entity-needs-contacts { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 12px; margin-top: 4px; color: rgba(var(--v-theme-on-surface), 0.66); font-size: 0.7rem; line-height: 1.45; }
+.entity-needs-cities { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.entity-needs-phones { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px 8px; min-width: 0; }
+.entity-needs-contacts .v-icon { flex-shrink: 0; opacity: 0.75; }
+.entity-needs-phones a { color: inherit; font-variant-numeric: tabular-nums; text-decoration: none; overflow-wrap: anywhere; }
+.entity-needs-phones a:hover { color: rgb(var(--v-theme-primary)); text-decoration: underline; }
+.entity-needs-phones a:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); outline-offset: 2px; border-radius: 2px; }
 
 .entity-needs-meta {
     display: flex;

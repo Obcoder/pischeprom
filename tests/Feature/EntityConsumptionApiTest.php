@@ -40,6 +40,30 @@ class EntityConsumptionApiTest extends TestCase
             $table->text('dadata_raw')->nullable();
             $table->timestamps();
         });
+        Schema::create('cities', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+        });
+        Schema::create('city_entity', function (Blueprint $table): void {
+            $table->unsignedBigInteger('city_id');
+            $table->unsignedBigInteger('entity_id');
+        });
+        Schema::create('buildings', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('city_id')->nullable();
+        });
+        Schema::create('building_entities', function (Blueprint $table): void {
+            $table->unsignedBigInteger('building_id');
+            $table->unsignedBigInteger('entity_id');
+        });
+        Schema::create('telephones', function (Blueprint $table): void {
+            $table->id();
+            $table->string('number');
+        });
+        Schema::create('entity_telephone', function (Blueprint $table): void {
+            $table->unsignedBigInteger('telephone_id');
+            $table->unsignedBigInteger('entity_id');
+        });
         Schema::create('products', function (Blueprint $table): void {
             $table->id();
             $table->string('rus');
@@ -249,6 +273,39 @@ class EntityConsumptionApiTest extends TestCase
         [$entity, $product, $measure] = $this->fixtures();
         $otherProduct = Product::query()->create(['rus' => 'Соль']);
         $entity->update(['dadata_raw' => ['private' => 'Raw entity data']]);
+        $otherEntity = Entity::query()->create(['name' => 'Другой клиент']);
+        $emptyEntity = Entity::query()->create(['name' => 'Без контактов']);
+        $emptyEntity->consumptions()->create(['product_id' => $product->id]);
+        $otherEntity->consumptions()->create(['product_id' => $product->id]);
+        DB::table('cities')->insert([
+            ['id' => 1, 'name' => 'Москва'],
+            ['id' => 2, 'name' => 'Казань'],
+            ['id' => 3, 'name' => 'Омск'],
+        ]);
+        DB::table('city_entity')->insert([
+            ['entity_id' => $entity->id, 'city_id' => 1],
+            ['entity_id' => $otherEntity->id, 'city_id' => 3],
+        ]);
+        DB::table('buildings')->insert([
+            ['id' => 1, 'city_id' => 1],
+            ['id' => 2, 'city_id' => 2],
+            ['id' => 3, 'city_id' => null],
+        ]);
+        DB::table('building_entities')->insert([
+            ['entity_id' => $entity->id, 'building_id' => 1],
+            ['entity_id' => $entity->id, 'building_id' => 2],
+            ['entity_id' => $emptyEntity->id, 'building_id' => 3],
+        ]);
+        DB::table('telephones')->insert([
+            ['id' => 1, 'number' => '+7 (999) 222-33-44'],
+            ['id' => 2, 'number' => '+7 (495) 123-45-67'],
+            ['id' => 3, 'number' => '+7 (381) 765-43-21'],
+        ]);
+        DB::table('entity_telephone')->insert([
+            ['entity_id' => $entity->id, 'telephone_id' => 1],
+            ['entity_id' => $entity->id, 'telephone_id' => 2],
+            ['entity_id' => $otherEntity->id, 'telephone_id' => 3],
+        ]);
         $need = $entity->consumptions()->create([
             'product_id' => $product->id, 'quantity' => 5, 'measure_id' => $measure->id,
         ]);
@@ -262,12 +319,35 @@ class EntityConsumptionApiTest extends TestCase
             ->assertJsonCount(3, 'statuses');
 
         $response = $this->getJson("/api/products/{$product->id}/entity-consumptions")->assertOk()
-            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $need->id)
+            ->assertJsonCount(3, 'data')->assertJsonPath('data.0.id', $need->id)
             ->assertJsonPath('data.0.entity.name', $entity->name)
             ->assertJsonPath('data.0.entity.INN', '7700000000')
             ->assertJsonPath('data.0.quantity', '5.000');
         $this->assertSame(['id', 'rus', 'eng'], array_keys($response->json('data.0.product')));
-        $this->assertSame(['id', 'name', 'INN'], array_keys($response->json('data.0.entity')));
+        $this->assertSame([
+            'id' => $entity->id,
+            'name' => $entity->name,
+            'INN' => '7700000000',
+            'cities' => [['id' => 2, 'name' => 'Казань'], ['id' => 1, 'name' => 'Москва']],
+            'telephones' => [
+                ['id' => 2, 'number' => '+7 (495) 123-45-67'],
+                ['id' => 1, 'number' => '+7 (999) 222-33-44'],
+            ],
+        ], $response->json('data.0.entity'));
+        $this->assertSame([
+            'id' => $otherEntity->id,
+            'name' => $otherEntity->name,
+            'INN' => null,
+            'cities' => [['id' => 3, 'name' => 'Омск']],
+            'telephones' => [['id' => 3, 'number' => '+7 (381) 765-43-21']],
+        ], $response->json('data.1.entity'));
+        $this->assertSame([
+            'id' => $emptyEntity->id,
+            'name' => $emptyEntity->name,
+            'INN' => null,
+            'cities' => [],
+            'telephones' => [],
+        ], $response->json('data.2.entity'));
         $this->assertSame(['id', 'name'], array_keys($response->json('data.0.measure')));
         $this->assertDatabaseCount('consumptions', 1);
     }
