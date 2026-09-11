@@ -96,7 +96,18 @@ const currentPage = computed(() => pagination.value.current_page || 1)
 const lastPage = computed(() => pagination.value.last_page || 1)
 const rangeStart = computed(() => totalItems.value ? ((currentPage.value - 1) * PER_PAGE) + 1 : 0)
 const rangeEnd = computed(() => Math.min(totalItems.value, currentPage.value * PER_PAGE))
-const pageNumbers = computed(() => Array.from({ length: lastPage.value }, (_, index) => index + 1))
+const pageNumbers = computed(() => {
+    const pages = new Set([1, lastPage.value])
+    for (let number = Math.max(1, currentPage.value - 1); number <= Math.min(lastPage.value, currentPage.value + 1); number += 1) {
+        pages.add(number)
+    }
+    const result = []
+    Array.from(pages).sort((a, b) => a - b).forEach((number, index, sorted) => {
+        if (index && number - sorted[index - 1] > 1) result.push(`gap-${number}`)
+        result.push(number)
+    })
+    return result
+})
 const selectedItems = computed(() => selectedPurchase.value?.items || [])
 const canSubmit = computed(() => {
     return Boolean(
@@ -571,18 +582,28 @@ onMounted(async () => {
     <v-theme-provider theme="light">
         <section class="purchases-board">
             <div class="purchases-toolbar">
-                <div class="purchases-toolbar__title">
-                    <span>Ameise / закупки</span>
-                </div>
+                <form class="purchase-search" role="search" @submit.prevent="applyFilters">
+                    <v-text-field
+                        v-model="filters.search"
+                        placeholder="Поиск закупок, контрагентов, товаров"
+                        aria-label="Поиск закупок"
+                        prepend-inner-icon="mdi-magnify"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        clearable
+                        @click:clear="applyFilters"
+                    />
+                    <v-btn type="submit" variant="tonal" color="#2563eb" size="small">Найти</v-btn>
+                </form>
 
                 <div class="purchases-toolbar__meta">
-                    <span class="purchases-counter">{{ rangeStart }}-{{ rangeEnd }} / {{ totalItems }}</span>
-
                     <v-menu
                         v-model="filtersMenu"
                         :close-on-content-click="false"
                         location="bottom end"
                         width="720"
+                        max-width="calc(100vw - 24px)"
                     >
                         <template #activator="{ props }">
                             <v-btn
@@ -591,6 +612,7 @@ onMounted(async () => {
                                 density="compact"
                                 size="small"
                                 prepend-icon="mdi-filter-variant"
+                                :color="activeFilterCount ? '#2563eb' : undefined"
                             >
                                 Фильтры
                                 <span v-if="activeFilterCount" class="purchase-filter-count">{{ activeFilterCount }}</span>
@@ -604,18 +626,6 @@ onMounted(async () => {
                             </div>
 
                             <div class="purchase-filter-grid">
-                                <v-text-field
-                                    v-model="filters.search"
-                                    label="Поиск по всем параметрам"
-                                    prepend-inner-icon="mdi-magnify"
-                                    variant="solo-filled"
-                                    density="compact"
-                                    hide-details
-                                    clearable
-                                    class="purchase-filter-grid__wide"
-                                    @keyup.enter="applyFilters"
-                                />
-
                                 <v-text-field
                                     v-model="filters.date_from"
                                     label="Дата с"
@@ -734,27 +744,36 @@ onMounted(async () => {
 
                             <div class="purchase-filter-panel__actions">
                                 <v-btn variant="text" density="compact" @click="resetFilters">Сброс</v-btn>
-                                <v-btn color="green-darken-2" variant="flat" density="compact" @click="applyFilters">Применить</v-btn>
+                                <v-btn color="#2563eb" variant="flat" density="compact" @click="applyFilters">Применить</v-btn>
                             </div>
                         </div>
                     </v-menu>
 
                     <v-btn
-                        color="green-darken-2"
+                        v-if="activeFilterCount"
+                        icon="mdi-filter-remove-outline"
+                        variant="text"
+                        size="small"
+                        title="Сбросить фильтры и поиск"
+                        aria-label="Сбросить фильтры и поиск"
+                        @click="resetFilters"
+                    />
+
+                    <v-btn
+                        color="#2563eb"
                         variant="flat"
                         density="compact"
                         size="small"
                         prepend-icon="mdi-plus"
                         @click="openCreate"
                     >
-                        Закупка
+                        Новая закупка
                     </v-btn>
                 </div>
             </div>
 
-            <div class="purchase-alert-slot">
+            <div v-if="errorMessage" class="purchase-alert-slot">
                 <v-alert
-                    v-if="errorMessage"
                     type="error"
                     variant="tonal"
                     density="compact"
@@ -764,13 +783,14 @@ onMounted(async () => {
                 </v-alert>
             </div>
 
-            <div class="purchase-table-wrap">
-                <table class="purchase-grid">
+            <div class="purchase-table-wrap" :aria-busy="loading">
+                <table class="purchase-grid" aria-label="Закупки">
                     <thead>
                         <tr>
                             <th class="purchase-grid__id">ID</th>
                             <th class="purchase-grid__date">Дата</th>
                             <th>Контрагент</th>
+                            <th class="purchase-grid__goods">Товары</th>
                             <th class="purchase-grid__unit">Unit</th>
                             <th class="purchase-grid__amount">Сумма</th>
                             <th class="purchase-grid__actions">Действия</th>
@@ -779,18 +799,25 @@ onMounted(async () => {
 
                     <tbody>
                         <tr v-if="loading">
-                            <td colspan="6" class="purchase-grid__state">Загрузка</td>
+                            <td colspan="7" class="purchase-grid__state">
+                                <v-progress-circular indeterminate size="22" width="2" color="#2563eb" />
+                                <span>Загрузка закупок…</span>
+                            </td>
                         </tr>
 
                         <tr v-else-if="!items.length">
-                            <td colspan="6" class="purchase-grid__state">Нет записей</td>
+                            <td colspan="7" class="purchase-grid__state">
+                                <v-icon icon="mdi-package-variant-closed" size="28" />
+                                <strong>{{ activeFilterCount ? 'Закупки не найдены' : 'Закупок пока нет' }}</strong>
+                                <span>{{ activeFilterCount ? 'Измените условия поиска или сбросьте фильтры.' : 'Добавьте первую закупку — её товары и сумма появятся здесь.' }}</span>
+                            </td>
                         </tr>
 
                         <template v-else>
                             <tr v-for="purchase in items" :key="purchase.id">
                                 <td class="purchase-grid__id">
                                     <button type="button" class="purchase-id-link" @click="openDetails(purchase)">
-                                        {{ purchase.id }}
+                                        #{{ purchase.id }}
                                     </button>
                                 </td>
 
@@ -804,12 +831,25 @@ onMounted(async () => {
                                             v-if="entityHref(purchase.entity)"
                                             :href="entityHref(purchase.entity)"
                                             class="purchase-entity-cell__name"
+                                            :title="purchase.entity?.full_name || purchase.entity?.name"
                                         >
                                             {{ purchase.entity?.name || '-' }}
                                         </Link>
                                         <span v-else class="purchase-entity-cell__name">-</span>
                                         <span v-if="purchase.entity?.INN" class="purchase-entity-cell__meta">ИНН {{ purchase.entity.INN }}</span>
                                     </span>
+                                </td>
+
+                                <td class="purchase-grid__goods">
+                                    <button
+                                        type="button"
+                                        class="purchase-goods-button"
+                                        :title="(purchase.items || []).map((item) => item.good?.name || item.good_name).filter(Boolean).join(', ') || 'Открыть состав закупки'"
+                                        @click="openDetails(purchase)"
+                                    >
+                                        <span>{{ purchase.items?.[0]?.good?.name || purchase.items?.[0]?.good_name || 'Состав закупки' }}</span>
+                                        <small>{{ purchase.items_count || purchase.items?.length || 0 }} поз.</small>
+                                    </button>
                                 </td>
 
                                 <td class="purchase-grid__unit">
@@ -845,6 +885,7 @@ onMounted(async () => {
                                                     density="compact"
                                                     variant="text"
                                                     color="blue-darken-2"
+                                                    aria-label="Открыть карточку закупки"
                                                     @click="openDetails(purchase)"
                                                 />
                                             </template>
@@ -858,7 +899,8 @@ onMounted(async () => {
                                                     size="x-small"
                                                     density="compact"
                                                     variant="text"
-                                                    color="green-darken-3"
+                                                    color="#64748b"
+                                                    aria-label="Изменить закупку"
                                                     @click="openEdit(purchase.id)"
                                                 />
                                             </template>
@@ -874,6 +916,7 @@ onMounted(async () => {
                                                     density="compact"
                                                     variant="text"
                                                     color="deep-purple-darken-2"
+                                                    aria-label="Создать черновик оплаты"
                                                 />
                                             </template>
                                         </v-tooltip>
@@ -887,6 +930,7 @@ onMounted(async () => {
                                                     density="compact"
                                                     variant="text"
                                                     color="red-darken-3"
+                                                    aria-label="Удалить закупку"
                                                     @click="remove(purchase.id)"
                                                 />
                                             </template>
@@ -900,35 +944,47 @@ onMounted(async () => {
             </div>
 
             <div class="purchase-pages">
-                <button
-                    type="button"
-                    class="purchase-page"
-                    :disabled="currentPage <= 1"
-                    @click="goToPage(currentPage - 1)"
-                >
-                    ‹
-                </button>
-
-                <div class="purchase-page-list">
+                <span class="purchases-counter" aria-live="polite">
+                    <strong>{{ rangeStart }}–{{ rangeEnd }}</strong> из <strong>{{ totalItems }}</strong> закупок
+                </span>
+                <nav class="purchase-pagination" aria-label="Страницы закупок">
                     <button
-                        v-for="number in pageNumbers"
-                        :key="number"
                         type="button"
-                        :class="['purchase-page', { 'purchase-page--active': number === currentPage }]"
-                        @click="goToPage(number)"
+                        class="purchase-page"
+                        :disabled="loading || currentPage <= 1"
+                        aria-label="Предыдущая страница"
+                        @click="goToPage(currentPage - 1)"
                     >
-                        {{ number }}
+                        ‹
                     </button>
-                </div>
 
-                <button
-                    type="button"
-                    class="purchase-page"
-                    :disabled="currentPage >= lastPage"
-                    @click="goToPage(currentPage + 1)"
-                >
-                    ›
-                </button>
+                    <div class="purchase-page-list">
+                        <template v-for="number in pageNumbers" :key="number">
+                            <span v-if="typeof number === 'string'" class="purchase-page-gap">…</span>
+                            <button
+                                v-else
+                                type="button"
+                                :disabled="loading"
+                                :aria-label="`Страница ${number}`"
+                                :aria-current="number === currentPage ? 'page' : undefined"
+                                :class="['purchase-page', { 'purchase-page--active': number === currentPage }]"
+                                @click="goToPage(number)"
+                            >
+                                {{ number }}
+                            </button>
+                        </template>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="purchase-page"
+                        :disabled="loading || currentPage >= lastPage"
+                        aria-label="Следующая страница"
+                        @click="goToPage(currentPage + 1)"
+                    >
+                        ›
+                    </button>
+                </nav>
             </div>
 
             <v-dialog v-model="detailsDialog" max-width="1120" scrollable class="purchase-details-dialog">
@@ -942,7 +998,7 @@ onMounted(async () => {
                     </v-card-title>
 
                     <v-card-text class="purchase-details__body">
-                        <v-progress-linear v-if="detailsLoading" indeterminate color="green-darken-2" />
+                        <v-progress-linear v-if="detailsLoading" indeterminate color="#2563eb" />
 
                         <div v-if="selectedPurchase" class="purchase-details__summary">
                             <div>
@@ -1074,7 +1130,7 @@ onMounted(async () => {
                                     variant="outlined"
                                     density="compact"
                                     hide-details="auto"
-                                    color="#0f766e"
+                                    color="#2563eb"
                                     bg-color="#ffffff"
                                     :error-messages="serverErrors.date"
                                 />
@@ -1098,7 +1154,7 @@ onMounted(async () => {
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        color="#0f766e"
+                                        color="#2563eb"
                                         bg-color="#ffffff"
                                         clearable
                                         no-data-text="Контрагенты не найдены"
@@ -1110,7 +1166,7 @@ onMounted(async () => {
                                             <v-btn
                                                 v-bind="props"
                                                 class="purchase-form__new-entity"
-                                                color="#0f766e"
+                                                color="#2563eb"
                                                 variant="tonal"
                                                 icon="mdi-domain-plus"
                                                 :loading="entityCreating"
@@ -1176,7 +1232,7 @@ onMounted(async () => {
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        color="#0f766e"
+                                        color="#2563eb"
                                         bg-color="#ffffff"
                                         no-data-text="Товары не найдены"
                                         :aria-label="`Товар, позиция ${index + 1}`"
@@ -1191,7 +1247,7 @@ onMounted(async () => {
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        color="#0f766e"
+                                        color="#2563eb"
                                         bg-color="#ffffff"
                                         :aria-label="`Количество, позиция ${index + 1}`"
                                         :error-messages="serverErrors[`items.${index}.quantity`]"
@@ -1207,7 +1263,7 @@ onMounted(async () => {
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        color="#0f766e"
+                                        color="#2563eb"
                                         bg-color="#ffffff"
                                         :aria-label="`Единица измерения, позиция ${index + 1}`"
                                         :error-messages="serverErrors[`items.${index}.measure_id`]"
@@ -1222,7 +1278,7 @@ onMounted(async () => {
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        color="#0f766e"
+                                        color="#2563eb"
                                         bg-color="#ffffff"
                                         :aria-label="`Цена, позиция ${index + 1}`"
                                         :error-messages="serverErrors[`items.${index}.price`]"
@@ -1238,7 +1294,7 @@ onMounted(async () => {
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        color="#0f766e"
+                                        color="#2563eb"
                                         bg-color="#ffffff"
                                         :aria-label="`Валюта, позиция ${index + 1}`"
                                         :error-messages="serverErrors[`items.${index}.currency_id`]"
@@ -1253,7 +1309,7 @@ onMounted(async () => {
                                         variant="outlined"
                                         density="compact"
                                         hide-details="auto"
-                                        color="#0f766e"
+                                        color="#2563eb"
                                         bg-color="#f0fdfa"
                                         class="purchase-form-line__total-input"
                                         :aria-label="`Сумма, позиция ${index + 1}`"
@@ -1280,7 +1336,7 @@ onMounted(async () => {
 
                             <div class="purchase-form-lines__footer">
                                 <v-btn
-                                    color="#0f766e"
+                                    color="#2563eb"
                                     variant="tonal"
                                     density="comfortable"
                                     prepend-icon="mdi-plus"
@@ -1302,7 +1358,7 @@ onMounted(async () => {
                         <v-spacer />
                         <v-btn variant="outlined" color="#475569" @click="closeDialog">Отмена</v-btn>
                         <v-btn
-                            color="#0f766e"
+                            color="#2563eb"
                             variant="flat"
                             prepend-icon="mdi-check"
                             :loading="saving"
@@ -1336,78 +1392,121 @@ onMounted(async () => {
 
 <style scoped>
 .purchases-board {
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
-    height: calc(100vh - 150px);
-    min-height: 520px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
     overflow: hidden;
-    color: #202622;
-    background: #f3f4f0;
+    color: #334155;
+    background: #fff;
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
 }
 
 .purchases-toolbar {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    min-height: 46px;
-    padding: 7px 8px;
-    border: 1px solid #c7d0c8;
-    border-bottom: 0;
-    background: linear-gradient(180deg, #f9faf7 0%, #e2e7df 100%);
+    gap: 10px;
+    min-height: 52px;
+    padding: 9px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
 }
 
-.purchases-toolbar__title {
+.purchase-search {
     display: flex;
+    flex: 1 1 360px;
     align-items: center;
-    min-height: 28px;
+    gap: 6px;
+    max-width: 520px;
+    min-width: 170px;
 }
 
-.purchases-toolbar__title span {
-    color: #68736b;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+.purchase-search :deep(.v-field) {
+    border-radius: 7px;
+    color: #475569;
+    font-size: 12px;
+    --v-field-input-padding-top: 0px;
+    --v-field-input-padding-bottom: 0px;
+}
+
+.purchase-search :deep(.v-field__input) {
+    min-height: 32px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.purchase-search :deep(.v-field__outline) {
+    --v-field-border-opacity: 0.18;
+}
+
+.purchase-search :deep(.v-field__prepend-inner),
+.purchase-search :deep(.v-field__append-inner),
+.purchase-search :deep(.v-field__clearable) {
+    align-items: center;
+    padding-top: 0;
+}
+
+.purchase-search :deep(.v-icon) {
+    font-size: 18px;
 }
 
 .purchases-toolbar__meta {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
+}
+
+.purchases-toolbar :deep(.v-btn) {
+    min-height: 32px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 .purchases-counter {
-    padding: 3px 6px;
-    border: 1px solid #bac5bc;
-    background: #fff;
-    color: #26332b;
-    font-family: "Courier New", monospace;
-    font-size: 11px;
-    font-weight: 700;
+    color: #64748b;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.purchases-counter strong {
+    color: #334155;
+    font-weight: 600;
 }
 
 .purchase-filter-count {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 15px;
-    height: 15px;
+    min-width: 17px;
+    height: 17px;
     margin-left: 5px;
-    padding: 0 3px;
-    border-radius: 2px;
-    background: #1f7a4a;
+    padding: 0 4px;
+    border-radius: 5px;
+    background: #2563eb;
     color: #fff;
-    font-size: 9px;
+    font-size: 10px;
     line-height: 1;
 }
 
 .purchase-filter-panel {
-    padding: 8px;
-    border: 1px solid #9fb2a3;
-    background: #f7f8f4;
-    box-shadow: 0 12px 28px rgba(28, 42, 31, 0.22);
+    max-height: min(640px, calc(100dvh - 120px));
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
+    scrollbar-width: thin;
 }
 
 .purchase-filter-panel__head,
@@ -1420,22 +1519,37 @@ onMounted(async () => {
 
 .purchase-filter-panel__head {
     margin-bottom: 8px;
-    color: #1f3026;
+    color: #334155;
     font-size: 13px;
 }
 
 .purchase-filter-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
+    gap: 8px;
 }
 
 .purchase-filter-grid__wide {
     grid-column: 1 / -1;
 }
 
+.purchase-filter-grid :deep(.v-field) {
+    border-radius: 7px;
+    font-size: 13px;
+    box-shadow: none;
+}
+
 .purchase-filter-panel__actions {
-    margin-top: 9px;
+    position: sticky;
+    bottom: -12px;
+    margin: 8px -12px -12px;
+    padding: 10px 12px;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.purchase-alert-slot {
+    flex: 0 0 auto;
 }
 
 .purchase-alert {
@@ -1444,30 +1558,32 @@ onMounted(async () => {
 }
 
 .purchase-table-wrap {
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 0;
     overflow: auto;
-    border: 1px solid #c7d0c8;
+    overscroll-behavior: contain;
     background: #fff;
     scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
 }
 
 .purchase-grid {
     width: 100%;
-    min-width: 980px;
+    min-width: 920px;
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
-    color: #202622;
+    color: #334155;
     font-size: 12px;
 }
 
 .purchase-grid th,
 .purchase-grid td {
     overflow: hidden;
-    height: 27px;
-    padding: 2px 6px;
-    border-right: 1px solid #d8ded6;
-    border-bottom: 1px solid #d8ded6;
+    height: 43px;
+    padding: 5px 10px;
+    border-bottom: 1px solid #edf1f5;
     text-overflow: ellipsis;
     vertical-align: middle;
 }
@@ -1476,81 +1592,91 @@ onMounted(async () => {
     position: sticky;
     top: 0;
     z-index: 2;
-    height: 28px;
-    background: linear-gradient(180deg, #f2f4ef 0%, #dce3da 100%);
-    color: #233029;
-    font-size: 11px;
-    font-weight: 800;
-    text-align: left;
-}
-
-.purchase-grid tbody tr:nth-child(even) td {
-    background: #fbfcfa;
-}
-
-.purchase-grid tbody tr:hover td {
-    background: #eaf4ec;
-}
-
-.purchase-grid__id {
-    width: 58px;
-    color: #26332b;
-    font-family: Arial, "Helvetica Neue", sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    text-align: right;
-}
-
-.purchase-grid__date {
-    width: 132px;
-    color: #26332b;
-    font-family: Arial, "Helvetica Neue", sans-serif;
+    height: 34px;
+    border-bottom: 1px solid #dce4ef;
+    background: #f8fafc;
+    color: #64748b;
     font-size: 11px;
     font-weight: 600;
+    text-align: left;
     white-space: nowrap;
 }
 
-.purchase-grid__unit {
-    width: 238px;
+.purchase-grid tbody tr:nth-child(even) td {
+    background: #fcfdff;
 }
 
-.purchase-grid__amount {
-    width: 148px;
+.purchase-grid tbody tr:hover td {
+    background: #eff6ff;
+}
+
+.purchase-grid__id {
+    width: 66px;
+}
+
+.purchase-grid__date {
+    width: 104px;
+    white-space: nowrap;
+}
+
+.purchase-grid__goods {
+    width: 26%;
+}
+
+.purchase-grid__unit {
+    width: 146px;
+}
+
+.purchase-grid .purchase-grid__amount {
+    width: 128px;
     text-align: right;
 }
 
-.purchase-grid__actions {
-    width: 104px;
-    padding-right: 4px !important;
-    padding-left: 4px !important;
-    text-align: center;
+.purchase-grid .purchase-grid__actions {
+    width: 132px;
+    padding-right: 6px;
+    padding-left: 6px;
+    text-align: right;
 }
 
 .purchase-grid__state {
-    height: 82px !important;
-    color: #6b766f;
+    height: 164px !important;
+    color: #64748b;
     text-align: center;
+}
+
+.purchase-grid__state > * {
+    display: block;
+    margin: 7px auto;
+}
+
+.purchase-grid__state strong {
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
 }
 
 .purchase-id-link,
 .purchase-amount-button {
-    color: #1c5f86;
-    font-weight: 800;
+    color: #2563eb;
+    font-weight: 600;
     text-decoration: none;
 }
 
 .purchase-id-link {
-    font-family: Arial, "Helvetica Neue", sans-serif;
+    color: #64748b;
     font-size: 11px;
 }
 
 .purchase-amount-button {
-    font-family: "Courier New", monospace;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .purchase-id-link:hover,
 .purchase-amount-button:hover {
-    color: #0d7d47;
+    color: #1d4ed8;
     text-decoration: underline;
 }
 
@@ -1558,18 +1684,18 @@ onMounted(async () => {
     display: inline-flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 1px;
+    gap: 3px;
     max-width: 100%;
     min-width: 0;
-    line-height: 1.12;
+    line-height: 1.2;
 }
 
 .purchase-entity-cell__name {
     display: inline-block;
     max-width: 100%;
     overflow: hidden;
-    color: #1f3026;
-    font-weight: 800;
+    color: #334155;
+    font-weight: 600;
     text-overflow: ellipsis;
     text-decoration: none;
     white-space: nowrap;
@@ -1577,30 +1703,56 @@ onMounted(async () => {
 
 .purchase-entity-cell__name:hover,
 .purchase-unit-list a:hover {
-    color: #1c5f86;
+    color: #2563eb;
     text-decoration: underline;
 }
 
 .purchase-entity-cell__meta {
-    color: #707b73;
-    font-size: 9px;
+    color: #94a3b8;
+    font-size: 10px;
+}
+
+.purchase-goods-button {
+    display: grid;
+    gap: 3px;
+    width: 100%;
+    text-align: left;
+    line-height: 1.2;
+}
+
+.purchase-goods-button span {
+    overflow: hidden;
+    color: #475569;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.purchase-goods-button:hover span {
+    color: #2563eb;
+}
+
+.purchase-goods-button small {
+    color: #94a3b8;
+    font-size: 10px;
 }
 
 .purchase-unit-list {
     display: flex;
     flex-wrap: wrap;
     gap: 3px;
-    line-height: 1.1;
+    max-height: 36px;
+    overflow: hidden;
+    line-height: 1.2;
 }
 
 .purchase-unit-list a,
 .purchase-unit-list span {
     max-width: 100%;
     overflow: hidden;
-    padding: 1px 4px;
-    border: 1px solid #cbd8cc;
-    background: #f5faf4;
-    color: #22623e;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #64748b;
     font-size: 10px;
     text-overflow: ellipsis;
     text-decoration: none;
@@ -1608,21 +1760,22 @@ onMounted(async () => {
 }
 
 .purchase-muted {
-    color: #879088;
+    color: #94a3b8;
 }
 
 .purchase-actions {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 3px;
+    justify-content: flex-end;
+    gap: 2px;
 }
 
 .purchase-actions :deep(.v-btn) {
-    flex: 0 0 24px;
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
+    flex: 0 0 28px;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 6px;
 }
 
 .purchase-actions :deep(.v-icon) {
@@ -1630,58 +1783,72 @@ onMounted(async () => {
 }
 
 .purchase-pages {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    display: flex;
+    flex: 0 0 auto;
     align-items: center;
-    gap: 5px;
-    min-height: 30px;
-    padding: 4px 6px;
-    border: 1px solid #c7d0c8;
-    border-top: 0;
-    background: #edf0e9;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 43px;
+    padding: 6px 12px;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
 }
 
+.purchase-pagination,
 .purchase-page-list {
     display: flex;
+    align-items: center;
     gap: 3px;
-    overflow-x: auto;
-    scrollbar-width: thin;
 }
 
-.purchase-page {
+.purchase-page,
+.purchase-page-gap {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 3px;
-    border: 1px solid #9ead9f;
-    background: #fff;
-    color: #26332b;
-    font-family: "Courier New", monospace;
-    font-size: 10px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 5px;
+    border-radius: 6px;
+    color: #64748b;
+    font-size: 12px;
     line-height: 1;
 }
 
+.purchase-page {
+    border: 1px solid transparent;
+    background: #fff;
+}
+
 .purchase-page:hover:not(:disabled) {
-    border-color: #1f7a4a;
-    background: #e9f5eb;
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
 }
 
 .purchase-page--active {
-    border-color: #1f7a4a;
-    background: #1f7a4a;
-    color: #fff;
+    border-color: #dbeafe;
+    background: #eff6ff;
+    color: #2563eb;
+    font-weight: 600;
 }
 
 .purchase-page:disabled {
     opacity: 0.38;
 }
 
+.purchases-board button:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
 .purchase-details {
-    background: #f7f8f4;
-    color: #202622;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
 }
 
 .purchase-details__title {
@@ -1689,8 +1856,9 @@ onMounted(async () => {
     align-items: center;
     justify-content: space-between;
     min-height: 44px;
-    background: linear-gradient(180deg, #355944 0%, #244131 100%);
-    color: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+    color: #334155;
 }
 
 .purchase-details__title div {
@@ -1705,7 +1873,8 @@ onMounted(async () => {
 }
 
 .purchase-details__title strong {
-    font-family: "Courier New", monospace;
+    color: #2563eb;
+    font-variant-numeric: tabular-nums;
     font-size: 15px;
 }
 
@@ -1731,7 +1900,8 @@ onMounted(async () => {
     gap: 2px;
     min-width: 0;
     padding: 6px 8px;
-    border: 1px solid #cbd8cc;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
     background: #fff;
 }
 
@@ -1770,21 +1940,24 @@ onMounted(async () => {
 }
 
 .purchase-lines {
-    border: 1px solid #c7d0c8;
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
     background: #fff;
 }
 
 .purchase-lines__head,
 .purchase-lines__row {
     display: grid;
+    min-width: 820px;
     grid-template-columns: 48px minmax(220px, 1fr) 96px 76px 118px 74px 124px;
     align-items: center;
 }
 
 .purchase-lines__head {
     min-height: 28px;
-    background: #dfe7dd;
-    color: #26332b;
+    background: #f1f5f9;
+    color: #64748b;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -1815,7 +1988,7 @@ onMounted(async () => {
 
 .purchase-lines__row strong {
     color: #202622;
-    font-family: "Courier New", monospace;
+    font-variant-numeric: tabular-nums;
     text-align: right;
 }
 
@@ -1845,8 +2018,8 @@ onMounted(async () => {
 }
 
 .purchase-form {
-    --purchase-accent: #0f766e;
-    --purchase-accent-soft: #ccfbf1;
+    --purchase-accent: #2563eb;
+    --purchase-accent-soft: #dbeafe;
     --purchase-border: #d7e0eb;
     --purchase-ink: #172033;
     flex: 0 1 auto;
@@ -1995,9 +2168,8 @@ onMounted(async () => {
 .purchase-form__total strong {
     overflow: hidden;
     color: #0f5f59;
-    font-family: "Courier New", monospace;
-    font-size: 21px;
     font-variant-numeric: tabular-nums;
+    font-size: 21px;
     line-height: 1.12;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2177,9 +2349,8 @@ onMounted(async () => {
 .purchase-form-lines__footer > div strong {
     min-width: 88px;
     color: #0f5f59;
-    font-family: "Courier New", monospace;
-    font-size: 17px;
     font-variant-numeric: tabular-nums;
+    font-size: 17px;
     text-align: right;
 }
 
@@ -2210,19 +2381,24 @@ onMounted(async () => {
 }
 
 .purchase-filter-panel :deep(.v-field) {
-    border-radius: 3px;
+    border-radius: 7px;
     font-size: 12px;
 }
 
 .purchase-filter-panel :deep(.v-field__input) {
-    min-height: 34px;
-    padding-top: 0;
-    padding-bottom: 0;
+    min-height: 40px;
+    padding-top: 16px;
+    padding-bottom: 4px;
     font-size: 12px;
 }
 
 .purchase-filter-panel :deep(.v-label.v-field-label) {
     font-size: 11px;
+}
+
+.purchase-filter-panel :deep(.v-label.v-field-label--floating) {
+    font-size: 10px;
+    line-height: 12px;
 }
 
 .purchase-form :deep(.v-field) {
@@ -2267,20 +2443,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
-    .purchases-board {
-        height: calc(100vh - 128px);
-        min-height: 460px;
-    }
-
-    .purchases-toolbar {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .purchases-toolbar__meta {
-        flex-wrap: wrap;
-    }
-
     .purchase-filter-grid {
         grid-template-columns: 1fr;
     }
@@ -2307,6 +2469,33 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
+    .purchases-toolbar {
+        flex-wrap: wrap;
+        gap: 7px;
+        padding: 8px;
+    }
+
+    .purchase-search {
+        flex-basis: 100%;
+        max-width: none;
+    }
+
+    .purchases-toolbar__meta {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .purchase-pages {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px 10px;
+        padding: 6px 8px;
+    }
+
+    .purchases-counter {
+        font-size: 11px;
+    }
+
     .purchase-form-dialog :deep(.v-overlay__content) {
         margin: 8px;
         max-height: calc(100vh - 16px);

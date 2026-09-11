@@ -342,8 +342,12 @@ Route::get('/Ameise/grossbuch/', function () {
     return Inertia::render('Ameise/Grossbuch');
 })->name('Ameise.großbuch');
 
+Route::get('/Ameise/Commerce', function () {
+    return Inertia::render('Ameise/Commerce');
+})->name('Ameise.commerce');
+
 Route::get('/Ameise/Purchases/', function () {
-    return Inertia::render('Ameise/Purchases');
+    return to_route('Ameise.commerce', [], 301);
 })->name('Ameise.purchases');
 
 Route::get('/Ameise/settings', function () {

@@ -261,6 +261,7 @@ jobs:
             tests/Feature/OrderManagementTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
+            tests/Feature/AmeiseCommercePageTest.php \
             tests/Feature/CheckCreationTest.php \
             tests/Feature/IncomingMailMaxNotificationTest.php \
             --compact

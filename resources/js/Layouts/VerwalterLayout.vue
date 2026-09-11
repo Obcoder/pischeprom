@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
+import TradeFlowIcon from '@/Components/Icons/TradeFlowIcon.vue'
 
 const MANAGER_PHONE = '79650160001'
 
@@ -590,17 +591,6 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
-                    :href="route('Ameise.purchases')"
-                    class="ameise-header-control ameise-nav-link ameise-nav-link--purchases"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.purchases')) }"
-                    title="Закупки"
-                    aria-label="Закупки"
-                >
-                    <v-icon icon="mdi-cart-arrow-down" size="19" />
-                    <span class="ameise-nav-link__label">Закупки</span>
-                </Link>
-
-                <Link
                     :href="route('Ameise.checks')"
                     class="ameise-header-control ameise-nav-link"
                     :class="{ 'is-active': isActiveUrl(route('Ameise.checks')) }"
@@ -787,6 +777,17 @@ onMounted(fetchWorkingLeads)
                 >
                     <v-icon icon="mdi-email-newsletter" size="19" />
                     <span class="ameise-nav-link__label">КП</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.commerce')"
+                    class="ameise-header-control ameise-nav-link ameise-nav-link--commerce"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.commerce')) }"
+                    title="Закупки и продажи"
+                    aria-label="Закупки и продажи"
+                >
+                    <TradeFlowIcon width="20" height="20" />
+                    <span class="ameise-nav-link__label">Закупки и продажи</span>
                 </Link>
             </nav>
 
@@ -1374,7 +1375,7 @@ onMounted(fetchWorkingLeads)
     --ameise-glow: 6 182 212;
 }
 
-.ameise-nav-link--purchases {
+.ameise-nav-link--commerce {
     --ameise-glow: 245 158 11;
     color: #fde68a;
 }

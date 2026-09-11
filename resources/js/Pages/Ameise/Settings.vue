@@ -21,7 +21,6 @@ const grossbuchTabs = [
     { value: 'contacts', title: 'Контакты', subtitle: 'Телефоны / Uris / Emails / Письма' },
     { value: 'products', title: 'Products', subtitle: 'Categories / Products / Goods / Components' },
     { value: 'segments', title: 'Классификаторы', subtitle: 'Industries / Catalogs / Fields / Segments' },
-    { value: 'sales', title: 'Продажи', subtitle: 'Sales' },
 ]
 
 const grossbuchStartTab = ref('units')

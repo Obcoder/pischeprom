@@ -8,6 +8,7 @@ import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 
 const rows = ref([])
 const totalItems = ref(0)
+const totalAmount = ref(0)
 const months = ref([])
 const loading = ref(false)
 const saving = ref(false)
@@ -22,6 +23,7 @@ const selectedSale = ref(null)
 const errorMessage = ref('')
 const detailsErrorMessage = ref('')
 const detailsMessage = ref('')
+let salesRequestId = 0
 
 const entities = ref([])
 const goods = ref([])
@@ -68,12 +70,21 @@ const detailsLine = reactive(makeLine())
 
 const headers = [
     { title: 'Дата', key: 'date', sortable: true, width: '92px' },
-    { title: 'Entity / Unit / адрес', key: 'entity', sortable: true },
-    { title: 'Сумма', key: 'total', sortable: true, width: '132px', align: 'end' },
-    { title: 'Предыдущая', key: 'previous_sale', sortable: false, width: '150px' },
+    { title: 'Покупатель / адрес', key: 'entity', sortable: true },
+    { title: 'Товары', key: 'goods', sortable: false, width: '30%' },
+    { title: 'Сумма', key: 'total', sortable: true, width: '148px', align: 'end' },
+    { title: 'Предыдущая продажа', key: 'previous_sale', sortable: false, width: '158px', align: 'end' },
 ]
 
-const groupBy = [{ key: 'month', order: 'desc' }]
+const pageCount = computed(() => Math.max(1, Math.ceil(totalItems.value / options.itemsPerPage)))
+const firstRow = computed(() => rows.value.length ? (options.page - 1) * options.itemsPerPage + 1 : 0)
+const lastRow = computed(() => rows.value.length ? firstRow.value + rows.value.length - 1 : 0)
+const hasFilters = computed(() => Boolean(filters.month || filters.date_from || filters.date_to))
+const selectedMonthLabel = computed(() => {
+    if (!filters.month) return 'Все месяцы'
+    return months.value.find((month) => month.value === filters.month)?.label || filters.month.split('-').reverse().join('.')
+})
+const pageAmount = computed(() => rows.value.reduce((sum, row) => sum + toNumber(row.total), 0))
 
 const goodsById = computed(() => new Map(goods.value.map((good) => [Number(good.id), good])))
 const measuresById = computed(() => new Map(measures.value.map((measure) => [Number(measure.id), measure])))
@@ -185,12 +196,6 @@ function formatDate(value) {
     }).format(new Date(value))
 }
 
-function monthLabel(value) {
-    if (!value) return 'Без месяца'
-    const [year, month] = String(value).split('-')
-    return `${month}.${year}`
-}
-
 function entityUnits(entity) {
     return entity?.units || []
 }
@@ -231,7 +236,7 @@ function entityBuildingsText(entity, limit = 2) {
 }
 
 function entityOptionTitle(entity) {
-    return entity?.search_text || entity?.name || `Entity #${entity?.id}`
+    return entity?.search_text || entity?.name || `Контрагент #${entity?.id}`
 }
 
 function saleGoods(item) {
@@ -239,7 +244,7 @@ function saleGoods(item) {
 }
 
 function goodTitle(good) {
-    return good?.name || `Good #${good?.id}`
+    return good?.name || `Товар #${good?.id}`
 }
 
 function entityHref(entity) {
@@ -317,7 +322,7 @@ async function loadEntityMeta() {
     try {
         entityMeta.value = await getEntityMeta()
     } catch (error) {
-        errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить справочники Entity'
+        errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить справочники контрагентов'
         console.error('load entity meta error:', error?.response?.data || error)
     } finally {
         entityMetaLoading.value = false
@@ -350,6 +355,7 @@ async function fetchMeta() {
 }
 
 async function fetchSales() {
+    const requestId = ++salesRequestId
     loading.value = true
     errorMessage.value = ''
 
@@ -360,7 +366,7 @@ async function fetchSales() {
                 server: 1,
                 page: options.page,
                 itemsPerPage: options.itemsPerPage,
-                sortBy: sort.key,
+                sortBy: sort.key === 'entity' ? 'entity.name' : sort.key,
                 sortDesc: sort.order === 'desc',
                 month: filters.month,
                 date_from: filters.date_from || undefined,
@@ -368,21 +374,38 @@ async function fetchSales() {
             },
         })
 
+        if (requestId !== salesRequestId) return
+
         rows.value = data.data || []
         totalItems.value = data.meta?.total || 0
+        totalAmount.value = data.meta?.total_amount ?? 0
         months.value = data.meta?.months || []
     } catch (error) {
+        if (requestId !== salesRequestId) return
         errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить продажи'
         console.error('fetchSales error:', error?.response?.data || error)
     } finally {
-        loading.value = false
+        if (requestId === salesRequestId) loading.value = false
     }
 }
 
 function handleOptionsUpdate(nextOptions) {
+    const nextSort = nextOptions.sortBy?.length ? nextOptions.sortBy : [{ key: 'date', order: 'desc' }]
+    if (nextOptions.page === options.page && JSON.stringify(nextSort) === JSON.stringify(options.sortBy)) return
     options.page = nextOptions.page
-    options.itemsPerPage = 200
-    options.sortBy = nextOptions.sortBy?.length ? nextOptions.sortBy : [{ key: 'date', order: 'desc' }]
+    options.sortBy = nextSort
+    fetchSales()
+}
+
+function changePage(page) {
+    if (page < 1 || page > pageCount.value || loading.value) return
+    options.page = page
+    fetchSales()
+}
+
+function changePageSize(event) {
+    options.itemsPerPage = Number(event.target.value)
+    options.page = 1
     fetchSales()
 }
 
@@ -393,6 +416,10 @@ function applyMonth(month) {
 }
 
 function applyDateRange() {
+    if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) {
+        errorMessage.value = 'Дата начала периода должна быть не позже даты окончания.'
+        return
+    }
     options.page = 1
     fetchSales()
 }
@@ -572,11 +599,12 @@ async function attachGoodToSale() {
         }
 
         resetDetailsLine()
-        detailsMessage.value = 'Good добавлен. Сумма продажи обновлена.'
+        detailsMessage.value = 'Товар добавлен. Сумма продажи обновлена.'
+        await fetchSales()
     } catch (error) {
         detailsErrorMessage.value = error?.response?.data?.message
             || Object.values(error?.response?.data?.errors || {})?.flat()?.[0]
-            || 'Не удалось добавить Good в продажу'
+            || 'Не удалось добавить товар в продажу'
         console.error('attach sale good error:', error?.response?.data || error)
     } finally {
         detailsSaving.value = false
@@ -595,7 +623,7 @@ async function submitEntity() {
         entityDialog.value = false
         resetEntityForm()
     } catch (error) {
-        errorMessage.value = error?.response?.data?.message || Object.values(error?.response?.data?.errors || {})?.flat()?.[0] || 'Не удалось сохранить Entity'
+        errorMessage.value = error?.response?.data?.message || Object.values(error?.response?.data?.errors || {})?.flat()?.[0] || 'Не удалось сохранить контрагента'
         console.error('submit entity error:', error?.response?.data || error)
     } finally {
         entitySaving.value = false
@@ -603,45 +631,87 @@ async function submitEntity() {
 }
 
 onMounted(async () => {
-    await fetchMeta()
     resetForm()
-    await fetchSales()
+    await Promise.all([
+        fetchMeta().catch((error) => {
+            errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить справочники'
+        }),
+        fetchSales(),
+    ])
 })
 </script>
 
 <template>
     <section class="sales-board">
         <div class="sales-board__main">
-            <div class="sales-toolbar">
-                <div>
-                    <div class="sales-toolbar__eyebrow">Grossbuch / продажи</div>
-                    <h2>Продажи</h2>
+            <header class="sales-toolbar">
+                <div class="sales-toolbar__summary" aria-live="polite">
+                    <div class="sales-metric sales-metric--amount">
+                        <span>{{ hasFilters ? 'Сумма за период' : 'Сумма продаж' }}</span>
+                        <strong :title="formatMoney(totalAmount)">{{ loading ? '…' : formatMoney(totalAmount) }}</strong>
+                    </div>
+                    <div class="sales-metric">
+                        <span>Продаж</span>
+                        <strong>{{ loading ? '…' : formatMoney(totalItems) }}</strong>
+                    </div>
                 </div>
 
                 <div class="sales-toolbar__actions">
-                    <v-chip size="small" color="deep-purple" variant="flat">
-                        {{ totalItems }} записей
-                    </v-chip>
-
                     <v-btn
-                        color="deep-purple"
+                        icon="mdi-refresh"
+                        variant="text"
+                        size="small"
+                        aria-label="Обновить продажи"
+                        title="Обновить продажи"
+                        :loading="loading"
+                        @click="fetchSales"
+                    />
+                    <v-btn
+                        color="#0f766e"
                         variant="flat"
-                        density="compact"
+                        size="small"
                         prepend-icon="mdi-plus"
                         @click="openCreate"
                     >
-                        Продать
+                        Новая продажа
                     </v-btn>
                 </div>
-            </div>
+            </header>
 
-            <v-alert
-                v-if="errorMessage"
-                type="error"
-                variant="tonal"
-                density="compact"
-                class="mb-2"
-            >
+            <form class="sales-filters" @submit.prevent="applyDateRange">
+                <v-menu max-height="320" location="bottom start" theme="light">
+                    <template #activator="{ props }">
+                        <button v-bind="props" type="button" class="sales-month-trigger" :class="{ 'is-active': filters.month }">
+                            <v-icon icon="mdi-calendar-month-outline" size="17" />
+                            <span>{{ selectedMonthLabel }}</span>
+                            <v-icon icon="mdi-chevron-down" size="15" />
+                        </button>
+                    </template>
+                    <v-list density="compact" class="sales-month-menu" aria-label="Месяц продаж">
+                        <v-list-item :active="!filters.month" color="#0f766e" @click="applyMonth(null)">
+                            <v-list-item-title>Все месяцы</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item v-for="month in months" :key="month.value" :active="filters.month === month.value" color="#0f766e" @click="applyMonth(month.value)">
+                            <v-list-item-title>{{ month.label }} · {{ month.count }} продаж</v-list-item-title>
+                            <v-list-item-subtitle>{{ formatMoney(month.total) }}</v-list-item-subtitle>
+                        </v-list-item>
+                    </v-list>
+                </v-menu>
+                <div class="sales-date-range">
+                    <label class="sales-date-control">
+                        <span>С</span>
+                        <input v-model="filters.date_from" type="date" aria-label="Продажи с даты" :max="filters.date_to || undefined" />
+                    </label>
+                    <label class="sales-date-control">
+                        <span>По</span>
+                        <input v-model="filters.date_to" type="date" aria-label="Продажи по дату" :min="filters.date_from || undefined" />
+                    </label>
+                </div>
+                <v-btn type="submit" size="small" variant="tonal" color="#0f766e">Применить</v-btn>
+                <v-btn v-if="hasFilters" size="small" variant="text" @click="resetFilters">Сбросить</v-btn>
+            </form>
+
+            <v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" class="sales-error">
                 {{ errorMessage }}
             </v-alert>
 
@@ -651,120 +721,94 @@ onMounted(async () => {
                 :items-length="totalItems"
                 :loading="loading"
                 :page="options.page"
-                :items-per-page="200"
+                :items-per-page="options.itemsPerPage"
                 :sort-by="options.sortBy"
-                :group-by="groupBy"
                 fixed-header
+                hide-default-footer
+                must-sort
                 density="compact"
+                theme="light"
                 class="sales-grid"
                 item-value="id"
-                height="calc(100vh - 260px)"
+                loading-text="Загрузка продаж…"
                 @update:options="handleOptionsUpdate"
             >
-                <template #group-header="{ item, columns, toggleGroup, isGroupOpen }">
-                    <tr class="sales-grid__month-row">
-                        <td :colspan="columns.length">
-                            <button type="button" @click="toggleGroup(item)">
-                                <v-icon :icon="isGroupOpen(item) ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="15" />
-                                {{ monthLabel(item.value) }}
-                            </button>
-                        </td>
-                    </tr>
-                </template>
-
                 <template #item.date="{ item }">
-                    <span class="sales-date">{{ formatDate(item.date) }}</span>
+                    <div class="sales-date">
+                        <span>{{ formatDate(item.date) }}</span>
+                        <small>#{{ item.id }}</small>
+                    </div>
                 </template>
 
                 <template #item.entity="{ item }">
                     <div class="sales-party">
-                        <a v-if="entityHref(item.entity)" :href="entityHref(item.entity)" class="sales-party__entity">
+                        <a v-if="entityHref(item.entity)" :href="entityHref(item.entity)" class="sales-party__entity" :title="item.entity?.name">
                             {{ item.entity?.name || '—' }}
                         </a>
-                        <span v-else class="sales-party__entity">—</span>
-
-                        <div class="sales-party__units">
-                            <a
-                                v-for="unit in entityUnits(item.entity).slice(0, 2)"
-                                :key="unit.id"
-                                :href="unitHref(unit)"
-                            >
-                                {{ unit.name }}
-                            </a>
+                        <span v-else class="sales-party__entity">Покупатель не указан</span>
+                        <div v-if="entityUnits(item.entity).length" class="sales-party__units">
+                            <a v-for="unit in entityUnits(item.entity).slice(0, 2)" :key="unit.id" :href="unitHref(unit)" :title="unit.name">{{ unit.name }}</a>
                             <span v-if="entityUnits(item.entity).length > 2">+{{ entityUnits(item.entity).length - 2 }}</span>
                         </div>
-
-                        <div class="sales-party__address">
-                            <span v-for="building in entityBuildings(item.entity).slice(0, 1)" :key="building.id">
-                                {{ building.city?.name ? `${building.city.name}, ` : '' }}{{ building.address }}
-                            </span>
+                        <div v-if="entityBuildingsText(item.entity)" class="sales-party__address" :title="entityBuildingsText(item.entity, 12)">
+                            {{ entityBuildingsText(item.entity, 1) }}
                         </div>
                     </div>
                 </template>
 
+                <template #item.goods="{ item }">
+                    <button v-if="saleGoods(item).length" type="button" class="sales-goods" :title="saleGoods(item).map(good => good.name).join(', ')" @click="openSaleDetails(item)">
+                        <span>{{ saleGoods(item)[0].name }}</span>
+                        <small>{{ saleGoods(item).length === 1 ? '1 позиция' : `${saleGoods(item).length} поз. · ещё ${saleGoods(item).length - 1}` }}</small>
+                    </button>
+                    <button v-else type="button" class="sales-no-goods" @click="openSaleDetails(item)">Без товаров <v-icon icon="mdi-chevron-right" size="14" /></button>
+                </template>
+
                 <template #item.total="{ item }">
-                    <button type="button" class="sales-money-button" @click="openSaleDetails(item)">
+                    <button type="button" class="sales-money-button" :aria-label="`Детали продажи № ${item.id}, сумма ${formatMoney(item.total)}`" @click="openSaleDetails(item)">
                         <strong>{{ formatMoney(item.total) }}</strong>
-                        <span>{{ saleGoods(item).length }} поз.</span>
+                        <v-icon icon="mdi-chevron-right" size="15" />
                     </button>
                 </template>
 
                 <template #item.previous_sale="{ item }">
                     <div v-if="item.previous_sale" class="sales-prev">
                         <strong>{{ formatMoney(item.previous_sale.total) }}</strong>
-                        <span>{{ item.previous_sale.days }} дн.</span>
+                        <span>{{ formatDate(item.previous_sale.date) }} · {{ item.previous_sale.days }} дн.</span>
                     </div>
                     <span v-else class="sales-first">Первая продажа</span>
                 </template>
+
+                <template #no-data>
+                    <div class="sales-empty">
+                        <v-icon icon="mdi-receipt-text-outline" size="30" />
+                        <strong>{{ hasFilters ? 'За этот период продаж нет' : 'Продаж пока нет' }}</strong>
+                        <span>{{ hasFilters ? 'Выберите другой период или сбросьте фильтры.' : 'Добавьте первую продажу — она появится в таблице.' }}</span>
+                    </div>
+                </template>
             </v-data-table-server>
+
+            <footer class="sales-footer">
+                <div class="sales-footer__total">На странице <strong>{{ formatMoney(pageAmount) }}</strong></div>
+                <div class="sales-pagination">
+                    <label class="sales-page-size">
+                        <span>По</span>
+                        <select :value="options.itemsPerPage" aria-label="Продаж на странице" :disabled="loading" @change="changePageSize">
+                            <option :value="50">50</option>
+                            <option :value="100">100</option>
+                            <option :value="200">200</option>
+                        </select>
+                    </label>
+                    <span class="sales-pagination__range">{{ firstRow }}–{{ lastRow }} из {{ totalItems }}</span>
+                    <button type="button" :disabled="options.page <= 1 || loading" aria-label="Предыдущая страница продаж" @click="changePage(options.page - 1)"><v-icon icon="mdi-chevron-left" size="19" /></button>
+                    <span class="sales-pagination__page">{{ options.page }} / {{ pageCount }}</span>
+                    <button type="button" :disabled="options.page >= pageCount || loading" aria-label="Следующая страница продаж" @click="changePage(options.page + 1)"><v-icon icon="mdi-chevron-right" size="19" /></button>
+                </div>
+            </footer>
         </div>
 
-        <aside class="sales-filter">
-            <div class="sales-filter__title">Период</div>
-
-            <div class="sales-filter__range">
-                <v-text-field
-                    v-model="filters.date_from"
-                    label="с"
-                    type="date"
-                    variant="solo-filled"
-                    density="compact"
-                    hide-details
-                />
-                <v-text-field
-                    v-model="filters.date_to"
-                    label="по"
-                    type="date"
-                    variant="solo-filled"
-                    density="compact"
-                    hide-details
-                />
-                <v-btn color="deep-purple" density="compact" variant="flat" @click="applyDateRange">
-                    Применить
-                </v-btn>
-                <v-btn density="compact" variant="text" @click="resetFilters">
-                    Сброс
-                </v-btn>
-            </div>
-
-            <div class="sales-filter__title mt-3">Месяцы</div>
-            <div class="sales-month-list">
-                <button
-                    v-for="month in months"
-                    :key="month.value"
-                    type="button"
-                    :class="['sales-month', { 'sales-month--active': filters.month === month.value }]"
-                    @click="applyMonth(month.value)"
-                >
-                    <span>{{ month.label }}</span>
-                    <b>{{ month.count }}</b>
-                    <small>{{ formatMoney(month.total) }}</small>
-                </button>
-            </div>
-        </aside>
-
         <v-dialog v-model="detailsDialog" max-width="980" scrollable class="sale-details-dialog">
-            <v-card class="sale-details">
+            <v-card class="sale-details" theme="light">
                 <v-card-title class="sale-details__title">
                     <div>
                         <span>Детали продажи</span>
@@ -778,9 +822,9 @@ onMounted(async () => {
                             :prepend-icon="detailsAddOpen ? 'mdi-minus' : 'mdi-plus'"
                             @click="toggleDetailsAdd"
                         >
-                            {{ detailsAddOpen ? 'Скрыть' : 'Good' }}
+                            {{ detailsAddOpen ? 'Скрыть' : 'Товар' }}
                         </v-btn>
-                        <v-btn icon="mdi-close" variant="text" @click="detailsDialog = false" />
+                        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Закрыть детали продажи" @click="detailsDialog = false" />
                     </div>
                 </v-card-title>
 
@@ -791,7 +835,7 @@ onMounted(async () => {
                             <strong>{{ formatDate(selectedSale.date) }}</strong>
                         </div>
                         <div>
-                            <small>Entity</small>
+                            <small>Покупатель</small>
                             <a v-if="entityHref(selectedSale.entity)" :href="entityHref(selectedSale.entity)">
                                 {{ selectedSale.entity?.name }}
                             </a>
@@ -821,7 +865,7 @@ onMounted(async () => {
 
                     <div class="sale-details__grid">
                         <div class="sale-details__head">
-                            <span>Good</span>
+                            <span>Товар</span>
                             <span>НДС</span>
                             <span>Тарность</span>
                             <span>Кол-во</span>
@@ -856,7 +900,7 @@ onMounted(async () => {
                     >
                         <div class="sale-details__add-title">
                             <div>
-                                <strong>Добавить Good</strong>
+                                <strong>Добавить товар</strong>
                                 <span>Укажите любые два значения: количество, цена или сумма.</span>
                             </div>
                             <small>Сумма позиции будет добавлена к итогу продажи</small>
@@ -882,7 +926,7 @@ onMounted(async () => {
 
                         <div class="sale-details__add-grid">
                             <div class="sale-details__add-head">
-                                <span>Good</span>
+                                <span>Товар</span>
                                 <span>НДС</span>
                                 <span>Тарность</span>
                                 <span>Кол-во</span>
@@ -897,7 +941,7 @@ onMounted(async () => {
                                     :items="goods"
                                     :item-title="goodTitle"
                                     item-value="id"
-                                    placeholder="Выберите Good"
+                                    placeholder="Выберите товар"
                                     variant="outlined"
                                     density="compact"
                                     hide-details
@@ -971,7 +1015,7 @@ onMounted(async () => {
                                 <v-btn
                                     type="submit"
                                     size="small"
-                                    color="deep-purple"
+                                    color="#0f766e"
                                     variant="flat"
                                     prepend-icon="mdi-plus"
                                     :loading="detailsSaving"
@@ -989,11 +1033,11 @@ onMounted(async () => {
         <v-dialog
             v-model="dialog"
             width="calc(100vw - 24px)"
-            max-width="1880"
+            max-width="1400"
             scrollable
             class="sale-create-dialog"
         >
-            <v-card class="sale-dialog">
+            <v-card class="sale-dialog" theme="light">
                 <v-card-title class="sale-dialog__title">
                     <div>
                         <span>Новая продажа</span>
@@ -1002,21 +1046,24 @@ onMounted(async () => {
 
                     <div class="sale-dialog__title-actions">
                         <v-btn
-                            color="red-accent-3"
+                            color="#0f766e"
                             variant="outlined"
                             size="small"
                             class="sale-dialog__entity-btn"
                             :loading="entityMetaLoading"
                             @click="openEntityCreate"
                         >
-                            + E
+                            + Покупатель
                         </v-btn>
 
-                        <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
+                        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Закрыть создание продажи" @click="dialog = false" />
                     </div>
                 </v-card-title>
 
                 <v-card-text class="sale-dialog__body">
+                    <v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" class="mb-3">
+                        {{ errorMessage }}
+                    </v-alert>
                     <v-row dense>
                         <v-col cols="12" md="2">
                             <div class="sale-form-field sale-form-field--date">
@@ -1035,15 +1082,15 @@ onMounted(async () => {
 
                         <v-col cols="12" md="7">
                             <div class="sale-form-field sale-form-field--entity">
-                                <span class="sale-form-field__label">Entity</span>
+                                <span class="sale-form-field__label">Покупатель</span>
                                 <v-autocomplete
                                     v-model="saleForm.entity_id"
                                     :items="entityOptions"
                                     :item-title="entityOptionTitle"
                                     :custom-filter="entitySearchFilter"
                                     item-value="id"
-                                    aria-label="Entity"
-                                    placeholder="Название, Unit или адрес здания"
+                                    aria-label="Покупатель"
+                                    placeholder="Название, подразделение или адрес"
                                     variant="solo-filled"
                                     density="compact"
                                     clearable
@@ -1073,13 +1120,13 @@ onMounted(async () => {
                                             <template #subtitle>
                                                 <div class="sale-entity-option__meta">
                                                     <span v-if="entityUnitsText(item.raw)">
-                                                        Units: {{ entityUnitsText(item.raw) }}
+                                                        Подразделения: {{ entityUnitsText(item.raw) }}
                                                     </span>
                                                     <span v-if="entityBuildingsText(item.raw)">
-                                                        Buildings: {{ entityBuildingsText(item.raw) }}
+                                                        Адреса: {{ entityBuildingsText(item.raw) }}
                                                     </span>
                                                     <span v-if="!entityUnitsText(item.raw) && !entityBuildingsText(item.raw)">
-                                                        Нет привязанных units/buildings
+                                                        Нет подразделений и адресов
                                                     </span>
                                                 </div>
                                             </template>
@@ -1096,7 +1143,7 @@ onMounted(async () => {
                                     {{ entityBuildingsText(selectedEntityOption) }}
                                 </span>
                                 <span v-if="!entityUnitsText(selectedEntityOption) && !entityBuildingsText(selectedEntityOption)">
-                                    Нет units/buildings
+                                    Нет подразделений и адресов
                                 </span>
                             </div>
                         </v-col>
@@ -1105,7 +1152,7 @@ onMounted(async () => {
                             <v-switch
                                 v-model="saleForm.manualTotal"
                                 label="Сумма вручную"
-                                color="deep-purple"
+                                color="#0f766e"
                                 density="compact"
                                 hide-details
                             />
@@ -1123,7 +1170,7 @@ onMounted(async () => {
 
                     <div class="sale-lines">
                         <div class="sale-lines__head">
-                            <span>Good</span>
+                            <span>Товар</span>
                             <span>НДС</span>
                             <span>Тарность</span>
                             <span>Кол-во</span>
@@ -1143,7 +1190,7 @@ onMounted(async () => {
                                 :items="goods"
                                 :item-title="goodTitle"
                                 item-value="id"
-                                placeholder="Good"
+                                placeholder="Товар"
                                 variant="solo-filled"
                                 density="compact"
                                 hide-details
@@ -1203,7 +1250,7 @@ onMounted(async () => {
                     </div>
 
                     <div class="sale-dialog__footer-line">
-                        <v-btn color="red-darken-4" variant="flat" density="compact" prepend-icon="mdi-plus" @click="addLine">
+                        <v-btn color="#0f766e" variant="flat" density="compact" prepend-icon="mdi-plus" @click="addLine">
                             Товар
                         </v-btn>
                         <span>Итого по товарам: <strong>{{ formatMoney(saleLinesTotal) }}</strong></span>
@@ -1213,7 +1260,7 @@ onMounted(async () => {
                 <v-card-actions>
                     <v-spacer />
                     <v-btn variant="text" @click="dialog = false">Отмена</v-btn>
-                    <v-btn color="deep-purple" variant="flat" :loading="saving" :disabled="!canSubmitSale" @click="submitSale">
+                    <v-btn color="#0f766e" variant="flat" :loading="saving" :disabled="!canSubmitSale" @click="submitSale">
                         Сохранить
                     </v-btn>
                 </v-card-actions>
@@ -1234,560 +1281,264 @@ onMounted(async () => {
 
 <style scoped>
 .sales-board {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 178px;
-    gap: 10px;
-    height: calc(100vh - 150px);
+    display: flex;
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
     overflow: hidden;
+    color: #334155;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
 }
 
 .sales-board__main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
     min-width: 0;
+    min-height: 0;
     overflow: hidden;
+    background: #fff;
 }
 
 .sales-toolbar {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    min-height: 48px;
-    padding: 8px 10px;
-    border: 1px solid rgba(102, 72, 180, 0.28);
-    border-radius: 4px 4px 0 0;
-    background: linear-gradient(180deg, #f9f7ff 0%, #ece6ff 100%);
-    color: #32205f;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
 }
 
-.sales-toolbar h2 {
-    margin: 0;
-    font-size: 18px;
-    line-height: 1;
-}
-
-.sales-toolbar__eyebrow {
-    margin-bottom: 3px;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: rgba(50, 32, 95, 0.56);
-}
-
+.sales-toolbar__summary,
 .sales-toolbar__actions {
     display: flex;
     align-items: center;
-    gap: 8px;
-}
-
-.sales-grid {
-    --sales-purple: #5b3bb0;
-    border: 1px solid rgba(91, 59, 176, 0.34);
-    border-top: 0;
-    font-size: 11px;
-}
-
-.sales-grid :deep(.v-table__wrapper) {
-    scrollbar-width: thin;
-}
-
-.sales-grid :deep(thead th) {
-    height: 28px !important;
-    background: var(--sales-purple) !important;
-    color: #ffffff !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.28);
-    font-size: 11px;
-    font-weight: 900 !important;
-}
-
-.sales-grid :deep(tbody td) {
-    height: 30px !important;
-    padding: 2px 6px !important;
-    border-right: 1px solid #ddd5f5;
-    border-bottom: 1px solid #ddd5f5;
-    background: #fff;
-}
-
-.sales-grid :deep(tbody tr:hover td) {
-    background: #f4f0ff !important;
-}
-
-.sales-grid__month-row td {
-    height: 24px !important;
-    background: #eee7ff !important;
-    color: #38216e;
-    font-weight: 900;
-}
-
-.sales-grid__month-row button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 900;
-}
-
-.sales-date {
-    color: #38216e;
-    font-family: 'Courier New', monospace;
-    font-weight: 900;
-}
-
-.sales-money-button {
-    display: grid;
-    justify-items: end;
-    gap: 1px;
-    width: 100%;
-    padding: 1px 5px;
-    border: 1px solid rgba(91, 59, 176, 0.24);
-    border-radius: 3px;
-    background: #f8f5ff;
-    line-height: 1.05;
-    text-align: right;
-}
-
-.sales-money-button:hover {
-    background: #ebe3ff;
-    border-color: rgba(91, 59, 176, 0.46);
-}
-
-.sales-money-button strong {
-    color: #2f1678;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-}
-
-.sales-money-button span {
-    color: #806fa5;
-    font-size: 9px;
-}
-
-.sales-party {
-    display: grid;
-    gap: 1px;
-    line-height: 1.15;
-}
-
-.sales-party__entity {
-    color: #231357;
-    font-weight: 900;
-    text-decoration: none;
-}
-
-.sales-party__units,
-.sales-party__address {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    color: #6c5b93;
-    font-size: 9px;
-}
-
-.sales-party__units a {
-    color: #5b3bb0;
-    text-decoration: none;
-}
-
-.sales-first {
-    color: #7c6b9c;
-    font-size: 10px;
-}
-
-.sales-prev {
-    display: grid;
-    gap: 1px;
-    line-height: 1.05;
-    text-align: right;
-}
-
-.sales-prev strong {
-    color: #2f1678;
-    font-family: 'Courier New', monospace;
-}
-
-.sales-prev span {
-    color: #806fa5;
-    font-size: 9px;
-}
-
-.sales-filter {
-    min-width: 0;
-    padding: 8px;
-    border: 1px solid rgba(91, 59, 176, 0.28);
-    background: linear-gradient(180deg, #f6f2ff 0%, #ffffff 100%);
-    color: #342263;
-    overflow: hidden;
-}
-
-.sales-filter__title {
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
-.sales-filter__range {
-    display: grid;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.sales-month-list {
-    display: grid;
-    gap: 4px;
-    max-height: calc(100vh - 360px);
-    margin-top: 8px;
-    overflow: auto;
-}
-
-.sales-month {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 1px 4px;
-    padding: 5px 6px;
-    border: 1px solid #d9cff8;
-    background: #fff;
-    color: #36246c;
-    text-align: left;
-}
-
-.sales-month--active {
-    background: #5b3bb0;
-    color: #fff;
-}
-
-.sales-month small {
-    grid-column: 1 / -1;
-    color: inherit;
-    opacity: 0.72;
-    font-family: 'Courier New', monospace;
-}
-
-.sale-details {
-    border: 1px solid rgba(91, 59, 176, 0.45);
-    background: #f7f4ff;
-    color: #2e2058;
-}
-
-.sale-details__title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 44px;
-    background: linear-gradient(90deg, #4b2f9b 0%, #6f49c9 100%);
-    color: #fff;
-}
-
-.sale-details__title div {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-}
-
-.sale-details__title span {
-    font-size: 14px;
-    font-weight: 900;
-}
-
-.sale-details__title strong {
-    font-family: 'Courier New', monospace;
-    font-size: 15px;
-}
-
-.sale-details__title .sale-details__title-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.sale-details__body {
-    display: grid;
-    gap: 8px;
-    padding: 10px !important;
-}
-
-.sale-details__summary {
-    display: grid;
-    grid-template-columns: 100px minmax(0, 1fr) 190px;
-    gap: 6px;
-}
-
-.sale-details__summary > div {
-    display: grid;
-    gap: 1px;
-    padding: 5px 7px;
-    border: 1px solid #d9cff8;
-    background: #fff;
-}
-
-.sale-details__summary small {
-    color: #7c6b9c;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.sale-details__summary strong,
-.sale-details__summary a {
-    color: #2f1678;
-    font-size: 12px;
-    font-weight: 900;
-    text-decoration: none;
-}
-
-.sale-details__units {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.sale-details__units a,
-.sale-details__units span {
-    padding: 2px 6px;
-    border: 1px solid #d9cff8;
-    background: #fff;
-    color: #5b3bb0;
-    font-size: 10px;
-    text-decoration: none;
-}
-
-.sale-details__grid {
-    border: 1px solid #cfc2f3;
-    background: #fff;
-}
-
-.sale-details__head,
-.sale-details__row {
-    display: grid;
-    grid-template-columns: minmax(260px, 1fr) 88px 70px 82px 68px 92px 102px;
-    align-items: center;
-}
-
-.sale-details__head {
-    min-height: 26px;
-    background: #5b3bb0;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.sale-details__head span,
-.sale-details__row > * {
-    min-width: 0;
-    padding: 3px 6px;
-    border-right: 1px solid #ddd5f5;
-}
-
-.sale-details__row {
-    min-height: 28px;
-    border-top: 1px solid #ddd5f5;
-    font-size: 11px;
-}
-
-.sale-details__row a {
-    overflow: hidden;
-    color: #2f1678;
-    font-weight: 900;
-    text-overflow: ellipsis;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.sale-details__row span {
-    color: #6c5b93;
-}
-
-.sale-details__row strong {
-    color: #2f1678;
-    font-family: 'Courier New', monospace;
-    text-align: right;
-}
-
-.sale-details__empty {
-    padding: 12px;
-    color: #7c6b9c;
-    font-size: 12px;
-}
-
-.sale-details__add {
-    display: grid;
-    gap: 8px;
-    padding: 8px;
-    border: 1px solid #b9a7e8;
-    background: #fff;
-}
-
-.sale-details__add-title {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
     gap: 12px;
 }
 
-.sale-details__add-title > div {
-    display: grid;
-    gap: 2px;
-}
+.sales-toolbar__summary { flex: 1; min-width: 0; gap: 24px; }
+.sales-toolbar__actions { flex: 0 0 auto; gap: 5px; }
+.sales-metric { display: grid; gap: 2px; }
+.sales-metric > span { color: #64748b; font-size: 11px; line-height: 1.2; }
+.sales-metric > strong { color: #334155; font-size: 17px; font-weight: 600; line-height: 1.2; }
+.sales-metric--amount { min-width: 0; }
+.sales-metric--amount > strong { overflow: hidden; color: #0f766e; font-size: 21px; text-overflow: ellipsis; white-space: nowrap; }
 
-.sale-details__add-title strong {
-    color: #3d237f;
-    font-size: 12px;
-}
-
-.sale-details__add-title span,
-.sale-details__add-title small {
-    color: #78659d;
-    font-size: 10px;
-}
-
-.sale-details__add-grid {
-    border: 1px solid #d6cdf0;
-    overflow-x: auto;
-}
-
-.sale-details__add-head,
-.sale-details__add-line {
-    display: grid;
-    grid-template-columns: minmax(260px, 1fr) 88px 70px 82px 68px 92px 102px;
-    align-items: center;
-    min-width: 762px;
-}
-
-.sale-details__add-head {
-    min-height: 24px;
-    background: #eee8ff;
-    color: #4a3285;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-}
-
-.sale-details__add-head span {
-    padding: 3px 5px;
-    border-right: 1px solid #d6cdf0;
-}
-
-.sale-details__add-line {
-    gap: 3px;
-    padding: 4px;
-    border-top: 1px solid #d6cdf0;
-}
-
-.sale-details__add-line :deep(.v-field) {
-    min-height: 34px;
-    border-radius: 4px;
-    font-size: 11px;
-}
-
-.sale-details__add-line :deep(.v-field__input) {
-    min-height: 34px;
-    padding-top: 0;
-    padding-bottom: 0;
-    font-size: 11px;
-}
-
-.sale-details__add-meta {
-    overflow: hidden;
-    color: #6c5b93;
-    font-size: 10px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sale-details__add-actions {
+.sales-filters {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    color: #6c5b93;
-    font-size: 11px;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
 }
 
-.sale-details__add-actions > div {
+.sales-month-trigger,
+.sales-date-control {
     display: flex;
     align-items: center;
     gap: 6px;
-}
-
-.sale-details__add-actions strong {
-    color: #2f1678;
-    font-family: 'Courier New', monospace;
-}
-
-.sale-dialog {
-    min-height: calc(100vh - 36px);
-    background: #14080a;
-    color: #ffe8e8;
+    height: 32px;
+    border: 1px solid #dce3eb;
+    border-radius: 6px;
+    background: #fff;
+    color: #475569;
     font-size: 12px;
 }
 
-.sale-create-dialog :deep(.v-overlay__content) {
-    margin: 12px;
-    max-height: calc(100vh - 24px);
+.sales-month-trigger { padding: 0 8px; }
+.sales-month-trigger.is-active { border-color: #93cfc5; background: #f0fdfa; color: #0f766e; }
+.sales-date-range { display: flex; align-items: center; gap: 6px; }
+.sales-date-control { padding-left: 8px; }
+.sales-date-control > span { color: #64748b; font-size: 11px; }
+.sales-date-control input {
+    width: 125px;
+    min-width: 0;
+    height: 30px;
+    padding: 0 5px 0 0;
+    border: 0;
+    border-radius: 5px;
+    outline: 0;
+    background: transparent;
+    color: #334155;
+    font: inherit;
+    font-size: 12px;
+    color-scheme: light;
+    box-shadow: none;
 }
+.sales-date-control:focus-within { border-color: #0f766e; box-shadow: 0 0 0 2px #ccfbf1; }
+.sales-month-menu { min-width: 220px; }
+.sales-month-menu :deep(.v-list-item-title) { font-size: 12px; }
+.sales-month-menu :deep(.v-list-item-subtitle) { font-size: 11px; font-variant-numeric: tabular-nums; }
+.sales-error { flex: 0 0 auto; margin: 6px 10px; font-size: 12px; max-height: 72px; overflow: auto; }
+.sales-toolbar :deep(.v-btn),
+.sales-filters :deep(.v-btn) { min-height: 30px; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; }
+.sales-toolbar :deep(.v-btn--icon) { width: 30px; height: 30px; }
 
-.sale-dialog__body {
-    padding: 10px 14px 12px !important;
+.sales-grid {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    font-size: 12px;
 }
-
-.sale-form-field {
-    display: grid;
-    gap: 4px;
+.sales-grid :deep(.v-table__wrapper) {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #bdcbd4 #f8fafc;
+    overscroll-behavior: contain;
 }
-
-.sale-form-field__label {
-    color: rgba(255, 190, 190, 0.74);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    line-height: 1;
-    text-transform: uppercase;
+.sales-grid :deep(table) { min-width: 850px; table-layout: fixed; }
+.sales-grid :deep(thead th) {
+    height: 34px !important;
+    padding: 0 12px !important;
+    border-bottom: 1px solid #dce5ea !important;
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    font-size: 11px;
+    font-weight: 600 !important;
+    white-space: nowrap;
 }
+.sales-grid :deep(tbody td) {
+    height: 58px !important;
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #edf1f5 !important;
+    background: #fff;
+}
+.sales-grid :deep(tbody tr:nth-child(even) td) { background: #fbfcfd; }
+.sales-grid :deep(tbody tr:hover td) { background: #f0fdfa !important; }
+.sales-grid :deep(.v-data-table-progress th) { height: auto !important; padding: 0 !important; }
+.sales-date { display: grid; gap: 4px; color: #475569; white-space: nowrap; }
+.sales-date > small { color: #64748b; font-size: 10px; }
+.sales-party { display: grid; gap: 3px; min-width: 0; line-height: 1.2; }
+.sales-party__entity { overflow: hidden; color: #334155; font-size: 12px; font-weight: 600; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.sales-party__entity:hover { color: #0f766e; text-decoration: underline; }
+.sales-party__units { display: flex; gap: 5px; min-width: 0; overflow: hidden; font-size: 11px; white-space: nowrap; }
+.sales-party__units a { overflow: hidden; color: #0f766e; text-overflow: ellipsis; text-decoration: none; }
+.sales-party__units a:hover { text-decoration: underline; }
+.sales-party__units > span { flex: 0 0 auto; color: #64748b; }
+.sales-party__address { overflow: hidden; color: #64748b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.sales-goods { display: grid; gap: 4px; width: 100%; text-align: left; }
+.sales-goods > span { overflow: hidden; color: #475569; text-overflow: ellipsis; white-space: nowrap; }
+.sales-goods > small { color: #64748b; font-size: 10px; }
+.sales-goods:hover > span { color: #0f766e; }
+.sales-no-goods { display: inline-flex; align-items: center; color: #64748b; font-size: 11px; }
+.sales-money-button { display: flex; align-items: center; justify-content: flex-end; gap: 5px; width: 100%; min-height: 32px; margin-right: -4px; padding: 4px 0; border-radius: 5px; color: #0f766e; text-align: right; white-space: nowrap; }
+.sales-money-button strong { font-size: 13px; font-weight: 600; }
+.sales-money-button :deep(.v-icon) { color: #8fbeb6; }
+.sales-money-button:hover { background: #ccfbf1; }
+.sales-prev { display: grid; gap: 4px; line-height: 1.2; text-align: right; white-space: nowrap; }
+.sales-prev strong { color: #64748b; font-size: 12px; font-weight: 500; }
+.sales-prev span { color: #64748b; font-size: 10px; }
+.sales-first { display: inline-block; padding: 3px 6px; border-radius: 4px; background: #f0fdfa; color: #0f766e; font-size: 10px; white-space: nowrap; }
+.sales-empty { display: grid; justify-items: center; gap: 8px; padding: 38px 16px; color: #94a3b8; }
+.sales-empty strong { color: #475569; font-size: 14px; font-weight: 500; }
+.sales-empty span { color: #64748b; font-size: 12px; }
 
+.sales-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; min-height: 43px; padding: 5px 12px; border-top: 1px solid #e2e8f0; background: #fff; color: #64748b; font-size: 11px; }
+.sales-footer__total { display: flex; gap: 8px; white-space: nowrap; }
+.sales-footer__total strong { color: #0f766e; font-weight: 600; }
+.sales-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.sales-page-size { display: flex; align-items: center; gap: 5px; }
+.sales-page-size select { width: 57px; height: 28px; padding: 0 18px 0 6px; border: 1px solid #e2e8f0; border-radius: 5px; color: #475569; font-size: 11px; }
+.sales-pagination > button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid #e2e8f0; border-radius: 5px; background: #fff; color: #475569; }
+.sales-pagination > button:hover:not(:disabled) { border-color: #99d2c8; background: #f0fdfa; color: #0f766e; }
+.sales-pagination > button:disabled { opacity: .35; cursor: default; }
+.sales-pagination__page { min-width: 30px; text-align: center; }
+.sales-board button:focus-visible,
+.sales-board a:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
+
+.sale-details,
+.sale-dialog { border: 1px solid #dce5ea; border-radius: 12px; background: #fff; color: #334155; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto-Regular', sans-serif; font-size: 12px; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+.sale-details__title,
+.sale-dialog__title { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 9px 14px; border-bottom: 1px solid #e2e8f0; background: #f0fdfa; color: #334155; }
+.sale-details__title > div,
+.sale-dialog__title > div { display: flex; align-items: baseline; gap: 14px; }
+.sale-details__title span,
+.sale-dialog__title span { font-size: 14px; font-weight: 500; }
+.sale-details__title strong,
+.sale-dialog__title strong { color: #0f766e; font-size: 17px; font-weight: 600; }
+.sale-details__title .sale-details__title-actions,
+.sale-dialog__title .sale-dialog__title-actions { display: flex; align-items: center; gap: 6px; }
+.sale-details :deep(.v-btn),
+.sale-dialog :deep(.v-btn) { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.sale-details__body { display: grid; gap: 10px; padding: 12px !important; }
+.sale-details__summary { display: grid; grid-template-columns: 100px minmax(0, 1fr) 185px; gap: 8px; }
+.sale-details__summary > div { display: grid; gap: 4px; padding: 7px 9px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; }
+.sale-details__summary small { color: #64748b; font-size: 11px; }
+.sale-details__summary strong,
+.sale-details__summary a { color: #334155; font-size: 12px; font-weight: 500; text-decoration: none; }
+.sale-details__summary a { color: #0f766e; }
+.sale-details__units { display: flex; flex-wrap: wrap; gap: 5px; }
+.sale-details__units a,
+.sale-details__units span { padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; background: #fff; color: #64748b; font-size: 11px; text-decoration: none; }
+.sale-details__units a { color: #0f766e; }
+.sale-details__grid { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
+.sale-details__head,
+.sale-details__row { display: grid; grid-template-columns: minmax(220px, 1fr) 85px 82px 78px 65px 90px 100px; align-items: center; min-width: 720px; }
+.sale-details__head { min-height: 30px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.sale-details__head span,
+.sale-details__row > * { min-width: 0; padding: 6px 8px; }
+.sale-details__row { min-height: 35px; border-top: 1px solid #edf1f5; font-size: 12px; }
+.sale-details__row a { overflow: hidden; color: #0f766e; font-weight: 500; text-overflow: ellipsis; text-decoration: none; white-space: nowrap; }
+.sale-details__row span { color: #64748b; }
+.sale-details__row strong { color: #334155; font-weight: 500; text-align: right; }
+.sale-details__empty { padding: 16px; color: #94a3b8; font-size: 12px; }
+.sale-details__add { display: grid; gap: 8px; padding: 10px; border: 1px solid #cce7e0; border-radius: 6px; background: #f8fdfc; }
+.sale-details__add-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.sale-details__add-title > div { display: grid; gap: 3px; }
+.sale-details__add-title strong { color: #0f766e; font-size: 13px; font-weight: 500; }
+.sale-details__add-title span,
+.sale-details__add-title small { color: #64748b; font-size: 11px; }
+.sale-details__add-grid { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 5px; }
+.sale-details__add-head,
+.sale-details__add-line { display: grid; grid-template-columns: minmax(220px, 1fr) 85px 82px 78px 65px 90px 100px; align-items: center; min-width: 754px; }
+.sale-details__add-head { min-height: 28px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.sale-details__add-head span { padding: 4px 6px; }
+.sale-details__add-line { gap: 4px; padding: 5px; border-top: 1px solid #e2e8f0; }
+.sale-details__add-line :deep(.v-field),
+.sale-details__add-line :deep(.v-field__input) { min-height: 34px; font-size: 12px; }
+.sale-details__add-line :deep(.v-field__input) { padding-top: 0; padding-bottom: 0; }
+.sale-details__add-meta { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.sale-details__add-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #64748b; font-size: 12px; }
+.sale-details__add-actions > div { display: flex; align-items: center; gap: 6px; }
+.sale-details__add-actions strong { color: #0f766e; font-weight: 600; }
+
+.sale-create-dialog :deep(.v-overlay__content) { margin: 12px; max-height: calc(100dvh - 24px); }
+.sale-dialog__body { padding: 12px 14px !important; }
+.sale-dialog :deep(.v-card-actions) { flex-shrink: 0; min-height: 48px; padding: 8px 14px; border-top: 1px solid #e2e8f0; }
+.sale-form-field { display: grid; gap: 5px; }
+.sale-form-field__label { color: #64748b; font-size: 11px; line-height: 1.2; }
 .sale-form-field :deep(.v-field),
 .sale-good-field :deep(.v-field),
-.sale-line :deep(.v-field) {
-    min-height: 36px;
-    border-radius: 7px;
-    font-size: 12px;
-}
-
+.sale-line :deep(.v-field) { min-height: 36px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; box-shadow: none; font-size: 12px; }
 .sale-form-field :deep(.v-field__input),
 .sale-good-field :deep(.v-field__input),
-.sale-line :deep(.v-field__input) {
-    min-height: 36px;
-    padding-top: 0;
-    padding-bottom: 0;
-    font-size: 12px;
-}
-
-.sale-form-field :deep(.v-field__input input),
-.sale-good-field :deep(.v-field__input input),
-.sale-line :deep(.v-field__input input),
+.sale-line :deep(.v-field__input) { min-height: 36px; padding-top: 0; padding-bottom: 0; font-size: 12px; }
+.sale-form-field :deep(input),
+.sale-good-field :deep(input),
+.sale-line :deep(input),
 .sale-form-field :deep(.v-select__selection-text),
 .sale-good-field :deep(.v-select__selection-text),
-.sale-line :deep(.v-select__selection-text) {
-    color: #fff5f5 !important;
-    opacity: 1;
-}
-
+.sale-line :deep(.v-select__selection-text) { color: #334155 !important; opacity: 1; }
 .sale-form-field :deep(input::placeholder),
 .sale-good-field :deep(input::placeholder),
-.sale-line :deep(input::placeholder) {
-    color: rgba(255, 225, 225, 0.62) !important;
-    opacity: 1;
-}
-
-.sale-form-field :deep(.v-label.v-field-label),
-.sale-good-field :deep(.v-label.v-field-label),
-.sale-line :deep(.v-label.v-field-label) {
-    font-size: 11px;
-}
-
+.sale-line :deep(input::placeholder) { color: #94a3b8 !important; opacity: 1; }
+.sale-form-field :deep(.v-label),
+.sale-good-field :deep(.v-label),
+.sale-line :deep(.v-label) { font-size: 11px; }
 .sale-form-field :deep(.v-field__append-inner),
 .sale-form-field :deep(.v-field__prepend-inner),
 .sale-form-field :deep(.v-field__clearable),
@@ -1796,283 +1547,75 @@ onMounted(async () => {
 .sale-good-field :deep(.v-field__clearable),
 .sale-line :deep(.v-field__append-inner),
 .sale-line :deep(.v-field__prepend-inner),
-.sale-line :deep(.v-field__clearable) {
-    padding-top: 6px;
-}
-
-.sale-date-field :deep(input[type="date"]) {
-    color-scheme: dark;
-    line-height: 1.2;
-}
-
-.sale-date-field :deep(input[type="date"]::-webkit-calendar-picker-indicator) {
-    cursor: pointer;
-    filter: invert(1) opacity(0.85);
-}
-
+.sale-line :deep(.v-field__clearable) { padding-top: 6px; }
+.sale-date-field :deep(input[type='date']) { color-scheme: light; line-height: 1.2; }
 .sale-entity-field :deep(.v-field__input),
-.sale-good-field :deep(.v-field__input) {
-    align-items: center;
-}
-
-.sale-dialog__title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 44px;
-    padding: 8px 12px;
-    background: linear-gradient(90deg, #26080c 0%, #4b1016 100%);
-}
-
-.sale-dialog__title div {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-}
-
-.sale-dialog__title strong {
-    color: #ff9090;
-    font-family: 'Courier New', monospace;
-    font-size: 16px;
-}
-
-.sale-dialog__title .sale-dialog__title-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sale-dialog__entity-btn {
-    min-width: 58px;
-    border-color: #ff2b19;
-    color: #ff2b19;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-}
-
-.sale-entity-selection {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    min-width: 0;
-    max-width: 100%;
-    line-height: 1;
-}
-
-.sale-entity-selection strong {
-    overflow: hidden;
-    color: #fff5f5;
-    font-size: 15px;
-    font-weight: 800;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sale-entity-selection span {
-    flex: 0 0 auto;
-    overflow: hidden;
-    color: rgba(255, 220, 220, 0.46);
-    font-family: 'Courier New', monospace;
-    font-size: 9px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sale-entity-context {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    margin-top: 4px;
-    min-height: 18px;
-    color: rgba(255, 220, 220, 0.64);
-    font-size: 9px;
-    line-height: 1.1;
-}
-
-.sale-entity-context span {
-    overflow: hidden;
-    max-width: 100%;
-    padding: 2px 5px;
-    border: 1px solid rgba(255, 120, 120, 0.16);
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.04);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sale-entity-context__unit {
-    color: rgba(255, 232, 232, 0.76);
-}
-
-.sale-entity-context__building {
-    color: rgba(255, 205, 205, 0.62);
-}
-
-.sale-entity-option {
-    min-height: 42px !important;
-}
-
-.sale-entity-option__title {
-    display: flex;
-    align-items: baseline;
-    gap: 7px;
-    min-width: 0;
-    line-height: 1.08;
-}
-
-.sale-entity-option__title strong {
-    overflow: hidden;
-    color: #f8eeee;
-    font-size: 13px;
-    font-weight: 800;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sale-entity-option__title span {
-    color: rgba(255, 210, 210, 0.5);
-    font-family: 'Courier New', monospace;
-    font-size: 9px;
-}
-
-.sale-entity-option__meta {
-    display: grid;
-    gap: 1px;
-    color: rgba(255, 218, 218, 0.62);
-    font-size: 9px;
-    line-height: 1.12;
-}
-
-.sale-entity-option__meta span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-:global(.sale-entity-menu) {
-    border: 1px solid rgba(255, 120, 120, 0.22);
-    background: #1f1f1f !important;
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42) !important;
-}
-
-:global(.sale-entity-menu .v-list) {
-    padding: 3px;
-    background: #1f1f1f !important;
-}
-
-:global(.sale-good-menu) {
-    border: 1px solid rgba(255, 120, 120, 0.22);
-    background: #1f1f1f !important;
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42) !important;
-}
-
-:global(.sale-good-menu .v-list) {
-    padding: 3px;
-    background: #1f1f1f !important;
-}
-
-:global(.sale-entity-menu .v-list-item) {
-    border-radius: 4px;
-}
-
-:global(.sale-good-menu .v-list-item) {
-    min-height: 34px;
-    border-radius: 4px;
-    color: #f8eeee !important;
-}
-
-:global(.sale-good-menu .v-list-item-title) {
-    color: #f8eeee !important;
-    font-size: 13px;
-}
-
+.sale-good-field :deep(.v-field__input) { align-items: center; }
+.sale-dialog__entity-btn { min-width: 100px; font-weight: 500; }
+.sale-entity-selection { display: flex; align-items: baseline; gap: 6px; min-width: 0; max-width: 100%; line-height: 1.2; }
+.sale-entity-selection strong { overflow: hidden; color: #334155; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.sale-entity-selection span { flex: 0 0 auto; color: #94a3b8; font-size: 10px; }
+.sale-entity-context { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; color: #64748b; font-size: 10px; line-height: 1.2; }
+.sale-entity-context span { overflow: hidden; max-width: 100%; padding: 3px 5px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; text-overflow: ellipsis; white-space: nowrap; }
+.sale-entity-context__unit { color: #0f766e; }
+.sale-entity-option { min-height: 42px !important; }
+.sale-entity-option__title { display: flex; align-items: baseline; gap: 7px; min-width: 0; line-height: 1.2; }
+.sale-entity-option__title strong { overflow: hidden; color: #334155; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.sale-entity-option__title span { color: #94a3b8; font-size: 10px; }
+.sale-entity-option__meta { display: grid; gap: 2px; color: #64748b; font-size: 11px; line-height: 1.2; }
+.sale-entity-option__meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:global(.sale-entity-menu),
+:global(.sale-good-menu) { border: 1px solid #e2e8f0; background: #fff !important; box-shadow: 0 10px 30px #0f172a18 !important; }
+:global(.sale-entity-menu .v-list),
+:global(.sale-good-menu .v-list) { padding: 4px; background: #fff !important; }
+:global(.sale-entity-menu .v-list-item),
+:global(.sale-good-menu .v-list-item) { min-height: 34px; border-radius: 4px; color: #334155 !important; }
+:global(.sale-good-menu .v-list-item-title) { color: #334155 !important; font-size: 12px; }
 :global(.sale-entity-menu .v-list-item:hover),
 :global(.sale-entity-menu .v-list-item--active),
 :global(.sale-good-menu .v-list-item:hover),
-:global(.sale-good-menu .v-list-item--active) {
-    background: rgba(107, 24, 34, 0.78) !important;
-}
-
-.sale-lines {
-    margin-top: 8px;
-    border: 1px solid rgba(255, 80, 80, 0.36);
-    background: #0d0809;
-    overflow-x: auto;
-}
-
+:global(.sale-good-menu .v-list-item--active) { background: #f0fdfa !important; }
+.sale-lines { margin-top: 12px; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
 .sale-lines__head,
-.sale-line {
-    display: grid;
-    grid-template-columns: minmax(420px, 2.4fr) 76px 62px 92px 82px 92px 104px 30px;
-    gap: 3px;
-    align-items: center;
-    min-width: 980px;
+.sale-line { display: grid; grid-template-columns: minmax(280px, 2.4fr) 84px 82px 88px 78px 92px 104px 30px; gap: 4px; align-items: center; min-width: 890px; }
+.sale-lines__head { padding: 7px 6px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.sale-line { padding: 5px 6px; border-top: 1px solid #edf1f5; }
+.sale-line__meta { color: #64748b; font-size: 11px; }
+.sale-line__vat { color: #0f766e; }
+.sale-dialog__footer-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: #64748b; font-size: 12px; }
+.sale-dialog__footer-line strong { color: #0f766e; font-weight: 600; }
+
+@media (max-width: 900px) {
+    .sales-footer__total { display: none; }
+    .sales-pagination { width: 100%; }
 }
-
-.sale-lines__head {
-    padding: 4px 6px;
-    background: #3a090e;
-    color: #ffaaaa;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.sale-line {
-    padding: 3px 6px;
-    border-top: 1px solid rgba(255, 80, 80, 0.18);
-}
-
-.sale-line__meta {
-    color: #ffd0d0;
-    font-size: 10px;
-    font-family: 'Courier New', monospace;
-}
-
-.sale-line__vat {
-    color: #ff8b8b;
-}
-
-.sale-dialog__footer-line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 8px;
-    color: #ffdede;
-    font-size: 12px;
-}
-
-@media (max-width: 1180px) {
-    .sales-board {
-        grid-template-columns: 1fr;
-        height: auto;
-        overflow: visible;
-    }
-
-    .sales-filter {
-        order: -1;
-    }
-
-    .sale-lines__head,
-    .sale-line {
-        grid-template-columns: 1fr 80px 66px 80px 82px 82px 92px 32px;
-        overflow-x: auto;
-    }
-
-    .sale-details__summary,
-    .sale-details__head,
-    .sale-details__row {
-        grid-template-columns: 1fr;
-    }
-
+@media (max-width: 600px) {
+    .sales-toolbar { gap: 6px; padding: 9px 10px; }
+    .sales-toolbar__summary { gap: 13px; }
+    .sales-metric > strong { font-size: 15px; }
+    .sales-metric--amount > strong { font-size: 18px; }
+    .sales-metric > span { font-size: 10px; }
+    .sales-toolbar__actions { gap: 2px; }
+    .sales-toolbar__actions :deep(.v-btn:not(.v-btn--icon)) { padding: 0 8px; font-size: 11px; }
+    .sales-filters { gap: 5px; padding: 7px 9px; }
+    .sales-month-trigger { order: 1; }
+    .sales-date-range { flex: 1 0 100%; gap: 5px; }
+    .sales-date-control { flex: 1; min-width: 0; }
+    .sales-date-control input { flex: 1; width: 100%; }
+    .sales-filters > .v-btn { order: 2; }
+    .sales-footer { min-height: 41px; padding: 5px 9px; }
+    .sales-pagination { justify-content: space-between; gap: 5px; font-size: 10px; }
+    .sales-page-size { gap: 4px; }
+    .sales-pagination > button { width: 27px; height: 28px; }
+    .sale-details__title,
+    .sale-dialog__title { padding: 8px 10px; gap: 6px; }
+    .sale-details__title > div,
+    .sale-dialog__title > div { gap: 5px; flex-wrap: wrap; }
+    .sale-details__title > div:first-child,
+    .sale-dialog__title > div:first-child { flex-direction: column; }
+    .sale-details__summary { grid-template-columns: 1fr 1fr; }
+    .sale-details__summary > div:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
     .sale-details__add-title,
-    .sale-details__add-actions {
-        align-items: stretch;
-        flex-direction: column;
-    }
+    .sale-details__add-actions { align-items: stretch; flex-direction: column; }
 }
 </style>

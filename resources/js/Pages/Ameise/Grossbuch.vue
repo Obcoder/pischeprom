@@ -6,7 +6,6 @@ import axios from "axios";
 import {route} from "ziggy-js";
 import {useDate} from 'vuetify';
 import {logo} from "@/Pages/Helpers/consts.js";
-import {format} from "date-fns";
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 defineOptions({
     layout: VerwalterLayout,
@@ -15,7 +14,6 @@ defineOptions({
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
 import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Fields from "@/Components/Dictionaries/Fields.vue";
-import GrossbuchSales from '@/Components/Grossbuch/GrossbuchSales.vue';
 import Industries from "@/Components/Dictionaries/Industries.vue";
 import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
 import Units from '@/Components/Dictionaries/Units.vue';
@@ -34,7 +32,7 @@ const GROSSBUCH_TAB_KEY = 'ameise:grossbuch:tab'
 const GROSSBUCH_CONTACTS_TAB_KEY = 'ameise:grossbuch:contacts-tab'
 const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
 const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
-const allowedTabs = ['units', 'contacts', 'segments', 'sales']
+const allowedTabs = ['units', 'contacts', 'segments']
 const allowedContactTabs = ['telephones', 'uris', 'emails']
 
 function storedTab(key, fallback, allowed = null) {
@@ -79,8 +77,6 @@ const entityClassifications = ref([])
 const good = ref(null)
 const labels = ref([])
 const measures = ref([])
-const sale = ref()
-const sales = ref([])
 const segments = ref([])
 
 let manufacturers = ref();
@@ -184,112 +180,6 @@ function indexMeasures(){
         console.error(error)
     })
 }
-//     S A L E S
-function indexSales(){
-    axios.get(route('sales.index')).then(function (response){
-        sales.value = response.data
-    }).catch(function (error){
-        console.error(error)
-    })
-}
-const headerSales = ref([
-    {
-        title: '+good',
-        key: 'good',
-        align: 'center',
-        width: '33px',
-    },
-    {
-        key: 'entity.name',
-        title: 'Entity',
-        sortable: true,
-        align: 'start',
-        class: 'text-primary',
-        headerClass: 'bg-grey-lighten-3',
-        width: '47%',
-    },
-    {
-        key: 'date',
-        title: 'Дата',
-        sortable: true,
-        align: 'start',
-        class: 'text-rose-700',
-        headerClass: 'bg-grey-lighten-3',
-    },
-    {
-        key: 'total',
-        title: 'Total',
-        sortable: true,
-        align: 'start',
-        class: 'text-primary',
-        headerClass: 'bg-grey-lighten-3',
-    },
-])
-function showSale(id){
-    axios.get(route('sales.show', id)).then(function (response){
-        sale.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    });
-}
-const dialogFormSale = ref(false)
-const formSale = useForm({
-    date: null,
-    entity_id: null,
-    total: null,
-})
-function storeSale(){
-    formSale.date = format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
-    formSale.post(route('web.sale.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            formSale.reset()
-                },
-    })
-}
-const dialogFormAttachGood = ref(false)
-const loadingAttach = ref(false)
-const snackbar = ref({
-    show: false,
-    text: '',
-});
-const formAttachGood = useForm({
-    good_id: null,
-    sale_id: null,
-    quantity: null,
-    measure_id: null,
-    price: null,
-})
-function openAttachDialog(sale) {
-    showSale(sale.id)
-    formAttachGood.sale_id = sale.id
-    dialogFormAttachGood.value = true;
-}
-function attachGood(){
-    loadingAttach.value = true;
-    formAttachGood.post(route('web.goodsale.store'), {
-        replace: false,
-        preserveState: true,
-        preserveScroll: false,
-        onSuccess: ()=> {
-            snackbar.value = {
-                show: true,
-                text: 'Товар успешно привязан!',
-            };
-            dialogFormAttachGood.value = false; // Закрыть диалог
-            formAttachGood.reset()
-                },
-    })
-}
-
-let totalInKg = ref()
-let quantity = ref()
-// E N D  S A L E S
-
-
-
 //   S E G M E N T S
 function indexSegments(){
     axios.get(route('segments.index')).then(function (response){
@@ -410,7 +300,6 @@ const style = `
                             <v-tab value="units">Объекты</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
-                            <v-tab value="sales">Продажи</v-tab>
                         </v-tabs>
 
                         <v-card-text>
@@ -462,12 +351,6 @@ const style = `
                                 </v-tabs-window-item>
                                 <!--        К О Н Е Ц  К О Н Т А К Т Ы         -->
 
-
-                                <!--           S A L E S           -->
-                                <v-tabs-window-item value="sales" class="grossbuch-sales-tab">
-                                    <GrossbuchSales />
-                                </v-tabs-window-item>
-                                <!--      E N D  S A L E S      -->
 
                                 <!--        К Л А С С И Ф И К А Т О Р Ы        -->
                                 <v-tabs-window-item value="segments">
