@@ -442,6 +442,10 @@ Route::get('/Ameise/units/', function () {
     return Inertia::render('Ameise/Units');
 })->name('Ameise.units');
 
+Route::get('/Ameise/entities/', function () {
+    return Inertia::render('Ameise/Entities');
+})->name('Ameise.entities');
+
 Route::get('/Ameise/unit/{unit}', [UnitController::class, 'show'])
     ->name('web.unit.show');
 

@@ -12,27 +12,17 @@ defineOptions({
 })
 
 import EmailsPage from '@/Components/Contacts/Emails/EmailsPage.vue';
-import Entities from "@/Components/Dictionaries/Entities/Entities.vue";
 import Fields from "@/Components/Dictionaries/Fields.vue";
 import Industries from "@/Components/Dictionaries/Industries.vue";
 import TelephonePage from "@/Components/Dictionaries/telephones/TelephonePage.vue";
-import Units from '@/Components/Dictionaries/Units.vue';
 import Uris from '@/Components/Dictionaries/Uris.vue';
-
-import { useUnits } from '@/Composables/useUnits.js'
-const {
-    units,
-    loadingUnits,
-    indexUnits,
-} = useUnits()
 
 const date = useDate()
 
 const GROSSBUCH_TAB_KEY = 'ameise:grossbuch:tab'
 const GROSSBUCH_CONTACTS_TAB_KEY = 'ameise:grossbuch:contacts-tab'
 const GROSSBUCH_SEGMENTS_TAB_KEY = 'ameise:grossbuch:segments-tab'
-const GROSSBUCH_UNITS_TAB_KEY = 'ameise:grossbuch:units-tab'
-const allowedTabs = ['units', 'contacts', 'segments']
+const allowedTabs = ['contacts', 'segments']
 const allowedContactTabs = ['telephones', 'uris', 'emails']
 
 function storedTab(key, fallback, allowed = null) {
@@ -58,16 +48,14 @@ function rememberTab(key, value) {
 }
 
 function loadStoredTabs() {
-    tab.value = storedTab(GROSSBUCH_TAB_KEY, 'units', allowedTabs)
+    tab.value = storedTab(GROSSBUCH_TAB_KEY, 'contacts', allowedTabs)
     tabsContacts.value = storedTab(GROSSBUCH_CONTACTS_TAB_KEY, 'telephones', allowedContactTabs)
     tabsSegments.value = storedTab(GROSSBUCH_SEGMENTS_TAB_KEY, 'industries')
-    tabsUnits.value = storedTab(GROSSBUCH_UNITS_TAB_KEY, 'units_sub')
 }
 
-const tab = ref('units')
+const tab = ref('contacts')
 const tabsContacts = ref('telephones')
 const tabsSegments = ref('industries')
-const tabsUnits = ref('units_sub')
 
 const brands = ref([])
 const catalogs = ref([])
@@ -252,7 +240,6 @@ onMounted(()=>{
     indexLabels()
     indexMeasures()
     indexSegments()
-    indexUnits()
 
     getManufacturers();
 })
@@ -260,7 +247,6 @@ onMounted(()=>{
 watch(tab, (value) => rememberTab(GROSSBUCH_TAB_KEY, value))
 watch(tabsContacts, (value) => rememberTab(GROSSBUCH_CONTACTS_TAB_KEY, value))
 watch(tabsSegments, (value) => rememberTab(GROSSBUCH_SEGMENTS_TAB_KEY, value))
-watch(tabsUnits, (value) => rememberTab(GROSSBUCH_UNITS_TAB_KEY, value))
 
 useHead({
     title: `Управление торговлей`,
@@ -297,31 +283,12 @@ const style = `
                 <v-col>
                     <v-card>
                         <v-tabs v-model="tab">
-                            <v-tab value="units">Объекты</v-tab>
                             <v-tab value="contacts">Контакты</v-tab>
                             <v-tab value="segments">Классификаторы</v-tab>
                         </v-tabs>
 
                         <v-card-text>
                             <v-tabs-window v-model="tab">
-
-                                <!--   О Б Ъ Е К Т Ы   -->
-                                <v-tabs-window-item value="units">
-                                    <v-tabs v-model="tabsUnits">
-                                        <v-tab value="units_sub">Units</v-tab>
-                                        <v-tab value="entities">Entities</v-tab>
-                                    </v-tabs>
-                                    <v-tabs-window v-model="tabsUnits">
-                                        <v-tabs-window-item value="units_sub">
-                                            <Units />
-                                        </v-tabs-window-item>
-                                        <v-tabs-window-item value="entities">
-                                            <Entities />
-                                        </v-tabs-window-item>
-                                    </v-tabs-window>
-                                </v-tabs-window-item>
-                                <!--           E N D  U N I T S           -->
-
 
                                 <!--           К О Н Т А К Т Ы           -->
                                 <v-tabs-window-item value="contacts">

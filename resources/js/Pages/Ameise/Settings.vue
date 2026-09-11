@@ -17,13 +17,11 @@ defineOptions({
 const GROSSBUCH_TAB_KEY = 'ameise:grossbuch:tab'
 
 const grossbuchTabs = [
-    { value: 'units', title: 'Объекты', subtitle: 'Units / Entities' },
-    { value: 'contacts', title: 'Контакты', subtitle: 'Телефоны / Uris / Emails / Письма' },
-    { value: 'products', title: 'Products', subtitle: 'Categories / Products / Goods / Components' },
+    { value: 'contacts', title: 'Контакты', subtitle: 'Телефоны / Uris / Emails' },
     { value: 'segments', title: 'Классификаторы', subtitle: 'Industries / Catalogs / Fields / Segments' },
 ]
 
-const grossbuchStartTab = ref('units')
+const grossbuchStartTab = ref('contacts')
 const homeBeeAnimationEnabled = ref(true)
 const grossbuchSaved = ref(false)
 const homeSaved = ref(false)
@@ -76,7 +74,7 @@ function saveHomeSettings() {
 }
 
 function resetGrossbuchStartTab() {
-    grossbuchStartTab.value = 'units'
+    grossbuchStartTab.value = 'contacts'
     saveGrossbuchSettings()
 }
 
@@ -124,7 +122,7 @@ useHead({
                         <v-card-text>
                             <p class="settings-card__hint">
                                 Эта вкладка будет открываться при загрузке <code>Ameise/grossbuch</code>.
-                                По умолчанию используется <code>Объекты</code>.
+                                По умолчанию используется <code>Контакты</code>.
                             </p>
 
                             <v-radio-group v-model="grossbuchStartTab" class="settings-tabs" hide-details>
@@ -150,7 +148,7 @@ useHead({
                                 Сохранить
                             </v-btn>
                             <v-btn variant="text" @click="resetGrossbuchStartTab">
-                                Сбросить на Units
+                                Сбросить на Контакты
                             </v-btn>
                             <v-spacer />
                             <v-fade-transition>

@@ -309,10 +309,10 @@ class Entity extends Model
             'purchases_count' => $query->orderBy('purchases_count', $direction),
             'sales_max_date' => $query->orderBy('sales_max_date', $direction),
             'purchases_max_date' => $query->orderBy('purchases_max_date', $direction),
-            default => $query->orderByDesc('sales_count')->orderBy('entities.name'),
+            default => $query->orderBy('entities.created_at', $direction),
         };
 
-        return in_array($sortBy, ['name', null, ''], true)
+        return $sortBy === 'name'
             ? $sorted
             : $sorted->orderBy('entities.name');
     }

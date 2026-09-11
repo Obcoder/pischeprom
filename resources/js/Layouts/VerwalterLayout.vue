@@ -591,6 +591,28 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
+                    :href="route('Ameise.units')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.units')) || isActiveUrl('/Ameise/unit') }"
+                    title="Units"
+                    aria-label="Units"
+                >
+                    <v-icon icon="mdi-office-building-marker-outline" size="19" />
+                    <span class="ameise-nav-link__label">Units</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.entities')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.entities')) || isActiveUrl(route('Ameise.entity.create')) }"
+                    title="Entities"
+                    aria-label="Entities"
+                >
+                    <v-icon icon="mdi-card-account-details-outline" size="19" />
+                    <span class="ameise-nav-link__label">Entities</span>
+                </Link>
+
+                <Link
                     :href="route('Ameise.checks')"
                     class="ameise-header-control ameise-nav-link"
                     :class="{ 'is-active': isActiveUrl(route('Ameise.checks')) }"

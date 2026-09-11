@@ -41,7 +41,7 @@ const pageMarkers = ref([])
 
 const page = ref(1)
 const itemsPerPage = ref(60)
-const sortBy = ref([{ key: 'sales_count', order: 'desc' }])
+const sortBy = ref([{ key: 'created_at', order: 'desc' }])
 
 let debounceTimer = null
 
@@ -162,7 +162,7 @@ const loadItems = async () => {
     loading.value = true
 
     try {
-        const sort = sortBy.value?.[0] ?? { key: 'sales_count', order: 'desc' }
+        const sort = sortBy.value?.[0] ?? { key: 'created_at', order: 'desc' }
 
         const response = await getList({
             page: page.value,
@@ -176,7 +176,7 @@ const loadItems = async () => {
             telephone_ids: filters.telephone_ids,
             unit_ids: filters.unit_ids,
             chat_ids: filters.chat_ids,
-            sortBy: sort.key ?? 'sales_count',
+            sortBy: sort.key ?? 'created_at',
             sortDesc: sort.order === 'desc',
         })
 
@@ -313,9 +313,9 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid class="pa-2 w-100" style="max-width: 100%">
-        <v-row class="w-100 ma-0">
-            <v-col cols="12" class="pa-1 d-flex">
+    <v-container fluid class="entities-workspace pa-0 w-100">
+        <v-row class="entities-workspace__row w-100 ma-0">
+            <v-col cols="12" class="entities-workspace__column pa-0 d-flex">
                 <EntityTable
                     class="w-100"
                     :items="tableItems"
@@ -385,6 +385,24 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.entities-workspace,
+.entities-workspace__row,
+.entities-workspace__column {
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+}
+
+.entities-workspace {
+    display: flex;
+    flex-direction: column;
+}
+
+.entities-workspace__row {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+}
+
 .w-100 {
     width: 100%;
     max-width: 100%;

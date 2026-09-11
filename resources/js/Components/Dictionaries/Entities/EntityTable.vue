@@ -50,8 +50,8 @@ const headers = [
 ]
 
 const sortOptions = [
-    { title: 'Количество продаж', value: 'sales_count' },
     { title: 'Дата создания', value: 'created_at' },
+    { title: 'Количество продаж', value: 'sales_count' },
     { title: 'Последняя закупка', value: 'purchases_max_date' },
     { title: 'Последняя продажа', value: 'sales_max_date' },
     { title: 'Название', value: 'name' },
@@ -77,8 +77,8 @@ const filterMenu = computed({
 })
 
 const currentSortKey = computed({
-    get: () => props.sortBy?.[0]?.key || 'sales_count',
-    set: value => emit('update:sortBy', [{ key: value || 'sales_count', order: currentSortOrder.value }]),
+    get: () => props.sortBy?.[0]?.key || 'created_at',
+    set: value => emit('update:sortBy', [{ key: value || 'created_at', order: currentSortOrder.value }]),
 })
 
 const currentSortOrder = computed({
@@ -87,7 +87,7 @@ const currentSortOrder = computed({
 })
 
 const currentSortTitle = computed(() => {
-    return sortOptions.find(item => item.value === currentSortKey.value)?.title || 'Количество продаж'
+    return sortOptions.find(item => item.value === currentSortKey.value)?.title || 'Дата создания'
 })
 
 const tableGroupBy = computed(() => {
@@ -455,7 +455,6 @@ const phoneNumber = (telephone) => {
                 fixed-header
                 hide-default-footer
                 item-value="id"
-                height="100%"
                 density="compact"
                 hover
                 @update:options="onOptionsUpdate"
@@ -603,13 +602,16 @@ const phoneNumber = (telephone) => {
 .entities-table-card {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 184px);
-    min-height: 520px;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.10);
 }
 
 .entities-table-toolbar {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
@@ -633,18 +635,23 @@ const phoneNumber = (telephone) => {
 .entities-table-body {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     padding: 6px;
+    overflow: hidden;
 }
 
 .entities-data-table {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
 }
 
 .entities-data-table :deep(.v-table__wrapper) {
-    height: 100% !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
 }
 
 .entities-data-table :deep(th),

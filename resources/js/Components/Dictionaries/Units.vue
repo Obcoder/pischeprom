@@ -231,8 +231,9 @@ watch(searchUnits, () => indexUnits())
 </script>
 
 <template>
-    <v-container fluid>
+    <v-container fluid class="units-panel">
         <div class="units-toolbar">
+            <h1 class="units-toolbar__title">Units <span>{{ filteredUnits.length }}</span></h1>
             <v-text-field
                 v-model="searchUnits"
                 label="Поиск по юнитам"
@@ -267,9 +268,8 @@ watch(searchUnits, () => indexUnits())
             items-per-page="100"
             :headers="headerUnits"
             fixed-header
-            height="888px"
             density="compact"
-            class="border border-orange-800 rounded"
+            class="units-table border border-orange-800 rounded"
             hover
         >
             <template #item.cities="{ item }">
@@ -645,15 +645,57 @@ watch(searchUnits, () => indexUnits())
 </template>
 
 <style scoped>
+.units-panel {
+    display: flex;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 8px;
+    flex-direction: column;
+}
+
+.units-table {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.units-table :deep(.v-table__wrapper) {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+}
+
+.units-table :deep(.v-data-table-footer) {
+    flex: 0 0 auto;
+}
+
 .units-toolbar {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     margin-bottom: 8px;
+    flex: 0 0 auto;
+}
+
+.units-toolbar__title {
+    margin: 0 8px 0 0;
+    color: #f1f5f9;
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.units-toolbar__title span {
+    margin-left: 4px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-weight: 400;
 }
 
 .units-toolbar__search {
+    flex: 1 1 220px;
+    min-width: min(180px, 100%);
     max-width: 320px;
 }
 
