@@ -1,0 +1,22 @@
+[Unit]
+Description=Pischeprom Laravel Reverb WebSocket server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APPLICATION_USER__
+Group=__RUNTIME_GROUP__
+WorkingDirectory=__TARGET_DIR__
+ExecStart=__PHP_BINARY__ artisan reverb:start --host=127.0.0.1 --port=8085 --no-interaction
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=30
+UMask=0027
+LimitNOFILE=10000
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

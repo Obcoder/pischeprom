@@ -1,7 +1,9 @@
 <script setup>
 import axios from 'axios'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, toRefs, watch } from 'vue'
 import { route } from 'ziggy-js'
+import { useRealtimeResource } from '@/Composables/useRealtimeResource.js'
+import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
 const props = defineProps({
     entity: {
@@ -10,12 +12,14 @@ const props = defineProps({
     },
 })
 
-const rows = ref([])
-const months = ref([])
-const goodsSummary = ref([])
-const measures = ref([])
-const totalItems = ref(0)
-const totalAmount = ref(0)
+const resource = useRealtimeResource({
+    key: 'entity-sales',
+    initialValue: { rows: [], months: [], goodsSummary: [], measures: [], totalItems: 0, totalAmount: 0 },
+    topics: ['sales'],
+    load: ({ signal }) => fetchSales({ background: true, signal }),
+})
+const { rows, months, goodsSummary, measures, totalItems, totalAmount } = toRefs(resource.state)
+let salesRequestId = 0
 const loading = ref(false)
 const error = ref('')
 
@@ -89,26 +93,34 @@ function measureText(good) {
     return good?.pivot?.measure_name || good?.measure_name || measuresById.value.get(Number(measureId))?.name || '-'
 }
 
-async function fetchSales() {
-    if (!entityId.value) {
+async function fetchSales({ background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++salesRequestId
+    const requestedEntityId = entityId.value
+    if (!requestedEntityId) {
         rows.value = []
         months.value = []
         goodsSummary.value = []
         totalItems.value = 0
         totalAmount.value = 0
+        loading.value = false
+        error.value = ''
         return
     }
 
-    loading.value = true
-    error.value = ''
+    if (!background) {
+        loading.value = true
+        error.value = ''
+    }
 
     try {
         const sort = options.sortBy?.[0] || { key: 'date', order: 'desc' }
         const [salesRes, measuresRes] = await Promise.all([
             axios.get('/api/sales', {
+                signal,
                 params: {
                     server: 1,
-                    entity_id: entityId.value,
+                    entity_id: requestedEntityId,
                     goods_summary: 1,
                     page: options.page,
                     itemsPerPage: options.itemsPerPage,
@@ -116,8 +128,9 @@ async function fetchSales() {
                     sortDesc: sort.order === 'desc',
                 },
             }),
-            measures.value.length ? Promise.resolve({ data: measures.value }) : axios.get('/api/measures'),
+            measures.value.length ? Promise.resolve({ data: measures.value }) : axios.get('/api/measures', { signal }),
         ])
+        if (requestId !== salesRequestId || signal?.aborted || requestedEntityId !== entityId.value) return
         const data = salesRes.data
 
         rows.value = data.data || []
@@ -126,11 +139,13 @@ async function fetchSales() {
         months.value = data.meta?.months || []
         goodsSummary.value = data.meta?.goods_summary || []
         measures.value = measuresRes.data.data || measuresRes.data || []
+        error.value = ''
     } catch (err) {
-        console.error('entity sales error:', err?.response?.data || err)
+        if (requestId !== salesRequestId || signal?.aborted || axios.isCancel(err)) return
         error.value = err?.response?.data?.message || 'Не удалось загрузить продажи entity.'
+        if (background) throw err
     } finally {
-        loading.value = false
+        if (requestId === salesRequestId) loading.value = false
     }
 }
 
@@ -145,6 +160,7 @@ watch(entityId, () => {
     options.page = 1
     fetchSales()
 }, { immediate: true })
+onBeforeUnmount(() => { salesRequestId++ })
 </script>
 
 <template>
@@ -156,6 +172,7 @@ watch(entityId, () => {
             </div>
 
             <div class="entity-sales-card__stats">
+                <RealtimeStatus :failed="resource.refreshFailed.value" />
                 <span>{{ totalItems }} продаж</span>
                 <strong>{{ formatMoney(totalAmount) }}</strong>
             </div>

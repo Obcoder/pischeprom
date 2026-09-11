@@ -30,6 +30,11 @@ Vue/Vite assets и управления деплоем по SSH.
 Для одного production-окружения одновременно разрешён только один deploy.
 Новый запуск ждёт завершения уже начавшегося и не отменяет его.
 
+Для живого обновления складов и продаж основной deploy автоматически настраивает
+Laravel Reverb, отдельный realtime worker и Nginx WebSocket proxy. Ключи создаются
+только на VPS и не нужны frontend-сборке. Требования к первому включению и проверки
+описаны в [realtime-deployment.md](realtime-deployment.md).
+
 Для однократной подготовки AI-прайс-листов добавлен отдельный ручной workflow
 `.github/workflows/ai-price-lists-production.yml`. Его всегда запускают сначала с
 `action=plan`, затем с `action=apply` и точным подтверждением

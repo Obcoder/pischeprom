@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
@@ -8,6 +8,7 @@ import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
 import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 import { usePurchases } from '@/Composables/usePurchases.js'
 import { usePurchaseForm } from '@/Composables/usePurchaseForm.js'
+import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
 const PER_PAGE = 100
 
@@ -19,6 +20,7 @@ const {
 } = useEntityForm()
 
 const {
+    resource,
     items,
     loading,
     pagination,
@@ -27,7 +29,9 @@ const {
     createPurchase,
     updatePurchase,
     deletePurchase,
-} = usePurchases()
+} = usePurchases({
+    onRefresh: ({ signal }) => loadPurchases(page.value, { background: true, signal }),
+})
 
 const {
     form,
@@ -60,6 +64,10 @@ const measures = ref([])
 const currencies = ref([])
 const serverErrors = ref({})
 const errorMessage = ref('')
+let listRequestId = 0
+let detailsRequestId = 0
+let editRequestId = 0
+let lastPurchaseParams = null
 const entityFormErrors = ref({})
 const entityFormError = ref('')
 
@@ -152,15 +160,32 @@ function cleanParams(targetPage = page.value) {
     return params
 }
 
-async function loadPurchases(targetPage = page.value) {
-    page.value = targetPage
-    errorMessage.value = ''
+async function loadPurchases(targetPage = page.value, { background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++listRequestId
+    const params = background && lastPurchaseParams
+        ? lastPurchaseParams
+        : cleanParams(targetPage)
+    if (!background) {
+        page.value = targetPage
+        errorMessage.value = ''
+        lastPurchaseParams = Object.fromEntries(Object.entries(params).map(([key, value]) => [
+            key,
+            Array.isArray(value) ? [...value] : value,
+        ]))
+    }
 
     try {
-        await fetchPurchases(cleanParams(targetPage))
+        const applied = await fetchPurchases(params, { background, signal })
+        if (!applied || requestId !== listRequestId || signal?.aborted) return
+        errorMessage.value = ''
+        if (detailsDialog.value && selectedPurchase.value?.id) {
+            await refreshPurchaseDetails(selectedPurchase.value.id, { background, signal })
+        }
     } catch (error) {
+        if (requestId !== listRequestId || signal?.aborted || axios.isCancel(error)) return
         errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить закупки'
-        console.error('fetch purchases error:', error?.response?.data || error)
+        if (background) throw error
     }
 }
 
@@ -467,7 +492,10 @@ async function createPurchaseEntity() {
 }
 
 async function openEdit(id) {
-    const purchase = await fetchPurchase(id)
+    const requestId = ++editRequestId
+    const signal = resource.signal
+    const purchase = await fetchPurchase(id, { signal })
+    if (requestId !== editRequestId || signal?.aborted) return
     resetForm()
     fillForm(purchase)
     recalcAmount()
@@ -478,19 +506,35 @@ async function openEdit(id) {
 async function openDetails(purchase) {
     selectedPurchase.value = purchase
     detailsDialog.value = true
-    detailsLoading.value = true
+    await refreshPurchaseDetails(purchase.id)
+}
+
+async function refreshPurchaseDetails(id, { background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++detailsRequestId
+    if (!background) detailsLoading.value = true
 
     try {
-        selectedPurchase.value = await fetchPurchase(purchase.id)
+        const purchase = await fetchPurchase(id, { signal })
+        if (requestId !== detailsRequestId || signal?.aborted || !detailsDialog.value || Number(selectedPurchase.value?.id) !== Number(id)) return
+        selectedPurchase.value = purchase
     } catch (error) {
+        if (requestId !== detailsRequestId || signal?.aborted || axios.isCancel(error)) return
+        if (error?.response?.status === 404 && Number(selectedPurchase.value?.id) === Number(id)) {
+            selectedPurchase.value = null
+            detailsDialog.value = false
+            errorMessage.value = 'Открытая закупка удалена. Список обновлён.'
+            return
+        }
         errorMessage.value = error?.response?.data?.message || 'Не удалось открыть карточку закупки'
-        console.error('fetch purchase details error:', error?.response?.data || error)
+        if (background) throw error
     } finally {
-        detailsLoading.value = false
+        if (requestId === detailsRequestId) detailsLoading.value = false
     }
 }
 
 function closeDialog() {
+    editRequestId++
     dialog.value = false
     resetForm()
     serverErrors.value = {}
@@ -576,6 +620,11 @@ onMounted(async () => {
         loadDictionaries(),
     ])
 })
+onBeforeUnmount(() => {
+    listRequestId++
+    detailsRequestId++
+    editRequestId++
+})
 </script>
 
 <template>
@@ -607,6 +656,7 @@ onMounted(async () => {
                 </form>
 
                 <div class="purchases-toolbar__meta">
+                    <RealtimeStatus :failed="resource.refreshFailed.value" />
                     <v-menu
                         v-model="filtersMenu"
                         :close-on-content-click="false"

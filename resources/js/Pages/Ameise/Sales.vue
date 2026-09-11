@@ -1,13 +1,15 @@
 <script setup>
 import { saleRequestId } from '@/Pages/Helpers/saleRequestId.js'
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
-import {computed, onMounted, reactive, ref} from "vue";
+import {computed, onBeforeUnmount, onMounted, reactive, ref, toRefs} from "vue";
 import axios from "axios";
 import {useDate} from "vuetify";
 import {useForm} from "@inertiajs/vue3";
 import {format} from "date-fns";
 import {route} from "ziggy-js";
 import ProspectingReviewPanel from '@/Components/Unit/AiSales/ProspectingReviewPanel.vue'
+import { useRealtimeResource } from '@/Composables/useRealtimeResource.js'
+import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -19,8 +21,16 @@ const buildings = ref([])
 const cities = ref([])
 const entities = ref([])
 const entityClassifications = ref([])
-const sales = ref([])
-const sale = ref()
+const resource = useRealtimeResource({
+    key: 'legacy-sales',
+    initialValue: { sales: [], sale: null },
+    topics: ['sales'],
+    load: ({ signal }) => indexSales({ background: true, signal }),
+})
+const { sales, sale } = toRefs(resource.state)
+const loadError = ref('')
+let salesRequestSequence = 0
+let saleRequestSequence = 0
 const telephones = ref([])
 
 const searchEntities = ref('')
@@ -156,19 +166,41 @@ function showGood(id){
     })
 }
 //     S A L E S
-function indexSales(){
-    axios.get(route('sales.index')).then(function (response){
+async function indexSales({ background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++salesRequestSequence
+    try {
+        const response = await axios.get(route('sales.index'), { signal })
+        if (requestId !== salesRequestSequence || signal?.aborted) return
         sales.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    })
+        loadError.value = ''
+        if (showFormAttachGood.value && formAttachGood.sale_id) {
+            await showSale(formAttachGood.sale_id, { background, signal })
+        }
+    } catch (error) {
+        if (requestId !== salesRequestSequence || signal?.aborted || axios.isCancel(error)) return
+        loadError.value = error?.response?.data?.message || 'Не удалось обновить продажи.'
+        if (background) throw error
+    }
 }
-function showSale(id){
-    axios.get(route('sales.show', id)).then(function (response){
+async function showSale(id, { background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++saleRequestSequence
+    try {
+        const response = await axios.get(route('sales.show', id), { signal })
+        if (requestId !== saleRequestSequence || signal?.aborted) return
         sale.value = response.data
-    }).catch(function (error){
-        console.log(error)
-    });
+    } catch (error) {
+        if (requestId !== saleRequestSequence || signal?.aborted || axios.isCancel(error)) return
+        if (error?.response?.status === 404) {
+            sale.value = null
+            showFormAttachGood.value = false
+            loadError.value = 'Продажа удалена. Список обновлён.'
+            return
+        }
+        loadError.value = error?.response?.data?.message || 'Не удалось обновить данные продажи.'
+        if (background) throw error
+    }
 }
 let formSale = useForm({
     request_id: null,
@@ -261,10 +293,18 @@ onMounted(()=>{
     indexSales()
     indexTelephones()
 })
+onBeforeUnmount(() => {
+    salesRequestSequence++
+    saleRequestSequence++
+})
 </script>
 
 <template>
     <v-container fluid>
+        <RealtimeStatus :failed="resource.refreshFailed.value" />
+        <v-alert v-if="loadError" type="error" variant="tonal" closable @click:close="loadError = ''">
+            {{ loadError }}
+        </v-alert>
         <v-row>
             <v-col>
                 <v-card>

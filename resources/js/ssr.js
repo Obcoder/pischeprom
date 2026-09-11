@@ -7,6 +7,7 @@ import { createInertiaApp } from '@inertiajs/vue3'
 import createServer from '@inertiajs/vue3/server'
 import { renderToString } from '@vue/server-renderer'
 import { createSSRApp, h } from 'vue'
+import { createPinia } from 'pinia'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from 'ziggy-js'
 import { createAppVuetify } from '@/Plugins/vuetify'
@@ -67,6 +68,7 @@ createServer((page) =>
             globalThis.Ziggy = ziggy
 
             app.use(plugin)
+            app.use(createPinia())
             app.use(vuetify)
             app.use(ZiggyVue, ziggy)
 

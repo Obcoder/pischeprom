@@ -5,6 +5,7 @@ import './bootstrap'
 import '../css/app.css'
 
 import { createSSRApp, h } from 'vue'
+import { createPinia } from 'pinia'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from 'ziggy-js'
@@ -36,6 +37,7 @@ async function bootstrap() {
                 })
 
                 app.use(plugin)
+                app.use(createPinia())
                 app.use(vuetify)
                 app.use(head)
 

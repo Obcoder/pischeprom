@@ -1,0 +1,21 @@
+[Unit]
+Description=Pischeprom warehouse and sales realtime event worker
+After=network-online.target pischeprom-reverb.service
+Wants=network-online.target pischeprom-reverb.service
+
+[Service]
+Type=simple
+User=__APPLICATION_USER__
+Group=__RUNTIME_GROUP__
+WorkingDirectory=__TARGET_DIR__
+ExecStart=__PHP_BINARY__ artisan queue:work database --queue=realtime --sleep=1 --tries=5 --timeout=30 --max-time=3600 --no-interaction
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=45
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

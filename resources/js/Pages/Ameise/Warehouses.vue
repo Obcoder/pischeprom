@@ -1,22 +1,28 @@
 <script setup>
 import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRefs, watch } from 'vue'
 import { route } from 'ziggy-js'
 import GoodStockPanel from '@/Components/Warehouses/GoodStockPanel.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { logo } from '@/Pages/Helpers/consts.js'
+import { useRealtimeResource } from '@/Composables/useRealtimeResource.js'
+import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
 defineOptions({
     layout: VerwalterLayout,
 })
 
 // Goods use a separate stock ledger; the remaining tabs represent commodity warehouses.
-const warehouses = ref([])
-const stockRows = ref([])
-const movements = ref([])
-const commodities = ref([])
-const measures = ref([])
+const resource = useRealtimeResource({
+    key: 'warehouses',
+    initialValue: { warehouses: [], stockRows: [], movements: [], commodities: [], measures: [] },
+    topics: ['warehouses', 'commodity_stock'],
+    load: ({ signal }) => loadAll({ background: true, signal }),
+})
+const { warehouses, stockRows, movements, commodities, measures } = toRefs(resource.state)
+let loadRequestId = 0
+let dictionaryRequestId = 0
 const loading = ref(false)
 const savingWarehouse = ref(false)
 const savingMovement = ref(false)
@@ -209,9 +215,14 @@ function handleGoodsStats(summary) {
     goodsSummary.value = numeric(summary?.value)
 }
 
-async function loadAll() {
-    loading.value = true
-    loadError.value = ''
+async function loadAll({ background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++loadRequestId
+    const dictionaryId = background ? null : ++dictionaryRequestId
+    if (!background) {
+        loading.value = true
+        loadError.value = ''
+    }
 
     try {
         const [
@@ -222,34 +233,43 @@ async function loadAll() {
             measuresResponse,
         ] = await Promise.all([
             axios.get(route('warehouses.index'), {
+                signal,
                 params: {
                     include_goods: true,
                 },
             }),
-            axios.get(route('warehouse-stock.index')),
-            axios.get(route('stock-movements.index'), { params: { limit: 250 } }),
-            axios.get(route('commodities.index'), {
+            axios.get(route('warehouse-stock.index'), { signal }),
+            axios.get(route('stock-movements.index'), { params: { limit: 250 }, signal }),
+            background ? null : axios.get(route('commodities.index'), {
+                signal,
                 params: {
                     per_page: 500,
                     sort_by: 'name',
                     sort_desc: false,
                 },
             }),
-            axios.get(route('measures.index')),
+            background ? null : axios.get(route('measures.index'), { signal }),
         ])
+
+        if (signal?.aborted) return
+        if (dictionaryId === dictionaryRequestId) {
+            commodities.value = unpack(commoditiesResponse)
+            measures.value = unpack(measuresResponse)
+        }
+        if (requestId !== loadRequestId) return
 
         warehouses.value = unpack(warehousesResponse)
         stockRows.value = unpack(stockResponse)
         movements.value = unpack(movementsResponse)
-        commodities.value = unpack(commoditiesResponse)
-        measures.value = unpack(measuresResponse)
+        loadError.value = ''
 
         if (!movementForm.warehouse_id) {
             movementForm.warehouse_id = defaultWarehouseId()
         }
 
         if (
-            activeTab.value !== 'goods'
+            !background
+            && activeTab.value !== 'goods'
             && !commodityWarehouses.value.some(
                 (warehouse) => warehouseTabValue(warehouse) === activeTab.value
             )
@@ -257,9 +277,11 @@ async function loadAll() {
             activeTab.value = 'goods'
         }
     } catch (error) {
+        if (requestId !== loadRequestId || signal?.aborted || axios.isCancel(error)) return
         loadError.value = errorMessage(error, 'Не удалось загрузить данные складов.')
+        if (background) throw error
     } finally {
-        loading.value = false
+        if (requestId === loadRequestId) loading.value = false
     }
 }
 
@@ -484,6 +506,10 @@ watch(activeTab, (tab) => {
 })
 
 onMounted(loadAll)
+onBeforeUnmount(() => {
+    loadRequestId++
+    dictionaryRequestId++
+})
 </script>
 
 <template>
@@ -521,6 +547,7 @@ onMounted(loadAll)
                 </div>
 
                 <div class="warehouse-toolbar__actions">
+                    <RealtimeStatus :failed="resource.refreshFailed.value" />
                     <v-btn
                         icon="mdi-domain-plus"
                         variant="tonal"

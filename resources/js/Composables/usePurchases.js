@@ -1,22 +1,31 @@
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, toRefs } from 'vue'
 import axios from 'axios'
+import { useRealtimeResource } from '@/Composables/useRealtimeResource.js'
 
-export function usePurchases() {
-    const items = ref([])
-    const item = ref(null)
+export function usePurchases({ onRefresh } = {}) {
+    const resource = useRealtimeResource({
+        key: 'purchases',
+        initialValue: {
+            items: [],
+            item: null,
+            pagination: { total: 0, per_page: 100, current_page: 1, last_page: 1 },
+        },
+        topics: ['purchases'],
+        load: ({ signal }) => onRefresh?.({ signal }),
+    })
+    const { items, item, pagination } = toRefs(resource.state)
     const loading = ref(false)
     const errors = ref({})
-    const pagination = ref({
-        total: 0,
-        per_page: 100,
-        current_page: 1,
-        last_page: 1,
-    })
+    let listRequestId = 0
+    let detailRequestId = 0
 
-    const fetchPurchases = async (params = {}) => {
-        loading.value = true
+    const fetchPurchases = async (params = {}, { background = false, signal } = {}) => {
+        signal ||= resource.signal
+        const requestId = ++listRequestId
+        if (!background) loading.value = true
         try {
-            const { data } = await axios.get('/api/purchases', { params })
+            const { data } = await axios.get('/api/purchases', { params, signal })
+            if (requestId !== listRequestId || signal?.aborted) return false
             items.value = data.data || []
             if (data.meta) {
                 pagination.value = {
@@ -26,20 +35,21 @@ export function usePurchases() {
                     last_page: data.meta.last_page || 1,
                 }
             }
+            return true
+        } catch (error) {
+            if (requestId !== listRequestId || signal?.aborted || axios.isCancel(error)) return false
+            throw error
         } finally {
-            loading.value = false
+            if (requestId === listRequestId) loading.value = false
         }
     }
 
-    const fetchPurchase = async (id) => {
-        loading.value = true
-        try {
-            const { data } = await axios.get(`/api/purchases/${id}`)
-            item.value = data.data
-            return data.data
-        } finally {
-            loading.value = false
-        }
+    const fetchPurchase = async (id, { signal } = {}) => {
+        signal ||= resource.signal
+        const requestId = ++detailRequestId
+        const { data } = await axios.get(`/api/purchases/${id}`, { signal })
+        if (requestId === detailRequestId && !signal?.aborted) item.value = data.data
+        return data.data
     }
 
     const createPurchase = async (payload) => {
@@ -58,7 +68,13 @@ export function usePurchases() {
         await axios.delete(`/api/purchases/${id}`)
     }
 
+    onBeforeUnmount(() => {
+        listRequestId++
+        detailRequestId++
+    })
+
     return {
+        resource,
         items,
         item,
         loading,

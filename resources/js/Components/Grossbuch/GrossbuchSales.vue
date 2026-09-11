@@ -1,16 +1,21 @@
 <script setup>
 import axios from 'axios'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRefs } from 'vue'
 import { route } from 'ziggy-js'
 import { saleRequestId } from '@/Pages/Helpers/saleRequestId.js'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
 import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
 import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
+import { useRealtimeResource } from '@/Composables/useRealtimeResource.js'
+import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
-const rows = ref([])
-const totalItems = ref(0)
-const totalAmount = ref(0)
-const months = ref([])
+const resource = useRealtimeResource({
+    key: 'grossbuch-sales',
+    initialValue: { rows: [], totalItems: 0, totalAmount: 0, months: [], selectedSale: null },
+    topics: ['sales'],
+    load: ({ signal }) => fetchSales({ background: true, signal }),
+})
+const { rows, totalItems, totalAmount, months, selectedSale } = toRefs(resource.state)
 const loading = ref(false)
 const saving = ref(false)
 const dialog = ref(false)
@@ -20,12 +25,12 @@ const entityMetaLoading = ref(false)
 const detailsDialog = ref(false)
 const detailsAddOpen = ref(false)
 const detailsSaving = ref(false)
-const selectedSale = ref(null)
 const errorMessage = ref('')
 const detailsErrorMessage = ref('')
 const detailsMessage = ref('')
 const dateRangeMenu = ref(false)
 let salesRequestId = 0
+let lastSalesParams = null
 
 const entities = ref([])
 const goods = ref([])
@@ -363,36 +368,58 @@ async function fetchMeta() {
     entityMeta.value = entityMetaRes
 }
 
-async function fetchSales() {
+async function fetchSales({ background = false, signal } = {}) {
+    signal ||= resource.signal
     const requestId = ++salesRequestId
-    loading.value = true
-    errorMessage.value = ''
+    if (!background) {
+        loading.value = true
+        errorMessage.value = ''
+    }
+
+    const sort = options.sortBy?.[0] || { key: 'date', order: 'desc' }
+    const params = background && lastSalesParams ? { ...lastSalesParams } : {
+        server: 1,
+        page: options.page,
+        itemsPerPage: options.itemsPerPage,
+        sortBy: sort.key === 'entity' ? 'entity.name' : sort.key,
+        sortDesc: sort.order === 'desc',
+        month: filters.month,
+        date_from: filters.date_from || undefined,
+        date_to: filters.date_to || undefined,
+    }
+    if (!background) lastSalesParams = { ...params }
+    const selectedId = detailsDialog.value ? selectedSale.value?.id : null
 
     try {
-        const sort = options.sortBy?.[0] || { key: 'date', order: 'desc' }
-        const { data } = await axios.get('/api/sales', {
-            params: {
-                server: 1,
-                page: options.page,
-                itemsPerPage: options.itemsPerPage,
-                sortBy: sort.key === 'entity' ? 'entity.name' : sort.key,
-                sortDesc: sort.order === 'desc',
-                month: filters.month,
-                date_from: filters.date_from || undefined,
-                date_to: filters.date_to || undefined,
-            },
-        })
+        const [salesResponse, selectedResponse] = await Promise.all([
+            axios.get('/api/sales', { params, signal }),
+            selectedId ? axios.get(`/api/sales/${selectedId}`, { signal }).catch((error) => {
+                if (error?.response?.status === 404) return { missing: true }
+                throw error
+            }) : null,
+        ])
+        const data = salesResponse.data
 
-        if (requestId !== salesRequestId) return
+        if (requestId !== salesRequestId || signal?.aborted) return
 
         rows.value = data.data || []
         totalItems.value = data.meta?.total || 0
         totalAmount.value = data.meta?.total_amount ?? 0
         months.value = data.meta?.months || []
+        errorMessage.value = ''
+        if (selectedResponse && detailsDialog.value && Number(selectedSale.value?.id) === Number(selectedId)) {
+            if (selectedResponse.missing) {
+                selectedSale.value = null
+                detailsDialog.value = false
+                errorMessage.value = 'Открытая продажа удалена. Список обновлён.'
+            } else {
+                selectedSale.value = selectedResponse.data.data || selectedResponse.data
+            }
+        }
     } catch (error) {
-        if (requestId !== salesRequestId) return
+        if (requestId !== salesRequestId || signal?.aborted || axios.isCancel(error)) return
         errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить продажи'
-        console.error('fetchSales error:', error?.response?.data || error)
+        if (background) throw error
     } finally {
         if (requestId === salesRequestId) loading.value = false
     }
@@ -655,6 +682,7 @@ onMounted(async () => {
         fetchSales(),
     ])
 })
+onBeforeUnmount(() => { salesRequestId++ })
 </script>
 
 <template>
@@ -673,6 +701,7 @@ onMounted(async () => {
                 </div>
 
                 <div class="sales-filters">
+                    <RealtimeStatus :failed="resource.refreshFailed.value" />
                     <v-menu max-height="320" location="bottom start" theme="light">
                         <template #activator="{ props }">
                             <button v-bind="props" type="button" class="sales-month-trigger" :class="{ 'is-active': filters.month }" :title="`Месяц продаж: ${selectedMonthLabel}`" :aria-label="`Месяц продаж: ${selectedMonthLabel}`">

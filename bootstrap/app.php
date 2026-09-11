@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware([])->group($app->basePath('routes/provider-webhooks.php'));
         },
     )
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
+        'middleware' => ['web', 'auth:sanctum', 'verified', 'throttle:commerce-realtime-auth'],
+    ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
 

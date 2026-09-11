@@ -128,6 +128,57 @@ git cat-file -e "${commit_sha}^{commit}" \
 git merge-base --is-ancestor "$commit_sha" origin/main \
     || fail 'Requested commit is not part of origin/main.'
 
+# Validate first-install requirements while the current application remains
+# online. Stage the parser from the selected commit; do not require new files
+# to exist in the old production checkout or expose nginx -T in Actions logs.
+log 'Checking realtime host requirements before maintenance.'
+(
+    for command_name in cp getent install mktemp nginx php rm sed stat sudo systemctl systemd-analyze timeout; do
+        command -v "$command_name" >/dev/null \
+            || fail "Realtime requires an unavailable server command: ${command_name}."
+    done
+    realtime_preflight_dir="$(mktemp -d /tmp/pischeprom-realtime-preflight.XXXXXXXXXX)" \
+        || fail 'Realtime preflight staging could not be created.'
+    trap 'rm -rf -- "$realtime_preflight_dir"' EXIT
+    mkdir -m 0700 "$realtime_preflight_dir/lib" || fail 'Realtime preflight staging could not be prepared.'
+    git show "${commit_sha}:scripts/preflight-production-realtime.php" > "$realtime_preflight_dir/preflight.php" \
+        || fail 'The selected commit is missing the realtime preflight.'
+    git show "${commit_sha}:scripts/lib/RealtimeNginx.php" > "$realtime_preflight_dir/lib/RealtimeNginx.php" \
+        || fail 'The selected commit is missing the realtime Nginx parser.'
+
+    timeout 20s sudo -n nginx -T > "$realtime_preflight_dir/nginx.dump" 2> "$realtime_preflight_dir/nginx-errors.log" \
+        || fail 'Nginx configuration inspection failed; inspect nginx -t and sudo permissions on the VPS.'
+    timeout 20s sudo -n "$(command -v php)" "$realtime_preflight_dir/preflight.php" \
+        "$target_dir" "$realtime_preflight_dir/nginx.dump" > "$realtime_preflight_dir/site.path" \
+        || fail 'Realtime environment or Nginx preflight failed before maintenance.'
+    realtime_site_path="$(cat "$realtime_preflight_dir/site.path")"
+
+    check_realtime_sudo() {
+        timeout 10s sudo -n -l -- "$@" > "$realtime_preflight_dir/sudo-check.log" 2>&1 \
+            || fail "Non-interactive sudo is unavailable for realtime deployment command: ${1}."
+    }
+    check_realtime_sudo nginx -t
+    check_realtime_sudo systemctl reload nginx
+    check_realtime_sudo systemctl daemon-reload
+    check_realtime_sudo systemctl enable pischeprom-reverb.service pischeprom-realtime-worker.service
+    check_realtime_sudo install -d -m 0755 -o root -g root /etc/nginx/snippets
+    check_realtime_sudo install -m 0644 -o root -g root \
+        "$target_dir/deploy/nginx/pischeprom-realtime.conf" /etc/nginx/snippets/pischeprom-realtime.conf
+    check_realtime_sudo install -m 0644 -o root -g root "$realtime_preflight_dir/site.next.conf" "$realtime_site_path"
+    check_realtime_sudo cp -p -- "$realtime_site_path" "$realtime_preflight_dir/site.previous.conf"
+    check_realtime_sudo cp -p -- "$realtime_preflight_dir/site.previous.conf" "$realtime_site_path"
+    check_realtime_sudo rm -f -- /etc/nginx/snippets/pischeprom-realtime.conf
+    for service_name in pischeprom-reverb pischeprom-realtime-worker; do
+        check_realtime_sudo systemctl stop "$service_name"
+        check_realtime_sudo systemctl start "$service_name"
+        check_realtime_sudo systemctl is-active --quiet "$service_name"
+        check_realtime_sudo install -m 0644 -o root -g root \
+            "$realtime_preflight_dir/${service_name}.service" "/etc/systemd/system/${service_name}.service"
+    done
+    check_realtime_sudo systemd-analyze verify \
+        "$realtime_preflight_dir/pischeprom-reverb.service" "$realtime_preflight_dir/pischeprom-realtime-worker.service"
+) || fail 'Realtime preflight failed. The current application is still online; its code and services were not changed.'
+
 previous_sha="$(git rev-parse HEAD)"
 maintenance_started=0
 code_switch_started=0
@@ -136,11 +187,15 @@ mail_notification_worker_stopped=0
 banking_worker_stopped=0
 routing_worker_stopped=0
 price_list_worker_stopped=0
+realtime_worker_stopped=0
+reverb_stopped=0
 ssr_stopped=0
 mail_notification_worker_installed=0
 banking_worker_installed=0
 routing_worker_installed=0
 price_list_worker_installed=0
+realtime_worker_installed=0
+reverb_installed=0
 
 if systemctl cat pischeprom-mail-notifications-worker.service >/dev/null 2>&1; then
     mail_notification_worker_installed=1
@@ -158,6 +213,14 @@ if systemctl cat pischeprom-price-lists-worker.service >/dev/null 2>&1; then
     price_list_worker_installed=1
 fi
 
+if systemctl cat pischeprom-realtime-worker.service >/dev/null 2>&1; then
+    realtime_worker_installed=1
+fi
+
+if systemctl cat pischeprom-reverb.service >/dev/null 2>&1; then
+    reverb_installed=1
+fi
+
 restore_application() {
     exit_code=$?
     trap - EXIT
@@ -171,6 +234,14 @@ restore_application() {
 
     if (( ssr_stopped == 1 )); then
         sudo systemctl start pischeprom-ssr >/dev/null 2>&1 || true
+    fi
+
+    if (( reverb_stopped == 1 )); then
+        sudo systemctl start pischeprom-reverb >/dev/null 2>&1 || true
+    fi
+
+    if (( realtime_worker_stopped == 1 )); then
+        sudo systemctl start pischeprom-realtime-worker >/dev/null 2>&1 || true
     fi
 
     if (( banking_worker_stopped == 1 )); then
@@ -230,9 +301,19 @@ if (( price_list_worker_installed == 1 )); then
     price_list_worker_stopped=1
 fi
 
+if (( realtime_worker_installed == 1 )); then
+    sudo systemctl stop pischeprom-realtime-worker
+    realtime_worker_stopped=1
+fi
+
 php artisan schedule:interrupt
 php artisan down --retry=60 --refresh=15
 maintenance_started=1
+
+if (( reverb_installed == 1 )); then
+    sudo systemctl stop pischeprom-reverb
+    reverb_stopped=1
+fi
 
 sudo systemctl stop pischeprom-ssr
 ssr_stopped=1
@@ -251,6 +332,11 @@ avito_env_updater="$target_dir/scripts/update-production-avito-env.php"
 [[ -f "$avito_env_updater" && ! -L "$avito_env_updater" ]] \
     || fail 'Avito production environment updater is missing or unsafe.'
 php "$avito_env_updater" "$target_dir/.env"
+
+realtime_provisioner="$target_dir/scripts/provision-production-realtime.sh"
+[[ -f "$realtime_provisioner" && ! -L "$realtime_provisioner" ]] \
+    || fail 'Realtime production provisioner is missing or unsafe.'
+bash "$realtime_provisioner" "$target_dir"
 
 rm -rf -- "$target_dir/public/build" "$target_dir/bootstrap/ssr"
 mkdir -p "$target_dir/public" "$target_dir/bootstrap"
@@ -309,6 +395,27 @@ sudo find storage bootstrap/cache -type f -exec chmod 0660 {} +
 php artisan queue:restart
 
 sudo systemctl daemon-reload
+
+sudo systemctl start pischeprom-reverb
+reverb_stopped=0
+
+realtime_ready=0
+for attempt in 1 2 3 4 5; do
+    if php "$target_dir/scripts/check-production-realtime.php" "$target_dir" >/dev/null 2>&1; then
+        realtime_ready=1
+        break
+    fi
+    sleep 1
+done
+(( realtime_ready == 1 )) || fail 'Realtime WebSocket or internal publishing check failed; inspect the services on the VPS.'
+
+sudo systemctl start pischeprom-realtime-worker
+realtime_worker_stopped=0
+sudo systemctl is-active --quiet pischeprom-reverb \
+    || fail 'The Reverb service is not active.'
+sudo systemctl is-active --quiet pischeprom-realtime-worker \
+    || fail 'The dedicated realtime queue worker is not active.'
+
 sudo systemctl start pischeprom-mail-sync-worker
 mail_worker_stopped=0
 

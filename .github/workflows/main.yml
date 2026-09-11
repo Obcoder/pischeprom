@@ -262,7 +262,23 @@ jobs:
             database/migrations/2026_09_11_120000_create_entity_consumptions_table.php \
             tests/Feature/EntityConsumptionApiTest.php
 
-      - name: Run unit, logistics, banking, AI price-list, mail, goods stock, orders, and products tests
+      - name: Check realtime PHP and deployment scripts
+        run: |
+          vendor/bin/pint --test \
+            app/Events/CommerceDataChanged.php \
+            app/Observers/CommerceDataObserver.php \
+            app/Services/Realtime \
+            config/broadcasting.php config/realtime.php config/reverb.php \
+            routes/channels.php \
+            scripts/check-production-realtime.php \
+            scripts/update-production-realtime-env.php \
+            scripts/plan-production-realtime-nginx.php \
+            scripts/preflight-production-realtime.php \
+            scripts/lib/RealtimeNginx.php \
+            tests/Feature/CommerceRealtimeTest.php tests/Unit/Realtime
+          bash -n scripts/deploy-production.sh scripts/provision-production-realtime.sh
+
+      - name: Run unit, logistics, banking, AI price-list, mail, goods stock, realtime, orders, and products tests
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -293,6 +309,7 @@ jobs:
             tests/Feature/GoodStockMutationTest.php \
             tests/Feature/SaleStockIdempotencyTest.php \
             tests/Feature/WarehouseMutationAuthorizationTest.php \
+            tests/Feature/CommerceRealtimeTest.php \
             tests/Feature/OrderManagementTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
@@ -313,6 +330,12 @@ jobs:
 
       - name: Reject vulnerable frontend dependencies
         run: npm audit --audit-level=high
+
+      - name: Check live updates and page state preservation
+        run: node --test tests/Frontend/*.test.mjs
+
+      - name: Verify real Reverb delivery and private channel security
+        run: node scripts/smoke-test-commerce-realtime.mjs
 
       - name: Build client and SSR assets
         env:

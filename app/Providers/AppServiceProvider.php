@@ -56,6 +56,9 @@ use App\Models\OutreachReplyLink;
 use App\Models\PriceListImport;
 use App\Models\ProspectingCandidate;
 use App\Models\ProspectingSearchJob;
+use App\Models\Purchase;
+use App\Models\Sale;
+use App\Models\StockMovement;
 use App\Models\Unit;
 use App\Models\UnitBusinessContext;
 use App\Models\UnitGoodFitSnapshot;
@@ -65,6 +68,8 @@ use App\Models\UnitProductMatch;
 use App\Models\UnitProductRelevanceSnapshot;
 use App\Models\UnitProspectPrioritySnapshot;
 use App\Models\Vehicle;
+use App\Models\Warehouse;
+use App\Observers\CommerceDataObserver;
 use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
 use App\Policies\AiSales\AiAgentDefinitionPolicy;
@@ -172,6 +177,13 @@ class AppServiceProvider extends ServiceProvider
     {
         GoodStockMovement::observe(GoodStockMovementObserver::class);
         MailMessageAttachment::observe(MailMessageAttachmentObserver::class);
+
+        foreach ([Sale::class, Purchase::class, GoodStockMovement::class, Warehouse::class, StockMovement::class] as $model) {
+            $model::observe(CommerceDataObserver::class);
+        }
+
+        RateLimiter::for('commerce-realtime-auth', fn (Request $request) => Limit::perMinute(120)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
 
         RateLimiter::for('bank-oauth', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->id ?? $request->ip())));

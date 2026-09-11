@@ -1,7 +1,9 @@
 <script setup>
 import axios from 'axios'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRefs, watch } from 'vue'
 import { route } from 'ziggy-js'
+import { useRealtimeResource } from '@/Composables/useRealtimeResource.js'
+import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
 const props = defineProps({
     warehouses: {
@@ -16,10 +18,15 @@ const props = defineProps({
 
 const emit = defineEmits(['stats-change'])
 
-const stockRows = ref([])
-const movements = ref([])
-const goods = ref([])
-const alerts = ref([])
+const resource = useRealtimeResource({
+    key: 'goods-stock',
+    initialValue: { stockRows: [], movements: [], goods: [], alerts: [] },
+    topics: ['goods_stock', 'warehouses'],
+    load: ({ signal }) => loadAll({ background: true, signal }),
+})
+const { stockRows, movements, goods, alerts } = toRefs(resource.state)
+let loadRequestId = 0
+let dictionaryRequestId = 0
 const loading = ref(false)
 const saving = ref(false)
 const loadError = ref('')
@@ -336,9 +343,14 @@ function goodHref(good) {
         : null
 }
 
-async function loadAll() {
-    loading.value = true
-    loadError.value = ''
+async function loadAll({ background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++loadRequestId
+    const dictionaryId = background ? null : ++dictionaryRequestId
+    if (!background) {
+        loading.value = true
+        loadError.value = ''
+    }
 
     try {
         const [
@@ -347,22 +359,29 @@ async function loadAll() {
             goodsResponse,
             alertsResponse,
         ] = await Promise.all([
-            axios.get(route('good-warehouse-stock.index')),
-            axios.get(route('good-stock-movements.index'), { params: { limit: 250 } }),
-            axios.get(route('goods.index'), {
+            axios.get(route('good-warehouse-stock.index'), { signal }),
+            axios.get(route('good-stock-movements.index'), { params: { limit: 250 }, signal }),
+            background ? null : axios.get(route('goods.index'), {
+                signal,
                 params: {
                     per_page: 9999,
                     sort_by: 'name',
                     sort_desc: false,
                 },
             }),
-            axios.get(route('good-stock-alerts.index'), { params: { limit: 250 } }),
+            background ? null : axios.get(route('good-stock-alerts.index'), { params: { limit: 250 }, signal }),
         ])
+
+        if (signal?.aborted) return
+        if (dictionaryId === dictionaryRequestId) {
+            goods.value = unpack(goodsResponse)
+            alerts.value = unpack(alertsResponse)
+        }
+        if (requestId !== loadRequestId) return
 
         stockRows.value = unpack(stockResponse)
         movements.value = unpack(movementsResponse)
-        goods.value = unpack(goodsResponse)
-        alerts.value = unpack(alertsResponse)
+        loadError.value = ''
         emit('stats-change', {
             rows: stockRows.value.length,
             value: stockRows.value.reduce(
@@ -371,12 +390,14 @@ async function loadAll() {
             ),
         })
     } catch (error) {
+        if (requestId !== loadRequestId || signal?.aborted || axios.isCancel(error)) return
         loadError.value = errorMessage(
             error,
             'Не удалось загрузить отдельный склад товаров.'
         )
+        if (background) throw error
     } finally {
-        loading.value = false
+        if (requestId === loadRequestId) loading.value = false
     }
 }
 
@@ -526,6 +547,10 @@ defineExpose({
 })
 
 onMounted(loadAll)
+onBeforeUnmount(() => {
+    loadRequestId++
+    dictionaryRequestId++
+})
 </script>
 
 <template>
@@ -534,6 +559,7 @@ onMounted(loadAll)
             <div>
                 <div class="goods-stock__eyebrow">
                     Отдельный учёт
+                    <RealtimeStatus :failed="resource.refreshFailed.value" />
                 </div>
 
                 <h2>Склад товаров для покупателей</h2>
