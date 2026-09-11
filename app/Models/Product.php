@@ -83,6 +83,18 @@ class Product extends Model
         return $this->hasMany(Consumption::class, 'product_id', 'id');
     }
 
+    public function entityConsumptions(): HasMany
+    {
+        return $this->hasMany(EntityConsumption::class);
+    }
+
+    public function consumingEntities(): BelongsToMany
+    {
+        return $this->belongsToMany(Entity::class, 'entity_consumptions')
+            ->withPivot(['id', 'quantity', 'measure_id', 'status', 'comment'])
+            ->withTimestamps();
+    }
+
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class);

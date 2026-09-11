@@ -5,6 +5,7 @@ import { Link, usePage } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import ProductAiSalesCampaignCard from '@/Components/AiSales/ProductAiSalesCampaignCard.vue'
 import ProductYandexSearchCard from '@/Components/ProductYandexSearchCard.vue'
+import ProductEntityConsumptionsCard from '@/Components/ProductEntityConsumptionsCard.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import {
     emptyProductTranslationForm,
@@ -308,6 +309,11 @@ onMounted(loadProduct)
                     <v-tab value="consumers">
                         <v-icon start size="18">mdi-account-group-outline</v-icon>
                         Consumers
+                    </v-tab>
+
+                    <v-tab value="entity-consumptions">
+                        <v-icon start size="18">mdi-clipboard-text-outline</v-icon>
+                        Потребности Entities
                     </v-tab>
 
                     <v-tab value="sales">
@@ -889,6 +895,12 @@ onMounted(loadProduct)
                             <v-alert v-else type="info" variant="tonal" color="success">
                                 Consumers не найдены
                             </v-alert>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="entity-consumptions" class="window-pane">
+                        <div class="tab-scroll pa-3 pa-md-4">
+                            <ProductEntityConsumptionsCard :product-id="product.id" />
                         </div>
                     </v-window-item>
 

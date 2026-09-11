@@ -1,11 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import axios from 'axios'
 import { Link, router } from '@inertiajs/vue3'
 import { useHead } from '@unhead/vue'
 import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import EntityDetailCard from '@/Components/Dictionaries/Entities/EntityDetailCard.vue'
+import EntityChecksTab from '@/Components/Dictionaries/Entities/EntityChecksTab.vue'
+import EntityGeographyPanel from '@/Components/Dictionaries/Entities/EntityGeographyPanel.vue'
+import EntityConsumptionsCard from '@/Components/Dictionaries/Entities/EntityConsumptionsCard.vue'
 import EntityEmailsTab from '@/Components/Dictionaries/Entities/EntityEmailsTab.vue'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
 import EntitySalesCard from '@/Components/Dictionaries/Entities/EntitySalesCard.vue'
@@ -36,12 +39,14 @@ const meta = ref({
 })
 const loading = ref(false)
 const metaLoading = ref(false)
+const metaLoaded = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 const error = ref(null)
 const dialog = ref(false)
 const isEdit = ref(false)
 const activeTab = ref('overview')
+const relatedChecksLoaded = ref(false)
 const relatedChecks = ref([])
 const relatedChecksLoading = ref(false)
 const relatedChecksError = ref(null)
@@ -64,14 +69,11 @@ const heroEyebrow = computed(() => {
     return props.entityId ? `Entity #${props.entityId}` : 'Новая Entity'
 })
 const heroSubtitle = computed(() => {
-    if (entity.value?.full_name) {
+    if (entity.value?.full_name && entity.value.full_name !== entity.value.name) {
         return entity.value.full_name
     }
 
-    if (entity.value?.classification?.name) {
-        return entity.value.classification.name
-    }
-
+    if (entity.value) return ''
     return props.entityId ? 'Загрузка карточки контрагента' : 'Создание карточки контрагента'
 })
 const heroClassification = computed(() => entity.value?.classification?.name || 'Без классификации')
@@ -90,7 +92,7 @@ async function fetchEntity() {
     try {
         const { data } = await axios.get(`/api/entities/${props.entityId}`)
         entity.value = data.data || data
-        await fetchRelatedChecks(entity.value?.id)
+        if (activeTab.value === 'checks') await fetchRelatedChecks(entity.value?.id)
     } catch (err) {
         console.error(err)
         error.value = 'Не удалось загрузить Entity.'
@@ -104,6 +106,7 @@ async function loadMeta() {
 
     try {
         meta.value = await getMeta()
+        metaLoaded.value = true
     } catch (err) {
         console.error(err)
         error.value = 'Не удалось загрузить справочники Entity.'
@@ -113,6 +116,7 @@ async function loadMeta() {
 }
 
 function resetRelatedChecks() {
+    relatedChecksLoaded.value = false
     relatedChecks.value = []
     relatedChecksError.value = null
     relatedChecksMeta.value = {
@@ -127,6 +131,7 @@ function unpackList(response) {
 }
 
 async function fetchRelatedChecks(entityId = entity.value?.id) {
+    if (relatedChecksLoading.value) return
     if (!entityId) {
         resetRelatedChecks()
         return
@@ -145,6 +150,7 @@ async function fetchRelatedChecks(entityId = entity.value?.id) {
         })
 
         relatedChecks.value = unpackList(response)
+        relatedChecksLoaded.value = true
         relatedChecksMeta.value = {
             total_amount: Number(response.data?.meta?.total_amount || 0),
             items_count: Number(response.data?.meta?.items_count || 0),
@@ -191,6 +197,7 @@ function mergeTelephoneMeta(telephone) {
 }
 
 function openCreate() {
+    if (!metaLoaded.value && !metaLoading.value) loadMeta()
     resetForm()
     isEdit.value = false
     dialog.value = true
@@ -201,12 +208,14 @@ function openEdit() {
         return
     }
 
+    if (!metaLoaded.value && !metaLoading.value) loadMeta()
     fillForm(entity.value)
     isEdit.value = true
     dialog.value = true
 }
 
 async function submit() {
+    if (saving.value || metaLoading.value || !metaLoaded.value) return
     saving.value = true
     error.value = null
 
@@ -216,7 +225,7 @@ async function submit() {
             : await createOne(toPayload())
 
         entity.value = saved
-        await fetchRelatedChecks(saved?.id)
+        if (activeTab.value === 'checks') await fetchRelatedChecks(saved?.id)
         dialog.value = false
         resetForm()
 
@@ -252,9 +261,12 @@ async function removeEntity() {
     }
 }
 
-onMounted(async () => {
-    await loadMeta()
-    await fetchEntity()
+watch(activeTab, tab => {
+    if (tab === 'checks' && !relatedChecksLoaded.value) fetchRelatedChecks()
+})
+
+onMounted(() => {
+    fetchEntity()
 })
 
 useHead({
@@ -264,79 +276,22 @@ useHead({
 
 <template>
     <v-container fluid class="entity-page pa-4">
-        <header class="entity-page__maroon-header mb-4">
-            <div class="entity-page__maroon-main">
-                <div class="entity-page__heading">
-                    <div class="entity-page__eyebrow">
-                        {{ heroEyebrow }}
-                    </div>
-
-                    <h1>{{ pageTitle }}</h1>
-
-                    <p class="entity-page__subtitle">
-                        {{ heroSubtitle }}
-                    </p>
+        <header class="entity-page__maroon-header mb-3">
+            <div class="entity-page__identity">
+                <div class="entity-page__heading-meta">
+                    <span class="entity-page__eyebrow">{{ heroEyebrow }}</span>
+                    <span v-if="entity" class="entity-page__classification">{{ heroClassification }}</span>
                 </div>
-
-                <v-chip
-                    v-if="entity"
-                    color="#800000"
-                    variant="flat"
-                    size="small"
-                    class="entity-page__classification"
-                >
-                    {{ heroClassification }}
-                </v-chip>
+                <h1>{{ pageTitle }}</h1>
+                <p v-if="heroSubtitle" class="entity-page__subtitle">{{ heroSubtitle }}</p>
+                <div class="entity-page__actions">
+                    <v-btn class="entity-page__action entity-page__action--primary" color="#fff7ed" size="small" rounded="lg" prepend-icon="mdi-plus" @click="openCreate">Новая</v-btn>
+                    <v-btn class="entity-page__action entity-page__action--ghost" variant="tonal" color="white" size="small" rounded="lg" prepend-icon="mdi-pencil-outline" :disabled="!entity" @click="openEdit">Редактировать</v-btn>
+                    <v-btn class="entity-page__action entity-page__action--ghost" variant="tonal" color="white" size="small" rounded="lg" prepend-icon="mdi-delete-outline" :loading="deleting" :disabled="!entity" @click="removeEntity">Удалить</v-btn>
+                    <Link :href="route('Ameise.großbuch')" class="entity-page__back"><v-icon icon="mdi-arrow-left" size="16" /> Grossbuch</Link>
+                </div>
             </div>
-
-            <div class="entity-page__actions">
-                <v-btn
-                    class="entity-page__action entity-page__action--primary"
-                    color="#fff7ed"
-                    rounded="lg"
-                    prepend-icon="mdi-plus"
-                    @click="openCreate"
-                >
-                    Новая
-                </v-btn>
-
-                <v-btn
-                    class="entity-page__action entity-page__action--ghost"
-                    variant="tonal"
-                    color="white"
-                    rounded="lg"
-                    prepend-icon="mdi-pencil"
-                    :disabled="!entity"
-                    @click="openEdit"
-                >
-                    Редактировать
-                </v-btn>
-
-                <v-btn
-                    class="entity-page__action entity-page__action--ghost"
-                    variant="tonal"
-                    color="white"
-                    rounded="lg"
-                    prepend-icon="mdi-delete"
-                    :loading="deleting"
-                    :disabled="!entity"
-                    @click="removeEntity"
-                >
-                    Удалить
-                </v-btn>
-
-                <Link :href="route('Ameise.großbuch')" class="entity-page__back">
-                    <v-btn
-                        class="entity-page__action entity-page__action--text"
-                        variant="text"
-                        color="white"
-                        rounded="lg"
-                        prepend-icon="mdi-arrow-left"
-                    >
-                        Grossbuch
-                    </v-btn>
-                </Link>
-            </div>
+            <EntityGeographyPanel :entity="entity" />
         </header>
 
         <v-progress-linear v-if="loading || metaLoading" indeterminate color="#800000" class="mb-3" />
@@ -345,25 +300,22 @@ useHead({
             {{ error }}
         </v-alert>
 
-        <v-card class="entity-page__tabs mb-4">
+        <v-card class="entity-page__tabs mb-3">
             <v-tabs v-model="activeTab" color="#800000" density="compact" class="entity-page__tabbar">
                 <v-tab value="overview">Overview</v-tab>
                 <v-tab value="emails">Emails {{ emailsCount }}</v-tab>
                 <v-tab value="sales">Sales</v-tab>
+                <v-tab value="checks">Checks<span v-if="relatedChecksLoaded" class="entity-page__tab-count">{{ relatedChecks.length }}</span></v-tab>
             </v-tabs>
         </v-card>
 
         <v-tabs-window v-model="activeTab" class="entity-page__window">
             <v-tabs-window-item value="overview">
-                <EntityDetailCard
-                    :entity="entity"
-                    :show-hero="false"
-                    show-checks
-                    :checks="relatedChecks"
-                    :checks-loading="relatedChecksLoading"
-                    :checks-error="relatedChecksError"
-                    :checks-meta="relatedChecksMeta"
-                />
+                <EntityDetailCard :entity="entity" :show-hero="false" :show-geography="false">
+                    <template #needs>
+                        <EntityConsumptionsCard v-if="entity?.id" :key="entity.id" :entity-id="entity.id" />
+                    </template>
+                </EntityDetailCard>
             </v-tabs-window-item>
 
             <v-tabs-window-item value="emails">
@@ -373,11 +325,16 @@ useHead({
             <v-tabs-window-item value="sales">
                 <EntitySalesCard :entity="entity" />
             </v-tabs-window-item>
+            <v-tabs-window-item value="checks">
+                <EntityChecksTab :checks="relatedChecks" :loading="relatedChecksLoading" :error="relatedChecksError" :meta="relatedChecksMeta" @refresh="fetchRelatedChecks()" />
+            </v-tabs-window-item>
         </v-tabs-window>
 
         <EntityFormDialog
             v-model="dialog"
             :loading="saving"
+            :preparing="metaLoading"
+            :error="dialog ? error || '' : ''"
             :is-edit="isEdit"
             :form="form"
             :meta="meta"
@@ -389,130 +346,30 @@ useHead({
 </template>
 
 <style scoped>
-.entity-page {
-    min-height: 100vh;
-    background:
-        radial-gradient(circle at 8% 0%, rgba(128, 0, 0, 0.10), transparent 28%),
-        linear-gradient(135deg, #fffaf4 0%, #f7f2eb 48%, #fff 100%);
+.entity-page { min-height: 100vh; background: #f8f5f1; }
+.entity-page__maroon-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 20px; padding: 18px 20px; border-radius: 16px; background: linear-gradient(115deg, #3f1d1d, #771c1c); color: #fff; }
+.entity-page__identity { min-width: 0; }
+.entity-page__heading-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.entity-page__eyebrow { color: #e3c9c5; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.entity-page__classification { padding: 2px 7px; border: 1px solid rgba(255,255,255,0.18); border-radius: 5px; color: #f1dedb; font-size: 0.68rem; }
+.entity-page__maroon-header h1 { margin: 0; font-size: clamp(1.35rem, 2.1vw, 1.9rem); font-weight: 750; line-height: 1.2; overflow-wrap: anywhere; }
+.entity-page__subtitle { margin: 5px 0 0; color: #efd9d7; font-size: 0.8rem; line-height: 1.4; overflow-wrap: anywhere; }
+.entity-page__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
+.entity-page__action { font-weight: 600; letter-spacing: 0; text-transform: none; }
+.entity-page__action--primary { color: #800000 !important; }
+.entity-page__action--ghost { background: rgba(255,255,255,0.11) !important; }
+.entity-page__back { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 6px; color: #efd9d7; font-size: 0.75rem; text-decoration: none; }
+.entity-page__back:hover { color: #fff; text-decoration: underline; }
+.entity-page__tabs { overflow: hidden; border: 1px solid #eaddd6; border-radius: 10px; background: #fff; box-shadow: none; }
+.entity-page__tabbar { color: #60443c; }
+.entity-page__tabbar :deep(.v-tab) { font-size: 0.78rem; text-transform: none; letter-spacing: 0; }
+.entity-page__tab-count { margin-left: 6px; padding: 1px 5px; background: #f5ebe5; border-radius: 4px; font-size: 0.65rem; }
+.entity-page__window { overflow: visible; }
+@media (max-width: 800px) {
+    .entity-page__maroon-header { grid-template-columns: 1fr; gap: 14px; padding: 16px; }
 }
-
-.entity-page__maroon-header {
-    display: grid;
-    gap: 18px;
-    padding: 24px;
-    border: 1px solid rgba(128, 0, 0, 0.12);
-    border-radius: 22px;
-    background:
-        radial-gradient(circle at 92% 0%, rgba(128, 0, 0, 0.22), transparent 30%),
-        linear-gradient(135deg, #3f1d1d 0%, #7f1d1d 100%);
-    box-shadow: 0 18px 44px rgba(48, 20, 10, 0.12);
-    color: #fff;
-}
-
-.entity-page__maroon-main {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 18px;
-}
-
-.entity-page__heading {
-    min-width: 0;
-}
-
-.entity-page__eyebrow {
-    margin-bottom: 8px;
-    color: rgba(255, 255, 255, 0.68);
-    font-size: 0.78rem;
-    font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
-.entity-page__maroon-header h1 {
-    margin: 0;
-    color: #fff;
-    font-size: 2.25rem;
-    font-weight: 950;
-    line-height: 1.06;
-    overflow-wrap: anywhere;
-}
-
-.entity-page__subtitle {
-    max-width: 860px;
-    margin: 10px 0 0;
-    color: rgba(255, 255, 255, 0.78);
-    font-size: 0.86rem;
-    font-weight: 800;
-    line-height: 1.55;
-}
-
-.entity-page__classification {
-    flex: 0 0 auto;
-    background: rgba(255, 255, 255, 0.16) !important;
-    color: #fff !important;
-}
-
-.entity-page__back {
-    text-decoration: none;
-}
-
-.entity-page__actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 8px;
-}
-
-.entity-page__action {
-    font-weight: 900;
-    letter-spacing: 0.04em;
-}
-
-.entity-page__action--primary {
-    color: #800000 !important;
-}
-
-.entity-page__action--ghost {
-    background: rgba(255, 255, 255, 0.14) !important;
-    color: #fff !important;
-}
-
-.entity-page__action--text {
-    color: #fff !important;
-}
-
-.entity-page__tabs {
-    overflow: hidden;
-    border: 1px solid rgba(128, 0, 0, 0.10);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.86);
-    box-shadow: 0 12px 28px rgba(48, 20, 10, 0.06);
-}
-
-.entity-page__tabbar {
-    color: #3f1d1d;
-}
-
-.entity-page__window {
-    overflow: visible;
-}
-
-@media (max-width: 760px) {
-    .entity-page__maroon-header {
-        padding: 18px;
-    }
-
-    .entity-page__maroon-main {
-        display: grid;
-    }
-
-    .entity-page__maroon-header h1 {
-        font-size: 1.7rem;
-    }
-
-    .entity-page__actions {
-        justify-content: flex-start;
-    }
+@media (max-width: 480px) {
+    .entity-page { padding: 10px !important; }
+    .entity-page__maroon-header { padding: 13px; border-radius: 12px; }
 }
 </style>

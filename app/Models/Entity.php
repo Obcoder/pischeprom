@@ -97,6 +97,18 @@ class Entity extends Model
         return $this->belongsToMany(Unit::class);
     }
 
+    public function consumptions(): HasMany
+    {
+        return $this->hasMany(EntityConsumption::class);
+    }
+
+    public function consumedProducts(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'entity_consumptions')
+            ->withPivot(['id', 'quantity', 'measure_id', 'status', 'comment'])
+            ->withTimestamps();
+    }
+
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)

@@ -249,6 +249,15 @@ jobs:
             tests/Feature/Mail/MailMessageRelationsTest.php \
             tests/Unit/MailInvoiceParserTest.php
 
+      - name: Check Entity product needs PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/EntityConsumptionController.php \
+            app/Models/EntityConsumption.php \
+            app/Models/Product.php \
+            database/migrations/2026_09_11_120000_create_entity_consumptions_table.php \
+            tests/Feature/EntityConsumptionApiTest.php
+
       - name: Run unit, logistics, banking, AI price-list, mail, goods stock, orders, and products tests
         env:
           APP_ENV: testing
@@ -277,6 +286,7 @@ jobs:
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/AmeiseCommercePageTest.php \
+            tests/Feature/EntityConsumptionApiTest.php \
             tests/Feature/CheckCreationTest.php \
             tests/Feature/IncomingMailMaxNotificationTest.php \
             --compact

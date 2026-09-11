@@ -46,6 +46,7 @@ use App\Http\Controllers\API\EmailController;
 use App\Http\Controllers\API\EmailMailboxController;
 use App\Http\Controllers\API\EmailRelationController;
 use App\Http\Controllers\API\EntitiesClassification;
+use App\Http\Controllers\API\EntityConsumptionController;
 use App\Http\Controllers\API\EntityController;
 use App\Http\Controllers\API\EntityMetaController;
 use App\Http\Controllers\API\ExpenseArticleController;
@@ -438,6 +439,24 @@ Route::apiResource('mail-templates', MailTemplateController::class)
 Route::apiResource('entities', EntityController::class)->only(['store', 'update', 'destroy']);
 Route::get('/entities-meta', [EntityMetaController::class, 'index']);
 Route::apiResource('entities', EntityController::class);
+
+Route::prefix('entities/{entity}/consumptions')
+    ->name('api.entities.consumptions.')
+    ->middleware(['auth:sanctum', 'verified'])
+    ->whereNumber('entity')
+    ->group(function (): void {
+        Route::get('/meta', [EntityConsumptionController::class, 'meta'])->name('meta');
+        Route::get('/', [EntityConsumptionController::class, 'index'])->name('index');
+        Route::post('/', [EntityConsumptionController::class, 'store'])->name('store');
+        Route::get('/{consumption}', [EntityConsumptionController::class, 'show'])->whereNumber('consumption')->name('show');
+        Route::match(['put', 'patch'], '/{consumption}', [EntityConsumptionController::class, 'update'])->whereNumber('consumption')->name('update');
+        Route::delete('/{consumption}', [EntityConsumptionController::class, 'destroy'])->whereNumber('consumption')->name('destroy');
+    });
+
+Route::get('products/{product}/entity-consumptions', [EntityConsumptionController::class, 'forProduct'])
+    ->middleware(['auth:sanctum', 'verified'])
+    ->whereNumber('product')
+    ->name('api.products.entity-consumptions.index');
 
 Route::prefix('gis')
     ->name('api.gis.')
