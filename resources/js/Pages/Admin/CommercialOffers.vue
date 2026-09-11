@@ -1,8 +1,8 @@
 <script setup>
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useHead } from '@unhead/vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -13,8 +13,6 @@ const props = defineProps({
     settings: { type: Object, default: () => ({}) },
     permissions: { type: Object, default: () => ({}) },
 })
-
-useHead({ title: 'Commercial Offers' })
 
 const tabs = [
     ['dashboard', 'dashboard'],
@@ -256,11 +254,20 @@ async function loadPriceTypes() {
 
 async function refreshAll() {
     await request('loaded', async () => {
-        await Promise.all([
-            ...['campaigns', 'contacts', 'sets', 'templates', 'events', 'suppression'].map(loadTable),
-            loadSourceEmails(),
-            loadPriceTypes(),
-        ])
+        const tables = ['campaigns', 'contacts', 'sets', 'templates', 'events', 'suppression']
+        const loaders = [
+            ...tables.map((name) => [name, () => loadTable(name)]),
+            ['source emails', loadSourceEmails],
+            ['price types', loadPriceTypes],
+        ]
+        const results = await Promise.allSettled(loaders.map(([, load]) => load()))
+        const failures = results.flatMap((result, index) => result.status === 'rejected'
+            ? [`${loaders[index][0]}: ${result.reason?.response?.data?.message || result.reason?.message || 'request failed'}`]
+            : [])
+
+        if (failures.length) {
+            throw new Error(failures.join('; '))
+        }
     })
 }
 
@@ -999,6 +1006,7 @@ onMounted(refreshAll)
 
 <template>
     <main class="terminal-mailings">
+        <Head title="Commercial Offers" />
         <header class="topbar">
             <div>
                 <div class="eyebrow">PISCHEPROM :: SALES MAILING CONTROL</div>
@@ -1025,8 +1033,8 @@ onMounted(refreshAll)
 
         <div class="toolbar sticky">
             <button type="button" :disabled="busy" @click="refreshAll">refresh</button>
-            <button type="button" :disabled="busy" @click="activeTab = 'editor'">new personal КП</button>
-            <button type="button" :disabled="busy" @click="activeTab = 'campaigns'">mass КП</button>
+            <button v-if="props.permissions.edit" type="button" :disabled="busy" @click="activeTab = 'editor'">new personal КП</button>
+            <button v-if="props.permissions.edit" type="button" :disabled="busy" @click="activeTab = 'campaigns'">mass КП</button>
             <span v-if="busy">busy...</span>
             <span v-if="notice" class="ok">{{ notice }}</span>
             <span v-if="error" class="danger">{{ error }}</span>
@@ -1050,7 +1058,7 @@ onMounted(refreshAll)
                     <option v-for="template in templateOptions" :key="template.id" :value="template.id">{{ template.label }}</option>
                 </select>
                 <button type="button" @click="applySelectedTemplate">load template</button>
-                <button type="button" @click="createCampaign">create campaign</button>
+                <button v-if="props.permissions.edit" type="button" @click="createCampaign">create campaign</button>
                 <input v-model="testEmail" placeholder="test recipient email">
             </div>
             <div class="table-shell">
@@ -1065,7 +1073,7 @@ onMounted(refreshAll)
                             <td>{{ item.type }}</td>
                             <td>{{ item.subject }}</td>
                             <td>
-                                <select class="row-select" :value="item.template_id || ''" :title="item.template?.name || 'No template'" :disabled="['sending', 'completed', 'cancelled'].includes(item.status)" @click.stop @change="changeCampaignTemplate(item, $event.target.value)">
+                                <select class="row-select" :value="item.template_id || ''" :title="item.template?.name || 'No template'" :disabled="!props.permissions.edit || ['sending', 'completed', 'cancelled'].includes(item.status)" @click.stop @change="changeCampaignTemplate(item, $event.target.value)">
                                     <option value="">no template</option>
                                     <option v-for="template in templates" :key="template.id" :value="template.id">#{{ template.id }} {{ template.name || template.subject }}</option>
                                 </select>
@@ -1081,13 +1089,13 @@ onMounted(refreshAll)
                             <td>{{ formatDate(item.scheduled_at) }}</td>
                             <td class="actions actions-col">
                                 <button @click.stop="openRecipientsDialog(item)">recipients</button>
-                                <button @click.stop="campaignAction(item.id, 'send-test', { email: testEmail })">test</button>
-                                <button @click.stop="campaignAction(item.id, 'approve')">approve</button>
-                                <button @click.stop="campaignAction(item.id, 'start')">start</button>
-                                <button @click.stop="campaignAction(item.id, 'pause')">pause</button>
-                                <button @click.stop="campaignAction(item.id, 'resume')">resume</button>
-                                <button @click.stop="campaignAction(item.id, 'cancel')">cancel</button>
-                                <button @click.stop="campaignAction(item.id, 'duplicate')">dup</button>
+                                <button v-if="props.permissions.send_test" @click.stop="campaignAction(item.id, 'send-test', { email: testEmail })">test</button>
+                                <button v-if="props.permissions.send_mass" @click.stop="campaignAction(item.id, 'approve')">approve</button>
+                                <button v-if="props.permissions.send_mass" @click.stop="campaignAction(item.id, 'start')">start</button>
+                                <button v-if="props.permissions.edit" @click.stop="campaignAction(item.id, 'pause')">pause</button>
+                                <button v-if="props.permissions.edit" @click.stop="campaignAction(item.id, 'resume')">resume</button>
+                                <button v-if="props.permissions.edit" @click.stop="campaignAction(item.id, 'cancel')">cancel</button>
+                                <button v-if="props.permissions.edit" @click.stop="campaignAction(item.id, 'duplicate')">dup</button>
                             </td>
                         </tr>
                     </tbody>
@@ -1111,7 +1119,7 @@ onMounted(refreshAll)
                     <button type="button" :class="{ active: recipientPickerTab === 'selected' }" @click="switchRecipientTab('selected')">selected {{ selectedCampaignRecipients.length }}</button>
                     <input v-if="recipientPickerTab !== 'selected'" v-model="recipientSearch" placeholder="search emails / units" @keyup.enter="loadRecipientPicker">
                     <button v-if="recipientPickerTab !== 'selected'" type="button" @click="loadRecipientPicker">find</button>
-                    <button type="button" @click="saveCampaignRecipients">save recipients</button>
+                    <button v-if="props.permissions.edit" type="button" @click="saveCampaignRecipients">save recipients</button>
                 </div>
 
                 <div v-if="recipientPickerTab === 'emails'" class="dialog-grid">
@@ -1120,7 +1128,7 @@ onMounted(refreshAll)
                             <thead><tr><th class="sticky-col">sel</th><th>email</th><th>name</th><th>company</th><th>source</th><th>last_seen</th></tr></thead>
                             <tbody>
                                 <tr v-for="item in recipientEmails" :key="item.id" :class="{ 'is-muted-row': isRecipientSelected(item.address) }">
-                                    <td class="sticky-col"><input type="checkbox" :checked="isRecipientSelected(item.address)" @change="toggleRecipientEmail(item)"></td>
+                                    <td class="sticky-col"><input type="checkbox" :disabled="!props.permissions.edit" :checked="isRecipientSelected(item.address)" @change="toggleRecipientEmail(item)"></td>
                                     <td>{{ item.address }}</td>
                                     <td>{{ item.name || '-' }}</td>
                                     <td>{{ item.company_name || '-' }}</td>
@@ -1134,7 +1142,7 @@ onMounted(refreshAll)
                         <h3>selected</h3>
                         <div v-for="item in selectedCampaignRecipients" :key="item.email" class="selected-chip">
                             <span>{{ item.email }} · {{ item.name || 'no name' }} · {{ item.company_name || '-' }}</span>
-                            <button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">x</button>
+                            <button type="button" :disabled="!props.permissions.edit || item.locked" @click="removeSelectedRecipient(item.email)">x</button>
                         </div>
                     </aside>
                 </div>
@@ -1145,7 +1153,7 @@ onMounted(refreshAll)
                             <thead><tr><th class="sticky-col">add</th><th>unit</th><th>emails</th><th>selected</th><th>preview</th></tr></thead>
                             <tbody>
                                 <tr v-for="unit in recipientUnits" :key="unit.id">
-                                    <td class="sticky-col"><button type="button" @click="addRecipientUnit(unit)">add unit</button></td>
+                                    <td class="sticky-col"><button type="button" :disabled="!props.permissions.edit" @click="addRecipientUnit(unit)">add unit</button></td>
                                     <td>{{ unit.name }}</td>
                                     <td>{{ unit.selectable_count }}/{{ unit.emails_count }}</td>
                                     <td>{{ unit.selected_count }}</td>
@@ -1158,7 +1166,7 @@ onMounted(refreshAll)
                         <h3>selected</h3>
                         <div v-for="item in selectedCampaignRecipients" :key="item.email" class="selected-chip">
                             <span>{{ item.email }} · {{ item.name || 'no name' }} · {{ item.company_name || '-' }}</span>
-                            <button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">x</button>
+                            <button type="button" :disabled="!props.permissions.edit || item.locked" @click="removeSelectedRecipient(item.email)">x</button>
                         </div>
                     </aside>
                 </div>
@@ -1174,7 +1182,7 @@ onMounted(refreshAll)
                                 <td>{{ item.source || '-' }}</td>
                                 <td :class="statusClass(item.status)">{{ item.status || 'pending' }}</td>
                                 <td>{{ item.locked ? 'yes' : 'no' }}</td>
-                                <td><button type="button" :disabled="item.locked" @click="removeSelectedRecipient(item.email)">remove</button></td>
+                                <td><button type="button" :disabled="!props.permissions.edit || item.locked" @click="removeSelectedRecipient(item.email)">remove</button></td>
                             </tr>
                         </tbody>
                     </table>
@@ -1190,15 +1198,15 @@ onMounted(refreshAll)
                     <input v-model="contactForm.last_name" placeholder="last_name">
                     <input v-model="contactForm.company_name" placeholder="company">
                     <select v-model="contactForm.consent_status"><option>unknown</option><option>confirmed</option><option>revoked</option><option>not_required_internal</option><option>rejected</option></select>
-                    <button @click="createContact">save</button>
+                    <button v-if="props.permissions.edit" @click="createContact">save</button>
                 </div>
                 <div class="form-row compact stackable">
                     <select v-model="recipientTargetCampaignId" class="recipient-campaign-select">
                         <option value="">target campaign...</option>
                         <option v-for="campaign in campaignOptions" :key="campaign.id" :value="campaign.id">{{ campaign.label }}</option>
                     </select>
-                    <button type="button" @click="saveSelectedContactsToCampaign">selected -> campaign</button>
-                    <button type="button" @click="saveVisibleContactsToCampaign">visible -> campaign</button>
+                    <button v-if="props.permissions.edit" type="button" @click="saveSelectedContactsToCampaign">selected -> campaign</button>
+                    <button v-if="props.permissions.edit" type="button" @click="saveVisibleContactsToCampaign">visible -> campaign</button>
                     <span>{{ selectedContactIds.size }} selected / {{ contacts.length }} visible</span>
                 </div>
                 <div class="table-shell mid">
@@ -1257,13 +1265,13 @@ onMounted(refreshAll)
                     </select>
                 </div>
                 <div class="source-actions">
-                    <button @click="importSelectedSourceEmails">sync selected</button>
-                    <button @click="importVisibleSourceEmails">sync visible</button>
+                    <button v-if="props.permissions.edit" @click="importSelectedSourceEmails">sync selected</button>
+                    <button v-if="props.permissions.edit" @click="importVisibleSourceEmails">sync visible</button>
                     <span>{{ selectedSourceEmailIds.size }} selected</span>
                 </div>
                 <div class="source-actions">
-                    <button @click="importSelectedSourceEmailsToCampaign">selected -> campaign</button>
-                    <button @click="importVisibleSourceEmailsToCampaign">visible -> campaign</button>
+                    <button v-if="props.permissions.edit" @click="importSelectedSourceEmailsToCampaign">selected -> campaign</button>
+                    <button v-if="props.permissions.edit" @click="importVisibleSourceEmailsToCampaign">visible -> campaign</button>
                     <span>target #{{ recipientTargetCampaignId || '-' }}</span>
                 </div>
                 <div class="source-pagination">
@@ -1307,7 +1315,7 @@ onMounted(refreshAll)
 
                 <h3>paste from Excel</h3>
                 <textarea v-model="pasteBuffer" placeholder="email list / rows"></textarea>
-                <button @click="pasteContacts">import pasted emails</button>
+                <button v-if="props.permissions.edit" @click="pasteContacts">import pasted emails</button>
                 <button @click="loadTable('contacts')">deduplicate view refresh</button>
                 <p>Mass sends still use mailing recipients: confirmed consent, no do_not_email, no unsubscribe, no hard bounce, no local suppression.</p>
             </aside>
@@ -1318,7 +1326,7 @@ onMounted(refreshAll)
                 <input v-model="setForm.name" placeholder="set name">
                 <input v-model="setForm.description" placeholder="description">
                 <select v-model="setForm.type"><option>manual</option><option>import</option><option>dynamic</option><option>saved_filter</option></select>
-                <button @click="createSet">create set</button>
+                <button v-if="props.permissions.edit" @click="createSet">create set</button>
             </div>
             <div class="table-shell">
                 <table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>contacts</th><th>active</th><th>updated</th><th>actions</th></tr></thead><tbody><tr v-for="item in sets" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.contacts_count }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ formatDate(item.updated_at) }}</td><td><button @click="campaignForm.contact_set_id = item.id; activeTab = 'campaigns'">use in campaign</button></td></tr></tbody></table>
@@ -1346,15 +1354,15 @@ onMounted(refreshAll)
                 </div>
                 <div class="form-row compact stackable image-tools">
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="onImageSelected">
-                    <button type="button" @click="uploadAndInsertImage('image')">upload image</button>
-                    <button type="button" @click="uploadAndInsertImage('logo')">upload logo</button>
+                    <button v-if="props.permissions.manage_templates" type="button" @click="uploadAndInsertImage('image')">upload image</button>
+                    <button v-if="props.permissions.manage_templates" type="button" @click="uploadAndInsertImage('logo')">upload logo</button>
                     <span class="mini-help">email images must be public HTTPS; uploaded files use Laravel public storage.</span>
                 </div>
                 <textarea v-model="campaignForm.html_markup" class="codebox"></textarea>
                 <textarea v-model="campaignForm.plaintext" class="codebox small"></textarea>
                 <div class="form-row compact">
-                    <button type="button" @click="createCampaign">save as campaign draft</button>
-                    <button type="button" @click="saveEditorAsTemplate">save current editor as template</button>
+                    <button v-if="props.permissions.edit" type="button" @click="createCampaign">save as campaign draft</button>
+                    <button v-if="props.permissions.manage_templates" type="button" @click="saveEditorAsTemplate">save current editor as template</button>
                     <button type="button" @click="copyEditorToTemplateForm">copy to Templates tab</button>
                 </div>
                 <div class="variables-grid">
@@ -1375,14 +1383,14 @@ onMounted(refreshAll)
                 <input v-model="templateForm.name" placeholder="template name">
                 <input v-model="templateForm.subject" placeholder="subject">
                 <select v-model="templateForm.type"><option>commercial_offer</option><option>personal_offer</option><option>follow_up</option><option>custom</option></select>
-                <button type="button" @click="createTemplate">create template</button>
+                <button v-if="props.permissions.manage_templates" type="button" @click="createTemplate">create template</button>
                 <button type="button" @click="copyEditorToTemplateForm">copy from editor</button>
             </div>
             <div class="template-editor-grid">
                 <textarea v-model="templateForm.html_markup" class="codebox template-codebox" placeholder="template HTML"></textarea>
                 <textarea v-model="templateForm.plaintext" class="codebox template-codebox small" placeholder="template plaintext"></textarea>
             </div>
-            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>subject</th><th>updated</th><th>active</th><th>unisender_template_id</th><th>actions</th></tr></thead><tbody><tr v-for="item in templates" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.subject }}</td><td>{{ formatDate(item.updated_at) }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ item.unisender_template_id || '-' }}</td><td><button @click="syncTemplate(item.id)">sync</button><button @click="applyTemplateToCampaign(item); activeTab = 'editor'">use</button><button @click="fillTemplateForm(item)">edit form</button></td></tr></tbody></table></div>
+            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>name</th><th>type</th><th>subject</th><th>updated</th><th>active</th><th>unisender_template_id</th><th>actions</th></tr></thead><tbody><tr v-for="item in templates" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.subject }}</td><td>{{ formatDate(item.updated_at) }}</td><td>{{ item.active ? '1' : '0' }}</td><td>{{ item.unisender_template_id || '-' }}</td><td><button v-if="props.permissions.manage_templates" @click="syncTemplate(item.id)">sync</button><button @click="applyTemplateToCampaign(item); activeTab = 'editor'">use</button><button @click="fillTemplateForm(item)">edit form</button></td></tr></tbody></table></div>
         </section>
 
         <section v-if="activeTab === 'products'" class="panel products-panel">
@@ -1421,7 +1429,7 @@ onMounted(refreshAll)
                         <strong>{{ productActiveTab === 'categories' ? 'categories DB' : 'goods DB' }}</strong>
                         <span>{{ activeProductMeta.total }} total / page {{ activeProductMeta.current_page }} of {{ activeProductMeta.last_page }}</span>
                         <button
-                            v-if="productActiveTab === 'goods'"
+                            v-if="productActiveTab === 'goods' && props.permissions.edit"
                             type="button"
                             :disabled="!productCampaignId || productMeta.total <= 0"
                             @click="addFilteredProducts"
@@ -1442,7 +1450,7 @@ onMounted(refreshAll)
                                     <td>{{ item.category || item.canonical_url }}</td>
                                     <td>{{ item.thumbnail_url ? 'img' : '-' }}</td>
                                     <td>{{ item.is_published ? '1' : '0' }}</td>
-                                    <td><button type="button" @click="addProduct(item)">add to КП</button></td>
+                                    <td><button v-if="props.permissions.edit" type="button" @click="addProduct(item)">add to КП</button></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1457,7 +1465,7 @@ onMounted(refreshAll)
                                     <td>{{ item.title || item.name }}</td>
                                     <td>{{ item.canonical_url }}</td>
                                     <td>{{ item.source_table || 'categories' }}</td>
-                                    <td><button type="button" @click="addCategory(item)">add to КП</button></td>
+                                    <td><button v-if="props.permissions.edit" type="button" @click="addCategory(item)">add to КП</button></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1479,7 +1487,7 @@ onMounted(refreshAll)
                                     <td>{{ item.item_type }}</td>
                                     <td>{{ item.title }}</td>
                                     <td>{{ item.offer_price || item.original_price || '-' }} {{ item.currency || '' }}</td>
-                                    <td><button type="button" class="danger" @click="deleteOfferItem(item)">delete</button></td>
+                                    <td><button v-if="props.permissions.edit" type="button" class="danger" @click="deleteOfferItem(item)">delete</button></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1494,13 +1502,13 @@ onMounted(refreshAll)
         </section>
 
         <section v-if="activeTab === 'suppression'" class="panel">
-            <div class="form-row compact"><input v-model="contactForm.email" placeholder="email"><select v-model="contactForm.consent_status"><option>manual_block</option><option>unsubscribed</option><option>temporary_unavailable</option><option>permanent_unavailable</option><option>complained</option></select><button @click="addSuppression(contactForm.email, contactForm.consent_status)">block</button></div>
-            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>email</th><th>cause</th><th>source</th><th>note</th><th>created_at</th><th>actions</th></tr></thead><tbody><tr v-for="item in suppression" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.email }}</td><td :class="statusClass(item.cause)">{{ item.cause }}</td><td>{{ item.source }}</td><td>{{ item.note }}</td><td>{{ formatDate(item.created_at) }}</td><td class="actions"><button type="button" class="danger" @click="removeSuppression(item)">remove + unblock</button></td></tr></tbody></table></div>
+            <div class="form-row compact"><input v-model="contactForm.email" placeholder="email"><select v-model="contactForm.consent_status"><option>manual_block</option><option>unsubscribed</option><option>temporary_unavailable</option><option>permanent_unavailable</option><option>complained</option></select><button v-if="props.permissions.manage_suppression" @click="addSuppression(contactForm.email, contactForm.consent_status)">block</button></div>
+            <div class="table-shell"><table><thead><tr><th class="sticky-col">id</th><th>email</th><th>cause</th><th>source</th><th>note</th><th>created_at</th><th>actions</th></tr></thead><tbody><tr v-for="item in suppression" :key="item.id"><td class="sticky-col">{{ item.id }}</td><td>{{ item.email }}</td><td :class="statusClass(item.cause)">{{ item.cause }}</td><td>{{ item.source }}</td><td>{{ item.note }}</td><td>{{ formatDate(item.created_at) }}</td><td class="actions"><button v-if="props.permissions.manage_suppression" type="button" class="danger" @click="removeSuppression(item)">remove + unblock</button></td></tr></tbody></table></div>
         </section>
 
         <section v-if="activeTab === 'settings'" class="panel grid-panel">
             <article v-for="(value, key) in props.settings" :key="key" class="kpi-row"><span>{{ key }}</span><strong>{{ value }}</strong></article>
-            <div class="wide-actions"><button @click="testApi">test API connection</button><button @click="setWebhook">set webhook</button><a href="/docs/unisender-go.md">docs/unisender-go.md</a></div>
+            <div class="wide-actions"><button @click="testApi">test API connection</button><button v-if="props.permissions.edit" @click="setWebhook">set webhook</button><a href="/docs/unisender-go.md">docs/unisender-go.md</a></div>
         </section>
     </main>
 </template>

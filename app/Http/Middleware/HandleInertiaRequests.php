@@ -47,6 +47,12 @@ class HandleInertiaRequests extends Middleware
                     ]
                     : null,
                 'permissions' => fn () => [
+                    'sales_mailings' => [
+                        'view' => $request->user() !== null
+                            && $request->user()->status !== 'blocked'
+                            && $request->user()->hasVerifiedEmail()
+                            && $request->user()->can('sales_mailings.view'),
+                    ],
                     'orders' => [
                         'view' => true,
                         'create' => true,

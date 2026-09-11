@@ -267,12 +267,17 @@ class AppServiceProvider extends ServiceProvider
                 return null;
             }
 
-            if (! method_exists($user, 'hasPermissionTo')) {
+            if (($user->status ?? 'active') === 'blocked') {
                 return false;
             }
 
             try {
-                return $user->hasPermissionTo($ability, 'crm') ?: null;
+                if (method_exists($user, 'hasRole') && $user->hasRole('admin', 'crm')) {
+                    return true;
+                }
+
+                return method_exists($user, 'hasPermissionTo')
+                    && $user->hasPermissionTo($ability, 'crm');
             } catch (Throwable) {
                 return false;
             }

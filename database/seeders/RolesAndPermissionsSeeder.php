@@ -29,6 +29,14 @@ class RolesAndPermissionsSeeder extends Seeder
 
             'mail.send',
 
+            'sales_mailings.view',
+            'sales_mailings.edit',
+            'sales_mailings.send_test',
+            'sales_mailings.send_mass',
+            'sales_mailings.compliance_override',
+            'sales_mailings.manage_templates',
+            'sales_mailings.manage_suppression',
+
             'ai_price_lists.view',
             'ai_price_lists.process',
             'ai_price_lists.review',

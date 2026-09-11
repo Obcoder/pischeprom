@@ -73,6 +73,7 @@ class CommercialOffersUnisenderTest extends TestCase
             'email_verified_at' => now(),
             'status' => 'active',
         ]);
+        $actor->shouldReceive('hasRole')->with('admin', 'crm')->andReturn(false);
         $actor->shouldReceive('hasPermissionTo')->andReturn(true);
         $this->actingAs($actor);
     }

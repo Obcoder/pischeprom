@@ -8,6 +8,7 @@ import TradeFlowIcon from '@/Components/Icons/TradeFlowIcon.vue'
 const MANAGER_PHONE = '79650160001'
 
 const page = usePage()
+const canViewCommercialOffers = computed(() => Boolean(page.props.auth?.permissions?.sales_mailings?.view))
 const canViewOrders = computed(() => Boolean(page.props.auth?.permissions?.orders?.view))
 const canViewAiSales = computed(() => Boolean(page.props.auth?.permissions?.ai_sales?.view))
 const workingLeads = ref([])
@@ -791,6 +792,7 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
+                    v-if="canViewCommercialOffers"
                     :href="commercialOffersUrl()"
                     class="ameise-header-control ameise-nav-link"
                     :class="{ 'is-active': isActiveUrl(commercialOffersUrl()) }"

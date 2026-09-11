@@ -237,14 +237,18 @@ jobs:
             tests/Feature/IncomingMailMaxNotificationTest.php \
             tests/Unit/AiPriceLists/ProductionEnvironmentUpdaterTest.php
 
-      - name: Check mail reader and PDF analysis PHP style
+      - name: Check mail reader, PDF analysis, and commercial offers PHP style
         run: |
           vendor/bin/pint --test \
+            app/Http/Controllers/Admin/CommercialOffersController.php \
             app/Http/Controllers/API/MailAttachmentAnalysisController.php \
             app/Http/Controllers/API/MailMessageActionController.php \
             app/Services/Mail/MailAttachmentAnalysisException.php \
             app/Services/Mail/MailAttachmentAnalyzer.php \
             app/Services/Mail/MailInvoiceParser.php \
+            database/migrations/2026_09_11_130000_register_sales_mailing_permissions.php \
+            tests/Feature/CommercialOffersAccessTest.php \
+            tests/Feature/CommercialOffersUnisenderTest.php \
             tests/Feature/Mail/MailAttachmentAnalysisTest.php \
             tests/Feature/Mail/MailMessageRelationsTest.php \
             tests/Unit/MailInvoiceParserTest.php
@@ -279,6 +283,8 @@ jobs:
             tests/Feature/AiPriceLists \
             tests/Feature/Avito \
             tests/Feature/Mail \
+            tests/Feature/CommercialOffersAccessTest.php \
+            tests/Feature/CommercialOffersUnisenderTest.php \
             tests/Feature/MailMessageAttachmentDownloadTest.php \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
