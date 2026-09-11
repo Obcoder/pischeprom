@@ -237,14 +237,16 @@ jobs:
             tests/Feature/IncomingMailMaxNotificationTest.php \
             tests/Unit/AiPriceLists/ProductionEnvironmentUpdaterTest.php
 
-      - name: Check mail PDF analysis PHP style
+      - name: Check mail reader and PDF analysis PHP style
         run: |
           vendor/bin/pint --test \
             app/Http/Controllers/API/MailAttachmentAnalysisController.php \
+            app/Http/Controllers/API/MailMessageActionController.php \
             app/Services/Mail/MailAttachmentAnalysisException.php \
             app/Services/Mail/MailAttachmentAnalyzer.php \
             app/Services/Mail/MailInvoiceParser.php \
             tests/Feature/Mail/MailAttachmentAnalysisTest.php \
+            tests/Feature/Mail/MailMessageRelationsTest.php \
             tests/Unit/MailInvoiceParserTest.php
 
       - name: Run unit, logistics, banking, AI price-list, mail, goods stock, orders, and products tests

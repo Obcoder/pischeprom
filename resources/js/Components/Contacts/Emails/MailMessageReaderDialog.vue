@@ -1,8 +1,10 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import axios from 'axios'
+import { route } from 'ziggy-js'
 import MailInvoiceDetails from './MailInvoiceDetails.vue'
 import MailPdfViewer from './MailPdfViewer.vue'
+import MailMessageReaderHeader from './MailMessageReaderHeader.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -48,13 +50,51 @@ const creatingFolder = ref(false)
 const selectedFolderPath = ref(null)
 const newFolderPath = ref('')
 const lastSavedAttachment = ref(null)
+const relatedMessageLoading = ref(false)
+let relatedMessageRequest = null
+let folderRequest = 0
 
 const currentMessage = computed(() => localMessage.value || props.message)
-const mailboxAddress = computed(() => String(currentMessage.value?.mailbox || '').trim() || 'Ящик не определён')
-const mailboxLabel = computed(() => currentMessage.value?.direction === 'incoming' ? 'На ящик' : 'С ящика')
-const mailboxIcon = computed(() => currentMessage.value?.direction === 'incoming'
-    ? 'mdi-inbox-arrow-down-outline'
-    : 'mdi-send-outline')
+const readerLoading = computed(() => props.loading || relatedMessageLoading.value)
+const relatedNavigationBlocked = computed(() => readerLoading.value || actionLoading.value
+    || creatingFolder.value || savingAttachmentIndex.value !== null)
+const relatedContexts = computed(() => {
+    const contexts = new Map()
+    const emails = currentMessage.value?.emails || []
+    const add = (type, item) => {
+        const id = Number(item?.id)
+        if (!Number.isInteger(id) || id <= 0 || contexts.has(`${type}:${id}`)) return
+
+        let href
+        try {
+            href = route(type === 'entity' ? 'Ameise.entity.show' : 'web.unit.show', id)
+        } catch {
+            href = `/Ameise/${type}/${id}`
+        }
+        contexts.set(`${type}:${id}`, {
+            type,
+            id,
+            name: item.name || `${type === 'entity' ? 'Контрагент' : 'Подразделение'} #${id}`,
+            href,
+        })
+    }
+
+    for (const email of emails) {
+        for (const entity of email.entities || []) add('entity', entity)
+    }
+    for (const email of emails) {
+        for (const unit of email.units || []) add('unit', unit)
+        for (const entity of email.entities || []) {
+            for (const unit of entity.units || []) add('unit', unit)
+        }
+    }
+
+    return [...contexts.values()]
+})
+const currentDefaultEntityId = computed(() => relatedContexts.value.some(context =>
+    context.type === 'entity' && context.id === Number(props.defaultEntityId)) ? props.defaultEntityId : null)
+const currentDefaultUnitId = computed(() => relatedContexts.value.some(context =>
+    context.type === 'unit' && context.id === Number(props.defaultUnitId)) ? props.defaultUnitId : null)
 
 const bodyHtml = computed(() => {
     return currentMessage.value?.html || null
@@ -108,8 +148,8 @@ const hasAttachmentSignal = computed(() => Boolean(currentMessage.value?.has_att
 const quickFolderTargets = computed(() => {
     const targets = []
 
-    if (props.defaultUnitId) {
-        targets.push(folderFromPath(`units/${props.defaultUnitId}`))
+    if (currentDefaultUnitId.value) {
+        targets.push(folderFromPath(`units/${currentDefaultUnitId.value}`))
     }
 
     if (currentMessage.value?.id) {
@@ -132,24 +172,6 @@ const targetFolderPath = computed(() => {
         || defaultFolderPath()
 })
 const targetFolder = computed(() => allStorageFolders.value.find((folder) => folder.path === targetFolderPath.value) || null)
-
-function formatDate(value) {
-    if (!value) {
-        return '—'
-    }
-
-    return new Intl.DateTimeFormat('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(new Date(value))
-}
-
-function recipients(list) {
-    return list?.map((item) => item.address).join(', ') || '—'
-}
 
 function formatSize(value) {
     const size = Number(value || 0)
@@ -348,10 +370,13 @@ async function loadAttachmentFolders() {
         return
     }
 
+    const messageId = currentMessage.value.id
+    const request = ++folderRequest
     foldersLoading.value = true
 
     try {
-        const { data } = await axios.get(`/api/mail-messages/${currentMessage.value.id}/attachment-folders`)
+        const { data } = await axios.get(`/api/mail-messages/${messageId}/attachment-folders`)
+        if (request !== folderRequest || currentMessage.value?.id !== messageId || !model.value) return
         storageFolders.value = mergeFolders(data.folders || [])
 
         if (!selectedFolderPath.value) {
@@ -360,19 +385,20 @@ async function loadAttachmentFolders() {
                 || defaultFolderPath()
         }
     } catch (error) {
+        if (request !== folderRequest || currentMessage.value?.id !== messageId || !model.value) return
         feedback.value = {
             type: 'error',
             text: error?.response?.data?.message || 'Не удалось загрузить папки S3.',
         }
     } finally {
-        foldersLoading.value = false
+        if (request === folderRequest) foldersLoading.value = false
     }
 }
 
 async function createAttachmentFolder() {
     const folder = folderCreatePath()
 
-    if (!currentMessage.value?.id || !folder) {
+    if (readerLoading.value || !currentMessage.value?.id || !folder) {
         return
     }
 
@@ -403,7 +429,7 @@ async function createAttachmentFolder() {
 }
 
 async function saveAttachment(attachment) {
-    if (!currentMessage.value?.id || attachment?.index === null || attachment?.index === undefined) {
+    if (readerLoading.value || !currentMessage.value?.id || attachment?.index === null || attachment?.index === undefined) {
         return
     }
 
@@ -498,7 +524,7 @@ async function downloadAttachment(attachment) {
 }
 
 async function saveNote() {
-    if (!currentMessage.value?.id || !noteBody.value.trim()) {
+    if (readerLoading.value || !currentMessage.value?.id || !noteBody.value.trim()) {
         return
     }
 
@@ -530,7 +556,7 @@ async function saveNote() {
 }
 
 async function createLead() {
-    if (!currentMessage.value?.id || !leadTitle.value.trim()) {
+    if (readerLoading.value || !currentMessage.value?.id || !leadTitle.value.trim()) {
         return
     }
 
@@ -541,8 +567,8 @@ async function createLead() {
         const { data } = await axios.post(`/api/mail-messages/${currentMessage.value.id}/lead`, {
             title: leadTitle.value,
             description: leadDescription.value,
-            entity_id: props.defaultEntityId,
-            unit_id: props.defaultUnitId,
+            entity_id: currentDefaultEntityId.value,
+            unit_id: currentDefaultUnitId.value,
         })
 
         applyMessageUpdate(data.mail_message)
@@ -560,8 +586,52 @@ async function createLead() {
     }
 }
 
-watch(() => props.message?.id, async () => {
+function cancelRelatedMessage() {
+    relatedMessageRequest?.abort()
+    relatedMessageRequest = null
+    relatedMessageLoading.value = false
+}
+
+async function openRelatedMessage(message) {
+    if (relatedNavigationBlocked.value || !message?.id || Number(message.id) === Number(currentMessage.value?.id)) return
+
+    cancelRelatedMessage()
+    const request = new AbortController()
+    relatedMessageRequest = request
+    relatedMessageLoading.value = true
+    feedback.value = null
+
+    try {
+        const { data } = await axios.get(`/api/mail-messages/${message.id}`, {
+            signal: request.signal,
+            timeout: 60000,
+        })
+        if (request.signal.aborted || !model.value) return
+        if (Number(data?.id) !== Number(message.id)) throw new Error('Invalid mail response')
+        applyMessageUpdate(data)
+    } catch (error) {
+        if (!request.signal.aborted && model.value) {
+            feedback.value = {
+                type: 'error',
+                text: error?.response?.data?.message || 'Не удалось открыть письмо. Выберите его в списке ещё раз.',
+            }
+        }
+    } finally {
+        if (relatedMessageRequest === request) {
+            relatedMessageRequest = null
+            relatedMessageLoading.value = false
+        }
+    }
+}
+
+watch(() => props.message, () => {
+    cancelRelatedMessage()
     localMessage.value = null
+})
+
+watch(() => currentMessage.value?.id, async () => {
+    cancelRelatedMessage()
+    storageFolders.value = []
     selectedFolderPath.value = null
     newFolderPath.value = ''
     resetForms()
@@ -572,9 +642,20 @@ watch(() => props.message?.id, async () => {
 })
 
 watch(model, async (isOpen) => {
+    if (!isOpen) {
+        cancelRelatedMessage()
+        folderRequest++
+        foldersLoading.value = false
+        return
+    }
     if (isOpen && currentMessage.value?.id) {
         await loadAttachmentFolders()
     }
+})
+
+onBeforeUnmount(() => {
+    cancelRelatedMessage()
+    folderRequest++
 })
 </script>
 
@@ -589,91 +670,19 @@ watch(model, async (isOpen) => {
         scrollable
     >
         <v-card class="mail-reader-card rounded border border-blue-900 bg-slate-950">
-            <v-card-title class="mail-reader-header">
-                <div class="mail-reader-header__main">
-                    <div class="mail-reader-header__subject">
-                        {{ currentMessage?.subject || 'Без темы' }}
-                    </div>
-
-                    <div class="mail-reader-header__meta">
-                        <span class="mail-reader-header__from">
-                            {{ currentMessage?.from_name || '' }}
-                            {{ currentMessage?.from_address || '—' }}
-                        </span>
-                        <span class="mail-reader-header__arrow">→</span>
-                        <span class="mail-reader-header__to">{{ recipients(currentMessage?.to) }}</span>
-                        <span
-                            v-if="currentMessage?.cc?.length"
-                            class="mail-reader-header__cc"
-                        >
-                            CC {{ recipients(currentMessage?.cc) }}
-                        </span>
-                        <span class="mail-reader-header__date">{{ formatDate(currentMessage?.message_date) }}</span>
-                    </div>
-
-                    <div v-if="feedback || syncError" class="mail-reader-header__notices">
-                        <div
-                            v-if="feedback"
-                            class="mail-reader-header__notice"
-                            :class="`mail-reader-header__notice--${feedback.type}`"
-                            :title="feedback.text"
-                        >
-                            <v-icon
-                                :icon="feedback.type === 'success' ? 'mdi-check-circle-outline' : 'mdi-alert-circle-outline'"
-                                size="14"
-                            />
-                            <span>{{ feedback.text }}</span>
-                        </div>
-
-                        <div
-                            v-if="syncError"
-                            class="mail-reader-header__notice mail-reader-header__notice--warning"
-                            :title="syncError"
-                        >
-                            <v-icon icon="mdi-alert-outline" size="14" />
-                            <span>{{ syncError }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mail-reader-header__actions">
-                    <div
-                        class="mail-reader-header__mailbox"
-                        :title="`${mailboxLabel}: ${mailboxAddress}`"
-                    >
-                        <v-icon :icon="mailboxIcon" size="16" />
-                        <span>{{ mailboxLabel }}</span>
-                        <strong>{{ mailboxAddress }}</strong>
-                    </div>
-
-                    <v-chip
-                        size="x-small"
-                        :color="currentMessage?.direction === 'incoming' ? 'purple' : 'blue'"
-                        variant="tonal"
-                    >
-                        {{ currentMessage?.direction === 'incoming' ? 'Входящее' : 'Исходящее' }}
-                    </v-chip>
-
-                    <v-btn
-                        icon="mdi-refresh"
-                        size="x-small"
-                        variant="text"
-                        color="blue"
-                        :loading="loading"
-                        @click="emit('reload')"
-                    />
-
-                    <v-btn
-                        v-if="currentMessage?.direction === 'incoming'"
-                        icon="mdi-reply"
-                        size="x-small"
-                        variant="text"
-                        color="teal"
-                        :disabled="loading"
-                        @click="emit('reply', currentMessage)"
-                    />
-                </div>
-            </v-card-title>
+            <MailMessageReaderHeader
+                v-if="model"
+                :message="currentMessage"
+                :loading="readerLoading"
+                :related-disabled="relatedNavigationBlocked"
+                :feedback="feedback"
+                :sync-error="syncError"
+                :contexts="relatedContexts"
+                @reload="emit('reload')"
+                @reply="emit('reply', $event)"
+                @close="model = false"
+                @open="openRelatedMessage"
+            />
 
             <v-divider />
 
@@ -717,7 +726,7 @@ watch(model, async (isOpen) => {
                                         variant="tonal"
                                         prepend-icon="mdi-folder-plus-outline"
                                         :loading="creatingFolder"
-                                        :disabled="!folderCreatePath()"
+                                        :disabled="readerLoading || !folderCreatePath()"
                                         @click="createAttachmentFolder"
                                     >
                                         Создать
@@ -827,13 +836,14 @@ watch(model, async (isOpen) => {
                                                     @click.stop="downloadAttachment(attachment)"
                                                 />
                                             </span>
-                                            <span class="mail-attachments-sheet__s3">
+                                            <span class="mail-attachments-sheet__s3" @keydown.enter.stop>
                                                 <template v-if="isAttachmentSaved(attachment)">
-                                                    <span class="mail-attachments-sheet__saved">saved</span>
+                                                    <span class="mail-attachments-sheet__saved" role="img" aria-label="Сохранено в S3" title="Сохранено в S3"><v-icon icon="mdi-check-circle-outline" size="14" /></span>
                                                     <a
                                                         v-if="attachment.url"
                                                         :href="attachment.url"
                                                         target="_blank"
+                                                        rel="noopener noreferrer"
                                                         @click.stop
                                                     >
                                                         file
@@ -842,6 +852,7 @@ watch(model, async (isOpen) => {
                                                         v-if="attachment.folder_url"
                                                         :href="attachment.folder_url"
                                                         target="_blank"
+                                                        rel="noopener noreferrer"
                                                         @click.stop
                                                     >
                                                         dir
@@ -855,6 +866,7 @@ watch(model, async (isOpen) => {
                                                     variant="tonal"
                                                     color="blue"
                                                     :loading="savingAttachmentIndex === attachment.index"
+                                                    :disabled="readerLoading"
                                                     @click.stop="saveAttachment(attachment)"
                                                 >
                                                     save
@@ -901,7 +913,7 @@ watch(model, async (isOpen) => {
                                                         size="x-small"
                                                         icon="mdi-content-save-outline"
                                                         :loading="actionLoading"
-                                                        :disabled="!noteBody.trim()"
+                                                        :disabled="readerLoading || !noteBody.trim()"
                                                         @click="saveNote"
                                                     />
                                                 </div>
@@ -931,7 +943,7 @@ watch(model, async (isOpen) => {
                                                     size="x-small"
                                                     prepend-icon="mdi-account-plus-outline"
                                                     :loading="actionLoading"
-                                                    :disabled="!leadTitle.trim()"
+                                                    :disabled="readerLoading || !leadTitle.trim()"
                                                     @click="createLead"
                                                 >
                                                     Создать лид
@@ -1024,7 +1036,7 @@ watch(model, async (isOpen) => {
                         </v-card>
 
                         <v-progress-linear
-                            v-if="loading"
+                            v-if="readerLoading"
                             indeterminate
                             color="blue"
                             class="my-2"
@@ -1051,7 +1063,7 @@ watch(model, async (isOpen) => {
                     variant="tonal"
                     size="small"
                     prepend-icon="mdi-reply"
-                    :disabled="loading"
+                    :disabled="readerLoading"
                     @click="emit('reply', currentMessage)"
                 >
                     Ответить
@@ -1082,146 +1094,6 @@ watch(model, async (isOpen) => {
     max-height: 100%;
     min-height: 0;
     overflow: hidden;
-}
-
-.mail-reader-header {
-    align-items: flex-start;
-    display: flex;
-    gap: 8px;
-    justify-content: space-between;
-    min-width: 0;
-    padding: 6px 10px !important;
-    white-space: normal;
-}
-
-.mail-reader-header__main {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.mail-reader-header__subject {
-    color: #93c5fd;
-    font-size: 16px;
-    font-weight: 800;
-    line-height: 1.2;
-}
-
-.mail-reader-header__meta {
-    align-items: center;
-    color: #94a3b8;
-    display: flex;
-    flex-wrap: wrap;
-    font-size: 12px;
-    gap: 4px 8px;
-    margin-top: 2px;
-    min-width: 0;
-}
-
-.mail-reader-header__from {
-    color: #d8b4fe;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.mail-reader-header__to,
-.mail-reader-header__cc {
-    color: #93c5fd;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.mail-reader-header__arrow {
-    color: #64748b;
-}
-
-.mail-reader-header__date {
-    color: #64748b;
-    margin-left: auto;
-}
-
-.mail-reader-header__notices {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 4px;
-    min-width: 0;
-}
-
-.mail-reader-header__notice {
-    align-items: center;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: 5px;
-    color: #cbd5e1;
-    display: flex;
-    flex: 0 1 auto;
-    font-size: 11px;
-    font-weight: 700;
-    gap: 4px;
-    line-height: 16px;
-    max-width: 100%;
-    min-width: 0;
-    padding: 1px 6px;
-}
-
-.mail-reader-header__notice span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.mail-reader-header__notice--success {
-    background: rgba(20, 184, 166, 0.12);
-    border-color: rgba(45, 212, 191, 0.3);
-    color: #5eead4;
-}
-
-.mail-reader-header__notice--error,
-.mail-reader-header__notice--warning {
-    background: rgba(245, 158, 11, 0.12);
-    border-color: rgba(251, 191, 36, 0.32);
-    color: #fbbf24;
-}
-
-.mail-reader-header__actions {
-    align-items: center;
-    display: flex;
-    flex: 0 0 auto;
-    gap: 4px;
-}
-
-.mail-reader-header__mailbox {
-    align-items: center;
-    background: linear-gradient(135deg, rgba(14, 116, 144, 0.3), rgba(30, 58, 138, 0.28));
-    border: 1px solid rgba(103, 232, 249, 0.38);
-    border-radius: 6px;
-    color: #67e8f9;
-    display: flex;
-    gap: 5px;
-    max-width: min(360px, 28vw);
-    min-width: 0;
-    padding: 3px 7px;
-}
-
-.mail-reader-header__mailbox span {
-    color: #7dd3fc;
-    flex: 0 0 auto;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.mail-reader-header__mailbox strong {
-    color: #e0f2fe;
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    font-weight: 800;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .mail-reader-body {
@@ -1358,7 +1230,7 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 6px;
-    grid-template-columns: clamp(320px, 28vw, 560px) minmax(0, 1fr);
+    grid-template-columns: clamp(320px, 24vw, 480px) minmax(0, 1fr);
     min-height: 0;
 }
 
@@ -1462,7 +1334,7 @@ watch(model, async (isOpen) => {
     display: grid;
     font-size: 12px;
     gap: 0;
-    grid-template-columns: 22px minmax(0, 1fr) 48px 32px 62px;
+    grid-template-columns: 22px minmax(0, 1fr) 48px 32px 132px;
     line-height: 1.15;
     padding: 0;
     text-align: left;
@@ -1708,7 +1580,7 @@ watch(model, async (isOpen) => {
     }
 
     .mail-attachments-workspace {
-        grid-template-columns: clamp(300px, 34vw, 360px) minmax(0, 1fr);
+        grid-template-columns: clamp(300px, 32vw, 340px) minmax(0, 1fr);
     }
 
     .mail-attachments-workspace--empty .mail-attachments-sidebar {
@@ -1732,20 +1604,6 @@ watch(model, async (isOpen) => {
 }
 
 @media (max-width: 700px) {
-    .mail-reader-header {
-        flex-wrap: wrap;
-    }
-
-    .mail-reader-header__main,
-    .mail-reader-header__actions {
-        width: 100%;
-    }
-
-    .mail-reader-header__mailbox {
-        margin-right: auto;
-        max-width: min(360px, 72vw);
-    }
-
     .mail-reader-body {
         overflow: auto;
     }
@@ -1808,7 +1666,7 @@ watch(model, async (isOpen) => {
     }
 
     .mail-attachments-workspace {
-        grid-template-columns: clamp(260px, 28vw, 560px) minmax(0, 1fr);
+        grid-template-columns: clamp(260px, 24vw, 480px) minmax(0, 1fr);
     }
 
     .mail-attachments-toolbar {

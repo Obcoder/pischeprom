@@ -312,9 +312,16 @@ class MailMessageActionController extends Controller
             'attachments',
             'notes.user:id,name',
             'leads:id,mail_message_id,title,status,entity_id,unit_id',
-            'emails:id,address,name',
-            'emails.units:id,name',
-            'emails.entities:id,name',
+            'emails' => fn ($query) => $query->select('emails.id', 'emails.address', 'emails.name'),
+            'emails.units' => fn ($query) => $query
+                ->without(['fields', 'labels', 'telephones', 'uris'])
+                ->select('units.id', 'units.name'),
+            'emails.entities' => fn ($query) => $query
+                ->without(['buildings', 'classification', 'country'])
+                ->select('entities.id', 'entities.name'),
+            'emails.entities.units' => fn ($query) => $query
+                ->without(['fields', 'labels', 'telephones', 'uris'])
+                ->select('units.id', 'units.name'),
         ]);
     }
 }
