@@ -1,7 +1,6 @@
 <script setup>
-import {useHead} from "@unhead/vue";
 import {computed, onMounted, ref, watch} from "vue";
-import {useForm, Link} from "@inertiajs/vue3";
+import {Head, useForm, Link} from "@inertiajs/vue3";
 import axios from "axios";
 import {route} from "ziggy-js";
 import {useDate} from 'vuetify';
@@ -248,16 +247,6 @@ watch(tab, (value) => rememberTab(GROSSBUCH_TAB_KEY, value))
 watch(tabsContacts, (value) => rememberTab(GROSSBUCH_CONTACTS_TAB_KEY, value))
 watch(tabsSegments, (value) => rememberTab(GROSSBUCH_SEGMENTS_TAB_KEY, value))
 
-useHead({
-    title: `Управление торговлей`,
-    meta: [
-        {
-            name: 'description',
-            content: `Управление торговлей`,
-        }
-    ]
-})
-
 // Функция для генерации slug, если он отсутствует
 const generateSlug = (name) => {
     return name
@@ -277,6 +266,10 @@ const style = `
 </script>
 
 <template>
+    <Head title="Управление торговлей">
+        <meta name="description" content="Управление торговлей" />
+    </Head>
+
     <v-theme-provider theme="dark">
         <v-container fluid>
             <v-row>
