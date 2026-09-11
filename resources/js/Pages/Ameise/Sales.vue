@@ -1,4 +1,5 @@
 <script setup>
+import { saleRequestId } from '@/Pages/Helpers/saleRequestId.js'
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {computed, onMounted, reactive, ref} from "vue";
 import axios from "axios";
@@ -170,11 +171,15 @@ function showSale(id){
     });
 }
 let formSale = useForm({
+    request_id: null,
     date: null,
     entity_id: null,
     total: null,
 })
 function storeSale(){
+    if (formSale.processing) return
+
+    formSale.request_id ||= saleRequestId()
     formSale.date = format(new Date(formSale.date), 'yyyy-MM-dd HH:mm:ss');
     formSale.post(route('sales.store'), {
         replace: false,
@@ -202,6 +207,7 @@ const snackbar = ref({
     text: '',
 });
 const formAttachGood = useForm({
+    request_id: null,
     good_id: null,
     sale_id: null,
     quantity: null,
@@ -209,11 +215,14 @@ const formAttachGood = useForm({
     price: null,
 })
 function openAttachDialog(sale) {
+    formAttachGood.request_id = saleRequestId()
     showSale(sale.id)
     formAttachGood.sale_id = sale.id
     showFormAttachGood.value = true;
 }
 function attachGood(){
+    if (loadingAttach.value || formAttachGood.processing) return
+
     loadingAttach.value = true;
     formAttachGood.post(route('goodsales.store'), {
         replace: false,
@@ -222,11 +231,14 @@ function attachGood(){
         onSuccess: ()=> {
             snackbar.value = {
                 show: true,
-                text: 'Товар успешно привязан!',
+                text: 'Товар добавлен и списан со склада goods.',
             };
             showFormAttachGood.value = false; // Закрыть диалог
             formAttachGood.reset()
             indexSales()
+        },
+        onFinish: () => {
+            loadingAttach.value = false
         },
     })
 }
@@ -272,7 +284,7 @@ onMounted(()=>{
                             <v-container fluid>
                                 <v-row>
                                     <v-col cols="1">
-                                        <v-dialog width="1000">
+                                        <v-dialog width="1000" @update:model-value="(open) => { if (open) formSale.request_id = saleRequestId() }">
                                             <template v-slot:activator="{ props: activatorProps }">
                                                 <v-btn v-bind="activatorProps"
                                                        text="Новая продажа"
@@ -282,6 +294,14 @@ onMounted(()=>{
                                                 <v-card>
                                                     <v-card-title>Form Sale</v-card-title>
                                                     <v-card-text>
+                                                        <v-alert
+                                                            v-if="Object.keys(formSale.errors).length"
+                                                            type="error"
+                                                            variant="tonal"
+                                                            class="mb-3"
+                                                        >
+                                                            {{ Object.values(formSale.errors).join(' ') }}
+                                                        </v-alert>
                                                         <v-form @submit.prevent>
                                                             <v-row>
                                                                 <v-col>
@@ -313,6 +333,8 @@ onMounted(()=>{
                                                     <v-card-actions>
                                                         <v-btn text="store"
                                                                @click="storeSale"
+                                                               :loading="formSale.processing"
+                                                               :disabled="formSale.processing"
                                                                variant="elevated"
                                                                density="comfortable"
                                                                color="purple"
@@ -365,6 +387,14 @@ onMounted(()=>{
                                                 <v-card theme="dark">
                                                     <v-card-title>Form Attach Good</v-card-title>
                                                     <v-card-text class="text-red-700">
+                                                        <v-alert
+                                                            v-if="Object.keys(formAttachGood.errors).length"
+                                                            type="error"
+                                                            variant="tonal"
+                                                            class="mb-3"
+                                                        >
+                                                            {{ Object.values(formAttachGood.errors).join(' ') }}
+                                                        </v-alert>
                                                         <v-row>
                                                             <v-col cols="7">
                                                                 <v-form @submit.prevent>
@@ -432,6 +462,8 @@ onMounted(()=>{
                                                         <v-spacer />
                                                         <v-btn text="attach"
                                                                @click="attachGood"
+                                                               :loading="loadingAttach"
+                                                               :disabled="loadingAttach"
                                                                variant="text"
                                                                density="compact"
                                                                color="teal-lighten-2"

@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Domain\Banking\Services\PaymentAllocationService;
 use App\Http\Controllers\Controller;
-use App\Models\good_sale;
+use App\Models\Sale;
+use App\Services\Goods\GoodSaleStockSynchronizer;
+use App\Services\Goods\SaleStockRequestService;
 use Illuminate\Http\Request;
 
 class GoodSaleController extends Controller
@@ -27,9 +30,24 @@ class GoodSaleController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
-    {
-        good_sale::create($request->all());
+    public function store(
+        Request $request,
+        SaleController $sales,
+        PaymentAllocationService $paymentAllocations,
+        GoodSaleStockSynchronizer $stock,
+        SaleStockRequestService $requests,
+    ) {
+        $validated = $request->validate([
+            'sale_id' => ['required', 'integer', 'exists:sales,id'],
+        ]);
+
+        return $sales->storeGood(
+            $request,
+            Sale::query()->findOrFail($validated['sale_id']),
+            $paymentAllocations,
+            $stock,
+            $requests,
+        );
     }
 
     /**
@@ -53,7 +71,7 @@ class GoodSaleController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        abort(405, 'Изменение позиции проведённой продажи пока не поддерживается.');
     }
 
     /**
@@ -61,6 +79,6 @@ class GoodSaleController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        abort(405, 'Отмена позиции проведённой продажи пока не поддерживается.');
     }
 }

@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureWarehouseMutationAllowed;
 use App\Models\GoodStockMovement;
 use App\Models\Warehouse;
 use App\Services\PurchaseService;
+use Illuminate\Auth\Middleware\Authenticate;
+use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -228,6 +231,13 @@ class PurchaseGoodsStockTest extends TestCase
 
     public function test_purchase_stock_movement_cannot_be_changed_outside_purchase(): void
     {
+        // This isolated schema tests document ownership of movements; HTTP access
+        // control is covered using the real users/permissions schema elsewhere.
+        $this->withoutMiddleware([
+            Authenticate::class,
+            EnsureEmailIsVerified::class,
+            EnsureWarehouseMutationAllowed::class,
+        ]);
         $warehouseId = $this->createGoodsWarehouse();
         $entityId = $this->createEntity('Поставщик');
         $goodId = $this->createGood('Товар');

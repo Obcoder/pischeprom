@@ -8,6 +8,8 @@ use App\Domain\Banking\Services\PaymentAllocationService;
 use App\Http\Controllers\Controller;
 use App\Models\Good;
 use App\Models\Sale;
+use App\Services\Goods\GoodSaleStockSynchronizer;
+use App\Services\Goods\SaleStockRequestService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,16 +60,17 @@ class SaleController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, GoodSaleStockSynchronizer $stock, SaleStockRequestService $requests)
     {
         $validated = $request->validate([
+            'request_id' => ['nullable', 'uuid'],
             'date' => ['required', 'date'],
             'entity_id' => ['required', 'integer', 'exists:entities,id'],
             'total' => ['nullable', 'numeric', 'min:0'],
             'goods' => ['nullable', 'array'],
             'goods.*.good_id' => ['required_with:goods', 'integer', 'exists:goods,id'],
             'goods.*.measure_id' => ['required_with:goods', 'integer', 'exists:measures,id'],
-            'goods.*.quantity' => ['nullable', 'numeric', 'min:0'],
+            'goods.*.quantity' => ['nullable', 'numeric', 'min:0.000001'],
             'goods.*.price' => ['nullable', 'numeric', 'min:0'],
             'goods.*.total' => ['nullable', 'numeric', 'min:0'],
         ]);
@@ -81,11 +84,25 @@ class SaleController extends Controller
             ? (float) $validated['total']
             : (float) $computedTotal;
 
-        $sale = DB::transaction(function () use ($validated, $lines, $saleTotal) {
+        if (! is_finite($saleTotal) || $saleTotal < 0 || $saleTotal >= 1e18) {
+            throw ValidationException::withMessages([
+                'total' => 'Укажите допустимую неотрицательную сумму продажи.',
+            ]);
+        }
+
+        $payload = [
+            'actor_id' => $request->user()?->getAuthIdentifier(),
+            'date' => Carbon::parse($validated['date'])->toDateString(),
+            'entity_id' => (int) $validated['entity_id'],
+            'total' => round($saleTotal, 2),
+            'goods' => $lines->all(),
+        ];
+
+        $sale = $requests->run($validated['request_id'] ?? null, 'sale.store', $payload, function () use ($payload, $lines, $stock) {
             $sale = Sale::create([
-                'date' => Carbon::parse($validated['date'])->toDateString(),
-                'entity_id' => $validated['entity_id'],
-                'total' => $saleTotal,
+                'date' => $payload['date'],
+                'entity_id' => $payload['entity_id'],
+                'total' => $payload['total'],
             ]);
 
             foreach ($lines as $line) {
@@ -95,6 +112,8 @@ class SaleController extends Controller
                     'price' => $line['price'],
                 ]);
             }
+
+            $stock->sync($sale);
 
             return $sale;
         });
@@ -107,6 +126,10 @@ class SaleController extends Controller
         ]);
 
         $this->attachPreviousSales(collect([$sale]));
+
+        if ($request->header('X-Inertia')) {
+            return back();
+        }
 
         return response()->json([
             'data' => $this->serializeSale($sale),
@@ -131,18 +154,25 @@ class SaleController extends Controller
         Request $request,
         Sale $sale,
         PaymentAllocationService $paymentAllocations,
+        GoodSaleStockSynchronizer $stock,
+        SaleStockRequestService $requests,
     ) {
         $validated = $request->validate([
+            'request_id' => ['nullable', 'uuid'],
             'good_id' => ['required', 'integer', 'exists:goods,id'],
             'measure_id' => ['required', 'integer', 'exists:measures,id'],
-            'quantity' => ['nullable', 'numeric', 'min:0'],
+            'quantity' => ['nullable', 'numeric', 'min:0.000001'],
             'price' => ['nullable', 'numeric', 'min:0'],
             'total' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $line = $this->normalizeSaleLine($validated);
-        $statusChange = null;
-        $sale = DB::transaction(function () use ($sale, $line, $paymentAllocations, &$statusChange): Sale {
+        $payload = [
+            'actor_id' => $request->user()?->getAuthIdentifier(),
+            'sale_id' => $sale->id,
+            'good' => $line,
+        ];
+        $sale = $requests->run($validated['request_id'] ?? null, 'sale.goods.store', $payload, function () use ($sale, $line, $paymentAllocations, $stock): Sale {
             $lockedSale = Sale::query()
                 ->whereKey($sale->id)
                 ->lockForUpdate()
@@ -154,24 +184,32 @@ class SaleController extends Controller
                 'price' => $line['price'],
             ]);
 
-            $lockedSale->forceFill([
-                'total' => DecimalMoney::add(
-                    (string) $lockedSale->total,
-                    number_format($line['total'], 2, '.', ''),
-                ),
-            ]);
+            $stock->sync($lockedSale);
+
+            $total = DecimalMoney::add(
+                (string) $lockedSale->total,
+                number_format($line['total'], 2, '.', ''),
+            );
+
+            if ((float) $total >= 1e18) {
+                throw ValidationException::withMessages([
+                    'total' => 'Сумма продажи превышает допустимое значение.',
+                ]);
+            }
+
+            $lockedSale->forceFill(['total' => $total]);
             $statusChange = $paymentAllocations->recalculateSaleLocked($lockedSale);
 
-            return $lockedSale;
-        }, 3);
+            if ($statusChange !== null) {
+                DB::afterCommit(fn () => ReceivablePaymentStatusChanged::dispatch(
+                    $lockedSale,
+                    $statusChange['previous'],
+                    $statusChange['current'],
+                ));
+            }
 
-        if ($statusChange !== null) {
-            ReceivablePaymentStatusChanged::dispatch(
-                $sale,
-                $statusChange['previous'],
-                $statusChange['current'],
-            );
-        }
+            return $lockedSale;
+        });
 
         $sale->load([
             'entity.units:id,name',
@@ -182,6 +220,10 @@ class SaleController extends Controller
 
         $this->attachPreviousSales(collect([$sale]));
 
+        if ($request->header('X-Inertia')) {
+            return back();
+        }
+
         return response()->json([
             'data' => $this->serializeSale($sale),
         ], 201);
@@ -189,12 +231,12 @@ class SaleController extends Controller
 
     public function update(Request $request, string $id)
     {
-        //
+        abort(405, 'Изменение проведённой продажи пока не поддерживается.');
     }
 
     public function destroy(string $id)
     {
-        //
+        abort(405, 'Отмена проведённой продажи пока не поддерживается.');
     }
 
     private function legacyIndex(Request $request)
@@ -275,12 +317,39 @@ class SaleController extends Controller
             ]);
         }
 
+        if (
+            ! is_finite($quantity) || $quantity < 0.000001
+            || ! is_finite($price) || $price < 0
+            || ! is_finite($total) || $total < 0 || $total >= 1e18
+            || ! is_finite($quantity * $price)
+        ) {
+            throw ValidationException::withMessages([
+                'goods' => 'Количество должно быть не меньше 0,000001, цена и сумма — допустимыми неотрицательными числами.',
+            ]);
+        }
+
+        $quantity = round($quantity, 6);
+        $price = round($price, 6);
+        $canonicalTotal = round($quantity * $price, 2);
+
+        if (! is_finite($canonicalTotal) || $canonicalTotal >= 1e18) {
+            throw ValidationException::withMessages([
+                'goods' => 'Сумма позиции превышает допустимое значение.',
+            ]);
+        }
+
+        if (isset($line['total']) && abs($total - $canonicalTotal) > 0.010000001) {
+            throw ValidationException::withMessages([
+                'goods' => 'Сумма позиции должна совпадать с произведением количества и цены.',
+            ]);
+        }
+
         return [
             'good_id' => (int) $line['good_id'],
             'measure_id' => (int) $line['measure_id'],
-            'quantity' => round($quantity, 6),
-            'price' => round($price, 6),
-            'total' => round($total, 2),
+            'quantity' => $quantity,
+            'price' => $price,
+            'total' => $canonicalTotal,
         ];
     }
 
@@ -290,7 +359,15 @@ class SaleController extends Controller
             return null;
         }
 
-        return (float) $value;
+        $number = (float) $value;
+
+        if (! is_finite($number) || $number < 0) {
+            throw ValidationException::withMessages([
+                'goods' => 'Значения позиции должны быть конечными неотрицательными числами.',
+            ]);
+        }
+
+        return $number;
     }
 
     private function attachPreviousSales($sales): void

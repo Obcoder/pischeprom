@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class GoodStockService
 {
-    private const EPSILON = 0.000001;
+    private const EPSILON = 0.000000001;
 
     private const SUBSCRIBABLE_STATUSES = [
         'out_of_stock',

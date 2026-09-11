@@ -4,9 +4,9 @@ namespace App\Observers;
 
 use App\Jobs\EvaluateGoodStockAvailabilityJob;
 use App\Models\GoodStockMovement;
-use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
+use Illuminate\Support\Facades\DB;
 
-class GoodStockMovementObserver implements ShouldHandleEventsAfterCommit
+class GoodStockMovementObserver
 {
     public function created(GoodStockMovement $movement): void
     {
@@ -31,10 +31,18 @@ class GoodStockMovementObserver implements ShouldHandleEventsAfterCommit
 
     private function dispatch(array $goodIds): void
     {
-        collect($goodIds)
+        // Capture the previous good_id during the event: Eloquent resets originals
+        // before deferred observers run. Queue both goods only after a successful commit.
+        $goodIds = collect($goodIds)
             ->filter()
             ->map(fn ($goodId) => (int) $goodId)
             ->unique()
-            ->each(fn (int $goodId) => EvaluateGoodStockAvailabilityJob::dispatch($goodId));
+            ->all();
+
+        DB::afterCommit(function () use ($goodIds): void {
+            foreach ($goodIds as $goodId) {
+                EvaluateGoodStockAvailabilityJob::dispatch($goodId);
+            }
+        });
     }
 }

@@ -9,13 +9,17 @@ use App\Models\Good;
 use App\Models\GoodStockMovement;
 use App\Models\Measure;
 use App\Models\Warehouse;
+use App\Services\Goods\GoodStockMutationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class GoodStockMovementController extends Controller
 {
+    public function __construct(private GoodStockMutationService $stockMutations) {}
+
     public function index(Request $request): JsonResponse
     {
         $limit = min(max((int) $request->integer('limit', 250), 1), 500);
@@ -64,7 +68,7 @@ class GoodStockMovementController extends Controller
                 fn ($query) => $query->where('good_id', $request->input('good_id'))
             )
             ->groupBy('warehouse_id', 'good_id', 'measure_id')
-            ->havingRaw('ABS(SUM(quantity_delta)) > 0.000001')
+            ->havingRaw('ABS(SUM(quantity_delta)) > 0.000000001')
             ->orderBy('warehouse_id')
             ->orderBy('good_id')
             ->get();
@@ -116,7 +120,10 @@ class GoodStockMovementController extends Controller
         $data['unit_price'] ??= 0;
         unset($data['quantity']);
 
-        $movement = GoodStockMovement::create($data);
+        $movement = $this->stockMutations->run(
+            [$data['good_id']],
+            fn () => GoodStockMovement::create($data)
+        );
 
         return response()->json(
             new GoodStockMovementResource(
@@ -137,7 +144,16 @@ class GoodStockMovementController extends Controller
         $data['unit_price'] ??= 0;
         unset($data['quantity']);
 
-        $goodStockMovement->update($data);
+        $goodIds = [(int) $goodStockMovement->good_id, (int) $data['good_id']];
+        $goodStockMovement = $this->stockMutations->run(
+            $goodIds,
+            function () use ($goodStockMovement, $goodIds, $data): GoodStockMovement {
+                $movement = $this->lockManualMovement($goodStockMovement, $goodIds);
+                $movement->update($data);
+
+                return $movement;
+            }
+        );
 
         return new GoodStockMovementResource(
             $goodStockMovement->fresh([
@@ -152,14 +168,18 @@ class GoodStockMovementController extends Controller
     {
         $this->ensureManualMovement($goodStockMovement);
 
-        $goodStockMovement->delete();
+        $goodIds = [(int) $goodStockMovement->good_id];
+        $this->stockMutations->run(
+            $goodIds,
+            fn () => $this->lockManualMovement($goodStockMovement, $goodIds)->delete()
+        );
 
         return response()->json(null, 204);
     }
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'good_id' => ['required', 'exists:goods,id'],
             'measure_id' => ['nullable', 'exists:measures,id'],
@@ -173,6 +193,21 @@ class GoodStockMovementController extends Controller
             'moved_at' => ['required', 'date'],
             'note' => ['nullable', 'string'],
         ]);
+
+        $quantity = (float) $data['quantity'];
+        $price = (float) ($data['unit_price'] ?? 0);
+        if (! is_finite($quantity) || abs($quantity) < 0.000001) {
+            throw ValidationException::withMessages([
+                'quantity' => 'Количество должно быть конечным числом, по модулю не меньше 0,000001.',
+            ]);
+        }
+        if (! is_finite($price) || ! is_finite($quantity * $price)) {
+            throw ValidationException::withMessages([
+                'unit_price' => 'Цена или стоимость движения выходит за допустимые пределы.',
+            ]);
+        }
+
+        return $data;
     }
 
     private function quantityDelta(string $type, mixed $quantity): float
@@ -191,7 +226,27 @@ class GoodStockMovementController extends Controller
         abort_if(
             filled($goodStockMovement->source_type),
             422,
-            'Это движение создано закупкой и редактируется через Purchase.'
+            $goodStockMovement->source_type === GoodStockMovement::SOURCE_GOOD_SALE
+                ? 'Это движение создано продажей и редактируется через Sale.'
+                : 'Это движение создано закупкой и редактируется через Purchase.'
         );
+    }
+
+    private function lockManualMovement(GoodStockMovement $movement, array $goodIds): GoodStockMovement
+    {
+        $movement = GoodStockMovement::query()
+            ->whereKey($movement->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $this->ensureManualMovement($movement);
+
+        if (! in_array((int) $movement->good_id, $goodIds, true)) {
+            throw ValidationException::withMessages([
+                'goods' => 'Товар в движении уже изменён. Обновите страницу и повторите операцию.',
+            ]);
+        }
+
+        return $movement;
     }
 }

@@ -424,6 +424,8 @@ function editMovement(movement) {
 }
 
 async function saveMovement() {
+    if (saving.value) return
+
     formError.value = ''
 
     if (!form.warehouse_id || !form.good_id || !form.moved_at || numeric(form.quantity) === 0) {
@@ -475,6 +477,23 @@ async function deleteMovement(movement) {
     } catch (error) {
         loadError.value = errorMessage(error, 'Не удалось удалить движение.')
     }
+}
+
+function movementSourceTitle(movement) {
+    if (movement.source_type === 'good_sale') {
+        return `Продажа #${movement.sale_id || movement.source_id}`
+    }
+    if (movement.source_type === 'good_purchase') {
+        return `Закупка #${movement.purchase_id || movement.source_id}`
+    }
+    return movement.note || '—'
+}
+
+function movementSourceHint(movement) {
+    if (movement.source_type === 'good_sale') {
+        return 'Списание по продаже. Ручное изменение и удаление запрещено.'
+    }
+    return movement.source_type ? 'Изменяется через документ закупки.' : ''
 }
 
 async function cancelAlert(alert) {
@@ -1076,7 +1095,7 @@ onMounted(loadAll)
                                 <small>{{ movement.measure?.name || '' }}</small>
                             </td>
                             <td class="goods-stock__money">{{ formatMoney(movement.unit_price) }}</td>
-                            <td>{{ movement.note || '—' }}</td>
+                            <td :title="movement.note || ''">{{ movementSourceTitle(movement) }}</td>
                             <td>
                                 <div class="goods-stock__actions">
                                     <v-btn
@@ -1085,7 +1104,7 @@ onMounted(loadAll)
                                         variant="text"
                                         :disabled="Boolean(movement.source_type)"
                                         :title="movement.source_type
-                                            ? 'Редактируется через Purchase'
+                                            ? movementSourceHint(movement)
                                             : 'Редактировать'"
                                         @click="editMovement(movement)"
                                     />
@@ -1096,7 +1115,7 @@ onMounted(loadAll)
                                         color="error"
                                         :disabled="Boolean(movement.source_type)"
                                         :title="movement.source_type
-                                            ? 'Удаляется вместе с Purchase'
+                                            ? movementSourceHint(movement)
                                             : 'Удалить'"
                                         @click="deleteMovement(movement)"
                                     />

@@ -4,9 +4,9 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WarehouseResource;
-use App\Jobs\EvaluateGoodStockAvailabilityJob;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class WarehouseController extends Controller
@@ -46,22 +46,44 @@ class WarehouseController extends Controller
 
     public function update(Request $request, Warehouse $warehouse)
     {
-        $warehouse->update($this->validated($request, $warehouse));
+        $data = $this->validated($request, $warehouse);
+        $warehouse = DB::transaction(function () use ($warehouse, $data): Warehouse {
+            $warehouse = Warehouse::query()->whereKey($warehouse->id)->lockForUpdate()->firstOrFail();
+
+            abort_if(
+                $warehouse->code === Warehouse::GOODS_CODE
+                    && array_key_exists('code', $data)
+                    && $data['code'] !== Warehouse::GOODS_CODE,
+                422,
+                'Код системного склада goods нельзя изменить.'
+            );
+
+            $warehouse->update($data);
+
+            return $warehouse;
+        }, 3);
 
         return new WarehouseResource($warehouse->fresh());
     }
 
     public function destroy(Warehouse $warehouse)
     {
-        $goodIds = $warehouse->goodStockMovements()
-            ->distinct()
-            ->pluck('good_id');
+        DB::transaction(function () use ($warehouse): void {
+            $warehouse = Warehouse::query()->whereKey($warehouse->id)->lockForUpdate()->firstOrFail();
 
-        $warehouse->delete();
+            abort_if(
+                $warehouse->code === Warehouse::GOODS_CODE,
+                422,
+                'Системный склад goods нельзя удалить.'
+            );
+            abort_if(
+                $warehouse->goodStockMovements()->exists(),
+                422,
+                'Нельзя удалить склад с движениями товаров. Сначала выполните сверку складского учёта.'
+            );
 
-        $goodIds->each(
-            fn (int $goodId) => EvaluateGoodStockAvailabilityJob::dispatch($goodId)
-        );
+            $warehouse->delete();
+        }, 3);
 
         return response()->json(null, 204);
     }

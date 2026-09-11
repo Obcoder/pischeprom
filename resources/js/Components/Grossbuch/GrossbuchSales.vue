@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
+import { saleRequestId } from '@/Pages/Helpers/saleRequestId.js'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
 import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
 import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
@@ -60,6 +61,7 @@ const filters = reactive({
 })
 
 const saleForm = reactive({
+    request_id: null,
     date: new Date().toISOString().slice(0, 10),
     entity_id: null,
     manualTotal: false,
@@ -68,6 +70,7 @@ const saleForm = reactive({
 })
 
 const detailsLine = reactive(makeLine())
+const detailsRequestId = ref(null)
 
 const headers = [
     { title: 'Дата', key: 'date', sortable: true, width: '78px' },
@@ -440,6 +443,7 @@ function resetFilters() {
 }
 
 function resetForm() {
+    saleForm.request_id = saleRequestId()
     saleForm.date = new Date().toISOString().slice(0, 10)
     saleForm.entity_id = null
     saleForm.manualTotal = false
@@ -481,6 +485,7 @@ function makeLine() {
 }
 
 function resetDetailsLine() {
+    detailsRequestId.value = saleRequestId()
     Object.assign(detailsLine, makeLine())
 }
 
@@ -549,11 +554,14 @@ function round(value, precision) {
 }
 
 async function submitSale() {
+    if (saving.value || !canSubmitSale.value) return
+
     saving.value = true
     errorMessage.value = ''
 
     try {
         await axios.post('/api/sales', {
+            request_id: saleForm.request_id,
             date: saleForm.date,
             entity_id: saleForm.entity_id,
             total: saleForm.manualTotal ? effectiveSaleTotal.value : null,
@@ -590,6 +598,7 @@ async function attachGoodToSale() {
     try {
         const saleId = selectedSale.value.id
         const { data } = await axios.post(`/api/sales/${saleId}/goods`, {
+            request_id: detailsRequestId.value,
             good_id: detailsLine.good_id,
             measure_id: detailsLine.measure_id,
             quantity: nullableNumber(detailsLine.quantity),
@@ -606,7 +615,7 @@ async function attachGoodToSale() {
         }
 
         resetDetailsLine()
-        detailsMessage.value = 'Товар добавлен. Сумма продажи обновлена.'
+        detailsMessage.value = 'Товар добавлен и списан со склада goods. Сумма продажи обновлена.'
         await fetchSales()
     } catch (error) {
         detailsErrorMessage.value = error?.response?.data?.message
@@ -1274,7 +1283,7 @@ onMounted(async () => {
                 <v-card-actions>
                     <v-spacer />
                     <v-btn variant="text" @click="dialog = false">Отмена</v-btn>
-                    <v-btn color="#0f766e" variant="flat" :loading="saving" :disabled="!canSubmitSale" @click="submitSale">
+                    <v-btn color="#0f766e" variant="flat" :loading="saving" :disabled="saving || !canSubmitSale" @click="submitSale">
                         Сохранить
                     </v-btn>
                 </v-card-actions>

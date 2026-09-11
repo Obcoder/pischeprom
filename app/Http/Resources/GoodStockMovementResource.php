@@ -22,6 +22,7 @@ class GoodStockMovementResource extends JsonResource
             'source_type' => $this->source_type,
             'source_id' => $this->source_id,
             'purchase_id' => $this->purchase_id,
+            'sale_id' => $this->sale_id,
             'note' => $this->note,
             'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
             'good' => $this->whenLoaded('good', fn () => [

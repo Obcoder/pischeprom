@@ -18,6 +18,8 @@ class GoodStockMovement extends Model
 
     public const SOURCE_GOOD_PURCHASE = 'good_purchase';
 
+    public const SOURCE_GOOD_SALE = 'good_sale';
+
     protected $fillable = [
         'warehouse_id',
         'good_id',
@@ -29,6 +31,7 @@ class GoodStockMovement extends Model
         'source_type',
         'source_id',
         'purchase_id',
+        'sale_id',
         'note',
     ];
 
@@ -60,6 +63,11 @@ class GoodStockMovement extends Model
     public function purchase(): BelongsTo
     {
         return $this->belongsTo(Purchase::class);
+    }
+
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
     }
 
     public function getTotalPriceAttribute(): float

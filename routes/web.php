@@ -566,6 +566,7 @@ Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, '
 
 //    G O O D - S A L E
 Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
+    ->middleware(['auth:sanctum', 'verified', \App\Http\Middleware\EnsureWarehouseMutationAllowed::class])
     ->name('web.goodsale.store');
 
 //   L A B E L S
@@ -587,6 +588,7 @@ Route::post('/web/quotation/store', [QuotationController::class, 'store'])
     ->name('web.quotation.store');
 //      S A L E
 Route::post('/web/sale/store', [SaleController::class, 'store'])
+    ->middleware(['auth:sanctum', 'verified', \App\Http\Middleware\EnsureWarehouseMutationAllowed::class])
     ->name('web.sale.store');
 
 //    U R I

@@ -141,6 +141,7 @@ use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnforceAiPriceListAuthorization;
+use App\Http\Middleware\EnsureWarehouseMutationAllowed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -720,7 +721,8 @@ Route::apiResource('industries', IndustryController::class);
 // если нужно быстро получить units по industry:
 Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
 Route::apiResource('genera', GenusController::class);
-Route::apiResource('goodsales', GoodSaleController::class);
+Route::apiResource('goodsales', GoodSaleController::class)
+    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
 Route::prefix('home-banner-assets')
     ->name('api.home-banner-assets.')
     ->group(function () {
@@ -759,28 +761,34 @@ Route::apiResource('projects', ProjectController::class);
 Route::apiResource('services', ServiceController::class);
 Route::apiResource('taxi-shifts', TaxiShiftController::class)
     ->parameters(['taxi-shifts' => 'taxiShift']);
-Route::apiResource('warehouses', WarehouseController::class);
+Route::apiResource('warehouses', WarehouseController::class)
+    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
 Route::get('warehouse-stock', [StockMovementController::class, 'stock'])
     ->name('warehouse-stock.index');
 Route::apiResource('stock-movements', StockMovementController::class)
     ->only(['index', 'store', 'update', 'destroy'])
+    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class])
     ->parameters(['stock-movements' => 'stockMovement']);
 Route::get('good-warehouse-stock', [GoodStockMovementController::class, 'stock'])
     ->name('good-warehouse-stock.index');
 Route::apiResource('good-stock-movements', GoodStockMovementController::class)
     ->only(['index', 'store', 'update', 'destroy'])
+    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class])
     ->parameters(['good-stock-movements' => 'goodStockMovement']);
 Route::get('good-stock-alerts', [GoodStockAlertAdminController::class, 'index'])
     ->name('good-stock-alerts.index');
 Route::delete('good-stock-alerts/{goodStockAlert}', [GoodStockAlertAdminController::class, 'destroy'])
     ->name('good-stock-alerts.destroy');
 Route::apiResource('products', ProductController::class);
-Route::apiResource('purchases', PurchaseController::class);
+Route::apiResource('purchases', PurchaseController::class)
+    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
 Route::apiResource('quotations', QuotationController::class);
 Route::apiResource('regions', RegionController::class);
 Route::post('sales/{sale}/goods', [SaleController::class, 'storeGood'])
+    ->middleware(['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class])
     ->name('sales.goods.store');
-Route::apiResource('sales', SaleController::class);
+Route::apiResource('sales', SaleController::class)
+    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
 Route::apiResource('segments', SegmentController::class);
 Route::apiResource('sendings', SendingController::class);
 Route::apiResource('stages', StageController::class);

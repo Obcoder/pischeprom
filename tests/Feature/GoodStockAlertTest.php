@@ -370,6 +370,13 @@ class GoodStockAlertTest extends TestCase
 
     public function test_goods_stock_api_uses_a_separate_ledger_from_commodities(): void
     {
+        // Authorization is exercised with the full user schema in WarehouseMutationAuthorizationTest.
+        $this->withoutMiddleware([
+            \Illuminate\Auth\Middleware\Authenticate::class,
+            \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+            \App\Http\Middleware\EnsureWarehouseMutationAllowed::class,
+        ]);
+
         $good = $this->outOfStockGood();
         $warehouse = Warehouse::query()->create([
             'name' => 'Склад goods',

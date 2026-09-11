@@ -4,14 +4,29 @@ namespace Tests\Feature;
 
 use App\Models\Entity;
 use App\Models\Good;
+use App\Models\GoodStockMovement;
 use App\Models\Measure;
 use App\Models\Sale;
+use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class SaleGoodAttachmentTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Queue::fake();
+        $user = User::factory()->create(['type' => 'employee', 'status' => 'active']);
+        $user->givePermissionTo(Permission::findOrCreate('warehouse.move', 'crm'));
+        $this->actingAs($user);
+    }
 
     public function test_good_can_be_added_and_increases_existing_sale_total(): void
     {
@@ -21,6 +36,15 @@ class SaleGoodAttachmentTest extends TestCase
             'denominator' => 25,
         ]);
         $measure = Measure::query()->create(['name' => 'кг']);
+        GoodStockMovement::query()->create([
+            'warehouse_id' => Warehouse::query()->where('code', Warehouse::GOODS_CODE)->value('id'),
+            'good_id' => $good->id,
+            'measure_id' => $measure->id,
+            'type' => GoodStockMovement::TYPE_RECEIPT,
+            'quantity_delta' => 5,
+            'unit_price' => 10,
+            'moved_at' => '2026-08-23',
+        ]);
         $sale = Sale::query()->create([
             'date' => '2026-08-24',
             'entity_id' => $entity->id,

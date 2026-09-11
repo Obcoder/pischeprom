@@ -288,6 +288,11 @@ jobs:
             tests/Feature/MailMessageAttachmentDownloadTest.php \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
+            tests/Feature/SaleGoodsStockTest.php \
+            tests/Feature/SaleGoodAttachmentTest.php \
+            tests/Feature/GoodStockMutationTest.php \
+            tests/Feature/SaleStockIdempotencyTest.php \
+            tests/Feature/WarehouseMutationAuthorizationTest.php \
             tests/Feature/OrderManagementTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \

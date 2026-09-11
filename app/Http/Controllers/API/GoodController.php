@@ -7,6 +7,7 @@ use App\Models\Good;
 use App\Models\VatRate;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
@@ -312,9 +313,15 @@ class GoodController extends Controller
 
     public function destroy(Good $good)
     {
-        Storage::disk('yandex')->deleteDirectory("goods/{$good->id}");
+        DB::transaction(function () use ($good): void {
+            $good = Good::query()->whereKey($good->id)->lockForUpdate()->firstOrFail();
+            abort_if($good->stockMovements()->exists(), 422,
+                'Нельзя удалить товар со складской историей. Снимите товар с публикации.');
 
-        $good->delete();
+            $good->delete();
+        }, 3);
+
+        Storage::disk('yandex')->deleteDirectory("goods/{$good->id}");
 
         return response()->json(null, 204);
     }
