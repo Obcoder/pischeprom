@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import axios from 'axios'
+import MailInvoiceDetails from './MailInvoiceDetails.vue'
+import MailPdfViewer from './MailPdfViewer.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -79,8 +81,14 @@ const attachmentRows = computed(() => {
     }))
 })
 const imageAttachments = computed(() => attachmentRows.value.filter(isAttachmentImage))
+const pdfAttachments = computed(() => attachmentRows.value.filter(isAttachmentPdf))
 const selectedAttachment = computed(() => {
-    return attachmentRows.value.find((attachment) => Number(attachment.index) === Number(selectedAttachmentIndex.value))
+    const selected = selectedAttachmentIndex.value === null || selectedAttachmentIndex.value === undefined
+        ? null
+        : attachmentRows.value.find((attachment) => Number(attachment.index) === Number(selectedAttachmentIndex.value))
+
+    return selected
+        || pdfAttachments.value[0]
         || imageAttachments.value[0]
         || attachmentRows.value[0]
         || null
@@ -91,6 +99,9 @@ const selectedImageAttachment = computed(() => {
 const selectedPdfAttachment = computed(() => {
     return selectedAttachment.value && isAttachmentPdf(selectedAttachment.value) ? selectedAttachment.value : null
 })
+const selectedPdfIdentity = computed(() => selectedPdfAttachment.value
+    ? `${currentMessage.value?.id}:${selectedPdfAttachment.value.index}:${selectedPdfAttachment.value.id || 'mail'}`
+    : null)
 const notes = computed(() => currentMessage.value?.notes || [])
 const leads = computed(() => currentMessage.value?.leads || [])
 const hasAttachmentSignal = computed(() => Boolean(currentMessage.value?.has_attachments || attachmentRows.value.length || attachments.value.length))
@@ -208,22 +219,6 @@ function isAttachmentPdf(attachment) {
         || /\.pdf$/i.test(name)
 }
 
-function attachmentPreviewSrc(attachment) {
-    return attachment?.preview_url || attachment?.url || null
-}
-
-function pdfPreviewSrc(attachment) {
-    const src = attachmentPreviewSrc(attachment)
-
-    if (!src) {
-        return null
-    }
-
-    return String(src).startsWith('data:')
-        ? src
-        : `${src}#toolbar=0&navpanes=0&view=FitH`
-}
-
 function attachmentIcon(attachment) {
     const mime = attachmentMime(attachment).toLowerCase()
     const name = attachmentName(attachment).toLowerCase()
@@ -271,7 +266,7 @@ function resetForms() {
     feedback.value = null
     savingAttachmentIndex.value = null
     downloadingAttachmentIndex.value = null
-    selectedAttachmentIndex.value = imageAttachments.value[0]?.index ?? attachmentRows.value[0]?.index ?? null
+    selectedAttachmentIndex.value = pdfAttachments.value[0]?.index ?? imageAttachments.value[0]?.index ?? attachmentRows.value[0]?.index ?? null
     lastSavedAttachment.value = null
 }
 
@@ -586,10 +581,11 @@ watch(model, async (isOpen) => {
 <template>
     <v-dialog
         v-model="model"
-        width="1600"
-        max-width="96vw"
-        height="88vh"
-        max-height="88vh"
+        class="mail-reader-dialog"
+        width="calc(100vw - 24px)"
+        max-width="calc(100vw - 24px)"
+        height="calc(100dvh - 24px)"
+        max-height="calc(100dvh - 24px)"
         scrollable
     >
         <v-card class="mail-reader-card rounded border border-blue-900 bg-slate-950">
@@ -778,6 +774,14 @@ watch(model, async (isOpen) => {
                                     :class="{ 'mail-attachments-workspace--empty': !attachmentRows.length }"
                                 >
                                     <div class="mail-attachments-sidebar">
+                                        <MailInvoiceDetails
+                                            v-if="model && selectedPdfAttachment && currentMessage?.id"
+                                            :key="selectedPdfIdentity"
+                                            :message-id="currentMessage.id"
+                                            :attachment-index="selectedPdfAttachment.index"
+                                            :attachment-id="selectedPdfAttachment.id || null"
+                                        />
+
                                         <div v-if="attachmentRows.length" class="mail-attachments-sheet">
                                         <div class="mail-attachments-sheet__row is-head">
                                             <span>#</span>
@@ -803,7 +807,7 @@ watch(model, async (isOpen) => {
                                             @keydown.enter.prevent="selectAttachment(attachment)"
                                         >
                                             <span class="mail-attachments-sheet__num">{{ index + 1 }}</span>
-                                            <span class="mail-attachments-sheet__file">
+                                            <span class="mail-attachments-sheet__file" :title="attachmentName(attachment)">
                                                 <v-icon
                                                     :icon="attachmentIcon(attachment)"
                                                     size="13"
@@ -971,12 +975,13 @@ watch(model, async (isOpen) => {
                                                 :alt="attachmentName(selectedImageAttachment)"
                                             >
 
-                                            <iframe
-                                                v-else-if="selectedPdfAttachment && pdfPreviewSrc(selectedPdfAttachment)"
+                                            <MailPdfViewer
+                                                v-else-if="model && selectedPdfAttachment && currentMessage?.id"
+                                                :key="selectedPdfIdentity"
                                                 class="mail-attachment-preview__pdf"
-                                                :src="pdfPreviewSrc(selectedPdfAttachment)"
+                                                :src="downloadAttachmentUrl(selectedPdfAttachment)"
                                                 :title="attachmentName(selectedPdfAttachment)"
-                                            ></iframe>
+                                            />
 
                                             <div v-else class="mail-attachment-preview__empty">
                                                 {{
@@ -1066,11 +1071,17 @@ watch(model, async (isOpen) => {
 </template>
 
 <style scoped>
+:global(.mail-reader-dialog > .v-overlay__content) {
+    margin: 12px;
+}
+
 .mail-reader-card {
     display: flex;
     flex-direction: column;
     height: 100%;
     max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .mail-reader-header {
@@ -1234,7 +1245,8 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 6px;
-    grid-template-columns: minmax(0, 1fr) minmax(400px, 30vw);
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 22vw);
+    grid-template-rows: minmax(0, 1fr);
     min-height: 0;
     min-width: 0;
 }
@@ -1277,6 +1289,9 @@ watch(model, async (isOpen) => {
     flex: 1;
     flex-direction: column;
     min-height: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-bottom: 8px;
 }
 
 .mail-crm-card__title {
@@ -1343,18 +1358,27 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 6px;
-    grid-template-columns: minmax(220px, 250px) minmax(0, 1fr);
+    grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
     min-height: 0;
 }
 
 .mail-attachments-sidebar {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 6px;
-    grid-template-rows: minmax(0, 1fr) auto;
     min-height: 0;
+    min-width: 0;
+    overflow: auto;
+    scrollbar-width: thin;
+}
+
+.mail-attachments-sidebar > .mail-invoice-details,
+.mail-attachments-sidebar > .mail-crm-card {
+    flex: 0 0 auto;
 }
 
 .mail-attachments-workspace--empty .mail-attachments-sidebar {
+    display: grid;
     grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
     grid-template-rows: minmax(0, 1fr);
@@ -1422,7 +1446,9 @@ watch(model, async (isOpen) => {
     background: rgba(15, 23, 42, 0.78);
     border: 1px solid rgba(147, 197, 253, 0.28);
     border-radius: 10px;
-    min-height: 0;
+    flex: 0 1 auto;
+    max-height: 180px;
+    min-height: 82px;
     overflow: auto;
 }
 
@@ -1436,7 +1462,7 @@ watch(model, async (isOpen) => {
     display: grid;
     font-size: 12px;
     gap: 0;
-    grid-template-columns: 28px minmax(0, 1fr) 60px 42px 92px;
+    grid-template-columns: 22px minmax(0, 1fr) 48px 32px 62px;
     line-height: 1.15;
     padding: 0;
     text-align: left;
@@ -1447,7 +1473,7 @@ watch(model, async (isOpen) => {
     min-height: 32px;
     min-width: 0;
     overflow: hidden;
-    padding: 5px 6px;
+    padding: 5px 3px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1545,6 +1571,7 @@ watch(model, async (isOpen) => {
     flex-direction: column;
     gap: 6px;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
     padding: 8px;
 }
@@ -1559,8 +1586,9 @@ watch(model, async (isOpen) => {
 
 .mail-attachment-preview__meta strong {
     color: #dbeafe;
-    font-size: 14px;
-    font-weight: 900;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1569,7 +1597,7 @@ watch(model, async (isOpen) => {
 .mail-attachment-preview__meta span {
     color: #94a3b8;
     flex: 0 0 auto;
-    font-size: 12px;
+    font-size: 10px;
 }
 
 .mail-attachment-preview img {
@@ -1587,6 +1615,7 @@ watch(model, async (isOpen) => {
     border-radius: 10px;
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
     width: 100%;
 }
 
@@ -1666,24 +1695,16 @@ watch(model, async (isOpen) => {
 }
 
 @media (max-width: 1100px) {
-    .mail-reader-body {
-        overflow: auto;
-    }
-
     .mail-reader-main {
         grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) minmax(80px, 20%);
     }
 
     .mail-reader-main > .mail-body,
     .mail-reader-main > .mail-body-text {
         grid-column: 1;
         grid-row: 2;
-        max-height: 240px;
-    }
-
-    .mail-attachments-workspace {
-        grid-template-columns: 1fr;
-        min-height: 360px;
+        max-height: none;
     }
 
     .mail-attachments-workspace--empty .mail-attachments-sidebar {
@@ -1702,11 +1723,7 @@ watch(model, async (isOpen) => {
     }
 
     .mail-attachments-toolbar {
-        grid-template-columns: 1fr;
-    }
-
-    .mail-attachments-sheet__row {
-        grid-template-columns: 28px minmax(0, 1fr) 60px 42px 92px;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto;
     }
 }
 
@@ -1723,6 +1740,79 @@ watch(model, async (isOpen) => {
     .mail-reader-header__mailbox {
         margin-right: auto;
         max-width: min(360px, 72vw);
+    }
+
+    .mail-reader-body {
+        overflow: auto;
+    }
+
+    .mail-reader-layout,
+    .mail-reader-main {
+        flex: 0 0 auto;
+    }
+
+    .mail-reader-main {
+        grid-template-rows: auto minmax(100px, 180px);
+    }
+
+    .mail-attachments-toolbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .mail-attachments-workspace {
+        flex: 0 0 auto;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(360px, 55dvh);
+    }
+
+    .mail-attachments-sidebar {
+        max-height: 330px;
+    }
+
+    .mail-attachments-workspace--empty {
+        grid-template-rows: auto;
+    }
+
+    .mail-attachment-preview__meta {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 2px;
+    }
+}
+
+@media (max-height: 500px) and (min-width: 701px) {
+    .mail-reader-body {
+        overflow: auto;
+    }
+
+    .mail-reader-layout,
+    .mail-reader-main {
+        flex: 0 0 auto;
+        height: 380px;
+        min-height: 380px;
+    }
+
+    .mail-reader-main {
+        grid-template-columns: minmax(0, 1fr) minmax(180px, 22vw);
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .mail-reader-main > .mail-body,
+    .mail-reader-main > .mail-body-text {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .mail-attachments-workspace {
+        grid-template-columns: minmax(240px, 260px) minmax(0, 1fr);
+    }
+
+    .mail-attachments-toolbar {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    }
+
+    .mail-attachments-quick-folders {
+        display: none;
     }
 }
 </style>

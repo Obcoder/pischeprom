@@ -381,6 +381,7 @@ Route::post('emails/{email}/entities/sync', [EmailRelationController::class, 'sy
 
 Route::apiResource('emails', EmailController::class);
 
+use App\Http\Controllers\API\MailAttachmentAnalysisController;
 use App\Http\Controllers\API\MailboxController;
 use App\Http\Controllers\API\MailMessageActionController;
 use App\Http\Controllers\API\MailMessageController;
@@ -407,6 +408,10 @@ Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionCo
 Route::get('mail-messages/{mailMessage}/attachments/{index}/download', [MailMessageActionController::class, 'downloadAttachment'])
     ->whereNumber('index')
     ->name('mail-messages.attachments.download');
+Route::post('mail-messages/{mailMessage}/attachments/{index}/analyze', MailAttachmentAnalysisController::class)
+    ->whereNumber('index')
+    ->middleware('throttle:30,1,mail-attachment-analysis')
+    ->name('mail-messages.attachments.analyze');
 Route::get('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'attachmentFolders'])
     ->name('mail-messages.attachment-folders.index');
 Route::post('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'storeAttachmentFolder'])
