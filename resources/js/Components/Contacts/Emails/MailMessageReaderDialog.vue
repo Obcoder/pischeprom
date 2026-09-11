@@ -1245,7 +1245,7 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 6px;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 22vw);
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, 600px);
     grid-template-rows: minmax(0, 1fr);
     min-height: 0;
     min-width: 0;
@@ -1358,7 +1358,7 @@ watch(model, async (isOpen) => {
     display: grid;
     flex: 1;
     gap: 6px;
-    grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
+    grid-template-columns: clamp(320px, 28vw, 560px) minmax(0, 1fr);
     min-height: 0;
 }
 
@@ -1707,6 +1707,10 @@ watch(model, async (isOpen) => {
         max-height: none;
     }
 
+    .mail-attachments-workspace {
+        grid-template-columns: clamp(300px, 34vw, 360px) minmax(0, 1fr);
+    }
+
     .mail-attachments-workspace--empty .mail-attachments-sidebar {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(180px, 1fr) auto;
@@ -1793,7 +1797,7 @@ watch(model, async (isOpen) => {
     }
 
     .mail-reader-main {
-        grid-template-columns: minmax(0, 1fr) minmax(180px, 22vw);
+        grid-template-columns: minmax(0, 1fr) clamp(180px, 24vw, 600px);
         grid-template-rows: minmax(0, 1fr);
     }
 
@@ -1804,7 +1808,7 @@ watch(model, async (isOpen) => {
     }
 
     .mail-attachments-workspace {
-        grid-template-columns: minmax(240px, 260px) minmax(0, 1fr);
+        grid-template-columns: clamp(260px, 28vw, 560px) minmax(0, 1fr);
     }
 
     .mail-attachments-toolbar {
