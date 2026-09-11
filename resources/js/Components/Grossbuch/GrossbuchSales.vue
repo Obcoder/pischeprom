@@ -23,6 +23,7 @@ const selectedSale = ref(null)
 const errorMessage = ref('')
 const detailsErrorMessage = ref('')
 const detailsMessage = ref('')
+const dateRangeMenu = ref(false)
 let salesRequestId = 0
 
 const entities = ref([])
@@ -69,11 +70,10 @@ const saleForm = reactive({
 const detailsLine = reactive(makeLine())
 
 const headers = [
-    { title: 'Дата', key: 'date', sortable: true, width: '92px' },
+    { title: 'Дата', key: 'date', sortable: true, width: '78px' },
     { title: 'Покупатель / адрес', key: 'entity', sortable: true },
-    { title: 'Товары', key: 'goods', sortable: false, width: '30%' },
-    { title: 'Сумма', key: 'total', sortable: true, width: '148px', align: 'end' },
-    { title: 'Предыдущая продажа', key: 'previous_sale', sortable: false, width: '158px', align: 'end' },
+    { title: 'Сумма', key: 'total', sortable: true, width: '116px', align: 'end' },
+    { title: 'Предыдущая', key: 'previous_sale', sortable: false, width: '126px', align: 'end' },
 ]
 
 const pageCount = computed(() => Math.max(1, Math.ceil(totalItems.value / options.itemsPerPage)))
@@ -83,6 +83,12 @@ const hasFilters = computed(() => Boolean(filters.month || filters.date_from || 
 const selectedMonthLabel = computed(() => {
     if (!filters.month) return 'Все месяцы'
     return months.value.find((month) => month.value === filters.month)?.label || filters.month.split('-').reverse().join('.')
+})
+const dateRangeLabel = computed(() => {
+    if (filters.date_from && filters.date_to) return `${formatDate(filters.date_from)}–${formatDate(filters.date_to)}`
+    if (filters.date_from) return `С ${formatDate(filters.date_from)}`
+    if (filters.date_to) return `По ${formatDate(filters.date_to)}`
+    return 'Период'
 })
 const pageAmount = computed(() => rows.value.reduce((sum, row) => sum + toNumber(row.total), 0))
 
@@ -420,6 +426,7 @@ function applyDateRange() {
         errorMessage.value = 'Дата начала периода должна быть не позже даты окончания.'
         return
     }
+    dateRangeMenu.value = false
     options.page = 1
     fetchSales()
 }
@@ -678,7 +685,7 @@ onMounted(async () => {
                 </div>
             </header>
 
-            <form class="sales-filters" @submit.prevent="applyDateRange">
+            <div class="sales-filters">
                 <v-menu max-height="320" location="bottom start" theme="light">
                     <template #activator="{ props }">
                         <button v-bind="props" type="button" class="sales-month-trigger" :class="{ 'is-active': filters.month }">
@@ -697,19 +704,31 @@ onMounted(async () => {
                         </v-list-item>
                     </v-list>
                 </v-menu>
-                <div class="sales-date-range">
-                    <label class="sales-date-control">
-                        <span>С</span>
-                        <input v-model="filters.date_from" type="date" aria-label="Продажи с даты" :max="filters.date_to || undefined" />
-                    </label>
-                    <label class="sales-date-control">
-                        <span>По</span>
-                        <input v-model="filters.date_to" type="date" aria-label="Продажи по дату" :min="filters.date_from || undefined" />
-                    </label>
-                </div>
-                <v-btn type="submit" size="small" variant="tonal" color="#0f766e">Применить</v-btn>
-                <v-btn v-if="hasFilters" size="small" variant="text" @click="resetFilters">Сбросить</v-btn>
-            </form>
+                <v-menu v-model="dateRangeMenu" :close-on-content-click="false" location="bottom start" theme="light">
+                    <template #activator="{ props }">
+                        <button v-bind="props" type="button" class="sales-month-trigger sales-period-trigger" :class="{ 'is-active': filters.date_from || filters.date_to }" :title="dateRangeLabel" aria-label="Выбрать период продаж">
+                            <v-icon icon="mdi-calendar-range-outline" size="16" />
+                            <span>{{ dateRangeLabel }}</span>
+                            <v-icon icon="mdi-chevron-down" size="14" />
+                        </button>
+                    </template>
+                    <form class="sales-period-form" @submit.prevent="applyDateRange">
+                        <strong>Период продаж</strong>
+                        <div class="sales-date-range">
+                            <label class="sales-date-control">
+                                <span>С</span>
+                                <input v-model="filters.date_from" type="date" aria-label="Продажи с даты" :max="filters.date_to || undefined" />
+                            </label>
+                            <label class="sales-date-control">
+                                <span>По</span>
+                                <input v-model="filters.date_to" type="date" aria-label="Продажи по дату" :min="filters.date_from || undefined" />
+                            </label>
+                        </div>
+                        <v-btn type="submit" size="small" variant="flat" color="#0f766e">Применить</v-btn>
+                    </form>
+                </v-menu>
+                <v-btn v-if="hasFilters" icon="mdi-filter-remove-outline" size="x-small" variant="text" title="Сбросить фильтры продаж" aria-label="Сбросить фильтры продаж" @click="resetFilters" />
+            </div>
 
             <v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" class="sales-error">
                 {{ errorMessage }}
@@ -754,14 +773,6 @@ onMounted(async () => {
                             {{ entityBuildingsText(item.entity, 1) }}
                         </div>
                     </div>
-                </template>
-
-                <template #item.goods="{ item }">
-                    <button v-if="saleGoods(item).length" type="button" class="sales-goods" :title="saleGoods(item).map(good => good.name).join(', ')" @click="openSaleDetails(item)">
-                        <span>{{ saleGoods(item)[0].name }}</span>
-                        <small>{{ saleGoods(item).length === 1 ? '1 позиция' : `${saleGoods(item).length} поз. · ещё ${saleGoods(item).length - 1}` }}</small>
-                    </button>
-                    <button v-else type="button" class="sales-no-goods" @click="openSaleDetails(item)">Без товаров <v-icon icon="mdi-chevron-right" size="14" /></button>
                 </template>
 
                 <template #item.total="{ item }">
@@ -1310,7 +1321,7 @@ onMounted(async () => {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 14px;
+    padding: 7px 10px;
     border-bottom: 1px solid #e2e8f0;
     background: #fff;
 }
@@ -1322,21 +1333,21 @@ onMounted(async () => {
     gap: 12px;
 }
 
-.sales-toolbar__summary { flex: 1; min-width: 0; gap: 24px; }
+.sales-toolbar__summary { flex: 1; min-width: 0; gap: 18px; }
 .sales-toolbar__actions { flex: 0 0 auto; gap: 5px; }
 .sales-metric { display: grid; gap: 2px; }
 .sales-metric > span { color: #64748b; font-size: 11px; line-height: 1.2; }
 .sales-metric > strong { color: #334155; font-size: 17px; font-weight: 600; line-height: 1.2; }
 .sales-metric--amount { min-width: 0; }
-.sales-metric--amount > strong { overflow: hidden; color: #0f766e; font-size: 21px; text-overflow: ellipsis; white-space: nowrap; }
+.sales-metric--amount > strong { overflow: hidden; color: #0f766e; font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }
 
 .sales-filters {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
-    padding: 8px 12px;
+    padding: 5px 9px;
     border-bottom: 1px solid #e2e8f0;
     background: #f8fafc;
 }
@@ -1346,7 +1357,7 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 32px;
+    height: 30px;
     border: 1px solid #dce3eb;
     border-radius: 6px;
     background: #fff;
@@ -1354,13 +1365,19 @@ onMounted(async () => {
     font-size: 12px;
 }
 
-.sales-month-trigger { padding: 0 8px; }
+.sales-month-trigger { flex: 0 0 auto; padding: 0 7px; }
 .sales-month-trigger.is-active { border-color: #93cfc5; background: #f0fdfa; color: #0f766e; }
+.sales-period-trigger { flex: 0 1 auto; min-width: 0; }
+.sales-period-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sales-period-form { display: grid; gap: 10px; width: 310px; max-width: calc(100vw - 24px); padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #334155; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto-Regular', sans-serif; font-size: 12px; }
+.sales-period-form > strong { font-size: 12px; font-weight: 600; }
+.sales-period-form > .v-btn { justify-self: end; text-transform: none; letter-spacing: 0; }
 .sales-date-range { display: flex; align-items: center; gap: 6px; }
-.sales-date-control { padding-left: 8px; }
+.sales-date-control { flex: 1; min-width: 0; padding-left: 8px; }
 .sales-date-control > span { color: #64748b; font-size: 11px; }
 .sales-date-control input {
-    width: 125px;
+    flex: 1;
+    width: 100%;
     min-width: 0;
     height: 30px;
     padding: 0 5px 0 0;
@@ -1400,10 +1417,10 @@ onMounted(async () => {
     scrollbar-color: #bdcbd4 #f8fafc;
     overscroll-behavior: contain;
 }
-.sales-grid :deep(table) { min-width: 850px; table-layout: fixed; }
+.sales-grid :deep(table) { min-width: 540px; table-layout: fixed; }
 .sales-grid :deep(thead th) {
-    height: 34px !important;
-    padding: 0 12px !important;
+    height: 31px !important;
+    padding: 0 8px !important;
     border-bottom: 1px solid #dce5ea !important;
     background: #f1f5f9 !important;
     color: #64748b !important;
@@ -1412,8 +1429,8 @@ onMounted(async () => {
     white-space: nowrap;
 }
 .sales-grid :deep(tbody td) {
-    height: 58px !important;
-    padding: 7px 12px !important;
+    height: 54px !important;
+    padding: 6px 8px !important;
     border-bottom: 1px solid #edf1f5 !important;
     background: #fff;
 }
@@ -1430,13 +1447,8 @@ onMounted(async () => {
 .sales-party__units a:hover { text-decoration: underline; }
 .sales-party__units > span { flex: 0 0 auto; color: #64748b; }
 .sales-party__address { overflow: hidden; color: #64748b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.sales-goods { display: grid; gap: 4px; width: 100%; text-align: left; }
-.sales-goods > span { overflow: hidden; color: #475569; text-overflow: ellipsis; white-space: nowrap; }
-.sales-goods > small { color: #64748b; font-size: 10px; }
-.sales-goods:hover > span { color: #0f766e; }
-.sales-no-goods { display: inline-flex; align-items: center; color: #64748b; font-size: 11px; }
-.sales-money-button { display: flex; align-items: center; justify-content: flex-end; gap: 5px; width: 100%; min-height: 32px; margin-right: -4px; padding: 4px 0; border-radius: 5px; color: #0f766e; text-align: right; white-space: nowrap; }
-.sales-money-button strong { font-size: 13px; font-weight: 600; }
+.sales-money-button { display: flex; align-items: center; justify-content: flex-end; gap: 2px; width: 100%; min-height: 32px; padding: 4px 0; border-radius: 5px; color: #0f766e; text-align: right; white-space: nowrap; }
+.sales-money-button strong { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; }
 .sales-money-button :deep(.v-icon) { color: #8fbeb6; }
 .sales-money-button:hover { background: #ccfbf1; }
 .sales-prev { display: grid; gap: 4px; line-height: 1.2; text-align: right; white-space: nowrap; }
@@ -1447,7 +1459,7 @@ onMounted(async () => {
 .sales-empty strong { color: #475569; font-size: 14px; font-weight: 500; }
 .sales-empty span { color: #64748b; font-size: 12px; }
 
-.sales-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; min-height: 43px; padding: 5px 12px; border-top: 1px solid #e2e8f0; background: #fff; color: #64748b; font-size: 11px; }
+.sales-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; min-height: 37px; padding: 4px 9px; border-top: 1px solid #e2e8f0; background: #fff; color: #64748b; font-size: 11px; }
 .sales-footer__total { display: flex; gap: 8px; white-space: nowrap; }
 .sales-footer__total strong { color: #0f766e; font-weight: 600; }
 .sales-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
@@ -1585,28 +1597,30 @@ onMounted(async () => {
 .sale-dialog__footer-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: #64748b; font-size: 12px; }
 .sale-dialog__footer-line strong { color: #0f766e; font-weight: 600; }
 
-@media (max-width: 900px) {
+@container commerce-panel (max-width: 620px) {
     .sales-footer__total { display: none; }
-    .sales-pagination { width: 100%; }
-}
-@media (max-width: 600px) {
-    .sales-toolbar { gap: 6px; padding: 9px 10px; }
+    .sales-pagination { width: 100%; justify-content: space-between; }
+    .sales-toolbar { gap: 6px; padding: 6px 8px; }
     .sales-toolbar__summary { gap: 13px; }
     .sales-metric > strong { font-size: 15px; }
-    .sales-metric--amount > strong { font-size: 18px; }
+    .sales-metric--amount > strong { font-size: 17px; }
     .sales-metric > span { font-size: 10px; }
     .sales-toolbar__actions { gap: 2px; }
     .sales-toolbar__actions :deep(.v-btn:not(.v-btn--icon)) { padding: 0 8px; font-size: 11px; }
-    .sales-filters { gap: 5px; padding: 7px 9px; }
-    .sales-month-trigger { order: 1; }
-    .sales-date-range { flex: 1 0 100%; gap: 5px; }
-    .sales-date-control { flex: 1; min-width: 0; }
-    .sales-date-control input { flex: 1; width: 100%; }
-    .sales-filters > .v-btn { order: 2; }
-    .sales-footer { min-height: 41px; padding: 5px 9px; }
-    .sales-pagination { justify-content: space-between; gap: 5px; font-size: 10px; }
+    .sales-filters { gap: 5px; padding: 4px 8px; }
+    .sales-footer { padding: 4px 8px; }
+    .sales-pagination { gap: 5px; font-size: 10px; }
     .sales-page-size { gap: 4px; }
     .sales-pagination > button { width: 27px; height: 28px; }
+}
+@container commerce-panel (max-width: 400px) {
+    .sales-toolbar__summary { gap: 9px; }
+    .sales-metric--amount > strong { font-size: 16px; }
+    .sales-toolbar__actions :deep(.v-btn--icon) { width: 26px; }
+    .sales-month-trigger { gap: 4px; padding: 0 5px; font-size: 11px; }
+    .sales-error { max-height: 42px; margin: 3px 8px; }
+}
+@media (max-width: 600px) {
     .sale-details__title,
     .sale-dialog__title { padding: 8px 10px; gap: 6px; }
     .sale-details__title > div,

@@ -585,7 +585,7 @@ onMounted(async () => {
                 <form class="purchase-search" role="search" @submit.prevent="applyFilters">
                     <v-text-field
                         v-model="filters.search"
-                        placeholder="Поиск закупок, контрагентов, товаров"
+                        placeholder="Поиск закупок"
                         aria-label="Поиск закупок"
                         prepend-inner-icon="mdi-magnify"
                         variant="outlined"
@@ -594,7 +594,16 @@ onMounted(async () => {
                         clearable
                         @click:clear="applyFilters"
                     />
-                    <v-btn type="submit" variant="tonal" color="#2563eb" size="small">Найти</v-btn>
+                    <v-btn
+                        type="submit"
+                        icon="mdi-arrow-right"
+                        variant="tonal"
+                        color="#2563eb"
+                        size="small"
+                        aria-label="Найти закупки"
+                        title="Найти закупки"
+                        class="purchase-search-submit"
+                    />
                 </form>
 
                 <div class="purchases-toolbar__meta">
@@ -613,8 +622,10 @@ onMounted(async () => {
                                 size="small"
                                 prepend-icon="mdi-filter-variant"
                                 :color="activeFilterCount ? '#2563eb' : undefined"
+                                class="purchase-filter-toggle"
+                                aria-label="Фильтры закупок"
                             >
-                                Фильтры
+                                <span class="purchase-filter-toggle__label">Фильтры</span>
                                 <span v-if="activeFilterCount" class="purchase-filter-count">{{ activeFilterCount }}</span>
                             </v-btn>
                         </template>
@@ -756,6 +767,7 @@ onMounted(async () => {
                         size="small"
                         title="Сбросить фильтры и поиск"
                         aria-label="Сбросить фильтры и поиск"
+                        class="purchase-filter-reset"
                         @click="resetFilters"
                     />
 
@@ -767,7 +779,7 @@ onMounted(async () => {
                         prepend-icon="mdi-plus"
                         @click="openCreate"
                     >
-                        Новая закупка
+                        Добавить
                     </v-btn>
                 </div>
             </div>
@@ -787,11 +799,8 @@ onMounted(async () => {
                 <table class="purchase-grid" aria-label="Закупки">
                     <thead>
                         <tr>
-                            <th class="purchase-grid__id">ID</th>
-                            <th class="purchase-grid__date">Дата</th>
+                            <th class="purchase-grid__document">Дата / №</th>
                             <th>Контрагент</th>
-                            <th class="purchase-grid__goods">Товары</th>
-                            <th class="purchase-grid__unit">Unit</th>
                             <th class="purchase-grid__amount">Сумма</th>
                             <th class="purchase-grid__actions">Действия</th>
                         </tr>
@@ -799,30 +808,27 @@ onMounted(async () => {
 
                     <tbody>
                         <tr v-if="loading">
-                            <td colspan="7" class="purchase-grid__state">
+                            <td colspan="4" class="purchase-grid__state">
                                 <v-progress-circular indeterminate size="22" width="2" color="#2563eb" />
                                 <span>Загрузка закупок…</span>
                             </td>
                         </tr>
 
                         <tr v-else-if="!items.length">
-                            <td colspan="7" class="purchase-grid__state">
+                            <td colspan="4" class="purchase-grid__state">
                                 <v-icon icon="mdi-package-variant-closed" size="28" />
                                 <strong>{{ activeFilterCount ? 'Закупки не найдены' : 'Закупок пока нет' }}</strong>
-                                <span>{{ activeFilterCount ? 'Измените условия поиска или сбросьте фильтры.' : 'Добавьте первую закупку — её товары и сумма появятся здесь.' }}</span>
+                                <span>{{ activeFilterCount ? 'Измените условия поиска или сбросьте фильтры.' : 'Добавьте первую закупку.' }}</span>
                             </td>
                         </tr>
 
                         <template v-else>
                             <tr v-for="purchase in items" :key="purchase.id">
-                                <td class="purchase-grid__id">
+                                <td class="purchase-grid__document">
+                                    <span class="purchase-document-date">{{ formatDate(purchase.date) }}</span>
                                     <button type="button" class="purchase-id-link" @click="openDetails(purchase)">
                                         #{{ purchase.id }}
                                     </button>
-                                </td>
-
-                                <td class="purchase-grid__date">
-                                    {{ formatDate(purchase.date) }}
                                 </td>
 
                                 <td>
@@ -837,35 +843,20 @@ onMounted(async () => {
                                         </Link>
                                         <span v-else class="purchase-entity-cell__name">-</span>
                                         <span v-if="purchase.entity?.INN" class="purchase-entity-cell__meta">ИНН {{ purchase.entity.INN }}</span>
-                                    </span>
-                                </td>
-
-                                <td class="purchase-grid__goods">
-                                    <button
-                                        type="button"
-                                        class="purchase-goods-button"
-                                        :title="(purchase.items || []).map((item) => item.good?.name || item.good_name).filter(Boolean).join(', ') || 'Открыть состав закупки'"
-                                        @click="openDetails(purchase)"
-                                    >
-                                        <span>{{ purchase.items?.[0]?.good?.name || purchase.items?.[0]?.good_name || 'Состав закупки' }}</span>
-                                        <small>{{ purchase.items_count || purchase.items?.length || 0 }} поз.</small>
-                                    </button>
-                                </td>
-
-                                <td class="purchase-grid__unit">
-                                    <div v-if="entityUnits(purchase.entity).length" class="purchase-unit-list">
-                                        <Link
-                                            v-for="unit in entityUnits(purchase.entity).slice(0, 2)"
-                                            :key="unit.id"
-                                            :href="unitHref(unit)"
-                                        >
-                                            {{ unit.name }}
-                                        </Link>
-                                        <span v-if="entityUnits(purchase.entity).length > 2">
-                                            +{{ entityUnits(purchase.entity).length - 2 }}
+                                        <span v-if="entityUnits(purchase.entity).length" class="purchase-unit-list" :title="entityUnitsText(purchase.entity, 12)">
+                                            <Link
+                                                v-for="unit in entityUnits(purchase.entity).slice(0, 2)"
+                                                :key="unit.id"
+                                                :href="unitHref(unit)"
+                                                :title="unit.name"
+                                            >
+                                                {{ unit.name }}
+                                            </Link>
+                                            <span v-if="entityUnits(purchase.entity).length > 2">
+                                                +{{ entityUnits(purchase.entity).length - 2 }}
+                                            </span>
                                         </span>
-                                    </div>
-                                    <span v-else class="purchase-muted">-</span>
+                                    </span>
                                 </td>
 
                                 <td class="purchase-grid__amount">
@@ -974,6 +965,8 @@ onMounted(async () => {
                             </button>
                         </template>
                     </div>
+
+                    <span class="purchase-page-status">{{ currentPage }} / {{ lastPage }}</span>
 
                     <button
                         type="button"
@@ -1411,20 +1404,29 @@ onMounted(async () => {
     flex: 0 0 auto;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    min-height: 52px;
-    padding: 9px 12px;
+    gap: 7px;
+    min-height: 46px;
+    padding: 7px 8px;
     border-bottom: 1px solid #e2e8f0;
     background: #fff;
 }
 
 .purchase-search {
     display: flex;
-    flex: 1 1 360px;
+    flex: 1 1 200px;
     align-items: center;
     gap: 6px;
-    max-width: 520px;
-    min-width: 170px;
+    min-width: 0;
+}
+
+.purchase-search :deep(.v-input) {
+    min-width: 0;
+}
+
+.purchase-search-submit {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
 }
 
 .purchase-search :deep(.v-field) {
@@ -1570,7 +1572,7 @@ onMounted(async () => {
 
 .purchase-grid {
     width: 100%;
-    min-width: 920px;
+    min-width: 480px;
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
@@ -1582,7 +1584,7 @@ onMounted(async () => {
 .purchase-grid td {
     overflow: hidden;
     height: 43px;
-    padding: 5px 10px;
+    padding: 5px 8px;
     border-bottom: 1px solid #edf1f5;
     text-overflow: ellipsis;
     vertical-align: middle;
@@ -1610,25 +1612,19 @@ onMounted(async () => {
     background: #eff6ff;
 }
 
-.purchase-grid__id {
-    width: 66px;
-}
-
-.purchase-grid__date {
-    width: 104px;
+.purchase-grid__document {
+    width: 94px;
     white-space: nowrap;
 }
 
-.purchase-grid__goods {
-    width: 26%;
-}
-
-.purchase-grid__unit {
-    width: 146px;
+.purchase-document-date {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
 }
 
 .purchase-grid .purchase-grid__amount {
-    width: 128px;
+    width: 98px;
     text-align: right;
 }
 
@@ -1684,7 +1680,8 @@ onMounted(async () => {
     display: inline-flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 3px;
+    gap: 2px;
+    width: 100%;
     max-width: 100%;
     min-width: 0;
     line-height: 1.2;
@@ -1712,35 +1709,11 @@ onMounted(async () => {
     font-size: 10px;
 }
 
-.purchase-goods-button {
-    display: grid;
-    gap: 3px;
-    width: 100%;
-    text-align: left;
-    line-height: 1.2;
-}
-
-.purchase-goods-button span {
-    overflow: hidden;
-    color: #475569;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.purchase-goods-button:hover span {
-    color: #2563eb;
-}
-
-.purchase-goods-button small {
-    color: #94a3b8;
-    font-size: 10px;
-}
-
 .purchase-unit-list {
     display: flex;
-    flex-wrap: wrap;
     gap: 3px;
-    max-height: 36px;
+    max-width: 100%;
+    min-width: 0;
     overflow: hidden;
     line-height: 1.2;
 }
@@ -1749,7 +1722,7 @@ onMounted(async () => {
 .purchase-unit-list span {
     max-width: 100%;
     overflow: hidden;
-    padding: 2px 5px;
+    padding: 1px 4px;
     border-radius: 4px;
     background: #f1f5f9;
     color: #64748b;
@@ -1757,10 +1730,6 @@ onMounted(async () => {
     text-overflow: ellipsis;
     text-decoration: none;
     white-space: nowrap;
-}
-
-.purchase-muted {
-    color: #94a3b8;
 }
 
 .purchase-actions {
@@ -1788,8 +1757,8 @@ onMounted(async () => {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    min-height: 43px;
-    padding: 6px 12px;
+    min-height: 38px;
+    padding: 4px 8px;
     border-top: 1px solid #e2e8f0;
     background: #fff;
 }
@@ -1799,6 +1768,15 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     gap: 3px;
+}
+
+.purchase-page-status {
+    display: none;
+    min-width: 48px;
+    color: #64748b;
+    font-size: 11px;
+    text-align: center;
+    white-space: nowrap;
 }
 
 .purchase-page,
@@ -2468,34 +2446,53 @@ onMounted(async () => {
     }
 }
 
-@media (max-width: 640px) {
+@container commerce-panel (max-width: 540px) {
     .purchases-toolbar {
-        flex-wrap: wrap;
-        gap: 7px;
-        padding: 8px;
-    }
-
-    .purchase-search {
-        flex-basis: 100%;
-        max-width: none;
+        gap: 5px;
     }
 
     .purchases-toolbar__meta {
-        width: 100%;
-        justify-content: flex-end;
+        gap: 4px;
     }
 
-    .purchase-pages {
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 4px 10px;
-        padding: 6px 8px;
+    .purchase-filter-toggle__label,
+    .purchase-page-list {
+        display: none;
+    }
+
+    .purchase-filter-toggle {
+        width: 32px;
+        min-width: 32px;
+        padding: 0;
+    }
+
+    .purchase-filter-toggle :deep(.v-btn__prepend) {
+        margin: 0;
+    }
+
+    .purchase-filter-count {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        margin-left: 0;
+    }
+
+    .purchase-page-status {
+        display: inline;
     }
 
     .purchases-counter {
         font-size: 11px;
     }
+}
 
+@container commerce-panel (max-width: 440px) {
+    .purchase-filter-reset {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
     .purchase-form-dialog :deep(.v-overlay__content) {
         margin: 8px;
         max-height: calc(100vh - 16px);

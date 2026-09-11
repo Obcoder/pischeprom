@@ -1,58 +1,11 @@
 <script setup>
 import { Head } from '@inertiajs/vue3'
-import { nextTick, onMounted, ref } from 'vue'
 import SalesBoard from '@/Components/Grossbuch/GrossbuchSales.vue'
 import TradeFlowIcon from '@/Components/Icons/TradeFlowIcon.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import PurchasesBoard from '@/Pages/Purchases/Purchases.vue'
 
 defineOptions({ layout: VerwalterLayout })
-
-const TAB_KEY = 'ameise:commerce:tab'
-const tabs = [
-    { value: 'purchases', title: 'Закупки', icon: 'mdi-arrow-bottom-left' },
-    { value: 'sales', title: 'Продажи', icon: 'mdi-arrow-top-right' },
-]
-const activeTab = ref('purchases')
-const visitedTabs = ref(['purchases'])
-
-function selectTab(value) {
-    if (!tabs.some((tab) => tab.value === value)) return
-
-    activeTab.value = value
-    if (!visitedTabs.value.includes(value)) visitedTabs.value.push(value)
-
-    try {
-        window.localStorage.setItem(TAB_KEY, value)
-    } catch {
-        // The workspace remains usable when browser storage is unavailable.
-    }
-}
-
-async function navigateTabs(event) {
-    const index = tabs.findIndex((tab) => tab.value === activeTab.value)
-    let nextIndex
-
-    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length
-    else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length
-    else if (event.key === 'Home') nextIndex = 0
-    else if (event.key === 'End') nextIndex = tabs.length - 1
-    else return
-
-    event.preventDefault()
-    selectTab(tabs[nextIndex].value)
-    await nextTick()
-    document.getElementById(`commerce-tab-${activeTab.value}`)?.focus()
-}
-
-onMounted(() => {
-    try {
-        const savedTab = window.localStorage.getItem(TAB_KEY)
-        if (savedTab) selectTab(savedTab)
-    } catch {
-        // Use the default tab when storage is unavailable.
-    }
-})
 </script>
 
 <template>
@@ -65,49 +18,25 @@ onMounted(() => {
                     <span class="commerce-heading__icon" aria-hidden="true"><TradeFlowIcon /></span>
                     <div>
                         <h1>Закупки и продажи</h1>
-                        <p>Товары, контрагенты и суммы операций</p>
+                        <p>Контрагенты, суммы и история операций</p>
                     </div>
-                </div>
-
-                <div class="commerce-tabs" role="tablist" aria-label="Реестры операций" @keydown="navigateTabs">
-                    <button
-                        v-for="tab in tabs"
-                        :id="`commerce-tab-${tab.value}`"
-                        :key="tab.value"
-                        type="button"
-                        role="tab"
-                        :class="['commerce-tab', `commerce-tab--${tab.value}`, { 'is-active': activeTab === tab.value }]"
-                        :aria-selected="activeTab === tab.value"
-                        :aria-controls="`commerce-panel-${tab.value}`"
-                        :tabindex="activeTab === tab.value ? 0 : -1"
-                        @click="selectTab(tab.value)"
-                    >
-                        <v-icon :icon="tab.icon" size="17" />
-                        {{ tab.title }}
-                    </button>
                 </div>
             </header>
 
             <div class="commerce-workspace">
-                <section
-                    id="commerce-panel-purchases"
-                    v-show="activeTab === 'purchases'"
-                    class="commerce-panel"
-                    role="tabpanel"
-                    aria-labelledby="commerce-tab-purchases"
-                    tabindex="0"
-                >
+                <section class="commerce-panel commerce-panel--purchases" aria-labelledby="commerce-purchases-title">
+                    <header class="commerce-panel__heading">
+                        <v-icon icon="mdi-arrow-bottom-left" size="17" aria-hidden="true" />
+                        <h2 id="commerce-purchases-title">Закупки</h2>
+                    </header>
                     <PurchasesBoard />
                 </section>
-                <section
-                    id="commerce-panel-sales"
-                    v-show="activeTab === 'sales'"
-                    class="commerce-panel"
-                    role="tabpanel"
-                    aria-labelledby="commerce-tab-sales"
-                    tabindex="0"
-                >
-                    <SalesBoard v-if="visitedTabs.includes('sales')" />
+                <section class="commerce-panel commerce-panel--sales" aria-labelledby="commerce-sales-title">
+                    <header class="commerce-panel__heading">
+                        <v-icon icon="mdi-arrow-top-right" size="17" aria-hidden="true" />
+                        <h2 id="commerce-sales-title">Продажи</h2>
+                    </header>
+                    <SalesBoard />
                 </section>
             </div>
         </main>
@@ -182,78 +111,67 @@ onMounted(() => {
     line-height: 1.4;
 }
 
-.commerce-tabs {
-    display: flex;
-    flex-shrink: 0;
-    gap: 3px;
-    padding: 3px;
-    border: 1px solid #dce4ee;
-    border-radius: 10px;
-    background: #e8eef5;
-}
-
-.commerce-tab {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    min-height: 34px;
-    padding: 5px 17px;
-    border-radius: 7px;
-    color: #526176;
-    font-size: 13px;
-    font-weight: 600;
-    transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
-}
-
-.commerce-tab:hover { background: #f8fafc; }
-.commerce-tab.is-active { background: #fff; box-shadow: 0 1px 4px #0f172a14; }
-.commerce-tab--purchases.is-active { color: #2563eb; }
-.commerce-tab--sales.is-active { color: #0f766e; }
-
-.commerce-tab:focus-visible,
-.commerce-panel:focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
-}
-
-.commerce-workspace,
-.commerce-panel {
-    display: flex;
-    flex-direction: column;
+.commerce-workspace {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
     flex: 1 1 0;
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
+    gap: 12px;
 }
 
-.commerce-workspace {
+.commerce-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     border: 1px solid #dce4ee;
-    border-radius: 12px;
+    border-radius: 10px;
     background: #fff;
     box-shadow: 0 2px 6px #0f172a04;
+    container-type: inline-size;
+    container-name: commerce-panel;
 }
 
-.commerce-panel { height: 100%; }
+.commerce-panel--purchases { --panel-accent: #2563eb; --panel-tint: #eff6ff; }
+.commerce-panel--sales { --panel-accent: #0f766e; --panel-tint: #f0fdfa; }
 
-@media (max-width: 600px) {
-    .commerce-page { padding: 8px; }
-    .commerce-header { flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
-    .commerce-heading h1 { font-size: 17px; }
+.commerce-panel__heading {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    min-height: 33px;
+    padding: 5px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: var(--panel-tint);
+    color: var(--panel-accent);
+}
+
+.commerce-panel__heading h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+    .commerce-page { padding: 6px; }
+    .commerce-header { padding-bottom: 6px; }
+    .commerce-heading h1 { font-size: 16px; }
     .commerce-heading p { display: none; }
-    .commerce-heading__icon { width: 30px; height: 30px; flex-basis: 30px; border-radius: 8px; }
-    .commerce-tabs { width: 100%; }
-    .commerce-tab { flex: 1; min-height: 34px; }
-    .commerce-workspace { border-radius: 9px; }
+    .commerce-heading__icon { width: 28px; height: 28px; flex-basis: 28px; border-radius: 8px; }
+    .commerce-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .commerce-panel { border-radius: 8px; }
+    .commerce-panel__heading { min-height: 28px; padding: 3px 9px; }
 }
 
-@media (max-height: 550px) and (min-width: 601px) {
+@media (max-height: 550px) and (min-width: 761px) {
     .commerce-page { padding: 6px 10px; }
     .commerce-header { padding-bottom: 6px; }
     .commerce-heading p { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .commerce-tab { transition: none; }
+    .commerce-panel__heading { min-height: 28px; padding-block: 3px; }
 }
 </style>
