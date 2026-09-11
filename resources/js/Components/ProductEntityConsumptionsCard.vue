@@ -21,10 +21,8 @@ const statuses = {
 
 const headers = [
     { title: 'Entity', key: 'entity.name' },
-    { title: 'Объём', key: 'quantity', sortable: false },
-    { title: 'Статус', key: 'status', sortable: false },
-    { title: 'Комментарий', key: 'comment', sortable: false },
-    { title: '', key: 'actions', sortable: false, align: 'end' },
+    { title: 'Объём', key: 'quantity', sortable: false, width: '100px' },
+    { title: '', key: 'actions', sortable: false, align: 'end', width: '36px' },
 ]
 
 const filteredConsumptions = computed(() => {
@@ -82,18 +80,18 @@ onBeforeUnmount(() => activeRequest?.abort())
 </script>
 
 <template>
-    <v-card rounded="lg" variant="flat" border class="entity-needs-card">
+    <v-card rounded="lg" variant="flat" border class="entity-needs-card" aria-label="Потребители Entities">
         <div class="entity-needs-header">
             <div class="d-flex align-center ga-2">
-                <v-icon icon="mdi-domain" color="primary" size="21" />
-                <h2 class="text-subtitle-1 font-weight-bold">Потребности Entities</h2>
+                <v-icon icon="mdi-domain" color="primary" size="19" />
+                <h2>Entities</h2>
                 <v-chip v-if="!loading && !error" size="x-small" color="primary" variant="tonal">
                     {{ consumptions.length }}
                 </v-chip>
             </div>
             <v-btn
                 icon="mdi-refresh"
-                size="small"
+                size="x-small"
                 variant="text"
                 :loading="loading"
                 aria-label="Обновить потребности Entities"
@@ -101,12 +99,6 @@ onBeforeUnmount(() => activeRequest?.abort())
                 @click="loadConsumptions"
             />
         </div>
-
-        <p class="text-body-2 text-medium-emphasis px-4 pb-3">
-            Потребности компаний в этом продукте. Добавление и изменение — в карточке Entity.
-        </p>
-
-        <v-divider />
 
         <v-skeleton-loader v-if="loading" type="table-row@3" />
 
@@ -118,7 +110,7 @@ onBeforeUnmount(() => activeRequest?.abort())
         </v-alert>
 
         <div v-else-if="!consumptions.length" class="entity-needs-empty">
-            <v-icon icon="mdi-clipboard-text-outline" color="primary" size="28" />
+            <v-icon icon="mdi-clipboard-text-outline" color="primary" size="22" />
             <div>
                 <div class="text-body-2 font-weight-medium">Потребностей пока нет</div>
                 <div class="text-caption text-medium-emphasis">
@@ -128,10 +120,11 @@ onBeforeUnmount(() => activeRequest?.abort())
         </div>
 
         <template v-else>
-            <div class="px-4 pt-3 pb-2">
+            <div class="entity-needs-search">
                 <v-text-field
                     v-model="search"
-                    label="Поиск по названию, ИНН, статусу или комментарию"
+                    label="Поиск Entities"
+                    placeholder="Название, ИНН, статус, комментарий"
                     prepend-inner-icon="mdi-magnify"
                     variant="outlined"
                     density="compact"
@@ -146,6 +139,8 @@ onBeforeUnmount(() => activeRequest?.abort())
                 :items="filteredConsumptions"
                 :items-per-page="10"
                 :items-per-page-options="[10, 25, 50]"
+                :hide-default-footer="filteredConsumptions.length <= 10"
+                :mobile="false"
                 density="compact"
                 no-data-text="По вашему запросу ничего не найдено"
                 items-per-page-text="На странице"
@@ -153,37 +148,39 @@ onBeforeUnmount(() => activeRequest?.abort())
                 class="entity-needs-table"
             >
                 <template #item.entity.name="{ item }">
-                    <div class="py-2">
+                    <div class="entity-needs-identity">
                         <Link :href="entityUrl(item)" class="entity-needs-link">
                             {{ item.entity?.name || `Entity #${item.entity_id}` }}
                         </Link>
-                        <div v-if="item.entity?.INN" class="text-caption text-medium-emphasis">
-                            ИНН {{ item.entity.INN }}
+                        <div class="entity-needs-meta">
+                            <span v-if="item.entity?.INN" class="text-caption text-medium-emphasis">
+                                ИНН {{ item.entity.INN }}
+                            </span>
+                            <v-chip :color="statuses[item.status]?.color || 'grey'" size="x-small" variant="tonal">
+                                {{ statuses[item.status]?.title || item.status }}
+                            </v-chip>
+                        </div>
+                        <div v-if="item.comment" class="entity-needs-comment text-caption text-medium-emphasis">
+                            {{ item.comment }}
                         </div>
                     </div>
                 </template>
 
                 <template #item.quantity="{ item }">
                     <span class="entity-needs-quantity">{{ formatQuantity(item.quantity) }}</span>
-                    <span v-if="item.measure?.name" class="text-caption text-medium-emphasis ml-1">
+                    <span v-if="item.measure?.name" class="entity-needs-measure text-caption text-medium-emphasis">
                         {{ item.measure.name }}
                     </span>
                 </template>
 
-                <template #item.status="{ item }">
-                    <v-chip :color="statuses[item.status]?.color || 'grey'" size="x-small" variant="tonal">
-                        {{ statuses[item.status]?.title || item.status }}
-                    </v-chip>
-                </template>
-
-                <template #item.comment="{ item }">
-                    <span class="entity-needs-comment text-body-2">{{ item.comment || '—' }}</span>
-                </template>
-
                 <template #item.actions="{ item }">
-                    <Link :href="entityUrl(item)" class="entity-needs-manage">
-                        Управлять
-                        <v-icon icon="mdi-arrow-top-right" size="14" />
+                    <Link
+                        :href="entityUrl(item)"
+                        class="entity-needs-manage"
+                        :aria-label="`Управлять потребностями ${item.entity?.name || `Entity #${item.entity_id}`}`"
+                        title="Открыть потребности Entity"
+                    >
+                        <v-icon icon="mdi-arrow-top-right" size="16" />
                     </Link>
                 </template>
             </v-data-table>
@@ -192,24 +189,48 @@ onBeforeUnmount(() => activeRequest?.abort())
 </template>
 
 <style scoped>
+.entity-needs-card {
+    min-width: 0;
+}
+
 .entity-needs-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 10px 12px 4px 16px;
+    min-height: 48px;
+    padding: 8px 12px;
 }
+
+.entity-needs-header h2 { margin: 0; font-size: 0.9rem; font-weight: 650; }
+.entity-needs-search { padding: 0 12px 10px; }
+.entity-needs-search :deep(.v-field__input) { font-size: 0.8rem; }
+.entity-needs-table :deep(th) { height: 30px !important; }
 
 .entity-needs-empty {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 24px 16px;
+    gap: 10px;
+    padding: 16px 12px;
+}
+
+.entity-needs-identity {
+    min-width: 0;
+    padding: 8px 0;
+}
+
+.entity-needs-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-top: 3px;
 }
 
 .entity-needs-link {
     color: rgb(var(--v-theme-primary));
+    font-size: 0.8125rem;
     font-weight: 600;
     overflow-wrap: anywhere;
     text-decoration: none;
@@ -221,28 +242,76 @@ onBeforeUnmount(() => activeRequest?.abort())
 }
 
 .entity-needs-quantity {
+    font-size: 0.8125rem;
     font-weight: 600;
-    white-space: nowrap;
     font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.entity-needs-measure {
+    display: block;
+    overflow-wrap: anywhere;
 }
 
 .entity-needs-comment {
     display: block;
-    max-width: 420px;
-    min-width: 120px;
+    margin-top: 4px;
     white-space: pre-line;
     overflow-wrap: anywhere;
 }
 
 .entity-needs-manage {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
     color: rgb(var(--v-theme-primary));
-    font-size: 0.8rem;
-    white-space: nowrap;
     text-decoration: none;
 }
 
+.entity-needs-manage:hover {
+    background: rgba(var(--v-theme-primary), 0.06);
+}
+
+.entity-needs-table :deep(table) {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.entity-needs-table :deep(.v-data-table__td) {
+    padding: 0 10px;
+}
+
+.entity-needs-table :deep(.v-data-table__td:last-child) {
+    padding: 0 4px;
+}
+
 .entity-needs-table :deep(th) {
+    font-size: 0.75rem;
     white-space: nowrap;
     background: rgba(var(--v-theme-primary), 0.035);
+}
+
+.entity-needs-table :deep(.v-data-table-footer) {
+    justify-content: space-between;
+    gap: 4px 8px;
+    padding: 6px 8px;
+    font-size: 0.75rem;
+}
+
+.entity-needs-table :deep(.v-data-table-footer__items-per-page),
+.entity-needs-table :deep(.v-data-table-footer__pagination) {
+    padding: 0;
+}
+
+.entity-needs-table :deep(.v-data-table-footer__info) {
+    min-width: 0;
+}
+
+.entity-needs-table :deep(.v-data-table-footer .v-btn) {
+    width: 28px;
+    height: 28px;
 }
 </style>

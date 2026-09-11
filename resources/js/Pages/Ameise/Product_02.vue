@@ -6,6 +6,7 @@ import { route } from 'ziggy-js'
 import ProductAiSalesCampaignCard from '@/Components/AiSales/ProductAiSalesCampaignCard.vue'
 import ProductYandexSearchCard from '@/Components/ProductYandexSearchCard.vue'
 import ProductEntityConsumptionsCard from '@/Components/ProductEntityConsumptionsCard.vue'
+import ProductUnitConsumersCard from '@/Components/ProductUnitConsumersCard.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import {
     emptyProductTranslationForm,
@@ -73,7 +74,7 @@ const summaryChips = computed(() => {
         { label: 'Компоненты', value: p.components?.length || 0 },
         { label: 'Goods', value: p.goods?.length || 0 },
         { label: 'Units', value: p.units?.length || 0 },
-        { label: 'Consumers', value: p.consumers?.length || 0 },
+        { label: 'Consumers · Units', value: p.consumers?.length || 0 },
         { label: 'Sales', value: p.sales?.length || 0 },
     ]
 })
@@ -102,24 +103,6 @@ function entityTitle(entity) {
         entity.short_name ||
         `#${entity.id ?? '—'}`
     )
-}
-
-function consumerSite(consumer) {
-    const uris = consumer?.unit?.uris || []
-
-    if (!uris.length) return null
-
-    const validUri =
-        uris.find(uri => uri?.is_valid && uri?.address) ||
-        uris.find(uri => uri?.address)
-
-    return validUri?.address || null
-}
-
-function normalizeUrl(url) {
-    if (!url) return null
-    if (/^https?:\/\//i.test(url)) return url
-    return `https://${url}`
 }
 
 function goBack() {
@@ -217,7 +200,7 @@ onMounted(loadProduct)
 </script>
 
 <template>
-    <v-container class="page-wrap pa-3 pa-md-4">
+    <v-container fluid class="page-wrap pa-3 pa-md-4">
         <div class="page-header mb-3">
             <div class="d-flex align-center justify-space-between ga-3 flex-wrap">
                 <div class="d-flex align-center ga-2 min-w-0">
@@ -309,11 +292,6 @@ onMounted(loadProduct)
                     <v-tab value="consumers">
                         <v-icon start size="18">mdi-account-group-outline</v-icon>
                         Consumers
-                    </v-tab>
-
-                    <v-tab value="entity-consumptions">
-                        <v-icon start size="18">mdi-clipboard-text-outline</v-icon>
-                        Потребности Entities
                     </v-tab>
 
                     <v-tab value="sales">
@@ -450,7 +428,7 @@ onMounted(loadProduct)
                                                     <strong>{{ product.components?.length || 0 }}</strong>
                                                 </div>
                                                 <div class="d-flex justify-space-between ga-4">
-                                                    <span class="text-medium-emphasis">Consumers</span>
+                                                    <span class="text-medium-emphasis">Consumers · Units</span>
                                                     <strong>{{ product.consumers?.length || 0 }}</strong>
                                                 </div>
                                                 <div class="d-flex justify-space-between ga-4">
@@ -796,111 +774,11 @@ onMounted(loadProduct)
                     </v-window-item>
 
                     <v-window-item value="consumers" class="window-pane">
-                        <div class="tab-scroll pa-4 consumers-pane">
-                            <template v-if="product.consumers?.length">
-                                <v-card rounded="xl" variant="flat" class="consumers-card">
-                                    <div class="consumers-hero px-4 px-md-6 py-4">
-                                        <div class="d-flex align-center justify-space-between ga-3 flex-wrap">
-                                            <div>
-                                                <div class="text-overline consumers-overline mb-1">
-                                                    Потребители продукта
-                                                </div>
-                                                <div class="text-h6 font-weight-bold">
-                                                    Consumers
-                                                </div>
-                                                <div class="text-body-2 text-medium-emphasis mt-1">
-                                                    Компании и unit, использующие текущий продукт
-                                                </div>
-                                            </div>
-
-                                            <v-chip color="success" variant="flat" size="large">
-                                                {{ product.consumers.length }}
-                                            </v-chip>
-                                        </div>
-                                    </div>
-
-                                    <v-divider />
-
-                                    <v-card-text class="pt-4">
-                                        <v-table density="comfortable" class="data-table-fixed consumers-table">
-                                            <thead>
-                                            <tr>
-                                                <th class="text-left">ID</th>
-                                                <th class="text-left">Unit</th>
-                                                <th class="text-left">Measure</th>
-                                                <th class="text-left">Количество</th>
-                                                <th class="text-left">Сайт</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            <tr v-for="consumer in product.consumers" :key="consumer.id">
-                                                <td class="table-id">{{ consumer.id }}</td>
-
-                                                <td class="break-word">
-                                                    <Link
-                                                        v-if="consumer.unit?.id"
-                                                        :href="route('web.unit.show', consumer.unit.id)"
-                                                        class="text-decoration-none"
-                                                    >
-                                                        <v-chip
-                                                            color="success"
-                                                            variant="tonal"
-                                                            size="small"
-                                                            class="consumer-unit-chip"
-                                                        >
-                                                            {{ entityTitle(consumer.unit) }}
-                                                        </v-chip>
-                                                    </Link>
-
-                                                    <span v-else class="text-medium-emphasis">—</span>
-                                                </td>
-
-                                                <td class="break-word">
-                                                    <v-chip
-                                                        v-if="consumer.measure"
-                                                        color="green-darken-2"
-                                                        variant="outlined"
-                                                        size="small"
-                                                    >
-                                                        {{ entityTitle(consumer.measure) }}
-                                                    </v-chip>
-                                                    <span v-else class="text-medium-emphasis">—</span>
-                                                </td>
-
-                                                <td>
-                                <span class="consumer-qty">
-                                    {{ consumer.quantity ?? '—' }}
-                                </span>
-                                                </td>
-
-                                                <td class="break-word">
-                                                    <a
-                                                        v-if="consumerSite(consumer)"
-                                                        :href="normalizeUrl(consumerSite(consumer))"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        class="consumer-site-link"
-                                                    >
-                                                        {{ consumerSite(consumer) }}
-                                                    </a>
-                                                    <span v-else class="text-medium-emphasis">—</span>
-                                                </td>
-                                            </tr>
-                                            </tbody>
-                                        </v-table>
-                                    </v-card-text>
-                                </v-card>
-                            </template>
-
-                            <v-alert v-else type="info" variant="tonal" color="success">
-                                Consumers не найдены
-                            </v-alert>
-                        </div>
-                    </v-window-item>
-
-                    <v-window-item value="entity-consumptions" class="window-pane">
-                        <div class="tab-scroll pa-3 pa-md-4">
-                            <ProductEntityConsumptionsCard :product-id="product.id" />
+                        <div class="tab-scroll consumers-pane">
+                            <div class="consumers-grid">
+                                <ProductUnitConsumersCard :consumers="product.consumers || []" />
+                                <ProductEntityConsumptionsCard :product-id="product.id" />
+                            </div>
                         </div>
                     </v-window-item>
 
@@ -965,7 +843,10 @@ onMounted(loadProduct)
 
 <style scoped>
 .page-wrap {
-    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 58px);
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -980,8 +861,8 @@ onMounted(loadProduct)
 }
 
 .product-card {
-    height: calc(100vh - 86px);
-    min-height: 600px;
+    flex: 1 1 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1004,7 +885,8 @@ onMounted(loadProduct)
     overflow: hidden;
 }
 
-.window-fill {
+.window-fill,
+.window-fill :deep(.v-window__container) {
     height: 100%;
 }
 
@@ -1167,71 +1049,23 @@ onMounted(loadProduct)
 }
 
 .consumers-pane {
-    background: linear-gradient(
-        180deg,
-        rgba(76, 175, 80, 0.06) 0%,
-        rgba(129, 199, 132, 0.03) 100%
-    );
-    border-radius: 20px;
+    padding: 12px;
+    background: rgba(var(--v-theme-primary), 0.025);
 }
 
-.consumers-card {
-    border: 1px solid rgba(76, 175, 80, 0.16);
-    background: linear-gradient(
-        180deg,
-        rgba(241, 248, 233, 0.98) 0%,
-        rgba(255, 255, 255, 0.98) 100%
-    );
-    box-shadow: 0 10px 30px rgba(56, 142, 60, 0.08);
+.consumers-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 12px;
 }
 
-.consumers-hero {
-    background: linear-gradient(
-        135deg,
-        rgba(76, 175, 80, 0.14) 0%,
-        rgba(139, 195, 74, 0.10) 100%
-    );
+@media (max-width: 960px) {
+    .consumers-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-.consumers-overline {
-    color: rgb(46, 125, 50);
-    letter-spacing: 0.08em;
-}
-
-.consumers-table :deep(thead th) {
-    color: rgb(46, 125, 50);
-    font-weight: 700;
-    background: rgba(76, 175, 80, 0.08);
-    white-space: nowrap;
-}
-
-.consumers-table :deep(tbody tr) {
-    transition: background-color 0.18s ease;
-}
-
-.consumers-table :deep(tbody tr:hover) {
-    background: rgba(76, 175, 80, 0.05);
-}
-
-.consumer-unit-chip {
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.consumer-site-link {
-    color: rgb(33, 150, 83);
-    font-weight: 600;
-    text-decoration: none;
-    word-break: break-word;
-}
-
-.consumer-site-link:hover {
-    color: rgb(27, 94, 32);
-    text-decoration: underline;
-}
-
-.consumer-qty {
-    font-weight: 700;
-    color: rgb(46, 125, 50);
+@media (max-width: 480px) {
+    .consumers-pane { padding: 8px; }
+    .consumers-grid { gap: 8px; }
 }
 </style>
