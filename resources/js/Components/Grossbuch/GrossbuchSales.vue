@@ -663,6 +663,51 @@ onMounted(async () => {
                     </div>
                 </div>
 
+                <div class="sales-filters">
+                    <v-menu max-height="320" location="bottom start" theme="light">
+                        <template #activator="{ props }">
+                            <button v-bind="props" type="button" class="sales-month-trigger" :class="{ 'is-active': filters.month }" :title="`Месяц продаж: ${selectedMonthLabel}`" :aria-label="`Месяц продаж: ${selectedMonthLabel}`">
+                                <v-icon icon="mdi-calendar-month-outline" size="17" />
+                                <span>{{ selectedMonthLabel }}</span>
+                                <v-icon icon="mdi-chevron-down" size="15" class="sales-filter-chevron" />
+                            </button>
+                        </template>
+                        <v-list density="compact" class="sales-month-menu" aria-label="Месяц продаж">
+                            <v-list-item :active="!filters.month" color="#0f766e" @click="applyMonth(null)">
+                                <v-list-item-title>Все месяцы</v-list-item-title>
+                            </v-list-item>
+                            <v-list-item v-for="month in months" :key="month.value" :active="filters.month === month.value" color="#0f766e" @click="applyMonth(month.value)">
+                                <v-list-item-title>{{ month.label }} · {{ month.count }} продаж</v-list-item-title>
+                                <v-list-item-subtitle>{{ formatMoney(month.total) }}</v-list-item-subtitle>
+                            </v-list-item>
+                        </v-list>
+                    </v-menu>
+                    <v-menu v-model="dateRangeMenu" :close-on-content-click="false" location="bottom start" theme="light">
+                        <template #activator="{ props }">
+                            <button v-bind="props" type="button" class="sales-month-trigger sales-period-trigger" :class="{ 'is-active': filters.date_from || filters.date_to }" :title="`Период продаж: ${dateRangeLabel}`" aria-label="Выбрать период продаж">
+                                <v-icon icon="mdi-calendar-range-outline" size="16" />
+                                <span>{{ dateRangeLabel }}</span>
+                                <v-icon icon="mdi-chevron-down" size="14" class="sales-filter-chevron" />
+                            </button>
+                        </template>
+                        <form class="sales-period-form" @submit.prevent="applyDateRange">
+                            <strong>Период продаж</strong>
+                            <div class="sales-date-range">
+                                <label class="sales-date-control">
+                                    <span>С</span>
+                                    <input v-model="filters.date_from" type="date" aria-label="Продажи с даты" :max="filters.date_to || undefined" />
+                                </label>
+                                <label class="sales-date-control">
+                                    <span>По</span>
+                                    <input v-model="filters.date_to" type="date" aria-label="Продажи по дату" :min="filters.date_from || undefined" />
+                                </label>
+                            </div>
+                            <v-btn type="submit" size="small" variant="flat" color="#0f766e">Применить</v-btn>
+                        </form>
+                    </v-menu>
+                    <v-btn v-if="hasFilters" icon="mdi-filter-remove-outline" size="x-small" variant="text" title="Сбросить фильтры продаж" aria-label="Сбросить фильтры продаж" @click="resetFilters" />
+                </div>
+
                 <div class="sales-toolbar__actions">
                     <v-btn
                         icon="mdi-refresh"
@@ -678,57 +723,15 @@ onMounted(async () => {
                         variant="flat"
                         size="small"
                         prepend-icon="mdi-plus"
+                        class="sales-create-button"
+                        title="Новая продажа"
+                        aria-label="Новая продажа"
                         @click="openCreate"
                     >
-                        Новая продажа
+                        <span class="sales-create-button__label">Новая продажа</span>
                     </v-btn>
                 </div>
             </header>
-
-            <div class="sales-filters">
-                <v-menu max-height="320" location="bottom start" theme="light">
-                    <template #activator="{ props }">
-                        <button v-bind="props" type="button" class="sales-month-trigger" :class="{ 'is-active': filters.month }">
-                            <v-icon icon="mdi-calendar-month-outline" size="17" />
-                            <span>{{ selectedMonthLabel }}</span>
-                            <v-icon icon="mdi-chevron-down" size="15" />
-                        </button>
-                    </template>
-                    <v-list density="compact" class="sales-month-menu" aria-label="Месяц продаж">
-                        <v-list-item :active="!filters.month" color="#0f766e" @click="applyMonth(null)">
-                            <v-list-item-title>Все месяцы</v-list-item-title>
-                        </v-list-item>
-                        <v-list-item v-for="month in months" :key="month.value" :active="filters.month === month.value" color="#0f766e" @click="applyMonth(month.value)">
-                            <v-list-item-title>{{ month.label }} · {{ month.count }} продаж</v-list-item-title>
-                            <v-list-item-subtitle>{{ formatMoney(month.total) }}</v-list-item-subtitle>
-                        </v-list-item>
-                    </v-list>
-                </v-menu>
-                <v-menu v-model="dateRangeMenu" :close-on-content-click="false" location="bottom start" theme="light">
-                    <template #activator="{ props }">
-                        <button v-bind="props" type="button" class="sales-month-trigger sales-period-trigger" :class="{ 'is-active': filters.date_from || filters.date_to }" :title="dateRangeLabel" aria-label="Выбрать период продаж">
-                            <v-icon icon="mdi-calendar-range-outline" size="16" />
-                            <span>{{ dateRangeLabel }}</span>
-                            <v-icon icon="mdi-chevron-down" size="14" />
-                        </button>
-                    </template>
-                    <form class="sales-period-form" @submit.prevent="applyDateRange">
-                        <strong>Период продаж</strong>
-                        <div class="sales-date-range">
-                            <label class="sales-date-control">
-                                <span>С</span>
-                                <input v-model="filters.date_from" type="date" aria-label="Продажи с даты" :max="filters.date_to || undefined" />
-                            </label>
-                            <label class="sales-date-control">
-                                <span>По</span>
-                                <input v-model="filters.date_to" type="date" aria-label="Продажи по дату" :min="filters.date_from || undefined" />
-                            </label>
-                        </div>
-                        <v-btn type="submit" size="small" variant="flat" color="#0f766e">Применить</v-btn>
-                    </form>
-                </v-menu>
-                <v-btn v-if="hasFilters" icon="mdi-filter-remove-outline" size="x-small" variant="text" title="Сбросить фильтры продаж" aria-label="Сбросить фильтры продаж" @click="resetFilters" />
-            </div>
 
             <v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" class="sales-error">
                 {{ errorMessage }}
@@ -1319,9 +1322,10 @@ onMounted(async () => {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 12px;
-    padding: 7px 10px;
+    min-height: 46px;
+    padding: 4px 10px;
     border-bottom: 1px solid #e2e8f0;
     background: #fff;
 }
@@ -1333,23 +1337,21 @@ onMounted(async () => {
     gap: 12px;
 }
 
-.sales-toolbar__summary { flex: 1; min-width: 0; gap: 18px; }
-.sales-toolbar__actions { flex: 0 0 auto; gap: 5px; }
+.sales-toolbar__summary { flex: 0 0 auto; min-width: 0; gap: 18px; }
+.sales-toolbar__actions { flex: 0 0 auto; gap: 5px; margin-left: auto; }
 .sales-metric { display: grid; gap: 2px; }
-.sales-metric > span { color: #64748b; font-size: 11px; line-height: 1.2; }
+.sales-metric > span { color: #64748b; font-size: 11px; line-height: 1.1; white-space: nowrap; }
 .sales-metric > strong { color: #334155; font-size: 17px; font-weight: 600; line-height: 1.2; }
 .sales-metric--amount { min-width: 0; }
 .sales-metric--amount > strong { overflow: hidden; color: #0f766e; font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }
 
 .sales-filters {
     display: flex;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     align-items: center;
     flex-wrap: nowrap;
+    min-width: 0;
     gap: 6px;
-    padding: 5px 9px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #f8fafc;
 }
 
 .sales-month-trigger,
@@ -1367,7 +1369,7 @@ onMounted(async () => {
 
 .sales-month-trigger { flex: 0 0 auto; padding: 0 7px; }
 .sales-month-trigger.is-active { border-color: #93cfc5; background: #f0fdfa; color: #0f766e; }
-.sales-period-trigger { flex: 0 1 auto; min-width: 0; }
+.sales-period-trigger { flex: 0 1 auto; min-width: 32px; }
 .sales-period-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sales-period-form { display: grid; gap: 10px; width: 310px; max-width: calc(100vw - 24px); padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #334155; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto-Regular', sans-serif; font-size: 12px; }
 .sales-period-form > strong { font-size: 12px; font-weight: 600; }
@@ -1600,24 +1602,28 @@ onMounted(async () => {
 @container commerce-panel (max-width: 620px) {
     .sales-footer__total { display: none; }
     .sales-pagination { width: 100%; justify-content: space-between; }
-    .sales-toolbar { gap: 6px; padding: 6px 8px; }
-    .sales-toolbar__summary { gap: 13px; }
+    .sales-toolbar { gap: 6px; padding: 4px 8px; }
+    .sales-toolbar__summary { flex: 0 1 auto; gap: 13px; }
     .sales-metric > strong { font-size: 15px; }
     .sales-metric--amount > strong { font-size: 17px; }
     .sales-metric > span { font-size: 10px; }
     .sales-toolbar__actions { gap: 2px; }
-    .sales-toolbar__actions :deep(.v-btn:not(.v-btn--icon)) { padding: 0 8px; font-size: 11px; }
-    .sales-filters { gap: 5px; padding: 4px 8px; }
+    .sales-toolbar__actions :deep(.sales-create-button) { width: 30px; min-width: 30px; padding: 0; }
+    .sales-create-button__label { display: none; }
+    .sales-create-button :deep(.v-btn__prepend) { margin: 0; }
+    .sales-filters { gap: 5px; }
     .sales-footer { padding: 4px 8px; }
     .sales-pagination { gap: 5px; font-size: 10px; }
     .sales-page-size { gap: 4px; }
     .sales-pagination > button { width: 27px; height: 28px; }
 }
-@container commerce-panel (max-width: 400px) {
-    .sales-toolbar__summary { gap: 9px; }
+@container commerce-panel (max-width: 440px) {
+    .sales-toolbar__summary { flex: 1 1 auto; gap: 9px; }
     .sales-metric--amount > strong { font-size: 16px; }
-    .sales-toolbar__actions :deep(.v-btn--icon) { width: 26px; }
-    .sales-month-trigger { gap: 4px; padding: 0 5px; font-size: 11px; }
+    .sales-month-trigger { flex: 0 0 30px; justify-content: center; width: 30px; min-width: 30px; gap: 0; padding: 0; }
+    .sales-month-trigger > span,
+    .sales-month-trigger > .sales-filter-chevron { display: none; }
+    .sales-filters { flex: 0 0 auto; gap: 4px; }
     .sales-error { max-height: 42px; margin: 3px 8px; }
 }
 @media (max-width: 600px) {
