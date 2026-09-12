@@ -216,6 +216,7 @@ jobs:
             database/migrations/2026_08_10_170000_create_avito_workspace_settings_table.php \
             database/seeders/AvitoMessageTemplateSeeder.php \
             scripts/update-production-avito-env.php \
+            scripts/check-production-avito.php \
             tests/Feature/Avito \
             tests/Unit/Avito
           php artisan avito:preflight

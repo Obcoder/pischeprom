@@ -530,4 +530,9 @@ if ! php artisan app:deploy-smoke --path=/api/avito/messenger/templates >/dev/nu
     fail 'Smoke check for Avito message templates failed; rerun the command locally on the VPS.'
 fi
 
+log 'Checking Avito migrations, queue workers and provider webhook subscriptions.'
+if ! timeout 180s php "$target_dir/scripts/check-production-avito.php" "$target_dir"; then
+    log 'WARNING: Avito runtime report could not be completed; inspect the VPS. The application is online.'
+fi
+
 log "Deployment completed: ${previous_sha} -> ${commit_sha}."
