@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Good;
+use App\Services\Seo\GoodSeoAiException;
 use App\Services\Seo\GoodSeoAiService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,7 +31,7 @@ try {
     $tokenParameter = config('goods-seo-ai.timeweb.token_parameter');
 
     if (($service->availability()['available'] ?? false) !== true
-        || $model !== 'yandex/yandexgpt-lite' || $tokenParameter !== 'max_tokens') {
+        || $model !== 'yandex/yandexgpt-pro-5.1' || $tokenParameter !== 'max_tokens') {
         throw new RuntimeException('Goods SEO AI is not configured for production.');
     }
 
@@ -63,6 +64,9 @@ try {
     }
 
     fwrite(STDOUT, "Goods SEO AI check passed: enabled=true model={$model} token_parameter={$tokenParameter}.\n");
+} catch (GoodSeoAiException $exception) {
+    fwrite(STDERR, "Goods SEO AI check failed: {$exception->errorCode}.\n");
+    exit(1);
 } catch (Throwable) {
     // Provider errors may contain credentials or payloads; never print exceptions.
     fwrite(STDERR, "Goods SEO AI check failed; inspect application configuration and provider availability on the server.\n");

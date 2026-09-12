@@ -105,6 +105,10 @@ class GoodSeoAiService
             throw new GoodSeoAiException('Не удалось получить ответ Timeweb. Повторите попытку позже.', 'seo_ai_provider_error', 502);
         }
 
+        if ($response->status() === 402) {
+            throw new GoodSeoAiException('Timeweb отклонил генерацию из-за недостатка средств. Проверьте баланс и лимиты AI Gateway.', 'seo_ai_insufficient_balance', 402);
+        }
+
         if ($response->status() === 429) {
             throw new GoodSeoAiException('Timeweb временно ограничил запросы. Попробуйте чуть позже.', 'seo_ai_rate_limited', 429);
         }

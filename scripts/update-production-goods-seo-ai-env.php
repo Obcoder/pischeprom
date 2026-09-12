@@ -55,7 +55,7 @@ try {
     // Explicitly authorized production settings; credentials and other AI gates stay intact.
     $updates = [
         'GOODS_SEO_AI_ENABLED' => 'true',
-        'GOODS_SEO_AI_MODEL' => 'yandex/yandexgpt-lite',
+        'GOODS_SEO_AI_MODEL' => 'yandex/yandexgpt-pro-5.1',
         'GOODS_SEO_AI_TOKEN_PARAMETER' => 'max_tokens',
         'GOODS_SEO_AI_TIMEOUT_SECONDS' => '45',
     ];
@@ -123,7 +123,7 @@ try {
     fclose($handle);
 }
 
-fwrite(STDOUT, "Goods SEO AI enabled with yandex/yandexgpt-lite.\n");
+fwrite(STDOUT, "Goods SEO AI enabled with yandex/yandexgpt-pro-5.1.\n");
 
 function parseSeoEnvironment(string $contents): array
 {

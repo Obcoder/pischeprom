@@ -41,7 +41,7 @@ class ProductionEnvironmentUpdaterTest extends TestCase
         $contents = file_get_contents($path);
         $this->assertStringStartsWith($preserved, $contents);
         $this->assertSame('true', Dotenv::parse($contents)['GOODS_SEO_AI_ENABLED']);
-        $this->assertSame('yandex/yandexgpt-lite', Dotenv::parse($contents)['GOODS_SEO_AI_MODEL']);
+        $this->assertSame('yandex/yandexgpt-pro-5.1', Dotenv::parse($contents)['GOODS_SEO_AI_MODEL']);
         $this->assertSame('max_tokens', Dotenv::parse($contents)['GOODS_SEO_AI_TOKEN_PARAMETER']);
         $this->assertSame('45', Dotenv::parse($contents)['GOODS_SEO_AI_TIMEOUT_SECONDS']);
         $this->assertStringNotContainsString('existing-timeweb-secret', $process->getOutput().$process->getErrorOutput());

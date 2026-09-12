@@ -27,10 +27,10 @@ Completions. Для обычных моделей используется `max_
 После изменения окружения обновите кеш конфигурации обычным способом:
 `php artisan config:cache`.
 
-Для русскоязычных SEO-черновиков подходит доступная в проверенном каталоге
-`yandex/yandexgpt-lite` с параметром `max_tokens`: в публичном каталоге Timeweb
-она указана как YandexGPT 5.1 Lite без обязательных размышлений. Это выбор
-для редакторской задачи, а не подтверждение места обработки данных.
+В production для русскоязычных SEO-черновиков используется
+`yandex/yandexgpt-pro-5.1` (YandexGPT 5.1 Pro) с параметром `max_tokens`.
+Она заменяет прежнюю YandexGPT Lite.
+Выбор модели для редакторской задачи не подтверждает место обработки данных.
 Источники: [AI Gateway](https://timeweb.cloud/docs/ai-agents/api-usage/ai-gateway),
 [каталог моделей и параметров](https://timeweb.cloud/services/ai-gateway),
 [модели с размышлениями](https://timeweb.cloud/docs/ai-agents/pricing/models).
@@ -42,7 +42,7 @@ production-деплоем дополнительно проверена реал
 
 Основной workflow `.github/workflows/main.yml` проверяет SEO API и updater,
 затем при деплое включает `GOODS_SEO_AI_ENABLED=true`, задаёт модель
-`yandex/yandexgpt-lite`, параметр `max_tokens` и таймаут 45 секунд.
+`yandex/yandexgpt-pro-5.1`, параметр `max_tokens` и таймаут 45 секунд.
 Updater меняет только эти четыре настройки; существующие ключи остаются на VPS.
 До maintenance проверяется наличие корректного `GOODS_SEO_AI_API_KEY` либо
 `AI_TIMEWEB_LOCAL_RU_API_KEY`. При отсутствии ключа деплой останавливается до
@@ -104,6 +104,7 @@ HTML и исполняемое содержимое удаляются, неза
 доступности модели этот запрос не делает.
 
 Ошибки имеют безопасные `message` и `code`: `seo_ai_not_configured` (503),
+`seo_ai_insufficient_balance` (402),
 `seo_ai_rate_limited` (429), `seo_ai_timeout` (504),
 `seo_ai_provider_error` / `seo_ai_invalid_response` (502),
 `seo_ai_input_too_large` (422). Ошибки валидации используют стандартный ответ

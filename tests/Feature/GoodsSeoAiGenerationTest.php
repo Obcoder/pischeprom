@@ -305,6 +305,10 @@ class GoodsSeoAiGenerationTest extends TestCase
             ->assertJsonStructure(['message']);
 
         $this->assertStringNotContainsString('seo-test-timeweb-key', $response->getContent());
+        if ($providerStatus === 402) {
+            $response->assertJsonPath('code', 'seo_ai_insufficient_balance');
+            $this->assertStringContainsString('баланс', $response->json('message'));
+        }
         $this->assertDatabaseCount('good_seos', 0);
         Http::assertSentCount(1);
     }
@@ -313,6 +317,7 @@ class GoodsSeoAiGenerationTest extends TestCase
     {
         return [
             'bad credentials' => [401, 502],
+            'insufficient balance' => [402, 402],
             'provider rate limited' => [429, 429],
             'provider unavailable' => [503, 502],
         ];
