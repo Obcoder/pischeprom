@@ -17,5 +17,7 @@ final readonly class AvitoAutoReplyClassification
         public int $outputTokens,
         public int $latencyMs,
         public array $raw,
+        public ?string $responseText = null,
+        public array $matchedIntents = [],
     ) {}
 }

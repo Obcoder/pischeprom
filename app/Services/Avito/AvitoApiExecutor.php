@@ -103,6 +103,11 @@ class AvitoApiExecutor
 
         try {
             $token = $this->tokens->tokenFor($capability, $connection);
+            // A token refresh can perform network I/O. Callers that authorize
+            // autonomous sends must be able to revoke them after that delay.
+            if (isset($options['before_send'])) {
+                ($options['before_send'])();
+            }
             $response = $this->send($capability, $url, $query, $headers, $body, $contentType, $files, $token);
             $result = $this->result($response, $requestId);
             if (! $result['binary']) {

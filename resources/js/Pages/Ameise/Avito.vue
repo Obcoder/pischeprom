@@ -8,15 +8,38 @@ import AvitoMessageTemplates from '@/Components/Avito/AvitoMessageTemplates.vue'
 import AvitoMessages from '@/Components/Avito/AvitoMessages.vue'
 import AvitoListings from '@/Components/Avito/AvitoListings.vue'
 import AvitoPublications from '@/Components/Avito/AvitoPublications.vue'
+import { useAvitoRealtime } from '@/Composables/useAvitoRealtime.js'
 
 defineOptions({ layout: VerwalterLayout })
 
 useHead({ title: 'Avito API · Ameise' })
 
-const tab = ref('overview')
+const tab = ref('messages')
+const avitoStore = useAvitoRealtime()
 const loading = ref(true)
 const notice = ref('')
 const error = ref('')
+const feedbackOpen = computed({
+    get: () => Boolean(notice.value || error.value),
+    set: (open) => { if (!open) { notice.value = ''; error.value = '' } },
+})
+const feedbackKey = ref(0)
+watch([notice, error], () => { feedbackKey.value++ })
+const aiStopped = computed(() => Boolean(avitoStore.controlSettings?.is_emergency_stopped))
+const aiStatus = computed(() => {
+    if (aiStopped.value) return 'AI остановлен'
+    return { off: 'AI выключен', shadow: 'AI: наблюдение', pilot: 'AI: пилот', active: 'AI включён' }[avitoStore.controlSettings?.mode] || 'AI: проверка состояния'
+})
+
+async function stopAiReplies() {
+    try {
+        const data = await avitoStore.emergencyStop()
+        if (!data) return
+        showNotice(data.message || 'Ответы AI экстренно отключены во всех чатах Avito.')
+    } catch (exception) {
+        showError(exception, 'Не удалось отключить AI. Повторите нажатие.')
+    }
+}
 const status = ref({ catalog: { counts: {}, sections: [] } })
 const capabilities = ref([])
 const connections = ref([])
@@ -506,28 +529,40 @@ onMounted(loadAll)
 
 <template>
     <main class="avito-page">
-        <section class="avito-hero">
-            <div>
-                <div class="avito-kicker">AMEISE · MARKETPLACE OPERATIONS</div>
-                <h1>Avito API</h1>
-                <p>Объявления, аналитика и продвижение, чаты с долговременным архивом, подключения и журнал событий.</p>
+        <header class="avito-hero">
+            <div class="avito-hero__title">
+                <h1>Avito</h1>
+                <span class="ai-state" :class="{ 'is-stopped': aiStopped }" aria-live="polite">{{ aiStatus }}</span>
             </div>
             <div class="avito-hero__actions">
+                <v-btn v-if="aiStopped" size="small" variant="text" color="white" title="Настройки и восстановление автоответов" @click="tab = 'auto-replies'">Настройки AI</v-btn>
                 <v-btn
+                    class="ai-emergency-stop"
+                    data-testid="avito-ai-emergency-stop"
                     size="small"
-                    variant="tonal"
-                    color="white"
-                    prepend-icon="mdi-book-open-page-variant-outline"
-                    :href="status.documentation_url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >Документация</v-btn>
-                <v-btn size="small" color="white" prepend-icon="mdi-link-variant-plus" @click="connectOAuth">Подключить OAuth</v-btn>
+                    color="error"
+                    variant="flat"
+                    prepend-icon="mdi-stop-circle-outline"
+                    :loading="avitoStore.stopLoading"
+                    :disabled="aiStopped"
+                    title="Экстренно остановить ответы AI во всех чатах Avito"
+                    @click="stopAiReplies"
+                >{{ aiStopped ? 'AI остановлен' : 'Стоп AI' }}</v-btn>
             </div>
-        </section>
+        </header>
 
-        <v-alert v-if="notice" class="mb-3" type="success" variant="tonal" closable @click:close="notice = ''">{{ notice }}</v-alert>
-        <v-alert v-if="error" class="mb-3" type="error" variant="tonal" closable @click:close="error = ''">{{ error }}</v-alert>
+        <v-snackbar
+            :key="feedbackKey"
+            v-model="feedbackOpen"
+            :color="error ? 'error' : 'success'"
+            :timeout="6500"
+            location="bottom end"
+            max-width="460"
+            close-on-content-click
+        >
+            <span role="status">{{ error || notice }}</span>
+            <template #actions><v-btn icon="mdi-close" variant="text" size="small" aria-label="Закрыть уведомление" @click="feedbackOpen = false" /></template>
+        </v-snackbar>
 
         <div v-if="loading" class="avito-loading">
             <v-progress-circular indeterminate color="deep-purple-lighten-2" size="44" />
@@ -535,18 +570,11 @@ onMounted(loadAll)
         </div>
 
         <template v-else>
-            <section class="avito-metrics">
-                <article><span>Функции API</span><strong>{{ status.catalog?.counts?.capabilities || 0 }}</strong><small>{{ status.catalog?.counts?.sections || 0 }} разделов</small></article>
-                <article><span>Доступно в реестре</span><strong>{{ activeCount }}</strong><small>{{ safeCount }} операций чтения</small></article>
-                <article><span>Изменяющие</span><strong>{{ mutationCount }}</strong><small>{{ status.mutations_enabled ? 'операции разрешены' : 'операции отключены в .env' }}</small></article>
-                <article><span>Подключения</span><strong>{{ status.active_connections || 0 }}</strong><small>{{ status.configured ? 'client credentials настроены' : 'нужна настройка .env' }}</small></article>
-            </section>
-
             <v-tabs v-model="tab" class="avito-tabs" color="deep-purple-accent-1" show-arrows>
+                <v-tab value="messages" prepend-icon="mdi-forum-outline">Сообщения</v-tab>
                 <v-tab value="overview" prepend-icon="mdi-view-dashboard-outline">Обзор</v-tab>
                 <v-tab value="listings" prepend-icon="mdi-view-grid-outline">Объявления</v-tab>
                 <v-tab value="publications" prepend-icon="mdi-file-document-plus-outline">Создание</v-tab>
-                <v-tab value="messages" prepend-icon="mdi-forum-outline">Сообщения</v-tab>
                 <v-tab value="auto-replies" prepend-icon="mdi-robot-outline">Автоответы</v-tab>
                 <v-tab value="templates" prepend-icon="mdi-text-box-multiple-outline">Шаблоны</v-tab>
                 <v-tab value="catalog" prepend-icon="mdi-table-large">API-функции</v-tab>
@@ -557,6 +585,19 @@ onMounted(loadAll)
 
             <v-window v-model="tab" class="avito-window">
                 <v-window-item value="overview" class="avito-tab-item">
+                    <div class="overview-intro">
+                        <div><strong>Обзор интеграции</strong><p>Объявления, продвижение, подключения и архив переписки Avito.</p></div>
+                        <div class="overview-actions">
+                            <v-btn size="small" variant="tonal" prepend-icon="mdi-book-open-page-variant-outline" :href="status.documentation_url" target="_blank" rel="noopener noreferrer">Документация</v-btn>
+                            <v-btn size="small" color="deep-purple" prepend-icon="mdi-link-variant-plus" @click="connectOAuth">Подключить OAuth</v-btn>
+                        </div>
+                    </div>
+            <section class="avito-metrics">
+                <article><span>Функции API</span><strong>{{ status.catalog?.counts?.capabilities || 0 }}</strong><small>{{ status.catalog?.counts?.sections || 0 }} разделов</small></article>
+                <article><span>Доступно в реестре</span><strong>{{ activeCount }}</strong><small>{{ safeCount }} операций чтения</small></article>
+                <article><span>Изменяющие</span><strong>{{ mutationCount }}</strong><small>{{ status.mutations_enabled ? 'операции разрешены' : 'операции отключены в .env' }}</small></article>
+                <article><span>Подключения</span><strong>{{ status.active_connections || 0 }}</strong><small>{{ status.configured ? 'client credentials настроены' : 'нужна настройка .env' }}</small></article>
+            </section>
                     <div class="avito-grid avito-grid--overview">
                         <section class="avito-panel">
                             <div class="avito-panel__header">
@@ -626,7 +667,7 @@ onMounted(loadAll)
                     />
                 </v-window-item>
 
-                <v-window-item value="messages" class="avito-tab-item">
+                <v-window-item value="messages" class="avito-tab-item avito-tab-item--messages" :transition="false" :reverse-transition="false">
                     <AvitoMessages
                         :connections="connections"
                         @notice="notice = $event; error = ''"
@@ -785,19 +826,29 @@ onMounted(loadAll)
 </template>
 
 <style scoped>
-.avito-page { box-sizing: border-box; width: 100%; max-width: none; min-height: calc(100vh - 64px); align-self: stretch; padding: 6px 7px 14px; color: #edf0ff; background: radial-gradient(circle at 15% -5%, rgba(114, 70, 255, .2), transparent 38%), #0e1020; }
-.avito-hero { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid rgba(180, 166, 255, .22); border-radius: 12px; background: linear-gradient(125deg, rgba(71, 42, 151, .94), rgba(28, 31, 64, .96)); box-shadow: 0 10px 24px rgba(0, 0, 0, .2); }
-.avito-hero h1 { margin: 1px 0 2px; font-size: clamp(22px, 2.4vw, 30px); line-height: 1; letter-spacing: -.03em; }
+.avito-page { position: fixed; top: calc(var(--v-layout-top, 58px) + 6px); right: calc(var(--v-layout-right, 0px) + 8px); bottom: 8px; left: calc(var(--v-layout-left, 0px) + 8px); display: flex; flex-direction: column; gap: 5px; overflow: hidden; min-width: 0; min-height: 0; box-sizing: border-box; color: #edf0ff; background: radial-gradient(circle at 15% -5%, rgba(114, 70, 255, .2), transparent 38%), #0e1020; }
+.avito-hero { display: flex; flex: 0 0 auto; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid rgba(180, 166, 255, .22); border-radius: 10px; background: linear-gradient(125deg, rgba(71, 42, 151, .94), rgba(28, 31, 64, .96)); }
+.avito-hero h1 { margin: 0; font-size: 23px; line-height: 1; letter-spacing: -.03em; }
+.avito-hero__title { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.ai-state { color: #c5c2e6; font-size: 11px; }
+.ai-state.is-stopped { color: #ffc7cd; }
+.ai-emergency-stop { flex-shrink: 0; }
+.overview-intro { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 4px; }
+.overview-intro strong { font-size: 15px; }.overview-intro p { margin: 3px 0 0; color: #999fbe; font-size: 12px; }
+.overview-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .avito-hero p { max-width: 720px; margin: 4px 0 0; color: #c9c9e8; font-size: 11px; line-height: 1.35; }
 .avito-kicker, .eyebrow { color: #b9a8ff; font-size: 8px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-.avito-hero__actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.avito-loading { display: flex; min-height: 260px; align-items: center; justify-content: center; gap: 14px; color: #bfc3de; }
+.avito-hero__actions { display: flex; flex-shrink: 0; align-items: center; gap: 6px; }
+.avito-loading { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; gap: 14px; color: #bfc3de; }
 .avito-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 6px 0; }
 .avito-metrics article { display: grid; gap: 2px; min-height: 70px; padding: 9px 12px; border: 1px solid rgba(148, 154, 196, .16); border-radius: 10px; background: rgba(27, 30, 53, .88); }
 .avito-metrics span, .avito-metrics small { color: #999fbe; font-size: 9px; }
 .avito-metrics strong { font-size: 22px; line-height: 1; }
-.avito-tabs { min-height: 42px; border: 1px solid rgba(148, 154, 196, .16); border-radius: 10px 10px 0 0; background: #191c32; }.avito-tabs :deep(.v-tab) { min-height: 42px; padding: 0 12px; font-size: 11px; }
-.avito-window { border: 1px solid rgba(148, 154, 196, .16); border-top: 0; border-radius: 0 0 12px 12px; background: #14172a; }.avito-tab-item { padding: 5px; }
+.avito-tabs { flex: 0 0 auto; min-height: 40px; --v-tabs-height: 40px; border: 1px solid rgba(148, 154, 196, .16); border-radius: 10px 10px 0 0; background: #191c32; }.avito-tabs :deep(.v-tab) { min-height: 40px; padding: 0 12px; font-size: 11px; }
+.avito-window { flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid rgba(148, 154, 196, .16); border-top: 0; border-radius: 0 0 12px 12px; background: #14172a; }
+.avito-window :deep(.v-window__container) { height: 100% !important; min-height: 0; }
+.avito-tab-item { height: 100%; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 5px; }
+.avito-tab-item--messages { overflow: hidden; }
 .avito-grid { display: grid; gap: 8px; padding: 0; }
 .avito-grid--overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .avito-panel { padding: 14px; color: #e9ebff; border: 1px solid rgba(145, 152, 200, .16); border-radius: 10px; background: #1b1e35; }
@@ -820,7 +871,7 @@ onMounted(loadAll)
 .section-cloud strong { min-width: 28px; color: #b7a7ff; text-align: right; }
 .catalog-toolbar { display: grid; grid-template-columns: minmax(260px, 2fr) minmax(180px, 1.2fr) 110px 160px 145px; gap: 9px; margin-bottom: 10px; }
 .bulk-toolbar { display: flex; min-height: 38px; align-items: center; gap: 10px; padding: 4px 8px; color: #9da3c3; font-size: 13px; }
-.excel-shell { overflow: auto; height: calc(100vh - 380px); min-height: 380px; border: 1px solid #343852; border-radius: 10px; background: #111427; }
+.excel-shell { overflow: auto; height: min(55dvh, 700px); min-height: 180px; border: 1px solid #343852; border-radius: 10px; background: #111427; }
 .excel-table { width: 100%; min-width: 1540px; border-spacing: 0; border-collapse: separate; font-size: 12px; }
 .excel-table th { position: sticky; z-index: 3; top: 0; height: 38px; padding: 5px 8px; color: #b8bedb; text-align: left; border-right: 1px solid #343852; border-bottom: 1px solid #424763; background: #24283f; }
 .excel-table td { height: 52px; padding: 6px 8px; vertical-align: middle; border-right: 1px solid #292d45; border-bottom: 1px solid #292d45; background: #171a2e; }
@@ -858,5 +909,5 @@ onMounted(loadAll)
 .execution-result { display: grid; gap: 10px; margin-top: 15px; padding: 13px; border: 1px solid; border-radius: 10px; }.execution-result.is-success { border-color: rgba(56, 181, 125, .45); background: rgba(30, 114, 80, .14); }.execution-result.is-error { border-color: rgba(230, 75, 101, .45); background: rgba(151, 35, 58, .14); }.execution-result span { display: block; color: #aeb3cf; font-size: 11px; }.execution-result pre, .detail-json { max-height: 360px; overflow: auto; margin: 0; padding: 12px; color: #d8defb; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; border-radius: 7px; background: #0d1020; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 @media (max-width: 1100px) { .avito-metrics { grid-template-columns: repeat(2, 1fr); }.avito-grid--overview { grid-template-columns: 1fr; }.section-cloud { grid-template-columns: repeat(2, 1fr); }.catalog-toolbar { grid-template-columns: 2fr 1fr 1fr; }.catalog-toolbar > :nth-child(4), .catalog-toolbar > :nth-child(5) { grid-column: span 1; } }
-@media (max-width: 700px) { .avito-page { padding: 5px; }.avito-hero { align-items: flex-start; flex-direction: column; padding: 10px 12px; }.avito-metrics { grid-template-columns: 1fr 1fr; }.avito-metrics article { min-height: 68px; padding: 8px; }.avito-grid { padding: 0; }.section-cloud, .connections-grid, .parameter-grid, .catalog-toolbar, .workspace-settings-row { grid-template-columns: 1fr; }.catalog-toolbar > * { grid-column: auto !important; }.excel-shell { height: calc(100vh - 470px); }.catalog-footer { align-items: flex-end; flex-direction: column; }.avito-hero__actions { width: 100%; }}
+@media (max-width: 700px) { .avito-page { left: calc(var(--v-layout-left, 0px) + 4px); right: calc(var(--v-layout-right, 0px) + 4px); }.avito-hero { gap: 6px; padding: 7px 8px; }.avito-hero__title { gap: 6px; flex-wrap: wrap; }.avito-hero h1 { font-size: 20px; }.ai-state { font-size: 9px; }.avito-hero__actions { gap: 2px; }.avito-hero__actions :deep(.v-btn) { padding-inline: 8px; font-size: 10px; }.overview-intro { align-items: flex-start; flex-direction: column; }.avito-metrics { grid-template-columns: 1fr 1fr; }.avito-metrics article { min-height: 68px; padding: 8px; }.avito-grid { padding: 0; }.section-cloud, .connections-grid, .parameter-grid, .catalog-toolbar, .workspace-settings-row { grid-template-columns: 1fr; }.catalog-toolbar > * { grid-column: auto !important; }.catalog-footer { align-items: flex-end; flex-direction: column; }}
 </style>

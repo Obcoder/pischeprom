@@ -82,6 +82,7 @@ const promotionsLoading = ref(false)
 const actionLoading = ref(false)
 const inlineError = ref('')
 const statsWarning = ref('')
+watch(statsWarning, (message) => { if (message) emit('error', message) })
 const accountProfile = ref(null)
 const accountId = ref(null)
 const agencyMode = ref(false)
@@ -280,7 +281,7 @@ async function initialize() {
             if (!accountId.value && data.account?.id) accountId.value = Number(data.account.id)
             syncAccountMode()
         } catch (exception) {
-            if (!accountId.value) inlineError.value = errorMessage(exception, 'Не удалось определить ID кабинета Avito.')
+            if (!accountId.value) showError(exception, 'Не удалось определить ID кабинета Avito.')
         } finally {
             contextLoading.value = false
         }
@@ -292,7 +293,7 @@ async function initialize() {
 async function loadListings(resetPage = false) {
     const resolvedAccountId = positiveInteger(accountId.value)
     if (!resolvedAccountId) {
-        inlineError.value = 'Укажите числовой ID кабинета Avito.'
+        showError(null, 'Укажите числовой ID кабинета Avito.')
         return
     }
     if (resetPage) page.value = 1
@@ -905,8 +906,6 @@ function toIsoDate(date) {
         <v-alert v-if="!configured" type="warning" variant="tonal" density="compact" class="compact-alert">
             Серверные ключи Avito не настроены. Список объявлений требует Client Credentials; OAuth можно использовать для отдельных действий.
         </v-alert>
-        <v-alert v-if="inlineError" type="error" variant="tonal" density="compact" closable class="compact-alert" @click:close="inlineError = ''">{{ inlineError }}</v-alert>
-        <v-alert v-if="statsWarning" type="warning" variant="tonal" density="compact" closable class="compact-alert" @click:close="statsWarning = ''">{{ statsWarning }}</v-alert>
 
         <div class="listings-kpis">
             <button type="button" :class="{ active: !filters.statuses.length }" @click="filters.statuses = []; loadListings(true)">

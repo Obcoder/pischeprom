@@ -43,7 +43,7 @@ export async function connectCommerceSocket(config, handlers) {
     }
     client.connection.bind('state_change', stateChanged)
     echo.private(config.channel)
-        .listen('.commerce.changed', (event) => { if (!closed) handlers.event(event) })
+        .listen(`.${config.event || 'commerce.changed'}`, (event) => { if (!closed) handlers.event(event) })
         .subscribed(() => { if (!closed) handlers.ready() })
         .error((error) => {
             if (closed) return

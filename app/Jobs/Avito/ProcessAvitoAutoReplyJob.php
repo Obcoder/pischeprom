@@ -19,9 +19,11 @@ class ProcessAvitoAutoReplyJob implements ShouldBeUnique, ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 5;
 
-    public int $timeout = 60;
+    public int $timeout = 120;
+
+    public array $backoff = [30, 60, 120];
 
     public int $uniqueFor = 300;
 
@@ -42,12 +44,17 @@ class ProcessAvitoAutoReplyJob implements ShouldBeUnique, ShouldQueue
         return [
             (new WithoutOverlapping("avito-auto-reply-chat:{$chatId}"))
                 ->releaseAfter(10)
-                ->expireAfter(90),
+                ->expireAfter(150),
         ];
     }
 
     public function handle(AvitoAutoReplyService $service): void
     {
-        $service->evaluateWebhookMessage($this->messageId, $this->historical);
+        $decision = $service->evaluateWebhookMessage($this->messageId, $this->historical);
+
+        if ($this->job && $this->attempts() < $this->tries
+            && in_array($decision?->reason_code, ['classifier_error', 'send_lock_busy'], true)) {
+            $this->release($this->backoff[min($this->attempts() - 1, count($this->backoff) - 1)]);
+        }
     }
 }

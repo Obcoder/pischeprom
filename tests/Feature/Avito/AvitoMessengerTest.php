@@ -90,7 +90,6 @@ class AvitoMessengerTest extends TestCase
         $this->assertStringContainsString('openAutoReplies', $component);
         $this->assertStringContainsString('/api/avito/messenger/auto-replies', $autoReplyComponent);
         $this->assertStringContainsString('всей сохранённой переписке', $component);
-        $this->assertStringContainsString('width: 100%; max-width: none', $page);
         $this->assertStringNotContainsString('localStorage', $component);
     }
 
@@ -288,8 +287,8 @@ class AvitoMessengerTest extends TestCase
             ->assertJsonPath('item.attachments.0.archived', true);
 
         $this->assertSame(
-            '2026-08-08 16:01:13',
-            DB::table('avito_messages')->where('external_message_id', 'image-message-1')->value('remote_created_at')
+            1786204873,
+            AvitoMessage::query()->where('external_message_id', 'image-message-1')->sole()->remote_created_at->timestamp
         );
         $path = DB::table('avito_message_attachments')->value('storage_path');
         Storage::disk('avito')->assertExists($path);

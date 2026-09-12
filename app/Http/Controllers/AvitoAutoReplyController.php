@@ -9,6 +9,8 @@ use App\Models\AvitoAutoReplySetting;
 use App\Models\AvitoChat;
 use App\Models\AvitoMessage;
 use App\Models\AvitoMessengerAccount;
+use App\Services\Avito\AutoReply\AvitoAutoReplyDiagnostics;
+use App\Services\Avito\AutoReply\AvitoAutoReplySafetyGuard;
 use App\Services\Avito\AutoReply\AvitoAutoReplyService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -20,7 +22,7 @@ use Illuminate\Validation\ValidationException;
 
 class AvitoAutoReplyController extends Controller
 {
-    public function index(Request $request, AvitoAutoReplyService $service): JsonResponse
+    public function index(Request $request, AvitoAutoReplyService $service, AvitoAutoReplyDiagnostics $diagnostics): JsonResponse
     {
         $validated = $request->validate([
             'chat_id' => ['nullable', 'integer', 'exists:avito_chats,id'],
@@ -52,6 +54,7 @@ class AvitoAutoReplyController extends Controller
 
         return response()->json([
             'settings' => $this->settingsPayload($settings),
+            'diagnostics' => $diagnostics->report($chat),
             'rules' => $rules->map(fn (AvitoAutoReplyRule $rule) => $this->rulePayload($rule, $chat))->values(),
             'decisions' => [
                 'data' => $decisions->getCollection()->map(fn (AvitoAutoReplyDecision $decision) => $this->decisionPayload($decision))->values(),
@@ -89,6 +92,7 @@ class AvitoAutoReplyController extends Controller
     {
         $validated = $request->validate([
             'mode' => ['sometimes', Rule::in(AvitoAutoReplySetting::MODES)],
+            'response_mode' => ['sometimes', Rule::in(['assistant', 'templates'])],
             'debounce_seconds' => ['sometimes', 'integer', 'min:5', 'max:120'],
             'bundle_window_seconds' => ['sometimes', 'integer', 'min:15', 'max:600'],
             'cooldown_minutes' => ['sometimes', 'integer', 'min:1', 'max:43200'],
@@ -97,24 +101,30 @@ class AvitoAutoReplyController extends Controller
             'minimum_margin' => ['sometimes', 'numeric', 'min:0.01', 'max:1'],
         ]);
 
-        if (in_array($validated['mode'] ?? null, ['pilot', 'active'], true)) {
-            if (! $service->classifierConfigured()) {
+        $settings = AvitoAutoReplySetting::withLockedCurrent(function (AvitoAutoReplySetting $settings) use ($validated, $service): AvitoAutoReplySetting {
+            if ($settings->emergency_stopped_at && ($validated['mode'] ?? 'off') !== 'off') {
                 throw ValidationException::withMessages([
-                    'mode' => 'Нельзя включить отправку: Yandex AI Studio не настроен.',
+                    'mode' => 'Действует экстренная остановка. Сначала явно снимите её кнопкой «Возобновить наблюдение».',
                 ]);
             }
-            $eligible = AvitoAutoReplyRule::query()
-                ->eligible($validated['mode'])
-                ->exists();
-            if (! $eligible) {
-                throw ValidationException::withMessages([
-                    'mode' => 'Сначала утвердите и включите хотя бы один подходящий сценарий.',
-                ]);
-            }
-        }
 
-        $settings = AvitoAutoReplySetting::current();
-        $settings->fill($validated)->save();
+            if (in_array($validated['mode'] ?? null, ['pilot', 'active'], true)) {
+                if (! $service->classifierConfigured()) {
+                    throw ValidationException::withMessages([
+                        'mode' => 'Нельзя включить отправку: Yandex AI Studio не настроен.',
+                    ]);
+                }
+                if (! AvitoAutoReplyRule::query()->eligible($validated['mode'])->exists()) {
+                    throw ValidationException::withMessages([
+                        'mode' => 'Сначала утвердите и включите хотя бы один подходящий сценарий.',
+                    ]);
+                }
+            }
+
+            $settings->fill($validated)->save();
+
+            return $settings;
+        });
 
         return response()->json([
             'message' => 'Настройки автоответов сохранены.',
@@ -122,9 +132,50 @@ class AvitoAutoReplyController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function control(): JsonResponse
+    {
+        return response()->json(['settings' => $this->settingsPayload(AvitoAutoReplySetting::current())]);
+    }
+
+    public function emergencyStop(): JsonResponse
+    {
+        // This path has no AI dependency and never waits for a running model or
+        // Avito request. The shared row lock only covers local send authorization.
+        $settings = AvitoAutoReplySetting::withLockedCurrent(function (AvitoAutoReplySetting $settings): AvitoAutoReplySetting {
+            $settings->forceFill([
+                'mode' => 'off',
+                'emergency_stopped_at' => $settings->emergency_stopped_at ?? now(),
+            ])->save();
+
+            return $settings;
+        });
+
+        return response()->json([
+            'message' => 'AI экстренно остановлен. Уже переданный в Avito запрос отозвать нельзя.',
+            'settings' => $this->settingsPayload($settings),
+        ]);
+    }
+
+    public function resume(): JsonResponse
+    {
+        $settings = AvitoAutoReplySetting::withLockedCurrent(function (AvitoAutoReplySetting $settings): AvitoAutoReplySetting {
+            if ($settings->emergency_stopped_at) {
+                $settings->forceFill(['mode' => 'shadow', 'emergency_stopped_at' => null])->save();
+            }
+
+            return $settings;
+        });
+
+        return response()->json([
+            'message' => 'Экстренная остановка снята. Для отправки ответов включите «Пилот» или «Активно» в настройках.',
+            'settings' => $this->settingsPayload($settings),
+        ]);
+    }
+
+    public function store(Request $request, AvitoAutoReplySafetyGuard $guard): JsonResponse
     {
         $validated = $request->validate($this->ruleRules());
+        $this->validateRuleResponse(new AvitoAutoReplyRule($validated), $guard);
         $rule = DB::transaction(function () use ($validated): AvitoAutoReplyRule {
             $examples = $this->extractExamples($validated);
             $key = $this->uniqueKey($validated['key'] ?? $validated['name']);
@@ -134,7 +185,7 @@ class AvitoAutoReplyController extends Controller
                 'is_active' => $validated['is_active'] ?? false,
                 'is_approved' => $validated['is_approved'] ?? false,
                 'is_pilot' => $validated['is_pilot'] ?? false,
-                'confidence_threshold' => $validated['confidence_threshold'] ?? 0.97,
+                'confidence_threshold' => $validated['confidence_threshold'] ?? 0.90,
                 'sort_order' => $validated['sort_order'] ?? 0,
                 'approved_at' => ! empty($validated['is_approved']) ? now() : null,
             ]);
@@ -149,9 +200,12 @@ class AvitoAutoReplyController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, AvitoAutoReplyRule $rule): JsonResponse
+    public function update(Request $request, AvitoAutoReplyRule $rule, AvitoAutoReplySafetyGuard $guard): JsonResponse
     {
         $validated = $request->validate($this->ruleRules(true, $rule));
+        if (array_key_exists('response_text', $validated) || ! empty($validated['is_approved']) || ! empty($validated['is_active'])) {
+            $this->validateRuleResponse((clone $rule)->fill($validated), $guard);
+        }
         DB::transaction(function () use ($validated, $rule): void {
             $hasExamples = array_key_exists('positive_examples', $validated)
                 || array_key_exists('negative_examples', $validated);
@@ -213,6 +267,9 @@ class AvitoAutoReplyController extends Controller
         ]);
         $ids = AvitoMessage::query()
             ->where('direction', 'in')
+            // Archive analysis must not claim the unique decision for a fresh
+            // message whose live auto-reply is still pending in the queue.
+            ->whereRaw('COALESCE(remote_created_at, created_at) < ?', [now()->subMinutes(15)])
             ->where('type', 'text')
             ->where('remote_type', 'text')
             ->whereNotNull('text')
@@ -273,6 +330,15 @@ class AvitoAutoReplyController extends Controller
         return $examples;
     }
 
+    private function validateRuleResponse(AvitoAutoReplyRule $rule, AvitoAutoReplySafetyGuard $guard): void
+    {
+        if ($guard->responseBlockedReason((string) $rule->response_text, collect([$rule]))) {
+            throw ValidationException::withMessages([
+                'response_text' => 'Ответ содержит запрещённые сведения или инструкции. Наличие, сроки доставки, закупочные цены и внутренние данные должны оставаться оператору.',
+            ]);
+        }
+    }
+
     private function replaceExamples(AvitoAutoReplyRule $rule, array $examples): void
     {
         $rule->examples()->delete();
@@ -303,9 +369,9 @@ class AvitoAutoReplyController extends Controller
     private function settingsPayload(AvitoAutoReplySetting $settings): array
     {
         return $settings->only([
-            'id', 'mode', 'debounce_seconds', 'bundle_window_seconds', 'cooldown_minutes',
-            'daily_limit', 'minimum_confidence', 'minimum_margin', 'updated_at',
-        ]);
+            'id', 'mode', 'response_mode', 'debounce_seconds', 'bundle_window_seconds', 'cooldown_minutes',
+            'daily_limit', 'minimum_confidence', 'minimum_margin', 'updated_at', 'emergency_stopped_at',
+        ]) + ['is_emergency_stopped' => $settings->emergency_stopped_at !== null];
     }
 
     private function rulePayload(AvitoAutoReplyRule $rule, ?AvitoChat $chat = null): array
@@ -329,7 +395,7 @@ class AvitoAutoReplyController extends Controller
                 'id', 'avito_message_id', 'avito_chat_id', 'mode', 'outcome', 'reason_code',
                 'detected_intent', 'confidence', 'runner_up_confidence', 'rule_version', 'message_excerpt',
                 'model', 'external_request_id', 'input_tokens', 'output_tokens', 'latency_ms',
-                'evaluated_at', 'sent_at', 'created_at',
+                'evaluated_at', 'sent_at', 'created_at', 'response_text', 'matched_rule_keys',
             ]),
             'outcome_label' => $this->outcomeLabels()[$decision->outcome] ?? $decision->outcome,
             'reason_label' => $this->reasonLabels()[$decision->reason_code] ?? $decision->reason_code,
@@ -348,7 +414,7 @@ class AvitoAutoReplyController extends Controller
     {
         return [
             ['value' => 'off', 'label' => 'Выключено', 'description' => 'Сообщения не анализируются и не отправляются.'],
-            ['value' => 'shadow', 'label' => 'Наблюдение', 'description' => 'AI классифицирует и ведёт журнал, но ничего не отправляет.'],
+            ['value' => 'shadow', 'label' => 'Наблюдение', 'description' => 'AI готовит ответы и ведёт журнал, но ничего не отправляет.'],
             ['value' => 'pilot', 'label' => 'Пилот', 'description' => 'Отвечают только сценарии, отмеченные для пилота.'],
             ['value' => 'active', 'label' => 'Активно', 'description' => 'Отвечают все активные утверждённые сценарии.'],
         ];
@@ -358,6 +424,7 @@ class AvitoAutoReplyController extends Controller
     {
         return [
             'processing' => 'Обрабатывается',
+            'sending' => 'Отправка начата — результат уточняется',
             'sent' => 'Отправлено',
             'would_send' => 'Был бы отправлен',
             'human_required' => 'Нужен человек',
@@ -374,6 +441,7 @@ class AvitoAutoReplyController extends Controller
             'shadow_mode' => 'Режим наблюдения — отправка отключена',
             'historical_shadow' => 'Безопасный анализ архивного сообщения',
             'mode_off' => 'Автоответы выключены',
+            'emergency_stopped' => 'AI экстренно остановлен оператором',
             'not_incoming' => 'Не входящее сообщение',
             'unsupported_message_type' => 'Формат требует человека',
             'stale_webhook' => 'Слишком старое событие',
@@ -384,10 +452,10 @@ class AvitoAutoReplyController extends Controller
             'invalid_message' => 'Некорректный текст',
             'blocked_prompt_injection' => 'Попытка повлиять на инструкции AI',
             'blocked_sensitive_request' => 'Запрос внутренних или конфиденциальных данных',
-            'blocked_restricted_topic' => 'Наличие, цена или время доставки требуют человека',
+            'blocked_restricted_topic' => 'Наличие, закупочные цены или сроки доставки требуют человека',
             'blocked_encoded_instruction' => 'Подозрительная закодированная инструкция',
             'blocked_by_ai_safety' => 'AI обнаружил опасный запрос',
-            'mixed_request' => 'В сообщении несколько тем',
+            'mixed_request' => 'Есть вопрос без разрешённого ответа',
             'not_approved_intent' => 'Нет утверждённого сценария',
             'low_confidence' => 'Недостаточная уверенность',
             'low_margin' => 'Слишком близкие варианты',
@@ -399,6 +467,16 @@ class AvitoAutoReplyController extends Controller
             'send_lock_busy' => 'Другой автоответ уже отправляется',
             'superseded_during_classification' => 'Во время анализа пришло новое сообщение',
             'human_replied_during_classification' => 'Во время анализа ответил человек',
+            'unsafe_response' => 'Подготовленный ответ не прошёл защитную проверку',
+            'response_invalid' => 'AI вернул некорректный текст ответа',
+            'response_prompt_injection' => 'В ответе обнаружены посторонние инструкции',
+            'response_sensitive' => 'Ответ содержит внутренние или конфиденциальные данные',
+            'response_restricted' => 'Ответ содержит запрещённые сведения',
+            'response_unapproved_details' => 'В ответе есть сведения, не подтверждённые сценариями',
+            'settings_changed' => 'Настройки изменились во время подготовки ответа',
+            'rule_changed' => 'Сценарий изменился во время подготовки ответа',
+            'message_changed' => 'Сообщение изменилось или удалено во время подготовки ответа',
+            'send_error' => 'Сбой отправки: проверьте чат перед повтором вручную',
         ];
     }
 }

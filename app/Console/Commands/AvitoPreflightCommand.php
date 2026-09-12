@@ -54,6 +54,10 @@ class AvitoPreflightCommand extends Command
                 'avito_chat_order',
                 'avito_message_templates',
                 'avito_message_template_usages',
+                'avito_auto_reply_settings',
+                'avito_auto_reply_rules',
+                'avito_auto_reply_examples',
+                'avito_auto_reply_decisions',
             ] as $table) {
                 if (! Schema::hasTable($table)) {
                     $this->error("Отсутствует таблица {$table}.");

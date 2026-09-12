@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Domain\AiSales\Enums\BusinessLane;
 use App\Domain\AiSales\Services\ProspectingAuthorizationService;
 use App\Models\City;
+use App\Services\Realtime\AvitoRealtimeAccess;
 use App\Services\Realtime\CommerceRealtimeAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route as LaravelRoute;
@@ -29,6 +30,7 @@ class HandleInertiaRequests extends Middleware
             'canRegister' => LaravelRoute::has('register'),
 
             'realtime' => fn () => app(CommerceRealtimeAccess::class)->clientConfig($request->user()),
+            'avitoRealtime' => fn () => app(AvitoRealtimeAccess::class)->clientConfig($request->user()),
 
             'auth' => [
                 'user' => fn () => $request->user()

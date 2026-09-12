@@ -933,6 +933,12 @@ Route::post('/avito/webhook', [AvitoController::class, 'receiveWebhook'])
     ->middleware('throttle:300,1')
     ->name('api.avito.webhook');
 
+// Emergency control must remain available if ordinary Avito API requests have
+// exhausted their shared rate limit.
+Route::post('/avito/messenger/auto-replies/emergency-stop', [AvitoAutoReplyController::class, 'emergencyStop'])
+    ->middleware('throttle:60,1,avito-emergency-stop')
+    ->name('api.avito.messenger.auto-replies.emergency-stop');
+
 Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(function () {
     Route::get('/status', [AvitoController::class, 'status'])->name('status');
     Route::get('/capabilities', [AvitoController::class, 'capabilities'])->name('capabilities.index');
@@ -1039,6 +1045,10 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
 
     Route::prefix('messenger')->name('messenger.')->group(function () {
         Route::get('/auto-replies', [AvitoAutoReplyController::class, 'index'])->name('auto-replies.index');
+        Route::get('/auto-replies/control', [AvitoAutoReplyController::class, 'control'])
+            ->name('auto-replies.control');
+        Route::post('/auto-replies/resume', [AvitoAutoReplyController::class, 'resume'])
+            ->name('auto-replies.resume');
         Route::patch('/auto-replies/settings', [AvitoAutoReplyController::class, 'updateSettings'])
             ->name('auto-replies.settings.update');
         Route::post('/auto-replies/rules', [AvitoAutoReplyController::class, 'store'])

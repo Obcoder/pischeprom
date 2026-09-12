@@ -1,5 +1,8 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAvitoRealtime } from '../../Composables/useAvitoRealtime.js'
+import { mergeAvitoMessages } from '../../Stores/avito.js'
 import axios from 'axios'
 import AvitoCrmPanel from './AvitoCrmPanel.vue'
 
@@ -9,33 +12,26 @@ const props = defineProps({
 
 const emit = defineEmits(['notice', 'error'])
 
-const loading = ref(true)
-const chatsLoading = ref(false)
-const chatLoading = ref(false)
-const sending = ref(false)
-const syncing = ref(false)
-const overview = ref({ counts: {}, accounts: [], latest_runs: [], tools: [] })
-const chats = ref([])
-const chatsMeta = ref({ current_page: 1, last_page: 1, total: 0 })
-const selectedChat = ref(null)
-const messages = ref([])
-const messagesMeta = ref({ current_page: 1, last_page: 1, total: 0 })
-const subscriptions = ref([])
-const selectedConnectionId = ref(null)
-const activeRun = ref(null)
-const composerText = ref('')
-const composerTemplateId = ref(null)
-const composerTemplateName = ref('')
+const store = useAvitoRealtime({ key: 'messages', topics: ['avito_messages'], load: reloadRealtime })
+const { loading, chatsLoading, chatLoading, sending, syncing, overview, chats, chatsMeta,
+    selectedChat, messages, messagesMeta, subscriptions, selectedConnectionId, activeRun,
+    composerText, composerTemplateId, composerTemplateName, filters } = storeToRefs(store)
 const composerInput = ref(null)
 const imageInput = ref(null)
 const messageStream = ref(null)
 const crmPanel = ref(null)
-const filters = reactive({ search: '', account_id: null, unread_only: false, chat_type: null })
+const mobilePane = ref(store.selectedChat ? 'conversation' : 'chats')
+const refreshingArchive = ref(false)
+const archiveRefreshFailed = ref(false)
+let manualRefreshController = null
 let searchTimer = null
-let runTimer = null
+let disposed = false
+let streamVersion = 0
+let olderPromise = null
+let followNewMessages = true
 
 const connectionOptions = computed(() => [
-    { title: 'Client credentials (.env)', value: null },
+    { title: 'Основной аккаунт', value: null },
     ...props.connections.map((connection) => ({ title: connection.name, value: connection.id })),
 ])
 const accountOptions = computed(() => overview.value.accounts.map((account) => ({
@@ -45,93 +41,138 @@ const accountOptions = computed(() => overview.value.accounts.map((account) => (
 const runningRun = computed(() => activeRun.value
     || overview.value.latest_runs.find((run) => ['queued', 'running'].includes(run.status)))
 const canSend = computed(() => selectedChat.value && composerText.value.trim().length > 0 && !sending.value)
+const realtimeFailed = computed(() => archiveRefreshFailed.value
+    || Object.keys(store.refreshErrors).some((key) => key.startsWith('messages:')))
+const realtimeStatus = computed(() => {
+    if (realtimeFailed.value) return { label: 'Не удалось обновить архив', short: 'Сбой', icon: 'mdi-alert-circle-outline', warning: true }
+    return {
+        live: { label: 'Обновляется автоматически', short: 'Авто', icon: 'mdi-access-point', warning: false },
+        connecting: { label: 'Подключение…', short: 'Связь…', icon: 'mdi-connection', warning: false },
+        disabled: { label: 'Обновление вручную', short: 'Вручную', icon: 'mdi-sync-off', warning: true },
+        offline: { label: 'Связь потеряна', short: 'Нет связи', icon: 'mdi-wifi-off', warning: true },
+        forbidden: { label: 'Нет доступа к автообновлению', short: 'Нет доступа', icon: 'mdi-lock-outline', warning: true },
+        error: { label: 'Автообновление недоступно', short: 'Сбой', icon: 'mdi-alert-circle-outline', warning: true },
+    }[store.status] || { label: 'Обновление вручную', short: 'Вручную', icon: 'mdi-sync-off', warning: true }
+})
+const realtimeHint = computed(() => `${realtimeStatus.value.label}. ${store.status === 'disabled'
+    ? 'Нажмите, чтобы перечитать сохранённые чаты и сообщения.'
+    : 'Нажмите, чтобы восстановить соединение и перечитать архив.'}`)
 
-watch(() => ({ ...filters }), () => {
+watch(filters, () => {
+    store.invalidateChats()
+    chatsMeta.value.current_page = 1
     clearTimeout(searchTimer)
     searchTimer = setTimeout(() => loadChats(1), 280)
-}, { deep: true })
+}, { deep: true, flush: 'sync' })
 
 async function initialize() {
     loading.value = true
     try {
-        await Promise.all([loadOverview(), loadChats(1), loadSubscriptions()])
+        await Promise.all([loadOverview(), loadChats(chatsMeta.value.current_page), loadSubscriptions()])
+        if (selectedChat.value) await loadChatPage(1, false, { preserve: true })
     } finally {
-        loading.value = false
+        if (!disposed) loading.value = false
     }
 }
 
-async function loadOverview() {
+async function loadOverview(options = {}) {
+    const previousRun = activeRun.value
     try {
-        const { data } = await axios.get('/api/avito/messenger/overview')
-        overview.value = data
-        const run = data.latest_runs?.find((item) => ['queued', 'running'].includes(item.status))
-        if (run && !activeRun.value) {
-            activeRun.value = run
-            pollRun(run.id)
-        }
+        const data = await store.loadOverview(options)
+        const finished = data?.latest_runs?.find((run) => run.id === previousRun?.id && !['queued', 'running'].includes(run.status))
+        if (finished?.status === 'success') {
+            notify(`Архив обновлён: ${finished.messages_created} новых сообщений, ${finished.chats_created} новых чатов.`)
+        } else if (finished) emit('error', finished.error_message || 'Синхронизация Avito завершилась с ошибкой.')
     } catch (exception) {
         fail(exception, 'Не удалось загрузить состояние архива сообщений.')
+        if (options.signal) throw exception
     }
 }
 
-async function loadChats(page = 1) {
-    chatsLoading.value = true
+async function loadChats(page = chatsMeta.value.current_page, options = {}) {
     try {
-        const { data } = await axios.get('/api/avito/messenger/chats', {
-            params: {
-                page,
-                per_page: 50,
-                search: filters.search || undefined,
-                account_id: filters.account_id || undefined,
-                unread_only: filters.unread_only || undefined,
-                chat_type: filters.chat_type || undefined,
-            },
-        })
-        chats.value = data.data || []
-        chatsMeta.value = data
-        if (selectedChat.value) {
-            const current = chats.value.find((chat) => chat.id === selectedChat.value.id)
-            if (current) selectedChat.value = { ...selectedChat.value, ...current }
-        }
+        await store.loadChats(page, options)
     } catch (exception) {
         fail(exception, 'Не удалось загрузить локальный архив чатов.')
-    } finally {
-        chatsLoading.value = false
+        if (options.signal) throw exception
     }
 }
 
 async function openChat(chat) {
-    selectedChat.value = chat
-    messages.value = []
-    messagesMeta.value = { current_page: 1, last_page: 1, total: 0 }
-    clearComposerTemplate()
-    await loadChatPage(1, false)
+    mobilePane.value = 'conversation'
+    if (selectedChat.value?.id === chat.id) return
+    store.selectChat(chat)
+    await loadChatPage(1, false, { forceScroll: true })
 }
 
-async function loadChatPage(page, prepend) {
-    if (!selectedChat.value) return
-    chatLoading.value = true
+function atBottom() {
+    const stream = messageStream.value
+    return !stream || stream.scrollHeight - stream.scrollTop - stream.clientHeight < 80
+}
+
+function trackStreamScroll() {
+    followNewMessages = atBottom()
+}
+
+async function loadChatPage(page, prepend = false, options = {}) {
+    if (options.preserve && olderPromise) await olderPromise
+    if (disposed || options.signal?.aborted) return
+    const chatId = selectedChat.value?.id
+    const version = ++streamVersion
+    const stream = messageStream.value
+    const oldHeight = stream?.scrollHeight || 0
+    const follow = options.forceScroll || atBottom()
     try {
-        const { data } = await axios.get(`/api/avito/messenger/chats/${selectedChat.value.id}`, {
-            params: { page, per_page: 100 },
-        })
-        selectedChat.value = data.chat
-        const incoming = data.messages?.data || []
-        messages.value = prepend
-            ? uniqueMessages([...incoming, ...messages.value])
-            : incoming
-        messagesMeta.value = data.messages || messagesMeta.value
-        if (!prepend) await scrollToBottom()
+        const data = options.preserve && !prepend
+            ? await store.refreshChat({ signal: options.signal })
+            : await store.loadChatPage(page, { prepend, signal: options.signal })
+        if (!data || disposed || selectedChat.value?.id !== chatId || version !== streamVersion) return
+        await nextTick()
+        if (prepend && messageStream.value) messageStream.value.scrollTop += messageStream.value.scrollHeight - oldHeight
+        else if (options.forceScroll || (follow && followNewMessages)) await scrollToBottom(chatId)
     } catch (exception) {
         fail(exception, 'Не удалось открыть переписку.')
-    } finally {
-        chatLoading.value = false
+        if (options.signal) throw exception
     }
 }
 
 async function loadOlderMessages() {
-    if (messagesMeta.value.current_page >= messagesMeta.value.last_page) return
-    await loadChatPage(messagesMeta.value.current_page + 1, true)
+    if (chatLoading.value || messagesMeta.value.current_page >= messagesMeta.value.last_page) return
+    olderPromise = loadChatPage(messagesMeta.value.current_page + 1, true)
+    try { await olderPromise } finally { olderPromise = null }
+}
+
+async function reloadRealtime(options) {
+    if (olderPromise) await olderPromise
+    if (disposed || options.signal.aborted) return
+    await Promise.all([
+        loadOverview(options), loadChats(chatsMeta.value.current_page, options),
+        loadChatPage(1, false, { ...options, preserve: true }),
+    ])
+    if (!disposed && !options.signal.aborted) archiveRefreshFailed.value = false
+}
+
+async function refreshArchive(reconnect = false) {
+    if (refreshingArchive.value) return
+    if (reconnect && store.status !== 'disabled') store.reconnect()
+    const controller = new AbortController()
+    manualRefreshController = controller
+    refreshingArchive.value = true
+    try {
+        await Promise.all([reloadRealtime({ signal: controller.signal }), store.loadControl({ signal: controller.signal })])
+        if (disposed || controller.signal.aborted) return
+        archiveRefreshFailed.value = false
+        for (const key of Object.keys(store.refreshErrors)) {
+            if (key.startsWith('messages:')) delete store.refreshErrors[key]
+        }
+    } catch (exception) {
+        if (!disposed && !controller.signal.aborted) {
+            archiveRefreshFailed.value = true
+            fail(exception, 'Не удалось перечитать архив сообщений.')
+        }
+    } finally {
+        if (!disposed) refreshingArchive.value = false
+    }
 }
 
 async function queueSync(full = false) {
@@ -143,7 +184,6 @@ async function queueSync(full = false) {
         })
         activeRun.value = data.run
         notify(full ? 'Запущена полная архивация доступной истории Avito.' : 'Запущена синхронизация новых чатов и сообщений.')
-        pollRun(data.run.id)
     } catch (exception) {
         fail(exception, 'Не удалось запустить синхронизацию.')
     } finally {
@@ -151,55 +191,35 @@ async function queueSync(full = false) {
     }
 }
 
-function pollRun(id) {
-    clearTimeout(runTimer)
-    runTimer = setTimeout(async () => {
-        try {
-            const { data } = await axios.get(`/api/avito/messenger/sync-runs/${id}`)
-            activeRun.value = data.run
-            if (['queued', 'running'].includes(data.run.status)) {
-                pollRun(id)
-                return
-            }
-
-            if (data.run.status === 'success') {
-                notify(`Архив обновлён: ${data.run.messages_created} новых сообщений, ${data.run.chats_created} новых чатов.`)
-                await Promise.all([loadOverview(), loadChats(1)])
-                if (selectedChat.value) await loadChatPage(1, false)
-            } else {
-                emit('error', data.run.error_message || 'Синхронизация Avito завершилась с ошибкой.')
-            }
-            activeRun.value = null
-        } catch (exception) {
-            fail(exception, 'Не удалось получить статус синхронизации.')
-            pollRun(id)
-        }
-    }, 2200)
-}
-
 async function refreshSelectedChat() {
     if (!selectedChat.value) return
+    const chatId = selectedChat.value.id
     chatLoading.value = true
     try {
-        await axios.post(`/api/avito/messenger/chats/${selectedChat.value.id}/refresh`, { message_limit: 100 })
-        await Promise.all([loadChatPage(1, false), loadChats(chatsMeta.value.current_page)])
+        await axios.post(`/api/avito/messenger/chats/${chatId}/refresh`, { message_limit: 100 })
+        if (disposed || selectedChat.value?.id !== chatId) return
+        await Promise.all([loadChatPage(1, false, { preserve: true }), loadChats(chatsMeta.value.current_page)])
         notify('Переписка обновлена из Avito.')
     } catch (exception) {
         fail(exception, 'Не удалось обновить чат.')
     } finally {
-        chatLoading.value = false
+        if (!disposed && selectedChat.value?.id === chatId) chatLoading.value = false
     }
 }
 
 async function markRead() {
     if (!selectedChat.value) return
+    const chatId = selectedChat.value.id
     try {
-        await axios.post(`/api/avito/messenger/chats/${selectedChat.value.id}/read`)
-        selectedChat.value.is_unread = false
-        selectedChat.value.unread_count = 0
-        messages.value.forEach((message) => {
-            if (message.direction === 'in') message.is_read = true
-        })
+        await axios.post(`/api/avito/messenger/chats/${chatId}/read`)
+        if (disposed) return
+        if (selectedChat.value?.id === chatId) {
+            selectedChat.value.is_unread = false
+            selectedChat.value.unread_count = 0
+            messages.value.forEach((message) => {
+                if (message.direction === 'in') message.is_read = true
+            })
+        }
         await loadChats(chatsMeta.value.current_page)
         notify('Чат отмечен прочитанным на Avito.')
     } catch (exception) {
@@ -209,17 +229,25 @@ async function markRead() {
 
 async function sendText() {
     const text = composerText.value.trim()
-    if (!text || !selectedChat.value) return
+    if (!text || !selectedChat.value || sending.value) return
+    const chatId = selectedChat.value.id
+    const draft = composerText.value
+    const follow = atBottom()
     sending.value = true
     try {
-        const { data } = await axios.post(`/api/avito/messenger/chats/${selectedChat.value.id}/messages`, {
+        const { data } = await axios.post(`/api/avito/messenger/chats/${chatId}/messages`, {
             text,
             template_id: composerTemplateId.value || undefined,
         })
-        messages.value = uniqueMessages([...messages.value, data.item])
-        composerText.value = ''
-        clearComposerTemplate()
-        await scrollToBottom()
+        if (disposed) return
+        if (selectedChat.value?.id === chatId) {
+            messages.value = uniqueMessages([...messages.value, data.item])
+            if (composerText.value === draft) {
+                composerText.value = ''
+                clearComposerTemplate()
+            }
+            if (follow && followNewMessages) await scrollToBottom(chatId)
+        }
         await loadChats(chatsMeta.value.current_page)
     } catch (exception) {
         fail(exception, 'Avito не принял сообщение.')
@@ -235,14 +263,19 @@ function selectImage() {
 async function sendImage(event) {
     const image = event.target.files?.[0]
     event.target.value = ''
-    if (!image || !selectedChat.value) return
+    if (!image || !selectedChat.value || sending.value) return
+    const chatId = selectedChat.value.id
+    const follow = atBottom()
     sending.value = true
     try {
         const payload = new FormData()
         payload.append('image', image)
-        const { data } = await axios.post(`/api/avito/messenger/chats/${selectedChat.value.id}/messages/image`, payload)
-        messages.value = uniqueMessages([...messages.value, data.item])
-        await scrollToBottom()
+        const { data } = await axios.post(`/api/avito/messenger/chats/${chatId}/messages/image`, payload)
+        if (disposed) return
+        if (selectedChat.value?.id === chatId) {
+            messages.value = uniqueMessages([...messages.value, data.item])
+            if (follow && followNewMessages) await scrollToBottom(chatId)
+        }
         await loadChats(chatsMeta.value.current_page)
     } catch (exception) {
         fail(exception, 'Avito не принял изображение.')
@@ -253,15 +286,16 @@ async function sendImage(event) {
 
 async function refreshAfterCrmMutation() {
     await loadChats(chatsMeta.value.current_page)
-    if (selectedChat.value) await loadChatPage(1, false)
+    if (selectedChat.value) await loadChatPage(1, false, { preserve: true })
 }
 
 async function refreshMessagesFromCrm() {
-    if (selectedChat.value) await loadChatPage(1, false)
+    if (selectedChat.value) await loadChatPage(1, false, { preserve: true })
     await loadChats(chatsMeta.value.current_page)
 }
 
 function handleContactCandidate(candidate) {
+    mobilePane.value = 'details'
     if (candidate.type === 'phone') {
         crmPanel.value?.acceptPhoneCandidate(candidate)
         return
@@ -271,18 +305,22 @@ function handleContactCandidate(candidate) {
 }
 
 function openCrmCatalog() {
+    mobilePane.value = 'details'
     crmPanel.value?.openCatalog()
 }
 
 function openMessageTemplates() {
+    mobilePane.value = 'details'
     crmPanel.value?.openTemplates()
 }
 
 function openAutoReplies() {
+    mobilePane.value = 'details'
     crmPanel.value?.openAutoReplies()
 }
 
 async function insertMessageTemplate(payload) {
+    mobilePane.value = 'conversation'
     composerText.value = payload.text || ''
     composerTemplateId.value = payload.template_id || null
     composerTemplateName.value = payload.template_name || ''
@@ -291,8 +329,10 @@ async function insertMessageTemplate(payload) {
 }
 
 async function handleTemplateSent(message) {
+    if (disposed || (message.chat_id && message.chat_id !== selectedChat.value?.id)) return
+    const follow = atBottom()
     messages.value = uniqueMessages([...messages.value, message])
-    await scrollToBottom()
+    if (follow) await scrollToBottom()
     await loadChats(chatsMeta.value.current_page)
 }
 
@@ -305,6 +345,7 @@ async function deleteMessage(message) {
     if (!window.confirm('Удалить сообщение на Avito? Локальная архивная копия останется.')) return
     try {
         const { data } = await axios.delete(`/api/avito/messenger/messages/${message.id}`)
+        if (disposed) return
         const index = messages.value.findIndex((item) => item.id === message.id)
         if (index >= 0) messages.value[index] = data.item
         notify('Сообщение удалено на Avito, архивная копия сохранена.')
@@ -326,10 +367,7 @@ async function blacklist(reasonId) {
 
 async function loadSubscriptions() {
     try {
-        const { data } = await axios.get('/api/avito/messenger/subscriptions', {
-            params: { connection_id: selectedConnectionId.value || undefined },
-        })
-        subscriptions.value = data.items || []
+        await store.loadSubscriptions()
     } catch (exception) {
         // A missing Messenger entitlement should not block the chat archive UI.
         subscriptions.value = []
@@ -369,8 +407,7 @@ function attachment(message, kind) {
 }
 
 function uniqueMessages(items) {
-    return [...new Map(items.map((item) => [item.id, item])).values()]
-        .sort((a, b) => new Date(a.remote_created_at || 0) - new Date(b.remote_created_at || 0))
+    return mergeAvitoMessages([], items)
 }
 
 function formatDate(value, compact = false) {
@@ -385,36 +422,39 @@ function formatBytes(value) {
     return value < 1024 * 1024 ? `${Math.round(value / 1024)} КБ` : `${(value / 1024 / 1024).toFixed(1)} МБ`
 }
 
-async function scrollToBottom() {
+async function scrollToBottom(chatId = selectedChat.value?.id) {
     await nextTick()
-    if (messageStream.value) messageStream.value.scrollTop = messageStream.value.scrollHeight
+    if (!disposed && selectedChat.value?.id === chatId && messageStream.value) messageStream.value.scrollTop = messageStream.value.scrollHeight
 }
 
 function notify(message) {
-    emit('notice', message)
+    if (!disposed) emit('notice', message)
 }
 
 function fail(exception, fallback) {
-    emit('error', exception?.response?.data?.message || fallback)
+    if (!disposed && exception?.code !== 'ERR_CANCELED') emit('error', exception?.response?.data?.message || fallback)
 }
 
 onMounted(initialize)
 onBeforeUnmount(() => {
     clearTimeout(searchTimer)
-    clearTimeout(runTimer)
+    disposed = true
+    manualRefreshController?.abort()
+    streamVersion++
+    store.releaseMessenger()
 })
 </script>
 
 <template>
-    <section class="messenger-module">
+    <section class="messenger-module" :class="`mobile-pane-${mobilePane}`">
         <header class="messenger-toolbar">
-            <div class="messenger-stat"><v-icon icon="mdi-forum-outline" /><span>Чаты<strong>{{ overview.counts.chats || 0 }}</strong></span></div>
-            <div class="messenger-stat"><v-icon icon="mdi-message-text-fast-outline" /><span>Сообщения<strong>{{ overview.counts.messages || 0 }}</strong></span></div>
-            <div class="messenger-stat"><v-icon icon="mdi-message-badge-outline" /><span>Непрочитанные<strong>{{ overview.counts.unread_chats || 0 }}</strong></span></div>
-            <div class="messenger-stat"><v-icon icon="mdi-archive-check-outline" /><span>Медиа в архиве<strong>{{ overview.counts.attachments || 0 }}</strong></span></div>
+            <div class="messenger-counts"><strong>{{ overview.counts.chats || 0 }} чатов</strong><span>{{ overview.counts.unread_chats || 0 }} непрочитанных</span></div>
+            <button type="button" class="realtime-indicator" :class="{ 'is-warning': realtimeStatus.warning }" :title="realtimeHint" :aria-label="realtimeHint" :disabled="refreshingArchive" @click="refreshArchive(true)"><v-icon :icon="realtimeStatus.icon" size="15" /><span class="realtime-label">{{ realtimeStatus.label }}</span><span class="realtime-short-label">{{ realtimeStatus.short }}</span></button>
+            <span v-if="runningRun" class="sync-progress" role="status" :title="runningRun.status === 'queued' ? 'Синхронизация ожидает запуска' : `Синхронизация · ${runningRun.messages_seen || 0} сообщений`"><v-progress-circular indeterminate size="13" width="2" /><span class="sync-progress-label">{{ runningRun.status === 'queued' ? 'В очереди' : `Синхронизация · ${runningRun.messages_seen || 0}` }}</span></span>
             <v-spacer />
             <v-select v-model="selectedConnectionId" :items="connectionOptions" label="Источник" density="compact" variant="outlined" hide-details @update:model-value="loadSubscriptions" />
-            <v-btn size="small" color="deep-purple-lighten-1" prepend-icon="mdi-sync" :loading="syncing || !!runningRun" @click="queueSync(false)">Синхронизировать</v-btn>
+            <v-btn class="archive-refresh" icon="mdi-refresh" size="small" variant="text" :loading="refreshingArchive" title="Перечитать сохранённый архив" aria-label="Перечитать сохранённый архив" @click="refreshArchive()" />
+            <v-btn class="archive-sync" size="small" color="deep-purple-lighten-1" :loading="syncing || !!runningRun" title="Синхронизировать сообщения с Avito" aria-label="Синхронизировать сообщения с Avito" @click="queueSync(false)"><v-icon icon="mdi-sync" size="17" /><span class="sync-label">Синхронизировать</span></v-btn>
             <v-menu>
                 <template #activator="{ props: menuProps }"><v-btn v-bind="menuProps" icon="mdi-dots-vertical" size="small" variant="text" /></template>
                 <v-list density="compact">
@@ -425,11 +465,11 @@ onBeforeUnmount(() => {
             </v-menu>
         </header>
 
-        <div v-if="runningRun" class="sync-strip">
-            <v-progress-linear indeterminate color="deep-purple-accent-1" height="2" />
-            <span>{{ runningRun.status === 'queued' ? 'Синхронизация ожидает запуска' : 'Архивируем чаты, сообщения и вложения' }}</span>
-            <small>{{ runningRun.messages_seen || 0 }} сообщений обработано</small>
-        </div>
+        <nav class="mobile-pane-tabs" aria-label="Разделы переписки">
+            <button type="button" :aria-pressed="mobilePane === 'chats'" @click="mobilePane = 'chats'"><v-icon icon="mdi-forum-outline" size="16" />Чаты</button>
+            <button type="button" :aria-pressed="mobilePane === 'conversation'" @click="mobilePane = 'conversation'"><v-icon icon="mdi-message-text-outline" size="16" />Переписка</button>
+            <button type="button" :aria-pressed="mobilePane === 'details'" @click="mobilePane = 'details'"><v-icon icon="mdi-card-account-details-outline" size="16" />Клиент и AI</button>
+        </nav>
 
         <div v-if="loading" class="messenger-loading"><v-progress-circular indeterminate color="deep-purple-lighten-2" /><span>Открываем архив Avito…</span></div>
 
@@ -465,7 +505,7 @@ onBeforeUnmount(() => {
                         </v-menu>
                     </header>
 
-                    <div ref="messageStream" class="message-stream">
+                    <div ref="messageStream" class="message-stream" @scroll.passive="trackStreamScroll">
                         <v-btn v-if="messagesMeta.current_page < messagesMeta.last_page" class="older-button" size="x-small" variant="tonal" :loading="chatLoading" @click="loadOlderMessages">Загрузить более ранние</v-btn>
                         <article v-for="message in messages" :key="message.id" class="message-bubble" :class="[`is-${message.direction || 'in'}`, { 'is-deleted': message.remote_type === 'deleted' }]">
                             <div v-if="attachment(message, 'image')" class="message-image"><img :src="attachment(message, 'image').url" alt="Изображение из архива Avito" loading="lazy"></div>
@@ -501,6 +541,7 @@ onBeforeUnmount(() => {
             <AvitoCrmPanel
                 v-if="selectedChat"
                 ref="crmPanel"
+                class="messenger-details-pane"
                 :chat="selectedChat"
                 @notice="notify"
                 @error="(message) => emit('error', message)"
@@ -510,7 +551,7 @@ onBeforeUnmount(() => {
                 @template-sent="handleTemplateSent"
             />
 
-            <aside v-else class="messenger-info-pane">
+            <aside v-else class="messenger-info-pane messenger-details-pane">
                 <section><span class="info-eyebrow">Локальный архив</span><dl><dt>Аккаунтов</dt><dd>{{ overview.counts.accounts || 0 }}</dd><dt>Чатов</dt><dd>{{ overview.counts.chats || 0 }}</dd><dt>Сообщений</dt><dd>{{ overview.counts.messages || 0 }}</dd><dt>Вложений</dt><dd>{{ overview.counts.attachments || 0 }}</dd></dl></section>
                 <section><span class="info-eyebrow">Realtime</span><strong>{{ subscriptions.length ? 'Webhook V3 активен' : 'Webhook не найден' }}</strong><small>{{ subscriptions.length ? `${subscriptions.length} подписок Avito` : 'Плановая синхронизация выполняется каждые 5 минут' }}</small><div><v-btn v-if="!subscriptions.length" size="x-small" variant="tonal" @click="changeSubscription(true)">Подключить</v-btn><v-btn v-else size="x-small" color="error" variant="text" @click="changeSubscription(false)">Отключить</v-btn></div></section>
                 <section><span class="info-eyebrow">Возможности Avito</span><small>API разрешает создать и удалить сообщение, но не предоставляет редактирование уже отправленного текста. Удаление доступно не позднее часа.</small></section>
@@ -521,30 +562,38 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.messenger-module { overflow: hidden; width: 100%; min-height: calc(100vh - 285px); color: #e9ebff; border: 1px solid #30344d; border-radius: 10px; background: #111427; }
-.messenger-toolbar { display: flex; min-height: 58px; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1b1e35; }
+.messenger-module { display: flex; flex-direction: column; overflow: hidden; width: 100%; height: 100%; min-height: 0; color: #e9ebff; border: 1px solid #30344d; border-radius: 10px; background: #111427; }
+.messenger-toolbar { display: flex; flex: 0 0 auto; min-height: 48px; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1b1e35; }
 .messenger-toolbar > .v-select { max-width: 230px; }
-.messenger-stat { display: flex; min-width: 112px; align-items: center; gap: 8px; padding: 5px 9px; border: 1px solid #33374f; border-radius: 8px; background: #15182b; }
-.messenger-stat > .v-icon { color: #a995ff; }.messenger-stat span, .messenger-stat strong { display: block; }.messenger-stat span { color: #858cac; font-size: 9px; text-transform: uppercase; }.messenger-stat strong { margin-top: 1px; color: #f1f2ff; font-size: 16px; }
-.sync-strip { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 7px 13px; color: #d9d1ff; font-size: 11px; background: #282044; }.sync-strip .v-progress-linear { position: absolute; inset: 0 0 auto; }.sync-strip small { color: #a7a0c9; }
-.messenger-loading { display: flex; min-height: 430px; align-items: center; justify-content: center; gap: 12px; color: #9da3c3; }
-.messenger-layout { display: grid; grid-template-columns: 320px minmax(410px, 1fr) 360px; height: calc(100vh - 355px); min-height: 520px; }
+.messenger-counts { display: flex; align-items: baseline; gap: 9px; white-space: nowrap; }.messenger-counts strong { font-size: 12px; }.messenger-counts span { color: #9299b9; font-size: 10px; }
+.realtime-indicator { display: inline-flex; min-width: 0; flex: 0 0 auto; align-items: center; gap: 4px; padding: 4px 5px; color: #91dbbd; font-size: 10px; border: 1px solid #335449; border-radius: 5px; background: #1a302b; white-space: nowrap; cursor: pointer; }.realtime-indicator.is-warning { color: #dfbc81; border-color: #645235; background: #352d23; }.realtime-indicator:disabled { opacity: .65; cursor: wait; }.realtime-short-label { display: none; }.archive-sync :deep(.v-btn__content) { gap: 6px; }
+.sync-progress { display: inline-flex; min-width: 0; align-items: center; gap: 5px; overflow: hidden; color: #bdacf3; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
+.messenger-loading { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; gap: 12px; color: #9da3c3; }
+.messenger-layout { display: grid; flex: 1; grid-template-columns: clamp(290px, 25vw, 350px) minmax(0, 1fr) clamp(315px, 27vw, 390px); min-height: 0; overflow: hidden; }
+.mobile-pane-tabs { display: none; }
 .chat-list-pane, .conversation-pane, .messenger-info-pane { min-width: 0; min-height: 0; }
 .chat-list-pane { display: flex; flex-direction: column; border-right: 1px solid #30344d; background: #15182b; }
 .chat-filters { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px; border-bottom: 1px solid #2c3048; }.chat-filters > .v-input { grid-column: 1 / -1; min-width: 0; width: 100%; justify-self: stretch; }.chat-filters :deep(.v-input--horizontal) { grid-template-areas: 'control' 'messages'; grid-template-columns: minmax(0, 1fr); }.chat-filters > div { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }.chat-filters > div > .v-input { min-width: 0; width: 100%; }
-.chat-list { overflow-y: auto; flex: 1; transition: opacity .15s; }.chat-list.is-loading { opacity: .55; }
+.chat-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; flex: 1; transition: opacity .15s; }.chat-list.is-loading { opacity: .55; }
 .chat-row { display: grid; width: 100%; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px 9px; color: #e9ebff; text-align: left; border: 0; border-bottom: 1px solid #292d45; background: transparent; cursor: pointer; }.chat-row:hover { background: #1d2038; }.chat-row.is-active { box-shadow: inset 3px 0 #9378ff; background: #24213f; }.chat-row.is-unread .chat-row__body strong { color: #fff; }
 .chat-row__body { min-width: 0; }.chat-row__body strong, .chat-row__body small, .chat-row__body em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.chat-row__body strong { font-size: 12px; }.chat-row__body small { margin-top: 3px; color: #9ca2c1; font-size: 11px; }.chat-row__body em { margin-top: 3px; color: #6f7596; font-size: 9px; font-style: normal; }
 .chat-row__meta { display: grid; justify-items: end; gap: 4px; }.chat-row__meta time { color: #747b9e; font-size: 8px; }.chat-row__meta b { display: grid; min-width: 18px; height: 18px; place-items: center; color: #fff; font-size: 9px; border-radius: 20px; background: #7957e8; }.chat-row__meta i { color: #6f7596; font-size: 8px; font-style: normal; text-transform: uppercase; }
 .conversation-pane { display: flex; flex-direction: column; background: radial-gradient(circle at 50% 0, rgba(100, 70, 190, .08), transparent 45%), #101324; }
-.conversation-header { display: flex; min-height: 58px; align-items: center; gap: 3px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1a1d33; }.conversation-header > div:first-child { min-width: 0; flex: 1; }.conversation-header strong, .conversation-header span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conversation-header strong { font-size: 13px; }.conversation-header span { margin-top: 3px; color: #858baa; font-size: 10px; }
-.message-stream { display: flex; overflow-y: auto; flex: 1; flex-direction: column; gap: 5px; padding: 12px 14px; }.older-button { align-self: center; margin: 3px 0 9px; }
-.message-bubble { width: fit-content; max-width: min(76%, 680px); padding: 7px 9px 4px; border: 1px solid #343951; border-radius: 11px 11px 11px 3px; background: #20243b; box-shadow: 0 4px 12px rgba(0, 0, 0, .12); }.message-bubble.is-out { align-self: flex-end; border-color: rgba(132, 103, 239, .38); border-radius: 11px 11px 3px; background: #392d62; }.message-bubble.is-deleted { border-style: dashed; opacity: .82; }.message-bubble p { margin: 0; color: #f0f1ff; font-size: 12px; line-height: 1.38; white-space: pre-wrap; word-break: break-word; }.message-bubble audio { width: 260px; max-width: 100%; height: 34px; }.message-image { overflow: hidden; max-width: 360px; margin: -3px -5px 4px; border-radius: 7px; }.message-image img { display: block; width: 100%; max-height: 320px; object-fit: contain; background: #0d1020; }.message-bubble footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; color: #8f95b5; font-size: 8px; }.message-bubble footer span { margin-right: auto; text-transform: uppercase; }.archive-marker { display: flex; align-items: center; gap: 3px; margin-top: 5px; color: #d2a4ae; font-size: 8px; }
+.conversation-header { display: flex; flex: 0 0 auto; min-height: 50px; align-items: center; gap: 3px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1a1d33; }.conversation-header > div:first-child { min-width: 0; flex: 1; }.conversation-header strong, .conversation-header span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conversation-header strong { font-size: 13px; }.conversation-header span { margin-top: 3px; color: #858baa; font-size: 10px; }
+.message-stream { display: flex; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; flex: 1; flex-direction: column; gap: 5px; padding: 12px 14px; }.older-button { align-self: center; margin: 3px 0 9px; }
+.message-bubble { flex: 0 0 auto; width: fit-content; max-width: min(76%, 680px); padding: 7px 9px 4px; border: 1px solid #343951; border-radius: 11px 11px 11px 3px; background: #20243b; box-shadow: 0 4px 12px rgba(0, 0, 0, .12); }.message-bubble.is-out { align-self: flex-end; border-color: rgba(132, 103, 239, .38); border-radius: 11px 11px 3px; background: #392d62; }.message-bubble.is-deleted { border-style: dashed; opacity: .82; }.message-bubble p { margin: 0; color: #f0f1ff; font-size: 12px; line-height: 1.38; white-space: pre-wrap; word-break: break-word; }.message-bubble audio { width: 260px; max-width: 100%; height: 34px; }.message-image { overflow: hidden; max-width: 360px; margin: -3px -5px 4px; border-radius: 7px; }.message-image img { display: block; width: 100%; max-height: 320px; object-fit: contain; background: #0d1020; }.message-bubble footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; color: #8f95b5; font-size: 8px; }.message-bubble footer span { margin-right: auto; text-transform: uppercase; }.archive-marker { display: flex; align-items: center; gap: 3px; margin-top: 5px; color: #d2a4ae; font-size: 8px; }
 .message-candidates { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }.message-candidates button { display: flex; align-items: center; gap: 3px; padding: 2px 5px; color: #b7ead4; font-size: 7px; border: 1px solid rgba(90, 205, 154, .28); border-radius: 10px; background: rgba(34, 105, 75, .22); cursor: pointer; }.message-candidates button.is-address { color: #b9dff0; border-color: rgba(83, 175, 216, .28); background: rgba(33, 91, 119, .22); }
-.composer { display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > span { display: flex; align-items: center; gap: 3px; color: #737999; font-size: 8px; }.composer > span b { display: grid; width: 13px; height: 13px; place-items: center; color: #d9d0ff; font-size: 7px; border-radius: 10px; background: #654eb5; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
+.composer { display: grid; flex: 0 0 auto; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > span { display: flex; align-items: center; gap: 3px; color: #737999; font-size: 8px; }.composer > span b { display: grid; width: 13px; height: 13px; place-items: center; color: #d9d0ff; font-size: 7px; border-radius: 10px; background: #654eb5; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
 .conversation-empty, .pane-empty { display: grid; place-items: center; align-content: center; gap: 7px; color: #858baa; text-align: center; }.conversation-empty { flex: 1; }.conversation-empty strong, .pane-empty strong { color: #dfe2f8; }.conversation-empty span, .pane-empty span { max-width: 300px; font-size: 11px; }.pane-empty { min-height: 220px; padding: 20px; }
 .messenger-info-pane { overflow-y: auto; padding: 9px; border-left: 1px solid #30344d; background: #15182b; }.messenger-info-pane section { margin-bottom: 8px; padding: 10px; border: 1px solid #2f334c; border-radius: 8px; background: #1b1e35; }.info-eyebrow { display: block; margin-bottom: 8px; color: #9d88f4; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.messenger-info-pane dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 7px; margin: 0; font-size: 10px; }.messenger-info-pane dt { color: #858baa; }.messenger-info-pane dd { overflow: hidden; max-width: 125px; margin: 0; color: #e5e7fa; text-overflow: ellipsis; white-space: nowrap; }.messenger-info-pane section > strong, .messenger-info-pane section > small { display: block; }.messenger-info-pane section > strong { font-size: 11px; }.messenger-info-pane section > small { margin: 4px 0 8px; color: #858baa; font-size: 9px; line-height: 1.4; }.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
 .tools-panel :deep(.v-expansion-panel) { color: #dfe2f8; background: #1b1e35; }.tools-panel :deep(.v-expansion-panel-title) { min-height: 38px; padding: 8px 10px; font-size: 10px; }.tools-panel :deep(.v-expansion-panel-text__wrapper) { display: grid; gap: 4px; padding: 4px 8px 10px; }.tools-panel a { display: grid; grid-template-columns: 32px 1fr; gap: 4px; color: #bec4e3; font-size: 8px; text-decoration: none; }.tools-panel a span { color: #9c85f5; font-weight: 800; }
-@media (max-width: 1250px) { .messenger-layout { grid-template-columns: 285px minmax(390px, 1fr) 330px; }.messenger-stat:nth-of-type(4) { display: none; } }
-@media (max-width: 850px) { .messenger-toolbar { flex-wrap: wrap; }.messenger-stat { min-width: 90px; flex: 1; }.messenger-toolbar > .v-select { max-width: none; flex-basis: 190px; }.messenger-layout { display: block; height: auto; }.chat-list-pane { height: 360px; border-right: 0; }.conversation-pane { min-height: 620px; border-top: 1px solid #30344d; }.message-bubble { max-width: 88%; } }
+@media (max-width: 1250px) { .messenger-counts span, .realtime-label { display: none; }.realtime-short-label { display: inline; }.composer { grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto; gap: 1px; padding: 5px; }.composer > span { display: none; }.composer > .v-btn { width: 26px; height: 30px; }.composer :deep(.v-field__input) { padding-inline: 7px; }.message-stream { padding: 9px; } }
+@media (max-width: 1000px) {
+    .messenger-toolbar { gap: 5px; padding: 5px 7px; }.messenger-counts { display: none; }.messenger-toolbar > .v-select { min-width: 0; max-width: 210px; }.messenger-toolbar > .v-spacer { display: none; }.messenger-toolbar > .v-btn { flex: 0 0 auto; font-size: 10px; }.sync-progress { max-width: 100px; font-size: 9px; }
+    .mobile-pane-tabs { display: flex; flex: 0 0 34px; border-bottom: 1px solid #30344d; background: #191c31; }.mobile-pane-tabs button { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 5px; color: #9299b9; font-size: 11px; border-bottom: 2px solid transparent; }.mobile-pane-tabs button[aria-pressed="true"] { color: #d2c7ff; border-bottom-color: #a38bef; background: #26203e; }
+    .messenger-layout { display: flex; }.messenger-layout > * { display: none; width: 100%; min-height: 0; height: 100%; border: 0; }.mobile-pane-chats .chat-list-pane, .mobile-pane-conversation .conversation-pane, .mobile-pane-details .messenger-details-pane { display: flex; }.mobile-pane-details .messenger-info-pane { display: block; }
+    .message-bubble { max-width: 88%; }.conversation-header { padding: 6px; }.conversation-header strong { font-size: 12px; }.conversation-header span { font-size: 9px; }
+}
+@media (max-width: 600px) { .messenger-toolbar > .archive-sync { min-width: 32px; width: 32px; padding: 0; }.sync-label { display: none; }.messenger-toolbar > .archive-refresh { width: 32px; height: 32px; } }
+@media (max-width: 480px) { .messenger-toolbar > .v-select { max-width: 128px; }.sync-progress { flex: 0 0 13px; }.sync-progress-label { display: none; }.realtime-indicator { max-width: 86px; font-size: 9px; }.realtime-short-label { overflow: hidden; text-overflow: ellipsis; }.messenger-toolbar > .v-btn { padding-inline: 7px; } }
 </style>

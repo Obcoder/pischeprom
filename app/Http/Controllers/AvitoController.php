@@ -5,13 +5,12 @@ namespace App\Http\Controllers;
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Avito\Exceptions\AvitoException;
 use App\Jobs\Avito\ArchiveAvitoMessageMediaJob;
-use App\Jobs\Avito\ProcessAvitoAutoReplyJob;
 use App\Models\AvitoApiCall;
-use App\Models\AvitoAutoReplySetting;
 use App\Models\AvitoCapabilitySetting;
 use App\Models\AvitoConnection;
 use App\Models\AvitoWebhookEvent;
 use App\Services\Avito\AvitoApiExecutor;
+use App\Services\Avito\AvitoAutoReplyDispatcher;
 use App\Services\Avito\AvitoMessengerArchive;
 use App\Services\Avito\AvitoTokenManager;
 use Illuminate\Http\JsonResponse;
@@ -320,8 +319,11 @@ class AvitoController extends Controller
         ]);
     }
 
-    public function receiveWebhook(Request $request, AvitoMessengerArchive $messengerArchive): JsonResponse
-    {
+    public function receiveWebhook(
+        Request $request,
+        AvitoMessengerArchive $messengerArchive,
+        AvitoAutoReplyDispatcher $autoReplies,
+    ): JsonResponse {
         $expectedSecret = (string) config('avito.webhook_secret');
         $actualSecret = (string) ($request->header('X-Secret')
             ?: $request->header('X-Avito-Webhook-Secret')
@@ -359,22 +361,21 @@ class AvitoController extends Controller
                 'received_at' => now(),
             ]
         );
+        $shouldDispatch = $event->wasRecentlyCreated || $event->status !== 'processed';
 
         try {
             $message = $messengerArchive->ingestWebhook($payload);
 
             if ($message) {
+                if ($shouldDispatch) {
+                    $autoReplies->dispatch($message);
+                }
                 $event->update([
                     'status' => 'processed',
                     'processed_at' => now(),
                     'error_message' => null,
                 ]);
                 ArchiveAvitoMessageMediaJob::dispatchAfterResponse($message->id);
-                if ($event->wasRecentlyCreated && $message->direction === 'in') {
-                    $delay = AvitoAutoReplySetting::current()->debounce_seconds;
-                    ProcessAvitoAutoReplyJob::dispatch($message->id)
-                        ->delay(now()->addSeconds($delay));
-                }
             }
         } catch (\Throwable $exception) {
             report($exception);
@@ -383,6 +384,12 @@ class AvitoController extends Controller
                 'processed_at' => now(),
                 'error_message' => Str::limit($exception->getMessage(), 1000),
             ]);
+
+            return response()->json([
+                'ok' => false,
+                'event_id' => $event->id,
+                'message' => 'Не удалось обработать событие Avito. Повторите доставку.',
+            ], 503);
         }
 
         return response()->json([

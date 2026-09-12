@@ -381,7 +381,10 @@ class AvitoMessengerArchive
             $timestamp /= 10;
         }
 
-        return CarbonImmutable::createFromTimestampUTC((int) floor($timestamp));
+        // Eloquent stores timezone-less strings and reads them in the app
+        // timezone. Persist that same timezone to preserve the original epoch.
+        return CarbonImmutable::createFromTimestampUTC((int) floor($timestamp))
+            ->setTimezone(config('app.timezone', 'UTC'));
     }
 
     private function dateTime(mixed $value): ?CarbonImmutable
@@ -391,7 +394,7 @@ class AvitoMessengerArchive
         }
 
         try {
-            return CarbonImmutable::parse($value)->utc();
+            return CarbonImmutable::parse($value)->setTimezone(config('app.timezone', 'UTC'));
         } catch (\Throwable) {
             return null;
         }

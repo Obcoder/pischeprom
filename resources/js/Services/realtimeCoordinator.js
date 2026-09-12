@@ -11,6 +11,7 @@ export function createRealtimeCoordinator({
     setTimer = setTimeout,
     clearTimer = clearTimeout,
     debounceMs = 150,
+    allowedTopics = COMMERCE_TOPICS,
 }) {
     const resources = new Map()
     const seenEvents = new Set()
@@ -79,7 +80,7 @@ export function createRealtimeCoordinator({
 
     function receive(event) {
         if (!event || typeof event.event_id !== 'string' || event.event_id.length > 64 || !Array.isArray(event.topics)) return
-        const topics = event.topics.filter((topic) => COMMERCE_TOPICS.includes(topic))
+        const topics = event.topics.filter((topic) => allowedTopics.includes(topic))
         if (!topics.length || seenEvents.has(event.event_id)) return
         seenEvents.add(event.event_id)
         if (seenEvents.size > 256) seenEvents.delete(seenEvents.values().next().value)

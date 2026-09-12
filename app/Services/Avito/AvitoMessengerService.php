@@ -20,6 +20,7 @@ class AvitoMessengerService
         private readonly AvitoApiExecutor $executor,
         private readonly AvitoMessengerArchive $archive,
         private readonly AvitoMessengerMediaArchive $mediaArchive,
+        private readonly AvitoAutoReplyDispatcher $autoReplies,
     ) {}
 
     public function sync(
@@ -103,6 +104,9 @@ class AvitoMessengerService
                     foreach ($messageStats as $key => $value) {
                         $stats[$key] += $value;
                     }
+                    if (! $effectiveFull) {
+                        $this->autoReplies->dispatchLatestFreshIncoming($chat);
+                    }
                 }
 
                 if (count($chats) < $limit) {
@@ -162,7 +166,7 @@ class AvitoMessengerService
         return $chat->fresh(['account', 'messages.attachments']);
     }
 
-    public function sendText(AvitoChat $chat, string $text): AvitoMessage
+    public function sendText(AvitoChat $chat, string $text, ?callable $beforeSend = null): AvitoMessage
     {
         $chat->loadMissing('account.connection');
         $result = $this->execute('postSendMessage', [
@@ -172,7 +176,7 @@ class AvitoMessengerService
             ],
             'body' => ['type' => 'text', 'message' => ['text' => $text]],
             'content_type' => 'application/json',
-        ], $chat->account->connection);
+        ], $chat->account->connection, options: ['before_send' => $beforeSend]);
         $message = is_array($result['data'] ?? null)
             ? $this->archive->storeMessage($chat, $result['data'])
             : null;
@@ -358,13 +362,14 @@ class AvitoMessengerService
         array $input,
         ?AvitoConnection $connection = null,
         array $files = [],
+        array $options = [],
     ): array {
         $capability = $this->catalog->findOperation('messenger', $operationId);
         if ($capability['access'] === 'mutation') {
             $input['confirmation'] = (string) config('avito.mutation_confirmation');
         }
 
-        $result = $this->executor->execute($capability['id'], $input, $connection, $files);
+        $result = $this->executor->execute($capability['id'], $input, $connection, $files, $options);
 
         if (! $result['ok']) {
             $message = (string) (Arr::get($result, 'data.error.message')

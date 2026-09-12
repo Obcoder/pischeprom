@@ -338,10 +338,6 @@ function formatDate(value) {
             <strong>Источник истины — Good.</strong> Никакой фоновой синхронизации: переносятся только выбранные здесь данные.
         </v-alert>
 
-        <v-alert v-if="localError" type="error" variant="tonal" density="compact" closable class="transfer-alert" @click:close="localError = ''">
-            {{ localError }}
-        </v-alert>
-
         <div v-if="loading" class="transfer-loading"><v-progress-circular indeterminate size="28" /></div>
 
         <template v-else-if="!link">

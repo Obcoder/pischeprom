@@ -36,6 +36,15 @@ use App\Infrastructure\AiSales\Providers\TimewebLocalRuProvider;
 use App\Infrastructure\AiSales\Search\ExistingYandexSearchProviderAdapter;
 use App\Models\AiAgentDefinition;
 use App\Models\AiAgentRun;
+use App\Models\AvitoAutoReplyDecision;
+use App\Models\AvitoAutoReplyExample;
+use App\Models\AvitoAutoReplyRule;
+use App\Models\AvitoAutoReplySetting;
+use App\Models\AvitoChat;
+use App\Models\AvitoMessage;
+use App\Models\AvitoMessageAttachment;
+use App\Models\AvitoMessengerAccount;
+use App\Models\AvitoMessengerSyncRun;
 use App\Models\BankAuditEvent;
 use App\Models\BankConnection;
 use App\Models\BankPaymentOrderDraft;
@@ -69,6 +78,7 @@ use App\Models\UnitProductRelevanceSnapshot;
 use App\Models\UnitProspectPrioritySnapshot;
 use App\Models\Vehicle;
 use App\Models\Warehouse;
+use App\Observers\AvitoDataObserver;
 use App\Observers\CommerceDataObserver;
 use App\Observers\GoodStockMovementObserver;
 use App\Observers\MailMessageAttachmentObserver;
@@ -180,6 +190,15 @@ class AppServiceProvider extends ServiceProvider
 
         foreach ([Sale::class, Purchase::class, GoodStockMovement::class, Warehouse::class, StockMovement::class] as $model) {
             $model::observe(CommerceDataObserver::class);
+        }
+
+        foreach ([
+            AvitoMessage::class, AvitoChat::class, AvitoMessageAttachment::class,
+            AvitoMessengerSyncRun::class, AvitoMessengerAccount::class,
+            AvitoAutoReplySetting::class, AvitoAutoReplyDecision::class,
+            AvitoAutoReplyRule::class, AvitoAutoReplyExample::class,
+        ] as $model) {
+            $model::observe(AvitoDataObserver::class);
         }
 
         RateLimiter::for('commerce-realtime-auth', fn (Request $request) => Limit::perMinute(120)

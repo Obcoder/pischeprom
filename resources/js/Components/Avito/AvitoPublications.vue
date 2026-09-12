@@ -780,7 +780,6 @@ function showError(exception, fallback) {
             <v-btn size="small" color="deep-purple-accent-1" prepend-icon="mdi-plus" :disabled="!workspaceReady" @click="openCreate">Из Good</v-btn>
         </header>
 
-        <v-alert v-if="inlineError" type="error" variant="tonal" density="compact" closable class="publisher-alert" @click:close="inlineError = ''">{{ inlineError }}</v-alert>
         <v-alert v-if="!workspaceReady" type="warning" variant="tonal" density="compact" class="publisher-alert">
             Рабочий кабинет Avito не настроен. Регистрационные данные находятся отдельно во вкладке «Подключения».
             <template #append><v-btn size="x-small" variant="outlined" @click="emit('open-settings')">Открыть настройки</v-btn></template>
