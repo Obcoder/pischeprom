@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
+import { loadAllAvitoListings } from '@/Services/avitoListingsLoader'
 import AvitoListingGoodLink from './AvitoListingGoodLink.vue'
 
 const props = defineProps({
@@ -75,6 +76,15 @@ const SERVICE_LABELS = {
 }
 
 const loading = ref(false)
+const listComplete = ref(false)
+const pagesLoaded = ref(0)
+const statisticsLoading = ref(false)
+let loadController = null
+let detailController = null
+let loadedQuery = null
+let initialized = false
+let disposed = false
+let reloadTimer = null
 const contextLoading = ref(false)
 const detailLoading = ref(false)
 const analyticsLoading = ref(false)
@@ -158,7 +168,7 @@ const authOptions = computed(() => [
     })),
 ])
 
-const visibleItems = computed(() => {
+const filteredItems = computed(() => {
     const needle = String(filters.search || '').trim().toLocaleLowerCase('ru')
     if (!needle) return items.value
 
@@ -171,6 +181,16 @@ const visibleItems = computed(() => {
         item.status,
     ].join(' ').toLocaleLowerCase('ru').includes(needle))
 })
+const visibleItems = computed(() => perPage.value === 0 ? filteredItems.value
+    : filteredItems.value.slice((page.value - 1) * perPage.value, page.value * perPage.value))
+const listingParams = computed(() => ({
+    account_id: positiveInteger(accountId.value),
+    agency_mode: agencyMode.value ? 1 : undefined,
+    statuses: filters.statuses.length ? [...filters.statuses].sort() : undefined,
+    category: positiveInteger(filters.category) || undefined,
+    updated_from: filters.updated_from || undefined,
+}))
+const listingQuery = computed(() => JSON.stringify(listingParams.value))
 
 const selectedItem = computed(() => items.value.find((item) => String(item.id) === String(selectedItemId.value))
     || (selectedItemId.value ? { id: selectedItemId.value, title: `Объявление ${selectedItemId.value}` } : null))
@@ -178,8 +198,8 @@ const detailItem = computed(() => ({ ...(selectedItem.value || {}), ...(detail.v
 const allVisibleSelected = computed(() => visibleItems.value.length > 0
     && visibleItems.value.every((item) => selectedIds.value.includes(String(item.id))))
 const selectedRows = computed(() => items.value.filter((item) => selectedIds.value.includes(String(item.id))))
-const lastPage = computed(() => Number(listMeta.value.last_page || listMeta.value.pages || listMeta.value.total_pages || 0))
-const canGoNext = computed(() => lastPage.value > 0 ? page.value < lastPage.value : items.value.length >= perPage.value)
+const lastPage = computed(() => perPage.value === 0 ? 1 : Math.max(1, Math.ceil(filteredItems.value.length / perPage.value)))
+const canGoNext = computed(() => page.value < lastPage.value)
 const canMutate = computed(() => props.enabled && props.mutationsEnabled && confirmed.value && !actionLoading.value)
 
 const statusCounts = computed(() => Object.fromEntries(STATUS_OPTIONS.map((status) => [
@@ -188,7 +208,7 @@ const statusCounts = computed(() => Object.fromEntries(STATUS_OPTIONS.map((statu
 ])))
 
 const summary = computed(() => ({
-    shown: visibleItems.value.length,
+    shown: items.value.length,
     active: items.value.filter((item) => item.status === 'active').length,
     views: sumMetric(items.value, 'views'),
     contacts: sumMetric(items.value, 'contacts'),
@@ -266,8 +286,32 @@ watch(authConnectionId, (connectionId) => {
 })
 
 watch(accountId, syncAccountMode)
+watch(() => filters.search, () => { page.value = 1 })
+watch(lastPage, (value) => { if (page.value > value) page.value = value })
+watch(listingQuery, () => {
+    if (!initialized) return
+    loadController?.abort()
+    detailController?.abort()
+    loading.value = false
+    statisticsLoading.value = false
+    listComplete.value = false
+    items.value = []
+    statsByItem.value = {}
+    pageStatsRaw.value = null
+    selectedIds.value = []
+    selectedItemId.value = null
+    resetInspector()
+    clearTimeout(reloadTimer)
+    if (positiveInteger(accountId.value)) reloadTimer = setTimeout(() => loadListings(true), 350)
+})
 
 onMounted(initialize)
+onBeforeUnmount(() => {
+    disposed = true
+    clearTimeout(reloadTimer)
+    loadController?.abort()
+    detailController?.abort()
+})
 
 async function initialize() {
     const knownConnection = props.connections.find((item) => item.is_active && item.external_user_id)
@@ -287,133 +331,177 @@ async function initialize() {
         }
     }
 
+    if (disposed) return
+    // Let account/mode watchers settle before enabling automatic reloads.
+    await Promise.resolve()
+    initialized = true
     if (accountId.value) await loadListings(true)
 }
 
 async function loadListings(resetPage = false) {
-    const resolvedAccountId = positiveInteger(accountId.value)
-    if (!resolvedAccountId) {
+    clearTimeout(reloadTimer)
+    const params = { ...listingParams.value }
+    const query = listingQuery.value
+    if (!params.account_id) {
         showError(null, 'Укажите числовой ID кабинета Avito.')
         return
     }
+    const reuseListings = !resetPage && listComplete.value && loadedQuery === query
+    loadController?.abort()
+    const controller = new AbortController()
+    loadController = controller
+    const current = () => !disposed && !controller.signal.aborted && listingQuery.value === query
+    const statisticsParams = {
+        account_id: params.account_id,
+        date_from: dateFrom.value,
+        date_to: dateTo.value,
+    }
+    const metrics = [...selectedMetrics.value]
     if (resetPage) page.value = 1
-
     loading.value = true
+    statisticsLoading.value = false
     inlineError.value = ''
     statsWarning.value = ''
-    const useAgencyMode = agencyMode.value
-    const listRequest = axios.get('/api/avito/listings', {
-        params: {
-            account_id: resolvedAccountId,
-            agency_mode: useAgencyMode ? 1 : undefined,
-            statuses: filters.statuses.length ? filters.statuses : undefined,
-            category: positiveInteger(filters.category) || undefined,
-            updated_from: filters.updated_from || undefined,
-            page: page.value,
-            per_page: perPage.value,
-        },
-    })
-    const requests = [listRequest]
-    if (useAgencyMode) {
-        requests.push(axios.post('/api/avito/listings/statistics', {
-            account_id: resolvedAccountId,
-            agency_mode: 1,
-            date_from: dateFrom.value,
-            date_to: dateTo.value,
-            grouping: 'totals',
-            metrics: selectedMetrics.value,
-            category_ids: positiveInteger(filters.category) ? [positiveInteger(filters.category)] : undefined,
-            limit: 1000,
-            offset: 0,
-        }))
-    }
-
-    const [listResult, statsResult] = await Promise.allSettled(requests)
-
-    if (listResult.status === 'fulfilled') {
-        items.value = Array.isArray(listResult.value.data.items) ? listResult.value.data.items : []
-        listMeta.value = listResult.value.data.meta || {}
-        listRemote.value = listResult.value.data.remote || null
-        selectedIds.value = selectedIds.value.filter((id) => items.value.some((item) => String(item.id) === id))
-
-        if (!items.value.some((item) => String(item.id) === String(selectedItemId.value))) {
-            selectedItemId.value = items.value[0]?.id || null
-            resetInspector()
-        }
-        if (selectedItemId.value) loadDetail()
-    } else {
-        items.value = []
-        showError(listResult.reason, 'Не удалось загрузить объявления Avito.')
-    }
-
-    if (!useAgencyMode && listResult.status === 'fulfilled') {
-        await loadOwnAccountStatistics(resolvedAccountId)
-    } else if (statsResult?.status === 'fulfilled') {
-        pageStatsRaw.value = statsResult.value.data.statistics || {}
-        statsByItem.value = indexStatistics(pageStatsRaw.value)
-    } else if (useAgencyMode) {
-        pageStatsRaw.value = null
-        statsByItem.value = {}
-        statsWarning.value = errorMessage(statsResult.reason, 'Статистика за период недоступна.')
-    } else {
-        pageStatsRaw.value = null
-        statsByItem.value = {}
-    }
-
-    loading.value = false
-}
-
-async function loadOwnAccountStatistics(resolvedAccountId) {
-    const itemIds = items.value.map((item) => positiveInteger(item.id)).filter(Boolean)
-    if (!itemIds.length) {
-        pageStatsRaw.value = null
-        statsByItem.value = {}
-        return
-    }
+    statsByItem.value = {}
+    pageStatsRaw.value = null
 
     try {
-        const { data } = await axios.post('/api/avito/listings/statistics/items', {
-            account_id: resolvedAccountId,
-            item_ids: itemIds,
-            date_from: dateFrom.value,
-            date_to: dateTo.value,
-            fields: ['uniqViews', 'uniqContacts', 'uniqFavorites'],
-            grouping: 'day',
-        })
-        pageStatsRaw.value = data.statistics || {}
-        statsByItem.value = indexItemStatistics(pageStatsRaw.value)
-    } catch (exception) {
-        pageStatsRaw.value = null
-        statsByItem.value = {}
-        statsWarning.value = errorMessage(exception, 'Базовая статистика за период недоступна.')
+        if (!reuseListings) {
+            detailController?.abort()
+            detail.value = null
+            detailRaw.value = null
+            const refreshSelectedDetail = selectedItemId.value
+            items.value = []
+            pagesLoaded.value = 0
+            listComplete.value = false
+            loadedQuery = null
+            try {
+                await loadAllAvitoListings({
+                    params,
+                    signal: controller.signal,
+                    onPage: (snapshot) => {
+                        if (!current()) return
+                        items.value = snapshot.items
+                        listMeta.value = snapshot.meta
+                        listRemote.value = snapshot.remote
+                        pagesLoaded.value = snapshot.pagesLoaded
+                        if (!selectedItemId.value && items.value.length) selectItem(items.value[0])
+                    },
+                })
+                if (!current()) return
+                listComplete.value = true
+                loadedQuery = query
+            } catch (exception) {
+                if (!current()) return
+                const message = exception.code?.startsWith('AVITO_LISTINGS_')
+                    ? exception.message : errorMessage(exception, 'Не удалось получить следующую страницу Avito.')
+                inlineError.value = `Загружены не все объявления (${items.value.length}). ${message} Нажмите «Обновить», чтобы повторить загрузку.`
+                emit('error', inlineError.value)
+            }
+            if (!current()) return
+            selectedIds.value = selectedIds.value.filter((id) => items.value.some((item) => String(item.id) === id))
+            if (!items.value.some((item) => String(item.id) === String(selectedItemId.value))) {
+                selectedItemId.value = null
+                resetInspector()
+                if (items.value.length) selectItem(items.value[0])
+            } else if (refreshSelectedDetail) {
+                loadDetail()
+            }
+        }
+
+        statisticsLoading.value = true
+        const batches = []
+        try {
+            if (params.agency_mode) {
+                const seen = new Set()
+                for (let offset = 0; ;) {
+                    const { data } = await axios.post('/api/avito/listings/statistics', {
+                        ...statisticsParams,
+                        agency_mode: 1,
+                        grouping: 'totals',
+                        metrics,
+                        category_ids: params.category ? [params.category] : undefined,
+                        limit: 1000,
+                        offset,
+                    }, { signal: controller.signal })
+                    if (!current()) return
+                    const statistics = data.statistics || {}
+                    const indexed = indexStatistics(statistics)
+                    const rows = firstArrayAt(statistics, [['result', 'groupings'], ['groupings'], ['data', 'groupings'], ['result']])
+                    const total = statistics.result?.dataTotalCount ?? statistics.dataTotalCount
+                    if (rows.length && Object.keys(indexed).every((id) => seen.has(id))) {
+                        throw new Error('Avito повторил страницу статистики.')
+                    }
+                    Object.keys(indexed).forEach((id) => seen.add(id))
+                    batches.push(statistics)
+                    statsByItem.value = { ...statsByItem.value, ...indexed }
+                    pageStatsRaw.value = [...batches]
+                    offset += rows.length
+                    if (total != null ? offset >= Number(total) : rows.length < 1000) break
+                    if (!rows.length) throw new Error('Avito вернул неполную статистику.')
+                }
+            } else {
+                const itemIds = items.value.map((item) => positiveInteger(item.id)).filter(Boolean)
+                for (let offset = 0; offset < itemIds.length; offset += 200) {
+                    const { data } = await axios.post('/api/avito/listings/statistics/items', {
+                        ...statisticsParams,
+                        item_ids: itemIds.slice(offset, offset + 200),
+                        fields: ['uniqViews', 'uniqContacts', 'uniqFavorites'],
+                        grouping: 'day',
+                    }, { signal: controller.signal })
+                    if (!current()) return
+                    const statistics = data.statistics || {}
+                    batches.push(statistics)
+                    statsByItem.value = { ...statsByItem.value, ...indexItemStatistics(statistics) }
+                    pageStatsRaw.value = [...batches]
+                }
+            }
+        } catch (exception) {
+            if (current()) statsWarning.value = errorMessage(exception, 'Статистика загружена не полностью. Повторите обновление статистики.')
+        }
+    } finally {
+        if (current()) {
+            loading.value = false
+            statisticsLoading.value = false
+        }
     }
 }
 
 async function loadDetail() {
     if (!selectedItemId.value || !positiveInteger(accountId.value)) return
+    detailController?.abort()
+    const controller = new AbortController()
+    detailController = controller
+    const itemId = selectedItemId.value
+    const query = listingQuery.value
+    const current = () => !disposed && !controller.signal.aborted && listingQuery.value === query
+        && String(selectedItemId.value) === String(itemId)
     detailLoading.value = true
     detail.value = null
     detailRaw.value = null
     try {
-        const { data } = await axios.get(`/api/avito/listings/${encodeURIComponent(selectedItemId.value)}`, {
+        const { data } = await axios.get(`/api/avito/listings/${encodeURIComponent(itemId)}`, {
             params: {
                 account_id: positiveInteger(accountId.value),
                 agency_mode: agencyMode.value ? 1 : undefined,
             },
+            signal: controller.signal,
         })
+        if (!current()) return
         detailRaw.value = data.item || {}
         detail.value = unwrapPayload(data.item)
         detailRemote.value = data.remote || null
         actionForm.price = detailItem.value.price ?? selectedItem.value?.price ?? null
     } catch (exception) {
-        showError(exception, 'Не удалось загрузить карточку объявления.')
+        if (current()) showError(exception, 'Не удалось загрузить карточку объявления.')
     } finally {
-        detailLoading.value = false
+        if (current()) detailLoading.value = false
     }
 }
 
 async function loadAnalytics() {
     if (!selectedItemId.value || !positiveInteger(accountId.value)) return
+    const isCurrent = inspectorRequestGuard()
     analyticsLoading.value = true
     const payload = {
         account_id: positiveInteger(accountId.value),
@@ -435,6 +523,7 @@ async function loadAnalytics() {
         }))
     }
     const [trendResult, spendingResult] = await Promise.allSettled(requests)
+    if (!isCurrent()) return
     itemTrendRaw.value = trendResult.status === 'fulfilled' ? trendResult.value.data.statistics : null
     spendingRaw.value = spendingResult?.status === 'fulfilled' ? spendingResult.value.data.spendings : null
 
@@ -447,6 +536,11 @@ async function loadAnalytics() {
 async function loadPromotions(itemIds = null, bulk = false) {
     const ids = (itemIds || [selectedItemId.value]).map(positiveInteger).filter(Boolean)
     if (!ids.length || !positiveInteger(accountId.value)) return
+    if (ids.length > 100) {
+        emit('error', 'Avito позволяет проверять продвижение не более 100 объявлений за раз. Уменьшите выделение.')
+        return
+    }
+    const isCurrent = inspectorRequestGuard()
     promotionsLoading.value = true
     try {
         const { data } = await axios.post('/api/avito/listings/promotions', {
@@ -454,6 +548,7 @@ async function loadPromotions(itemIds = null, bulk = false) {
             item_ids: ids,
             connection_id: authConnectionId.value || undefined,
         })
+        if (!isCurrent()) return
         if (bulk) {
             bulkPromotionInsights.value = data
             emit('notice', `Данные продвижения загружены для ${ids.length} объявлений.`)
@@ -461,36 +556,46 @@ async function loadPromotions(itemIds = null, bulk = false) {
             promotionInsights.value = data
         }
     } catch (exception) {
-        showError(exception, 'Не удалось загрузить данные продвижения.')
+        if (isCurrent()) showError(exception, 'Не удалось загрузить данные продвижения.')
     } finally {
-        promotionsLoading.value = false
+        if (isCurrent()) promotionsLoading.value = false
     }
 }
 
 async function performAction(action, payload = {}) {
     if (!canMutate.value || !selectedItemId.value) return
+    const targetItemId = selectedItemId.value
+    const targetAccountId = positiveInteger(accountId.value)
+    const isCurrent = inspectorRequestGuard()
     actionLoading.value = true
     actionResult.value = null
     try {
-        const { data } = await axios.post(`/api/avito/listings/${encodeURIComponent(selectedItemId.value)}/action`, {
-            account_id: positiveInteger(accountId.value),
+        const { data } = await axios.post(`/api/avito/listings/${encodeURIComponent(targetItemId)}/action`, {
+            account_id: targetAccountId,
             connection_id: authConnectionId.value || undefined,
             action,
             confirmed: true,
             ...payload,
         })
+        if (action === 'update_price' && positiveInteger(accountId.value) === targetAccountId) {
+            const target = items.value.find((row) => String(row.id) === String(targetItemId))
+            if (target) target.price = Number(payload.price)
+        }
+        if (!isCurrent()) return
         actionResult.value = data
         confirmed.value = false
         emit('notice', actionSuccessMessage(action))
 
-        if (action === 'update_price') await loadListings(false)
+        if (action === 'update_price') {
+            await loadDetail()
+        }
         else {
             promotionInsights.value = null
             await loadPromotions()
             await loadDetail()
         }
     } catch (exception) {
-        showError(exception, 'Avito не выполнил изменение объявления.')
+        if (isCurrent()) showError(exception, 'Avito не выполнил изменение объявления.')
     } finally {
         actionLoading.value = false
     }
@@ -515,6 +620,10 @@ function selectItem(item) {
 }
 
 function resetInspector() {
+    detailController?.abort()
+    detailLoading.value = false
+    analyticsLoading.value = false
+    promotionsLoading.value = false
     detail.value = null
     detailRaw.value = null
     detailRemote.value = null
@@ -525,6 +634,12 @@ function resetInspector() {
     confirmed.value = false
 }
 
+function inspectorRequestGuard() {
+    const query = listingQuery.value
+    const id = selectedItemId.value
+    return () => !disposed && listingQuery.value === query && String(selectedItemId.value) === String(id)
+}
+
 function handleSearchEnter() {
     const id = positiveInteger(filters.search)
     if (!id) return
@@ -533,25 +648,21 @@ function handleSearchEnter() {
 }
 
 function previousPage() {
-    if (page.value <= 1 || loading.value) return
+    if (page.value <= 1) return
     page.value--
-    loadListings(false)
 }
 
 function nextPage() {
-    if (!canGoNext.value || loading.value) return
+    if (!canGoNext.value) return
     page.value++
-    loadListings(false)
 }
 
 function changePerPage() {
     page.value = 1
-    loadListings(false)
 }
 
 function setStatus(status) {
     filters.statuses = filters.statuses.length === 1 && filters.statuses[0] === status ? [] : [status]
-    loadListings(true)
 }
 
 function toggleVisibleSelection() {
@@ -689,7 +800,7 @@ function useBbipSuggestion(suggestion) {
 }
 
 function exportCsv(selectedOnly = false) {
-    const rows = selectedOnly && selectedRows.value.length ? selectedRows.value : visibleItems.value
+    const rows = selectedOnly && selectedRows.value.length ? selectedRows.value : filteredItems.value
     const headers = ['ID', 'Название', 'Статус', 'Цена, ₽', 'Категория', 'Адрес', 'Просмотры', 'Контакты', 'Избранное', 'Конверсия, %', 'Расходы, коп.', 'URL']
     const data = rows.map((item) => [
         item.id,
@@ -871,7 +982,7 @@ function toIsoDate(date) {
             <v-text-field v-model="filters.updated_from" label="Обновлены с" type="date" variant="outlined" density="compact" hide-details clearable />
             <div class="toolbar-actions">
                 <v-btn icon="mdi-tune-variant" size="small" variant="tonal" :color="advancedOpen ? 'deep-purple-lighten-1' : undefined" title="Период и метрики" @click="advancedOpen = !advancedOpen" />
-                <v-btn icon="mdi-refresh" size="small" color="deep-purple-lighten-1" :loading="loading" title="Загрузить" @click="loadListings(true)" />
+                <v-btn icon="mdi-refresh" size="small" color="deep-purple-lighten-1" :loading="loading" title="Обновить все объявления" @click="loadListings(true)" />
             </div>
         </div>
 
@@ -908,8 +1019,8 @@ function toIsoDate(date) {
         </v-alert>
 
         <div class="listings-kpis">
-            <button type="button" :class="{ active: !filters.statuses.length }" @click="filters.statuses = []; loadListings(true)">
-                <span>На странице</span><strong>{{ summary.shown }}</strong><small>стр. {{ page }}</small>
+            <button type="button" :class="{ active: !filters.statuses.length }" @click="filters.statuses = []">
+                <span>Всего загружено</span><strong>{{ summary.shown }}</strong><small>{{ listComplete ? 'все по фильтрам' : loading ? 'загрузка…' : 'неполный список' }}</small>
             </button>
             <button type="button" :class="{ active: filters.statuses[0] === 'active' }" @click="setStatus('active')">
                 <span>Активные</span><strong>{{ summary.active }}</strong><small>{{ statusCounts.active || 0 }} загружено</small>
@@ -928,7 +1039,7 @@ function toIsoDate(date) {
             <span><v-icon icon="mdi-cash-minus" size="14" /> {{ formatMoney(selectionSummary.spending == null ? null : selectionSummary.spending / 100) }}</span>
             <v-spacer />
             <small v-if="bulkPromotionInsights">Данные продвижения получены</small>
-            <v-btn size="x-small" variant="text" prepend-icon="mdi-rocket-launch-outline" :loading="promotionsLoading" @click="loadPromotions(selectedIds, true)">Продвижение</v-btn>
+            <v-btn size="x-small" variant="text" prepend-icon="mdi-rocket-launch-outline" :loading="promotionsLoading" :disabled="selectedIds.length > 100" title="Продвижение: до 100 объявлений за раз" @click="loadPromotions(selectedIds, true)">Продвижение</v-btn>
             <v-btn size="x-small" variant="text" prepend-icon="mdi-file-delimited-outline" @click="exportCsv(true)">CSV</v-btn>
             <v-btn icon="mdi-close" size="x-small" variant="text" @click="selectedIds = []; bulkPromotionInsights = null" />
         </div>
@@ -976,20 +1087,27 @@ function toIsoDate(date) {
                                     <v-btn icon="mdi-content-copy" size="x-small" variant="text" @click.stop="copyText(item.id)" />
                                 </td>
                             </tr>
-                            <tr v-if="loading"><td colspan="10" class="table-state"><v-progress-circular indeterminate size="28" color="deep-purple-lighten-2" /><span>Объявления и статистика…</span></td></tr>
+                            <tr v-if="loading && !items.length"><td colspan="10" class="table-state"><v-progress-circular indeterminate size="28" color="deep-purple-lighten-2" /><span>Загружаем все объявления…</span></td></tr>
                             <tr v-else-if="!visibleItems.length"><td colspan="10" class="table-state"><v-icon icon="mdi-view-grid-outline" size="36" /><strong>Объявлений нет</strong><span>Измените фильтры или проверьте ID кабинета.</span></td></tr>
                         </tbody>
                     </table>
                 </div>
 
                 <footer class="list-footer">
-                    <span>Страница {{ listMeta.page || page }} · {{ items.length }} из макс. {{ perPage }} <small>· общее число Avito не сообщает</small><small v-if="listRemote"> · {{ listRemote.duration_ms }} ms</small></span>
-                    <v-btn size="x-small" variant="text" prepend-icon="mdi-file-delimited-outline" @click="exportCsv(false)">CSV</v-btn>
-                    <v-select v-model="perPage" :items="[25, 50, 100]" label="Строк" variant="outlined" density="compact" hide-details @update:model-value="changePerPage" />
+                    <span aria-live="polite">
+                        <template v-if="loading && !listComplete">Загружено {{ items.length }} · получаем остальные…</template>
+                        <template v-else-if="!listComplete">Неполный список: {{ items.length }} · повторите обновление</template>
+                        <template v-else>Всего {{ items.length }} объявлений</template>
+                        <small v-if="filters.search"> · найдено {{ filteredItems.length }}</small>
+                        <small v-if="statisticsLoading"> · статистика…</small>
+                        <small v-else-if="statsWarning"> · статистика неполная</small>
+                    </span>
+                    <v-btn size="x-small" variant="text" prepend-icon="mdi-file-delimited-outline" :disabled="!listComplete || statisticsLoading" title="Все объявления с учётом поиска" @click="exportCsv(false)">CSV</v-btn>
+                    <v-select v-model="perPage" :items="[{ title: '25', value: 25 }, { title: '50', value: 50 }, { title: '100', value: 100 }, { title: 'Все', value: 0 }]" label="Строк" variant="outlined" density="compact" hide-details @update:model-value="changePerPage" />
                     <div class="pager">
                         <v-btn size="x-small" variant="tonal" prepend-icon="mdi-chevron-left" :disabled="page <= 1" @click="previousPage">Назад</v-btn>
                         <strong>{{ page }}<template v-if="lastPage"> / {{ lastPage }}</template></strong>
-                        <v-btn size="x-small" variant="tonal" append-icon="mdi-chevron-right" :disabled="!canGoNext" @click="nextPage">Ещё</v-btn>
+                        <v-btn size="x-small" variant="tonal" append-icon="mdi-chevron-right" :disabled="!canGoNext" @click="nextPage">Далее</v-btn>
                     </div>
                 </footer>
             </section>
@@ -1189,7 +1307,7 @@ function toIsoDate(date) {
                                     <v-btn size="x-small" variant="text" prepend-icon="mdi-open-in-new" :href="documentationUrl" target="_blank" rel="noopener noreferrer">Документация</v-btn>
                                 </div>
                                 <details open><summary>Карточка · {{ detailRemote?.request_id || 'без запроса' }}</summary><pre>{{ prettyJson(detailRaw || selectedItem) }}</pre></details>
-                                <details><summary>Статистика страницы</summary><pre>{{ prettyJson(pageStatsRaw) }}</pre></details>
+                                <details><summary>Статистика загруженных объявлений</summary><pre>{{ prettyJson(pageStatsRaw) }}</pre></details>
                                 <details><summary>Динамика объявления</summary><pre>{{ prettyJson(itemTrendRaw) }}</pre></details>
                                 <details><summary>Расходы</summary><pre>{{ prettyJson(spendingRaw) }}</pre></details>
                                 <details><summary>Продвижение</summary><pre>{{ prettyJson(promotionInsights) }}</pre></details>

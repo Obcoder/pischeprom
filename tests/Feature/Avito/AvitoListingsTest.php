@@ -14,6 +14,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AvitoListingsTest extends TestCase
@@ -108,6 +109,89 @@ class AvitoListingsTest extends TestCase
             && $request->hasHeader('X-AgencyClientId', '321'));
         Http::assertSent(fn (Request $request) => str_starts_with($request->url(), 'https://api.avito.ru/core/v1/items?')
             && str_contains($request->url(), 'per_page=100'));
+    }
+
+    public function test_later_listing_pages_keep_the_maximum_page_size_and_accept_an_empty_tail(): void
+    {
+        $items = array_map(fn (int $id) => ['id' => $id, 'title' => "Объявление {$id}"], range(101, 200));
+        $this->fakeToken([
+            'https://api.avito.ru/core/v1/items*' => Http::sequence()
+                ->push(['resources' => $items, 'meta' => ['page' => 2, 'per_page' => 100]])
+                ->push(['resources' => [], 'meta' => ['page' => 3, 'per_page' => 100]]),
+        ]);
+
+        $this->getJson('/api/avito/listings?account_id=321&page=2&per_page=100')
+            ->assertOk()
+            ->assertJsonCount(100, 'items')
+            ->assertJsonPath('items.0.id', 101)
+            ->assertJsonPath('items.99.id', 200)
+            ->assertJsonPath('meta.page', 2);
+
+        $this->getJson('/api/avito/listings?account_id=321&page=3&per_page=100')
+            ->assertOk()
+            ->assertJsonPath('items', [])
+            ->assertJsonPath('meta.page', 3);
+
+        foreach ([2, 3] as $page) {
+            Http::assertSent(function (Request $request) use ($page): bool {
+                if (! str_starts_with($request->url(), 'https://api.avito.ru/core/v1/items?')) {
+                    return false;
+                }
+
+                parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+                return ($query['page'] ?? null) === (string) $page
+                    && ($query['per_page'] ?? null) === '100';
+            });
+        }
+    }
+
+    #[DataProvider('supportedListingEnvelopes')]
+    public function test_supported_listing_envelopes_preserve_rows_and_empty_lists(array $payload, array $expected): void
+    {
+        $this->fakeToken([
+            'https://api.avito.ru/core/v1/items*' => Http::response($payload),
+        ]);
+
+        $this->getJson('/api/avito/listings?account_id=321')
+            ->assertOk()
+            ->assertJsonPath('items', $expected);
+    }
+
+    public static function supportedListingEnvelopes(): iterable
+    {
+        $items = [['id' => 7001, 'title' => 'Промышленный миксер']];
+
+        yield 'resources' => [['resources' => $items], $items];
+        yield 'nested resources' => [['result' => ['resources' => $items]], $items];
+        yield 'items' => [['items' => $items], $items];
+        yield 'empty nested resources' => [['result' => ['resources' => []]], []];
+        yield 'empty items' => [['items' => []], []];
+    }
+
+    #[DataProvider('invalidListingEnvelopes')]
+    public function test_malformed_listing_responses_are_not_reported_as_successful_empty_pages(mixed $payload): void
+    {
+        $this->fakeToken([
+            'https://api.avito.ru/core/v1/items*' => Http::response($payload),
+        ]);
+
+        $this->getJson('/api/avito/listings?account_id=321&page=2&per_page=100')
+            ->assertStatus(502)
+            ->assertJsonPath('category', 'listing_invalid_response')
+            ->assertJsonMissingPath('items');
+    }
+
+    public static function invalidListingEnvelopes(): iterable
+    {
+        yield 'text instead of JSON' => ['Temporarily unavailable'];
+        yield 'missing resources' => [[]];
+        yield 'metadata without resources' => [['meta' => ['page' => 2, 'per_page' => 100]]];
+        yield 'null resources' => [['resources' => null]];
+        yield 'scalar resources' => [['resources' => 'unavailable']];
+        yield 'object instead of resource list' => [['resources' => ['id' => 7001, 'title' => 'Wrong shape']]];
+        yield 'invalid nested resources' => [['result' => ['resources' => false]]];
+        yield 'invalid items' => [['items' => 100]];
     }
 
     public function test_full_statistics_and_item_trend_remain_read_only_when_mutations_are_disabled(): void

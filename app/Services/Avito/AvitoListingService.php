@@ -56,11 +56,24 @@ class AvitoListingService
             'query' => $query,
             'headers' => $this->agencyHeaders($accountId, $agencyMode),
         ], ownAccount: ! $agencyMode);
-        $payload = is_array($result['data'] ?? null) ? $result['data'] : [];
-        $items = Arr::get($payload, 'resources', Arr::get($payload, 'result.resources', Arr::get($payload, 'items', [])));
+        $payload = $result['data'] ?? null;
+        $items = is_array($payload)
+            ? Arr::get($payload, 'resources', Arr::get($payload, 'result.resources', Arr::get($payload, 'items')))
+            : null;
+
+        // An empty resources array ends pagination; a missing or malformed
+        // array must not make an incomplete traversal look successful.
+        if (! is_array($items) || ! array_is_list($items)) {
+            throw new AvitoException(
+                'Avito вернул некорректный список объявлений. Загрузка не завершена.',
+                'listing_invalid_response',
+                502,
+                true,
+            );
+        }
 
         return [
-            'items' => is_array($items) ? array_values($items) : [],
+            'items' => $items,
             'meta' => (array) Arr::get($payload, 'meta', Arr::get($payload, 'result.meta', [])),
             'remote' => $this->remoteMeta($result),
         ];
