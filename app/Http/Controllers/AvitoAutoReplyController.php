@@ -457,6 +457,8 @@ class AvitoAutoReplyController extends Controller
             'blocked_by_ai_safety' => 'AI обнаружил опасный запрос',
             'mixed_request' => 'Есть вопрос без разрешённого ответа',
             'not_approved_intent' => 'Нет утверждённого сценария',
+            'customer_details_provided' => 'Клиент сообщил конкретные данные — ответит человек',
+            'customer_details_handoff' => 'После запроса данных диалог ожидает ответа человека',
             'low_confidence' => 'Недостаточная уверенность',
             'low_margin' => 'Слишком близкие варианты',
             'no_eligible_rules' => 'Нет подходящих активных сценариев',

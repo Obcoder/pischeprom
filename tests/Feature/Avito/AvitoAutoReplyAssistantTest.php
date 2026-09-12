@@ -46,7 +46,7 @@ class AvitoAutoReplyAssistantTest extends TestCase
         $reply = 'Здравствуйте! Напишите, какой товар вас интересует. Можно обсудить заявку в этом чате.';
         $this->fakeAi($reply, ['greeting', 'order_request']);
 
-        $result = app(AvitoAutoReplyService::class)->preview('Привет! Как у вас заказать 10 мешков?');
+        $result = app(AvitoAutoReplyService::class)->preview('Привет! Как у вас оформить заказ?');
 
         $this->assertSame('would_send', $result['outcome']);
         $this->assertSame($reply, $result['response_text']);
