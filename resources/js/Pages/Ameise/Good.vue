@@ -1956,7 +1956,7 @@ onMounted(() => {
 
                 <!-- SEO -->
                 <v-window-item value="seo">
-                    <GoodSeoTab :good="goodData" />
+                    <GoodSeoTab :key="goodData.id" :good="goodData" />
                 </v-window-item>
 
                 <!-- SALES -->

@@ -253,6 +253,19 @@ jobs:
             tests/Feature/Mail/MailMessageRelationsTest.php \
             tests/Unit/MailInvoiceParserTest.php
 
+      - name: Check goods SEO AI and deployment PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/GoodSeoAiController.php \
+            app/Http/Requests/GenerateGoodSeoAiRequest.php \
+            app/Services/Seo/GoodSeoAiException.php \
+            app/Services/Seo/GoodSeoAiService.php \
+            config/goods-seo-ai.php \
+            scripts/update-production-goods-seo-ai-env.php \
+            scripts/check-production-goods-seo-ai.php \
+            tests/Feature/GoodsSeoAiGenerationTest.php \
+            tests/Unit/Seo
+
       - name: Check Entity product needs PHP style
         run: |
           vendor/bin/pint --test \
@@ -303,6 +316,7 @@ jobs:
             tests/Feature/CommercialOffersUnisenderTest.php \
             tests/Feature/MailMessageAttachmentDownloadTest.php \
             tests/Feature/GoodStockAlertTest.php \
+            tests/Feature/GoodsSeoAiGenerationTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/SaleGoodsStockTest.php \
             tests/Feature/SaleGoodAttachmentTest.php \

@@ -128,6 +128,16 @@ git cat-file -e "${commit_sha}^{commit}" \
 git merge-base --is-ancestor "$commit_sha" origin/main \
     || fail 'Requested commit is not part of origin/main.'
 
+log 'Checking the existing Timeweb credential before maintenance.'
+(
+    seo_preflight_file="$(mktemp /tmp/pischeprom-seo-preflight.XXXXXXXXXX)" \
+        || fail 'SEO AI preflight staging could not be created.'
+    trap 'rm -f -- "$seo_preflight_file"' EXIT
+    git show "${commit_sha}:scripts/update-production-goods-seo-ai-env.php" > "$seo_preflight_file" \
+        || fail 'The selected commit is missing the SEO AI environment updater.'
+    php "$seo_preflight_file" "$target_dir/.env" --check
+) || fail 'SEO AI preflight failed before maintenance; configure the Timeweb key on the VPS.'
+
 # Validate first-install requirements while the current application remains
 # online. Stage the parser from the selected commit; do not require new files
 # to exist in the old production checkout or expose nginx -T in Actions logs.
@@ -333,6 +343,11 @@ avito_env_updater="$target_dir/scripts/update-production-avito-env.php"
     || fail 'Avito production environment updater is missing or unsafe.'
 php "$avito_env_updater" "$target_dir/.env"
 
+seo_ai_env_updater="$target_dir/scripts/update-production-goods-seo-ai-env.php"
+[[ -f "$seo_ai_env_updater" && ! -L "$seo_ai_env_updater" ]] \
+    || fail 'SEO AI production environment updater is missing or unsafe.'
+php "$seo_ai_env_updater" "$target_dir/.env"
+
 realtime_provisioner="$target_dir/scripts/provision-production-realtime.sh"
 [[ -f "$realtime_provisioner" && ! -L "$realtime_provisioner" ]] \
     || fail 'Realtime production provisioner is missing or unsafe.'
@@ -352,6 +367,7 @@ php artisan db:seed --class=LogisticsExpenseCategorySeeder --force
 php artisan db:seed --class=AvitoMessageTemplateSeeder --force
 
 php artisan route:list --path=stock-alerts >/dev/null
+php artisan route:list --path=seo/generate-ai >/dev/null
 php artisan route:list --path=Ameise/commercial-offers >/dev/null
 php artisan route:list --path=Ameise/bank >/dev/null
 php artisan route:list --path=Ameise/orders >/dev/null
@@ -387,6 +403,8 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan bank:sber:health --if-enabled
+php "$target_dir/scripts/check-production-goods-seo-ai.php" "$target_dir" \
+    || fail 'SEO AI configuration or route health check failed; inspect the VPS.'
 
 sudo chown -R "${application_owner}:${runtime_group}" "$target_dir"
 sudo find storage bootstrap/cache -type d -exec chmod 2770 {} +

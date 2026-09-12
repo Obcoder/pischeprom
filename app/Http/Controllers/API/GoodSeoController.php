@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Good;
+use App\Services\Seo\GoodSeoAiService;
 use App\Services\Seo\GoodStructuredDataService;
 use App\Services\Seo\IndexNowService;
 use Illuminate\Http\JsonResponse;
@@ -11,7 +12,7 @@ use Illuminate\Http\Request;
 
 class GoodSeoController extends Controller
 {
-    public function show(Good $good): JsonResponse
+    public function show(Good $good, GoodSeoAiService $ai): JsonResponse
     {
         $seo = $good->seo()->firstOrCreate([
                                                'good_id' => $good->id,
@@ -28,7 +29,7 @@ class GoodSeoController extends Controller
                                                'availability_status' => 'on_request',
                                            ]);
 
-        return response()->json($seo);
+        return response()->json([...$seo->toArray(), 'ai_generation' => $ai->availability()]);
     }
 
     public function upsert(

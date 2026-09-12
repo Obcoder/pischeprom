@@ -62,6 +62,7 @@ use App\Http\Controllers\API\GoodMediaFolderController;
 use App\Http\Controllers\API\GoodPriceCalculationController;
 use App\Http\Controllers\API\GoodPriceTypeValueController;
 use App\Http\Controllers\API\GoodSaleController;
+use App\Http\Controllers\API\GoodSeoAiController;
 use App\Http\Controllers\API\GoodSeoController;
 use App\Http\Controllers\API\GoodStockAlertAdminController;
 use App\Http\Controllers\API\GoodStockMovementController;
@@ -516,6 +517,10 @@ Route::prefix('goods/{good}')
 
         Route::post('/seo/generate-structured-data', [GoodSeoController::class, 'generateStructuredData'])
             ->name('seo.generate-structured-data');
+
+        Route::post('/seo/generate-ai', GoodSeoAiController::class)
+            ->middleware(['auth:sanctum', 'verified', 'throttle:10,1,goods-seo-ai'])
+            ->name('seo.generate-ai');
 
         Route::get('/price-type-values', [GoodPriceTypeValueController::class, 'index'])
             ->name('price-type-values.index');
