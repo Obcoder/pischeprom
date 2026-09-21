@@ -91,7 +91,7 @@ class AvitoRealtimeTest extends TestCase
         $this->assertSame(['enabled' => false], $share['avitoRealtime']());
     }
 
-    public function test_events_wait_for_outer_commit_and_payload_contains_only_topics_and_unique_id(): void
+    public function test_events_wait_for_outer_commit_and_payload_contains_only_topics_unique_id_and_change_metadata(): void
     {
         Event::fake([AvitoDataChanged::class]);
         DB::beginTransaction();
@@ -103,7 +103,9 @@ class AvitoRealtimeTest extends TestCase
 
         Event::assertDispatchedTimes(AvitoDataChanged::class, 3);
         Event::assertDispatched(AvitoDataChanged::class, function (AvitoDataChanged $event): bool {
-            $this->assertSame(['topics', 'event_id'], array_keys($event->broadcastWith()));
+            $this->assertSame(['topics', 'event_id', 'changes'], array_keys($event->broadcastWith()));
+            $this->assertSame([], array_diff(array_keys($event->changes), ['chat_ids', 'message_ids', 'overview', 'chats']));
+            $this->assertStringNotContainsString('Private conversation', json_encode($event->broadcastWith()));
             $this->assertTrue(Str::isUuid($event->eventId));
             $this->assertSame('private-avito.updates', $event->broadcastOn()[0]->name);
             $this->assertSame('avito.changed', $event->broadcastAs());
@@ -115,6 +117,12 @@ class AvitoRealtimeTest extends TestCase
         });
         $this->assertDatabaseHas('avito_messages', ['id' => $message->id, 'text' => 'Private conversation']);
         $this->assertSame(3, Event::dispatched(AvitoDataChanged::class)->map(fn ($args) => $args[0]->eventId)->unique()->count());
+        Event::assertDispatched(AvitoDataChanged::class, fn ($event) => $event->changes === [
+            'chat_ids' => [$message->avito_chat_id],
+            'message_ids' => [$message->id],
+            'overview' => true,
+            'chats' => true,
+        ]);
     }
 
     public function test_rollback_and_unchanged_read_saves_do_not_publish_notifications(): void
@@ -160,6 +168,18 @@ class AvitoRealtimeTest extends TestCase
         $events = Event::dispatched(AvitoDataChanged::class)->map(fn ($args) => $args[0]);
         $this->assertCount(4, $events->filter(fn ($event) => $event->topics === ['avito_messages']));
         $this->assertCount(5, $events->filter(fn ($event) => $event->topics === ['avito_auto_replies']));
+        $this->assertSame([
+            'chat_ids' => [$message->avito_chat_id],
+            'message_ids' => [$message->id],
+            'overview' => true,
+            'chats' => true,
+        ], $events[0]->changes);
+        $this->assertSame(['overview' => true, 'chats' => false], $events[1]->changes);
+        $this->assertSame(['overview' => true, 'chats' => false], $events[2]->changes);
+        $this->assertSame(['chat_ids' => [$message->avito_chat_id], 'overview' => true, 'chats' => true], $events[3]->changes);
+        foreach ($events->filter(fn ($event) => $event->topics === ['avito_auto_replies']) as $event) {
+            $this->assertSame(['topics', 'event_id'], array_keys($event->broadcastWith()));
+        }
     }
 
     public function test_webhook_updates_archive_and_broadcasts_even_when_realtime_queue_is_unavailable(): void
@@ -198,6 +218,39 @@ class AvitoRealtimeTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         new AvitoDataChanged(['avito_messages', 'customer-phone']);
+    }
+
+    public function test_manual_events_remain_compatible_and_change_ids_are_deduplicated(): void
+    {
+        $legacy = new AvitoDataChanged(['avito_messages']);
+        $this->assertSame(['topics', 'event_id'], array_keys($legacy->broadcastWith()));
+        $queuedBeforeDeploy = (new \ReflectionClass(AvitoDataChanged::class))->newInstanceWithoutConstructor();
+        (new \ReflectionProperty(AvitoDataChanged::class, 'topics'))->setValue($queuedBeforeDeploy, ['avito_messages']);
+        (new \ReflectionProperty(AvitoDataChanged::class, 'eventId'))->setValue($queuedBeforeDeploy, $legacy->eventId);
+        $this->assertSame($legacy->broadcastWith(), $queuedBeforeDeploy->broadcastWith());
+        $event = new AvitoDataChanged(['avito_messages'], ['chat_ids' => [2, 2, 3], 'message_ids' => [5, 5]]);
+        $this->assertSame(['chat_ids' => [2, 3], 'message_ids' => [5]], $event->broadcastWith()['changes']);
+    }
+
+    public function test_changes_reject_customer_fields_invalid_identifiers_and_unbounded_lists(): void
+    {
+        foreach ([
+            ['text' => 'Private conversation'],
+            ['chat_ids' => 'private-chat'],
+            ['chat_ids' => ['1']],
+            ['chat_ids' => [0]],
+            ['message_ids' => ['private-id' => 1]],
+            ['message_ids' => range(1, 201)],
+            ['overview' => 'yes'],
+            ['chats' => 1],
+        ] as $changes) {
+            try {
+                new AvitoDataChanged(['avito_messages'], $changes);
+                $this->fail('Invalid change metadata was accepted.');
+            } catch (InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 
     private function authenticateChannel(): \Illuminate\Testing\TestResponse

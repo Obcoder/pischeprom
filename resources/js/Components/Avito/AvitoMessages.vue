@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAvitoRealtime } from '../../Composables/useAvitoRealtime.js'
-import { mergeAvitoMessages } from '../../Stores/avito.js'
+import { collectAvitoChanges, mergeAvitoMessages } from '../../Stores/avito.js'
 import axios from 'axios'
 import AvitoCrmPanel from './AvitoCrmPanel.vue'
 
@@ -25,6 +25,8 @@ const refreshingArchive = ref(false)
 const archiveRefreshFailed = ref(false)
 let manualRefreshController = null
 let searchTimer = null
+let readTimer = null
+let readRetryAt = 0
 let disposed = false
 let streamVersion = 0
 let olderPromise = null
@@ -112,6 +114,7 @@ function atBottom() {
 
 function trackStreamScroll() {
     followNewMessages = atBottom()
+    scheduleReadReceipt()
 }
 
 async function loadChatPage(page, prepend = false, options = {}) {
@@ -130,6 +133,7 @@ async function loadChatPage(page, prepend = false, options = {}) {
         await nextTick()
         if (prepend && messageStream.value) messageStream.value.scrollTop += messageStream.value.scrollHeight - oldHeight
         else if (options.forceScroll || (follow && followNewMessages)) await scrollToBottom(chatId)
+        scheduleReadReceipt()
     } catch (exception) {
         fail(exception, 'Не удалось открыть переписку.')
         if (options.signal) throw exception
@@ -145,10 +149,20 @@ async function loadOlderMessages() {
 async function reloadRealtime(options) {
     if (olderPromise) await olderPromise
     if (disposed || options.signal.aborted) return
-    await Promise.all([
-        loadOverview(options), loadChats(chatsMeta.value.current_page, options),
-        loadChatPage(1, false, { ...options, preserve: true }),
-    ])
+    const changes = options.reason === 'change' && !options.overflow ? collectAvitoChanges(options.events) : null
+    if (changes) {
+        const chatId = selectedChat.value?.id
+        const follow = atBottom() && followNewMessages
+        await store.loadUpdates(changes, { signal: options.signal })
+        if (!disposed && !options.signal.aborted && follow) await scrollToBottom(chatId)
+        scheduleReadReceipt()
+    } else {
+        // Initial connection / reconnect reconciles any events missed while offline.
+        await Promise.all([
+            loadOverview(options), loadChats(chatsMeta.value.current_page, options),
+            loadChatPage(1, false, { ...options, preserve: true }),
+        ])
+    }
     if (!disposed && !options.signal.aborted) archiveRefreshFailed.value = false
 }
 
@@ -207,22 +221,35 @@ async function refreshSelectedChat() {
     }
 }
 
-async function markRead() {
+function canAcknowledgeVisibleChat() {
+    return !disposed && selectedChat.value?.is_unread && !chatLoading.value
+        && document.visibilityState === 'visible' && document.hasFocus()
+        && messageStream.value?.getClientRects().length > 0 && atBottom()
+        && (!selectedChat.value.last_message_id
+            || messages.value.some((message) => message.external_message_id === selectedChat.value.last_message_id))
+}
+
+function scheduleReadReceipt() {
+    clearTimeout(readTimer)
+    if (!canAcknowledgeVisibleChat() || Date.now() < readRetryAt) return
+    readTimer = setTimeout(() => {
+        if (canAcknowledgeVisibleChat()) void markRead(true)
+    }, 600)
+}
+
+async function markRead(automatic = false) {
     if (!selectedChat.value) return
     const chatId = selectedChat.value.id
+    const throughMessageId = automatic ? Math.max(0, ...messages.value.map((message) => message.id)) : undefined
+    if (automatic && !throughMessageId) return
     try {
-        await axios.post(`/api/avito/messenger/chats/${chatId}/read`)
+        await store.markRead(chatId, throughMessageId)
         if (disposed) return
-        if (selectedChat.value?.id === chatId) {
-            selectedChat.value.is_unread = false
-            selectedChat.value.unread_count = 0
-            messages.value.forEach((message) => {
-                if (message.direction === 'in') message.is_read = true
-            })
-        }
-        await loadChats(chatsMeta.value.current_page)
-        notify('Чат отмечен прочитанным на Avito.')
+        // Reconcile a read response with any arrivals that raced the acknowledgement.
+        await store.loadUpdates({ chatIds: new Set([chatId]), messageIds: new Set(), overview: true, chats: true })
+        if (!automatic) notify('Чат отмечен прочитанным на Avito.')
     } catch (exception) {
+        readRetryAt = Date.now() + Math.max(5, Number(exception?.response?.data?.retry_after) || 30) * 1000
         fail(exception, 'Не удалось отметить чат прочитанным.')
     }
 }
@@ -435,9 +462,19 @@ function fail(exception, fallback) {
     if (!disposed && exception?.code !== 'ERR_CANCELED') emit('error', exception?.response?.data?.message || fallback)
 }
 
-onMounted(initialize)
+watch(() => [selectedChat.value?.is_unread, selectedChat.value?.unread_count, mobilePane.value], () => {
+    void nextTick(scheduleReadReceipt)
+})
+onMounted(() => {
+    void initialize()
+    document.addEventListener('visibilitychange', scheduleReadReceipt)
+    window.addEventListener('focus', scheduleReadReceipt)
+})
 onBeforeUnmount(() => {
     clearTimeout(searchTimer)
+    clearTimeout(readTimer)
+    document.removeEventListener('visibilitychange', scheduleReadReceipt)
+    window.removeEventListener('focus', scheduleReadReceipt)
     disposed = true
     manualRefreshController?.abort()
     streamVersion++
@@ -448,7 +485,7 @@ onBeforeUnmount(() => {
 <template>
     <section class="messenger-module" :class="`mobile-pane-${mobilePane}`">
         <header class="messenger-toolbar">
-            <div class="messenger-counts"><strong>{{ overview.counts.chats || 0 }} чатов</strong><span>{{ overview.counts.unread_chats || 0 }} непрочитанных</span></div>
+            <div class="messenger-counts"><strong>Всего чатов: {{ overview.counts.chats || 0 }}</strong><span>Непрочитанных чатов: {{ overview.counts.unread_chats || 0 }}</span></div>
             <button type="button" class="realtime-indicator" :class="{ 'is-warning': realtimeStatus.warning }" :title="realtimeHint" :aria-label="realtimeHint" :disabled="refreshingArchive" @click="refreshArchive(true)"><v-icon :icon="realtimeStatus.icon" size="15" /><span class="realtime-label">{{ realtimeStatus.label }}</span><span class="realtime-short-label">{{ realtimeStatus.short }}</span></button>
             <span v-if="runningRun" class="sync-progress" role="status" :title="runningRun.status === 'queued' ? 'Синхронизация ожидает запуска' : `Синхронизация · ${runningRun.messages_seen || 0} сообщений`"><v-progress-circular indeterminate size="13" width="2" /><span class="sync-progress-label">{{ runningRun.status === 'queued' ? 'В очереди' : `Синхронизация · ${runningRun.messages_seen || 0}` }}</span></span>
             <v-spacer />
@@ -477,18 +514,30 @@ onBeforeUnmount(() => {
             <aside class="chat-list-pane">
                 <div class="chat-filters">
                     <v-text-field v-model="filters.search" prepend-inner-icon="mdi-magnify" placeholder="Чат, клиент или текст сообщения" title="Поиск по данным чата, клиенту и всей сохранённой переписке" density="compact" variant="outlined" hide-details clearable />
-                    <div>
-                        <v-select v-model="filters.account_id" :items="accountOptions" placeholder="Все аккаунты" density="compact" variant="outlined" hide-details clearable />
-                        <v-btn :color="filters.unread_only ? 'deep-purple-lighten-1' : undefined" :variant="filters.unread_only ? 'tonal' : 'text'" icon="mdi-message-badge-outline" size="small" @click="filters.unread_only = !filters.unread_only" />
-                    </div>
+                    <v-select v-model="filters.account_id" :items="accountOptions" placeholder="Все аккаунты" density="compact" variant="outlined" hide-details clearable />
+                    <v-btn
+                        class="unread-filter"
+                        :color="filters.unread_only ? 'deep-purple-lighten-2' : undefined"
+                        :variant="filters.unread_only ? 'tonal' : 'outlined'"
+                        :prepend-icon="filters.unread_only ? 'mdi-filter-check-outline' : 'mdi-message-badge-outline'"
+                        :aria-pressed="filters.unread_only"
+                        :title="filters.unread_only ? 'Сбросить фильтр непрочитанных чатов' : 'Показать только непрочитанные чаты'"
+                        size="small"
+                        @click="filters.unread_only = !filters.unread_only"
+                    >Непрочитанные чаты <span class="unread-filter__count">{{ overview.counts.unread_chats || 0 }}</span><v-icon v-if="filters.unread_only" icon="mdi-close" size="14" /></v-btn>
                 </div>
                 <div class="chat-list" :class="{ 'is-loading': chatsLoading }">
                     <button v-for="chat in chats" :key="chat.id" type="button" class="chat-row" :class="{ 'is-active': selectedChat?.id === chat.id, 'is-unread': chat.is_unread }" @click="openChat(chat)">
                         <v-avatar size="34" color="deep-purple-darken-1"><v-img v-if="chat.peer_avatar_url" :src="chat.peer_avatar_url" cover /><span v-else>{{ (chat.peer_name || chat.title || 'A').slice(0, 1).toUpperCase() }}</span></v-avatar>
                         <span class="chat-row__body"><strong>{{ chat.peer_name || chat.title || 'Чат Avito' }}</strong><small>{{ chat.last_message_preview || 'Сообщений пока нет' }}</small><em>{{ chat.title !== chat.peer_name ? chat.title : `ID ${chat.external_chat_id.slice(0, 8)}` }}</em></span>
-                        <span class="chat-row__meta"><time>{{ formatDate(chat.last_message_at, true) }}</time><b v-if="chat.unread_count">{{ chat.unread_count }}</b><v-icon v-if="chat.entity" icon="mdi-account-check-outline" size="11" color="green-lighten-1" :title="chat.entity.name" /><i>{{ chat.chat_type || 'u2i' }}</i></span>
+                        <span class="chat-row__meta"><time>{{ formatDate(chat.last_message_at, true) }}</time><b v-if="chat.is_unread" :title="chat.unread_count ? `Непрочитанных сообщений: ${chat.unread_count}` : 'Есть непрочитанные сообщения'" :aria-label="chat.unread_count ? `Непрочитанных сообщений: ${chat.unread_count}` : 'Есть непрочитанные сообщения'">{{ chat.unread_count || '•' }}</b><v-icon v-if="chat.entity" icon="mdi-account-check-outline" size="11" color="green-lighten-1" :title="chat.entity.name" /><i>{{ chat.chat_type || 'u2i' }}</i></span>
                     </button>
-                    <div v-if="!chats.length" class="pane-empty"><v-icon icon="mdi-forum-remove-outline" size="36" /><strong>Архив пока пуст</strong><span>Запустите синхронизацию — чаты и сообщения сохранятся на сервере.</span></div>
+                    <div v-if="!chats.length && !chatsLoading" class="pane-empty">
+                        <v-icon :icon="filters.unread_only ? 'mdi-message-check-outline' : 'mdi-forum-remove-outline'" size="36" />
+                        <strong>{{ filters.unread_only ? 'Непрочитанных чатов нет' : (filters.search || filters.account_id ? 'Чаты не найдены' : 'Архив пока пуст') }}</strong>
+                        <span>{{ filters.unread_only || filters.search || filters.account_id ? 'Попробуйте изменить поиск или фильтры.' : 'Запустите синхронизацию — чаты и сообщения сохранятся на сервере.' }}</span>
+                        <v-btn v-if="filters.unread_only" size="small" variant="text" @click="filters.unread_only = false">Показать все чаты</v-btn>
+                    </div>
                 </div>
                 <v-pagination v-if="chatsMeta.last_page > 1" v-model="chatsMeta.current_page" :length="chatsMeta.last_page" density="compact" total-visible="4" @update:model-value="loadChats" />
             </aside>
@@ -498,7 +547,7 @@ onBeforeUnmount(() => {
                     <header class="conversation-header">
                         <div><strong>{{ selectedChat.peer_name || selectedChat.title }}</strong><span>{{ selectedChat.entity?.name || 'Entity не связана' }} · {{ selectedChat.title }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений · архив {{ formatDate(selectedChat.last_synced_at) }}</span></div>
                         <v-btn icon="mdi-refresh" size="small" variant="text" :loading="chatLoading" title="Обновить из Avito" @click="refreshSelectedChat" />
-                        <v-btn icon="mdi-check-all" size="small" variant="text" title="Отметить прочитанным" @click="markRead" />
+                        <v-btn icon="mdi-check-all" size="small" variant="text" title="Отметить прочитанным" @click="markRead()" />
                         <v-menu>
                             <template #activator="{ props: menuProps }"><v-btn v-bind="menuProps" icon="mdi-account-cancel-outline" color="error" size="small" variant="text" /></template>
                             <v-list density="compact"><v-list-subheader>Причина блокировки</v-list-subheader><v-list-item v-for="reason in [{ id: 1, title: 'Спам' }, { id: 2, title: 'Мошенничество' }, { id: 3, title: 'Оскорбления' }, { id: 4, title: 'Другая' }]" :key="reason.id" :title="reason.title" @click="blacklist(reason.id)" /></v-list>
@@ -565,15 +614,16 @@ onBeforeUnmount(() => {
 .messenger-module { display: flex; flex-direction: column; overflow: hidden; width: 100%; height: 100%; min-height: 0; color: #e9ebff; border: 1px solid #30344d; border-radius: 10px; background: #111427; }
 .messenger-toolbar { display: flex; flex: 0 0 auto; min-height: 48px; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1b1e35; }
 .messenger-toolbar > .v-select { max-width: 230px; }
-.messenger-counts { display: flex; align-items: baseline; gap: 9px; white-space: nowrap; }.messenger-counts strong { font-size: 12px; }.messenger-counts span { color: #9299b9; font-size: 10px; }
+.messenger-counts { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }.messenger-counts strong { font-size: 12px; }.messenger-counts span { color: #9299b9; font-size: 10px; }
 .realtime-indicator { display: inline-flex; min-width: 0; flex: 0 0 auto; align-items: center; gap: 4px; padding: 4px 5px; color: #91dbbd; font-size: 10px; border: 1px solid #335449; border-radius: 5px; background: #1a302b; white-space: nowrap; cursor: pointer; }.realtime-indicator.is-warning { color: #dfbc81; border-color: #645235; background: #352d23; }.realtime-indicator:disabled { opacity: .65; cursor: wait; }.realtime-short-label { display: none; }.archive-sync :deep(.v-btn__content) { gap: 6px; }
 .sync-progress { display: inline-flex; min-width: 0; align-items: center; gap: 5px; overflow: hidden; color: #bdacf3; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
 .messenger-loading { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; gap: 12px; color: #9da3c3; }
-.messenger-layout { display: grid; flex: 1; grid-template-columns: clamp(290px, 25vw, 350px) minmax(0, 1fr) clamp(315px, 27vw, 390px); min-height: 0; overflow: hidden; }
+.messenger-layout { display: grid; flex: 1; grid-template-columns: minmax(250px, 25fr) minmax(0, 40fr) minmax(315px, 35fr); min-height: 0; overflow: hidden; }
 .mobile-pane-tabs { display: none; }
 .chat-list-pane, .conversation-pane, .messenger-info-pane { min-width: 0; min-height: 0; }
 .chat-list-pane { display: flex; flex-direction: column; border-right: 1px solid #30344d; background: #15182b; }
-.chat-filters { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px; border-bottom: 1px solid #2c3048; }.chat-filters > .v-input { grid-column: 1 / -1; min-width: 0; width: 100%; justify-self: stretch; }.chat-filters :deep(.v-input--horizontal) { grid-template-areas: 'control' 'messages'; grid-template-columns: minmax(0, 1fr); }.chat-filters > div { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }.chat-filters > div > .v-input { min-width: 0; width: 100%; }
+.chat-filters { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px; border-bottom: 1px solid #2c3048; }.chat-filters > .v-input { min-width: 0; width: 100%; justify-self: stretch; }.chat-filters :deep(.v-input--horizontal) { grid-template-areas: 'control' 'messages'; grid-template-columns: minmax(0, 1fr); }
+.unread-filter { justify-content: flex-start; min-width: 0; letter-spacing: normal; text-transform: none; }.unread-filter :deep(.v-btn__content) { flex: 1; gap: 6px; }.unread-filter__count { margin-left: auto; padding: 1px 6px; border-radius: 10px; background: rgba(147, 120, 255, .18); font-variant-numeric: tabular-nums; }.unread-filter[aria-pressed="true"] { box-shadow: inset 3px 0 #a38bef; }
 .chat-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; flex: 1; transition: opacity .15s; }.chat-list.is-loading { opacity: .55; }
 .chat-row { display: grid; width: 100%; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px 9px; color: #e9ebff; text-align: left; border: 0; border-bottom: 1px solid #292d45; background: transparent; cursor: pointer; }.chat-row:hover { background: #1d2038; }.chat-row.is-active { box-shadow: inset 3px 0 #9378ff; background: #24213f; }.chat-row.is-unread .chat-row__body strong { color: #fff; }
 .chat-row__body { min-width: 0; }.chat-row__body strong, .chat-row__body small, .chat-row__body em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.chat-row__body strong { font-size: 12px; }.chat-row__body small { margin-top: 3px; color: #9ca2c1; font-size: 11px; }.chat-row__body em { margin-top: 3px; color: #6f7596; font-size: 9px; font-style: normal; }
@@ -583,11 +633,11 @@ onBeforeUnmount(() => {
 .message-stream { display: flex; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; flex: 1; flex-direction: column; gap: 5px; padding: 12px 14px; }.older-button { align-self: center; margin: 3px 0 9px; }
 .message-bubble { flex: 0 0 auto; width: fit-content; max-width: min(76%, 680px); padding: 7px 9px 4px; border: 1px solid #343951; border-radius: 11px 11px 11px 3px; background: #20243b; box-shadow: 0 4px 12px rgba(0, 0, 0, .12); }.message-bubble.is-out { align-self: flex-end; border-color: rgba(132, 103, 239, .38); border-radius: 11px 11px 3px; background: #392d62; }.message-bubble.is-deleted { border-style: dashed; opacity: .82; }.message-bubble p { margin: 0; color: #f0f1ff; font-size: 12px; line-height: 1.38; white-space: pre-wrap; word-break: break-word; }.message-bubble audio { width: 260px; max-width: 100%; height: 34px; }.message-image { overflow: hidden; max-width: 360px; margin: -3px -5px 4px; border-radius: 7px; }.message-image img { display: block; width: 100%; max-height: 320px; object-fit: contain; background: #0d1020; }.message-bubble footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; color: #8f95b5; font-size: 8px; }.message-bubble footer span { margin-right: auto; text-transform: uppercase; }.archive-marker { display: flex; align-items: center; gap: 3px; margin-top: 5px; color: #d2a4ae; font-size: 8px; }
 .message-candidates { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }.message-candidates button { display: flex; align-items: center; gap: 3px; padding: 2px 5px; color: #b7ead4; font-size: 7px; border: 1px solid rgba(90, 205, 154, .28); border-radius: 10px; background: rgba(34, 105, 75, .22); cursor: pointer; }.message-candidates button.is-address { color: #b9dff0; border-color: rgba(83, 175, 216, .28); background: rgba(33, 91, 119, .22); }
-.composer { display: grid; flex: 0 0 auto; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > span { display: flex; align-items: center; gap: 3px; color: #737999; font-size: 8px; }.composer > span b { display: grid; width: 13px; height: 13px; place-items: center; color: #d9d0ff; font-size: 7px; border-radius: 10px; background: #654eb5; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
+.composer { display: grid; flex: 0 0 auto; grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto; align-items: center; gap: 5px; padding: 7px 10px; border-top: 1px solid #30344d; background: #1a1d33; }.composer > .v-textarea { grid-column: 1 / -1; grid-row: 1; min-width: 0; }.composer > .v-btn, .composer > span { grid-row: 2; }.composer > span { display: flex; justify-content: flex-end; align-items: center; gap: 3px; color: #737999; font-size: 8px; }.composer > span b { display: grid; width: 13px; height: 13px; place-items: center; color: #d9d0ff; font-size: 7px; border-radius: 10px; background: #654eb5; }.composer :deep(textarea) { font-size: 12px; line-height: 1.35; }
 .conversation-empty, .pane-empty { display: grid; place-items: center; align-content: center; gap: 7px; color: #858baa; text-align: center; }.conversation-empty { flex: 1; }.conversation-empty strong, .pane-empty strong { color: #dfe2f8; }.conversation-empty span, .pane-empty span { max-width: 300px; font-size: 11px; }.pane-empty { min-height: 220px; padding: 20px; }
 .messenger-info-pane { overflow-y: auto; padding: 9px; border-left: 1px solid #30344d; background: #15182b; }.messenger-info-pane section { margin-bottom: 8px; padding: 10px; border: 1px solid #2f334c; border-radius: 8px; background: #1b1e35; }.info-eyebrow { display: block; margin-bottom: 8px; color: #9d88f4; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.messenger-info-pane dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 7px; margin: 0; font-size: 10px; }.messenger-info-pane dt { color: #858baa; }.messenger-info-pane dd { overflow: hidden; max-width: 125px; margin: 0; color: #e5e7fa; text-overflow: ellipsis; white-space: nowrap; }.messenger-info-pane section > strong, .messenger-info-pane section > small { display: block; }.messenger-info-pane section > strong { font-size: 11px; }.messenger-info-pane section > small { margin: 4px 0 8px; color: #858baa; font-size: 9px; line-height: 1.4; }.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
 .tools-panel :deep(.v-expansion-panel) { color: #dfe2f8; background: #1b1e35; }.tools-panel :deep(.v-expansion-panel-title) { min-height: 38px; padding: 8px 10px; font-size: 10px; }.tools-panel :deep(.v-expansion-panel-text__wrapper) { display: grid; gap: 4px; padding: 4px 8px 10px; }.tools-panel a { display: grid; grid-template-columns: 32px 1fr; gap: 4px; color: #bec4e3; font-size: 8px; text-decoration: none; }.tools-panel a span { color: #9c85f5; font-weight: 800; }
-@media (max-width: 1250px) { .messenger-counts span, .realtime-label { display: none; }.realtime-short-label { display: inline; }.composer { grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto; gap: 1px; padding: 5px; }.composer > span { display: none; }.composer > .v-btn { width: 26px; height: 30px; }.composer :deep(.v-field__input) { padding-inline: 7px; }.message-stream { padding: 9px; } }
+@media (max-width: 1250px) { .realtime-label { display: none; }.realtime-short-label { display: inline; }.composer { gap: 3px; padding: 5px; }.composer > .v-btn { width: 26px; height: 30px; }.composer :deep(.v-field__input) { padding-inline: 7px; }.message-stream { padding: 9px; } }
 @media (max-width: 1000px) {
     .messenger-toolbar { gap: 5px; padding: 5px 7px; }.messenger-counts { display: none; }.messenger-toolbar > .v-select { min-width: 0; max-width: 210px; }.messenger-toolbar > .v-spacer { display: none; }.messenger-toolbar > .v-btn { flex: 0 0 auto; font-size: 10px; }.sync-progress { max-width: 100px; font-size: 9px; }
     .mobile-pane-tabs { display: flex; flex: 0 0 34px; border-bottom: 1px solid #30344d; background: #191c31; }.mobile-pane-tabs button { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 5px; color: #9299b9; font-size: 11px; border-bottom: 2px solid transparent; }.mobile-pane-tabs button[aria-pressed="true"] { color: #d2c7ff; border-bottom-color: #a38bef; background: #26203e; }

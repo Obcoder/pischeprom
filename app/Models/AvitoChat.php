@@ -39,6 +39,7 @@ class AvitoChat extends Model
     {
         return [
             'is_unread' => 'boolean',
+            'unread_count' => 'integer',
             'remote_created_at' => 'datetime',
             'remote_updated_at' => 'datetime',
             'last_message_at' => 'datetime',

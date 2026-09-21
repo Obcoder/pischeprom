@@ -203,6 +203,7 @@ jobs:
             app/Http/Controllers/AvitoCrmController.php \
             app/Http/Controllers/AvitoMessageTemplateController.php \
             app/Http/Controllers/AvitoMessengerController.php \
+            app/Http/Controllers/AvitoMessengerUpdatesController.php \
             app/Http/Controllers/AvitoPublicationController.php \
             app/Http/Controllers/AvitoWorkspaceSettingsController.php \
             app/Jobs/Avito \
@@ -231,6 +232,7 @@ jobs:
             database/migrations/2026_08_05_140000_create_avito_message_templates.php \
             database/migrations/2026_08_10_160000_create_avito_publication_tables.php \
             database/migrations/2026_08_10_170000_create_avito_workspace_settings_table.php \
+            database/migrations/2026_09_21_100000_repair_avito_unread_counts.php \
             database/seeders/AvitoMessageTemplateSeeder.php \
             scripts/update-production-avito-env.php \
             scripts/check-production-avito.php \

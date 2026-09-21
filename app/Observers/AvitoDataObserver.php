@@ -7,6 +7,11 @@ use App\Models\AvitoAutoReplyDecision;
 use App\Models\AvitoAutoReplyExample;
 use App\Models\AvitoAutoReplyRule;
 use App\Models\AvitoAutoReplySetting;
+use App\Models\AvitoChat;
+use App\Models\AvitoMessage;
+use App\Models\AvitoMessageAttachment;
+use App\Models\AvitoMessengerAccount;
+use App\Models\AvitoMessengerSyncRun;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Throwable;
@@ -45,7 +50,10 @@ class AvitoDataObserver
             default => ['avito_messages'],
         };
 
-        $model->getConnection()->afterCommit(function () use ($topics): void {
+        // Capture only local identifiers while the affected records still exist.
+        $changes = $this->changes($model);
+
+        $model->getConnection()->afterCommit(function () use ($topics, $changes): void {
             try {
                 $connection = (string) config('realtime.queue_connection', 'database');
                 // Reuse the dedicated Commerce worker, never do network I/O in
@@ -56,10 +64,40 @@ class AvitoDataObserver
                     return;
                 }
 
-                Event::dispatch(new AvitoDataChanged($topics));
+                Event::dispatch(new AvitoDataChanged($topics, $changes));
             } catch (Throwable) {
                 AvitoDataChanged::warnUnavailable();
             }
         });
+    }
+
+    private function changes(Model $model): array
+    {
+        if ($model instanceof AvitoChat) {
+            return ['chat_ids' => [(int) $model->id], 'overview' => true, 'chats' => true];
+        }
+        if ($model instanceof AvitoMessage) {
+            return [
+                'chat_ids' => [(int) $model->avito_chat_id],
+                'message_ids' => [(int) $model->id],
+                'overview' => true,
+                'chats' => true,
+            ];
+        }
+        if ($model instanceof AvitoMessageAttachment) {
+            $chatId = $model->message()->value('avito_chat_id');
+
+            return [
+                'chat_ids' => $chatId ? [(int) $chatId] : [],
+                'message_ids' => [(int) $model->avito_message_id],
+                'overview' => true,
+                'chats' => true,
+            ];
+        }
+        if ($model instanceof AvitoMessengerAccount || $model instanceof AvitoMessengerSyncRun) {
+            return ['overview' => true, 'chats' => false];
+        }
+
+        return [];
     }
 }

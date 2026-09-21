@@ -38,6 +38,7 @@ class AvitoMessengerController extends Controller
                 'accounts' => $accounts->count(),
                 'chats' => AvitoChat::query()->count(),
                 'unread_chats' => AvitoChat::query()->where('is_unread', true)->count(),
+                'unread_messages' => (int) AvitoChat::query()->sum('unread_count'),
                 'messages' => AvitoMessage::query()->count(),
                 'attachments' => AvitoMessageAttachment::query()->whereNotNull('archived_at')->count(),
             ],
@@ -255,11 +256,18 @@ class AvitoMessengerController extends Controller
         ]);
     }
 
-    public function markRead(AvitoChat $chat, AvitoMessengerService $messenger): JsonResponse
+    public function markRead(Request $request, AvitoChat $chat, AvitoMessengerService $messenger): JsonResponse
     {
-        $messenger->markRead($chat);
+        $validated = $request->validate([
+            'through_message_id' => ['nullable', 'integer', Rule::exists('avito_messages', 'id')->where('avito_chat_id', $chat->id)],
+        ]);
+        $throughMessageId = $messenger->markRead($chat, $validated['through_message_id'] ?? null);
 
-        return response()->json(['message' => 'Чат отмечен прочитанным на Avito.']);
+        return response()->json([
+            'message' => 'Чат отмечен прочитанным на Avito.',
+            'read_through_id' => $throughMessageId,
+            'chat' => $this->serializeChat($chat->fresh(['account', 'entity'])->loadCount('messages')),
+        ]);
     }
 
     public function blacklist(Request $request, AvitoChat $chat, AvitoMessengerService $messenger): JsonResponse
@@ -323,7 +331,7 @@ class AvitoMessengerController extends Controller
             : null;
     }
 
-    private function serializeChat(AvitoChat $chat): array
+    public function serializeChat(AvitoChat $chat): array
     {
         return [
             'id' => $chat->id,
@@ -355,7 +363,7 @@ class AvitoMessengerController extends Controller
         ];
     }
 
-    private function serializeMessage(AvitoMessage $message): array
+    public function serializeMessage(AvitoMessage $message): array
     {
         return [
             'id' => $message->id,

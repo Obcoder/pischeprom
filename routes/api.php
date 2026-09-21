@@ -138,6 +138,7 @@ use App\Http\Controllers\AvitoListingController;
 use App\Http\Controllers\AvitoListingGoodController;
 use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
+use App\Http\Controllers\AvitoMessengerUpdatesController;
 use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
 use App\Http\Controllers\TelegramController;
@@ -1097,6 +1098,7 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:avito')->group(
         Route::patch('/crm/candidates/{candidate}', [AvitoCrmController::class, 'updateCandidate'])
             ->name('crm.candidates.update');
         Route::get('/overview', [AvitoMessengerController::class, 'overview'])->name('overview');
+        Route::get('/updates', AvitoMessengerUpdatesController::class)->name('updates');
         Route::get('/chats', [AvitoMessengerController::class, 'chats'])->name('chats.index');
         Route::get('/chats/{chat}', [AvitoMessengerController::class, 'chat'])->name('chats.show');
         Route::get('/chats/{chat}/crm', [AvitoCrmController::class, 'show'])->name('chats.crm.show');

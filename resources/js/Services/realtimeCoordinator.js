@@ -11,6 +11,8 @@ export function createRealtimeCoordinator({
     setTimer = setTimeout,
     clearTimer = clearTimeout,
     debounceMs = 150,
+    minRefreshIntervalMs = 0,
+    now = Date.now,
     allowedTopics = COMMERCE_TOPICS,
 }) {
     const resources = new Map()
@@ -43,29 +45,45 @@ export function createRealtimeCoordinator({
         stop()
     }
 
-    function schedule(resource, reason) {
+    function schedule(resource, reason, event = null) {
         resource.pending = true
         resource.reason = reason
+        if (reason !== 'change') resource.overflow = true
+        if (event) {
+            if (resource.events.size < 200) resource.events.set(event.event_id, event)
+            else resource.overflow = true
+        }
         if (resource.running || resource.timer !== null || !isVisible() || !isOnline() || forbidden) return
         resource.timer = setTimer(() => {
             resource.timer = null
             void refresh(resource)
-        }, debounceMs)
+        }, Math.max(debounceMs, resource.nextRefreshAt - now()))
     }
 
     async function refresh(resource) {
         if (!resource.active || !resource.pending || !isVisible() || !isOnline() || forbidden) return
         resource.pending = false
         resource.running = true
+        resource.nextRefreshAt = now() + minRefreshIntervalMs
+        const events = [...resource.events.values()]
+        const overflow = resource.overflow
+        resource.events.clear()
+        resource.overflow = false
         const controller = new AbortController()
         resource.controller = controller
         try {
-            await resource.load({ signal: controller.signal, reason: resource.reason })
+            await resource.load({ signal: controller.signal, reason: resource.reason, events, overflow })
             if (resource.active && !controller.signal.aborted) onRefreshed(resource.id)
         } catch (error) {
             if (resource.active && !controller.signal.aborted && error?.code !== 'ERR_CANCELED') {
+                // A later event must also recover changes from this failed batch.
+                resource.overflow = true
                 onError(resource.id)
                 if ([401, 403, 419].includes(error?.response?.status)) denyAccess()
+                if (error?.response?.status === 429) {
+                    const retryAfter = Number(error.response.headers?.['retry-after'] || error.response.data?.retry_after || 60)
+                    resource.nextRefreshAt = now() + Math.max(1, Number.isFinite(retryAfter) ? retryAfter : 60) * 1000
+                }
             }
         } finally {
             resource.running = false
@@ -85,7 +103,7 @@ export function createRealtimeCoordinator({
         seenEvents.add(event.event_id)
         if (seenEvents.size > 256) seenEvents.delete(seenEvents.values().next().value)
         for (const resource of resources.values()) {
-            if (topics.some((topic) => resource.topics.has(topic))) schedule(resource, 'change')
+            if (topics.some((topic) => resource.topics.has(topic))) schedule(resource, 'change', event)
         }
     }
 
@@ -139,6 +157,9 @@ export function createRealtimeCoordinator({
             if (resource.timer !== null) clearTimer(resource.timer)
             resource.timer = null
             resource.pending = false
+            resource.events.clear()
+            resource.overflow = false
+            resource.nextRefreshAt = 0
         }
         configuration = next
         configurationKey = key
@@ -149,7 +170,8 @@ export function createRealtimeCoordinator({
     }
 
     function subscribe(id, topics, load) {
-        const resource = { id, topics: new Set(topics), load, active: true, pending: false, running: false, timer: null, controller: null }
+        const resource = { id, topics: new Set(topics), load, active: true, pending: false, running: false,
+            timer: null, controller: null, events: new Map(), overflow: false, nextRefreshAt: 0 }
         resources.set(id, resource)
         if (subscribed) schedule(resource, 'connected')
         else void start()

@@ -247,20 +247,26 @@ class AvitoMessengerService
                 ? 'Сообщение удалено на Avito'
                 : $message->chat->last_message_preview,
         ]);
+        $this->archive->recalculateUnread($message->chat);
 
         return $message->fresh('attachments');
     }
 
-    public function markRead(AvitoChat $chat): void
+    public function markRead(AvitoChat $chat, ?int $throughMessageId = null): int
     {
         $chat->loadMissing('account.connection');
+        // Do not acknowledge a webhook that arrives while the remote request is
+        // in flight: the operator has not received that message yet.
+        $throughMessageId = min($throughMessageId ?? PHP_INT_MAX, (int) $chat->messages()->max('id'));
         $this->execute('chatRead', [
             'path' => [
                 'user_id' => $chat->account->external_user_id,
                 'chat_id' => $chat->external_chat_id,
             ],
         ], $chat->account->connection);
-        $this->archive->markChatRead($chat);
+        $this->archive->markChatRead($chat, $throughMessageId);
+
+        return $throughMessageId;
     }
 
     public function blacklistPeer(AvitoChat $chat, int $reasonId): void

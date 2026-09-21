@@ -31,7 +31,9 @@ class AvitoDataChanged implements ShouldBroadcast, ShouldDispatchAfterCommit
 
     public readonly array $topics;
 
-    public function __construct(array $topics)
+    public readonly array $changes;
+
+    public function __construct(array $topics, array $changes = [])
     {
         if ($topics === [] || count($topics) > count(self::TOPICS)) {
             throw new InvalidArgumentException('Invalid Avito topics.');
@@ -43,7 +45,24 @@ class AvitoDataChanged implements ShouldBroadcast, ShouldDispatchAfterCommit
             }
         }
 
+        foreach ($changes as $key => $value) {
+            if (in_array($key, ['chat_ids', 'message_ids'], true)) {
+                if (! is_array($value) || ! array_is_list($value) || count($value) > 200) {
+                    throw new InvalidArgumentException('Invalid Avito change IDs.');
+                }
+                foreach ($value as $id) {
+                    if (! is_int($id) || $id < 1) {
+                        throw new InvalidArgumentException('Invalid Avito change IDs.');
+                    }
+                }
+                $changes[$key] = array_values(array_unique($value));
+            } elseif (! in_array($key, ['overview', 'chats'], true) || ! is_bool($value)) {
+                throw new InvalidArgumentException('Invalid Avito changes.');
+            }
+        }
+
         $this->topics = array_values(array_unique($topics));
+        $this->changes = $changes;
         $this->eventId = (string) Str::uuid();
         $this->connection = (string) config('realtime.queue_connection', 'database');
         $this->queue = (string) config('realtime.queue', 'realtime');
@@ -62,7 +81,13 @@ class AvitoDataChanged implements ShouldBroadcast, ShouldDispatchAfterCommit
 
     public function broadcastWith(): array
     {
-        return ['topics' => $this->topics, 'event_id' => $this->eventId];
+        $payload = ['topics' => $this->topics, 'event_id' => $this->eventId];
+        // Jobs queued before the deployment do not have this optional property.
+        if (isset($this->changes) && $this->changes !== []) {
+            $payload['changes'] = $this->changes;
+        }
+
+        return $payload;
     }
 
     public function failed(?Throwable $exception = null): void

@@ -9,6 +9,7 @@ use App\Models\AvitoMessageAttachment;
 use App\Models\AvitoMessengerAccount;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class AvitoMessengerArchive
@@ -87,6 +88,11 @@ class AvitoMessengerArchive
 
     public function storeChat(AvitoMessengerAccount $account, array $payload): AvitoChat
     {
+        return DB::transaction(fn () => $this->storeChatWithinTransaction($account, $payload), 3);
+    }
+
+    private function storeChatWithinTransaction(AvitoMessengerAccount $account, array $payload): AvitoChat
+    {
         $externalChatId = trim((string) Arr::get($payload, 'id'));
 
         if ($externalChatId === '') {
@@ -97,7 +103,7 @@ class AvitoMessengerArchive
         $contextValue = (array) Arr::get($context, 'value', []);
         $lastMessage = (array) Arr::get($payload, 'last_message', []);
         $peer = $this->peerFromUsers((array) Arr::get($payload, 'users', []), (string) $account->external_user_id);
-        $chat = AvitoChat::query()->firstOrNew([
+        $chat = AvitoChat::query()->lockForUpdate()->firstOrCreate([
             'avito_messenger_account_id' => $account->id,
             'external_chat_id' => $externalChatId,
         ]);
@@ -111,17 +117,8 @@ class AvitoMessengerArchive
             'peer_user_id' => $peer['id'] ?: $chat->peer_user_id,
             'peer_name' => $peer['name'] ?: $chat->peer_name,
             'peer_avatar_url' => $peer['avatar'] ?: $chat->peer_avatar_url,
-            'last_message_id' => $this->nullableString(Arr::get($lastMessage, 'id', $chat->last_message_id)),
-            'last_message_type' => Arr::get($lastMessage, 'type', $chat->last_message_type),
-            'last_message_preview' => $lastMessage !== []
-                ? $this->preview($lastMessage)
-                : $chat->last_message_preview,
-            'is_unread' => $lastMessage !== []
-                ? Arr::get($lastMessage, 'direction') === 'in' && ! (bool) Arr::get($lastMessage, 'is_read', false)
-                : $chat->is_unread,
             'remote_created_at' => $this->timestamp(Arr::get($payload, 'created')) ?: $chat->remote_created_at,
             'remote_updated_at' => $this->timestamp(Arr::get($payload, 'updated')) ?: $chat->remote_updated_at,
-            'last_message_at' => $this->timestamp(Arr::get($lastMessage, 'created')) ?: $chat->last_message_at,
             'last_synced_at' => now(),
             'payload' => $payload,
         ]);
@@ -144,6 +141,17 @@ class AvitoMessengerArchive
 
     public function storeMessage(AvitoChat $chat, array $payload): ?AvitoMessage
     {
+        // Publish the message and its unread badge only after both are committed.
+        // Reload under the lock: sync and webhooks may carry stale chat instances.
+        return DB::transaction(function () use ($chat, $payload): ?AvitoMessage {
+            $chat = AvitoChat::query()->lockForUpdate()->findOrFail($chat->id);
+
+            return $this->storeMessageWithinTransaction($chat, $payload);
+        }, 3);
+    }
+
+    private function storeMessageWithinTransaction(AvitoChat $chat, array $payload): ?AvitoMessage
+    {
         $externalMessageId = trim((string) Arr::get($payload, 'id'));
 
         if ($externalMessageId === '') {
@@ -165,15 +173,27 @@ class AvitoMessengerArchive
                 : 'in';
         }
 
+        $createdAt = $this->timestamp(Arr::get($payload, 'created'))
+            ?: $this->dateTime(Arr::get($payload, 'published_at'))
+            ?: $message->remote_created_at;
+        $readAt = $this->timestamp(Arr::get($payload, 'read')) ?: $message->remote_read_at;
+        // Webhooks omit read receipts. Replaying a webhook or an older API
+        // response must never turn a message already read back into unread.
+        $isRead = $message->is_read || $readAt !== null || (bool) Arr::get($payload, 'is_read', false);
+        if (! $isRead && $direction === 'in' && $createdAt) {
+            $isRead = $chat->messages()->where('direction', 'in')->where('is_read', true)
+                ->where('remote_type', '!=', 'system')
+                ->where('type', '!=', 'system')
+                ->where('remote_created_at', '>', $createdAt)->exists();
+        }
+
         $attributes = [
             'author_id' => $this->nullableString(Arr::get($payload, 'author_id')),
             'direction' => $direction,
             'remote_type' => $remoteType,
-            'is_read' => (bool) Arr::get($payload, 'is_read', Arr::get($payload, 'read') !== null),
-            'remote_created_at' => $this->timestamp(Arr::get($payload, 'created'))
-                ?: $this->dateTime(Arr::get($payload, 'published_at'))
-                ?: $message->remote_created_at,
-            'remote_read_at' => $this->timestamp(Arr::get($payload, 'read')) ?: $message->remote_read_at,
+            'is_read' => $isRead,
+            'remote_created_at' => $createdAt,
+            'remote_read_at' => $readAt,
             'deleted_from_avito_at' => $remoteType === 'deleted'
                 ? ($message->deleted_from_avito_at ?: now())
                 : null,
@@ -214,12 +234,18 @@ class AvitoMessengerArchive
 
         $this->storeAttachmentReferences($message, $content);
         $this->updateChatFromMessage($chat, $message);
+        $this->recalculateUnread($chat);
         $this->contactDetector->detectMessage($message);
 
         return $message->fresh('attachments');
     }
 
     public function ingestWebhook(array $payload): ?AvitoMessage
+    {
+        return DB::transaction(fn () => $this->ingestWebhookWithinTransaction($payload), 3);
+    }
+
+    private function ingestWebhookWithinTransaction(array $payload): ?AvitoMessage
     {
         $value = (array) Arr::get($payload, 'payload.value', []);
         $chatId = trim((string) Arr::get($value, 'chat_id'));
@@ -251,21 +277,40 @@ class AvitoMessengerArchive
         return $this->storeMessage($chat, $value);
     }
 
-    public function markChatRead(AvitoChat $chat): void
+    public function markChatRead(AvitoChat $chat, ?int $throughMessageId = null): void
     {
-        $chat->messages()->where('direction', 'in')->update(['is_read' => true]);
-        $chat->update(['is_unread' => false, 'unread_count' => 0]);
+        DB::transaction(function () use ($chat, $throughMessageId): void {
+            $chat = AvitoChat::query()->lockForUpdate()->findOrFail($chat->id);
+            $messages = $chat->messages()->where('direction', 'in');
+            if ($throughMessageId !== null) {
+                $messages->where('id', '<=', $throughMessageId);
+            }
+            $messages->update(['is_read' => true]);
+            $this->recalculateUnread($chat);
+        }, 3);
     }
 
     public function recalculateUnread(AvitoChat $chat): void
     {
-        $count = $chat->messages()
-            ->where('direction', 'in')
-            ->where('is_read', false)
-            ->where('remote_type', '!=', 'deleted')
-            ->count();
+        DB::transaction(function () use ($chat): void {
+            $chat = AvitoChat::query()->lockForUpdate()->findOrFail($chat->id);
+            // Avito reads the whole chat. A read incoming receipt therefore also
+            // covers earlier history, including rows outside the last sync page.
+            // Keep messages from the same second conservative: their order is unknown.
+            $readThrough = $chat->messages()->where('direction', 'in')->where('is_read', true)
+                ->where('remote_type', '!=', 'system')->where('type', '!=', 'system')->max('remote_created_at');
+            if ($readThrough) {
+                $chat->messages()->where('direction', 'in')->where('is_read', false)
+                    ->where('remote_created_at', '<', $readThrough)->update(['is_read' => true]);
+            }
+            $count = $chat->messages()
+                ->where('direction', 'in')
+                ->where('is_read', false)
+                ->whereNotIn('remote_type', ['deleted', 'system'])
+                ->count();
 
-        $chat->update(['is_unread' => $count > 0, 'unread_count' => $count]);
+            $chat->update(['is_unread' => $count > 0, 'unread_count' => $count]);
+        }, 3);
     }
 
     private function updateChatFromMessage(AvitoChat $chat, AvitoMessage $message): void
@@ -288,10 +333,6 @@ class AvitoMessengerArchive
                 'remote_updated_at' => $message->remote_created_at ?: now(),
                 'last_synced_at' => now(),
             ]);
-        }
-
-        if ($message->direction === 'in' && ! $message->is_read && $message->remote_type !== 'deleted') {
-            $chat->is_unread = true;
         }
 
         $chat->save();
