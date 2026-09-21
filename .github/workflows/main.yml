@@ -369,6 +369,7 @@ jobs:
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/AmeiseCommercePageTest.php \
             tests/Feature/EntityConsumptionApiTest.php \
+            tests/Feature/EntityTableActivityTest.php \
             tests/Feature/CheckCreationTest.php \
             tests/Feature/IncomingMailMaxNotificationTest.php \
             --compact

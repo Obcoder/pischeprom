@@ -9,10 +9,11 @@ import AvitoCrmPanel from './AvitoCrmPanel.vue'
 const props = defineProps({
     connections: { type: Array, default: () => [] },
     embedded: { type: Boolean, default: false },
+    fullFeatured: { type: Boolean, default: false },
     chat: { type: Object, default: null },
 })
 
-const emit = defineEmits(['notice', 'error', 'waiting-change'])
+const emit = defineEmits(['notice', 'error', 'waiting-change', 'chat-updated'])
 
 const store = useAvitoRealtime({ key: 'messages', topics: ['avito_messages'], load: reloadRealtime })
 const { loading, chatsLoading, chatLoading, sending, syncing, overview, chats, chatsMeta,
@@ -26,6 +27,7 @@ const mobilePane = ref(store.selectedChat ? 'conversation' : 'chats')
 const refreshingArchive = ref(false)
 const archiveRefreshFailed = ref(false)
 const waitingSaving = ref(null)
+const toolsEnabled = computed(() => !props.embedded || props.fullFeatured)
 let manualRefreshController = null
 let searchTimer = null
 let readTimer = null
@@ -136,9 +138,14 @@ watch(() => props.chat, (chat) => {
     if (!props.embedded || disposed) return
     if (chat?.id !== selectedChat.value?.id) {
         void selectEmbeddedChat(chat)
-    } else if (chat && selectedChat.value) {
+    } else if (chat && selectedChat.value
+        && (chat.waiting_since !== selectedChat.value.waiting_since || chat.waiting_note !== selectedChat.value.waiting_note)) {
         selectedChat.value = { ...selectedChat.value, waiting_since: chat.waiting_since, waiting_note: chat.waiting_note }
     }
+})
+
+watch(selectedChat, (chat) => {
+    if (!disposed && chat && (!props.embedded || chat.id === props.chat?.id)) emit('chat-updated', { ...chat })
 })
 
 async function toggleWaiting() {
@@ -334,6 +341,7 @@ async function sendText() {
             if (follow && followNewMessages) await scrollToBottom(chatId)
         }
         await loadChats(chatsMeta.value.current_page)
+        await refreshEmbeddedSummary(chatId)
     } catch (exception) {
         fail(exception, 'Avito не принял сообщение.')
     } finally {
@@ -362,6 +370,7 @@ async function sendImage(event) {
             if (follow && followNewMessages) await scrollToBottom(chatId)
         }
         await loadChats(chatsMeta.value.current_page)
+        await refreshEmbeddedSummary(chatId)
     } catch (exception) {
         fail(exception, 'Avito не принял изображение.')
     } finally {
@@ -377,6 +386,16 @@ async function refreshAfterCrmMutation() {
 async function refreshMessagesFromCrm() {
     if (selectedChat.value) await loadChatPage(1, false, { preserve: true })
     await loadChats(chatsMeta.value.current_page)
+}
+
+async function refreshEmbeddedSummary(chatId) {
+    if (!props.embedded || !props.fullFeatured || disposed || selectedChat.value?.id !== chatId) return
+    try {
+        await store.loadUpdates({ chatIds: new Set([chatId]), messageIds: new Set(), overview: false, chats: false })
+        scheduleReadReceipt()
+    } catch (exception) {
+        fail(exception, 'Изменения сохранены, но не удалось обновить сведения о чате.')
+    }
 }
 
 function handleContactCandidate(candidate) {
@@ -419,6 +438,7 @@ async function handleTemplateSent(message) {
     messages.value = uniqueMessages([...messages.value, message])
     if (follow) await scrollToBottom()
     await loadChats(chatsMeta.value.current_page)
+    await refreshEmbeddedSummary(selectedChat.value?.id)
 }
 
 function clearComposerTemplate() {
@@ -433,6 +453,7 @@ async function deleteMessage(message) {
         if (disposed) return
         const index = messages.value.findIndex((item) => item.id === message.id)
         if (index >= 0) messages.value[index] = data.item
+        await refreshEmbeddedSummary(message.chat_id || selectedChat.value?.id)
         notify('Сообщение удалено на Avito, архивная копия сохранена.')
     } catch (exception) {
         fail(exception, 'Не удалось удалить сообщение. Avito разрешает удаление только в течение часа после отправки.')
@@ -541,7 +562,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <section class="messenger-module" :class="[`mobile-pane-${mobilePane}`, { 'is-embedded': embedded }]">
+    <section class="messenger-module" :class="[`mobile-pane-${mobilePane}`, { 'is-embedded': embedded, 'is-full-featured': embedded && fullFeatured }]">
         <header v-if="!embedded" class="messenger-toolbar">
             <div class="messenger-counts"><strong>Всего чатов: {{ overview.counts.chats || 0 }}</strong><span>Непрочитанных чатов: {{ overview.counts.unread_chats || 0 }}</span></div>
             <button type="button" class="realtime-indicator" :class="{ 'is-warning': realtimeStatus.warning }" :title="realtimeHint" :aria-label="realtimeHint" :disabled="refreshingArchive" @click="refreshArchive(true)"><v-icon :icon="realtimeStatus.icon" size="15" /><span class="realtime-label">{{ realtimeStatus.label }}</span><span class="realtime-short-label">{{ realtimeStatus.short }}</span></button>
@@ -560,8 +581,8 @@ onBeforeUnmount(() => {
             </v-menu>
         </header>
 
-        <nav v-if="!embedded" class="mobile-pane-tabs" aria-label="Разделы переписки">
-            <button type="button" :aria-pressed="mobilePane === 'chats'" @click="mobilePane = 'chats'"><v-icon icon="mdi-forum-outline" size="16" />Чаты</button>
+        <nav v-if="toolsEnabled" class="mobile-pane-tabs" aria-label="Разделы переписки">
+            <button v-if="!embedded" type="button" :aria-pressed="mobilePane === 'chats'" @click="mobilePane = 'chats'"><v-icon icon="mdi-forum-outline" size="16" />Чаты</button>
             <button type="button" :aria-pressed="mobilePane === 'conversation'" @click="mobilePane = 'conversation'"><v-icon icon="mdi-message-text-outline" size="16" />Переписка</button>
             <button type="button" :aria-pressed="mobilePane === 'details'" @click="mobilePane = 'details'"><v-icon icon="mdi-card-account-details-outline" size="16" />Клиент и AI</button>
         </nav>
@@ -604,6 +625,7 @@ onBeforeUnmount(() => {
                 <template v-if="selectedChat">
                     <header class="conversation-header">
                         <div><strong>{{ selectedChat.peer_name || selectedChat.title }}</strong><span v-if="embedded">{{ selectedChat.title || 'Переписка Avito' }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений</span><span v-else>{{ selectedChat.entity?.name || 'Entity не связана' }} · {{ selectedChat.title }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений · архив {{ formatDate(selectedChat.last_synced_at) }}</span></div>
+                        <button v-if="embedded && fullFeatured" type="button" class="realtime-indicator" :class="{ 'is-warning': realtimeStatus.warning }" :title="realtimeHint" :aria-label="realtimeHint" :disabled="refreshingArchive" @click="refreshArchive(true)"><v-icon :icon="realtimeStatus.icon" size="15" /></button>
                         <v-btn
                             class="waiting-toggle"
                             :icon="selectedChat.waiting_since ? 'mdi-clock-check-outline' : 'mdi-clock-plus-outline'"
@@ -619,7 +641,7 @@ onBeforeUnmount(() => {
                         />
                         <v-btn icon="mdi-refresh" size="small" variant="text" :loading="chatLoading" title="Обновить из Avito" aria-label="Обновить из Avito" @click="refreshSelectedChat" />
                         <v-btn icon="mdi-check-all" size="small" variant="text" title="Отметить прочитанным" aria-label="Отметить прочитанным" @click="markRead()" />
-                        <v-menu v-if="!embedded">
+                        <v-menu v-if="toolsEnabled">
                             <template #activator="{ props: menuProps }"><v-btn v-bind="menuProps" icon="mdi-account-cancel-outline" color="error" size="small" variant="text" /></template>
                             <v-list density="compact"><v-list-subheader>Причина блокировки</v-list-subheader><v-list-item v-for="reason in [{ id: 1, title: 'Спам' }, { id: 2, title: 'Мошенничество' }, { id: 3, title: 'Оскорбления' }, { id: 4, title: 'Другая' }]" :key="reason.id" :title="reason.title" @click="blacklist(reason.id)" /></v-list>
                         </v-menu>
@@ -631,7 +653,7 @@ onBeforeUnmount(() => {
                             <div v-if="attachment(message, 'image')" class="message-image"><img :src="attachment(message, 'image').url" alt="Изображение из архива Avito" loading="lazy"></div>
                             <audio v-if="attachment(message, 'voice')" :src="attachment(message, 'voice').url" controls preload="none" />
                             <p v-if="message.type !== 'image' || !attachment(message, 'image')">{{ messageText(message) }}</p>
-                            <div v-if="!embedded && message.contact_candidates?.length" class="message-candidates">
+                            <div v-if="toolsEnabled && message.contact_candidates?.length" class="message-candidates">
                                 <button v-for="candidate in message.contact_candidates" :key="candidate.id" type="button" :class="`is-${candidate.type}`" @click="handleContactCandidate(candidate)">
                                     <v-icon :icon="candidate.type === 'phone' ? 'mdi-phone-plus-outline' : 'mdi-map-marker-plus-outline'" size="11" />
                                     {{ candidate.type === 'phone' ? candidate.normalized_value : 'Сохранить адрес' }}
@@ -646,9 +668,9 @@ onBeforeUnmount(() => {
 
                     <footer class="composer">
                         <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="sendImage">
-                        <v-btn v-if="!embedded" icon="mdi-package-variant-closed-plus" size="small" variant="text" :disabled="sending" title="Выбрать товар из Пищепром-Сервера" @click="openCrmCatalog" />
-                        <v-btn v-if="!embedded" icon="mdi-text-box-multiple-outline" size="small" variant="text" :disabled="sending" title="Шаблоны сообщений" @click="openMessageTemplates" />
-                        <v-btn v-if="!embedded" icon="mdi-robot-outline" size="small" variant="text" :disabled="sending" title="Автоответы и безопасная проверка" @click="openAutoReplies" />
+                        <v-btn v-if="toolsEnabled" icon="mdi-package-variant-closed-plus" size="small" variant="text" :disabled="sending" title="Выбрать товар из Пищепром-Сервера" aria-label="Выбрать товар" @click="openCrmCatalog" />
+                        <v-btn v-if="toolsEnabled" icon="mdi-text-box-multiple-outline" size="small" variant="text" :disabled="sending" title="Шаблоны сообщений" aria-label="Шаблоны сообщений" @click="openMessageTemplates" />
+                        <v-btn v-if="toolsEnabled" icon="mdi-robot-outline" size="small" variant="text" :disabled="sending" title="Автоответы и безопасная проверка" aria-label="Автоответы" @click="openAutoReplies" />
                         <v-btn icon="mdi-image-plus-outline" size="small" variant="text" :disabled="sending" title="Отправить изображение" aria-label="Отправить изображение" @click="selectImage" />
                         <v-textarea ref="composerInput" v-model="composerText" :placeholder="composerTemplateName ? `Шаблон: ${composerTemplateName}` : 'Сообщение до 1000 символов'" rows="1" max-rows="4" auto-grow density="compact" variant="solo-filled" hide-details maxlength="1000" @keydown.ctrl.enter.prevent="sendText" />
                         <span :title="composerTemplateName ? `Используется шаблон «${composerTemplateName}»` : ''">{{ composerText.length }}/1000<b v-if="composerTemplateId">Ш</b></span>
@@ -659,7 +681,7 @@ onBeforeUnmount(() => {
             </main>
 
             <AvitoCrmPanel
-                v-if="selectedChat && !embedded"
+                v-if="selectedChat && toolsEnabled"
                 ref="crmPanel"
                 class="messenger-details-pane"
                 :chat="selectedChat"
@@ -737,4 +759,11 @@ onBeforeUnmount(() => {
 .is-embedded .composer :deep(textarea::placeholder) { color: #c1aeba; opacity: 1; }
 .is-embedded .messenger-loading, .is-embedded .conversation-empty, .is-embedded .pane-empty { color: #b7a7b1; }
 .is-embedded .conversation-empty strong { color: #ecc5d6; }
+.messenger-module.is-full-featured { height: 100%; min-height: 0; border: 0; border-radius: 0; }
+.is-full-featured .messenger-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(330px, 1fr); }
+.is-full-featured .composer { grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto; }
+@media (max-width: 1000px) {
+    .is-full-featured .messenger-layout { display: flex; }
+    .is-full-featured.mobile-pane-details .conversation-pane { display: none; }
+}
 </style>

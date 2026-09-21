@@ -31,6 +31,7 @@ const useAvitoRealtime = (options) => {
 
 const WaitingList = await component('AvitoWaitingList')
 const Messages = await component('AvitoMessages')
+const ChatDialog = await component('AvitoChatDialog')
 const renderer = createRenderer({
     createElement: (type) => ({ type }), createText: (text) => ({ text }), createComment: () => ({}),
     insert() {}, remove() {}, setText() {}, setElementText() {}, patchProp() {},
@@ -60,10 +61,10 @@ function mount(t, Component, props = {}) {
     globalThis.document = { visibilityState: 'hidden', addEventListener() {}, removeEventListener() {}, hasFocus: () => false }
     globalThis.window = { addEventListener() {}, removeEventListener() {} }
     const root = {}
-    const events = { errors: [], waiting: [] }
+    const events = { errors: [], waiting: [], updated: [] }
     const render = (nextProps = props) => {
         const vnode = h(Component, { ...nextProps, onError: (error) => events.errors.push(error),
-            onWaitingChange: (value) => events.waiting.push(value) })
+            onWaitingChange: (value) => events.waiting.push(value), onChatUpdated: (value) => events.updated.push(value) })
         renderer.render(vnode, root)
         return vnode.component.setupState
     }
@@ -185,4 +186,81 @@ test('waiting action completing after a chat switch cannot replace the new conve
     assert.equal(store.selectedChat.waiting_since, chat(8).waiting_since)
     assert.equal(store.composerText, 'Черновик для второго чата')
     assert.equal(events.waiting[0].id, 7)
+})
+
+test('full embedded chat sends templates, updates its table summary and propagates read receipts without loading all chats', async (t) => {
+    let summary = chat(7, { is_unread: true, unread_count: 1, messages_count: 1 })
+    const calls = []
+    t.mock.method(axios, 'get', async (url, options) => {
+        calls.push({ url, params: options.params })
+        return { data: url.endsWith('/updates')
+            ? { selected: { chat: summary, messages: [] } }
+            : { chat: summary, messages: page([{ id: 1, text: 'Вопрос', direction: 'in', is_read: false }]) } }
+    })
+    t.mock.method(axios, 'post', async (url, body) => {
+        if (url.endsWith('/read')) {
+            summary = { ...summary, is_unread: false, unread_count: 0 }
+            return { data: { chat: summary, read_through_id: 2 } }
+        }
+        assert.equal(url, '/api/avito/messenger/chats/7/messages')
+        assert.equal(body.template_id, 24)
+        summary = { ...summary, messages_count: 2, last_message_preview: body.text }
+        return { data: { item: { id: 2, text: body.text, direction: 'out' } } }
+    })
+    const props = { embedded: true, fullFeatured: true, chat: chat() }
+    const { state, store, events, render } = mount(t, Messages, props)
+    await until(() => !store.loading)
+    assert.equal(state.toolsEnabled, true)
+    await state.insertMessageTemplate({ text: 'Ответ по шаблону', template_id: 24, template_name: 'Ответ' })
+    await state.sendText()
+    assert.equal(events.updated.at(-1).last_message_preview, 'Ответ по шаблону')
+    assert.equal(events.updated.at(-1).messages_count, 2)
+    assert.equal(store.composerTemplateId, null)
+    assert.deepEqual(store.messages.map((item) => item.id), [1, 2])
+    await state.markRead()
+    await nextTick()
+    assert.equal(events.updated.at(-1).is_unread, false)
+    assert.equal(store.messages[0].is_read, true)
+    assert.deepEqual(calls.map((item) => item.url), [
+        '/api/avito/messenger/chats/7', '/api/avito/messenger/updates', '/api/avito/messenger/updates',
+    ])
+    assert.equal(calls[1].params.chats, 0)
+    assert.equal(calls[1].params.overview, 0)
+    const updateCount = events.updated.length
+    render({ ...props, chat: { ...events.updated.at(-1) } })
+    await nextTick()
+    assert.equal(events.updated.length, updateCount, 'Returning the updated chat prop must not create a feedback loop')
+    assert.deepEqual(events.errors, [])
+})
+
+test('full embedded realtime only refreshes its own conversation and preserves a reply draft', async (t) => {
+    const calls = []
+    t.mock.method(axios, 'get', async (url) => {
+        calls.push(url)
+        return { data: url.endsWith('/updates')
+            ? { selected: { chat: chat(7, { is_unread: true, unread_count: 1 }), messages: [{ id: 2, text: 'Новое сообщение' }] } }
+            : { chat: chat(), messages: page([{ id: 1, text: 'История' }]) } }
+    })
+    const { state, store, events } = mount(t, Messages, { embedded: true, fullFeatured: true, chat: chat() })
+    await until(() => !store.loading)
+    store.composerText = 'Мой черновик'
+    const options = { reason: 'change', signal: new AbortController().signal }
+    await state.reloadRealtime({ ...options, events: [{ changes: { chat_ids: [99], message_ids: [88] } }] })
+    assert.equal(calls.length, 1)
+    await state.reloadRealtime({ ...options, events: [{ changes: { chat_ids: [7], message_ids: [2] } }] })
+    assert.equal(calls.length, 2)
+    assert.equal(store.composerText, 'Мой черновик')
+    assert.deepEqual(store.messages.map((item) => item.id), [1, 2])
+    assert.equal(events.updated.at(-1).unread_count, 1)
+})
+
+test('chat dialog clears previous feedback when reopened for another entity', async (t) => {
+    const { state, render } = mount(t, ChatDialog, { modelValue: true, chat: chat(), entityName: 'ООО Ромашка' })
+    assert.equal(state.title, 'ООО Ромашка')
+    state.showFeedback('Не удалось отправить сообщение', true)
+    assert.equal(state.feedbackError, true)
+    render({ modelValue: true, chat: chat(8), entityName: 'ООО Вектор' })
+    await nextTick()
+    assert.equal(state.feedback, '')
+    assert.equal(state.title, 'ООО Вектор')
 })

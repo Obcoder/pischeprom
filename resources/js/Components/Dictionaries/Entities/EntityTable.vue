@@ -25,6 +25,9 @@ const emit = defineEmits([
     'update:groupByMode',
     'update:filtersOpened',
     'show',
+    'open-avito',
+    'open-sales',
+    'open-orders',
     'create',
     'edit',
     'delete',
@@ -41,9 +44,10 @@ const headers = [
     { title: 'Города', key: 'city_names', sortable: true, width: '11%' },
     { title: 'Дом', key: 'buildings', sortable: true, width: '13%' },
     { title: 'Тел.', key: 'telephones_display', sortable: true, width: '10%' },
-    { title: 'Продаж', key: 'sales_count', sortable: true, width: 72 },
+    { title: 'Авито', key: 'avito_chats_count', sortable: true, width: 94 },
+    { title: 'Продажи', key: 'sales_count', sortable: true, width: 88 },
+    { title: 'Заказы', key: 'orders_count', sortable: true, width: 88 },
     { title: 'Purchase', key: 'purchases_max_date', sortable: true, width: 92 },
-    { title: 'Sale', key: 'sales_max_date', sortable: true, width: 92 },
     { title: 'Создан', key: 'created_at', sortable: true, width: 82 },
     { title: 'Страна', key: 'country_name', sortable: true, width: '9%' },
     { title: '', key: 'actions', sortable: false, width: 136 },
@@ -54,6 +58,10 @@ const sortOptions = [
     { title: 'Количество продаж', value: 'sales_count' },
     { title: 'Последняя закупка', value: 'purchases_max_date' },
     { title: 'Последняя продажа', value: 'sales_max_date' },
+    { title: 'Количество заказов', value: 'orders_count' },
+    { title: 'Последний заказ', value: 'orders_max_submitted_at' },
+    { title: 'Чаты Авито', value: 'avito_chats_count' },
+    { title: 'Непрочитанные чаты Авито', value: 'avito_unread_chats_count' },
     { title: 'Название', value: 'name' },
     { title: 'Классификация', value: 'classification_name' },
     { title: 'Регион', value: 'region_names' },
@@ -69,6 +77,19 @@ const groupOptions = [
     { title: 'Нет', value: null },
     { title: 'Регионы', value: 'region' },
     { title: 'Города', value: 'city' },
+]
+
+const presenceFilters = [
+    { key: 'has_avito_chats', title: 'Чаты Авито' },
+    { key: 'has_unread_avito', title: 'Непрочитанное в Авито' },
+    { key: 'has_sales', title: 'Продажи' },
+    { key: 'has_orders', title: 'Заказы (все статусы)' },
+]
+
+const presenceOptions = [
+    { title: 'Все', value: null },
+    { title: 'Есть', value: true },
+    { title: 'Нет', value: false },
 ]
 
 const filterMenu = computed({
@@ -112,7 +133,7 @@ const activeFiltersCount = computed(() => {
         ...(props.filters.telephone_ids || []),
         ...(props.filters.unit_ids || []),
         ...(props.filters.chat_ids || []),
-    ].filter(Boolean).length
+    ].filter(Boolean).length + presenceFilters.filter(({ key }) => props.filters[key] != null).length
 })
 
 const onOptionsUpdate = (options) => {
@@ -147,6 +168,9 @@ const groupLabel = (item) => {
 const phoneNumber = (telephone) => {
     return telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? ''
 }
+
+const chatTitle = (chat) => chat.peer_name || chat.title || `Чат #${chat.id}`
+const openChat = (entity, chat) => emit('open-avito', { entity, chat })
 </script>
 
 <template>
@@ -270,6 +294,20 @@ const phoneNumber = (telephone) => {
                     </v-card-title>
 
                     <v-card-text>
+                        <v-row dense class="mb-2">
+                            <v-col v-for="filter in presenceFilters" :key="filter.key" cols="12" sm="6" md="3">
+                                <v-select
+                                    v-model="filters[filter.key]"
+                                    :items="presenceOptions"
+                                    :label="filter.title"
+                                    density="compact"
+                                    clearable
+                                    hide-details
+                                    variant="solo-filled"
+                                />
+                            </v-col>
+                        </v-row>
+                        <v-divider class="mb-3" />
                         <v-row dense>
                             <v-col cols="12" md="4">
                                 <v-select
@@ -533,8 +571,77 @@ const phoneNumber = (telephone) => {
                     {{ item.purchases_max_date_display || '—' }}
                 </template>
 
-                <template #item.sales_max_date="{ item }">
-                    {{ item.sales_max_date_display || '—' }}
+                <template #item.sales_count="{ item }">
+                    <button
+                        v-if="item.sales_count"
+                        type="button"
+                        class="entity-activity-button"
+                        :title="`Открыть продажи: ${item.sales_count}${item.sales_max_date_display ? ` · последняя ${item.sales_max_date_display}` : ''}`"
+                        @click="emit('open-sales', item)"
+                    >
+                        <strong>{{ item.sales_count }}</strong>
+                        <small>{{ item.sales_max_date_display }}</small>
+                    </button>
+                    <span v-else class="text-disabled">—</span>
+                </template>
+
+                <template #item.orders_count="{ item }">
+                    <button
+                        v-if="item.orders_count"
+                        type="button"
+                        class="entity-activity-button"
+                        :title="`Открыть заказы во всех статусах: ${item.orders_count}`"
+                        @click="emit('open-orders', item)"
+                    >
+                        <strong>{{ item.orders_count }}</strong>
+                        <small>{{ item.orders_max_submitted_at_display }}</small>
+                    </button>
+                    <span v-else class="text-disabled">—</span>
+                </template>
+
+                <template #item.avito_chats_count="{ item }">
+                    <button
+                        v-if="item.avito_chats?.length === 1"
+                        type="button"
+                        class="entity-avito-button"
+                        :class="{ 'has-unread': item.avito_chats[0].is_unread }"
+                        :title="`Открыть чат Авито: ${chatTitle(item.avito_chats[0])}`"
+                        @click="openChat(item, item.avito_chats[0])"
+                    >
+                        <v-icon icon="mdi-message-text-outline" size="15" />
+                        Чат
+                        <span v-if="item.avito_chats[0].is_unread" class="entity-unread-count">{{ item.avito_chats[0].unread_count || 1 }}</span>
+                    </button>
+                    <v-menu v-else-if="item.avito_chats?.length > 1" location="bottom" max-height="360">
+                        <template #activator="{ props: menuProps }">
+                            <button
+                                v-bind="menuProps"
+                                type="button"
+                                class="entity-avito-button"
+                                :class="{ 'has-unread': item.avito_unread_chats_count > 0 }"
+                                :title="`Чаты Авито: ${item.avito_chats_count} · непрочитанных: ${item.avito_unread_chats_count || 0}`"
+                            >
+                                <v-icon icon="mdi-message-text-outline" size="15" />
+                                {{ item.avito_chats_count }}
+                                <span v-if="item.avito_unread_chats_count" class="entity-unread-count">{{ item.avito_unread_chats_count }}</span>
+                                <v-icon icon="mdi-chevron-down" size="13" />
+                            </button>
+                        </template>
+                        <v-list density="compact" max-width="360" aria-label="Чаты Авито">
+                            <v-list-item
+                                v-for="chat in item.avito_chats"
+                                :key="chat.id"
+                                :title="chatTitle(chat)"
+                                :subtitle="chat.peer_name && chat.title !== chat.peer_name ? chat.title : undefined"
+                                @click="openChat(item, chat)"
+                            >
+                                <template #append>
+                                    <span v-if="chat.is_unread" class="entity-unread-count ml-2">{{ chat.unread_count || 1 }}</span>
+                                </template>
+                            </v-list-item>
+                        </v-list>
+                    </v-menu>
+                    <span v-else class="text-disabled">—</span>
                 </template>
 
                 <template #item.created_at="{ item }">
@@ -682,6 +789,47 @@ const phoneNumber = (telephone) => {
 .entity-name-link:hover {
     color: #ffffff;
     text-decoration: underline;
+}
+
+.entity-activity-button,
+.entity-avito-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px;
+    min-height: 26px;
+    max-width: 100%;
+    color: #a9d5f8;
+    white-space: nowrap;
+    border-radius: 4px;
+}
+
+.entity-activity-button:hover,
+.entity-avito-button:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.entity-activity-button small {
+    color: #a8b1bf;
+    font-size: 9px;
+}
+
+.entity-avito-button.has-unread {
+    color: #f2b8d3;
+}
+
+.entity-unread-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    padding: 1px 4px;
+    border-radius: 8px;
+    background: #a63868;
+    color: #fff;
+    font-size: 9px;
+    line-height: 1.4;
 }
 
 .entity-building-list {

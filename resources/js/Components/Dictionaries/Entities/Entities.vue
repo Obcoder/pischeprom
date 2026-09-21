@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EntityTable from '@/Components/Dictionaries/Entities/EntityTable.vue'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
 import EntityDetailCard from '@/Components/Dictionaries/Entities/EntityDetailCard.vue'
@@ -8,6 +8,10 @@ import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
 import { useEntityFilters } from '@/Composables/entities/useEntityFilters.js'
 import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter.js'
+
+const AvitoChatDialog = defineAsyncComponent(() => import('@/Components/Avito/AvitoChatDialog.vue'))
+const EntitySalesCard = defineAsyncComponent(() => import('./EntitySalesCard.vue'))
+const EntityOrdersDialog = defineAsyncComponent(() => import('./EntityOrdersDialog.vue'))
 
 const { getMeta, getList, getOne, createOne, updateOne, deleteOne } = useEntityApi()
 const { filters, resetFilters } = useEntityFilters()
@@ -22,6 +26,14 @@ const selectedEntity = ref(null)
 const groupByMode = ref(null)
 const filtersOpened = ref(false)
 const detailDrawerOpened = ref(false)
+const avitoDialogOpened = ref(false)
+const avitoChat = ref(null)
+const avitoEntityName = ref('')
+const salesDialogOpened = ref(false)
+const salesEntity = ref(null)
+const ordersDialogOpened = ref(false)
+const ordersEntity = ref(null)
+const listError = ref('')
 
 const meta = ref({
     classifications: [],
@@ -44,6 +56,8 @@ const itemsPerPage = ref(60)
 const sortBy = ref([{ key: 'created_at', order: 'desc' }])
 
 let debounceTimer = null
+let listRequestId = 0
+let disposed = false
 
 const tableItems = computed(() => {
     const mapped = items.value.map(item => ({
@@ -58,6 +72,7 @@ const tableItems = computed(() => {
         created_at_display: formatDate(item.created_at),
         purchases_max_date_display: formatDate(item.purchases_max_date || item.last_purchase_date),
         sales_max_date_display: formatDate(item.sales_max_date || item.last_sale_date),
+        orders_max_submitted_at_display: formatDate(item.orders_max_submitted_at),
     }))
 
     if (!groupByMode.value) {
@@ -159,7 +174,10 @@ const mergeTelephoneMeta = (telephone) => {
 }
 
 const loadItems = async () => {
+    if (disposed) return
+    const requestId = ++listRequestId
     loading.value = true
+    listError.value = ''
 
     try {
         const sort = sortBy.value?.[0] ?? { key: 'created_at', order: 'desc' }
@@ -176,17 +194,24 @@ const loadItems = async () => {
             telephone_ids: filters.telephone_ids,
             unit_ids: filters.unit_ids,
             chat_ids: filters.chat_ids,
+            has_sales: filters.has_sales,
+            has_orders: filters.has_orders,
+            has_avito_chats: filters.has_avito_chats,
+            has_unread_avito: filters.has_unread_avito,
             sortBy: sort.key ?? 'created_at',
             sortDesc: sort.order === 'desc',
         })
 
+        if (requestId !== listRequestId) return
         items.value = Array.isArray(response.data) ? response.data : []
         totalItems.value = response.meta?.total ?? 0
         pageMarkers.value = response.meta?.page_markers ?? []
     } catch (error) {
+        if (requestId !== listRequestId) return
+        listError.value = error?.response?.data?.message || 'Не удалось загрузить Entities.'
         console.error('loadItems error:', error?.response?.data || error)
     } finally {
-        loading.value = false
+        if (requestId === listRequestId) loading.value = false
     }
 }
 
@@ -264,6 +289,30 @@ const showEntity = async (item) => {
     }
 }
 
+const openAvitoChat = ({ entity, chat }) => {
+    avitoChat.value = chat
+    avitoEntityName.value = entity.name
+    avitoDialogOpened.value = true
+}
+
+const updateAvitoChat = (chat) => {
+    items.value = items.value.map(entity => {
+        if (!entity.avito_chats?.some(item => item.id === chat.id)) return entity
+        const chats = entity.avito_chats.map(item => item.id === chat.id ? { ...item, ...chat } : item)
+        return { ...entity, avito_chats: chats, avito_unread_chats_count: chats.filter(item => item.is_unread).length }
+    })
+}
+
+const openSales = (entity) => {
+    salesEntity.value = entity
+    salesDialogOpened.value = true
+}
+
+const openOrders = (entity) => {
+    ordersEntity.value = entity
+    ordersDialogOpened.value = true
+}
+
 const handleResetFilters = async () => {
     resetFilters()
     page.value = 1
@@ -281,6 +330,10 @@ watch(
         telephone_ids: [...filters.telephone_ids],
         unit_ids: [...filters.unit_ids],
         chat_ids: [...filters.chat_ids],
+        has_sales: filters.has_sales,
+        has_orders: filters.has_orders,
+        has_avito_chats: filters.has_avito_chats,
+        has_unread_avito: filters.has_unread_avito,
     }),
     () => {
         debouncedLoad()
@@ -310,10 +363,24 @@ onMounted(async () => {
     await loadMeta()
     await loadItems()
 })
+
+watch(avitoDialogOpened, (opened, wasOpened) => {
+    if (wasOpened && !opened) loadItems()
+})
+
+onBeforeUnmount(() => {
+    disposed = true
+    clearTimeout(debounceTimer)
+    listRequestId++
+})
 </script>
 
 <template>
     <v-container fluid class="entities-workspace pa-0 w-100">
+        <v-alert v-if="listError" type="error" variant="tonal" density="compact" class="mb-2">
+            {{ listError }}
+            <v-btn variant="text" size="small" @click="loadItems">Повторить</v-btn>
+        </v-alert>
         <v-row class="entities-workspace__row w-100 ma-0">
             <v-col cols="12" class="entities-workspace__column pa-0 d-flex">
                 <EntityTable
@@ -335,6 +402,9 @@ onMounted(async () => {
                     @update:groupByMode="groupByMode = $event"
                     @update:filtersOpened="filtersOpened = $event"
                     @show="showEntity"
+                    @open-avito="openAvitoChat"
+                    @open-sales="openSales"
+                    @open-orders="openOrders"
                     @create="openCreate"
                     @edit="openEdit"
                     @delete="removeItem"
@@ -343,6 +413,35 @@ onMounted(async () => {
                 />
             </v-col>
         </v-row>
+
+        <AvitoChatDialog
+            v-if="avitoDialogOpened"
+            v-model="avitoDialogOpened"
+            :chat="avitoChat"
+            :entity-name="avitoEntityName"
+            @chat-updated="updateAvitoChat"
+        />
+
+        <EntityOrdersDialog
+            v-if="ordersDialogOpened"
+            v-model="ordersDialogOpened"
+            :entity="ordersEntity"
+        />
+
+        <v-dialog v-model="salesDialogOpened" max-width="1280" scrollable>
+            <v-card>
+                <v-card-title class="d-flex align-center py-2 text-body-1">
+                    Продажи
+                    <v-spacer />
+                    <v-btn icon="mdi-close" size="small" variant="text" aria-label="Закрыть продажи" @click="salesDialogOpened = false" />
+                </v-card-title>
+                <v-card-text class="pa-2">
+                    <v-theme-provider theme="light">
+                        <EntitySalesCard v-if="salesDialogOpened" :key="salesEntity?.id" :entity="salesEntity" />
+                    </v-theme-provider>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
 
         <transition name="entity-drawer-backdrop">
             <div

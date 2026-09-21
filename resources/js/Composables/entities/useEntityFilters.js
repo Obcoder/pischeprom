@@ -11,6 +11,10 @@ export function useEntityFilters() {
         telephone_ids: [],
         unit_ids: [],
         chat_ids: [],
+        has_sales: null,
+        has_orders: null,
+        has_avito_chats: null,
+        has_unread_avito: null,
     })
 
     const filters = reactive(initialState())

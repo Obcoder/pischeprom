@@ -196,15 +196,29 @@ class Entity extends Model
             'telephones',
             'units',
             'chats',
+            'avitoChats' => fn ($query) => $query
+                ->select([
+                    'id', 'entity_id', 'peer_name', 'title', 'is_unread', 'unread_count',
+                    'waiting_since', 'waiting_note', 'last_message_at',
+                ])
+                ->orderByDesc('last_message_at')
+                ->orderByDesc('id'),
         ]);
     }
 
     public function scopeWithTableStats(Builder $query): Builder
     {
         return $query
-            ->withCount(['sales', 'purchases'])
+            ->withCount([
+                'sales',
+                'purchases',
+                'orders',
+                'avitoChats',
+                'avitoChats as avito_unread_chats_count' => fn (Builder $query) => $query->where('is_unread', true),
+            ])
             ->withMax('sales', 'date')
-            ->withMax('purchases', 'date');
+            ->withMax('purchases', 'date')
+            ->withMax('orders', 'submitted_at');
     }
 
     public function scopeSearch(Builder $query, ?string $search): Builder
@@ -230,6 +244,22 @@ class Entity extends Model
 
     public function scopeFilter(Builder $query, array $filters = []): Builder
     {
+        foreach (['has_sales' => 'sales', 'has_orders' => 'orders', 'has_avito_chats' => 'avitoChats'] as $key => $relation) {
+            if (isset($filters[$key]) && $filters[$key] !== '') {
+                filter_var($filters[$key], FILTER_VALIDATE_BOOLEAN)
+                    ? $query->has($relation)
+                    : $query->doesntHave($relation);
+            }
+        }
+
+        if (isset($filters['has_unread_avito']) && $filters['has_unread_avito'] !== '') {
+            $unread = fn (Builder $query) => $query->where('is_unread', true);
+
+            filter_var($filters['has_unread_avito'], FILTER_VALIDATE_BOOLEAN)
+                ? $query->whereHas('avitoChats', $unread)
+                : $query->whereDoesntHave('avitoChats', $unread);
+        }
+
         return $query
             ->when(! empty($filters['entity_classification_ids']), function (Builder $q) use ($filters) {
                 $q->whereIn('entity_classification_id', (array) $filters['entity_classification_ids']);
@@ -318,6 +348,10 @@ class Entity extends Model
                 $direction
             ),
             'sales_count' => $query->orderBy('sales_count', $direction),
+            'orders_count' => $query->orderBy('orders_count', $direction),
+            'orders_max_submitted_at' => $query->orderBy('orders_max_submitted_at', $direction),
+            'avito_chats_count' => $query->orderBy('avito_chats_count', $direction),
+            'avito_unread_chats_count' => $query->orderBy('avito_unread_chats_count', $direction),
             'purchases_count' => $query->orderBy('purchases_count', $direction),
             'sales_max_date' => $query->orderBy('sales_max_date', $direction),
             'purchases_max_date' => $query->orderBy('purchases_max_date', $direction),

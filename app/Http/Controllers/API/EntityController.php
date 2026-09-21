@@ -34,6 +34,14 @@ class EntityController extends Controller
 
     public function index(Request $request)
     {
+        $presenceKeys = ['has_sales', 'has_orders', 'has_avito_chats', 'has_unread_avito'];
+        foreach ($presenceKeys as $key) {
+            if (in_array($request->input($key), ['true', 'false'], true)) {
+                $request->merge([$key => $request->input($key) === 'true']);
+            }
+        }
+        $presenceFilters = $request->validate(array_fill_keys($presenceKeys, ['nullable', 'boolean']));
+
         $perPage = max((int) $request->integer('itemsPerPage', 1000), 1);
         $page = max((int) $request->integer('page', 1), 1);
         $sortBy = $request->string('sortBy')->toString() ?: 'created_at';
@@ -48,6 +56,7 @@ class EntityController extends Controller
             'telephone_ids' => $request->input('telephone_ids', []),
             'unit_ids' => $request->input('unit_ids', []),
             'chat_ids' => $request->input('chat_ids', []),
+            ...$presenceFilters,
         ];
 
         $baseQuery = Entity::query()
@@ -74,7 +83,7 @@ class EntityController extends Controller
 
     protected function buildPageMarkers($query, int $perPage, string $sortBy, bool $sortDesc): array
     {
-        $sortedQuery = (clone $query)->applySort($sortBy, $sortDesc);
+        $sortedQuery = (clone $query)->withoutEagerLoads()->applySort($sortBy, $sortDesc);
         $total = (clone $sortedQuery)->count();
         $lastPage = (int) ceil($total / $perPage);
 
