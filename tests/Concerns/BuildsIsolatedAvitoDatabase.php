@@ -36,6 +36,7 @@ trait BuildsIsolatedAvitoDatabase
             '2026_08_06_100000_create_avito_auto_reply_tables.php',
             '2026_09_12_160000_expand_avito_auto_replies.php',
             '2026_09_12_170000_add_avito_auto_reply_emergency_stop.php',
+            '2026_09_21_110000_add_history_sync_to_avito_chats.php',
         ] as $migration) {
             (require database_path('migrations/'.$migration))->up();
         }

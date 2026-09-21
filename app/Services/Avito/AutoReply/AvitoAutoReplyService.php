@@ -22,6 +22,8 @@ class AvitoAutoReplyService
         private readonly AvitoAutoReplySafetyGuard $guard,
         private readonly AvitoMessengerService $messenger,
         private readonly AvitoAutoReplyHandoffGuard $handoff,
+        private readonly AvitoAutoReplyConversationContext $context,
+        private readonly AvitoAutoReplyContextGuard $contextGuard,
     ) {}
 
     public function classifierConfigured(): bool
@@ -77,6 +79,8 @@ class AvitoAutoReplyService
 
         try {
             return $this->evaluate($message, $settings, $decision, $historical);
+        } catch (AvitoAutoReplyContextUnavailable $exception) {
+            return $this->finish($decision, 'human_required', $exception->reasonCode);
         } catch (AvitoAutoReplyCancelled $exception) {
             return $this->finish($decision, $this->cancellationOutcome($exception->reasonCode), $exception->reasonCode);
         } catch (Throwable $exception) {
@@ -109,13 +113,16 @@ class AvitoAutoReplyService
         }
 
         try {
+            $conversation = $this->context->build($chat);
             $classification = $this->classifier->classify(
                 $text,
                 $rules,
                 'preview:'.($chat?->id ?: 'global').':'.hash('sha256', $text),
                 $settings->response_mode === 'assistant',
-                $this->conversationContext($chat),
+                $conversation,
             );
+        } catch (AvitoAutoReplyContextUnavailable $exception) {
+            return $this->previewPayload('human_required', $exception->reasonCode);
         } catch (Throwable) {
             return $this->previewPayload('error', 'classifier_error');
         }
@@ -130,7 +137,7 @@ class AvitoAutoReplyService
             'latency_ms' => $classification->latencyMs,
         ];
 
-        $resolved = $this->resolveResponse($classification, $rules, $settings);
+        $resolved = $this->resolveResponse($classification, $rules, $settings, $conversation, $text);
         if ($resolved['outcome'] !== 'would_send') {
             return $this->previewPayload($resolved['outcome'], $resolved['reason_code'], $base);
         }
@@ -211,12 +218,14 @@ class AvitoAutoReplyService
             return $this->finish($decision, 'error', 'classifier_not_configured');
         }
 
+        $conversation = $this->context->build($message->chat, $message, $bundle);
+        $contextFingerprint = $this->context->fingerprint($conversation);
         $classification = $this->classifier->classify(
             $text,
             $rules,
             "message:{$message->id}:chat:{$message->avito_chat_id}",
             $settings->response_mode === 'assistant',
-            $this->conversationContext($message->chat, $message, $bundle),
+            $conversation,
         );
         if (AvitoAutoReplySetting::current()->emergency_stopped_at) {
             return $this->finish($decision, 'skipped', 'emergency_stopped');
@@ -228,7 +237,11 @@ class AvitoAutoReplyService
             'confidence' => $classification->confidence,
             'runner_up_confidence' => $classification->runnerUpConfidence,
             'rule_version' => $rule?->version,
-            'classifier_payload' => $classification->raw,
+            'classifier_payload' => $classification->raw + ['archive_context' => [
+                'message_count' => count($conversation),
+                'fingerprint' => $contextFingerprint,
+                'source' => 'local_archive',
+            ]],
             'model' => $classification->model,
             'external_request_id' => $classification->externalRequestId,
             'input_tokens' => $classification->inputTokens,
@@ -236,7 +249,7 @@ class AvitoAutoReplyService
             'latency_ms' => $classification->latencyMs,
         ])->save();
 
-        $resolved = $this->resolveResponse($classification, $rules, $settings);
+        $resolved = $this->resolveResponse($classification, $rules, $settings, $conversation, $text);
         if ($resolved['outcome'] !== 'would_send') {
             return $this->finish($decision, $resolved['outcome'], $resolved['reason_code']);
         }
@@ -265,7 +278,7 @@ class AvitoAutoReplyService
         }
 
         try {
-            if ($blocked = $this->outboundBlockReason($message, $settings, $matchedRules, $bundle)) {
+            if ($blocked = $this->outboundBlockReason($message, $settings, $matchedRules, $bundle, $contextFingerprint)) {
                 return $this->finish($decision, $this->cancellationOutcome($blocked), $blocked);
             }
 
@@ -291,10 +304,10 @@ class AvitoAutoReplyService
             if (AvitoAutoReplySetting::current()->emergency_stopped_at) {
                 return $this->finish($decision, 'skipped', 'emergency_stopped');
             }
-            $sentMessage = $this->messenger->sendText($message->chat, $responseText, function () use ($message, $settings, $matchedRules, $bundle): void {
+            $sentMessage = $this->messenger->sendText($message->chat, $responseText, function () use ($message, $settings, $matchedRules, $bundle, $contextFingerprint): void {
                 // Token refresh may have waited on Avito after our earlier
                 // checks. Revoke the send before the actual messages request.
-                if ($blocked = $this->outboundBlockReason($message, $settings, $matchedRules, $bundle)) {
+                if ($blocked = $this->outboundBlockReason($message, $settings, $matchedRules, $bundle, $contextFingerprint)) {
                     throw new AvitoAutoReplyCancelled($blocked);
                 }
                 if (AvitoAutoReplySetting::current()->emergency_stopped_at) {
@@ -317,6 +330,7 @@ class AvitoAutoReplyService
         AvitoAutoReplySetting $settings,
         Collection $matchedRules,
         Collection $bundle,
+        string $contextFingerprint,
     ): ?string {
         $currentSettings = AvitoAutoReplySetting::current();
         if ($currentSettings->emergency_stopped_at) {
@@ -345,6 +359,16 @@ class AvitoAutoReplyService
         if (! $currentMessage || $this->messageSnapshot(collect([$currentMessage])) !== $this->messageSnapshot(collect([$message]))
             || $this->messageSnapshot($this->messageBundle($currentMessage, $settings)) !== $this->messageSnapshot($bundle)) {
             return 'message_changed';
+        }
+        // A late import or correction of an old message can invalidate the
+        // answer just as a new message can. Read receipts do not affect this hash.
+        try {
+            $currentFingerprint = $this->context->fingerprint($this->context->build($message->chat, $currentMessage, $bundle));
+        } catch (AvitoAutoReplyContextUnavailable $exception) {
+            return $exception->reasonCode;
+        }
+        if ($currentFingerprint !== $contextFingerprint) {
+            return 'conversation_context_changed';
         }
         if ($matchedRules->contains(fn ($matched) => $this->cooldownActive($message->chat, $matched, $settings))) {
             return 'cooldown_active';
@@ -419,7 +443,10 @@ class AvitoAutoReplyService
     /** Keep clarification replies with a person, independently of AI classification. */
     private function cancellationOutcome(string $reason): string
     {
-        return in_array($reason, ['customer_details_provided', 'customer_details_handoff'], true) ? 'human_required' : 'skipped';
+        return in_array($reason, [
+            'customer_details_provided', 'customer_details_handoff', 'conversation_context_changed',
+            'conversation_context_too_large', 'conversation_context_invalid',
+        ], true) ? 'human_required' : 'skipped';
     }
 
     private function customerHandoffReason(string $text, ?AvitoChat $chat, ?AvitoMessage $message = null): ?string
@@ -486,20 +513,6 @@ class AvitoAutoReplyService
         return $time->gt($referenceTime) || ($time->eq($referenceTime) && $message->id > $reference->id);
     }
 
-    /** Only previous public chat text; no CRM, account or application data. */
-    private function conversationContext(?AvitoChat $chat, ?AvitoMessage $message = null, ?Collection $bundle = null): array
-    {
-        if (! $chat) {
-            return [];
-        }
-
-        return $chat->messages()->whereIn('direction', ['in', 'out'])->where('type', 'text')->whereNotNull('text')
-            ->when($message, fn (Builder $query) => $query->where(fn (Builder $query) => $this->beforeOrEqual($query, $message)))
-            ->when($bundle, fn (Builder $query) => $query->whereNotIn('id', $bundle->modelKeys()))
-            ->orderByRaw('COALESCE(remote_created_at, created_at) DESC')->orderByDesc('id')->limit(6)->get()
-            ->reverse()->map(fn (AvitoMessage $item) => ['direction' => $item->direction, 'text' => Str::limit($item->text, 1000, '')])->values()->all();
-    }
-
     private function messageSnapshot(Collection $messages): array
     {
         return $messages->map(fn (AvitoMessage $message) => [
@@ -527,6 +540,8 @@ class AvitoAutoReplyService
         AvitoAutoReplyClassification $classification,
         Collection $rules,
         AvitoAutoReplySetting $settings,
+        array $conversation,
+        string $message,
     ): array {
         $flexible = $settings->response_mode === 'assistant';
         if ($classification->reasonCode === 'customer_details') {
@@ -556,6 +571,9 @@ class AvitoAutoReplyService
         $response = $flexible ? trim((string) $classification->responseText) : $matched->first()->response_text;
         if ($reason = $this->guard->responseBlockedReason($response, $matched)) {
             return $this->previewPayload('blocked', $reason);
+        }
+        if ($reason = $this->contextGuard->responseBlockedReason($response, $conversation, $message)) {
+            return $this->previewPayload('human_required', $reason);
         }
 
         return $this->previewPayload('would_send', 'approved_intent', ['response_text' => $response, 'rules' => $matched]);

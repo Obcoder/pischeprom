@@ -194,7 +194,7 @@ class AvitoAutoReplyTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_classifier_receives_only_untrusted_text_and_intents_never_response_or_application_data(): void
+    public function test_classifier_receives_approved_templates_for_context_validation_but_no_application_secrets(): void
     {
         $fixedResponse = AvitoAutoReplyRule::query()->where('key', 'pickup_or_viewing')->value('response_text');
         Http::fake([
@@ -224,7 +224,7 @@ class AvitoAutoReplyTest extends TestCase
                 && $payload['tool_choice'] === 'none'
                 && $payload['parallel_tool_calls'] === false
                 && array_keys($untrusted) === ['message', 'approved_intents']
-                && ! str_contains((string) $encoded, $fixedResponse)
+                && collect($untrusted['approved_intents'])->firstWhere('id', 'pickup_or_viewing')['response_template'] === $fixedResponse
                 && ! str_contains((string) $encoded, 'auto-reply-secret')
                 && in_array('human_required', $payload['response_format']['json_schema']['schema']['properties']['intent']['enum'], true);
         });

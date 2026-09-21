@@ -80,6 +80,12 @@ return [
         'upload_interval_minutes' => max(60, (int) env('AVITO_AUTOLOAD_UPLOAD_INTERVAL_MINUTES', 60)),
     ],
 
+    'auto_reply' => [
+        // Full archive + rules + instructions. Overflow requires a person;
+        // never discard older messages to fit the selected model.
+        'context_max_bytes' => max(1024, (int) env('AVITO_AUTO_REPLY_CONTEXT_MAX_BYTES', 60000)),
+    ],
+
     'messenger' => [
         'archive_disk' => env('AVITO_MESSENGER_ARCHIVE_DISK', 'avito'),
         'sync_interval_minutes' => min(59, max(1, (int) env('AVITO_MESSENGER_SYNC_INTERVAL', 5))),

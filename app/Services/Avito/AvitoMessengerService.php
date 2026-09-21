@@ -4,6 +4,7 @@ namespace App\Services\Avito;
 
 use App\Domain\Avito\Catalog\AvitoApiCatalog;
 use App\Domain\Avito\Exceptions\AvitoException;
+use App\Jobs\Avito\ArchiveAvitoMessageMediaJob;
 use App\Models\AvitoChat;
 use App\Models\AvitoConnection;
 use App\Models\AvitoMessage;
@@ -97,10 +98,16 @@ class AvitoMessengerService
                         $stats['chats_created']++;
                     }
 
-                    $messageLimit = ($effectiveFull || ! $existing)
+                    // Webhooks create a chat before its first scheduled sync.
+                    // Existing locally does not mean its history was imported.
+                    $importHistory = $effectiveFull || $chat->history_synced_at === null;
+                    $messageLimit = $importHistory
                         ? (int) config('avito.messenger.message_limit_per_chat')
                         : (int) config('avito.messenger.message_page_size');
                     $messageStats = $this->syncChatMessages($chat, $connection, $messageLimit);
+                    if ($importHistory) {
+                        $chat->update(['history_synced_at' => now()]);
+                    }
                     foreach ($messageStats as $key => $value) {
                         $stats[$key] += $value;
                     }
@@ -147,7 +154,7 @@ class AvitoMessengerService
         }
     }
 
-    public function refreshChat(AvitoChat $chat, int $messageLimit = 100): AvitoChat
+    public function refreshChat(AvitoChat $chat, int $messageLimit = 100, bool $archiveMedia = true): AvitoChat
     {
         $chat->loadMissing('account.connection');
         $result = $this->execute('getChatByIdV2', [
@@ -161,7 +168,14 @@ class AvitoMessengerService
             $chat = $this->archive->storeChat($chat->account, $result['data']);
         }
 
-        $this->syncChatMessages($chat, $chat->account->connection, min(1100, max(1, $messageLimit)));
+        $importHistory = $chat->history_synced_at === null;
+        $messageLimit = $importHistory
+            ? (int) config('avito.messenger.message_limit_per_chat')
+            : $messageLimit;
+        $this->syncChatMessages($chat, $chat->account->connection, min(1100, max(1, $messageLimit)), $archiveMedia);
+        if ($importHistory) {
+            $chat->update(['history_synced_at' => now()]);
+        }
 
         return $chat->fresh(['account', 'messages.attachments']);
     }
@@ -312,49 +326,85 @@ class AvitoMessengerService
         ], $connection);
     }
 
-    private function syncChatMessages(AvitoChat $chat, ?AvitoConnection $connection, int $maximum): array
+    private function syncChatMessages(AvitoChat $chat, ?AvitoConnection $connection, int $maximum, bool $archiveMedia = true): array
     {
         $stats = ['messages_seen' => 0, 'messages_created' => 0, 'attachments_archived' => 0];
         $pageSize = (int) config('avito.messenger.message_page_size');
+        $deferredMediaIds = [];
+        $seenMessageIds = [];
+        $offset = 0;
 
-        for ($offset = 0; $offset < $maximum && $offset <= 1000; $offset += $pageSize) {
-            $limit = min($pageSize, $maximum - $offset);
-            $result = $this->execute('getMessagesV3', [
-                'path' => [
-                    'user_id' => $chat->account->external_user_id,
-                    'chat_id' => $chat->external_chat_id,
-                ],
-                'query' => ['limit' => $limit, 'offset' => $offset],
-            ], $connection);
-            $responseData = (array) ($result['data'] ?? []);
-            // The published OpenAPI schema declares a bare array, while the
-            // live API currently wraps it in {messages, meta.has_more}.
-            $messages = array_is_list($responseData)
-                ? $responseData
-                : (array) Arr::get($responseData, 'messages', []);
-            $hasMore = (bool) Arr::get($responseData, 'meta.has_more', count($messages) >= $limit);
-
-            foreach ($messages as $payload) {
-                if (! is_array($payload) || blank(Arr::get($payload, 'id'))) {
-                    continue;
+        try {
+            while ($offset < $maximum && $offset <= 1000) {
+                $limit = min($pageSize, $maximum - $offset);
+                $result = $this->execute('getMessagesV3', [
+                    'path' => [
+                        'user_id' => $chat->account->external_user_id,
+                        'chat_id' => $chat->external_chat_id,
+                    ],
+                    'query' => ['limit' => $limit, 'offset' => $offset],
+                ], $connection);
+                $responseData = $result['data'] ?? null;
+                // The published OpenAPI schema declares a bare array, while the
+                // live API currently wraps it in {messages, meta.has_more}.
+                $messages = is_array($responseData) && array_is_list($responseData)
+                    ? $responseData
+                    : (is_array($responseData) ? Arr::get($responseData, 'messages') : null);
+                if (! is_array($messages) || ! array_is_list($messages)) {
+                    throw new AvitoException('Avito вернул некорректную страницу истории сообщений.', 'history_incomplete', 502, true);
                 }
 
-                $stats['messages_seen']++;
-                $exists = AvitoMessage::query()
-                    ->where('avito_chat_id', $chat->id)
-                    ->where('external_message_id', (string) Arr::get($payload, 'id'))
-                    ->exists();
-                $message = $this->archive->storeMessage($chat, $payload);
-                if (! $exists) {
-                    $stats['messages_created']++;
+                $messageCount = count($messages);
+                $hasMore = (bool) Arr::get($responseData, 'meta.has_more', $messageCount >= $limit);
+                if ($messageCount === 0 && $hasMore) {
+                    throw new AvitoException('Avito вернул пустую страницу незавершённой истории сообщений.', 'history_incomplete', 502, true);
                 }
-                if ($message) {
-                    $stats['attachments_archived'] += $this->mediaArchive->archiveMessage($message);
+
+                $pageMessageIds = [];
+                foreach ($messages as $payload) {
+                    $messageId = is_array($payload) ? ($payload['id'] ?? null) : null;
+                    if ((! is_string($messageId) && ! is_int($messageId)) || trim((string) $messageId) === '') {
+                        throw new AvitoException('Avito вернул сообщение без корректного идентификатора.', 'history_incomplete', 502, true);
+                    }
+                    $pageMessageIds[(string) $messageId] = true;
                 }
+                if ($messageCount > 0 && array_diff_key($pageMessageIds, $seenMessageIds) === []) {
+                    throw new AvitoException('Avito повторяет уже загруженную страницу истории сообщений.', 'history_incomplete', 502, true);
+                }
+                $seenMessageIds += $pageMessageIds;
+
+                foreach ($messages as $payload) {
+                    $stats['messages_seen']++;
+                    $exists = AvitoMessage::query()
+                        ->where('avito_chat_id', $chat->id)
+                        ->where('external_message_id', (string) Arr::get($payload, 'id'))
+                        ->exists();
+                    $message = $this->archive->storeMessage($chat, $payload);
+                    if (! $exists) {
+                        $stats['messages_created']++;
+                    }
+                    if ($message) {
+                        if ($archiveMedia) {
+                            $stats['attachments_archived'] += $this->mediaArchive->archiveMessage($message);
+                        } elseif ($message->attachments->contains(fn ($attachment) => ! $attachment->archived_at && $attachment->archive_attempts < 5)) {
+                            $deferredMediaIds[$message->id] = $message->id;
+                        }
+                    }
+                }
+
+                if (! $hasMore) {
+                    break;
+                }
+                // A short page with explicit has_more is not the end. Advancing
+                // by the requested limit would skip messages in that case.
+                $offset += $messageCount;
             }
-
-            if (! $hasMore || count($messages) < $limit) {
-                break;
+        } finally {
+            // Delay from the end of pagination, so a resumed live reply can
+            // precede even media captured on the first page of a slow import.
+            // Partial failed imports still retain and archive captured media.
+            foreach ($deferredMediaIds as $messageId) {
+                ArchiveAvitoMessageMediaJob::dispatch($messageId)->delay(now()->addMinute());
             }
         }
 

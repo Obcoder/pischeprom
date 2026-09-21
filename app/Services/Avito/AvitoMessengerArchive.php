@@ -52,12 +52,53 @@ class AvitoMessengerArchive
             }
         }
 
+        if ($connection && ! $account->exists) {
+            $archivedAccount = $this->reconnectArchivedAccount($connection, $knownUserId);
+            if ($archivedAccount) {
+                $resolvedName = $account->name;
+                $account = $archivedAccount;
+                $account->name = $resolvedName ?: $account->name;
+            }
+        }
+
         $account->external_user_id = $knownUserId;
         $account->name = $account->name ?: $connection?->name ?: "Avito {$knownUserId}";
         $account->sync_enabled = true;
         $account->save();
 
         return $account->fresh();
+    }
+
+    private function reconnectArchivedAccount(AvitoConnection $connection, string $externalUserId): ?AvitoMessengerAccount
+    {
+        return DB::transaction(function () use ($connection, $externalUserId): ?AvitoMessengerAccount {
+            $sourceKey = "oauth:{$connection->id}";
+            $current = AvitoMessengerAccount::query()->where('source_key', $sourceKey)->lockForUpdate()->first();
+            if ($current) {
+                return $current;
+            }
+
+            // OAuth credentials can be replaced without creating a new archive
+            // identity. Reuse only one unambiguous, disconnected OAuth source;
+            // active accounts and client-credentials sources remain separate.
+            $candidates = AvitoMessengerAccount::query()
+                ->where('external_user_id', $externalUserId)
+                ->whereNull('avito_connection_id')
+                ->where('source_key', 'like', 'oauth:%')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->limit(2)
+                ->get();
+
+            if ($candidates->count() !== 1) {
+                return null;
+            }
+
+            $account = $candidates->sole();
+            $account->update(['source_key' => $sourceKey, 'avito_connection_id' => $connection->id]);
+
+            return $account;
+        }, 3);
     }
 
     public function accountForWebhook(string $externalUserId): AvitoMessengerAccount
@@ -109,18 +150,18 @@ class AvitoMessengerArchive
         ]);
 
         $chat->fill([
-            'chat_type' => Arr::get($payload, 'chat_type', $chat->chat_type),
-            'context_type' => Arr::get($context, 'type', $chat->context_type),
-            'context_id' => $this->nullableString(Arr::get($contextValue, 'id', $chat->context_id)),
+            'chat_type' => Arr::get($payload, 'chat_type') ?: $chat->chat_type,
+            'context_type' => Arr::get($context, 'type') ?: $chat->context_type,
+            'context_id' => $this->nullableString(Arr::get($contextValue, 'id')) ?: $chat->context_id,
             'title' => (string) (Arr::get($contextValue, 'title') ?: $chat->title ?: $peer['name'] ?: 'Чат Avito'),
-            'context_url' => Arr::get($contextValue, 'url', $chat->context_url),
+            'context_url' => Arr::get($contextValue, 'url') ?: $chat->context_url,
             'peer_user_id' => $peer['id'] ?: $chat->peer_user_id,
             'peer_name' => $peer['name'] ?: $chat->peer_name,
             'peer_avatar_url' => $peer['avatar'] ?: $chat->peer_avatar_url,
             'remote_created_at' => $this->timestamp(Arr::get($payload, 'created')) ?: $chat->remote_created_at,
             'remote_updated_at' => $this->timestamp(Arr::get($payload, 'updated')) ?: $chat->remote_updated_at,
             'last_synced_at' => now(),
-            'payload' => $payload,
+            'payload' => $this->mergeArchiveData((array) $chat->payload, $payload),
         ]);
 
         if (! $chat->entity_id && filled($peer['id'])) {
@@ -158,19 +199,26 @@ class AvitoMessengerArchive
             return null;
         }
 
-        $remoteType = (string) (Arr::get($payload, 'type') ?: 'unknown');
         $content = (array) Arr::get($payload, 'content', []);
         $message = AvitoMessage::query()->firstOrNew([
             'avito_chat_id' => $chat->id,
             'external_message_id' => $externalMessageId,
         ]);
         $isNew = ! $message->exists;
-        $direction = (string) Arr::get($payload, 'direction', '');
+        $incomingType = Arr::get($payload, 'type');
+        $remoteType = is_string($incomingType) && trim($incomingType) !== ''
+            ? $incomingType
+            : ($message->remote_type ?: 'unknown');
+        $authorId = $this->nullableString(Arr::get($payload, 'author_id')) ?: $message->author_id;
+        $direction = Arr::get($payload, 'direction');
 
-        if ($direction === '') {
-            $direction = (string) Arr::get($payload, 'author_id') === (string) $chat->account->external_user_id
+        if (! in_array($direction, ['in', 'out'], true)) {
+            // An omitted or malformed partial receipt cannot reclassify an
+            // archived message or remove it from the AI conversation query.
+            unset($payload['direction']);
+            $direction = in_array($message->direction, ['in', 'out'], true) ? $message->direction : ((string) $authorId === (string) $chat->account->external_user_id
                 ? 'out'
-                : 'in';
+                : 'in');
         }
 
         $createdAt = $this->timestamp(Arr::get($payload, 'created'))
@@ -188,27 +236,28 @@ class AvitoMessengerArchive
         }
 
         $attributes = [
-            'author_id' => $this->nullableString(Arr::get($payload, 'author_id')),
+            'author_id' => $authorId,
             'direction' => $direction,
-            'remote_type' => $remoteType,
+            'remote_type' => $message->deleted_from_avito_at ? 'deleted' : $remoteType,
             'is_read' => $isRead,
             'remote_created_at' => $createdAt,
             'remote_read_at' => $readAt,
-            'deleted_from_avito_at' => $remoteType === 'deleted'
-                ? ($message->deleted_from_avito_at ?: now())
-                : null,
+            'deleted_from_avito_at' => $message->deleted_from_avito_at ?: ($remoteType === 'deleted' ? now() : null),
             'last_synced_at' => now(),
-            'payload' => $payload,
+            'payload' => $this->mergeArchiveData((array) $message->payload, $payload),
         ];
 
         // A deleted message is retained as a tombstone by Avito. Keep the last
         // known original type and content in our archive instead of erasing it.
         if ($isNew || $remoteType !== 'deleted') {
+            $incomingText = Arr::get($content, 'text');
             $attributes += [
                 'type' => $remoteType,
-                'text' => $this->nullableString(Arr::get($content, 'text')),
-                'content' => $content,
-                'quote' => Arr::get($payload, 'quote'),
+                'text' => is_string($incomingText) && trim($incomingText) !== '' ? $incomingText : $message->text,
+                'content' => $this->mergeArchiveData((array) $message->content, $content),
+                'quote' => filled(Arr::get($payload, 'quote'))
+                    ? $this->mergeArchiveData((array) $message->quote, (array) Arr::get($payload, 'quote'))
+                    : $message->quote,
             ];
         }
 
@@ -341,8 +390,8 @@ class AvitoMessengerArchive
     private function storeAttachmentReferences(AvitoMessage $message, array $content): void
     {
         $imageSizes = (array) Arr::get($content, 'image.sizes', []);
-        if ($imageSizes !== []) {
-            $url = $this->largestImageUrl($imageSizes);
+        $url = $this->largestImageUrl($imageSizes);
+        if ($url !== null) {
             AvitoMessageAttachment::query()->updateOrCreate(
                 ['avito_message_id' => $message->id, 'kind' => 'image'],
                 ['external_id' => hash('sha256', (string) $url), 'remote_url' => $url]
@@ -443,6 +492,39 @@ class AvitoMessengerArchive
 
     private function nullableString(mixed $value): ?string
     {
-        return $value === null || $value === '' ? null : (string) $value;
+        if (! is_string($value) && ! is_int($value) && ! is_float($value)) {
+            return null;
+        }
+
+        return trim((string) $value) === '' ? null : (string) $value;
+    }
+
+    /**
+     * API summaries, read receipts and tombstones are partial snapshots. They
+     * may enrich the archive, but missing/empty fields cannot erase history.
+     */
+    private function mergeArchiveData(array $archived, array $incoming): array
+    {
+        foreach ($incoming as $key => $value) {
+            if (($value === null || $value === '' || $value === []) && array_key_exists($key, $archived)) {
+                continue;
+            }
+
+            $previous = $archived[$key] ?? null;
+            if ($previous !== null && $previous !== '' && $previous !== []
+                && get_debug_type($previous) !== get_debug_type($value)
+                && ! ((is_int($previous) || is_float($previous)) && (is_int($value) || is_float($value)))) {
+                // Invalid boolean/scalar placeholders must not destroy text
+                // or structured content. Actual boolean fields may still
+                // change from true to false, and numeric types may intermix.
+                continue;
+            }
+
+            $archived[$key] = is_array($value) && ! array_is_list($value) && is_array($archived[$key] ?? null)
+                ? $this->mergeArchiveData($archived[$key], $value)
+                : $value;
+        }
+
+        return $archived;
     }
 }

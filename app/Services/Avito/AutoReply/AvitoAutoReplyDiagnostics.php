@@ -2,6 +2,7 @@
 
 namespace App\Services\Avito\AutoReply;
 
+use App\Jobs\Avito\BootstrapAvitoChatHistoryJob;
 use App\Jobs\Avito\ProcessAvitoAutoReplyJob;
 use App\Models\AvitoAutoReplyDecision;
 use App\Models\AvitoAutoReplyRule;
@@ -38,7 +39,7 @@ class AvitoAutoReplyDiagnostics
             'client_credentials_configured' => filled(config('avito.client_id')) && filled(config('avito.client_secret')),
             'webhook_secret_configured' => filled(config('avito.webhook_secret')),
         ];
-        foreach (['avito_auto_reply_settings', 'avito_auto_reply_rules', 'avito_auto_reply_decisions', 'avito_messenger_accounts', 'avito_connections', 'avito_messages', 'avito_webhook_events'] as $table) {
+        foreach (['avito_auto_reply_settings', 'avito_auto_reply_rules', 'avito_auto_reply_decisions', 'avito_messenger_accounts', 'avito_connections', 'avito_chats', 'avito_messages', 'avito_webhook_events'] as $table) {
             if (! Schema::hasTable($table)) {
                 $report['blockers'][] = $this->issue('schema_missing', "Не применены миграции: отсутствует таблица {$table}.");
             }
@@ -49,6 +50,7 @@ class AvitoAutoReplyDiagnostics
         foreach ([
             'avito_auto_reply_settings' => ['response_mode', 'emergency_stopped_at'],
             'avito_auto_reply_decisions' => ['response_text', 'matched_rule_keys'],
+            'avito_chats' => ['history_synced_at'],
         ] as $table => $columns) {
             foreach ($columns as $column) {
                 if (! Schema::hasColumn($table, $column)) {
@@ -194,8 +196,8 @@ class AvitoAutoReplyDiagnostics
             $report['warnings'][] = $this->issue('sending_stalled', 'Есть отправки с неизвестным результатом дольше 150 секунд. Проверьте переписку в Avito: повторная автоматическая отправка заблокирована.');
         }
         if (in_array($report['queue']['driver'], ['database', 'redis', 'beanstalkd'], true)
-            && ($report['queue']['retry_after'] ?? 0) <= 120) {
-            $report['warnings'][] = $this->issue('queue_retry_after_too_short', 'retry_after очереди должен быть больше таймаута задания автоответа (120 секунд), иначе worker может повторно взять ещё выполняемое задание.');
+            && ($report['queue']['retry_after'] ?? 0) <= 840) {
+            $report['warnings'][] = $this->issue('queue_retry_after_too_short', 'retry_after очереди должен быть больше таймаута первоначального импорта переписки (840 секунд), иначе worker может повторно взять ещё выполняемое задание.');
         }
         if ($report['queue']['driver'] === 'sync') {
             $report['warnings'][] = $this->issue('queue_sync', 'Очередь sync выполняет анализ внутри запроса и не выдерживает задержку сбора сообщений. Используйте database или Redis и работающий queue worker.');
@@ -236,7 +238,10 @@ class AvitoAutoReplyDiagnostics
             if (! Schema::connection($connection)->hasTable($table)) {
                 return ['status' => 'table_missing'];
             }
-            $query = DB::connection($connection)->table($table)->where('payload', 'like', '%ProcessAvitoAutoReplyJob%');
+            $jobClasses = [ProcessAvitoAutoReplyJob::class, BootstrapAvitoChatHistoryJob::class];
+            $query = DB::connection($connection)->table($table)->where(fn ($query) => $query
+                ->where('payload', 'like', '%ProcessAvitoAutoReplyJob%')
+                ->orWhere('payload', 'like', '%BootstrapAvitoChatHistoryJob%'));
             $candidateCount = (clone $query)->count();
             $rows = $query->orderBy('id')->limit(1000)->get($failed
                 ? ['payload', 'failed_at']
@@ -246,8 +251,8 @@ class AvitoAutoReplyDiagnostics
             foreach ($rows as $row) {
                 // Decode JSON only. Never unserialize a command, expose payloads, or read exceptions.
                 $payload = json_decode($row->payload, true);
-                if (! is_array($payload) || (($payload['displayName'] ?? null) !== ProcessAvitoAutoReplyJob::class
-                    && ($payload['data']['commandName'] ?? null) !== ProcessAvitoAutoReplyJob::class)) {
+                if (! is_array($payload) || (! in_array($payload['displayName'] ?? null, $jobClasses, true)
+                    && ! in_array($payload['data']['commandName'] ?? null, $jobClasses, true))) {
                     continue;
                 }
                 $count++;

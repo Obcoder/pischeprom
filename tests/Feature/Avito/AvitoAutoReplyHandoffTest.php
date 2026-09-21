@@ -120,6 +120,8 @@ class AvitoAutoReplyHandoffTest extends TestCase
         $this->pending($city);
         $this->message('Проверю варианты и напишу здесь.', $question->chat, now()->subHour(), 'out');
         $next = $this->message('Авито доставка есть у вас', $question->chat);
+        // Handoff can end, but the assistant must retain the already known city.
+        $this->aiReply = 'Мы организуем доставку.';
 
         $decision = app(AvitoAutoReplyService::class)->evaluateWebhookMessage($next->id);
 

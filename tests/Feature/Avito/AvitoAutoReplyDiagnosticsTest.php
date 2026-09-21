@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Avito;
 
+use App\Jobs\Avito\BootstrapAvitoChatHistoryJob;
 use App\Jobs\Avito\ProcessAvitoAutoReplyJob;
 use App\Models\AvitoAutoReplyDecision;
 use App\Models\AvitoAutoReplyRule;
@@ -114,14 +115,15 @@ class AvitoAutoReplyDiagnosticsTest extends TestCase
         config(['queue.default' => 'database', 'queue.connections.database.connection' => 'sqlite', 'queue.connections.database.retry_after' => 90]);
         $secret = 'private-token-must-not-appear';
         $payload = json_encode(['displayName' => ProcessAvitoAutoReplyJob::class, 'data' => ['command' => $secret]], JSON_THROW_ON_ERROR);
-        foreach ([$payload, json_encode(['displayName' => 'OtherJob', 'data' => ['command' => 'ProcessAvitoAutoReplyJob '.$secret]]), '{invalid ProcessAvitoAutoReplyJob'] as $item) {
+        $bootstrap = json_encode(['displayName' => BootstrapAvitoChatHistoryJob::class, 'data' => ['command' => $secret]], JSON_THROW_ON_ERROR);
+        foreach ([$payload, $bootstrap, json_encode(['displayName' => 'OtherJob', 'data' => ['command' => 'ProcessAvitoAutoReplyJob '.$secret]]), '{invalid ProcessAvitoAutoReplyJob'] as $item) {
             DB::table('jobs')->insert(['queue' => 'default', 'payload' => $item, 'attempts' => 0, 'available_at' => now()->subMinutes(6)->timestamp, 'created_at' => now()->subMinutes(6)->timestamp]);
         }
         DB::table('failed_jobs')->insert(['uuid' => 'audit-failed', 'connection' => 'database', 'queue' => 'default', 'payload' => $payload, 'exception' => $secret, 'failed_at' => now()]);
 
         $report = app(AvitoAutoReplyDiagnostics::class)->report();
-        $this->assertSame(1, $report['queue']['pending']['count']);
-        $this->assertSame(1, $report['queue']['pending']['overdue']);
+        $this->assertSame(2, $report['queue']['pending']['count']);
+        $this->assertSame(2, $report['queue']['pending']['overdue']);
         $this->assertSame(1, $report['queue']['failed']['count']);
         $this->assertFalse($report['queue']['worker_verified']);
         $this->assertContains('queue_retry_after_too_short', array_column($report['warnings'], 'code'));
@@ -129,7 +131,7 @@ class AvitoAutoReplyDiagnosticsTest extends TestCase
         foreach ([$secret, 'diagnostic-secret', 'diagnostic-ai-key', 'diagnostic-webhook', 'command', 'exception'] as $hidden) {
             $this->assertStringNotContainsString($hidden, $json);
         }
-        $this->assertDatabaseCount('jobs', 3);
+        $this->assertDatabaseCount('jobs', 4);
         Http::assertNothingSent();
         Queue::assertNothingPushed();
     }

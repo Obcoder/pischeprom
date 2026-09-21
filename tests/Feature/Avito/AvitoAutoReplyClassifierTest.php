@@ -5,6 +5,7 @@ namespace Tests\Feature\Avito;
 use App\Models\AvitoAutoReplyExample;
 use App\Models\AvitoAutoReplyRule;
 use App\Services\Avito\AutoReply\AvitoAutoReplyClassifier;
+use App\Services\Avito\AutoReply\AvitoAutoReplyContextUnavailable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -51,7 +52,7 @@ class AvitoAutoReplyClassifierTest extends TestCase
         });
     }
 
-    public function test_fixed_mode_keeps_response_text_out_of_ai_context(): void
+    public function test_fixed_mode_exposes_template_for_context_validation_without_public_facts(): void
     {
         $data = $this->validData();
         unset($data['response_text'], $data['matched_intents']);
@@ -102,7 +103,7 @@ class AvitoAutoReplyClassifierTest extends TestCase
     }
 
     #[DataProvider('responseModes')]
-    public function test_conversation_is_limited_to_six_recent_texts_without_internal_fields(bool $flexible): void
+    public function test_complete_conversation_and_long_texts_are_preserved_without_internal_fields(bool $flexible): void
     {
         $data = $this->validData();
         if (! $flexible) {
@@ -128,9 +129,9 @@ class AvitoAutoReplyClassifierTest extends TestCase
             $payload = $request->data();
             $serialized = $payload['messages'][1]['content'];
             $context = json_decode($serialized, true)['conversation'];
-            $this->assertCount(6, $context);
-            $this->assertSame(['direction' => 'in', 'text' => 'Сообщение 2'], $context[0]);
-            $this->assertSame(['direction' => 'out', 'text' => str_repeat('я', 1000)], $context[5]);
+            $this->assertCount(8, $context);
+            $this->assertSame(['direction' => 'in', 'text' => 'Сообщение 0'], $context[0]);
+            $this->assertSame(['direction' => 'out', 'text' => str_repeat('я', 1100)], $context[7]);
             foreach ($context as $entry) {
                 $this->assertSame(['direction', 'text'], array_keys($entry));
             }
@@ -154,6 +155,18 @@ class AvitoAutoReplyClassifierTest extends TestCase
     public static function responseModes(): array
     {
         return ['assistant' => [true], 'fixed' => [false]];
+    }
+
+    public function test_size_budget_includes_instructions_and_rules_before_calling_ai(): void
+    {
+        config(['avito.auto_reply.context_max_bytes' => 1024]);
+        try {
+            (new AvitoAutoReplyClassifier)->classify('Здравствуйте', $this->rules(), 'avito-chat', true);
+            $this->fail('A full request that cannot fit must not reach the provider.');
+        } catch (AvitoAutoReplyContextUnavailable $exception) {
+            $this->assertSame('conversation_context_too_large', $exception->reasonCode);
+        }
+        Http::assertNothingSent();
     }
 
     #[DataProvider('invalidData')]

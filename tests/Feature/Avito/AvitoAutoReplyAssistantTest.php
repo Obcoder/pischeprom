@@ -10,6 +10,7 @@ use App\Models\AvitoChat;
 use App\Models\AvitoMessage;
 use App\Models\AvitoMessengerAccount;
 use App\Services\Avito\AutoReply\AvitoAutoReplyService;
+use App\Services\Avito\AvitoMessengerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -236,6 +237,186 @@ class AvitoAutoReplyAssistantTest extends TestCase
             ->assertAccepted()->assertJsonPath('queued', 1);
         Queue::assertPushed(ProcessAvitoAutoReplyJob::class, fn ($job) => $job->messageId === $archived->id && $job->historical);
         Queue::assertNotPushed(ProcessAvitoAutoReplyJob::class, fn ($job) => $job->messageId === $fresh->id);
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_receives_the_entire_local_archive_including_ten_year_old_long_messages(): void
+    {
+        $incoming = $this->message('Как оформить заявку?');
+        $oldText = str_repeat('Описание предыдущего заказа. ', 50).'Адрес: Санкт-Петербург, Примерная 12/1.';
+        $old = $this->message($oldText, $incoming->chat);
+        $old->update(['remote_created_at' => now()->subYears(10)]);
+        for ($i = 9; $i >= 1; $i--) {
+            $this->message('Обсуждение '.$i, $incoming->chat)->update([
+                'direction' => 'out', 'remote_created_at' => now()->subDays($i),
+            ]);
+        }
+        $this->fakeAi('Можно обсудить заявку в этом чате.', ['order_request']);
+
+        $decision = app(AvitoAutoReplyService::class)->evaluateWebhookMessage($incoming->id);
+
+        $this->assertSame('would_send', $decision->outcome);
+        $this->assertSame(10, $decision->classifier_payload['archive_context']['message_count']);
+        Http::assertSent(function (Request $request) use ($oldText, $old): bool {
+            $context = json_decode($request['messages'][1]['content'], true)['conversation'];
+            $this->assertCount(10, $context);
+            $this->assertSame($oldText, $context[0]['text']);
+            $this->assertSame($old->id, $context[0]['message_id']);
+            $this->assertStringContainsString('ВСЕ записи conversation', $request['messages'][0]['content']);
+
+            return true;
+        });
+        Http::assertSentCount(1);
+    }
+
+    public function test_known_address_cannot_be_requested_again_even_when_ai_approves_the_reply(): void
+    {
+        $incoming = $this->message('Как у вас организована доставка?');
+        $this->message('Адрес: Санкт-Петербург, Примерная 12/1.', $incoming->chat)
+            ->update(['remote_created_at' => now()->subYears(10)]);
+        $this->message('Заказ оформлен, спасибо.', $incoming->chat)
+            ->update(['direction' => 'out', 'remote_created_at' => now()->subDay()]);
+        AvitoAutoReplySetting::current()->update(['mode' => 'active']);
+        $this->fakeAi('Мы организуем доставку. Напишите город или населённый пункт.', ['delivery_method']);
+
+        $decision = app(AvitoAutoReplyService::class)->evaluateWebhookMessage($incoming->id);
+
+        $this->assertSame('human_required', $decision->outcome);
+        $this->assertSame('customer_details_already_known', $decision->reason_code);
+        $this->assertNull($decision->sent_at);
+        Http::assertSentCount(1);
+    }
+
+    public function test_known_details_also_block_fixed_templates_and_chat_previews(): void
+    {
+        $incoming = $this->message('Как у вас организована доставка?');
+        $this->message('Доставка: Санкт-Петербург, Примерная 12/1.', $incoming->chat)
+            ->update(['direction' => 'out', 'remote_created_at' => now()->subYears(10)]);
+        AvitoAutoReplySetting::current()->update(['response_mode' => 'fixed']);
+        Http::fake(['*' => Http::response(['choices' => [['message' => ['content' => json_encode([
+            'intent' => 'delivery_method', 'confidence' => 0.99, 'runner_up_confidence' => 0.01,
+            'unsafe' => false, 'mixed' => false, 'reason_code' => 'approved_intent',
+        ])]]]])]);
+
+        $result = app(AvitoAutoReplyService::class)->preview($incoming->text, $incoming->chat);
+
+        $this->assertSame('human_required', $result['outcome']);
+        $this->assertSame('customer_details_already_known', $result['reason_code']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_large_archive_is_handed_to_a_person_without_truncation_or_remote_request(): void
+    {
+        $incoming = $this->message('Как оформить заявку?');
+        $this->message(str_repeat('Давняя переписка. ', 5000), $incoming->chat)
+            ->update(['remote_created_at' => now()->subYears(10)]);
+        AvitoAutoReplySetting::current()->update(['mode' => 'active']);
+
+        $decision = app(AvitoAutoReplyService::class)->evaluateWebhookMessage($incoming->id);
+        $preview = app(AvitoAutoReplyService::class)->preview($incoming->text, $incoming->chat);
+
+        $this->assertSame('human_required', $decision->outcome);
+        $this->assertSame('conversation_context_too_large', $decision->reason_code);
+        $this->assertSame('conversation_context_too_large', $preview['reason_code']);
+        Http::assertNothingSent();
+    }
+
+    public function test_old_message_changed_during_generation_cancels_the_answer(): void
+    {
+        $incoming = $this->message('Как оформить заявку?');
+        $old = $this->message('Предыдущее обсуждение.', $incoming->chat);
+        $old->update(['remote_created_at' => now()->subYears(10)]);
+        AvitoAutoReplySetting::current()->update(['mode' => 'active']);
+        Http::fake(function () use ($old) {
+            $old->update(['text' => 'Исправленные данные предыдущего заказа.']);
+
+            return Http::response($this->aiBody('Можно обсудить заявку в этом чате.', ['order_request']));
+        });
+
+        $decision = app(AvitoAutoReplyService::class)->evaluateWebhookMessage($incoming->id);
+
+        $this->assertSame('human_required', $decision->outcome);
+        $this->assertSame('conversation_context_changed', $decision->reason_code);
+        Http::assertSentCount(1);
+    }
+
+    public function test_late_import_of_old_history_during_token_refresh_cancels_the_answer(): void
+    {
+        $incoming = $this->message('Как оформить заявку?');
+        AvitoAutoReplySetting::current()->update(['mode' => 'active']);
+        $this->fakeAi('Можно обсудить заявку в этом чате.', ['order_request']);
+        Http::fake(['https://api.avito.ru/token' => function () use ($incoming) {
+            $this->message('Адрес: Санкт-Петербург, Примерная 12/1.', $incoming->chat)
+                ->update(['remote_created_at' => now()->subYears(10)]);
+
+            return Http::response(['access_token' => 'test-token', 'expires_in' => 86400]);
+        }]);
+
+        $decision = app(AvitoAutoReplyService::class)->evaluateWebhookMessage($incoming->id);
+
+        $this->assertSame('conversation_context_changed', $decision->reason_code);
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '/messages'));
+    }
+
+    public function test_oversized_history_imported_during_token_refresh_is_a_handoff_not_a_send_error(): void
+    {
+        $incoming = $this->message('Как оформить заявку?');
+        AvitoAutoReplySetting::current()->update(['mode' => 'active']);
+        $this->fakeAi('Можно обсудить заявку в этом чате.', ['order_request']);
+        Http::fake(['https://api.avito.ru/token' => function () use ($incoming) {
+            $this->message(str_repeat('Давняя переписка. ', 5000), $incoming->chat)
+                ->update(['remote_created_at' => now()->subYears(10)]);
+
+            return Http::response(['access_token' => 'test-token', 'expires_in' => 86400]);
+        }]);
+
+        $decision = app(AvitoAutoReplyService::class)->evaluateWebhookMessage($incoming->id);
+
+        $this->assertSame('human_required', $decision->outcome);
+        $this->assertSame('conversation_context_too_large', $decision->reason_code);
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '/messages'));
+    }
+
+    public function test_synchronous_development_job_imports_history_once_before_ai_and_then_uses_local_archive(): void
+    {
+        config(['queue.default' => 'sync']);
+        $incoming = $this->message('Как оформить заявку?');
+        $this->mock(AvitoMessengerService::class, function ($mock): void {
+            $mock->shouldReceive('refreshChat')->once()->andReturnUsing(function (AvitoChat $chat): AvitoChat {
+                $this->message('Давняя договорённость.', $chat)->update(['remote_created_at' => now()->subYears(10)]);
+                $chat->update(['history_synced_at' => now()]);
+
+                return $chat;
+            });
+        });
+        $this->fakeAi('Можно обсудить заявку в этом чате.', ['order_request']);
+        $service = app(AvitoAutoReplyService::class);
+        (new ProcessAvitoAutoReplyJob($incoming->id))->handle($service);
+        (new ProcessAvitoAutoReplyJob($incoming->id))->handle($service);
+
+        $decision = AvitoAutoReplyDecision::where('avito_message_id', $incoming->id)->sole();
+        $this->assertSame('would_send', $decision->outcome);
+        $this->assertSame(1, $decision->classifier_payload['archive_context']['message_count']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_synchronous_development_job_does_not_call_ai_when_initial_history_import_fails(): void
+    {
+        config(['queue.default' => 'sync']);
+        $incoming = $this->message('Как оформить заявку?');
+        $this->mock(AvitoMessengerService::class, function ($mock): void {
+            $mock->shouldReceive('refreshChat')->once()->andThrow(new \RuntimeException('History is unavailable'));
+        });
+        try {
+            (new ProcessAvitoAutoReplyJob($incoming->id))->handle(app(AvitoAutoReplyService::class));
+            $this->fail('History failure must remain retryable by the queue.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('History is unavailable', $exception->getMessage());
+        }
+        $this->assertNull($incoming->chat->fresh()->history_synced_at);
+        $this->assertDatabaseCount('avito_auto_reply_decisions', 0);
         Http::assertNothingSent();
     }
 

@@ -30,6 +30,7 @@ class AvitoChat extends Model
         'remote_updated_at',
         'last_message_at',
         'last_synced_at',
+        'history_synced_at',
         'payload',
     ];
 
@@ -44,6 +45,7 @@ class AvitoChat extends Model
             'remote_updated_at' => 'datetime',
             'last_message_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            'history_synced_at' => 'datetime',
             'payload' => 'encrypted:array',
         ];
     }

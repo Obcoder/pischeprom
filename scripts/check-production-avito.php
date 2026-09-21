@@ -225,13 +225,13 @@ function queueMetadata(string $connection, string $name): array
 
 function schemaMetadata(): array
 {
-    $required = ['2026_09_12_160000_expand_avito_auto_replies', '2026_09_12_170000_add_avito_auto_reply_emergency_stop'];
+    $required = ['2026_09_12_160000_expand_avito_auto_replies', '2026_09_12_170000_add_avito_auto_reply_emergency_stop', '2026_09_21_110000_add_history_sync_to_avito_chats'];
     $migrations = [];
     foreach ($required as $name) {
         $migrations[$name] = DB::table('migrations')->where('migration', $name)->exists();
     }
     $columns = [];
-    foreach (['avito_auto_reply_settings' => ['response_mode', 'emergency_stopped_at'], 'avito_auto_reply_decisions' => ['response_text', 'matched_rule_keys']] as $table => $names) {
+    foreach (['avito_auto_reply_settings' => ['response_mode', 'emergency_stopped_at'], 'avito_auto_reply_decisions' => ['response_text', 'matched_rule_keys'], 'avito_chats' => ['history_synced_at']] as $table => $names) {
         foreach ($names as $name) {
             $columns[$table.'.'.$name] = Schema::hasColumn($table, $name);
         }
@@ -342,7 +342,7 @@ function report(string $targetDir): array
         'workers' => inspect(static fn () => workers($targetDir)),
         'avito_queue' => inspect(static fn () => queueMetadata($connection, $queue)),
         'realtime_queue' => inspect(static fn () => queueMetadata('database', 'realtime')),
-        'job_timeouts_seconds' => ['auto_reply' => 120, 'media_archive' => 120, 'manual_sync' => 1800],
+        'job_timeouts_seconds' => ['auto_reply' => 120, 'initial_chat_history' => 840, 'media_archive' => 120, 'manual_sync' => 1800],
         'failed_jobs' => inspect(__NAMESPACE__.'\\failedJobsMetadata'),
         'activity' => inspect(__NAMESPACE__.'\\activityMetadata'),
         'ai' => inspect(static fn () => safeDiagnostics(app(AvitoAutoReplyDiagnostics::class)->report(days: 90))),

@@ -100,7 +100,9 @@ class AvitoMessengerMediaArchive
             $attachment->kind.'.'.$extension,
         ]);
         $disk = (string) config('avito.messenger.archive_disk', 'avito');
-        Storage::disk($disk)->put($path, $body);
+        if (! Storage::disk($disk)->put($path, $body)) {
+            throw new AvitoException('Не удалось сохранить медиафайл в локальный архив.', 'media_storage', 503, true);
+        }
 
         $attachment->update([
             'remote_url' => $url,
