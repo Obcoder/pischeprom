@@ -47,6 +47,7 @@ class MobileDeliveryMapTest extends TestCase
         $this->getJson('/api/mobile/v1/delivery-map/config')->assertOk()
             ->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('data.configured', true)
+            ->assertJsonPath('data.route_planning_enabled', false)
             ->assertJsonPath('data.api_key', 'test-public-map-key');
         $this->employee->update(['status' => 'blocked']);
         $this->getJson('/api/mobile/v1/delivery-map/config')->assertForbidden();

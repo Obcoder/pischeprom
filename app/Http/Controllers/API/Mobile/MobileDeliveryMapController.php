@@ -21,6 +21,8 @@ class MobileDeliveryMapController extends Controller
             'configured' => $key !== '' && $trustedScript,
             'api_key' => $trustedScript && $key !== '' ? $key : null,
             'script_url' => $trustedScript ? $scriptUrl : null,
+            // The delivery map uses only JavaScript API and Geocoder subscriptions.
+            'route_planning_enabled' => false,
             'default_center' => [(float) config('gis.map.default_center.lat'), (float) config('gis.map.default_center.lon')],
             'default_zoom' => max(1, min(19, (int) config('gis.map.default_zoom', 5))),
         ]]);

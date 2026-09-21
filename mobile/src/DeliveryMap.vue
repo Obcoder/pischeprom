@@ -15,6 +15,7 @@ const canvas = ref(null)
 const orders = ref([])
 const loading = ref(false)
 const configured = ref(true)
+const routePlanningEnabled = ref(false)
 const mapReady = ref(false)
 const online = ref(navigator.onLine)
 const error = ref('')
@@ -42,6 +43,7 @@ let originMarker = null
 const locatedOrderIds = new Set()
 
 const routeBlocked = computed(() => {
+    if (!routePlanningEnabled.value) return 'Построение маршрутов пока отключено.'
     if (!props.deliveryDate || props.deliveryUnscheduled) return 'Выберите день доставки, чтобы построить маршрут.'
     if (!configured.value) return 'Для расчёта маршрута нужно подключить Яндекс Карты.'
     if (!online.value) return 'Для расчёта маршрута нужен интернет.'
@@ -68,7 +70,7 @@ function clearRoute() {
 }
 
 async function calculateRoute() {
-    if (routeBlocked.value || !originAddress.value.trim() || !mapsApi || !map) return
+    if (!routePlanningEnabled.value || routeBlocked.value || !originAddress.value.trim() || !mapsApi || !map) return
     clearRoute()
     const controller = new AbortController()
     routeController = controller
@@ -167,6 +169,7 @@ async function refresh() {
     displayedCount.value = 30
     error.value = ''
     configured.value = true
+    routePlanningEnabled.value = false
     progress.value = 'Загружаем доставки…'
     loading.value = false
     if (!online.value) return
@@ -183,6 +186,7 @@ async function refresh() {
         ])
         if (!current()) return
         configured.value = configuration?.data?.configured === true
+        routePlanningEnabled.value = configuration?.data?.route_planning_enabled === true
         if (!configured.value || !orders.value.length) return
         const grouped = groupDeliveryAddresses(orders.value)
         unresolved.value = grouped.missing
@@ -323,7 +327,7 @@ onBeforeUnmount(() => {
         </v-alert>
         <div v-show="mapReady" ref="canvas" class="delivery-map-canvas" aria-label="Адреса доставки на Яндекс Картах" />
         <p v-if="mapReady && locatedCount" class="delivery-map-hint">Нажмите на точку или группу точек, чтобы выбрать заказ.</p>
-        <section class="delivery-route-panel" aria-label="Маршрут доставок на день">
+        <section v-if="routePlanningEnabled" class="delivery-route-panel" aria-label="Маршрут доставок на день">
             <h3>Маршрут на день</h3>
             <p v-if="routeBlocked" class="delivery-route-note">{{ routeBlocked }}</p>
             <template v-else>
