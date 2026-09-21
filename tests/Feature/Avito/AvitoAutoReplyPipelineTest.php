@@ -168,15 +168,18 @@ class AvitoAutoReplyPipelineTest extends TestCase
 
     public function test_failed_queue_push_returns_retryable_webhook_status_and_releases_unique_lock(): void
     {
+        // A redelivery reuses the exact event, including its original timestamp.
+        $payload = $this->webhookPayload();
         $dispatcher = Bus::getFacadeRoot();
         Bus::shouldReceive('dispatch')->once()->andThrow(new RuntimeException('Queue unavailable'));
 
-        $this->postJson('/api/avito/webhook', $this->webhookPayload(), ['X-Secret' => config('avito.webhook_secret')])
+        $this->postJson('/api/avito/webhook', $payload, ['X-Secret' => config('avito.webhook_secret')])
             ->assertStatus(503)->assertJsonPath('ok', false);
         $this->assertSame('error', AvitoWebhookEvent::query()->sole()->status);
 
         Bus::swap($dispatcher);
-        $this->postJson('/api/avito/webhook', $this->webhookPayload(), ['X-Secret' => config('avito.webhook_secret')])
+        $this->travel(2)->seconds();
+        $this->postJson('/api/avito/webhook', $payload, ['X-Secret' => config('avito.webhook_secret')])
             ->assertOk()->assertJsonPath('duplicate', true);
 
         Queue::assertPushed(ProcessAvitoAutoReplyJob::class, 1);
