@@ -209,6 +209,16 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('commerce-realtime-auth', fn (Request $request) => Limit::perMinute(120)
             ->by((string) ($request->user()?->id ?? $request->ip())));
 
+        RateLimiter::for('avito', function (Request $request): Limit {
+            $actor = $request->user()
+                ? 'user:'.$request->user()->getAuthIdentifier()
+                : 'ip:'.$request->ip();
+
+            // Realtime refreshes must not consume the budget for sending messages.
+            return Limit::perMinute(120)
+                ->by(($request->isMethodSafe() ? 'read:' : 'write:').$actor);
+        });
+
         RateLimiter::for('bank-oauth', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->id ?? $request->ip())));
         RateLimiter::for('bank-sync', fn (Request $request) => Limit::perMinute(2)

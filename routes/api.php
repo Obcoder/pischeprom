@@ -951,7 +951,7 @@ Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class
  * -------------------------
  */
 Route::post('/avito/webhook', [AvitoController::class, 'receiveWebhook'])
-    ->middleware('throttle:300,1')
+    ->middleware('throttle:300,1,avito-webhook:')
     ->name('api.avito.webhook');
 
 // Emergency control must remain available if ordinary Avito API requests have
@@ -960,17 +960,17 @@ Route::post('/avito/messenger/auto-replies/emergency-stop', [AvitoAutoReplyContr
     ->middleware('throttle:60,1,avito-emergency-stop')
     ->name('api.avito.messenger.auto-replies.emergency-stop');
 
-Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(function () {
+Route::prefix('avito')->name('api.avito.')->middleware('throttle:avito')->group(function () {
     Route::get('/status', [AvitoController::class, 'status'])->name('status');
     Route::get('/capabilities', [AvitoController::class, 'capabilities'])->name('capabilities.index');
     Route::patch('/capabilities', [AvitoController::class, 'bulkUpdateCapabilities'])->name('capabilities.bulk-update');
     Route::get('/capabilities/{capability}', [AvitoController::class, 'capability'])->name('capabilities.show');
     Route::patch('/capabilities/{capability}', [AvitoController::class, 'updateCapability'])->name('capabilities.update');
     Route::post('/capabilities/{capability}/execute', [AvitoController::class, 'execute'])
-        ->middleware('throttle:20,1')
+        ->middleware('throttle:20,1,avito-capability-execute:')
         ->name('capabilities.execute');
     Route::post('/preflight', [AvitoController::class, 'preflight'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,avito-preflight:')
         ->name('preflight');
 
     Route::get('/connections', [AvitoController::class, 'connections'])->name('connections.index');
@@ -995,7 +995,7 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
         Route::post('/statistics/items', [AvitoListingController::class, 'itemStatistics'])->name('statistics.items');
         Route::post('/spendings', [AvitoListingController::class, 'spendings'])->name('spendings');
         Route::post('/promotions', [AvitoListingController::class, 'promotions'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,avito-listing-promotions:')
             ->name('promotions');
         Route::get('/{item}/good-link', [AvitoListingGoodController::class, 'show'])
             ->whereNumber('item')
@@ -1008,21 +1008,21 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
             ->name('good-link.destroy');
         Route::post('/{item}/good-transfer/preview', [AvitoListingGoodController::class, 'preview'])
             ->whereNumber('item')
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:30,1,avito-good-transfer-preview:')
             ->name('good-transfer.preview');
         Route::post('/{item}/good-transfer/apply', [AvitoListingGoodController::class, 'apply'])
             ->whereNumber('item')
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,avito-good-transfer-apply:')
             ->name('good-transfer.apply');
         Route::get('/{item}/good-transfer/media/{media}', [AvitoListingGoodController::class, 'media'])
             ->whereNumber('item')
             ->whereNumber('media')
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:60,1,avito-good-transfer-media:')
             ->name('good-transfer.media');
         Route::get('/{item}', [AvitoListingController::class, 'show'])->whereNumber('item')->name('show');
         Route::post('/{item}/action', [AvitoListingController::class, 'action'])
             ->whereNumber('item')
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,avito-listing-action:')
             ->name('action');
     });
 
@@ -1079,10 +1079,10 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
         Route::delete('/auto-replies/rules/{rule}', [AvitoAutoReplyController::class, 'destroy'])
             ->name('auto-replies.rules.destroy');
         Route::post('/auto-replies/test', [AvitoAutoReplyController::class, 'testPhrase'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,avito-auto-reply-test:')
             ->name('auto-replies.test');
         Route::post('/auto-replies/archive-analysis', [AvitoAutoReplyController::class, 'analyzeArchive'])
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:5,1,avito-auto-reply-analysis:')
             ->name('auto-replies.archive-analysis');
         Route::get('/templates', [AvitoMessageTemplateController::class, 'index'])->name('templates.index');
         Route::post('/templates', [AvitoMessageTemplateController::class, 'store'])->name('templates.store');
@@ -1111,33 +1111,33 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:120,1')->group(
         Route::post('/chats/{chat}/crm/buildings', [AvitoCrmController::class, 'storeBuilding'])
             ->name('chats.crm.buildings.store');
         Route::post('/chats/{chat}/crm/orders', [AvitoCrmController::class, 'storeOrder'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:30,1,avito-crm-order:')
             ->name('chats.crm.orders.store');
         Route::post('/chats/{chat}/crm/goods/{good}/send', [AvitoCrmController::class, 'sendGood'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,avito-crm-send-good:')
             ->name('chats.crm.goods.send');
         Route::post('/chats/{chat}/message-templates/{template}/preview', [AvitoMessageTemplateController::class, 'preview'])
             ->name('chats.templates.preview');
         Route::post('/chats/{chat}/message-templates/{template}/send', [AvitoMessageTemplateController::class, 'send'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:30,1,avito-template-send:')
             ->name('chats.templates.send');
         Route::post('/sync', [AvitoMessengerController::class, 'queueSync'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:10,1,avito-messenger-sync:')
             ->name('sync.store');
         Route::get('/sync-runs/{run}', [AvitoMessengerController::class, 'syncRun'])->name('sync-runs.show');
         Route::post('/chats/{chat}/refresh', [AvitoMessengerController::class, 'refreshChat'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,avito-chat-refresh:')
             ->name('chats.refresh');
         Route::post('/chats/{chat}/read', [AvitoMessengerController::class, 'markRead'])->name('chats.read');
         Route::post('/chats/{chat}/blacklist', [AvitoMessengerController::class, 'blacklist'])->name('chats.blacklist');
         Route::post('/chats/{chat}/messages', [AvitoMessengerController::class, 'sendText'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:30,1,avito-message-text:')
             ->name('messages.store');
         Route::post('/chats/{chat}/messages/image', [AvitoMessengerController::class, 'sendImage'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,avito-message-image:')
             ->name('messages.image');
         Route::delete('/messages/{message}', [AvitoMessengerController::class, 'destroyMessage'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:30,1,avito-message-delete:')
             ->name('messages.destroy');
         Route::get('/subscriptions', [AvitoMessengerController::class, 'subscriptions'])->name('subscriptions.index');
         Route::post('/subscriptions', [AvitoMessengerController::class, 'subscribe'])->name('subscriptions.store');

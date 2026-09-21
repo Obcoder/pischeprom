@@ -8,6 +8,7 @@ use App\Services\Logistics\Routing\Exceptions\RoutingException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +44,25 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontReport(RoutingException::class);
         $exceptions->dontReport(PolicyViolation::class);
         $exceptions->dontReport(SearchProviderException::class);
+
+        $exceptions->render(function (ThrottleRequestsException $exception, Request $request) {
+            if (! $request->expectsJson() || ! $request->is('api/avito/*')) {
+                return null;
+            }
+
+            $headers = $exception->getHeaders();
+            $retryAfter = max(1, (int) ($headers['Retry-After'] ?? 60));
+            $message = $request->isMethodSafe()
+                ? 'Обновление данных временно ограничено.'
+                : 'Слишком много запросов.';
+
+            return response()->json([
+                'message' => "{$message} Повторите через {$retryAfter} сек.",
+                'category' => 'local_rate_limit',
+                'retryable' => true,
+                'retry_after' => $retryAfter,
+            ], 429, $headers);
+        });
 
         $exceptions->render(function (PolicyViolation $exception, Request $request) {
             if (! $request->expectsJson()) {
