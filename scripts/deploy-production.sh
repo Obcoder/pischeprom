@@ -530,6 +530,10 @@ if ! php artisan app:deploy-smoke --path='/api/avito/messenger/updates?overview=
     fail 'Smoke check for Avito Messenger incremental updates failed; rerun the command locally on the VPS.'
 fi
 
+if ! php artisan app:deploy-smoke --path='/api/avito/messenger/waiting-list?per_page=1' >/dev/null 2>&1; then
+    fail 'Smoke check for Avito waiting list failed; rerun the command locally on the VPS.'
+fi
+
 if ! php artisan app:deploy-smoke --path=/api/avito/messenger/crm/options >/dev/null 2>&1; then
     fail 'Smoke check for Avito CRM failed; rerun the command locally on the VPS.'
 fi

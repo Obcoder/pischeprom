@@ -205,6 +205,7 @@ jobs:
             app/Http/Controllers/AvitoMessengerController.php \
             app/Http/Controllers/AvitoMessengerUpdatesController.php \
             app/Http/Controllers/AvitoPublicationController.php \
+            app/Http/Controllers/AvitoWaitingListController.php \
             app/Http/Controllers/AvitoWorkspaceSettingsController.php \
             app/Jobs/Avito \
             app/Models/AvitoApiCall.php \
@@ -233,9 +234,11 @@ jobs:
             database/migrations/2026_08_10_160000_create_avito_publication_tables.php \
             database/migrations/2026_08_10_170000_create_avito_workspace_settings_table.php \
             database/migrations/2026_09_21_100000_repair_avito_unread_counts.php \
+            database/migrations/2026_09_21_120000_add_waiting_list_to_avito_chats.php \
             database/seeders/AvitoMessageTemplateSeeder.php \
             scripts/update-production-avito-env.php \
             scripts/check-production-avito.php \
+            tests/Concerns/BuildsIsolatedAvitoDatabase.php \
             tests/Feature/Avito \
             tests/Unit/Avito
           php artisan avito:preflight

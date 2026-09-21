@@ -140,6 +140,7 @@ use App\Http\Controllers\AvitoMessageTemplateController;
 use App\Http\Controllers\AvitoMessengerController;
 use App\Http\Controllers\AvitoMessengerUpdatesController;
 use App\Http\Controllers\AvitoPublicationController;
+use App\Http\Controllers\AvitoWaitingListController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnforceAiPriceListAuthorization;
@@ -1100,7 +1101,11 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:avito')->group(
         Route::get('/overview', [AvitoMessengerController::class, 'overview'])->name('overview');
         Route::get('/updates', AvitoMessengerUpdatesController::class)->name('updates');
         Route::get('/chats', [AvitoMessengerController::class, 'chats'])->name('chats.index');
+        Route::get('/waiting-list', [AvitoWaitingListController::class, 'index'])->name('waiting-list.index');
         Route::get('/chats/{chat}', [AvitoMessengerController::class, 'chat'])->name('chats.show');
+        Route::put('/chats/{chat}/waiting-list', [AvitoWaitingListController::class, 'store'])->name('waiting-list.store');
+        Route::patch('/chats/{chat}/waiting-list', [AvitoWaitingListController::class, 'update'])->name('waiting-list.update');
+        Route::delete('/chats/{chat}/waiting-list', [AvitoWaitingListController::class, 'destroy'])->name('waiting-list.destroy');
         Route::get('/chats/{chat}/crm', [AvitoCrmController::class, 'show'])->name('chats.crm.show');
         Route::put('/chats/{chat}/crm/entity', [AvitoCrmController::class, 'linkEntity'])
             ->name('chats.crm.entity.link');

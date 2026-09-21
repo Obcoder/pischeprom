@@ -26,6 +26,8 @@ class AvitoChat extends Model
         'last_message_preview',
         'is_unread',
         'unread_count',
+        'waiting_since',
+        'waiting_note',
         'remote_created_at',
         'remote_updated_at',
         'last_message_at',
@@ -41,6 +43,7 @@ class AvitoChat extends Model
         return [
             'is_unread' => 'boolean',
             'unread_count' => 'integer',
+            'waiting_since' => 'datetime',
             'remote_created_at' => 'datetime',
             'remote_updated_at' => 'datetime',
             'last_message_at' => 'datetime',

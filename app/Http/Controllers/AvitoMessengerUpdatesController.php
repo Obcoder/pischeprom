@@ -22,6 +22,7 @@ class AvitoMessengerUpdatesController extends Controller
             'account_id' => ['nullable', 'integer', 'exists:avito_messenger_accounts,id'],
             'search' => ['nullable', 'string', 'max:200'],
             'unread_only' => ['nullable', 'boolean'],
+            'waiting_only' => ['nullable', 'boolean'],
             'chat_type' => ['nullable', 'in:u2i,u2u,a2u'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
@@ -45,7 +46,7 @@ class AvitoMessengerUpdatesController extends Controller
                 $result['overview'] = Arr::except($messenger->overview($catalog)->getData(true), ['tools']);
             }
             if ($request->boolean('chats')) {
-                $filters = Arr::only($validated, ['account_id', 'search', 'unread_only', 'chat_type', 'page', 'per_page']);
+                $filters = Arr::only($validated, ['account_id', 'search', 'unread_only', 'waiting_only', 'chat_type', 'page', 'per_page']);
                 $chatRequest = $request->duplicate($filters);
                 $result['chats'] = $messenger->chats($chatRequest)->getData(true);
             }

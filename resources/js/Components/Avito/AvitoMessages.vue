@@ -8,9 +8,11 @@ import AvitoCrmPanel from './AvitoCrmPanel.vue'
 
 const props = defineProps({
     connections: { type: Array, default: () => [] },
+    embedded: { type: Boolean, default: false },
+    chat: { type: Object, default: null },
 })
 
-const emit = defineEmits(['notice', 'error'])
+const emit = defineEmits(['notice', 'error', 'waiting-change'])
 
 const store = useAvitoRealtime({ key: 'messages', topics: ['avito_messages'], load: reloadRealtime })
 const { loading, chatsLoading, chatLoading, sending, syncing, overview, chats, chatsMeta,
@@ -23,6 +25,7 @@ const crmPanel = ref(null)
 const mobilePane = ref(store.selectedChat ? 'conversation' : 'chats')
 const refreshingArchive = ref(false)
 const archiveRefreshFailed = ref(false)
+const waitingSaving = ref(null)
 let manualRefreshController = null
 let searchTimer = null
 let readTimer = null
@@ -61,6 +64,7 @@ const realtimeHint = computed(() => `${realtimeStatus.value.label}. ${store.stat
     : 'Нажмите, чтобы восстановить соединение и перечитать архив.'}`)
 
 watch(filters, () => {
+    if (props.embedded) return
     store.invalidateChats()
     chatsMeta.value.current_page = 1
     clearTimeout(searchTimer)
@@ -70,14 +74,25 @@ watch(filters, () => {
 async function initialize() {
     loading.value = true
     try {
+        if (props.embedded) {
+            await selectEmbeddedChat(props.chat)
+            return
+        }
         await Promise.all([loadOverview(), loadChats(chatsMeta.value.current_page), loadSubscriptions()])
         if (selectedChat.value) await loadChatPage(1, false, { preserve: true })
     } finally {
-        if (!disposed) loading.value = false
+        if (!disposed) {
+            loading.value = false
+            if (props.embedded) {
+                await scrollToBottom()
+                scheduleReadReceipt()
+            }
+        }
     }
 }
 
 async function loadOverview(options = {}) {
+    if (props.embedded) return
     const previousRun = activeRun.value
     try {
         const data = await store.loadOverview(options)
@@ -92,6 +107,7 @@ async function loadOverview(options = {}) {
 }
 
 async function loadChats(page = chatsMeta.value.current_page, options = {}) {
+    if (props.embedded) return
     try {
         await store.loadChats(page, options)
     } catch (exception) {
@@ -105,6 +121,47 @@ async function openChat(chat) {
     if (selectedChat.value?.id === chat.id) return
     store.selectChat(chat)
     await loadChatPage(1, false, { forceScroll: true })
+}
+
+async function selectEmbeddedChat(chat) {
+    clearTimeout(readTimer)
+    streamVersion++
+    followNewMessages = true
+    mobilePane.value = 'conversation'
+    store.selectChat(chat)
+    if (chat) await loadChatPage(1, false, { forceScroll: true })
+}
+
+watch(() => props.chat, (chat) => {
+    if (!props.embedded || disposed) return
+    if (chat?.id !== selectedChat.value?.id) {
+        void selectEmbeddedChat(chat)
+    } else if (chat && selectedChat.value) {
+        selectedChat.value = { ...selectedChat.value, waiting_since: chat.waiting_since, waiting_note: chat.waiting_note }
+    }
+})
+
+async function toggleWaiting() {
+    const chat = selectedChat.value
+    if (!chat || waitingSaving.value !== null) return
+    const chatId = chat.id
+    const remove = Boolean(chat.waiting_since)
+    waitingSaving.value = chatId
+    try {
+        const url = `/api/avito/messenger/chats/${chatId}/waiting-list`
+        const { data } = remove ? await axios.delete(url) : await axios.put(url)
+        if (disposed) return
+        // A waiting response must not replace messages/read state changed during the request.
+        const waiting = { waiting_since: data.chat.waiting_since, waiting_note: data.chat.waiting_note }
+        chats.value = chats.value.map((item) => item.id === chatId ? { ...item, ...waiting } : item)
+        if (selectedChat.value?.id === chatId) selectedChat.value = { ...selectedChat.value, ...waiting }
+        emit('waiting-change', data.chat)
+        notify(remove ? 'Чат удалён из листа ожидания.' : 'Чат добавлен в лист ожидания на странице Ameise.')
+    } catch (exception) {
+        fail(exception, 'Не удалось изменить лист ожидания.')
+    } finally {
+        waitingSaving.value = null
+    }
 }
 
 function atBottom() {
@@ -153,7 +210,8 @@ async function reloadRealtime(options) {
     if (changes) {
         const chatId = selectedChat.value?.id
         const follow = atBottom() && followNewMessages
-        await store.loadUpdates(changes, { signal: options.signal })
+        if (props.embedded && !changes.chatIds.has(chatId)) return
+        await store.loadUpdates(props.embedded ? { ...changes, overview: false, chats: false } : changes, { signal: options.signal })
         if (!disposed && !options.signal.aborted && follow) await scrollToBottom(chatId)
         scheduleReadReceipt()
     } else {
@@ -246,7 +304,7 @@ async function markRead(automatic = false) {
         await store.markRead(chatId, throughMessageId)
         if (disposed) return
         // Reconcile a read response with any arrivals that raced the acknowledgement.
-        await store.loadUpdates({ chatIds: new Set([chatId]), messageIds: new Set(), overview: true, chats: true })
+        await store.loadUpdates({ chatIds: new Set([chatId]), messageIds: new Set(), overview: !props.embedded, chats: !props.embedded })
         if (!automatic) notify('Чат отмечен прочитанным на Avito.')
     } catch (exception) {
         readRetryAt = Date.now() + Math.max(5, Number(exception?.response?.data?.retry_after) || 30) * 1000
@@ -483,8 +541,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <section class="messenger-module" :class="`mobile-pane-${mobilePane}`">
-        <header class="messenger-toolbar">
+    <section class="messenger-module" :class="[`mobile-pane-${mobilePane}`, { 'is-embedded': embedded }]">
+        <header v-if="!embedded" class="messenger-toolbar">
             <div class="messenger-counts"><strong>Всего чатов: {{ overview.counts.chats || 0 }}</strong><span>Непрочитанных чатов: {{ overview.counts.unread_chats || 0 }}</span></div>
             <button type="button" class="realtime-indicator" :class="{ 'is-warning': realtimeStatus.warning }" :title="realtimeHint" :aria-label="realtimeHint" :disabled="refreshingArchive" @click="refreshArchive(true)"><v-icon :icon="realtimeStatus.icon" size="15" /><span class="realtime-label">{{ realtimeStatus.label }}</span><span class="realtime-short-label">{{ realtimeStatus.short }}</span></button>
             <span v-if="runningRun" class="sync-progress" role="status" :title="runningRun.status === 'queued' ? 'Синхронизация ожидает запуска' : `Синхронизация · ${runningRun.messages_seen || 0} сообщений`"><v-progress-circular indeterminate size="13" width="2" /><span class="sync-progress-label">{{ runningRun.status === 'queued' ? 'В очереди' : `Синхронизация · ${runningRun.messages_seen || 0}` }}</span></span>
@@ -502,16 +560,16 @@ onBeforeUnmount(() => {
             </v-menu>
         </header>
 
-        <nav class="mobile-pane-tabs" aria-label="Разделы переписки">
+        <nav v-if="!embedded" class="mobile-pane-tabs" aria-label="Разделы переписки">
             <button type="button" :aria-pressed="mobilePane === 'chats'" @click="mobilePane = 'chats'"><v-icon icon="mdi-forum-outline" size="16" />Чаты</button>
             <button type="button" :aria-pressed="mobilePane === 'conversation'" @click="mobilePane = 'conversation'"><v-icon icon="mdi-message-text-outline" size="16" />Переписка</button>
             <button type="button" :aria-pressed="mobilePane === 'details'" @click="mobilePane = 'details'"><v-icon icon="mdi-card-account-details-outline" size="16" />Клиент и AI</button>
         </nav>
 
-        <div v-if="loading" class="messenger-loading"><v-progress-circular indeterminate color="deep-purple-lighten-2" /><span>Открываем архив Avito…</span></div>
+        <div v-if="loading" class="messenger-loading"><v-progress-circular indeterminate :color="embedded ? 'pink-lighten-2' : 'deep-purple-lighten-2'" /><span>{{ embedded ? 'Открываем переписку…' : 'Открываем архив Avito…' }}</span></div>
 
         <div v-else class="messenger-layout">
-            <aside class="chat-list-pane">
+            <aside v-if="!embedded" class="chat-list-pane">
                 <div class="chat-filters">
                     <v-text-field v-model="filters.search" prepend-inner-icon="mdi-magnify" placeholder="Чат, клиент или текст сообщения" title="Поиск по данным чата, клиенту и всей сохранённой переписке" density="compact" variant="outlined" hide-details clearable />
                     <v-select v-model="filters.account_id" :items="accountOptions" placeholder="Все аккаунты" density="compact" variant="outlined" hide-details clearable />
@@ -530,7 +588,7 @@ onBeforeUnmount(() => {
                     <button v-for="chat in chats" :key="chat.id" type="button" class="chat-row" :class="{ 'is-active': selectedChat?.id === chat.id, 'is-unread': chat.is_unread }" @click="openChat(chat)">
                         <v-avatar size="34" color="deep-purple-darken-1"><v-img v-if="chat.peer_avatar_url" :src="chat.peer_avatar_url" cover /><span v-else>{{ (chat.peer_name || chat.title || 'A').slice(0, 1).toUpperCase() }}</span></v-avatar>
                         <span class="chat-row__body"><strong>{{ chat.peer_name || chat.title || 'Чат Avito' }}</strong><small>{{ chat.last_message_preview || 'Сообщений пока нет' }}</small><em>{{ chat.title !== chat.peer_name ? chat.title : `ID ${chat.external_chat_id.slice(0, 8)}` }}</em></span>
-                        <span class="chat-row__meta"><time>{{ formatDate(chat.last_message_at, true) }}</time><b v-if="chat.is_unread" :title="chat.unread_count ? `Непрочитанных сообщений: ${chat.unread_count}` : 'Есть непрочитанные сообщения'" :aria-label="chat.unread_count ? `Непрочитанных сообщений: ${chat.unread_count}` : 'Есть непрочитанные сообщения'">{{ chat.unread_count || '•' }}</b><v-icon v-if="chat.entity" icon="mdi-account-check-outline" size="11" color="green-lighten-1" :title="chat.entity.name" /><i>{{ chat.chat_type || 'u2i' }}</i></span>
+                        <span class="chat-row__meta"><time>{{ formatDate(chat.last_message_at, true) }}</time><b v-if="chat.is_unread" :title="chat.unread_count ? `Непрочитанных сообщений: ${chat.unread_count}` : 'Есть непрочитанные сообщения'" :aria-label="chat.unread_count ? `Непрочитанных сообщений: ${chat.unread_count}` : 'Есть непрочитанные сообщения'">{{ chat.unread_count || '•' }}</b><v-icon v-if="chat.waiting_since" class="waiting-indicator" icon="mdi-clock-outline" size="14" :title="`В листе ожидания с ${formatDate(chat.waiting_since)}`" aria-label="В листе ожидания" /><v-icon v-if="chat.entity" icon="mdi-account-check-outline" size="11" color="green-lighten-1" :title="chat.entity.name" /><i>{{ chat.chat_type || 'u2i' }}</i></span>
                     </button>
                     <div v-if="!chats.length && !chatsLoading" class="pane-empty">
                         <v-icon :icon="filters.unread_only ? 'mdi-message-check-outline' : 'mdi-forum-remove-outline'" size="36" />
@@ -545,10 +603,23 @@ onBeforeUnmount(() => {
             <main class="conversation-pane">
                 <template v-if="selectedChat">
                     <header class="conversation-header">
-                        <div><strong>{{ selectedChat.peer_name || selectedChat.title }}</strong><span>{{ selectedChat.entity?.name || 'Entity не связана' }} · {{ selectedChat.title }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений · архив {{ formatDate(selectedChat.last_synced_at) }}</span></div>
-                        <v-btn icon="mdi-refresh" size="small" variant="text" :loading="chatLoading" title="Обновить из Avito" @click="refreshSelectedChat" />
-                        <v-btn icon="mdi-check-all" size="small" variant="text" title="Отметить прочитанным" @click="markRead()" />
-                        <v-menu>
+                        <div><strong>{{ selectedChat.peer_name || selectedChat.title }}</strong><span v-if="embedded">{{ selectedChat.title || 'Переписка Avito' }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений</span><span v-else>{{ selectedChat.entity?.name || 'Entity не связана' }} · {{ selectedChat.title }} · {{ selectedChat.messages_count || messagesMeta.total || 0 }} сообщений · архив {{ formatDate(selectedChat.last_synced_at) }}</span></div>
+                        <v-btn
+                            class="waiting-toggle"
+                            :icon="selectedChat.waiting_since ? 'mdi-clock-check-outline' : 'mdi-clock-plus-outline'"
+                            :variant="selectedChat.waiting_since ? 'tonal' : 'text'"
+                            :color="selectedChat.waiting_since ? 'pink-lighten-2' : undefined"
+                            size="small"
+                            :loading="waitingSaving === selectedChat.id"
+                            :disabled="waitingSaving !== null"
+                            :aria-pressed="Boolean(selectedChat.waiting_since)"
+                            :title="selectedChat.waiting_since ? 'Убрать из листа ожидания' : 'В лист ожидания — ответить позже'"
+                            :aria-label="selectedChat.waiting_since ? 'Убрать из листа ожидания' : 'В лист ожидания — ответить позже'"
+                            @click="toggleWaiting"
+                        />
+                        <v-btn icon="mdi-refresh" size="small" variant="text" :loading="chatLoading" title="Обновить из Avito" aria-label="Обновить из Avito" @click="refreshSelectedChat" />
+                        <v-btn icon="mdi-check-all" size="small" variant="text" title="Отметить прочитанным" aria-label="Отметить прочитанным" @click="markRead()" />
+                        <v-menu v-if="!embedded">
                             <template #activator="{ props: menuProps }"><v-btn v-bind="menuProps" icon="mdi-account-cancel-outline" color="error" size="small" variant="text" /></template>
                             <v-list density="compact"><v-list-subheader>Причина блокировки</v-list-subheader><v-list-item v-for="reason in [{ id: 1, title: 'Спам' }, { id: 2, title: 'Мошенничество' }, { id: 3, title: 'Оскорбления' }, { id: 4, title: 'Другая' }]" :key="reason.id" :title="reason.title" @click="blacklist(reason.id)" /></v-list>
                         </v-menu>
@@ -560,7 +631,7 @@ onBeforeUnmount(() => {
                             <div v-if="attachment(message, 'image')" class="message-image"><img :src="attachment(message, 'image').url" alt="Изображение из архива Avito" loading="lazy"></div>
                             <audio v-if="attachment(message, 'voice')" :src="attachment(message, 'voice').url" controls preload="none" />
                             <p v-if="message.type !== 'image' || !attachment(message, 'image')">{{ messageText(message) }}</p>
-                            <div v-if="message.contact_candidates?.length" class="message-candidates">
+                            <div v-if="!embedded && message.contact_candidates?.length" class="message-candidates">
                                 <button v-for="candidate in message.contact_candidates" :key="candidate.id" type="button" :class="`is-${candidate.type}`" @click="handleContactCandidate(candidate)">
                                     <v-icon :icon="candidate.type === 'phone' ? 'mdi-phone-plus-outline' : 'mdi-map-marker-plus-outline'" size="11" />
                                     {{ candidate.type === 'phone' ? candidate.normalized_value : 'Сохранить адрес' }}
@@ -575,20 +646,20 @@ onBeforeUnmount(() => {
 
                     <footer class="composer">
                         <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="sendImage">
-                        <v-btn icon="mdi-package-variant-closed-plus" size="small" variant="text" :disabled="sending" title="Выбрать товар из Пищепром-Сервера" @click="openCrmCatalog" />
-                        <v-btn icon="mdi-text-box-multiple-outline" size="small" variant="text" :disabled="sending" title="Шаблоны сообщений" @click="openMessageTemplates" />
-                        <v-btn icon="mdi-robot-outline" size="small" variant="text" :disabled="sending" title="Автоответы и безопасная проверка" @click="openAutoReplies" />
-                        <v-btn icon="mdi-image-plus-outline" size="small" variant="text" :disabled="sending" title="Отправить изображение" @click="selectImage" />
+                        <v-btn v-if="!embedded" icon="mdi-package-variant-closed-plus" size="small" variant="text" :disabled="sending" title="Выбрать товар из Пищепром-Сервера" @click="openCrmCatalog" />
+                        <v-btn v-if="!embedded" icon="mdi-text-box-multiple-outline" size="small" variant="text" :disabled="sending" title="Шаблоны сообщений" @click="openMessageTemplates" />
+                        <v-btn v-if="!embedded" icon="mdi-robot-outline" size="small" variant="text" :disabled="sending" title="Автоответы и безопасная проверка" @click="openAutoReplies" />
+                        <v-btn icon="mdi-image-plus-outline" size="small" variant="text" :disabled="sending" title="Отправить изображение" aria-label="Отправить изображение" @click="selectImage" />
                         <v-textarea ref="composerInput" v-model="composerText" :placeholder="composerTemplateName ? `Шаблон: ${composerTemplateName}` : 'Сообщение до 1000 символов'" rows="1" max-rows="4" auto-grow density="compact" variant="solo-filled" hide-details maxlength="1000" @keydown.ctrl.enter.prevent="sendText" />
                         <span :title="composerTemplateName ? `Используется шаблон «${composerTemplateName}»` : ''">{{ composerText.length }}/1000<b v-if="composerTemplateId">Ш</b></span>
-                        <v-btn icon="mdi-send" color="deep-purple-lighten-1" size="small" :loading="sending" :disabled="!canSend" @click="sendText" />
+                        <v-btn icon="mdi-send" :color="embedded ? 'pink-darken-1' : 'deep-purple-lighten-1'" size="small" :loading="sending" :disabled="!canSend" title="Отправить сообщение (Ctrl+Enter)" aria-label="Отправить сообщение" @click="sendText" />
                     </footer>
                 </template>
-                <div v-else class="conversation-empty"><v-icon icon="mdi-message-text-outline" size="48" /><strong>Выберите переписку</strong><span>Здесь доступны отправка текста и изображений, удаление, прочтение и блокировка.</span></div>
+                <div v-else class="conversation-empty"><v-icon icon="mdi-message-text-outline" size="48" /><strong>Выберите переписку</strong><span>{{ embedded ? 'Выберите чат в листе ожидания, чтобы прочитать сообщения и ответить.' : 'Здесь доступны отправка текста и изображений, удаление, прочтение и блокировка.' }}</span></div>
             </main>
 
             <AvitoCrmPanel
-                v-if="selectedChat"
+                v-if="selectedChat && !embedded"
                 ref="crmPanel"
                 class="messenger-details-pane"
                 :chat="selectedChat"
@@ -600,7 +671,7 @@ onBeforeUnmount(() => {
                 @template-sent="handleTemplateSent"
             />
 
-            <aside v-else class="messenger-info-pane messenger-details-pane">
+            <aside v-else-if="!embedded" class="messenger-info-pane messenger-details-pane">
                 <section><span class="info-eyebrow">Локальный архив</span><dl><dt>Аккаунтов</dt><dd>{{ overview.counts.accounts || 0 }}</dd><dt>Чатов</dt><dd>{{ overview.counts.chats || 0 }}</dd><dt>Сообщений</dt><dd>{{ overview.counts.messages || 0 }}</dd><dt>Вложений</dt><dd>{{ overview.counts.attachments || 0 }}</dd></dl></section>
                 <section><span class="info-eyebrow">Realtime</span><strong>{{ subscriptions.length ? 'Webhook V3 активен' : 'Webhook не найден' }}</strong><small>{{ subscriptions.length ? `${subscriptions.length} подписок Avito` : 'Плановая синхронизация выполняется каждые 5 минут' }}</small><div><v-btn v-if="!subscriptions.length" size="x-small" variant="tonal" @click="changeSubscription(true)">Подключить</v-btn><v-btn v-else size="x-small" color="error" variant="text" @click="changeSubscription(false)">Отключить</v-btn></div></section>
                 <section><span class="info-eyebrow">Возможности Avito</span><small>API разрешает создать и удалить сообщение, но не предоставляет редактирование уже отправленного текста. Удаление доступно не позднее часа.</small></section>
@@ -628,6 +699,7 @@ onBeforeUnmount(() => {
 .chat-row { display: grid; width: 100%; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px 9px; color: #e9ebff; text-align: left; border: 0; border-bottom: 1px solid #292d45; background: transparent; cursor: pointer; }.chat-row:hover { background: #1d2038; }.chat-row.is-active { box-shadow: inset 3px 0 #9378ff; background: #24213f; }.chat-row.is-unread .chat-row__body strong { color: #fff; }
 .chat-row__body { min-width: 0; }.chat-row__body strong, .chat-row__body small, .chat-row__body em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.chat-row__body strong { font-size: 12px; }.chat-row__body small { margin-top: 3px; color: #9ca2c1; font-size: 11px; }.chat-row__body em { margin-top: 3px; color: #6f7596; font-size: 9px; font-style: normal; }
 .chat-row__meta { display: grid; justify-items: end; gap: 4px; }.chat-row__meta time { color: #747b9e; font-size: 8px; }.chat-row__meta b { display: grid; min-width: 18px; height: 18px; place-items: center; color: #fff; font-size: 9px; border-radius: 20px; background: #7957e8; }.chat-row__meta i { color: #6f7596; font-size: 8px; font-style: normal; text-transform: uppercase; }
+.waiting-indicator, .waiting-toggle { color: #ef9bbb; }
 .conversation-pane { display: flex; flex-direction: column; background: radial-gradient(circle at 50% 0, rgba(100, 70, 190, .08), transparent 45%), #101324; }
 .conversation-header { display: flex; flex: 0 0 auto; min-height: 50px; align-items: center; gap: 3px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1a1d33; }.conversation-header > div:first-child { min-width: 0; flex: 1; }.conversation-header strong, .conversation-header span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conversation-header strong { font-size: 13px; }.conversation-header span { margin-top: 3px; color: #858baa; font-size: 10px; }
 .message-stream { display: flex; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; flex: 1; flex-direction: column; gap: 5px; padding: 12px 14px; }.older-button { align-self: center; margin: 3px 0 9px; }
@@ -646,4 +718,23 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 600px) { .messenger-toolbar > .archive-sync { min-width: 32px; width: 32px; padding: 0; }.sync-label { display: none; }.messenger-toolbar > .archive-refresh { width: 32px; height: 32px; } }
 @media (max-width: 480px) { .messenger-toolbar > .v-select { max-width: 128px; }.sync-progress { flex: 0 0 13px; }.sync-progress-label { display: none; }.realtime-indicator { max-width: 86px; font-size: 9px; }.realtime-short-label { overflow: hidden; text-overflow: ellipsis; }.messenger-toolbar > .v-btn { padding-inline: 7px; } }
+.messenger-module.is-embedded { height: 420px; min-height: 320px; color: #f1edf0; border-color: #51434b; border-radius: 7px; background: #25262b; }
+.is-embedded .messenger-layout { display: flex; }
+.is-embedded .conversation-pane { display: flex; width: 100%; height: 100%; background: #25262b; }
+.is-embedded .conversation-header { min-height: 43px; padding: 5px 7px; border-color: #4a4047; background: #303036; }
+.is-embedded .conversation-header strong { font-size: 12px; }
+.is-embedded .conversation-header span { color: #b3a7af; font-size: 9px; }
+.is-embedded .conversation-header > .v-btn { flex-shrink: 0; width: 30px; height: 30px; }
+.is-embedded .message-stream { gap: 5px; padding: 9px; }
+.is-embedded .message-bubble { max-width: 88%; border-color: #49454c; background: #35353c; }
+.is-embedded .message-bubble.is-out { border-color: #8c526b; background: #593c4a; }
+.is-embedded .message-bubble p { color: #f7f0f4; }
+.is-embedded .message-bubble footer { color: #c1aeba; }
+.is-embedded .composer { grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px; padding: 6px; border-color: #4a4047; background: #303036; }
+.is-embedded .composer > span { color: #b3a7af; }
+.is-embedded .composer :deep(.v-field) { background: #3b373e; }
+.is-embedded .composer :deep(textarea) { color: #f7f0f4; caret-color: #ef9bbb; }
+.is-embedded .composer :deep(textarea::placeholder) { color: #c1aeba; opacity: 1; }
+.is-embedded .messenger-loading, .is-embedded .conversation-empty, .is-embedded .pane-empty { color: #b7a7b1; }
+.is-embedded .conversation-empty strong { color: #ecc5d6; }
 </style>

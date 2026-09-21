@@ -79,6 +79,7 @@ class AvitoMessengerController extends Controller
             'account_id' => ['nullable', 'integer', 'exists:avito_messenger_accounts,id'],
             'search' => ['nullable', 'string', 'max:200'],
             'unread_only' => ['nullable', 'boolean'],
+            'waiting_only' => ['nullable', 'boolean'],
             'chat_type' => ['nullable', 'in:u2i,u2u,a2u'],
             'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
         ]);
@@ -97,6 +98,9 @@ class AvitoMessengerController extends Controller
         }
         if (! empty($validated['unread_only'])) {
             $query->where('is_unread', true);
+        }
+        if (! empty($validated['waiting_only'])) {
+            $query->whereNotNull('waiting_since');
         }
         if (! empty($validated['chat_type'])) {
             $query->where('chat_type', $validated['chat_type']);
@@ -355,6 +359,8 @@ class AvitoMessengerController extends Controller
             'last_message_preview' => $chat->last_message_preview,
             'is_unread' => $chat->is_unread,
             'unread_count' => $chat->unread_count,
+            'waiting_since' => $chat->waiting_since,
+            'waiting_note' => $chat->waiting_note,
             'messages_count' => $chat->messages_count ?? null,
             'remote_created_at' => $chat->remote_created_at,
             'remote_updated_at' => $chat->remote_updated_at,

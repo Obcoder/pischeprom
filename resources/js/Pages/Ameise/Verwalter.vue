@@ -4,6 +4,7 @@ import { useHead } from '@unhead/vue'
 import { route } from 'ziggy-js'
 import { computed, ref } from 'vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import AvitoWaitingList from '@/Components/Avito/AvitoWaitingList.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -124,7 +125,7 @@ useHead({
 </script>
 
 <template>
-    <main class="ameise-dashboard">
+    <main class="ameise-dashboard" :class="{ 'ameise-dashboard--without-orders': !canViewOrders }">
         <section class="summary-block" aria-labelledby="active-leads-title">
             <header class="summary-block__header">
                 <div>
@@ -283,6 +284,8 @@ useHead({
                 </table>
             </div>
         </section>
+
+        <AvitoWaitingList class="avito-waiting-summary" />
     </main>
 </template>
 
@@ -291,12 +294,21 @@ useHead({
     display: grid;
     align-self: stretch;
     align-content: start;
-    grid-template-columns: minmax(0, 25%) minmax(0, 30%);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(400px, 1.7fr);
     gap: 18px;
     width: 100%;
     min-height: calc(100vh - 48px);
     padding: 18px;
     background: #f6f7f9;
+}
+
+.ameise-dashboard--without-orders {
+    grid-template-columns: minmax(0, 1fr) minmax(400px, 1.3fr);
+}
+
+.avito-waiting-summary {
+    grid-column: -2 / -1;
+    grid-row: 1;
 }
 
 .summary-block {
@@ -305,6 +317,7 @@ useHead({
     overflow: hidden;
     width: 100%;
     height: 50vh;
+    min-height: 380px;
     border: 1px solid #d7dce2;
     border-radius: 8px;
     background: #ffffff;
@@ -654,10 +667,29 @@ useHead({
     text-align: center !important;
 }
 
+@media (min-width: 701px) and (max-width: 1179px) {
+    .ameise-dashboard,
+    .ameise-dashboard--without-orders {
+        grid-template-columns: minmax(0, 1fr) minmax(350px, 1.2fr);
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .order-summary {
+        grid-column: 1;
+        grid-row: 2;
+    }
+}
+
 @media (max-width: 700px) {
     .ameise-dashboard {
         grid-template-columns: minmax(0, 1fr);
         padding: 10px;
+    }
+
+    .avito-waiting-summary {
+        grid-column: 1;
+        grid-row: 1;
     }
 
     .summary-block__header {
