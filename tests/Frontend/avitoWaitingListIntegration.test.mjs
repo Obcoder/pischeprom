@@ -17,7 +17,7 @@ async function component(name) {
         compilerOptions: { bindingMetadata: compiled.bindings } })
     assert.deepEqual(template.errors, [])
     let script = compiled.content
-        .replace(/import (AvitoMessages|AvitoCrmPanel) from [^\n]+/g, 'const $1 = {}')
+        .replace(/import (AvitoMessages|AvitoCrmPanel) from [^\n]+/g, 'const $1 = { render: () => null }')
         .replace(/import \{ useAvitoRealtime \} from [^\n]+/, `
 const useAvitoRealtime = (options) => {
     globalThis.__waitingHarness.subscriptions.push(options)
@@ -25,15 +25,21 @@ const useAvitoRealtime = (options) => {
 }`)
         .replace(/from (['"])(vue|axios|pinia)\1/g, (_match, _quote, dependency) => `from '${import.meta.resolve(dependency)}'`)
         .replace(/from (['"])\.\.\/\.\.\/Stores\/avito.js\1/g, `from '${new URL('../../resources/js/Stores/avito.js', import.meta.url)}'`)
-    script += '\nComponent.render = () => null\nexport default Component\n'
-    return (await import(`data:text/javascript;base64,${Buffer.from(script).toString('base64')}`)).default
+    script += '\n' + template.code.replace('export function render', 'function render')
+        .replace(/from (['"])vue\1/g, `from '${import.meta.resolve('vue')}'`)
+    script += '\nComponent.testRender = render\nComponent.render = () => null\nexport default Component\n'
+    const result = (await import(`data:text/javascript;base64,${Buffer.from(script).toString('base64')}`)).default
+    result.testComponents = Object.fromEntries([...descriptor.template.content.matchAll(/<(v-[\w-]+)/g)]
+        .map(([, tag]) => [tag, (props, { slots }) => h(tag === 'v-btn' ? 'button' : 'div', props, slots.default?.())]))
+    return result
 }
 
 const WaitingList = await component('AvitoWaitingList')
 const Messages = await component('AvitoMessages')
 const ChatDialog = await component('AvitoChatDialog')
 const renderer = createRenderer({
-    createElement: (type) => ({ type }), createText: (text) => ({ text }), createComment: () => ({}),
+    createElement: (type) => ({ type, scrollHeight: 1000, scrollTop: 600, clientHeight: 400, getClientRects: () => [{}] }),
+    createText: (text) => ({ text }), createComment: () => ({}),
     insert() {}, remove() {}, setText() {}, setElementText() {}, patchProp() {},
     parentNode: () => null, nextSibling: () => null,
 })
@@ -53,19 +59,25 @@ async function until(predicate) {
 const chat = (id = 7, extra = {}) => ({ id, external_chat_id: `external-${id}`, title: `Chat ${id}`,
     is_unread: false, unread_count: 0, waiting_since: '2026-09-21T09:00:00Z', waiting_note: 'Уточнить цену', ...extra })
 const page = (items) => ({ data: items, current_page: 1, last_page: 1, total: items.length, per_page: 10 })
-function mount(t, Component, props = {}) {
+function mount(t, Component, props = {}, { renderTemplate = false, visible = false } = {}) {
     const store = useAvitoStore(createPinia())
     globalThis.__waitingHarness = { store, subscriptions: [] }
     const originalDocument = globalThis.document
     const originalWindow = globalThis.window
-    globalThis.document = { visibilityState: 'hidden', addEventListener() {}, removeEventListener() {}, hasFocus: () => false }
-    globalThis.window = { addEventListener() {}, removeEventListener() {} }
+    globalThis.document = Object.assign(new EventTarget(), { visibilityState: visible ? 'visible' : 'hidden', hasFocus: () => visible })
+    globalThis.window = new EventTarget()
     const root = {}
+    const appContext = renderer.createApp({})._context
+    appContext.components = Component.testComponents
+    const Target = renderTemplate ? { ...Component, render: Component.testRender } : Component
+    let currentVNode
     const events = { errors: [], waiting: [], updated: [] }
     const render = (nextProps = props) => {
-        const vnode = h(Component, { ...nextProps, onError: (error) => events.errors.push(error),
+        const vnode = h(Target, { ...nextProps, onError: (error) => events.errors.push(error),
             onWaitingChange: (value) => events.waiting.push(value), onChatUpdated: (value) => events.updated.push(value) })
+        vnode.appContext = appContext
         renderer.render(vnode, root)
+        currentVNode = vnode
         return vnode.component.setupState
     }
     const state = render()
@@ -77,7 +89,17 @@ function mount(t, Component, props = {}) {
         globalThis.window = originalWindow
         delete globalThis.__waitingHarness
     })
-    return { state, store, events, render, unmount }
+    return { state, store, events, render, unmount, get tree() { return currentVNode.component.subTree } }
+}
+
+function findVNode(node, predicate) {
+    if (!node || typeof node !== 'object') return
+    if (predicate(node)) return node
+    if (node.component) return findVNode(node.component.subTree, predicate)
+    for (const child of Array.isArray(node.children) ? node.children : []) {
+        const match = findVNode(child, predicate)
+        if (match) return match
+    }
 }
 
 test('dashboard adds, edits and removes a waiter without replacing unrelated messenger state', async (t) => {
@@ -252,6 +274,122 @@ test('full embedded realtime only refreshes its own conversation and preserves a
     assert.equal(store.composerText, 'Мой черновик')
     assert.deepEqual(store.messages.map((item) => item.id), [1, 2])
     assert.equal(events.updated.at(-1).unread_count, 1)
+})
+
+test('entity correspondence stays unread through viewing, updates and sending until the header read button is clicked', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    let summary = chat(7, { is_unread: true, unread_count: 1, last_message_id: 'message-1' })
+    const messages = [{ id: 1, external_message_id: 'message-1', text: 'Вопрос', direction: 'in', is_read: false }]
+    const reads = []
+    t.mock.method(axios, 'get', async (url) => {
+        if (url.endsWith('/control')) return { data: { settings: {} } }
+        return { data: url.endsWith('/updates')
+            ? { selected: { chat: { ...summary }, messages: messages.map((message) => ({ ...message })) } }
+            : { chat: { ...summary }, messages: page(messages.map((message) => ({ ...message }))) } }
+    })
+    t.mock.method(axios, 'post', async (url, body) => {
+        if (url.endsWith('/read')) {
+            reads.push(body)
+            summary = { ...summary, is_unread: false, unread_count: 0 }
+            messages.forEach((message) => { message.is_read = true })
+            return { data: { chat: { ...summary }, read_through_id: messages.at(-1).id } }
+        }
+        if (url.endsWith('/refresh')) return { data: { chat: { ...summary } } }
+        assert.ok(url.endsWith('/messages') || url.endsWith('/messages/image'))
+        const item = { id: messages.length + 1, text: body.text || 'Изображение', direction: 'out' }
+        messages.push(item)
+        return { data: { item } }
+    })
+    const mounted = mount(t, Messages, { embedded: true, fullFeatured: true, autoMarkRead: false, chat: summary },
+        { renderTemplate: true, visible: true })
+    const { state, store, events } = mounted
+    const remainsUnread = async () => {
+        await nextTick()
+        t.mock.timers.tick(1000)
+        await flush()
+        assert.equal(reads.length, 0)
+        assert.equal(store.selectedChat.is_unread, true)
+        assert.equal(store.messages[0].is_read, false)
+    }
+    await until(() => !store.loading)
+    assert.ok(state.messageStream.getClientRects().length)
+    assert.equal(state.atBottom(), true)
+    await remainsUnread()
+
+    state.messageStream.scrollTop = 0
+    state.trackStreamScroll()
+    state.messageStream.scrollTop = 600
+    state.trackStreamScroll()
+    document.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new Event('focus'))
+    await remainsUnread()
+
+    messages.push({ id: 2, external_message_id: 'message-2', text: 'Ещё вопрос', direction: 'in', is_read: false })
+    summary = { ...summary, unread_count: 2, last_message_id: 'message-2' }
+    await state.reloadRealtime({ reason: 'change', signal: new AbortController().signal,
+        events: [{ changes: { chat_ids: [7], message_ids: [2] } }] })
+    assert.equal(store.messages.length, 2)
+    await remainsUnread()
+    await state.refreshArchive()
+    await state.refreshSelectedChat()
+    await remainsUnread()
+
+    store.composerText = 'Ответ из Entities'
+    await state.sendText()
+    await state.sendImage({ target: { files: [new Blob(['image'], { type: 'image/png' })], value: 'photo.png' } })
+    const templateMessage = { id: 5, text: 'Ответ по шаблону', direction: 'out' }
+    messages.push(templateMessage)
+    await state.handleTemplateSent(templateMessage)
+    await remainsUnread()
+
+    const readButton = findVNode(mounted.tree, (node) => node.type === 'button' && node.props?.icon === 'mdi-check-all')
+    assert.ok(readButton, 'The conversation header must provide the explicit read action')
+    await readButton.props.onClick()
+    await nextTick()
+    assert.deepEqual(reads, [{ through_message_id: undefined }])
+    assert.equal(store.selectedChat.is_unread, false)
+    assert.equal(store.messages[0].is_read, true)
+    assert.equal(events.updated.at(-1).is_unread, false)
+    assert.deepEqual(events.errors, [])
+})
+
+test('automatic acknowledgement remains enabled by default in the messenger and waiting list', async (t) => {
+    for (const embedded of [false, true]) {
+        await t.test(embedded ? 'waiting list' : 'messenger page', async (t) => {
+            t.mock.timers.enable({ apis: ['setTimeout'] })
+            let summary = chat(7, { is_unread: true, unread_count: 1, last_message_id: 'message-1' })
+            const reads = []
+            t.mock.method(axios, 'get', async (url) => {
+                if (url.endsWith('/overview')) return { data: { counts: {}, accounts: [], latest_runs: [] } }
+                if (url.endsWith('/chats')) return { data: page([summary]) }
+                if (url.endsWith('/subscriptions')) return { data: { items: [] } }
+                return { data: url.endsWith('/updates') ? { selected: { chat: summary, messages: [] } }
+                    : { chat: summary, messages: page([{ id: 1, external_message_id: 'message-1', direction: 'in', is_read: false }]) } }
+            })
+            t.mock.method(axios, 'post', async (url, body) => {
+                assert.equal(url, '/api/avito/messenger/chats/7/read')
+                reads.push(body)
+                summary = { ...summary, is_unread: false, unread_count: 0 }
+                return { data: { chat: summary, read_through_id: 1 } }
+            })
+            const { state, store } = mount(t, Messages, { embedded, chat: summary }, { renderTemplate: true, visible: true })
+            await until(() => !store.loading)
+            if (!embedded) await state.openChat(summary)
+            await nextTick()
+            assert.equal(state.canAcknowledgeVisibleChat(), true)
+            t.mock.timers.tick(1000)
+            await until(() => !store.selectedChat.is_unread)
+            assert.deepEqual(reads, [{ through_message_id: 1 }])
+            assert.equal(store.messages[0].is_read, true)
+        })
+    }
+})
+
+test('entity chat dialog disables automatic read receipts in its messenger', async (t) => {
+    const mounted = mount(t, ChatDialog, { modelValue: true, chat: chat() }, { renderTemplate: true })
+    const messenger = findVNode(mounted.tree, (node) => node.props?.class === 'avito-chat-dialog__messages')
+    assert.ok(messenger)
+    assert.equal(messenger.props['auto-mark-read'], false)
 })
 
 test('chat dialog clears previous feedback when reopened for another entity', async (t) => {

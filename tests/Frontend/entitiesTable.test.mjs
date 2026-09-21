@@ -113,3 +113,45 @@ test('absence filters count as active and all new activity columns support sorti
     assert.ok(!state.headers.some(header => header.key === 'sales_max_date'))
     assert.ok(state.sortOptions.some(option => option.value === 'sales_max_date'))
 })
+
+test('geography keeps every address, postcode, type, city and entity country without duplicate city rows', () => {
+    const { filters } = useEntityFilters()
+    const { state } = harness('EntityTable', { filters, meta: {} })
+    const city = { id: 10, name: 'Калуга', region: { id: 20, name: 'Калужская область', country: { id: 30, name: 'Россия' } } }
+    const otherCity = { id: 11, name: 'Минск', region: { id: 21, name: 'Минская область', country: { id: 31, name: 'Беларусь' } } }
+    const buildings = [
+        { id: 1, city, address: 'ул. Ленина, 1', postcode: '248000', building_type: { id: 1, name: 'Офис' } },
+        { id: 2, city, address: 'ул. Складская, 2', postcode: '248001', building_type: { id: 2, name: 'Склад' } },
+        { id: 3, address: 'Рабочий адрес без города', building_type: { id: 3, name: 'Рабочий' } },
+    ]
+    const groups = state.geographyGroups({ country: { id: 32, name: 'Казахстан' }, cities: [{ id: 10, name: 'Калуга' }, otherCity], buildings })
+    assert.equal(groups.length, 4)
+    assert.equal(groups[0].country, 'Казахстан')
+    const kaluga = groups.find(group => group.city === 'Калуга')
+    assert.equal(kaluga.country, 'Россия')
+    assert.equal(kaluga.region, 'Калужская область')
+    assert.deepEqual(kaluga.addresses, buildings.slice(0, 2))
+    assert.equal(groups.find(group => group.city === 'Минск').country, 'Беларусь')
+    assert.equal(groups.find(group => !group.city && group.addresses.length).addresses[0].address, 'Рабочий адрес без города')
+    assert.deepEqual(state.geographyGroups({}), [])
+    assert.equal(state.geographyGroups({ country: city.region.country, cities: [city], buildings: [buildings[0]] }).length, 1)
+    assert.equal(state.headers[state.headers.findIndex(header => header.key === 'classification_name') + 1].key, 'avito_chats_count')
+})
+
+test('country, region, city and address remain independent filters in requests and reset together', async () => {
+    const { state, requests, dispose } = harness()
+    Object.assign(state.filters, { country_ids: [1], region_ids: [2], city_ids: [3], building_ids: [4] })
+    const load = state.loadItems()
+    for (const [key, id] of [['country_ids', 1], ['region_ids', 2], ['city_ids', 3], ['building_ids', 4]]) {
+        assert.deepEqual(requests[0].params[key], [id])
+    }
+    const table = harness('EntityTable', { filters: state.filters, meta: {} })
+    assert.equal(table.state.activeFiltersCount.value, 4)
+    requests[0].resolve(result([]))
+    await load
+    const reset = state.handleResetFilters()
+    for (const key of ['country_ids', 'region_ids', 'city_ids', 'building_ids']) assert.deepEqual(requests[1].params[key], [])
+    requests[1].resolve(result([]))
+    await reset
+    dispose()
+})

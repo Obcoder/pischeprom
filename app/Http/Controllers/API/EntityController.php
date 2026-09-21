@@ -50,6 +50,7 @@ class EntityController extends Controller
         $filters = [
             'entity_classification_ids' => $request->input('entity_classification_ids', []),
             'country_ids' => $request->input('country_ids', []),
+            'region_ids' => $request->input('region_ids', []),
             'city_ids' => $request->input('city_ids', []),
             'building_ids' => $request->input('building_ids', []),
             'email_ids' => $request->input('email_ids', []),

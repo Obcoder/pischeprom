@@ -32,6 +32,10 @@ class EntityResource extends JsonResource
                 'region' => [
                     'id' => $item->region?->id,
                     'name' => $item->region?->name,
+                    'country' => [
+                        'id' => $item->region?->country?->id,
+                        'name' => $item->region?->country?->name,
+                    ],
                 ],
             ])),
 
@@ -50,12 +54,20 @@ class EntityResource extends JsonResource
                 'city_id' => $item->city_id,
                 'address' => $item->address,
                 'postcode' => $item->postcode,
+                'building_type' => [
+                    'id' => $item->buildingType?->id,
+                    'name' => $item->buildingType?->name,
+                ],
                 'city' => [
                     'id' => $item->city?->id,
                     'name' => $item->city?->name,
                     'region' => [
                         'id' => $item->city?->region?->id,
                         'name' => $item->city?->region?->name,
+                        'country' => [
+                            'id' => $item->city?->region?->country?->id,
+                            'name' => $item->city?->region?->country?->name,
+                        ],
                     ],
                 ],
             ])),

@@ -38,18 +38,15 @@ const emit = defineEmits([
 const { formatPhones } = usePhoneFormatter()
 
 const headers = [
-    { title: 'Название', key: 'name', sortable: true, width: '18%' },
-    { title: 'Класс', key: 'classification_name', sortable: true, width: '11%' },
-    { title: 'Регион', key: 'region_names', sortable: true, width: '12%' },
-    { title: 'Города', key: 'city_names', sortable: true, width: '11%' },
-    { title: 'Дом', key: 'buildings', sortable: true, width: '13%' },
-    { title: 'Тел.', key: 'telephones_display', sortable: true, width: '10%' },
+    { title: 'Название', key: 'name', sortable: true, width: '20%' },
+    { title: 'Класс', key: 'classification_name', sortable: true, width: '10%' },
     { title: 'Авито', key: 'avito_chats_count', sortable: true, width: 94 },
+    { title: 'География · адрес', key: 'geography', sortable: false, width: '36%' },
+    { title: 'Тел.', key: 'telephones_display', sortable: true, width: '10%' },
     { title: 'Продажи', key: 'sales_count', sortable: true, width: 88 },
     { title: 'Заказы', key: 'orders_count', sortable: true, width: 88 },
     { title: 'Purchase', key: 'purchases_max_date', sortable: true, width: 92 },
     { title: 'Создан', key: 'created_at', sortable: true, width: 82 },
-    { title: 'Страна', key: 'country_name', sortable: true, width: '9%' },
     { title: '', key: 'actions', sortable: false, width: 136 },
 ]
 
@@ -66,7 +63,7 @@ const sortOptions = [
     { title: 'Классификация', value: 'classification_name' },
     { title: 'Регион', value: 'region_names' },
     { title: 'Город', value: 'city_names' },
-    { title: 'Дом', value: 'buildings' },
+    { title: 'Адрес', value: 'buildings' },
     { title: 'Телефон', value: 'telephones_display' },
     { title: 'Страна', value: 'country_name' },
     { title: 'ИНН', value: 'INN' },
@@ -127,6 +124,7 @@ const activeFiltersCount = computed(() => {
     return [
         ...(props.filters.entity_classification_ids || []),
         ...(props.filters.country_ids || []),
+        ...(props.filters.region_ids || []),
         ...(props.filters.city_ids || []),
         ...(props.filters.building_ids || []),
         ...(props.filters.email_ids || []),
@@ -149,10 +147,52 @@ const goToPage = (p) => {
 
 const buildingTitle = (building) => {
     return [
+        building.city?.region?.country?.name,
+        building.city?.region?.name,
         building.city?.name,
         building.address,
         building.postcode,
+        building.building_type?.name,
     ].filter(Boolean).join(' · ')
+}
+
+const cityTitle = (city) => [city.name, city.region?.name, city.region?.country?.name].filter(Boolean).join(' · ')
+const regionTitle = (region) => [region.name, region.country?.name].filter(Boolean).join(' · ')
+
+const geographyGroups = (entity) => {
+    const groups = new Map()
+    const groupFor = (city) => {
+        const key = city?.id ? `city-${city.id}` : JSON.stringify([city?.name, city?.region?.name, city?.region?.country?.name])
+        if (!groups.has(key)) {
+            groups.set(key, {
+                key,
+                country: city?.region?.country?.name || '',
+                region: city?.region?.name || '',
+                city: city?.name || '',
+                addresses: [],
+            })
+        }
+        const group = groups.get(key)
+        group.country ||= city?.region?.country?.name || ''
+        group.region ||= city?.region?.name || ''
+        group.city ||= city?.name || ''
+        return group
+    }
+
+    for (const city of entity.cities || []) {
+        if (city?.id || city?.name || city?.region?.name || city?.region?.country?.name) groupFor(city)
+    }
+    for (const building of entity.buildings || []) {
+        const group = groupFor(building.city)
+        group.addresses.push(building)
+    }
+
+    const result = [...groups.values()]
+    const country = entity.country?.name || entity.country_name
+    if (country && !result.some(group => group.country === country)) {
+        result.unshift({ key: 'entity-country', country, region: '', city: '', addresses: [] })
+    }
+    return result
 }
 
 const groupLabel = (item) => {
@@ -342,10 +382,26 @@ const openChat = (entity, chat) => emit('open-avito', { entity, chat })
                             </v-col>
 
                             <v-col cols="12" md="4">
-                                <v-select
+                                <v-autocomplete
+                                    v-model="filters.region_ids"
+                                    :items="meta.regions"
+                                    :item-title="regionTitle"
+                                    item-value="id"
+                                    label="Регионы"
+                                    multiple
+                                    chips
+                                    closable-chips
+                                    density="compact"
+                                    clearable
+                                    variant="solo-filled"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-autocomplete
                                     v-model="filters.city_ids"
                                     :items="meta.cities"
-                                    item-title="name"
+                                    :item-title="cityTitle"
                                     item-value="id"
                                     label="Города"
                                     multiple
@@ -358,12 +414,12 @@ const openChat = (entity, chat) => emit('open-avito', { entity, chat })
                             </v-col>
 
                             <v-col cols="12" md="4">
-                                <v-select
+                                <v-autocomplete
                                     v-model="filters.building_ids"
                                     :items="meta.buildings"
                                     :item-title="buildingTitle"
                                     item-value="id"
-                                    label="Здания"
+                                    label="Адреса"
                                     multiple
                                     chips
                                     closable-chips
@@ -521,26 +577,21 @@ const openChat = (entity, chat) => emit('open-avito', { entity, chat })
                     </a>
                 </template>
 
-                <template #item.region_names="{ item }">
-                    <span>{{ item.region_names || '—' }}</span>
-                </template>
-
-                <template #item.city_names="{ item }">
-                    <div v-if="groupByMode === 'city'" class="d-flex flex-column">
-                        <strong>{{ item.city_names || 'Без города' }}</strong>
-                        <span class="text-medium-emphasis">{{ item.name }}</span>
-                    </div>
-                    <span v-else>{{ item.city_names || '—' }}</span>
-                </template>
-
-                <template #item.buildings="{ item }">
-                    <div class="entity-building-list">
-                        <span
-                            v-for="building in item.buildings"
-                            :key="building.id"
-                        >
-                            {{ building.address }}
-                        </span>
+                <template #item.geography="{ item }">
+                    <div class="entity-geography-list">
+                        <div v-for="group in geographyGroups(item)" :key="group.key" class="entity-geography-line">
+                            <span v-if="group.country || group.region || group.city" class="entity-geography-place">
+                                <span v-if="group.country">{{ group.country }}</span>
+                                <span v-if="group.region">{{ group.region }}</span>
+                                <strong v-if="group.city">{{ group.city }}</strong>
+                            </span>
+                            <span v-for="(building, index) in group.addresses" :key="building.id || index" class="entity-geography-address">
+                                <span>{{ building.address || 'Адрес не указан' }}</span>
+                                <small v-if="building.postcode" class="entity-geography-postcode">{{ building.postcode }}</small>
+                                <small v-if="building.building_type?.name" class="entity-address-type" :title="`Класс адреса: ${building.building_type.name}`">{{ building.building_type.name }}</small>
+                            </span>
+                        </div>
+                        <span v-if="!geographyGroups(item).length" class="text-disabled">—</span>
                     </div>
                 </template>
 
@@ -832,20 +883,63 @@ const openChat = (entity, chat) => emit('open-avito', { entity, chat })
     line-height: 1.4;
 }
 
-.entity-building-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    max-width: 210px;
-    max-height: 32px;
-    overflow: hidden;
+.entity-geography-list {
+    display: grid;
+    gap: 2px;
+    min-width: 260px;
+    padding: 3px 0;
 }
 
-.entity-building-list span {
-    color: rgba(255, 255, 255, 0.78);
+.entity-geography-line {
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.entity-geography-place {
+    color: #a8b1bf;
+    font-size: 10px;
+}
+
+.entity-geography-place > * + *::before {
+    content: ' · ';
+    color: #768396;
+}
+
+.entity-geography-place strong {
+    color: #e2eaf4;
+    font-weight: 600;
+}
+
+.entity-geography-address {
+    color: #e2eaf4;
+    font-size: 10px;
+}
+
+.entity-geography-place + .entity-geography-address::before {
+    content: ' — ';
+    color: #768396;
+}
+
+.entity-geography-address + .entity-geography-address::before {
+    content: '; ';
+    color: #768396;
+}
+
+.entity-geography-postcode {
+    margin-left: 4px;
+    color: #a8b1bf;
     font-size: 9px;
-    font-weight: 700;
-    line-height: 1.2;
+}
+
+.entity-address-type {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 3px;
+    border: 1px solid #536075;
+    border-radius: 3px;
+    color: #becbdb;
+    font-size: 8px;
+    line-height: 1.3;
 }
 
 .entity-phone-list {

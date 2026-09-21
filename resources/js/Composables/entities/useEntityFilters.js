@@ -5,6 +5,7 @@ export function useEntityFilters() {
         search: '',
         entity_classification_ids: [],
         country_ids: [],
+        region_ids: [],
         city_ids: [],
         building_ids: [],
         email_ids: [],

@@ -10,6 +10,7 @@ const props = defineProps({
     connections: { type: Array, default: () => [] },
     embedded: { type: Boolean, default: false },
     fullFeatured: { type: Boolean, default: false },
+    autoMarkRead: { type: Boolean, default: true },
     chat: { type: Object, default: null },
 })
 
@@ -287,7 +288,7 @@ async function refreshSelectedChat() {
 }
 
 function canAcknowledgeVisibleChat() {
-    return !disposed && selectedChat.value?.is_unread && !chatLoading.value
+    return props.autoMarkRead && !disposed && selectedChat.value?.is_unread && !chatLoading.value
         && document.visibilityState === 'visible' && document.hasFocus()
         && messageStream.value?.getClientRects().length > 0 && atBottom()
         && (!selectedChat.value.last_message_id
@@ -303,7 +304,7 @@ function scheduleReadReceipt() {
 }
 
 async function markRead(automatic = false) {
-    if (!selectedChat.value) return
+    if (!selectedChat.value || (automatic && !props.autoMarkRead)) return
     const chatId = selectedChat.value.id
     const throughMessageId = automatic ? Math.max(0, ...messages.value.map((message) => message.id)) : undefined
     if (automatic && !throughMessageId) return
@@ -541,7 +542,7 @@ function fail(exception, fallback) {
     if (!disposed && exception?.code !== 'ERR_CANCELED') emit('error', exception?.response?.data?.message || fallback)
 }
 
-watch(() => [selectedChat.value?.is_unread, selectedChat.value?.unread_count, mobilePane.value], () => {
+watch(() => [props.autoMarkRead, selectedChat.value?.is_unread, selectedChat.value?.unread_count, mobilePane.value], () => {
     void nextTick(scheduleReadReceipt)
 })
 onMounted(() => {

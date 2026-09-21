@@ -63,6 +63,17 @@ class EntityTableActivityTest extends TestCase
             $table->timestamp('last_message_at')->nullable();
             $table->text('payload')->nullable();
         });
+        foreach (['entity_classifications', 'countries', 'building_types'] as $name) {
+            Schema::create($name, function (Blueprint $table): void {
+                $table->id();
+                $table->string('name');
+            });
+        }
+        Schema::create('regions', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->unsignedBigInteger('country_id')->nullable();
+        });
 
         $relations = [
             'buildings' => ['building_entities', 'building_id'],
@@ -76,7 +87,23 @@ class EntityTableActivityTest extends TestCase
             Schema::create($name, function (Blueprint $table) use ($name): void {
                 $table->id();
                 if ($name === 'emails') {
+                    $table->string('address')->nullable();
                     $table->softDeletes();
+                } elseif ($name === 'telephones') {
+                    $table->string('number')->nullable();
+                } elseif ($name === 'chats') {
+                    $table->string('numbers')->nullable();
+                } elseif ($name === 'buildings') {
+                    $table->unsignedBigInteger('city_id')->nullable();
+                    $table->unsignedBigInteger('building_type_id')->nullable();
+                    $table->string('address');
+                    $table->string('postcode')->nullable();
+                } else {
+                    $table->string('name');
+                    if ($name === 'cities') {
+                        $table->unsignedBigInteger('region_id')->nullable();
+                        $table->unsignedInteger('population')->default(0);
+                    }
                 }
             });
             Schema::create($pivot, function (Blueprint $table) use ($foreignKey): void {
@@ -223,12 +250,169 @@ class EntityTableActivityTest extends TestCase
             ->assertJsonValidationErrors(['has_sales', 'has_orders']);
     }
 
-    private function entity(string $name): int
+    public function test_list_includes_complete_city_and_address_geography_and_address_class(): void
+    {
+        $this->seedGeography();
+        $entity = $this->entity('Два адреса', ['country_id' => 1]);
+        DB::table('city_entity')->insert(['entity_id' => $entity, 'city_id' => 100]);
+        DB::table('building_entities')->insert([
+            ['entity_id' => $entity, 'building_id' => 1000],
+            ['entity_id' => $entity, 'building_id' => 2000],
+        ]);
+
+        $response = $this->getJson('/api/entities')
+            ->assertOk()
+            ->assertJsonPath('data.0.country.name', 'Россия')
+            ->assertJsonPath('data.0.cities.0.name', 'Москва')
+            ->assertJsonPath('data.0.cities.0.region.id', 10)
+            ->assertJsonPath('data.0.cities.0.region.name', 'Московский регион')
+            ->assertJsonPath('data.0.cities.0.region.country.id', 1)
+            ->assertJsonPath('data.0.cities.0.region.country.name', 'Россия')
+            ->assertJsonCount(2, 'data.0.buildings');
+
+        $addresses = collect($response->json('data.0.buildings'))->keyBy('id');
+        $this->assertSame('ул. Тверская, 1', $addresses[1000]['address']);
+        $this->assertSame('125009', $addresses[1000]['postcode']);
+        $this->assertSame(['id' => 1, 'name' => 'Рабочий'], $addresses[1000]['building_type']);
+        $this->assertSame(['id' => 2, 'name' => 'Склад'], $addresses[2000]['building_type']);
+        $this->assertSame([
+            'id' => 200,
+            'name' => 'Минск',
+            'region' => [
+                'id' => 20,
+                'name' => 'Минский регион',
+                'country' => ['id' => 2, 'name' => 'Беларусь'],
+            ],
+        ], $addresses[2000]['city']);
+    }
+
+    public function test_geography_filters_find_direct_cities_address_only_cities_and_entity_country(): void
+    {
+        $this->seedGeography();
+        $directCity = $this->entity('Город напрямую', ['country_id' => 2]);
+        $addressOnly = $this->entity('Город только из адреса');
+        $foreignAddress = $this->entity('Адрес в Беларуси');
+        $countryOnly = $this->entity('Только страна', ['country_id' => 1]);
+        $this->entity('Без географии');
+        DB::table('city_entity')->insert(['entity_id' => $directCity, 'city_id' => 100]);
+        DB::table('building_entities')->insert([
+            ['entity_id' => $addressOnly, 'building_id' => 1000],
+            ['entity_id' => $addressOnly, 'building_id' => 1001],
+            ['entity_id' => $foreignAddress, 'building_id' => 2000],
+        ]);
+
+        foreach ([
+            [['country_ids' => [1]], [$directCity, $addressOnly, $countryOnly]],
+            [['country_ids' => [2]], [$directCity, $foreignAddress]],
+            [['country_ids' => [1, 2]], [$directCity, $addressOnly, $foreignAddress, $countryOnly]],
+            [['region_ids' => [10]], [$directCity, $addressOnly]],
+            [['region_ids' => [20]], [$foreignAddress]],
+            [['region_ids' => [10, 20]], [$directCity, $addressOnly, $foreignAddress]],
+            [['city_ids' => [100]], [$directCity, $addressOnly]],
+            [['city_ids' => [200]], [$foreignAddress]],
+            [['city_ids' => [100, 200]], [$directCity, $addressOnly, $foreignAddress]],
+            [['building_ids' => [1000]], [$addressOnly]],
+            [['country_ids' => [1], 'region_ids' => [20]], []],
+            [['country_ids' => [2], 'city_ids' => [100]], [$directCity]],
+            [['region_ids' => [10], 'building_ids' => [2000]], []],
+            [['region_ids' => [999]], []],
+        ] as [$filters, $expected]) {
+            $query = http_build_query($filters);
+            $response = $this->getJson('/api/entities?'.$query)
+                ->assertOk()
+                ->assertJsonPath('meta.total', count($expected));
+            $this->assertEqualsCanonicalizing($expected, $response->json('data.*.id'), $query);
+        }
+    }
+
+    public function test_geography_filter_alternatives_do_not_escape_other_active_filters(): void
+    {
+        $this->seedGeography();
+        DB::table('entity_classifications')->insert([
+            ['id' => 1, 'name' => 'Клиент'],
+            ['id' => 2, 'name' => 'Поставщик'],
+        ]);
+        $match = $this->entity('Клиент с продажей', ['entity_classification_id' => 1]);
+        $wrongClass = $this->entity('Поставщик с продажей', ['entity_classification_id' => 2]);
+        $noSale = $this->entity('Клиент без продажи', ['entity_classification_id' => 1]);
+        foreach ([$match, $wrongClass, $noSale] as $entity) {
+            DB::table('building_entities')->insert(['entity_id' => $entity, 'building_id' => 1000]);
+        }
+        foreach ([$match, $wrongClass] as $entity) {
+            DB::table('sales')->insert(['entity_id' => $entity, 'date' => '2026-09-22']);
+        }
+
+        foreach (['country_ids' => 1, 'region_ids' => 10, 'city_ids' => 100] as $filter => $id) {
+            $query = http_build_query([
+                'has_sales' => 1,
+                'entity_classification_ids' => [1],
+                $filter => [$id],
+            ]);
+            $this->getJson('/api/entities?'.$query)
+                ->assertOk()
+                ->assertJsonPath('meta.total', 1)
+                ->assertJsonPath('data.0.id', $match);
+        }
+
+        $this->getJson('/api/entities?'.http_build_query([
+            'has_sales' => 1,
+            'entity_classification_ids' => [1],
+            'country_ids' => [1],
+            'region_ids' => [10],
+            'city_ids' => [100],
+            'building_ids' => [1000],
+        ]))->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $match);
+    }
+
+    public function test_filter_metadata_includes_geography_and_address_classes(): void
+    {
+        $this->seedGeography();
+
+        $response = $this->getJson('/api/entities-meta')->assertOk();
+        $cities = collect($response->json('cities'))->keyBy('id');
+        $regions = collect($response->json('regions'))->keyBy('id');
+        $addresses = collect($response->json('buildings'))->keyBy('id');
+
+        $this->assertSame(10, $cities[100]['region_id']);
+        $this->assertSame('Россия', $cities[100]['region']['country']['name']);
+        $this->assertSame(2, $regions[20]['country_id']);
+        $this->assertSame('Беларусь', $regions[20]['country']['name']);
+        $this->assertSame(['id' => 1, 'name' => 'Рабочий'], $addresses[1000]['building_type']);
+        $this->assertSame('Россия', $addresses[1000]['city']['region']['country']['name']);
+    }
+
+    private function seedGeography(): void
+    {
+        DB::table('countries')->insert([
+            ['id' => 1, 'name' => 'Россия'],
+            ['id' => 2, 'name' => 'Беларусь'],
+        ]);
+        DB::table('regions')->insert([
+            ['id' => 10, 'name' => 'Московский регион', 'country_id' => 1],
+            ['id' => 20, 'name' => 'Минский регион', 'country_id' => 2],
+        ]);
+        DB::table('cities')->insert([
+            ['id' => 100, 'name' => 'Москва', 'region_id' => 10],
+            ['id' => 200, 'name' => 'Минск', 'region_id' => 20],
+        ]);
+        DB::table('building_types')->insert([
+            ['id' => 1, 'name' => 'Рабочий'],
+            ['id' => 2, 'name' => 'Склад'],
+        ]);
+        DB::table('buildings')->insert([
+            ['id' => 1000, 'city_id' => 100, 'building_type_id' => 1, 'address' => 'ул. Тверская, 1', 'postcode' => '125009'],
+            ['id' => 1001, 'city_id' => 100, 'building_type_id' => 2, 'address' => 'ул. Тверская, 2', 'postcode' => null],
+            ['id' => 2000, 'city_id' => 200, 'building_type_id' => 2, 'address' => 'пр. Независимости, 1', 'postcode' => null],
+        ]);
+    }
+
+    private function entity(string $name, array $attributes = []): int
     {
         return DB::table('entities')->insertGetId([
             'name' => $name,
             'created_at' => now(),
             'updated_at' => now(),
+            ...$attributes,
         ]);
     }
 

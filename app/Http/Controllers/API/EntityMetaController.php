@@ -29,18 +29,25 @@ class EntityMetaController extends Controller
                                         ->get(),
 
                                     'cities' => City::query()
-                                        ->select('id', 'name')
+                                        ->with('region:id,name,country_id', 'region.country:id,name')
+                                        ->select('id', 'name', 'region_id')
                                         ->orderBy('population', 'desc')
                                         ->get(),
 
                                     'regions' => Region::query()
-                                        ->select('id', 'name')
+                                        ->with('country:id,name')
+                                        ->select('id', 'name', 'country_id')
                                         ->orderBy('name')
                                         ->get(),
 
                                     'buildings' => Building::query()
-                                        ->with('city:id,name')
-                                        ->select('id', 'city_id', 'address', 'postcode')
+                                        ->with([
+                                            'city:id,name,region_id',
+                                            'city.region:id,name,country_id',
+                                            'city.region.country:id,name',
+                                            'buildingType:id,name',
+                                        ])
+                                        ->select('id', 'city_id', 'building_type_id', 'address', 'postcode')
                                         ->orderBy('address')
                                         ->get()
                                         ->map(fn ($item) => [
@@ -48,9 +55,21 @@ class EntityMetaController extends Controller
                                             'city_id' => $item->city_id,
                                             'address' => $item->address,
                                             'postcode' => $item->postcode,
+                                            'building_type' => [
+                                                'id' => $item->buildingType?->id,
+                                                'name' => $item->buildingType?->name,
+                                            ],
                                             'city' => [
                                                 'id' => $item->city?->id,
                                                 'name' => $item->city?->name,
+                                                'region' => [
+                                                    'id' => $item->city?->region?->id,
+                                                    'name' => $item->city?->region?->name,
+                                                    'country' => [
+                                                        'id' => $item->city?->region?->country?->id,
+                                                        'name' => $item->city?->region?->country?->name,
+                                                    ],
+                                                ],
                                             ],
                                         ])
                                         ->values(),

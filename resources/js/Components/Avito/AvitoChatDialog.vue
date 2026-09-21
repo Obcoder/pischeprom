@@ -44,6 +44,7 @@ function showFeedback(message, error = false) {
                 class="avito-chat-dialog__messages"
                 embedded
                 full-featured
+                :auto-mark-read="false"
                 :chat="chat"
                 @notice="showFeedback($event)"
                 @error="showFeedback($event, true)"
