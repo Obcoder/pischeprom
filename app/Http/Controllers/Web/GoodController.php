@@ -7,6 +7,8 @@ use App\Models\Country;
 use App\Models\Field;
 use App\Models\Good;
 use App\Services\Goods\GoodStockService;
+use App\Services\Goods\PublicGoodOffer;
+use App\Services\MaxMessengerService;
 use App\Services\Seo\GoodSeoService;
 use App\Services\Seo\GoodStructuredDataService;
 use Illuminate\Http\RedirectResponse;
@@ -131,6 +133,8 @@ class GoodController extends Controller
         GoodSeoService $seoService,
         GoodStructuredDataService $structuredDataService,
         GoodStockService $stock,
+        PublicGoodOffer $offers,
+        MaxMessengerService $max,
     ): Response|RedirectResponse {
         $requestedSlug = trim($good);
 
@@ -182,6 +186,10 @@ class GoodController extends Controller
             },
         ]);
 
+        // Only the public, currently valid offer may reach the landing or its metadata.
+        $good->setRelation('priceTypeValues', $offers->pricesFor($good));
+        $purchase = $offers->for($good);
+
         $relatedGoods = Good::query()
             ->where('id', '!=', $good->id)
             ->where('is_published', true)
@@ -211,24 +219,48 @@ class GoodController extends Controller
                 'description',
             ]);
 
+        $jsonLd = $structuredDataService->make($good, forceGenerate: true);
+        foreach ($jsonLd as &$entry) {
+            if (($entry['@type'] ?? null) === 'Product') {
+                $entry['offers']['priceCurrency'] = $purchase['currency_code'];
+                unset($entry['offers']['price'], $entry['offers']['description']);
+                if ($purchase['price'] !== null) {
+                    $entry['offers']['price'] = number_format($purchase['price'], 2, '.', '');
+                } else {
+                    $entry['offers']['description'] = 'Цена по запросу';
+                }
+            }
+        }
+        unset($entry);
+
+        $pageSeo = [
+            'title' => $seoService->title($good),
+            'description' => $seoService->description($good),
+            'h1' => $seoService->h1($good),
+            'canonical' => $seoService->canonical($good),
+            'robots' => $seoService->robots($good),
+            'image' => $seoService->image($good),
+            'category' => $seoService->categoryTitle($good),
+            'price' => $purchase['price'],
+            'currency' => $purchase['currency_code'],
+            'jsonLd' => $jsonLd,
+            'metricaCounterId' => config('services.yandex_metrica.counter_id'),
+        ];
+
+        // Calculation IDs, margins and staff price comments are not customer data.
+        $good->unsetRelation('priceTypeValues');
+        $good->seo?->makeHidden('structured_data');
+        foreach ($relatedGoods as $relatedGood) {
+            $relatedGood->unsetRelation('priceTypeValues');
+            $relatedGood->seo?->makeHidden('structured_data');
+        }
+
         return Inertia::render('Goods/Show', [
             'good' => $good,
             'relatedGoods' => $relatedGoods,
             'availability' => $stock->availabilityPayload($good),
-
-            'seo' => [
-                'title' => $seoService->title($good),
-                'description' => $seoService->description($good),
-                'h1' => $seoService->h1($good),
-                'canonical' => $seoService->canonical($good),
-                'robots' => $seoService->robots($good),
-                'image' => $seoService->image($good),
-                'category' => $seoService->categoryTitle($good),
-                'price' => $seoService->price($good),
-                'currency' => $seoService->currency($good),
-                'jsonLd' => $structuredDataService->make($good),
-                'metricaCounterId' => config('services.yandex_metrica.counter_id'),
-            ],
+            'publicPurchase' => [...$purchase, 'max_url' => $max->publicProductUrl($good)],
+            'seo' => $pageSeo,
         ]);
     }
 

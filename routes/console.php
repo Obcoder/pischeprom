@@ -28,6 +28,11 @@ Schedule::job(new SyncYandexMailboxJob(50), 'mail-sync')
     ->everyMinute()
     ->withoutOverlapping(10);
 
+Schedule::command('goods:retry-inquiry-notifications --limit=20')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 Schedule::call(function (): void {
     GoodStockAlert::query()
         ->where('status', GoodStockAlert::STATUS_PENDING)

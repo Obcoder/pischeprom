@@ -13,6 +13,7 @@ use App\Models\MaxChat;
 use App\Models\Warehouse;
 use App\Services\Goods\GoodStockAlertMessenger;
 use App\Services\Goods\GoodStockService;
+use App\Services\MaxMessengerService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -166,6 +167,99 @@ class GoodStockAlertTest extends TestCase
         ]);
 
         Http::assertSentCount(1);
+    }
+
+    public function test_product_max_link_resolves_and_caches_the_connected_bot_username(): void
+    {
+        config()->set('services.max.bot_username', null);
+        Http::fake([
+            'https://platform-api2.max.ru/me' => Http::response(['username' => 'connected_bot']),
+        ]);
+        $good = $this->outOfStockGood();
+        $max = app(MaxMessengerService::class);
+
+        $expected = 'https://max.ru/connected_bot?start=good_'.$good->id;
+        $this->assertSame($expected, $max->publicProductUrl($good));
+        $this->assertSame($expected, $max->publicProductUrl($good));
+        Http::assertSentCount(1);
+
+        $good->is_published = false;
+        $this->assertNull($max->publicProductUrl($good));
+    }
+
+    public function test_product_max_link_requires_a_safe_public_bot_url(): void
+    {
+        Http::preventStrayRequests();
+        $good = $this->outOfStockGood();
+        $max = app(MaxMessengerService::class);
+
+        config()->set('services.max.bot_url', 'https://max.ru/shop_bot?start=old');
+        $this->assertSame('https://max.ru/shop_bot?start=good_'.$good->id, $max->publicProductUrl($good));
+
+        config()->set('services.max.bot_url', 'https://example.test/shop_bot');
+        $this->assertNull($max->publicProductUrl($good));
+        Http::assertNothingSent();
+    }
+
+    public function test_product_max_start_sends_context_once_and_keeps_it_in_the_manager_chat(): void
+    {
+        Http::fake([
+            'https://platform-api2.max.ru/messages*' => Http::response([
+                'message' => ['body' => ['mid' => 'product-introduction']],
+            ]),
+        ]);
+        $good = $this->outOfStockGood();
+        $good->seo->update(['is_active' => true, 'slug_override' => 'public-product']);
+        $payload = [
+            'update_id' => 'product-start-1',
+            'update_type' => 'bot_started',
+            'chat_id' => 9001,
+            'user' => ['user_id' => 7001],
+            'payload' => 'good_'.$good->id,
+        ];
+
+        $this->withHeader('X-Max-Bot-Api-Secret', 'test-webhook-secret')
+            ->postJson(route('api.max.webhook'), $payload)
+            ->assertOk()->assertJsonPath('processed', 1);
+        $this->withHeader('X-Max-Bot-Api-Secret', 'test-webhook-secret')
+            ->postJson(route('api.max.webhook'), $payload)
+            ->assertOk()->assertJsonPath('processed', 0);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'chat_id=9001')
+            && str_contains($request['text'], $good->name)
+            && str_contains($request['text'], '/g/public-product')
+            && str_contains($request['text'], 'Предложите свою цену'));
+        Http::assertSentCount(1);
+        $this->assertDatabaseHas('max_messages', [
+            'max_message_id' => 'product-introduction',
+            'direction' => 'outgoing',
+            'status' => 'sent',
+            'chat_id' => '9001',
+        ]);
+        $this->assertDatabaseCount('good_stock_alerts', 0);
+        $this->assertNotNull(MaxChat::query()->firstOrFail()->last_message_at);
+    }
+
+    public function test_product_max_start_does_not_disclose_unpublished_or_missing_goods(): void
+    {
+        Http::preventStrayRequests();
+        $good = $this->outOfStockGood();
+        $good->update(['is_published' => false]);
+
+        foreach (['good_'.$good->id, 'good_999999', 'good_1_invalid'] as $index => $startPayload) {
+            $this->withHeader('X-Max-Bot-Api-Secret', 'test-webhook-secret')
+                ->postJson(route('api.max.webhook'), [
+                    'update_id' => 'ignored-product-'.$index,
+                    'update_type' => 'bot_started',
+                    'chat_id' => 9001,
+                    'user' => ['user_id' => 7001],
+                    'payload' => $startPayload,
+                ])
+                ->assertOk()->assertJsonPath('processed', 1);
+        }
+
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('max_messages', 0);
     }
 
     public function test_customer_can_cancel_active_alert_from_max_button(): void
@@ -528,6 +622,8 @@ class GoodStockAlertTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('good_id')->unique();
             $table->string('availability_status')->default('on_request');
+            $table->boolean('is_active')->default(true);
+            $table->string('slug_override')->nullable();
             $table->timestamps();
         });
 

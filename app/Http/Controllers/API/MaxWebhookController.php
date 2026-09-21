@@ -4,10 +4,12 @@ namespace App\Http\Controllers\API;
 
 use App\Domain\AiPriceLists\Services\MaxPriceListWebhookDispatcher;
 use App\Http\Controllers\Controller;
+use App\Models\Good;
 use App\Models\MaxChat;
 use App\Models\MaxMessage;
 use App\Models\MaxWebhookEvent;
 use App\Services\Goods\GoodStockAlertManager;
+use App\Services\MaxMessengerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -17,6 +19,7 @@ class MaxWebhookController extends Controller
     public function __construct(
         private readonly GoodStockAlertManager $stockAlerts,
         private readonly MaxPriceListWebhookDispatcher $priceLists,
+        private readonly MaxMessengerService $max,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -169,9 +172,65 @@ class MaxWebhookController extends Controller
             $chat,
         );
 
+        if ($updateType === 'bot_started' && $chat) {
+            $this->sendProductIntroduction($payload, $chat);
+        }
+
         $this->priceLists->dispatch($event);
 
         return true;
+    }
+
+    private function sendProductIntroduction(array $payload, MaxChat $chat): void
+    {
+        $startPayload = $this->firstFilled($payload, ['payload', 'start_payload', 'update.payload']);
+
+        if (! is_string($startPayload) || ! preg_match('/^good_([1-9][0-9]{0,18})$/D', $startPayload, $matches)) {
+            return;
+        }
+
+        $good = Good::query()->with('seo')->where('is_published', true)->find($matches[1]);
+
+        if (! $good) {
+            return;
+        }
+
+        $slug = $good->seo?->is_active && filled($good->seo?->slug_override)
+            ? trim($good->seo->slug_override)
+            : $good->slug;
+        $url = route('public.goods.show', ['good' => $slug]);
+        $text = implode("\n\n", [
+            'Здравствуйте! Обсудим товар «'.$good->name.'».',
+            $url,
+            'Напишите нужное количество и город доставки. Хотите поторговаться? Предложите свою цену за единицу — менеджер рассмотрит условия вашей партии.',
+            'Здесь можно уточнить наличие, доставку и оформление заказа. Оставьте сообщение, и менеджер продолжит разговор.',
+        ]);
+        $target = filled($chat->chat_id)
+            ? ['chat_id' => $chat->chat_id]
+            : ['user_id' => $chat->user_id];
+        $result = $this->max->sendMessage($target, $text);
+        $providerPayload = $result['data'] ?: [];
+        $messageId = $this->firstFilled($providerPayload, [
+            'message_id', 'message.id', 'message.mid', 'message.body.mid', 'body.mid', 'mid', 'id',
+        ]);
+
+        MaxMessage::query()->create([
+            'max_chat_id' => $chat->getKey(),
+            'max_message_id' => is_scalar($messageId) ? (string) $messageId : null,
+            'direction' => MaxMessage::DIRECTION_OUTGOING,
+            'status' => $result['ok'] ? 'sent' : 'failed',
+            'phone_normalized' => $chat->phone_normalized,
+            'chat_id' => $chat->chat_id,
+            'user_id' => $chat->user_id,
+            'text' => $text,
+            'error_message' => $result['ok'] ? null : $result['error'],
+            'payload' => $providerPayload,
+            'sent_at' => $result['ok'] ? now() : null,
+        ]);
+
+        if ($result['ok']) {
+            $chat->update(['last_message_at' => now()]);
+        }
     }
 
     private function upsertChat(

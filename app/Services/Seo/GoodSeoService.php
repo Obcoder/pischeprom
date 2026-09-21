@@ -15,7 +15,9 @@ class GoodSeoService
     public function publicUrl(Good $good): string
     {
         return route('public.goods.show', [
-            'good' => $good->slug,
+            'good' => $good->seo?->is_active && filled($good->seo?->slug_override)
+                ? trim($good->seo->slug_override)
+                : $good->slug,
         ]);
     }
 

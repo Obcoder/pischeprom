@@ -39,6 +39,7 @@ use App\Http\Controllers\Web\EntityLookupController;
 use App\Http\Controllers\Web\FieldController as WebFieldController;
 use App\Http\Controllers\Web\GisPageController;
 use App\Http\Controllers\Web\GoodController as WebGoodController;
+use App\Http\Controllers\Web\GoodInquiryController;
 use App\Http\Controllers\Web\GoodStockAlertController;
 use App\Http\Controllers\Web\LegalPageController;
 use App\Http\Controllers\Web\LocationController;
@@ -99,6 +100,10 @@ Route::get('/g/{good}', [WebGoodController::class, 'show'])
 Route::post('/g/{good}/stock-alerts', [GoodStockAlertController::class, 'store'])
     ->middleware('throttle:10,1')
     ->name('public.good-stock-alerts.store');
+
+Route::post('/g/{good}/inquiries', [GoodInquiryController::class, 'store'])
+    ->middleware('throttle:6,1')
+    ->name('public.good-inquiries.store');
 
 Route::get('/подборки/{field}', [WebFieldController::class, 'show'])
     ->name('public.fields.show');

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Good;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -235,6 +236,21 @@ class MaxMessengerService
         ], array_filter([
             'notification' => $notification,
         ], fn ($value) => filled($value)));
+    }
+
+    public function publicProductUrl(Good $good): ?string
+    {
+        if (! $good->exists || ! $good->is_published) {
+            return null;
+        }
+
+        $url = $this->botDeepLink('good_'.$good->getKey());
+
+        if (! $url || parse_url($url, PHP_URL_SCHEME) !== 'https' || parse_url($url, PHP_URL_HOST) !== 'max.ru') {
+            return null;
+        }
+
+        return $url;
     }
 
     public function botDeepLink(string $payload): ?string

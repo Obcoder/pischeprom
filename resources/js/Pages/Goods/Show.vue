@@ -1,1076 +1,219 @@
 <script setup>
-import { computed, ref, watch, onMounted } from "vue"
-import { Head, Link } from "@inertiajs/vue3"
+import { computed, h, onMounted, ref, watch } from 'vue'
+import { Head, Link } from '@inertiajs/vue3'
+import LayoutProduct from '@/Layouts/LayoutProduct.vue'
+import GoodInquiryDialog from '@/Components/Goods/GoodInquiryDialog.vue'
+import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
+import { useYandexMetrica } from '@/Composables/useYandexMetrica'
+import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
+import { goodAvailabilityStatus, canSubscribeToGoodStock } from '@/Pages/Helpers/goodAvailability'
 
-import GoodStockAlertButton from "@/Components/Goods/GoodStockAlertButton.vue"
-import LayoutDefault from "@/Layouts/LayoutDefault.vue"
-import { useYandexMetrica } from "@/Composables/useYandexMetrica"
-import { usePublicGoodUrl } from "@/Composables/usePublicGoodUrl"
-import { useAppRoute } from "@/Composables/useAppRoute"
-import { usePhoneCallRegistration } from "@/Composables/usePhoneCallRegistration"
-import {
-    canSubscribeToGoodStock,
-    goodAvailabilityStatus,
-} from "@/Pages/Helpers/goodAvailability"
-
-const {
-    route,
-} = useAppRoute()
-
-const {
-    goodPublicUrl,
-} = usePublicGoodUrl()
-
-defineOptions({
-    layout: LayoutDefault,
-})
-
+defineOptions({ layout: LayoutProduct })
 const props = defineProps({
-    good: {
-        type: Object,
-        required: true,
-    },
-    relatedGoods: {
-        type: Array,
-        default: () => [],
-    },
-    seo: {
-        type: Object,
-        default: () => ({}),
-    },
-    availability: {
-        type: Object,
-        default: () => ({}),
-    },
+    good: { type: Object, required: true },
+    relatedGoods: { type: Array, default: () => [] },
+    seo: { type: Object, default: () => ({}) },
+    availability: { type: Object, default: () => ({}) },
+    publicPurchase: { type: Object, default: () => ({}) },
 })
-
-const metricaCounterId = import.meta.env.VITE_YANDEX_METRICA_COUNTER_ID;
-
-const {
-    reachGoal,
-    ecommerceViewItem,
-} = useYandexMetrica(metricaCounterId);
-
-const {
-    registerPhoneCallClick,
-} = usePhoneCallRegistration();
-
-const activeImageId = ref(null);
-
-const availabilityStatus = computed(() => {
-    return goodAvailabilityStatus(props.good, props.availability);
-});
-
-const isInStock = computed(() => availabilityStatus.value === "in_stock");
-const canSubscribeToStock = computed(() => {
-    return canSubscribeToGoodStock(props.good, props.availability);
-});
-
-const mediaItems = computed(() => {
-    return (props.good.published_media || [])
-        .filter((item) => item.is_published)
-        .sort((a, b) => {
-            if (Number(b.is_ava) !== Number(a.is_ava)) {
-                return Number(b.is_ava) - Number(a.is_ava);
-            }
-
-            const orderA = Number(a.sort_order || 100);
-            const orderB = Number(b.sort_order || 100);
-
-            if (orderA !== orderB) {
-                return orderA - orderB;
-            }
-
-            return Number(a.id) - Number(b.id);
-        });
-});
-
-const imageItems = computed(() => {
-    return mediaItems.value.filter((item) => item.type === "image");
-});
-
-const videoItems = computed(() => {
-    return mediaItems.value.filter((item) => {
-        return item.type === "video" && mediaVideoUrl(item);
-    });
-});
-
-const mainVideo = computed(() => {
-    return videoItems.value.find((item) => {
-            return item.is_main_video && item.processing_status === "done";
-        }) ||
-        videoItems.value.find((item) => item.processing_status === "done") ||
-        videoItems.value[0] ||
-        null;
-});
-
-const otherVideoItems = computed(() => {
-    if (!mainVideo.value) {
-        return videoItems.value;
-    }
-
-    return videoItems.value.filter((item) => item.id !== mainVideo.value.id);
-});
-
-const activeImage = computed(() => {
-    if (!imageItems.value.length) {
-        return null;
-    }
-
-    if (!activeImageId.value) {
-        return imageItems.value[0];
-    }
-
-    return imageItems.value.find((item) => item.id === activeImageId.value) || imageItems.value[0];
-});
-
-const fallbackImage = computed(() => {
-    return props.good.ava_image || props.good.ava_thumb || null;
-});
-
-const publicPrices = computed(() => {
-    return (props.good.price_type_values || [])
-        .filter((item) => item.is_published)
-        .sort((a, b) => {
-            const orderA = Number(a.price_type?.sort_order || 100);
-            const orderB = Number(b.price_type?.sort_order || 100);
-
-            if (orderA !== orderB) {
-                return orderA - orderB;
-            }
-
-            return String(a.price_type?.name || "").localeCompare(String(b.price_type?.name || ""));
-        });
-});
-
-const productItems = computed(() => {
-    return (props.good.products || [])
-        .map((product) => ({
-            id: product.id,
-            title: product.rus || product.name || product.title || product.eng || `Product #${product.id}`,
-        }))
-        .filter((product) => product.id && product.title);
-});
-
-/*
-|--------------------------------------------------------------------------
-| SEO / Head / JSON-LD
-|--------------------------------------------------------------------------
-*/
-
-const pageSeo = computed(() => {
-    return props.seo || {};
-});
-
-const seo = computed(() => {
-    return props.good.seo || {};
-});
-
-const seoIsActive = computed(() => {
-    return seo.value?.is_active !== false;
-});
-
-const pageTitle = computed(() => {
-    return pageSeo.value.title
-        || (seoIsActive.value && seo.value.meta_title)
-        || `${props.good.name} — ПИЩЕПРОМ-СЕРВЕР`;
-});
-
-const pageDescription = computed(() => {
-    return pageSeo.value.description
-        || (seoIsActive.value && seo.value.meta_description)
-        || String(props.good.description || "").slice(0, 160);
-});
-
-const pageH1 = computed(() => {
-    return pageSeo.value.h1
-        || (seoIsActive.value && seo.value.h1)
-        || props.good.name;
-});
-
-const ogTitle = computed(() => {
-    return pageSeo.value.title
-        || (seoIsActive.value && seo.value.og_title)
-        || pageTitle.value;
-});
-
-const ogDescription = computed(() => {
-    return pageSeo.value.description
-        || (seoIsActive.value && seo.value.og_description)
-        || pageDescription.value;
-});
-
-const ogImage = computed(() => {
-    return pageSeo.value.image
-        || (seoIsActive.value && seo.value.og_image)
-        || fallbackImage.value
-        || "";
-});
-
-const canonicalUrl = computed(() => {
-    return pageSeo.value.canonical
-        || (seoIsActive.value && seo.value.canonical_url)
-        || "";
-});
-
-const robots = computed(() => {
-    return pageSeo.value.robots
-        || (seoIsActive.value && seo.value.robots)
-        || "index,follow";
-});
-
-const structuredData = computed(() => {
-    if (pageSeo.value.jsonLd) {
-        return pageSeo.value.jsonLd;
-    }
-
-    if (seoIsActive.value && seo.value.structured_data) {
-        return seo.value.structured_data;
-    }
-
-    return {
-        "@context": "https://schema.org",
-        "@type": "Product",
-        name: props.good.name,
-        description: pageDescription.value,
-        image: imageItems.value.map((item) => item.url).filter(Boolean),
-        brand: {
-            "@type": "Brand",
-            name: "ПИЩЕПРОМ-СЕРВЕР",
-        },
-    };
-});
-
-const structuredDataForHead = computed(() => {
-    const data = structuredData.value;
-
-    if (!data) {
-        return [];
-    }
-
-    if (Array.isArray(data)) {
-        return data;
-    }
-
-    return [data];
-});
-
-/*
-|--------------------------------------------------------------------------
-| Watchers
-|--------------------------------------------------------------------------
-*/
-
-watch(
-    imageItems,
-    (items) => {
-        if (!items.length) {
-            activeImageId.value = null;
-            return;
-        }
-
-        const exists = items.some((item) => item.id === activeImageId.value);
-
-        if (!activeImageId.value || !exists) {
-            activeImageId.value = items[0].id;
-        }
-    },
-    {
-        immediate: true,
-    }
-);
-
-/*
-|--------------------------------------------------------------------------
-| Helpers
-|--------------------------------------------------------------------------
-*/
-
-function formatMoney(value) {
-    if (value === null || value === undefined || value === "") {
-        return "—";
-    }
-
-    return new Intl.NumberFormat("ru-RU", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(Number(value));
+const { goodPublicUrl } = usePublicGoodUrl()
+const { reachGoal, ecommerceViewItem } = useYandexMetrica(props.seo.metricaCounterId || import.meta.env.VITE_YANDEX_METRICA_COUNTER_ID)
+const selectedMedia = ref(0)
+const quantity = ref(1)
+const dialogOpen = ref(false)
+const dialogKind = ref('order')
+const zoomOpen = ref(false)
+const maxUnavailable = ref(false)
+const brokenImages = ref(new Set())
+const purchase = computed(() => ({
+    ...props.publicPurchase,
+    unit: props.publicPurchase.price_unit_label || 'упаковка',
+    currency: props.publicPurchase.currency_code || 'RUB',
+}))
+const weight = computed(() => Number(purchase.value.package_weight || props.good.denominator) || null)
+const safeQuantity = computed(() => Math.min(9999, Math.max(1, Math.floor(Number(quantity.value) || 1))))
+const total = computed(() => purchase.value.package_price > 0 ? purchase.value.package_price * safeQuantity.value : null)
+const status = computed(() => goodAvailabilityStatus(props.good, props.availability))
+const statusText = computed(() => ({ in_stock: 'В наличии', out_of_stock: 'Ожидаем поступление', preorder: 'Под заказ', on_request: 'Наличие уточним' }[status.value] || 'Наличие уточним'))
+const subscribeAvailable = computed(() => canSubscribeToGoodStock(props.good, props.availability))
+const country = computed(() => props.good.country?.name)
+const products = computed(() => (props.good.products || []).map(p => ({ id: p.id, name: p.rus || p.name || p.eng })).filter(p => p.name))
+const media = computed(() => {
+    const all = (props.good.published_media || []).filter(m => m.is_published && (m.type === 'image' || m.type === 'video'))
+        .sort((a, b) => Number(b.is_ava) - Number(a.is_ava) || (a.sort_order ?? 100) - (b.sort_order ?? 100) || a.id - b.id)
+    const images = all.filter(m => m.type === 'image' && m.url)
+    if (!images.length && (props.good.ava_image || props.good.ava_thumb)) images.push({ id: 'avatar', type: 'image', url: props.good.ava_image || props.good.ava_thumb })
+    return [...images, ...all.filter(m => m.type === 'video' && (m.video_mp4_url || m.url))]
+})
+const activeMedia = computed(() => media.value[selectedMedia.value] || media.value[0])
+const pageTitle = computed(() => props.seo.title || `${props.good.name} — Пищепром-сервер`)
+const description = computed(() => props.seo.description || props.good.description || `Закажите ${props.good.name}. Обсудим объём, цену и условия поставки.`)
+const pageH1 = computed(() => props.seo.h1 || props.good.name)
+const seoText = computed(() => props.good.seo?.is_active !== false ? props.good.seo?.seo_text : null)
+const detailParagraphs = computed(() => String(seoText.value || props.good.description || '').split(/\n+/).map(t => t.trim()).filter(Boolean))
+const JsonLdHead = () => h('script', { 'head-key': 'good-structured-data', type: 'application/ld+json' }, JSON.stringify(props.seo.jsonLd).replace(/</g, '\\u003c'))
+const facts = computed(() => [
+    { label: 'Фасовка', value: weight.value ? `${number(weight.value)} кг / упаковка` : 'Уточним для вашей партии', icon: 'mdi-package-variant-closed' },
+    ...(country.value ? [{ label: 'Страна происхождения', value: country.value, icon: 'mdi-earth' }] : []),
+    { label: 'Формат покупки', value: 'Разовая или регулярная поставка', icon: 'mdi-calendar-sync-outline' },
+])
+const faqs = computed(() => [
+    { q: 'Как заказать этот товар?', a: 'Выберите количество упаковок и нажмите «Заказать». Укажите email и данные для доставки. Мы сохраним заказ и передадим его менеджеру: он подтвердит наличие, итоговую стоимость и условия. Регистрация не нужна.' },
+    { q: 'Можно ли предложить свою цену?', a: `Да. Нажмите «Торг» и укажите цену за ${purchase.value.unit}, объём и удобный способ связи. Для большой партии или регулярных закупок можно обсудить индивидуальные условия. Менеджер рассмотрит предложение и ответит — отправка формы не означает автоматическое согласование скидки.` },
+    { q: 'Как узнать стоимость и срок доставки?', a: 'Укажите город и адрес в заявке. Менеджер проверит возможность доставки, предложит доступные варианты и согласует стоимость до подтверждения заказа.' },
+    { q: 'Нужно ли сразу оплачивать заказ?', a: 'Нет. На этом этапе вы отправляете заявку. Наличие, цену, документы и способ оплаты согласуем с вами отдельно.' },
+])
+function number(value) { return Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 3 }) }
+function money(value) { return `${Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${purchase.value.currency === 'RUB' ? '₽' : purchase.value.currency}` }
+function normalizeQuantity() { quantity.value = safeQuantity.value }
+function openInquiry(kind) {
+    normalizeQuantity()
+    dialogKind.value = kind
+    dialogOpen.value = true
+    reachGoal(`good_${kind}_open`, { good_id: props.good.id })
 }
-
-function mediaPreview(item) {
-    if (!item) {
-        return null;
-    }
-
-    if (item.type === "image") {
-        return item.thumb_url || item.url;
-    }
-
-    if (item.type === "video") {
-        return item.poster_url || item.thumb_url || null;
-    }
-
-    return null;
+function openMax() {
+    reachGoal('good_max_click', { good_id: props.good.id })
+    if (purchase.value.max_url) window.open(purchase.value.max_url, '_blank', 'noopener,noreferrer')
+    else maxUnavailable.value = true
 }
-
-function mediaVideoUrl(item) {
-    return item?.video_mp4_url || item?.url || null;
+function imageFailed(url) { brokenImages.value = new Set([...brokenImages.value, url]) }
+function relatedImage(item) { return item.ava_thumb || item.ava_image || item.published_media?.find(m => m.type === 'image')?.thumb_url || item.published_media?.find(m => m.type === 'image')?.url }
+function trackView() {
+    reachGoal('view_good', { good_id: props.good.id, good_name: props.good.name })
+    ecommerceViewItem({ id: props.good.id, name: props.good.name, category: products.value[0]?.name || '', price: purchase.value.price || 0, currency: purchase.value.currency })
 }
-
-function relatedImage(item) {
-    const mediaImage = (item.published_media || []).find((media) => media.type === "image");
-
-    return mediaImage?.thumb_url || mediaImage?.url || item.ava_thumb || item.ava_image || null;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Actions
-|--------------------------------------------------------------------------
-*/
-
-function requestPrice() {
-    reachGoal("request_price_click", {
-        good_id: props.good.id,
-        good_name: props.good.name,
-    });
-
-    if (typeof window === "undefined") {
-        return;
-    }
-
-    window.location.href = `mailto:office@180022.ru?subject=${encodeURIComponent("Запрос цены: " + props.good.name)}`;
-}
-
-function clickPhone() {
-    reachGoal("phone_click", {
-        good_id: props.good.id,
-        good_name: props.good.name,
-    });
-
-    registerPhoneCallClick({
-        source: "good_show",
-        good_id: props.good.id,
-        good_name: props.good.name,
-    });
-}
-
-function clickEmail() {
-    reachGoal("email_click", {
-        good_id: props.good.id,
-        good_name: props.good.name,
-    });
-}
-
-/*
-|--------------------------------------------------------------------------
-| Mounted
-|--------------------------------------------------------------------------
-*/
-
-onMounted(() => {
-    reachGoal("view_good", {
-        good_id: props.good.id,
-        good_name: props.good.name,
-    });
-
-    ecommerceViewItem({
-        id: String(props.good.id),
-        name: props.good.name,
-        category: productItems.value[0]?.title || "Товар",
-        price: publicPrices.value[0]?.price_gross || 0,
-        currency:
-            publicPrices.value[0]?.currency?.code ||
-            publicPrices.value[0]?.price_type?.currency?.code ||
-            "RUB",
-    });
-});
+watch(() => props.good.id, () => { selectedMedia.value = 0; quantity.value = 1; dialogOpen.value = false; brokenImages.value = new Set(); trackView() })
+onMounted(trackView)
 </script>
 
 <template>
     <Head>
         <title>{{ pageTitle }}</title>
-
-        <meta
-            head-key="description"
-            name="description"
-            :content="pageDescription"
-        >
-
-        <meta
-            head-key="robots"
-            name="robots"
-            :content="robots"
-        >
-
-        <link
-            v-if="canonicalUrl"
-            head-key="canonical"
-            rel="canonical"
-            :href="canonicalUrl"
-        >
-
-        <meta
-            head-key="og:title"
-            property="og:title"
-            :content="ogTitle"
-        >
-
-        <meta
-            head-key="og:description"
-            property="og:description"
-            :content="ogDescription"
-        >
-
-        <meta
-            head-key="og:type"
-            property="og:type"
-            content="product"
-        >
-
-        <meta
-            v-if="canonicalUrl"
-            head-key="og:url"
-            property="og:url"
-            :content="canonicalUrl"
-        >
-
-        <meta
-            v-if="ogImage"
-            head-key="og:image"
-            property="og:image"
-            :content="ogImage"
-        >
-
-        <meta
-            head-key="twitter:card"
-            name="twitter:card"
-            content="summary_large_image"
-        >
-
-        <meta
-            head-key="twitter:title"
-            name="twitter:title"
-            :content="ogTitle"
-        >
-
-        <meta
-            head-key="twitter:description"
-            name="twitter:description"
-            :content="ogDescription"
-        >
-
-        <meta
-            v-if="ogImage"
-            head-key="twitter:image"
-            name="twitter:image"
-            :content="ogImage"
-        >
+        <meta head-key="description" name="description" :content="description">
+        <meta head-key="robots" name="robots" :content="seo.robots || 'index,follow'">
+        <link v-if="seo.canonical" head-key="canonical" rel="canonical" :href="seo.canonical">
+        <meta head-key="og:title" property="og:title" :content="pageTitle">
+        <meta head-key="og:description" property="og:description" :content="description">
+        <meta head-key="og:type" property="og:type" content="product">
+        <meta v-if="seo.canonical" head-key="og:url" property="og:url" :content="seo.canonical">
+        <meta v-if="seo.image" head-key="og:image" property="og:image" :content="seo.image">
+        <meta head-key="twitter:card" name="twitter:card" content="summary_large_image">
+        <JsonLdHead v-if="seo.jsonLd" />
     </Head>
 
-    <v-container class="py-8">
-        <v-row>
-            <!-- MEDIA / PHOTO -->
-            <v-col cols="12" md="5">
-                <!-- MAIN VIDEO -->
-                <v-card
-                    v-if="mainVideo"
-                    rounded="xl"
-                    elevation="2"
-                    class="overflow-hidden mb-4 hero-video-card"
-                >
-                    <video
-                        class="product-hero-video"
-                        autoplay
-                        muted
-                        loop
-                        playsinline
-                        preload="metadata"
-                        disablepictureinpicture
-                        controlslist="nodownload noplaybackrate nofullscreen"
-                        :poster="mainVideo.poster_url || undefined"
-                        :aria-label="mainVideo.title || good.name"
-                    >
-                        <source
-                            :src="mediaVideoUrl(mainVideo)"
-                            type="video/mp4"
-                        >
+    <div class="good-landing">
+        <nav class="breadcrumbs" aria-label="Хлебные крошки">
+            <Link href="/">Главная</Link><span>/</span><Link href="/g">Каталог</Link>
+            <template v-if="products[0]"><span>/</span><Link :href="`/p/${products[0].id}`">{{ products[0].name }}</Link></template>
+            <span>/</span><span class="breadcrumbs__current">{{ good.name }}</span>
+        </nav>
 
-                        Ваш браузер не поддерживает video.
-                    </video>
-
-                    <div class="video-overlay">
-                        <v-chip
-                            size="small"
-                            color="black"
-                            variant="flat"
-                            class="text-white"
-                        >
-                            <v-icon
-                                icon="mdi-play-circle"
-                                size="16"
-                                class="mr-1"
-                            />
-
-                            Видео товара
-                        </v-chip>
-                    </div>
-                </v-card>
-
-                <!-- PHOTO GALLERY -->
-                <v-card
-                    rounded="xl"
-                    elevation="2"
-                    class="overflow-hidden"
-                >
-                    <v-img
-                        v-if="activeImage"
-                        :src="activeImage.url"
-                        :alt="activeImage.alt || good.name"
-                        height="420"
-                        cover
-                    />
-
-                    <v-img
-                        v-else-if="fallbackImage"
-                        :src="fallbackImage"
-                        :alt="good.name"
-                        height="420"
-                        cover
-                    />
-
-                    <div
-                        v-else
-                        class="empty-preview"
-                    >
-                        <v-icon
-                            icon="mdi-image-off"
-                            size="64"
-                            class="mb-3"
-                        />
-
-                        <div>Изображение пока не добавлено</div>
-                    </div>
-                </v-card>
-
-                <v-row
-                    v-if="imageItems.length"
-                    class="mt-3"
-                    dense
-                >
-                    <v-col
-                        v-for="item in imageItems"
-                        :key="item.id"
-                        cols="3"
-                    >
-                        <v-card
-                            class="media-thumb"
-                            :class="{ 'media-thumb--active': activeImage?.id === item.id }"
-                            rounded="lg"
-                            variant="tonal"
-                            @click="activeImageId = item.id"
-                        >
-                            <v-img
-                                :src="mediaPreview(item)"
-                                height="84"
-                                cover
-                            />
-                        </v-card>
-                    </v-col>
-                </v-row>
-            </v-col>
-
-            <!-- INFO -->
-            <v-col cols="12" md="7">
-                <div
-                    v-if="productItems.length"
-                    class="mb-4 product-links"
-                >
-                    <Link
-                        v-for="product in productItems"
-                        :key="product.id"
-                        :href="route('shop.products.show', { product: product.id })"
-                        class="text-decoration-none d-inline-block mr-2 mb-2"
-                    >
-                        <v-chip
-                            size="small"
-                            class="product-link-chip"
-                        >
-                            <v-icon
-                                icon="mdi-leaf"
-                                size="15"
-                                class="mr-1"
-                            />
-
-                            {{ product.title }}
-                        </v-chip>
-                    </Link>
+        <section class="product-hero" aria-labelledby="product-heading">
+            <div class="product-gallery">
+                <div class="product-gallery__stage">
+                    <span class="gallery-label"><v-icon icon="mdi-image-outline" size="15" /> Товар в деталях</span>
+                    <video v-if="activeMedia?.type === 'video'" :key="activeMedia.id" :src="activeMedia.video_mp4_url || activeMedia.url" :poster="activeMedia.poster_url || undefined" controls playsinline preload="metadata" :aria-label="`Видео: ${good.name}`" />
+                    <button v-else-if="activeMedia?.url && !brokenImages.has(activeMedia.url)" class="product-gallery__image-button" type="button" aria-label="Увеличить фотографию товара" @click="zoomOpen = true">
+                        <img :src="activeMedia.url" :alt="activeMedia.alt || good.name" fetchpriority="high" @error="imageFailed(activeMedia.url)">
+                        <span class="gallery-zoom"><v-icon icon="mdi-arrow-expand" size="20" /></span>
+                    </button>
+                    <div v-else class="gallery-empty"><v-icon icon="mdi-package-variant" size="72" /><span>{{ good.name }}</span><small>Фотографии можно запросить у менеджера</small></div>
+                    <span v-if="country" class="gallery-country"><v-icon icon="mdi-earth" size="15" /> {{ country }}</span>
                 </div>
+                <div v-if="media.length > 1" class="gallery-thumbnails" aria-label="Фотографии и видео товара">
+                    <button v-for="(item, index) in media" :key="item.id" type="button" :class="{ selected: selectedMedia === index }" :aria-label="item.type === 'video' ? 'Смотреть видео товара' : `Фотография ${index + 1}`" :aria-pressed="selectedMedia === index" @click="selectedMedia = index">
+                        <img v-if="item.thumb_url || item.poster_url || item.type === 'image'" :src="item.thumb_url || item.poster_url || item.url" alt="" loading="lazy">
+                        <v-icon v-if="item.type === 'video'" class="thumbnail-play" icon="mdi-play-circle" size="25" />
+                    </button>
+                </div>
+                <div class="gallery-caption"><v-icon icon="mdi-magnify" size="17" /> Рассмотрите товар перед заказом <span v-if="media.some(m => m.type === 'video')">· Есть видео</span></div>
+            </div>
 
-                <h1 class="text-h3 font-weight-bold mb-4">
-                    {{ pageH1 }}
-                </h1>
+            <div class="product-summary">
+                <div class="product-eyebrow"><span class="stock-badge" :class="{ 'stock-badge--available': status === 'in_stock' }"><span />{{ statusText }}</span><span>Артикул {{ good.id }}</span></div>
+                <h1 id="product-heading">{{ pageH1 }}</h1>
+                <p class="hero-description">{{ good.description || 'Подберите объём под вашу задачу. Обсудим цену, наличие и удобные условия поставки.' }}</p>
+                <div class="product-quick-facts"><span v-if="weight"><v-icon icon="mdi-package-variant-closed" size="17" /> Упаковка {{ number(weight) }} кг</span><span v-if="country"><v-icon icon="mdi-earth" size="17" /> {{ country }}</span></div>
 
-                <v-alert
-                    v-if="canSubscribeToStock"
-                    type="warning"
-                    variant="tonal"
-                    rounded="xl"
-                    class="stock-alert mb-5"
-                >
-                    <div class="font-weight-bold">
-                        Сейчас товара нет в наличии
+                <div class="purchase-panel">
+                    <div class="price-row">
+                        <div><span class="field-eyebrow">{{ purchase.price ? 'Цена товара' : 'Индивидуальные условия' }}</span><div class="product-price">{{ purchase.price ? money(purchase.price) : 'Договоримся о цене' }}<small v-if="purchase.price"> / {{ purchase.unit }}</small></div><span class="tax-note">{{ purchase.price ? (publicPurchase.includes_vat === false ? 'НДС уточняется при подтверждении' : 'С НДС') : 'Укажите объём — подготовим предложение' }}</span></div>
+                        <button type="button" class="bargain-pill" @click="openInquiry('bargain')"><v-icon icon="mdi-handshake-outline" size="19" /> Торг <v-icon icon="mdi-arrow-top-right" size="16" /></button>
                     </div>
-
-                    <div class="text-body-2 mt-1">
-                        Подпишитесь, и мы один раз сообщим в MAX сразу после поступления на склад.
+                    <div class="quantity-row">
+                        <div><label for="product-quantity">Количество упаковок</label><span v-if="weight">{{ number(safeQuantity * weight) }} кг{{ purchase.package_price ? ` · ${money(purchase.package_price)} / уп.` : '' }}</span><span v-else>Фасовку подтвердит менеджер</span></div>
+                        <div class="quantity-control"><button type="button" aria-label="Уменьшить количество" :disabled="safeQuantity <= 1" @click="quantity = safeQuantity - 1">−</button><input id="product-quantity" v-model="quantity" type="number" inputmode="numeric" min="1" max="9999" step="1" @change="normalizeQuantity"><button type="button" aria-label="Увеличить количество" :disabled="safeQuantity >= 9999" @click="quantity = safeQuantity + 1">+</button></div>
                     </div>
-
-                    <GoodStockAlertButton
-                        :good="good"
-                        :availability="availability"
-                        label="Оповестить о поступлении в MAX"
-                        class="mt-3"
-                    />
-                </v-alert>
-
-                <v-chip
-                    v-else-if="isInStock"
-                    color="success"
-                    variant="tonal"
-                    prepend-icon="mdi-check-circle-outline"
-                    class="mb-5"
-                >
-                    В наличии
-                </v-chip>
-
-                <section
-                    v-if="publicPrices.length"
-                    class="price-panel mb-5"
-                >
-                    <div class="price-panel__header">
-                        <div>
-                            <div class="price-panel__eyebrow">
-                                Актуальные цены
-                            </div>
-
-                            <h2 class="price-panel__title">
-                                Цены
-                            </h2>
-                        </div>
-
-                        <v-icon
-                            icon="mdi-cash-multiple"
-                            size="34"
-                            class="price-panel__icon"
-                        />
-                    </div>
-
-                    <v-row dense>
-                        <v-col
-                            v-for="price in publicPrices"
-                            :key="price.id"
-                            cols="12"
-                            sm="6"
-                        >
-                            <div class="price-tile">
-                                <div class="price-tile__name">
-                                    {{ price.price_type?.name || "Цена" }}
-                                </div>
-
-                                <div class="price-tile__value">
-                                    {{ formatMoney(price.price_gross) }}
-                                    <span>
-                                        {{ price.currency?.code || price.price_type?.currency?.code || "RUB" }}
-                                    </span>
-                                </div>
-
-                                <div class="price-tile__note">
-                                    с НДС / кг
-                                </div>
-                            </div>
-                        </v-col>
-                    </v-row>
-                </section>
-
-                <div
-                    v-if="good.description"
-                    class="text-body-1 mb-6"
-                    style="line-height: 1.8;"
-                >
-                    {{ good.description }}
+                    <div class="estimate"><span>Сумма товаров <small>без доставки</small></span><strong>{{ total ? money(total) : 'Рассчитаем для вас' }}</strong></div>
+                    <button type="button" class="landing-button landing-button--primary order-button" @click="openInquiry('order')"><v-icon icon="mdi-basket-outline" size="21" /> Заказать <v-icon icon="mdi-arrow-right" size="21" /></button>
+                    <div class="purchase-note"><v-icon icon="mdi-check-circle-outline" size="14" /> Без регистрации и предоплаты на сайте</div>
                 </div>
+                <div class="contact-actions"><button type="button" class="landing-button landing-button--outline" @click="openInquiry('email')"><v-icon icon="mdi-email-outline" size="19" /> Написать на email</button><button type="button" class="landing-button landing-button--max" @click="openMax"><span class="max-mark">M</span> Написать в MAX <v-icon icon="mdi-arrow-top-right" size="16" /></button></div>
+                <p class="contact-note">Есть вопрос о товаре? Обсудим состав, документы и поставку.</p>
+                <GoodStockAlertButton v-if="subscribeAvailable" :good="good" :availability="availability" label="Сообщить о поступлении в MAX" class="stock-subscription" />
+            </div>
+        </section>
 
-                <div
-                    v-else
-                    class="text-body-1 text-medium-emphasis mb-6"
-                >
-                    Описание пока не заполнено.
-                </div>
+        <div class="service-strip">
+            <div><v-icon icon="mdi-tune-variant" size="24" /><span><strong>Условия под ваш объём</strong><small>Разовая закупка или постоянные поставки</small></span></div>
+            <div><v-icon icon="mdi-truck-outline" size="26" /><span><strong>Доставка по согласованию</strong><small>Рассчитаем маршрут, срок и стоимость</small></span></div>
+            <div><v-icon icon="mdi-message-text-outline" size="24" /><span><strong>На связи с менеджером</strong><small>Вопросы и договорённости в одном диалоге</small></span></div>
+        </div>
 
-                <div
-                    v-if="seoIsActive && seo.short_seo_text"
-                    class="text-body-2 text-medium-emphasis mb-4"
-                    style="line-height: 1.7;"
-                >
-                    {{ seo.short_seo_text }}
-                </div>
+        <nav class="section-navigation" aria-label="Разделы страницы"><a href="#about-product">О товаре</a><a href="#your-price">Ваша цена</a><a href="#how-to-order">Как заказать</a><a href="#questions">Вопросы и ответы</a></nav>
 
-                <div class="d-flex flex-wrap ga-3 mb-4">
-                    <v-btn
-                        color="deep-purple-darken-1"
-                        size="large"
-                        rounded="xl"
-                        @click="requestPrice"
-                    >
-                        Запросить цену
-                    </v-btn>
+        <section id="about-product" class="about-section landing-section">
+            <div><span class="section-kicker">ЗНАКОМЬТЕСЬ БЛИЖЕ</span><h2>Всё начинается<br>с хорошего продукта.</h2><div class="product-story"><p v-for="(paragraph, index) in detailParagraphs" :key="index">{{ paragraph }}</p><p v-if="!detailParagraphs.length">{{ good.name }} — оставьте заявку, чтобы уточнить характеристики, фасовку и условия поставки. Менеджер поможет подобрать подходящий объём.</p></div><button type="button" class="text-action" @click="openInquiry('email')">Запросить подробности и документы <v-icon icon="mdi-arrow-right" size="18" /></button></div>
+            <aside class="facts-panel"><span class="section-kicker">КАРТОЧКА ТОВАРА</span><h3>Детали для вашей закупки</h3><dl><div v-for="fact in facts" :key="fact.label"><dt><v-icon :icon="fact.icon" size="19" />{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div><div><dt><v-icon icon="mdi-check-circle-outline" size="19" />Наличие</dt><dd>{{ statusText }}</dd></div></dl><p>Характеристики партии, документы и дату отгрузки подтвердим при согласовании заказа.</p></aside>
+        </section>
 
-                    <v-btn
-                        variant="tonal"
-                        size="large"
-                        rounded="xl"
-                        href="tel:+79650160001"
-                        @click="clickPhone"
-                    >
-                        Позвонить
-                    </v-btn>
+        <section id="your-price" class="bargain-section">
+            <div class="bargain-section__copy"><span class="section-kicker">ХОРОШАЯ СДЕЛКА НАЧИНАЕТСЯ С ДИАЛОГА</span><h2>Ваш объём.<br>Ваше предложение.</h2><p>Знаете, по какой цене готовы купить?<br>Предложите её нам. Попробуем договориться.</p><button type="button" class="landing-button landing-button--warm" @click="openInquiry('bargain')">Торг — предложить свою цену <v-icon icon="mdi-arrow-top-right" size="20" /></button><small>Каждое предложение рассматривает менеджер.</small></div>
+            <div class="bargain-reasons"><div><span>01</span><div><h3>Беру объём</h3><p>Расскажите о размере партии — обсудим условия именно для неё.</p></div></div><div><span>02</span><div><h3>Планирую закупать регулярно</h3><p>Укажите периодичность. Давайте начнём долгосрочное сотрудничество.</p></div></div><div><span>03</span><div><h3>Есть другое предложение</h3><p>Назовите ориентир по цене и важные для вас условия.</p></div></div></div>
+        </section>
 
-                    <v-btn
-                        variant="tonal"
-                        size="large"
-                        rounded="xl"
-                        href="mailto:office@180022.ru"
-                        @click="clickEmail"
-                    >
-                        Написать на email
-                    </v-btn>
-                </div>
+        <section id="how-to-order" class="landing-section order-steps"><div class="section-heading"><div><span class="section-kicker">ОТ ВЫБОРА ДО ПОСТАВКИ</span><h2>Заказать проще,<br>чем кажется.</h2></div><p>Никаких сложных регистраций.<br>Начните с одной заявки.</p></div><div class="steps-grid"><article><span>01</span><h3>Выберите объём</h3><p>Укажите количество упаковок. Сумму товаров посчитаем сразу, если цена опубликована.</p></article><article><span>02</span><h3>Оставьте контакты</h3><p>Имя, email и город доставки помогут нам подготовить предметный ответ.</p></article><article><span>03</span><h3>Согласуйте детали</h3><p>Менеджер подтвердит наличие, цену, доставку и порядок оплаты.</p></article><article><span>04</span><h3>Получите товар</h3><p>После подтверждения заказа организуем отгрузку на согласованных условиях.</p></article></div></section>
 
-                <v-alert
-                    type="info"
-                    variant="tonal"
-                    class="mb-4"
-                >
-                    Для уточнения цены и условий поставки свяжитесь с нами:
-                    <strong>+7-965-016-0001</strong>,
-                    <strong>office@180022.ru</strong>
-                </v-alert>
-            </v-col>
-        </v-row>
+        <section id="questions" class="landing-section faq-section"><div><span class="section-kicker">ДАВАЙТЕ РАЗБЕРЁМСЯ</span><h2>До заказа<br>остался вопрос?</h2><button type="button" class="text-action" @click="openInquiry('email')">Задать свой вопрос <v-icon icon="mdi-arrow-top-right" size="18" /></button></div><div class="faq-items"><details v-for="item in faqs" :key="item.q"><summary>{{ item.q }}<v-icon icon="mdi-plus" size="20" /></summary><p>{{ item.a }}</p></details></div></section>
 
-        <!-- OTHER VIDEOS -->
-        <v-row
-            v-if="otherVideoItems.length"
-            class="mt-8"
-        >
-            <v-col cols="12">
-                <h2 class="text-h5 font-weight-bold mb-4">
-                    Другие видео товара
-                </h2>
-            </v-col>
+        <section v-if="relatedGoods.length" class="landing-section related-section"><div class="section-heading"><div><span class="section-kicker">ДОПОЛНИТЕ ВАШ ЗАКАЗ</span><h2>Ещё в нашем каталоге</h2></div><Link href="/g" class="text-action">Все товары <v-icon icon="mdi-arrow-right" size="18" /></Link></div><div class="related-grid"><Link v-for="item in relatedGoods.slice(0, 4)" :key="item.id" :href="goodPublicUrl(item) || '/g'" class="related-product"><div class="related-product__image"><img v-if="relatedImage(item) && !brokenImages.has(relatedImage(item))" :src="relatedImage(item)" :alt="item.name" loading="lazy" @error="imageFailed(relatedImage(item))"><v-icon v-else icon="mdi-package-variant" size="44" /></div><span v-if="item.country?.name" class="related-product__country">{{ item.country.name }}</span><h3>{{ item.name }}</h3><span class="related-product__link">Подробнее <v-icon icon="mdi-arrow-top-right" size="18" /></span></Link></div></section>
 
-            <v-col
-                v-for="video in otherVideoItems"
-                :key="video.id"
-                cols="12"
-                md="6"
-            >
-                <v-card rounded="xl">
-                    <video
-                        class="product-video product-video--small"
-                        controls
-                        playsinline
-                        preload="metadata"
-                        :poster="video.poster_url || undefined"
-                    >
-                        <source
-                            :src="mediaVideoUrl(video)"
-                            type="video/mp4"
-                        >
-
-                        Ваш браузер не поддерживает video.
-                    </video>
-
-                    <v-card-text v-if="video.title || video.caption">
-                        <div
-                            v-if="video.title"
-                            class="font-weight-bold mb-1"
-                        >
-                            {{ video.title }}
-                        </div>
-
-                        <div
-                            v-if="video.caption"
-                            class="text-body-2 text-medium-emphasis"
-                        >
-                            {{ video.caption }}
-                        </div>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-        </v-row>
-
-        <!-- SEO TEXT -->
-        <v-row
-            v-if="seoIsActive && seo.seo_text"
-            class="mt-8"
-        >
-            <v-col cols="12">
-                <v-card
-                    rounded="xl"
-                    variant="tonal"
-                >
-                    <v-card-title>
-                        Подробнее о товаре
-                    </v-card-title>
-
-                    <v-card-text
-                        class="text-body-1"
-                        style="line-height: 1.8;"
-                    >
-                        {{ seo.seo_text }}
-                    </v-card-text>
-                </v-card>
-            </v-col>
-        </v-row>
-
-        <!-- RELATED GOODS -->
-        <v-row
-            v-if="relatedGoods.length"
-            class="mt-8"
-        >
-            <v-col cols="12">
-                <h2 class="text-h5 font-weight-bold mb-4">
-                    Другие товары
-                </h2>
-            </v-col>
-
-            <v-col
-                v-for="item in relatedGoods"
-                :key="item.id"
-                cols="12"
-                sm="6"
-                md="3"
-            >
-                <Link
-                    v-if="goodPublicUrl(item)"
-                    :href="goodPublicUrl(item)"
-                    class="text-decoration-none"
-                >
-                    <v-card
-                        rounded="xl"
-                        class="h-100 related-card"
-                    >
-                        <v-img
-                            v-if="relatedImage(item)"
-                            :src="relatedImage(item)"
-                            height="180"
-                            cover
-                        />
-
-                        <div
-                            v-else
-                            class="related-empty"
-                        >
-                            <v-icon
-                                icon="mdi-image-off"
-                                size="42"
-                            />
-                        </div>
-
-                        <v-card-text>
-                            <div class="font-weight-bold text-body-1">
-                                {{ item.name }}
-                            </div>
-
-                            <div
-                                v-if="item.description"
-                                class="text-caption text-medium-emphasis mt-1 related-description"
-                            >
-                                {{ item.description }}
-                            </div>
-                        </v-card-text>
-                    </v-card>
-                </Link>
-            </v-col>
-        </v-row>
-    </v-container>
+        <div class="closing-cta"><div><h2>Обсудим вашу поставку?</h2><p>Вы уже выбрали товар. Поможем с остальным.</p></div><button type="button" class="landing-button landing-button--primary" @click="openInquiry('order')">Заказать <v-icon icon="mdi-arrow-right" size="20" /></button></div>
+        <div class="mobile-purchase"><div><small>{{ total ? `${safeQuantity} уп.${weight ? ` · ${number(safeQuantity * weight)} кг` : ''}` : 'Под ваш объём' }}</small><strong>{{ total ? money(total) : 'Уточним цену' }}</strong></div><button type="button" class="landing-button landing-button--primary" @click="openInquiry('order')">Заказать <v-icon icon="mdi-arrow-right" size="18" /></button></div>
+    </div>
+    <GoodInquiryDialog :key="good.id" v-model="dialogOpen" :kind="dialogKind" :good="good" :quantity="safeQuantity" :purchase="purchase" @submitted="reachGoal('good_inquiry_submitted', { good_id: good.id, kind: dialogKind })" />
+    <v-dialog v-model="zoomOpen" max-width="1100" aria-label="Фотография товара"><div class="zoom-view"><button type="button" class="zoom-close" aria-label="Закрыть фотографию" @click="zoomOpen = false"><v-icon icon="mdi-close" /></button><img v-if="activeMedia?.type === 'image'" :src="activeMedia.url" :alt="activeMedia.alt || good.name"></div></v-dialog>
+    <v-dialog v-model="maxUnavailable" max-width="440"><v-card rounded="xl" class="pa-6"><v-card-title class="px-0">Связаться с менеджером</v-card-title><p class="my-4">Ссылка на MAX сейчас недоступна. Оставьте заявку с вашим контактом в MAX — менеджер свяжется с вами.</p><v-btn color="#193e32" variant="flat" @click="maxUnavailable = false; openInquiry('email')">Оставить заявку</v-btn><v-btn class="mt-2" variant="text" @click="maxUnavailable = false">Закрыть</v-btn></v-card></v-dialog>
 </template>
 
 <style scoped>
-.product-video {
-    width: 100%;
-    height: 420px;
-    display: block;
-    background: #000;
-    object-fit: contain;
-}
-
-.product-video--small {
-    height: 320px;
-}
-
-.empty-preview {
-    height: 420px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: rgba(var(--v-theme-on-surface), 0.55);
-    background: rgba(var(--v-theme-surface-variant), 0.45);
-}
-
-.media-thumb {
-    position: relative;
-    cursor: pointer;
-    overflow: hidden;
-    border: 2px solid transparent;
-}
-
-.media-thumb--active {
-    border-color: rgb(var(--v-theme-primary));
-}
-
-.media-thumb-empty {
-    height: 84px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.media-thumb-chip {
-    position: absolute;
-    left: 6px;
-    top: 6px;
-}
-
-.price-card {
-    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-.related-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.related-card:hover {
-    transform: translateY(-2px);
-}
-
-.related-empty {
-    height: 180px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(var(--v-theme-surface-variant), 0.45);
-    color: rgba(var(--v-theme-on-surface), 0.55);
-}
-
-.related-description {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.hero-video-card {
-    position: relative;
-    background: #000;
-}
-
-.product-hero-video {
-    width: 100%;
-    height: 420px;
-    display: block;
-    object-fit: cover;
-    background: #000;
-}
-
-.video-overlay {
-    position: absolute;
-    left: 16px;
-    bottom: 16px;
-    z-index: 2;
-    pointer-events: none;
-}
-
-.product-link-chip {
-    color: #5c0000;
-    background: #fff1df;
-    border: 1px solid rgba(128, 0, 0, 0.18);
-    font-weight: 700;
-}
-
-.product-link-chip:hover {
-    background: #ffe5c2;
-}
-
-.price-panel {
-    border: 1px solid rgba(128, 0, 0, 0.16);
-    border-radius: 24px;
-    padding: 20px;
-    background: linear-gradient(135deg, #ffffff 0%, #fff8f0 52%, #fff0dc 100%);
-    box-shadow: 0 12px 32px rgba(92, 0, 0, 0.08);
-}
-
-.price-panel__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 14px;
-}
-
-.price-panel__eyebrow {
-    color: #8a3b00;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.price-panel__title {
-    margin: 0;
-    color: #5c0000;
-    font-size: 1.35rem;
-    font-weight: 800;
-}
-
-.price-panel__icon {
-    color: #800000;
-    opacity: 0.85;
-}
-
-.price-tile {
-    height: 100%;
-    padding: 16px;
-    border: 1px solid rgba(128, 0, 0, 0.12);
-    border-radius: 18px;
-    background: #ffffff;
-}
-
-.price-tile__name {
-    margin-bottom: 6px;
-    color: #7a2500;
-    font-size: 0.82rem;
-    font-weight: 700;
-}
-
-.price-tile__value {
-    color: #5c0000;
-    font-size: 1.35rem;
-    font-weight: 900;
-    line-height: 1.2;
-}
-
-.price-tile__value span {
-    font-size: 0.9rem;
-    font-weight: 700;
-}
-
-.price-tile__note {
-    margin-top: 4px;
-    color: rgba(var(--v-theme-on-surface), 0.62);
-    font-size: 0.78rem;
-}
+.good-landing { --forest: #193e32; --ink: #202c28; --muted: #727a72; --line: #dfe3da; max-width: 1320px; padding: 0 32px; margin: auto; color: var(--ink); }
+.breadcrumbs { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #90948c; padding: 25px 0; white-space: nowrap; overflow: hidden; }
+.breadcrumbs a { color: #737b72; text-decoration: none; }.breadcrumbs__current { overflow: hidden; text-overflow: ellipsis; }
+.product-hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: start; }
+.product-gallery { min-width: 0; }.product-gallery__stage { position: relative; height: 530px; border-radius: 12px; overflow: hidden; background: #eeede6; }
+.product-gallery__image-button { width: 100%; height: 100%; display: block; cursor: zoom-in; }.product-gallery__stage img { width: 100%; height: 100%; object-fit: cover; }.product-gallery__stage video { width: 100%; height: 100%; object-fit: contain; background: #161d18; }
+.gallery-label, .gallery-country { position: absolute; z-index: 1; display: flex; gap: 7px; align-items: center; font-size: 11px; background: #fffc; backdrop-filter: blur(10px); padding: 9px 12px; border-radius: 5px; pointer-events: none; }.gallery-label { top: 18px; left: 18px; }.gallery-country { bottom: 18px; left: 18px; }.gallery-zoom { position: absolute; bottom: 16px; right: 16px; background: white; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; }
+.gallery-empty { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 35px; text-align: center; gap: 18px; color: #6a7b6c; }.gallery-empty small { color: var(--muted); }
+.gallery-thumbnails { display: flex; gap: 10px; overflow-x: auto; padding: 14px 2px 3px; }.gallery-thumbnails button { position: relative; width: 72px; height: 70px; flex-shrink: 0; border: 2px solid transparent; border-radius: 7px; overflow: hidden; background: #e5e6df; }.gallery-thumbnails button.selected { border-color: var(--forest); box-shadow: 0 0 0 2px #faf9f6 inset; }.gallery-thumbnails img { width: 100%; height: 100%; object-fit: cover; }.thumbnail-play { position: absolute; top: 23px; left: 23px; color: #fff; filter: drop-shadow(0 1px 4px #000); }.gallery-caption { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; margin-top: 15px; }
+.product-eyebrow { display: flex; align-items: center; justify-content: space-between; color: #8a8f85; font-size: 11px; margin: 3px 0 16px; }.stock-badge { display: flex; gap: 7px; align-items: center; color: #8b672f; font-size: 12px; }.stock-badge > span { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }.stock-badge--available { color: #497345; }
+h1 { font-size: clamp(29px, 3vw, 42px); line-height: 1.1; letter-spacing: -1.5px; font-weight: 600; max-width: 630px; } .hero-description { font-size: 13px; line-height: 1.7; color: #697268; margin: 16px 0 17px; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }.product-quick-facts { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 24px; font-size: 12px; color: #535f51; }.product-quick-facts > span { display: flex; gap: 6px; align-items: center; }
+.purchase-panel { background: white; border: 1px solid var(--line); border-radius: 10px; padding: 23px; }.price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.field-eyebrow { font-size: 11px; color: var(--muted); }.product-price { font-size: 33px; line-height: 1.4; font-weight: 600; letter-spacing: -1px; }.product-price small { font-weight: 400; font-size: 14px; color: var(--muted); letter-spacing: 0; }.tax-note { font-size: 11px; color: #8a9085; }.bargain-pill { display: flex; align-items: center; gap: 6px; background: #f9efdf; color: #7a542d; border: 1px solid #e8d3b4; padding: 10px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; flex-shrink: 0; }
+.quantity-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 22px; padding: 18px 0; border-top: 1px solid #edf0e8; border-bottom: 1px solid #edf0e8; }.quantity-row label { display: block; font-size: 12px; font-weight: 600; }.quantity-row span { display: block; font-size: 11px; color: var(--muted); margin-top: 5px; }.quantity-control { display: flex; border: 1px solid #d7ddd1; border-radius: 6px; height: 40px; }.quantity-control button { width: 34px; font-size: 19px; }.quantity-control button:disabled { opacity: .25; }.quantity-control input { width: 48px; text-align: center; font-size: 13px; padding: 0; border: 0; background: transparent; appearance: textfield; -moz-appearance: textfield; }.quantity-control input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.estimate { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 18px; gap: 12px; font-size: 12px; }.estimate small { color: var(--muted); display: block; font-size: 10px; margin-top: 2px; }.estimate strong { font-size: 20px; letter-spacing: -.5px; }.landing-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; border-radius: 6px; padding: 13px 20px; font-size: 13px; font-weight: 600; text-decoration: none; transition: background .15s, transform .15s; }.landing-button:hover { transform: translateY(-1px); }.landing-button--primary { background: var(--forest); color: #fff; }.landing-button--primary:hover { background: #295d49; }.order-button { width: 100%; font-size: 15px; }.order-button > :last-child { margin-left: auto; }.order-button > :first-child { margin-right: auto; }.purchase-note { display: flex; gap: 5px; justify-content: center; align-items: center; font-size: 10px; color: #818b7d; margin-top: 10px; }
+.contact-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }.landing-button--outline { border: 1px solid #d7dcd2; background: transparent; color: #3d5142; font-size: 12px; padding: 11px; }.landing-button--max { background: #eceef6; color: #4958a5; font-size: 12px; padding: 11px; }.max-mark { display: inline-flex; width: 19px; height: 19px; background: #6573cf; border-radius: 6px 6px 6px 2px; color: white; font-size: 11px; justify-content: center; align-items: center; }.contact-note { text-align: center; font-size: 10px; color: #8b9085; margin-top: 12px; }.stock-subscription { margin-top: 14px; }
+.service-strip { display: grid; grid-template-columns: repeat(3,1fr); gap: 28px; padding: 28px 0; margin-top: 39px; border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); }.service-strip > div { display: flex; align-items: center; gap: 14px; color: #56694f; }.service-strip strong { font-size: 12px; font-weight: 600; display: block; color: #354330; }.service-strip small { font-size: 10px; color: var(--muted); margin-top: 6px; display: block; }
+.section-navigation { display: flex; gap: 34px; margin-top: 18px; border-bottom: 1px solid var(--line); }.section-navigation a { color: #6d776a; font-size: 12px; text-decoration: none; padding: 19px 0; white-space: nowrap; }.section-navigation a:first-child { color: var(--forest); border-bottom: 2px solid var(--forest); }.landing-section { padding: 64px 0; scroll-margin-top: 24px; }.section-kicker { display: block; color: #78836e; font-size: 9px; letter-spacing: 1.6px; font-weight: 600; margin-bottom: 16px; }h2 { font-size: clamp(27px, 2.7vw, 36px); line-height: 1.18; letter-spacing: -1.15px; font-weight: 500; }h3 { font-weight: 600; }.about-section { display: grid; grid-template-columns: 1.35fr 1fr; gap: 90px; }.product-story { margin: 24px 0; color: #6b7367; font-size: 13px; line-height: 1.9; }.product-story p + p { margin-top: 14px; }.text-action { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; color: var(--forest); text-decoration: none; }.facts-panel { background: #f0f1e9; border: 1px solid #e0e5d8; padding: 29px; border-radius: 10px; align-self: start; }.facts-panel h3 { font-size: 18px; margin-bottom: 24px; letter-spacing: -.5px; }.facts-panel dl > div { padding: 14px 0; border-bottom: 1px solid #dfe4d6; }.facts-panel dt { color: #79816f; font-size: 11px; display: flex; gap: 7px; align-items: center; }.facts-panel dd { font-size: 12px; margin: 8px 0 0 26px; color: #414d39; }.facts-panel > p { font-size: 10px; color: #818975; line-height: 1.7; margin-top: 20px; }
+.bargain-section { display: grid; grid-template-columns: 1.1fr 1fr; gap: 70px; padding: 46px; border-radius: 12px; background: var(--forest); color: #f4f5eb; scroll-margin-top: 24px; }.bargain-section .section-kicker { color: #aab99a; font-size: 8px; }.bargain-section h2 { font-size: 42px; }.bargain-section__copy > p { color: #bdc9b5; font-size: 13px; line-height: 1.8; margin: 19px 0 25px; }.landing-button--warm { background: #e9b37c; color: #263d2e; font-size: 12px; }.bargain-section__copy > small { display: block; font-size: 9px; color: #a4b39a; margin-top: 12px; }.bargain-reasons { align-self: center; }.bargain-reasons > div { display: flex; gap: 20px; padding: 22px 0; border-bottom: 1px solid #47614e; }.bargain-reasons > div:first-child { padding-top: 0; }.bargain-reasons > div:last-child { border-bottom: 0; padding-bottom: 0; }.bargain-reasons > div > span { color: #c0cb9c; font-size: 12px; padding-top: 2px; }.bargain-reasons h3 { font-size: 16px; font-weight: 500; }.bargain-reasons p { color: #aebca5; font-size: 12px; line-height: 1.7; margin-top: 9px; max-width: 280px; }
+.section-heading { display: flex; justify-content: space-between; align-items: end; gap: 25px; margin-bottom: 32px; }.section-heading > p { color: var(--muted); font-size: 12px; line-height: 1.8; }.steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; margin-top: 36px; }.steps-grid article { border-top: 1px solid var(--line); padding-top: 20px; }.steps-grid article > span { display: grid; place-items: center; width: 33px; height: 33px; border-radius: 50%; background: #ebeee2; color: #6d7b55; font-size: 11px; margin-bottom: 20px; }.steps-grid h3 { font-size: 14px; margin-bottom: 10px; }.steps-grid p { font-size: 12px; line-height: 1.8; color: var(--muted); max-width: 235px; }
+.faq-section { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1.5fr; gap: 70px; }.faq-section .text-action { margin-top: 24px; }.faq-items details { border-bottom: 1px solid var(--line); }.faq-items details:last-child { border-bottom: 0; }.faq-items summary { list-style: none; cursor: pointer; display: flex; gap: 20px; justify-content: space-between; padding: 20px 0; font-size: 13px; font-weight: 600; }.faq-items summary::-webkit-details-marker { display: none; }.faq-items p { color: var(--muted); font-size: 12px; line-height: 1.8; padding: 0 25px 22px 0; }.faq-items details[open] .v-icon { transform: rotate(45deg); }
+.related-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }.related-product { display: flex; flex-direction: column; color: var(--ink); text-decoration: none; min-width: 0; }.related-product__image { aspect-ratio: 1.2; border-radius: 9px; overflow: hidden; background: #edeee5; display: grid; place-items: center; color: #b2bdaa; }.related-product__image img { width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }.related-product:hover img { transform: scale(1.035); }.related-product__country { color: var(--muted); font-size: 10px; margin-top: 17px; }.related-product h3 { font-size: 14px; margin: 10px 0 16px; line-height: 1.5; }.related-product__link { display: flex; justify-content: space-between; color: #65815e; margin-top: auto; font-size: 11px; }.closing-cta { border-top: 1px solid var(--line); padding: 36px 0 46px; display: flex; align-items: center; justify-content: space-between; gap: 22px; }.closing-cta h2 { font-size: 27px; }.closing-cta p { font-size: 12px; margin-top: 9px; color: var(--muted); }.closing-cta .landing-button { min-width: 190px; }
+.mobile-purchase { display: none; }.zoom-view { position: relative; background: #f8f7f1; border-radius: 10px; padding: 12px; }.zoom-view img { display: block; width: 100%; max-height: 85vh; object-fit: contain; }.zoom-close { position: absolute; top: 15px; right: 15px; border-radius: 50%; width: 38px; height: 38px; background: white; z-index: 1; }
+button, a, summary, input { -webkit-tap-highlight-color: transparent; }button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #d69d5f; outline-offset: 4px; }button { cursor: pointer; }button:disabled { cursor: default; }
+@media(min-width: 1500px) { .product-gallery__stage { height: 590px; } }
+@media(max-width: 1100px) { .product-hero { gap: 30px; }.product-gallery__stage { height: 470px; }.about-section { gap: 45px; }.bargain-section { gap: 35px; padding: 35px; }.contact-actions { grid-template-columns: 1fr; gap: 8px; }.product-price { font-size: 29px; }.service-strip { gap: 15px; }.service-strip > div { gap: 8px; }.service-strip small { line-height: 1.5; } }
+@media(max-width: 800px) { .good-landing { padding: 0 22px; }.product-hero { grid-template-columns: 1fr 1fr; gap: 22px; }.product-gallery__stage { height: 405px; }h1 { font-size: 30px; }.purchase-panel { padding: 16px; }.price-row { flex-wrap: wrap; }.product-price { font-size: 29px; }.quantity-row { flex-wrap: wrap; }.about-section { gap: 30px; }.bargain-section h2 { font-size: 34px; }.bargain-reasons h3 { font-size: 14px; }.facts-panel { padding: 22px; }.service-strip { grid-template-columns: 1fr; gap: 19px; padding: 24px 0; }.service-strip > div { gap: 14px; }.service-strip small { margin-top: 3px; }.faq-section { gap: 30px; }.steps-grid { gap: 15px; }.related-grid { grid-template-columns: repeat(2,1fr); gap: 26px 18px; } }
+@media(max-width: 600px) { .good-landing { padding: 0 18px; }.breadcrumbs { padding: 17px 0; font-size: 10px; gap: 7px; }.product-hero { grid-template-columns: 1fr; gap: 26px; }.product-gallery__stage { height: auto; aspect-ratio: 1.12; border-radius: 9px; }.gallery-label { top: 13px; left: 13px; font-size: 10px; }.gallery-country { bottom: 13px; left: 13px; font-size: 10px; }.gallery-thumbnails { gap: 8px; padding-top: 10px; }.gallery-thumbnails button { width: 56px; height: 53px; }.thumbnail-play { top: 14px; left: 15px; }.gallery-caption { font-size: 10px; margin-top: 9px; }h1 { font-size: 33px; letter-spacing: -1.1px; }.product-eyebrow { margin-top: 0; }.hero-description { font-size: 12px; }.product-quick-facts { margin-bottom: 19px; }.purchase-panel { padding: 20px; }.price-row { flex-wrap: nowrap; }.product-price { font-size: 32px; }.quantity-row { flex-wrap: nowrap; }.contact-actions { grid-template-columns: 1fr 1fr; }.contact-actions .landing-button { font-size: 11px; gap: 6px; }.contact-note { line-height: 1.5; }.service-strip { margin-top: 28px; }.section-navigation { gap: 23px; overflow-x: auto; margin-top: 6px; }.section-navigation a { font-size: 11px; padding: 17px 0; }.landing-section { padding: 40px 0; }.about-section, .faq-section { grid-template-columns: 1fr; gap: 30px; }.section-kicker { font-size: 8px; margin-bottom: 12px; }h2 { font-size: 30px; }.product-story { font-size: 12px; margin: 20px 0; }.facts-panel { padding: 24px; }.bargain-section { grid-template-columns: 1fr; gap: 35px; padding: 30px 25px; }.bargain-section h2 { font-size: 36px; }.bargain-section .section-kicker { line-height: 1.8; }.bargain-section__copy > p { font-size: 12px; }.bargain-reasons > div { padding: 18px 0; }.bargain-reasons p { max-width: none; font-size: 11px; }.section-heading { align-items: start; flex-direction: column; gap: 14px; margin-bottom: 26px; }.section-heading > p { font-size: 11px; }.steps-grid { grid-template-columns: 1fr 1fr; gap: 25px 22px; margin-top: 25px; }.steps-grid p { font-size: 11px; }.steps-grid h3 { font-size: 13px; }.faq-items summary { font-size: 12px; }.related-product h3 { font-size: 12px; }.related-product__country { margin-top: 12px; }.related-section .section-heading { gap: 16px; }.closing-cta { flex-direction: column; align-items: start; padding-bottom: 36px; }.closing-cta h2 { font-size: 26px; }.closing-cta .landing-button { width: 100%; }.mobile-purchase { display: flex; align-items: center; justify-content: space-between; position: fixed; bottom: 0; left: 0; width: 100%; z-index: 20; background: #fffffff2; backdrop-filter: blur(15px); border-top: 1px solid #d9dfd1; padding: 12px 18px max(12px, env(safe-area-inset-bottom)); gap: 20px; box-shadow: 0 -4px 20px #22321b08; }.mobile-purchase small { font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; }.mobile-purchase strong { font-size: 19px; }.mobile-purchase .landing-button { min-width: 155px; }.gallery-empty { min-height: 260px; } }
+@media(prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
 </style>

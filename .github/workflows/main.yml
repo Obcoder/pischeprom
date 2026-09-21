@@ -146,6 +146,22 @@ jobs:
             tests/Feature/Mobile \
             tests/Feature/MobileOrderFulfillmentTest.php
 
+      - name: Check public product inquiries PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Console/Commands/RetryGoodInquiryNotifications.php \
+            app/Http/Controllers/Web/GoodInquiryController.php \
+            app/Http/Controllers/Web/GoodController.php \
+            app/Http/Requests/StoreGoodInquiryRequest.php \
+            app/Jobs/NotifyGoodInquiry.php \
+            app/Mail/GoodInquiryReceivedMail.php \
+            app/Models/GoodInquiry.php \
+            app/Services/Goods/GoodInquiry*.php \
+            app/Services/Goods/PublicGoodOffer.php \
+            database/migrations/2026_09_22_120000_create_good_inquiries_table.php \
+            tests/Feature/GoodInquiryTest.php \
+            tests/Feature/PublicGoodLandingTest.php
+
       - name: Check logistics PHP style
         run: |
           vendor/bin/pint --test \
@@ -354,6 +370,8 @@ jobs:
             tests/Feature/CommercialOffersUnisenderTest.php \
             tests/Feature/MailMessageAttachmentDownloadTest.php \
             tests/Feature/GoodStockAlertTest.php \
+            tests/Feature/GoodInquiryTest.php \
+            tests/Feature/PublicGoodLandingTest.php \
             tests/Feature/GoodsSeoAiGenerationTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/SaleGoodsStockTest.php \
