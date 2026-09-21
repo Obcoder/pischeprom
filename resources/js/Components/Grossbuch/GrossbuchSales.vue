@@ -28,6 +28,10 @@ const detailsSaving = ref(false)
 const errorMessage = ref('')
 const detailsErrorMessage = ref('')
 const detailsMessage = ref('')
+const dateEditDialog = ref(false)
+const dateSaving = ref(false)
+const dateErrorMessage = ref('')
+const dateForm = reactive({ saleId: null, date: '' })
 const dateRangeMenu = ref(false)
 let salesRequestId = 0
 let lastSalesParams = null
@@ -501,6 +505,44 @@ function openSaleDetails(item) {
     detailsDialog.value = true
 }
 
+function openSaleDateEdit(item) {
+    if (dateSaving.value) return
+    dateForm.saleId = item.id
+    dateForm.date = item.date?.slice(0, 10) || ''
+    dateErrorMessage.value = ''
+    dateEditDialog.value = true
+}
+
+async function saveSaleDate() {
+    if (dateSaving.value || !dateForm.saleId || !dateForm.date) return
+
+    dateSaving.value = true
+    dateErrorMessage.value = ''
+
+    try {
+        const saleId = dateForm.saleId
+        const { data } = await axios.patch(`/api/sales/${saleId}`, { date: dateForm.date })
+        const updatedSale = data.data
+        const rowIndex = rows.value.findIndex((item) => Number(item.id) === Number(saleId))
+
+        if (rowIndex >= 0) rows.value.splice(rowIndex, 1, updatedSale)
+        if (Number(selectedSale.value?.id) === Number(saleId)) selectedSale.value = updatedSale
+
+        dateEditDialog.value = false
+    } catch (error) {
+        dateErrorMessage.value = error?.response?.data?.errors?.date?.[0]
+            || error?.response?.data?.message
+            || 'Не удалось изменить дату продажи'
+        return
+    } finally {
+        dateSaving.value = false
+    }
+
+    // Changing a date can move the sale between periods and change previous-sale links.
+    // fetchSales reports refresh failures in the board without reopening the saved form.
+    await fetchSales({ background: true }).catch(() => {})
+}
+
 function makeLine() {
     return {
         good_id: null,
@@ -795,7 +837,9 @@ onBeforeUnmount(() => { salesRequestId++ })
             >
                 <template #item.date="{ item }">
                     <div class="sales-date">
-                        <span>{{ formatDate(item.date) }}</span>
+                        <button type="button" class="sales-date-button" title="Изменить дату продажи" :aria-label="`Изменить дату продажи № ${item.id}: ${formatDate(item.date)}`" @click="openSaleDateEdit(item)">
+                            {{ formatDate(item.date) }}
+                        </button>
                         <small>#{{ item.id }}</small>
                     </div>
                 </template>
@@ -884,7 +928,9 @@ onBeforeUnmount(() => { salesRequestId++ })
                     <div class="sale-details__summary">
                         <div>
                             <small>Дата</small>
-                            <strong>{{ formatDate(selectedSale.date) }}</strong>
+                            <button type="button" class="sales-date-button" title="Изменить дату продажи" :aria-label="`Изменить дату продажи № ${selectedSale.id}: ${formatDate(selectedSale.date)}`" @click="openSaleDateEdit(selectedSale)">
+                                {{ formatDate(selectedSale.date) }}
+                            </button>
                         </div>
                         <div>
                             <small>Покупатель</small>
@@ -1319,6 +1365,39 @@ onBeforeUnmount(() => { salesRequestId++ })
             </v-card>
         </v-dialog>
 
+        <v-dialog v-model="dateEditDialog" max-width="360" :persistent="dateSaving">
+            <v-card class="sale-dialog" theme="light">
+                <v-form @submit.prevent="saveSaleDate">
+                    <v-card-title class="sale-dialog__title">
+                        <span>Дата продажи № {{ dateForm.saleId }}</span>
+                    </v-card-title>
+                    <v-card-text>
+                        <v-text-field
+                            v-model="dateForm.date"
+                            label="Дата продажи"
+                            type="date"
+                            variant="outlined"
+                            density="compact"
+                            hide-details="auto"
+                            :disabled="dateSaving"
+                            required
+                            autofocus
+                        />
+                        <v-alert v-if="dateErrorMessage" type="error" variant="tonal" density="compact" class="mt-3" role="alert">
+                            {{ dateErrorMessage }}
+                        </v-alert>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer />
+                        <v-btn variant="text" :disabled="dateSaving" @click="dateEditDialog = false">Отмена</v-btn>
+                        <v-btn type="submit" color="#0f766e" variant="flat" :loading="dateSaving" :disabled="dateSaving || !dateForm.date">
+                            Сохранить
+                        </v-btn>
+                    </v-card-actions>
+                </v-form>
+            </v-card>
+        </v-dialog>
+
         <EntityFormDialog
             v-model="entityDialog"
             :loading="entityDialogLoading"
@@ -1479,8 +1558,11 @@ onBeforeUnmount(() => { salesRequestId++ })
 .sales-grid :deep(.v-data-table-progress th) { height: auto !important; padding: 0 !important; }
 .sales-date { display: grid; gap: 4px; color: #475569; white-space: nowrap; }
 .sales-date > small { color: #64748b; font-size: 10px; }
+.sales-date-button { justify-self: start; padding: 0; color: inherit; font-size: 12px; text-decoration: underline dotted; text-underline-offset: 3px; white-space: nowrap; }
+.sales-date-button:hover { color: #0f766e; text-decoration-style: solid; }
+.sales-date-button:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
 .sales-party { display: grid; gap: 3px; min-width: 0; line-height: 1.2; }
-.sales-party__entity { overflow: hidden; color: #334155; font-size: 12px; font-weight: 600; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.sales-party__entity { justify-self: start; max-width: 100%; overflow: hidden; color: #334155; font-size: 12px; font-weight: 600; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .sales-party__entity:hover { color: #0f766e; text-decoration: underline; }
 .sales-party__units { display: flex; gap: 5px; min-width: 0; overflow: hidden; font-size: 11px; white-space: nowrap; }
 .sales-party__units a { overflow: hidden; color: #0f766e; text-overflow: ellipsis; text-decoration: none; }
@@ -1532,7 +1614,7 @@ onBeforeUnmount(() => { salesRequestId++ })
 .sale-details__summary small { color: #64748b; font-size: 11px; }
 .sale-details__summary strong,
 .sale-details__summary a { color: #334155; font-size: 12px; font-weight: 500; text-decoration: none; }
-.sale-details__summary a { color: #0f766e; }
+.sale-details__summary a { justify-self: start; max-width: 100%; color: #0f766e; }
 .sale-details__units { display: flex; flex-wrap: wrap; gap: 5px; }
 .sale-details__units a,
 .sale-details__units span { padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; background: #fff; color: #64748b; font-size: 11px; text-decoration: none; }
@@ -1544,6 +1626,8 @@ onBeforeUnmount(() => { salesRequestId++ })
 .sale-details__head span,
 .sale-details__row > * { min-width: 0; padding: 6px 8px; }
 .sale-details__row { min-height: 35px; border-top: 1px solid #edf1f5; font-size: 12px; }
+.sale-details__row:hover,
+.sale-details__row:focus-within { background: #f0fdfa; }
 .sale-details__row a { overflow: hidden; color: #0f766e; font-weight: 500; text-overflow: ellipsis; text-decoration: none; white-space: nowrap; }
 .sale-details__row span { color: #64748b; }
 .sale-details__row strong { color: #334155; font-weight: 500; text-align: right; }

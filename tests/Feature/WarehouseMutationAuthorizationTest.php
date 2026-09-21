@@ -99,10 +99,10 @@ class WarehouseMutationAuthorizationTest extends TestCase
         $user->givePermissionTo(Permission::findOrCreate('warehouse.move', 'crm'));
         $this->actingAs($user);
 
-        foreach (['/api/sales/1', '/api/goodsales/1'] as $endpoint) {
-            $this->patchJson($endpoint, [])->assertStatus(405);
-            $this->deleteJson($endpoint)->assertStatus(405);
-        }
+        $this->patchJson('/api/sales/1', [])->assertUnprocessable()->assertJsonValidationErrors('date');
+        $this->patchJson('/api/goodsales/1', [])->assertStatus(405);
+        $this->deleteJson('/api/sales/1')->assertStatus(405);
+        $this->deleteJson('/api/goodsales/1')->assertStatus(405);
     }
 
     private function mutationEndpoints(): array

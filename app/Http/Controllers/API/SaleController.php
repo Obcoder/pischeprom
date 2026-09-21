@@ -7,9 +7,11 @@ use App\Domain\Banking\Services\DecimalMoney;
 use App\Domain\Banking\Services\PaymentAllocationService;
 use App\Http\Controllers\Controller;
 use App\Models\Good;
+use App\Models\GoodStockMovement;
 use App\Models\Order;
 use App\Models\Sale;
 use App\Services\Goods\GoodSaleStockSynchronizer;
+use App\Services\Goods\GoodStockMutationService;
 use App\Services\Goods\SaleStockRequestService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -234,9 +236,44 @@ class SaleController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $id, GoodStockMutationService $mutations)
     {
-        abort(405, 'Изменение проведённой продажи пока не поддерживается.');
+        $validated = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d'],
+        ]);
+
+        $sale = DB::transaction(function () use ($id, $validated, $mutations): Sale {
+            $sale = Sale::query()->without('entity')->whereKey($id)
+                ->lockForUpdate()->firstOrFail();
+
+            $sale->update(['date' => $validated['date']]);
+
+            $movements = GoodStockMovement::query()
+                ->where('source_type', GoodStockMovement::SOURCE_GOOD_SALE)
+                ->where('sale_id', $sale->id);
+
+            // Date corrections must not create missing historical write-offs or reprice stock.
+            $mutations->run($movements->pluck('good_id')->all(), function () use ($movements, $validated): void {
+                $movements->orderBy('id')->lockForUpdate()->get()
+                    ->each(fn (GoodStockMovement $movement) => $movement->update([
+                        'moved_at' => $validated['date'],
+                    ]));
+            });
+
+            return $sale;
+        }, 3);
+
+        $sale->load([
+            'entity.units:id,name',
+            'entity.buildings.city:id,name',
+            'entity.cities:id,name',
+            'goods.vatRate:id,title,rate',
+        ]);
+        $this->attachPreviousSales(collect([$sale]));
+
+        return response()->json([
+            'data' => $this->serializeSale($sale),
+        ]);
     }
 
     public function destroy(string $id)

@@ -25,7 +25,13 @@ function pageHarness(filename, { props = {}, purchases = false } = {}) {
             get(url, options = {}) {
                 let resolve, reject
                 const promise = new Promise((success, failure) => { resolve = success; reject = failure })
-                requests.push({ url, options, resolve: data => resolve({ data }), reject })
+                requests.push({ method: 'GET', url, options, resolve: data => resolve({ data }), reject })
+                return promise
+            },
+            patch(url, body, options = {}) {
+                let resolve, reject
+                const promise = new Promise((success, failure) => { resolve = success; reject = failure })
+                requests.push({ method: 'PATCH', url, body, options, resolve: data => resolve({ data }), reject })
                 return promise
             },
             isCancel: error => error?.code === 'ERR_CANCELED',
@@ -176,6 +182,100 @@ test('sales refresh updates totals and details using applied filters without alt
     assert.equal(api.saleForm.goods[0].quantity, 37)
     assert.equal(api.detailsLine.quantity, 12)
     assert.equal(api.filters.date_from, '2030-01-01')
+})
+
+test('sale date save updates the open sale and refreshes previous sales using applied filters', async () => {
+    const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+    const sale = { id: 5, date: '2026-09-20T00:00:00.000000Z', total: 10 }
+    const laterSale = { id: 6, date: '2026-09-21', total: 20, previous_sale: { id: 5, total: 10, days: 1 } }
+    api.filters.month = '2026-09'
+    api.options.page = 2
+    const initial = api.fetchSales()
+    requests[0].resolve({ data: [laterSale, sale], meta: { total: 2, total_amount: 30 } })
+    await initial
+    api.openSaleDetails(api.rows.value[1])
+    api.openSaleDateEdit(api.rows.value[1])
+    assert.equal(api.dateEditDialog.value, true)
+    assert.equal(api.dateForm.saleId, 5)
+    assert.equal(api.dateForm.date, '2026-09-20')
+    api.dateForm.date = '2026-09-10'
+    api.filters.month = '2026-10'
+    api.filters.date_from = '2030-01-01'
+
+    const pending = api.saveSaleDate()
+    assert.equal(api.dateSaving.value, true)
+    assert.equal(requests[1].method, 'PATCH')
+    assert.equal(requests[1].url, '/api/sales/5')
+    assert.deepEqual(requests[1].body, { date: '2026-09-10' })
+    await api.saveSaleDate()
+    assert.equal(requests.length, 2, 'repeated submission does not send a second mutation')
+    const updatedSale = { ...sale, date: '2026-09-10' }
+    requests[1].resolve({ data: updatedSale })
+    await Promise.resolve()
+    assert.equal(api.rows.value[1].date, '2026-09-10')
+    assert.equal(api.selectedSale.value.date, '2026-09-10')
+    assert.equal(api.dateEditDialog.value, false)
+    assert.equal(requests[2].url, '/api/sales')
+    assert.equal(requests[2].options.params.month, '2026-09')
+    assert.equal(requests[2].options.params.page, 2)
+    assert.equal(requests[2].options.params.date_from, undefined)
+    assert.equal(requests[3].url, '/api/sales/5')
+    requests[2].resolve({
+        data: [{ ...laterSale, previous_sale: { id: 5, total: 10, days: 11 } }, updatedSale],
+        meta: { total: 2, total_amount: 30 },
+    })
+    requests[3].resolve({ data: updatedSale })
+    await pending
+    assert.equal(api.dateSaving.value, false)
+    assert.equal(api.rows.value[0].previous_sale.days, 11)
+    assert.equal(api.selectedSale.value.date, '2026-09-10')
+    assert.equal(api.filters.month, '2026-10')
+    assert.equal(api.filters.date_from, '2030-01-01')
+})
+
+test('sale date validation keeps the editor and draft open without changing saved sale data', async () => {
+    const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+    const sale = { id: 5, date: '2026-09-20', total: 10 }
+    api.rows.value = [sale]
+    api.openSaleDetails(api.rows.value[0])
+    api.openSaleDateEdit(api.rows.value[0])
+    api.dateForm.date = ''
+    await api.saveSaleDate()
+    assert.equal(requests.length, 0, 'an empty date does not reach the server')
+    api.dateForm.date = '2026-02-30'
+
+    const pending = api.saveSaleDate()
+    requests[0].reject({ response: {
+        status: 422,
+        data: { message: 'Некорректная дата продажи.', errors: { date: ['Некорректная дата продажи.'] } },
+    } })
+    await pending
+    assert.equal(api.dateSaving.value, false)
+    assert.equal(api.dateEditDialog.value, true)
+    assert.equal(api.dateForm.date, '2026-02-30')
+    assert.equal(api.dateErrorMessage.value, 'Некорректная дата продажи.')
+    assert.equal(api.rows.value[0].date, '2026-09-20')
+    assert.equal(api.selectedSale.value.date, '2026-09-20')
+    assert.equal(requests.length, 1, 'failed validation does not refresh or replace saved data')
+})
+
+test('sales realtime refresh updates saved dates without overwriting an open date draft', async () => {
+    const { api, requests, refresh } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+    api.rows.value = [{ id: 5, date: '2026-09-20', total: 10 }]
+    api.openSaleDetails(api.rows.value[0])
+    api.openSaleDateEdit(api.rows.value[0])
+    api.dateForm.date = '2026-09-10'
+
+    const pending = refresh()
+    const remotelyUpdatedSale = { id: 5, date: '2026-09-18', total: 10 }
+    requests[0].resolve({ data: [remotelyUpdatedSale], meta: { total: 1, total_amount: 10 } })
+    requests[1].resolve({ data: remotelyUpdatedSale })
+    await pending
+    assert.equal(api.rows.value[0].date, '2026-09-18')
+    assert.equal(api.selectedSale.value.date, '2026-09-18')
+    assert.equal(api.dateEditDialog.value, true)
+    assert.equal(api.dateForm.saleId, 5)
+    assert.equal(api.dateForm.date, '2026-09-10')
 })
 
 test('entity sales ignores a slow response for the previously selected entity', async () => {
