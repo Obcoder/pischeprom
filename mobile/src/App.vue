@@ -4,6 +4,8 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { App as NativeApp } from '@capacitor/app'
 import { ApiError, createApi } from './api.js'
 import { createShipmentOperation, validatePreparation } from './shipment.js'
+import DeliveryContacts from './DeliveryContacts.vue'
+import DeliveryMap from './DeliveryMap.vue'
 
 const user = ref(null)
 const abilities = ref([])
@@ -19,6 +21,7 @@ const online = ref(navigator.onLine)
 const orders = ref([])
 const search = ref('')
 const filter = ref('awaiting')
+const screen = ref('list')
 const listLoading = ref(false)
 const listError = ref('')
 const meta = ref({ total: 0, current_page: 1, last_page: 1 })
@@ -55,6 +58,7 @@ function clearSession(message = '') {
     orders.value = []
     order.value = null
     selectedId.value = null
+    screen.value = 'list'
     confirmShipment.value = false
     loginError.value = message
     listLoading.value = false
@@ -204,8 +208,10 @@ function back() {
         order.value = null
         orderError.value = ''
         orderLoading.value = false
-        loadOrders()
+        if (screen.value === 'list') loadOrders()
+        return
     }
+    if (screen.value === 'map') screen.value = 'list'
 }
 
 function operationError(error, action) {
@@ -267,11 +273,15 @@ function available(item, row) {
 
 watch(search, () => {
     clearTimeout(searchTimer)
-    searchTimer = setTimeout(() => loadOrders(), 350)
+    if (screen.value === 'list') searchTimer = setTimeout(() => loadOrders(), 350)
 })
 watch(filter, () => {
     clearTimeout(searchTimer)
-    loadOrders()
+    if (screen.value === 'list') loadOrders()
+})
+watch(screen, value => {
+    clearTimeout(searchTimer)
+    if (value === 'list') loadOrders()
 })
 const updateConnection = () => { online.value = navigator.onLine }
 onMounted(async () => {
@@ -279,7 +289,7 @@ onMounted(async () => {
     window.addEventListener('offline', updateConnection)
     if (Capacitor.isNativePlatform()) {
         backListener = await NativeApp.addListener('backButton', () => {
-            if (inDetail.value || confirmShipment.value) back()
+            if (inDetail.value || confirmShipment.value || screen.value === 'map') back()
             else if (!busy.value) NativeApp.minimizeApp()
         })
     }
@@ -296,7 +306,7 @@ onBeforeUnmount(() => {
     <v-app>
         <div class="app-shell">
             <header class="topbar">
-                <button v-if="user && inDetail" class="icon-button" aria-label="Назад к заказам" :disabled="busy" @click="back">
+                <button v-if="user && (inDetail || screen === 'map')" class="icon-button" :aria-label="inDetail && screen === 'map' ? 'Назад к карте' : 'Назад к заказам'" :disabled="busy" @click="back">
                     <v-icon icon="mdi-arrow-left" />
                 </button>
                 <div v-else class="brand-mark" aria-hidden="true"><v-icon icon="mdi-package-variant-closed" size="25" /></div>
@@ -343,14 +353,20 @@ onBeforeUnmount(() => {
 
                 <section v-else-if="!inDetail" aria-labelledby="orders-title">
                     <div class="page-title-row">
-                        <div><div class="eyebrow">РАБОЧЕЕ МЕСТО</div><h1 id="orders-title">Заказы<span v-if="!listLoading" class="count-badge">{{ meta.total }}</span></h1></div>
-                        <v-btn icon="mdi-refresh" variant="text" aria-label="Обновить заказы" :loading="listLoading" @click="loadOrders()" />
+                        <div><div class="eyebrow">РАБОЧЕЕ МЕСТО</div><h1 id="orders-title">{{ screen === 'map' ? 'Карта доставок' : 'Заказы' }}<span v-if="screen === 'list' && !listLoading" class="count-badge">{{ meta.total }}</span></h1></div>
+                        <v-btn v-if="screen === 'list'" icon="mdi-refresh" variant="text" aria-label="Обновить заказы" :loading="listLoading" @click="loadOrders()" />
+                    </div>
+                    <div class="screen-switch" role="group" aria-label="Вид заказов">
+                        <button :class="{ active: screen === 'list' }" :aria-pressed="screen === 'list'" @click="screen = 'list'"><v-icon icon="mdi-format-list-bulleted" size="20" />Список</button>
+                        <button :class="{ active: screen === 'map' }" :aria-pressed="screen === 'map'" @click="screen = 'map'"><v-icon icon="mdi-map-outline" size="20" />Карта</button>
                     </div>
                     <v-text-field v-model="search" placeholder="Номер заказа или покупатель" aria-label="Поиск по номеру заказа или покупателю" prepend-inner-icon="mdi-magnify" clearable hide-details density="comfortable" bg-color="surface" class="search-field" @click:clear="search = ''" />
                     <div class="filter-scroll" role="group" aria-label="Фильтр заказов">
                         <button v-for="option in filters" :key="option.value" :class="['filter-button', { active: filter === option.value }]" :aria-pressed="filter === option.value" @click="filter = option.value">{{ option.label }}</button>
                     </div>
 
+                    <DeliveryMap v-if="screen === 'map'" :api="api" :search="search || ''" :filter="filter" @open-order="openOrder" @notification="notify" />
+                    <template v-else>
                     <v-alert v-if="listError" type="error" class="mb-4" role="alert">{{ listError }}<v-btn variant="text" class="mt-2" @click="loadOrders()">Повторить</v-btn></v-alert>
                     <div v-if="listLoading && !orders.length" class="order-list" aria-label="Загрузка заказов" aria-busy="true">
                         <v-skeleton-loader v-for="n in 3" :key="n" type="article, list-item-two-line" class="skeleton-card" />
@@ -362,19 +378,23 @@ onBeforeUnmount(() => {
                         <v-btn v-if="search || filter !== 'all'" color="primary" variant="tonal" class="mt-4" @click="search = ''; filter = 'all'">Показать все заказы</v-btn>
                     </div>
                     <div v-else class="order-list">
-                        <button v-for="item in orders" :key="item.id" class="order-card" @click="openOrder(item.id)">
+                        <article v-for="item in orders" :key="item.id" class="order-card">
+                            <button class="order-card-main" :aria-label="`Открыть заказ № ${item.number}`" @click="openOrder(item.id)">
                             <div class="card-top"><span class="order-number">№ {{ item.number }}</span><v-chip :color="status(item.workflow_status).color" size="small" label>{{ status(item.workflow_status).label }}</v-chip></div>
                             <h2 class="customer-name">{{ item.entity?.name || 'Покупатель не указан' }}</h2>
                             <div class="card-date">{{ date(item.submitted_at) }}<span>·</span>{{ item.items_count }} поз.</div>
+                            </button>
                             <div class="card-divider" />
+                            <DeliveryContacts :addresses="item.delivery_addresses || []" :telephone="item.contact_telephone" compact />
                             <div class="card-info"><v-icon icon="mdi-warehouse" size="18" /><span>{{ item.warehouse?.name || 'Склад не указан' }}</span></div>
                             <div class="card-info"><v-icon icon="mdi-account-outline" size="18" /><span>{{ item.responsible?.name || 'Ответственный не назначен' }}</span></div>
                             <div v-if="item.warnings?.length" class="card-warning"><v-icon icon="mdi-alert-circle-outline" size="17" /><span>{{ item.warnings[0].message }}<span v-if="item.warnings.length > 1"> · ещё {{ item.warnings.length - 1 }}</span></span></div>
-                            <div class="card-bottom"><strong>{{ money(item.total_amount, item.currency_code) }}</strong><span class="open-order">Открыть<v-icon icon="mdi-arrow-right" size="19" /></span></div>
-                        </button>
+                            <button class="card-bottom" :aria-label="`Открыть заказ № ${item.number}`" @click="openOrder(item.id)"><strong>{{ money(item.total_amount, item.currency_code) }}</strong><span class="open-order">Открыть<v-icon icon="mdi-arrow-right" size="19" /></span></button>
+                        </article>
                     </div>
                     <v-btn v-if="orders.length && meta.current_page < meta.last_page" block variant="outlined" size="large" class="mt-5" :loading="listLoading" @click="loadOrders(meta.current_page + 1)">Показать ещё</v-btn>
                     <p v-if="orders.length" class="list-footnote">Показано {{ orders.length }} из {{ meta.total }}</p>
+                    </template>
                 </section>
 
                 <section v-else aria-labelledby="order-title">
@@ -394,6 +414,7 @@ onBeforeUnmount(() => {
                             <v-chip :color="status(order.workflow_status).color" :prepend-icon="status(order.workflow_status).icon" size="small" label>{{ status(order.workflow_status).label }}</v-chip>
                             <h2 class="detail-customer">{{ order.entity?.name || 'Покупатель не указан' }}</h2>
                             <p class="muted">{{ date(order.submitted_at) }}</p>
+                            <DeliveryContacts :addresses="order.delivery_addresses || []" :telephone="order.contact_telephone" />
                             <dl class="detail-facts">
                                 <div><dt><v-icon icon="mdi-warehouse" size="18" />Склад</dt><dd>{{ order.warehouse?.name || 'Не указан' }}</dd></div>
                                 <div><dt><v-icon icon="mdi-account-outline" size="18" />Ответственный</dt><dd>{{ order.responsible?.name || 'Не назначен' }}</dd></div>
@@ -412,7 +433,7 @@ onBeforeUnmount(() => {
                                 <template v-if="order.workflow_status === 'awaiting' && order.can_prepare && rows[index]">
                                     <div class="quantity-fields">
                                         <v-text-field v-model="rows[index].quantity" label="Собрано" inputmode="decimal" density="comfortable" hide-details :disabled="busy || stale || orderLoading" @update:model-value="rows[index].checked = false" />
-                                        <v-select v-model="rows[index].measure_id" :items="item.measure_options || []" item-title="name" item-value="id" label="Единица измерения" density="comfortable" hide-details :disabled="busy || stale || orderLoading" no-data-text="Нет единиц с остатками" @update:model-value="rows[index].checked = false" />
+                                        <v-select v-model="rows[index].measure_id" :items="item.measure_options || []" item-title="name" item-value="id" label="Единица измерения" density="comfortable" hide-details :disabled="busy || stale || orderLoading" no-data-text="Нет единиц измерения" @update:model-value="rows[index].checked = false" />
                                     </div>
                                     <div :class="['stock-label', { insufficient: rows[index].measure_id && Number(available(item, rows[index])) < Number(item.quantity) }]"><v-icon icon="mdi-cube-outline" size="16" />{{ rows[index].measure_id ? `На складе: ${quantity(available(item, rows[index]))}` : 'Выберите единицу для проверки остатка' }}</div>
                                     <v-checkbox v-model="rows[index].checked" label="Количество и единица сверены" color="primary" hide-details density="comfortable" :disabled="busy || stale || orderLoading || !rows[index].measure_id" class="verification-checkbox" />
@@ -423,7 +444,7 @@ onBeforeUnmount(() => {
 
                         <v-alert v-if="order.workflow_status === 'awaiting' && !order.can_prepare" type="info" class="mt-4">Сборка сейчас недоступна. Проверьте предупреждения и права своей учётной записи.</v-alert>
                         <v-alert v-if="order.workflow_status === 'ready' && !order.can_ship" type="info" class="mt-4">Отгрузка сейчас недоступна. Проверьте остатки, предупреждения и права своей учётной записи.</v-alert>
-                        <v-btn v-if="order.workflow_status === 'shipped'" color="primary" variant="tonal" size="x-large" block class="mt-5" @click="back">К списку заказов</v-btn>
+                        <v-btn v-if="order.workflow_status === 'shipped'" color="primary" variant="tonal" size="x-large" block class="mt-5" @click="back">{{ screen === 'map' ? 'К карте доставок' : 'К списку заказов' }}</v-btn>
                     </template>
                 </section>
             </main>
@@ -449,6 +470,7 @@ onBeforeUnmount(() => {
                 <p class="muted mt-3">{{ order.entity?.name }}</p>
                 <dl class="confirmation-facts"><div><dt>Склад</dt><dd>{{ order.warehouse?.name }}</dd></div><div><dt>Позиций</dt><dd>{{ order.items_count }}</dd></div><div><dt>Сумма</dt><dd>{{ money(order.total_amount, order.currency_code) }}</dd></div></dl>
                 <p class="confirmation-note">Весь товар будет списан с указанного склада, а продажа оформлена в общей системе учёта.</p>
+                <v-alert v-if="order.allow_negative_stock === true" type="warning" class="mb-4">Временно разрешена отгрузка без достаточного остатка. Если товара на складе по учёту не хватает, остаток станет отрицательным. Подтверждайте только фактически переданный товар.</v-alert>
                 <v-alert v-if="uncertainShipment" type="info" class="mb-4">Повторное подтверждение проверит ту же операцию и не создаст вторую продажу.</v-alert>
                 <v-btn color="primary" size="x-large" block :loading="shipping" :disabled="!canShip" @click="ship">{{ uncertainShipment ? 'Повторить подтверждение' : 'Отгрузить весь заказ' }}</v-btn>
                 <v-btn variant="text" size="large" block class="mt-2" :disabled="shipping" @click="confirmShipment = false">Вернуться к проверке</v-btn>

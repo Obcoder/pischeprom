@@ -51,7 +51,7 @@ export function validatePreparation(order, rows) {
         }
         const measure = item.measure_options?.find(option => String(option.id) === String(row.measure_id))
         if (!measure) return 'Выберите единицу измерения для каждой позиции.'
-        if (Number(measure.available_quantity) + 0.0000001 < quantity) return `Недостаточный остаток: ${item.name}.`
+        if (order.allow_negative_stock !== true && Number(measure.available_quantity) + 0.0000001 < quantity) return `Недостаточный остаток: ${item.name}.`
     }
     return null
 }

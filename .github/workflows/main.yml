@@ -131,6 +131,7 @@ jobs:
             app/Http/Middleware/RestrictMobileTokenScope.php \
             app/Services/Mobile \
             app/Services/Orders/MobileOrderPresenter.php \
+            app/Services/Orders/MobileOrderQuery.php \
             app/Services/Orders/OrderFulfillmentService.php \
             config/cors.php config/mobile.php \
             database/migrations/2026_09_21_120100_add_order_fulfillment.php \

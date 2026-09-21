@@ -107,6 +107,17 @@ test('preparation requires explicit quantity and measurement verification', () =
     assert.match(validatePreparation(preparation, [{ ...row, measure_id: 2 }]), /Недостаточный остаток/)
 })
 
+test('temporary stock policy permits shortage only with an explicit server boolean', () => {
+    const shortageRow = { ...row, measure_id: 2 }
+    assert.equal(validatePreparation({ ...preparation, allow_negative_stock: true }, [shortageRow]), null)
+    for (const allow_negative_stock of [false, undefined, 'true', 1]) {
+        assert.match(validatePreparation({ ...preparation, allow_negative_stock }, [shortageRow]), /Недостаточный остаток/)
+    }
+    assert.match(validatePreparation({ ...preparation, allow_negative_stock: true }, [{ ...shortageRow, checked: false }]), /Сверьте/)
+    assert.match(validatePreparation({ ...preparation, allow_negative_stock: true }, [{ ...shortageRow, quantity: '-1' }]), /полной отгрузки/)
+    assert.match(validatePreparation({ ...preparation, allow_negative_stock: true }, [{ ...shortageRow, measure_id: null }]), /единицу/)
+})
+
 test('partial, excessive, negative and non-finite quantities cannot be confirmed', () => {
     for (const value of ['2', '3', '-2.5', '', 'Infinity', 'NaN']) {
         assert.match(validatePreparation(preparation, [{ ...row, quantity: value }]), /полной отгрузки/)

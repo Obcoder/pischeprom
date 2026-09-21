@@ -24,9 +24,22 @@ class OrderFulfillmentService
     {
         return [
             'entity' => fn ($query) => $query->withoutEagerLoads()->select(['id', 'name']),
+            'contactTelephone:id,number',
+            ...$this->deliveryRelations(),
             'status', 'items.good:id,name', 'items.measure:id,name',
             'preparedBy:id,name', 'shippedBy:id,name', 'fulfillmentWarehouse',
             'shippedSale' => fn ($query) => $query->withoutEagerLoads(),
+        ];
+    }
+
+    public function deliveryRelations(): array
+    {
+        return [
+            'buildings' => fn ($query) => $query->withoutEagerLoads()
+                ->select(['buildings.id', 'buildings.address', 'buildings.city_id'])
+                ->orderBy('buildings.id')
+                ->with(['city' => fn ($city) => $city->withoutEagerLoads()->select(['id', 'name', 'region_id'])
+                    ->with(['region' => fn ($region) => $region->withoutEagerLoads()->select(['id', 'name'])])]),
         ];
     }
 
@@ -40,6 +53,14 @@ class OrderFulfillmentService
                 'currency_code', 'submitted_at', 'closed_at', 'fulfillment_warehouse_id',
             ]),
             'status' => $order->status?->only(['code', 'is_closed']),
+            'contact_telephone' => $order->contactTelephone?->only(['id', 'number']),
+            'buildings' => $order->buildings->map(fn ($building) => [
+                'building' => $building->only(['id', 'address', 'city_id']),
+                'city' => $building->city?->only(['id', 'name', 'region_id']),
+                'region' => $building->city?->region?->only(['id', 'name']),
+                'role' => $building->pivot?->role,
+                'position' => $building->pivot?->position,
+            ])->values()->all(),
             'items' => $order->items->map(fn (OrderItem $item) => $item->only([
                 'id', 'good_id', 'good_name', 'quantity', 'denominator', 'line_weight',
                 'price_gross', 'currency_code', 'line_total', 'measure_id',
@@ -177,8 +198,9 @@ class OrderFulfillmentService
                     'measure_id' => $item->measure_id,
                 ]);
             }
-            // Existing posting code locks goods, checks balances and calculates stock cost.
-            $this->stock->sync($sale);
+            // Keep the existing ledger and valuation. Only this employee workflow has
+            // the temporary shortage exception; regular sales retain strict stock checks.
+            $this->stock->sync($sale, $this->allowsNegativeStock());
             $order->forceFill([
                 'shipped_sale_id' => $sale->id,
                 'shipped_by_user_id' => $actor->id,
@@ -199,6 +221,11 @@ class OrderFulfillmentService
     public function warehouse(): ?Warehouse
     {
         return Warehouse::query()->where('code', Warehouse::GOODS_CODE)->where('is_active', true)->first();
+    }
+
+    public function allowsNegativeStock(): bool
+    {
+        return (bool) config('mobile.allow_negative_stock', true);
     }
 
     private function saleTotal(Order $order): float

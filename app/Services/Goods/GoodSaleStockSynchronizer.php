@@ -15,7 +15,8 @@ class GoodSaleStockSynchronizer
 
     /**
      * A saved Sale is posted: payment_status concerns payments, not stock.
-     * allowNegativeStock is reserved for reconciliation of historical documents.
+     * allowNegativeStock is explicit for historical reconciliation and the
+     * temporary mobile shipment policy; ordinary sales remain strict.
      */
     public function sync(Sale $sale, bool $allowNegativeStock = false): void
     {

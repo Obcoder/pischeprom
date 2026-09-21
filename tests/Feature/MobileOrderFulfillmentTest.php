@@ -2,12 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Models\Building;
+use App\Models\City;
+use App\Models\Country;
 use App\Models\Entity;
 use App\Models\Good;
 use App\Models\GoodStockMovement;
 use App\Models\Measure;
 use App\Models\Order;
 use App\Models\OrderStatus;
+use App\Models\Region;
+use App\Models\Telephone;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Orders\OrderWriter;
@@ -71,6 +76,114 @@ class MobileOrderFulfillmentTest extends TestCase
         $this->assertNotSame($data['version'], $prepared['version']);
         $this->assertDatabaseCount('sales', 0);
         $this->assertEquals(10, $this->balance());
+    }
+
+    public function test_list_and_details_show_the_order_delivery_addresses_and_contact_number(): void
+    {
+        $country = Country::query()->create(['name' => 'Россия', 'сodeISO' => 'RU']);
+        $region = Region::query()->create(['name' => 'Самарская область', 'country_id' => $country->id]);
+        $city = City::query()->create(['name' => 'Самара', 'region_id' => $region->id]);
+        $delivery = Building::query()->create(['address' => 'Ленина, 10', 'city_id' => $city->id]);
+        $legacy = Building::query()->create(['address' => 'Советская, 2']);
+        $logistics = Building::query()->create(['address' => 'Складская, 15']);
+        $empty = Building::query()->create(['address' => '   ', 'city_id' => $city->id]);
+        $telephone = Telephone::query()->create(['number' => '8 (917) 123-45-67']);
+        $order = $this->order();
+        $order->update(['contact_telephone_id' => $telephone->id]);
+        $order->buildings()->attach([
+            $delivery->id => ['role' => 'delivery', 'position' => 2],
+            $legacy->id => ['role' => '', 'position' => 1],
+            $logistics->id => ['role' => 'logistics', 'position' => 0],
+            $empty->id => ['role' => 'delivery', 'position' => 3],
+        ]);
+        $fullAddress = 'Самарская область, Самара, Ленина, 10';
+
+        foreach ([[$this->url($order), 'data'], ['/api/mobile/v1/orders', 'data.0']] as [$url, $path]) {
+            $this->getJson($url)->assertOk()
+                ->assertJsonCount(2, $path.'.delivery_addresses')
+                ->assertJsonPath($path.'.delivery_addresses.0.id', $legacy->id)
+                ->assertJsonPath($path.'.delivery_addresses.0.city', null)
+                ->assertJsonPath($path.'.delivery_addresses.1.id', $delivery->id)
+                ->assertJsonPath($path.'.delivery_addresses.1.city', 'Самара')
+                ->assertJsonPath($path.'.delivery_addresses.1.full_address', $fullAddress)
+                ->assertJsonPath($path.'.delivery_addresses.1.yandex_maps_url', 'https://yandex.ru/maps/?text='.rawurlencode($fullAddress))
+                ->assertJsonPath($path.'.contact_telephone.id', $telephone->id)
+                ->assertJsonPath($path.'.contact_telephone.number', '8 (917) 123-45-67')
+                ->assertJsonPath($path.'.contact_telephone.dial_number', '+79171234567');
+        }
+    }
+
+    public function test_missing_delivery_contacts_are_not_replaced_with_arbitrary_customer_data(): void
+    {
+        $order = $this->order();
+        $telephone = Telephone::query()->create(['number' => '+79171234567']);
+        $building = Building::query()->create(['address' => 'Другой адрес покупателя, 20']);
+        $this->buyer->telephones()->attach($telephone->id);
+        $this->buyer->buildings()->attach($building->id);
+        $this->getJson($this->url($order))->assertOk()
+            ->assertJsonPath('data.contact_telephone', null)
+            ->assertJsonPath('data.delivery_addresses', []);
+
+        $order->update(['contact_telephone_id' => $telephone->id]);
+        foreach (['*21*79171234567#', 'tel:+79171234567', 'не звонить'] as $unsafe) {
+            $telephone->update(['number' => $unsafe]);
+            $this->getJson($this->url($order))->assertOk()
+                ->assertJsonPath('data.contact_telephone.number', $unsafe)
+                ->assertJsonPath('data.contact_telephone.dial_number', null);
+        }
+        $telephone->update(['number' => '+49 (30) 12345678']);
+        $this->getJson($this->url($order))->assertOk()
+            ->assertJsonPath('data.contact_telephone.dial_number', '+493012345678');
+    }
+
+    public function test_delivery_address_and_contact_edits_invalidate_preparation_even_without_an_order_edit(): void
+    {
+        $order = $this->order();
+        $building = Building::query()->create(['address' => 'Ленина, 10']);
+        $telephone = Telephone::query()->create(['number' => '+79171234567']);
+        $order->buildings()->attach($building->id, ['role' => 'delivery', 'position' => 0]);
+        $order->update(['contact_telephone_id' => $telephone->id]);
+        foreach ([[$building, ['address' => 'Ленина, 20']], [$telephone, ['number' => '+79171234568']]] as [$model, $attributes]) {
+            $prepared = $this->prepare($order);
+            $model->update($attributes);
+            $this->postJson($this->url($order).'/ship', ['version' => $prepared['version'], 'request_id' => (string) Str::uuid()])
+                ->assertConflict();
+            $current = $this->getJson($this->url($order))->assertOk()
+                ->assertJsonPath('data.workflow_status', 'awaiting')->assertJsonPath('data.can_ship', false)->json('data');
+            $this->assertNotSame($prepared['version'], $current['version']);
+            $this->assertContains('order_changed', array_column($current['warnings'], 'code'));
+        }
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseCount('sale_stock_requests', 0);
+        $this->assertEquals(10, $this->balance());
+    }
+
+    public function test_temporary_mobile_setting_allows_shortage_and_zero_stock_with_idempotent_existing_ledger_posting(): void
+    {
+        $this->assertTrue(config('mobile.allow_negative_stock'));
+        $otherGood = Good::query()->create(['name' => 'Какао без остатка']);
+        $order = $this->order(13);
+        $order->items()->create(['good_id' => $otherGood->id, 'good_name' => $otherGood->name, 'quantity' => 2, 'price_gross' => 50, 'line_total' => 100, 'currency_code' => 'RUB']);
+        $order->update(['total_amount' => 1400]);
+        $prepared = $this->prepare($order);
+        $this->assertTrue($prepared['allow_negative_stock']);
+        $this->assertTrue($prepared['can_ship']);
+        $this->assertSame(2, collect($prepared['warnings'])->where('code', 'insufficient_stock')->count());
+        $payload = ['version' => $prepared['version'], 'request_id' => (string) Str::uuid()];
+        $saleId = $this->postJson($this->url($order).'/ship', $payload)->assertOk()
+            ->assertJsonPath('data.sale.total', 1400)->json('data.sale.id');
+        $this->assertEquals(-3, $this->balance());
+        $this->assertDatabaseHas('good_stock_movements', ['sale_id' => $saleId, 'good_id' => $this->good->id, 'quantity_delta' => -13, 'unit_price' => 20]);
+        $this->assertDatabaseHas('good_stock_movements', ['sale_id' => $saleId, 'good_id' => $otherGood->id, 'quantity_delta' => -2, 'unit_price' => 0]);
+
+        // A policy change must not turn a successful retry into another posting.
+        config()->set('mobile.allow_negative_stock', false);
+        $this->postJson($this->url($order).'/ship', $payload)->assertOk()->assertJsonPath('data.sale.id', $saleId);
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseCount('good_sale', 2);
+        $this->assertDatabaseCount('sale_stock_requests', 1);
+        $this->assertSame(2, GoodStockMovement::query()->where('sale_id', $saleId)->count());
+        $this->assertEquals(-3, $this->balance());
     }
 
     public function test_shipping_creates_one_sale_with_costed_stock_and_audited_order_link(): void
@@ -187,14 +300,16 @@ class MobileOrderFulfillmentTest extends TestCase
 
     public function test_shortage_rolls_back_all_lines_sale_request_and_order_and_allows_retry_after_receipt(): void
     {
+        config()->set('mobile.allow_negative_stock', false);
         $otherGood = Good::query()->create(['name' => 'Какао']);
         $order = $this->order();
         $order->items()->create(['good_id' => $otherGood->id, 'good_name' => $otherGood->name, 'quantity' => 2, 'price_gross' => 50, 'line_total' => 100, 'currency_code' => 'RUB']);
         $order->update(['total_amount' => 400]);
         $prepared = $this->prepare($order);
+        $this->assertFalse($prepared['allow_negative_stock']);
         $this->assertFalse($prepared['can_ship']);
         $this->assertContains('insufficient_stock', array_column($prepared['warnings'], 'code'));
-        $payload = ['version' => $prepared['version'], 'request_id' => (string) Str::uuid()];
+        $payload = ['version' => $prepared['version'], 'request_id' => (string) Str::uuid(), 'allow_negative_stock' => true];
         $this->postJson($this->url($order).'/ship', $payload)->assertUnprocessable();
         $this->assertDatabaseCount('sales', 0);
         $this->assertDatabaseCount('good_sale', 0);
@@ -228,6 +343,7 @@ class MobileOrderFulfillmentTest extends TestCase
 
     public function test_stock_consumed_by_another_order_is_rechecked_when_shipping(): void
     {
+        config()->set('mobile.allow_negative_stock', false);
         $first = $this->order(6);
         $second = $this->order(6);
         $firstData = $this->prepare($first);
@@ -243,6 +359,7 @@ class MobileOrderFulfillmentTest extends TestCase
 
     public function test_stock_is_not_summed_across_different_measures_or_warehouses(): void
     {
+        config()->set('mobile.allow_negative_stock', false);
         $otherMeasure = Measure::query()->create(['name' => 'мешок']);
         $otherWarehouse = Warehouse::query()->create(['name' => 'Другой', 'code' => 'other-mobile', 'is_active' => true]);
         GoodStockMovement::query()->create(['warehouse_id' => $otherWarehouse->id, 'good_id' => $this->good->id, 'measure_id' => $this->measure->id, 'type' => GoodStockMovement::TYPE_RECEIPT, 'quantity_delta' => 100, 'unit_price' => 10, 'moved_at' => now()->toDateString()]);

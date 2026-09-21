@@ -2,9 +2,11 @@
 
 namespace App\Services\Orders;
 
+use App\Models\Building;
 use App\Models\Measure;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Support\PhoneNumber;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -50,11 +52,19 @@ class MobileOrderPresenter
             }
 
             $sourceWarehouse = $order->fulfillmentWarehouse ?? $warehouse;
+            $allowsNegativeStock = $this->fulfillment->allowsNegativeStock();
+            $blockingProblems = array_filter($problems, fn (array $problem) => ! $allowsNegativeStock || $problem['code'] !== 'insufficient_stock');
 
             return [
                 'id' => $order->id,
                 'number' => $order->number,
                 'entity' => $order->entity?->only(['id', 'name']),
+                'delivery_addresses' => $this->deliveryAddresses($order),
+                'contact_telephone' => $order->contactTelephone ? [
+                    'id' => $order->contactTelephone->id,
+                    'number' => $order->contactTelephone->number,
+                    'dial_number' => $this->dialNumber($order->contactTelephone->number),
+                ] : null,
                 'submitted_at' => $order->submitted_at?->toISOString(),
                 'total_amount' => $order->total_amount,
                 'currency_code' => $order->currency_code,
@@ -64,8 +74,9 @@ class MobileOrderPresenter
                 'workflow_status' => $shipped ? 'shipped' : ($prepared ? 'ready' : 'awaiting'),
                 'version' => $this->fulfillment->version($order),
                 'warnings' => $problems,
+                'allow_negative_stock' => $allowsNegativeStock,
                 'can_prepare' => ! $shipped && $this->fulfillment->problems($order, $warehouse, false) === [],
-                'can_ship' => ! $shipped && $prepared && $problems === [],
+                'can_ship' => ! $shipped && $prepared && $blockingProblems === [],
                 'items' => $order->items->map(fn (OrderItem $item) => [
                     'id' => $item->id,
                     'good_id' => $item->good_id,
@@ -92,5 +103,52 @@ class MobileOrderPresenter
                 'shipped_by' => $order->shippedBy?->only(['id', 'name']),
             ];
         })->values()->all();
+    }
+
+    public function deliveryRelations(): array
+    {
+        return $this->fulfillment->deliveryRelations();
+    }
+
+    public function deliveryAddresses(Order $order): array
+    {
+        $order->loadMissing($this->deliveryRelations());
+
+        return $order->buildings
+            ->filter(fn (Building $building) => in_array(trim((string) $building->pivot?->role), ['', 'delivery'], true)
+                && trim((string) $building->address) !== '')
+            ->map(fn (Building $building) => $this->deliveryAddress($building))->values()->all();
+    }
+
+    private function deliveryAddress(Building $building): array
+    {
+        $address = trim((string) $building->address);
+        $city = trim((string) $building->city?->name);
+        $region = trim((string) $building->city?->region?->name);
+        $fullAddress = collect([$region, $city, $address])->filter()->unique()->implode(', ');
+
+        return [
+            'id' => $building->id,
+            'address' => $address,
+            'city' => $city !== '' ? $city : null,
+            'full_address' => $fullAddress,
+            'yandex_maps_url' => 'https://yandex.ru/maps/?text='.rawurlencode($fullAddress),
+        ];
+    }
+
+    private function dialNumber(string $number): ?string
+    {
+        // A dial action must not interpret stored text as a URI, extension or USSD code.
+        if (! preg_match('/^\+?[0-9\s().-]+$/u', trim($number))) {
+            return null;
+        }
+
+        $russian = PhoneNumber::russian($number);
+        if ($russian !== null) {
+            return $russian;
+        }
+        $international = preg_replace('/[\s().-]+/u', '', trim($number));
+
+        return preg_match('/^\+[1-9][0-9]{6,14}$/', $international) ? $international : null;
     }
 }

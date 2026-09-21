@@ -157,6 +157,8 @@ Route::prefix('mobile/v1')
             ->group(function (): void {
                 Route::get('/auth/me', [\App\Http\Controllers\API\Mobile\MobileAuthController::class, 'me'])->name('auth.me');
                 Route::delete('/auth/token', [\App\Http\Controllers\API\Mobile\MobileAuthController::class, 'logout'])->name('auth.logout');
+                Route::get('/delivery-map/config', [\App\Http\Controllers\API\Mobile\MobileDeliveryMapController::class, 'configuration'])->name('delivery-map.config');
+                Route::get('/delivery-map/orders', [\App\Http\Controllers\API\Mobile\MobileDeliveryMapController::class, 'orders'])->name('delivery-map.orders');
                 Route::get('/orders', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'index'])->name('orders.index');
                 Route::get('/orders/{order}', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'show'])->name('orders.show');
                 Route::patch('/orders/{order}/prepare', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'prepare'])->name('orders.prepare');

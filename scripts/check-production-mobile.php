@@ -6,7 +6,7 @@ use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 
-// Read schema metadata, then make two anonymous requests to the same HTTPS
+// Read schema metadata, then make anonymous requests to the same HTTPS
 // endpoint as the phone. Empty login data fails before any account lookup or
 // token creation. No sales, stock movements or authenticated requests are made.
 if ($argc !== 2) {
@@ -61,7 +61,20 @@ try {
         throw new RuntimeException('The orders endpoint must reject anonymous requests.');
     }
 
-    fwrite(STDOUT, "Mobile API checks passed: fulfillment schema, login HTTP 422, anonymous orders HTTP 401.\n");
+    foreach (['config', 'orders'] as $endpoint) {
+        $stage = 'GET /api/mobile/v1/delivery-map/'.$endpoint.' without authentication';
+        $map = Http::acceptJson()->connectTimeout(5)->timeout(15)
+            ->withoutRedirecting()->get($baseUrl.'/api/mobile/v1/delivery-map/'.$endpoint);
+        if ($map->status() !== 401
+            || ! str_contains(strtolower($map->header('Content-Type')), 'application/json')
+            || ! is_string($map->json('message'))) {
+            throw new RuntimeException('Delivery map endpoints must reject anonymous requests.');
+        }
+    }
+
+    fwrite(STDOUT, "Mobile API checks passed: fulfillment schema, login HTTP 422, anonymous orders and delivery map HTTP 401.\n");
+    fwrite(STDOUT, 'Mobile stock shortage override: '.(config('mobile.allow_negative_stock') ? 'enabled' : 'disabled').".\n");
+    fwrite(STDOUT, 'Yandex delivery map key: '.(trim((string) config('gis.providers.yandex.api_key')) !== '' ? 'configured' : 'not configured').".\n");
 } catch (Throwable) {
     // Never print response bodies, configuration values or exception messages.
     fwrite(STDERR, "Mobile API check failed during {$stage}; inspect the application locally on the VPS.\n");
