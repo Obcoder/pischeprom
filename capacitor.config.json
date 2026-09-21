@@ -1,0 +1,15 @@
+{
+    "appId": "ru.pischeprom.orders",
+    "appName": "Пищепром · Заказы",
+    "webDir": "mobile/dist",
+    "android": {
+        "path": "mobile/android",
+        "allowMixedContent": false,
+        "webContentsDebuggingEnabled": false
+    },
+    "server": {
+        "hostname": "localhost",
+        "androidScheme": "https",
+        "cleartext": false
+    }
+}

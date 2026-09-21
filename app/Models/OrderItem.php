@@ -10,6 +10,7 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id',
         'good_id',
+        'measure_id',
         'good_name',
         'good_slug',
         'image_url',
@@ -40,6 +41,11 @@ class OrderItem extends Model
     public function good(): BelongsTo
     {
         return $this->belongsTo(Good::class);
+    }
+
+    public function measure(): BelongsTo
+    {
+        return $this->belongsTo(Measure::class);
     }
 
     public function getUnitPriceAttribute(): ?float

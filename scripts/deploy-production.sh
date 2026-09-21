@@ -486,6 +486,10 @@ php artisan up
 maintenance_started=0
 code_switch_started=0
 
+log 'Checking the mobile API schema and public authentication endpoints.'
+php "$target_dir/scripts/check-production-mobile.php" "$target_dir" \
+    || fail 'Mobile API schema or HTTP checks failed; inspect the mobile routes and migrations on the VPS.'
+
 if ! php artisan app:deploy-smoke --path=/ >/dev/null 2>&1; then
     fail 'Smoke check for / failed; rerun the command locally on the VPS.'
 fi

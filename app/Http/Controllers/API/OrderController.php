@@ -173,7 +173,7 @@ class OrderController extends Controller
 
     public function destroy(Order $order): JsonResponse
     {
-        $order->delete();
+        $this->writer->delete($order);
 
         return response()->json(null, 204);
     }

@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         'middleware' => ['web', 'auth:sanctum', 'verified', 'throttle:commerce-realtime-auth'],
     ])
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->prepend(\App\Http\Middleware\RestrictMobileTokenScope::class);
         $middleware->statefulApi();
 
         $middleware->web(append: [

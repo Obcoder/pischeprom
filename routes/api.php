@@ -146,6 +146,25 @@ use App\Http\Middleware\EnsureWarehouseMutationAllowed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+Route::prefix('mobile/v1')
+    ->name('mobile.')
+    ->withoutMiddleware([\Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class])
+    ->group(function (): void {
+        Route::post('/auth/login', [\App\Http\Controllers\API\Mobile\MobileAuthController::class, 'login'])
+            ->middleware('throttle:mobile-login')->name('auth.login');
+
+        Route::middleware([\App\Http\Middleware\EnsureMobileAccess::class, 'throttle:120,1,mobile'])
+            ->group(function (): void {
+                Route::get('/auth/me', [\App\Http\Controllers\API\Mobile\MobileAuthController::class, 'me'])->name('auth.me');
+                Route::delete('/auth/token', [\App\Http\Controllers\API\Mobile\MobileAuthController::class, 'logout'])->name('auth.logout');
+                Route::get('/orders', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'index'])->name('orders.index');
+                Route::get('/orders/{order}', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'show'])->name('orders.show');
+                Route::patch('/orders/{order}/prepare', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'prepare'])->name('orders.prepare');
+                Route::post('/orders/{order}/ship', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'ship'])
+                    ->middleware('throttle:30,1,mobile-ship')->name('orders.ship');
+            });
+    });
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');

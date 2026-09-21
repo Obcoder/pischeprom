@@ -13,7 +13,19 @@ class OrderWriter
     public function save(?Order $order, array $data): Order
     {
         return DB::transaction(function () use ($order, $data): Order {
-            $order ??= new Order;
+            $order = $order?->exists
+                ? Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail()
+                : new Order;
+            abort_if($order->shipped_sale_id !== null, 409, 'Отгруженный заказ нельзя изменять.');
+            if ($order->prepared_at !== null || $order->prepared_fingerprint !== null) {
+                $order->forceFill([
+                    'prepared_at' => null,
+                    'prepared_fingerprint' => null,
+                    'prepared_by_user_id' => null,
+                    'fulfillment_warehouse_id' => null,
+                    'preparation_invalidated_at' => now(),
+                ]);
+            }
             $status = OrderStatus::query()->findOrFail($data['order_status_id']);
             $goods = $this->goodsFor($data['items']);
             $lines = collect($data['items'])
@@ -79,6 +91,15 @@ class OrderWriter
             'buildings.buildingType',
             'items.good:id,name,slug',
         ];
+    }
+
+    public function delete(Order $order): void
+    {
+        DB::transaction(function () use ($order): void {
+            $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->shipped_sale_id !== null, 409, 'Отгруженный заказ нельзя удалить.');
+            $locked->delete();
+        });
     }
 
     private function goodsFor(array $items): Collection

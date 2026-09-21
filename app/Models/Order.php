@@ -33,6 +33,9 @@ class Order extends Model
         'submitted_at' => 'datetime',
         'notified_at' => 'datetime',
         'closed_at' => 'datetime',
+        'prepared_at' => 'datetime',
+        'preparation_invalidated_at' => 'datetime',
+        'shipped_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -74,6 +77,26 @@ class Order extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function preparedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'prepared_by_user_id');
+    }
+
+    public function shippedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shipped_by_user_id');
+    }
+
+    public function shippedSale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class, 'shipped_sale_id');
+    }
+
+    public function fulfillmentWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'fulfillment_warehouse_id');
     }
 
     public function contactTelephone(): BelongsTo

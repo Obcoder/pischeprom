@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Пищепром · Заказы</string>
+    <string name="title_activity_main">Пищепром · Заказы</string>
+    <string name="package_name">ru.pischeprom.orders</string>
+    <string name="custom_url_scheme">ru.pischeprom.orders</string>
+</resources>

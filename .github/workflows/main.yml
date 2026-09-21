@@ -122,6 +122,22 @@ jobs:
             tests/Feature/RegistrationTest.php \
             tests/TestCase.php
 
+      - name: Check mobile orders PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/Mobile \
+            app/Http/Controllers/API/SaleController.php \
+            app/Http/Middleware/EnsureMobileAccess.php \
+            app/Http/Middleware/RestrictMobileTokenScope.php \
+            app/Services/Mobile \
+            app/Services/Orders/MobileOrderPresenter.php \
+            app/Services/Orders/OrderFulfillmentService.php \
+            config/cors.php config/mobile.php \
+            database/migrations/2026_09_21_120100_add_order_fulfillment.php \
+            scripts/check-production-mobile.php \
+            tests/Feature/Mobile \
+            tests/Feature/MobileOrderFulfillmentTest.php
+
       - name: Check logistics PHP style
         run: |
           vendor/bin/pint --test \
@@ -292,7 +308,7 @@ jobs:
             tests/Feature/CommerceRealtimeTest.php tests/Unit/Realtime
           bash -n scripts/deploy-production.sh scripts/provision-production-realtime.sh
 
-      - name: Run unit, logistics, banking, AI price-list, mail, goods stock, realtime, orders, and products tests
+      - name: Run unit, logistics, banking, AI price-list, mail, goods stock, realtime, orders, mobile, and products tests
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -326,6 +342,8 @@ jobs:
             tests/Feature/WarehouseMutationAuthorizationTest.php \
             tests/Feature/CommerceRealtimeTest.php \
             tests/Feature/OrderManagementTest.php \
+            tests/Feature/Mobile \
+            tests/Feature/MobileOrderFulfillmentTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/AmeiseCommercePageTest.php \
@@ -348,6 +366,14 @@ jobs:
 
       - name: Check live updates and page state preservation
         run: node --test tests/Frontend/*.test.mjs
+
+      - name: Verify mobile login and shipment interactions
+        run: npm run mobile:test
+
+      - name: Build mobile application assets
+        env:
+          NODE_OPTIONS: --max-old-space-size=2048
+        run: npm run mobile:build
 
       - name: Verify real Reverb delivery and private channel security
         run: node scripts/smoke-test-commerce-realtime.mjs

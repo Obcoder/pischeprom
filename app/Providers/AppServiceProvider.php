@@ -185,6 +185,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('mobile-login', fn (Request $request) => [
+            Limit::perMinute(20)->by('mobile-ip:'.$request->ip()),
+            Limit::perMinute(5)->by('mobile-login:'.hash('sha256', strtolower((string) $request->input('email')).'|'.$request->ip())),
+        ]);
+
         GoodStockMovement::observe(GoodStockMovementObserver::class);
         MailMessageAttachment::observe(MailMessageAttachmentObserver::class);
 

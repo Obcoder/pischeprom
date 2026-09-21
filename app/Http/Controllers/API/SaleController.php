@@ -7,6 +7,7 @@ use App\Domain\Banking\Services\DecimalMoney;
 use App\Domain\Banking\Services\PaymentAllocationService;
 use App\Http\Controllers\Controller;
 use App\Models\Good;
+use App\Models\Order;
 use App\Models\Sale;
 use App\Services\Goods\GoodSaleStockSynchronizer;
 use App\Services\Goods\SaleStockRequestService;
@@ -177,6 +178,10 @@ class SaleController extends Controller
                 ->whereKey($sale->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            abort_if(Order::query()->where('shipped_sale_id', $lockedSale->id)
+                ->lockForUpdate()->first(['id']) !== null, 409,
+                'Продажа создана отгрузкой заказа. Добавлять позиции в неё нельзя.');
 
             $lockedSale->goods()->attach($line['good_id'], [
                 'quantity' => $line['quantity'],
