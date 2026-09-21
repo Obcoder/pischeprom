@@ -13,11 +13,12 @@ fail() {
     exit 1
 }
 
-[[ $# -eq 3 ]] || fail 'Expected TARGET_DIR_BASE64, COMMIT_SHA and FRONTEND_ARCHIVE.'
+[[ $# -eq 3 || $# -eq 4 ]] || fail 'Expected TARGET_DIR_BASE64, COMMIT_SHA, FRONTEND_ARCHIVE and optional MAPS_CONFIG_JSON.'
 
 target_dir_encoded="$1"
 commit_sha="$2"
 frontend_archive="$3"
+maps_config_file="${4:-}"
 
 [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]] || fail 'Commit SHA is invalid.'
 
@@ -137,6 +138,19 @@ log 'Checking the existing Timeweb credential before maintenance.'
         || fail 'The selected commit is missing the SEO AI environment updater.'
     php "$seo_preflight_file" "$target_dir/.env" --check
 ) || fail 'SEO AI preflight failed before maintenance; configure the Timeweb key on the VPS.'
+
+if [[ -n "$maps_config_file" ]]; then
+    [[ -f "$maps_config_file" && ! -L "$maps_config_file" ]] \
+        || fail 'Yandex Maps configuration file is missing or unsafe.'
+    (
+        maps_preflight_file="$(mktemp /tmp/pischeprom-maps-preflight.XXXXXXXXXX)" \
+            || fail 'Yandex Maps preflight staging could not be created.'
+        trap 'rm -f -- "$maps_preflight_file"' EXIT
+        git show "${commit_sha}:scripts/configure-production-yandex-maps.php" > "$maps_preflight_file" \
+            || fail 'The selected commit is missing the Yandex Maps configuration updater.'
+        php "$maps_preflight_file" "$target_dir/.env" "$maps_config_file" --check
+    ) || fail 'Yandex Maps configuration preflight failed before maintenance.'
+fi
 
 # Validate first-install requirements while the current application remains
 # online. Stage the parser from the selected commit; do not require new files
@@ -347,6 +361,10 @@ seo_ai_env_updater="$target_dir/scripts/update-production-goods-seo-ai-env.php"
 [[ -f "$seo_ai_env_updater" && ! -L "$seo_ai_env_updater" ]] \
     || fail 'SEO AI production environment updater is missing or unsafe.'
 php "$seo_ai_env_updater" "$target_dir/.env"
+
+if [[ -n "$maps_config_file" ]]; then
+    php "$target_dir/scripts/configure-production-yandex-maps.php" "$target_dir/.env" "$maps_config_file"
+fi
 
 realtime_provisioner="$target_dir/scripts/provision-production-realtime.sh"
 [[ -f "$realtime_provisioner" && ! -L "$realtime_provisioner" ]] \

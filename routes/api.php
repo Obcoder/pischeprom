@@ -163,6 +163,7 @@ Route::prefix('mobile/v1')
                 Route::get('/delivery-map/orders', [\App\Http\Controllers\API\Mobile\MobileDeliveryMapController::class, 'orders'])->name('delivery-map.orders');
                 Route::get('/orders', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'index'])->name('orders.index');
                 Route::get('/orders/{order}', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'show'])->name('orders.show');
+                Route::patch('/orders/{order}/delivery-date', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'deliveryDate'])->name('orders.delivery-date');
                 Route::patch('/orders/{order}/prepare', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'prepare'])->name('orders.prepare');
                 Route::post('/orders/{order}/ship', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'ship'])
                     ->middleware('throttle:30,1,mobile-ship')->name('orders.ship');
@@ -778,6 +779,9 @@ Route::prefix('orders')
             ->name('store');
         Route::get('/{order}', [OrderController::class, 'show'])
             ->name('show');
+        Route::patch('/{order}/delivery-date', [OrderController::class, 'deliveryDate'])
+            ->middleware(['auth:sanctum', 'verified', \App\Http\Middleware\EnsureOrderDeliveryMutationAllowed::class])
+            ->name('delivery-date');
         Route::match(['put', 'patch'], '/{order}', [OrderController::class, 'update'])
             ->name('update');
         Route::delete('/{order}', [OrderController::class, 'destroy'])

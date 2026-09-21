@@ -29,7 +29,7 @@ class MobileDeliveryMapController extends Controller
     public function orders(Request $request, MobileOrderQuery $query, MobileOrderPresenter $presenter): JsonResponse
     {
         $data = $query->validated($request);
-        $orders = $query->build($data)->select(['id', 'number', 'entity_id', 'submitted_at'])
+        $orders = $query->build($data)->select(['id', 'number', 'entity_id', 'submitted_at', 'delivery_date'])
             ->with([
                 'entity' => fn ($entity) => $entity->withoutEagerLoads()->select(['id', 'name']),
                 ...$presenter->deliveryRelations(),
@@ -41,6 +41,7 @@ class MobileDeliveryMapController extends Controller
                 'number' => $order->number,
                 'entity' => $order->entity?->only(['id', 'name']),
                 'submitted_at' => $order->submitted_at?->toISOString(),
+                'delivery_date' => $order->delivery_date?->format('Y-m-d'),
                 'delivery_addresses' => $presenter->deliveryAddresses($order),
             ])->values()->all(),
             'meta' => [

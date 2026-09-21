@@ -33,6 +33,17 @@ h2 { font-size: 19px; font-weight: 650; line-height: 1.35; }
 .filter-scroll::-webkit-scrollbar { display: none; }
 .filter-button { white-space: nowrap; min-height: 42px; padding: 0 15px; border: 1px solid #dce3dc; border-radius: 22px; font-size: 13px; font-weight: 600; color: #66786d; background: #f8faf7; }
 .filter-button.active { background: #173f39; color: #fff; border-color: #173f39; }
+.delivery-filter { padding: 15px; margin-bottom: 20px; border: 1px solid #dce5d9; border-radius: 15px; background: #fff; }
+.delivery-filter-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 13px; color: #3d6552; }
+.delivery-filter-heading span { margin-left: auto; color: #75846f; font-size: 12px; }
+.delivery-day-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.delivery-day-buttons button { min-height: 40px; padding: 7px 10px; border: 1px solid #dce5d9; border-radius: 9px; font-size: 12px; color: #64765e; }
+.delivery-day-buttons button.active { border-color: #9fbea6; background: #e9f1e5; color: #245a40; font-weight: 650; }
+.delivery-calendar { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-top: 12px; color: #718174; font-size: 12px; }
+.delivery-calendar input { min-height: 44px; max-width: 100%; padding: 8px; border: 1px solid #dce5d9; border-radius: 8px; color: #315d4a; background: #f8faf7; }
+.card-delivery-day { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; color: #50715c; font-size: 13px; }
+.delivery-date-editor { padding: 18px 0 0; margin-top: 20px; border-top: 1px solid #e7ece4; }
+.delivery-date-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .order-list { display: grid; gap: 14px; }
 .order-card { width: 100%; padding: 19px; text-align: left; background: #fff; border: 1px solid #e1e7df; border-radius: 18px; box-shadow: 0 2px 4px #1b3f2803; transition: border-color .15s, transform .15s; }
 .order-card:focus-within { border-color: #96b1a1; }

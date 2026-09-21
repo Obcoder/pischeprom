@@ -129,13 +129,20 @@ jobs:
             app/Http/Controllers/API/SaleController.php \
             app/Http/Middleware/EnsureMobileAccess.php \
             app/Http/Middleware/RestrictMobileTokenScope.php \
+            app/Http/Middleware/EnsureOrderDeliveryMutationAllowed.php \
             app/Services/Mobile \
             app/Services/Orders/MobileOrderPresenter.php \
             app/Services/Orders/MobileOrderQuery.php \
+            app/Services/Orders/OrderDeliveryAccess.php \
+            app/Services/Orders/OrderDeliveryDateService.php \
+            app/Services/Orders/OrderDeliveryFilter.php \
             app/Services/Orders/OrderFulfillmentService.php \
             config/cors.php config/mobile.php \
             database/migrations/2026_09_21_120100_add_order_fulfillment.php \
+            database/migrations/2026_09_21_130000_add_delivery_date_to_orders.php \
             scripts/check-production-mobile.php \
+            scripts/configure-production-yandex-maps.php \
+            tests/Unit/Mobile \
             tests/Feature/Mobile \
             tests/Feature/MobileOrderFulfillmentTest.php
 
@@ -491,6 +498,8 @@ jobs:
           SSH_PORT: ${{ secrets.PORT }}
           SSH_USER: ${{ secrets.USERNAME }}
           TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          YANDEX_MAPS_API_KEY: ${{ secrets.YANDEX_MAPS_API_KEY }}
+          YANDEX_MAP_SCRIPT_URL: ${{ vars.YANDEX_MAP_SCRIPT_URL }}
         run: |
           set -Eeuo pipefail
 
@@ -525,6 +534,9 @@ jobs:
           fi
 
           cleanup_remote() {
+            if [[ -n "${maps_config_local:-}" ]]; then
+              rm -f -- "$maps_config_local"
+            fi
             ssh "${ssh_options[@]}" "$ssh_target" \
               "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
           }
@@ -537,6 +549,21 @@ jobs:
 
           target_dir_base64="$(printf '%s' "$TARGET_DIR" | base64 -w 0)"
 
+          maps_config_file=''
+          if [[ -n "$YANDEX_MAPS_API_KEY" ]]; then
+            maps_config_local="$(mktemp "$RUNNER_TEMP/yandex-maps.XXXXXXXXXX")"
+            chmod 600 "$maps_config_local"
+            python3 - "$maps_config_local" <<'PY'
+          import json, os, sys
+          with open(sys.argv[1], 'w') as handle:
+              json.dump({'api_key': os.environ['YANDEX_MAPS_API_KEY'],
+                         'script_url': os.environ.get('YANDEX_MAP_SCRIPT_URL', '')}, handle)
+          PY
+            maps_config_file="$remote_dir/yandex-maps.json"
+            scp "${scp_options[@]}" "$maps_config_local" "${ssh_target}:${maps_config_file}"
+            rm -f -- "$maps_config_local"
+          fi
+
           ssh "${ssh_options[@]}" "$ssh_target" \
-            "bash -se -- '$target_dir_base64' '$GITHUB_SHA' '$remote_dir/frontend-build.tar.gz'" \
+            "bash -se -- '$target_dir_base64' '$GITHUB_SHA' '$remote_dir/frontend-build.tar.gz' '$maps_config_file'" \
             < scripts/deploy-production.sh

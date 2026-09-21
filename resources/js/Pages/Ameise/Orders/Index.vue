@@ -47,6 +47,8 @@ const filters = reactive({
     good_id: null,
     date_from: '',
     date_to: '',
+    delivery_date: '',
+    delivery_unscheduled: false,
     total_from: '',
     total_to: '',
     sort_by: 'submitted_at',
@@ -63,6 +65,7 @@ const headers = [
     { title: 'Логистика', key: null },
     { title: 'Сумма', key: 'total_amount' },
     { title: 'Создан', key: 'submitted_at' },
+    { title: 'Доставка', key: 'delivery_date' },
 ]
 
 const hasActiveFilters = computed(() => [
@@ -73,6 +76,8 @@ const hasActiveFilters = computed(() => [
     filters.good_id,
     filters.date_from,
     filters.date_to,
+    filters.delivery_date,
+    filters.delivery_unscheduled ? 'unscheduled' : '',
     filters.total_from,
     filters.total_to,
 ].some((value) => value !== null && value !== ''))
@@ -119,7 +124,9 @@ async function fetchOrders() {
 
 function cleanParams(source) {
     return Object.fromEntries(
-        Object.entries(source).filter(([, value]) => value !== '' && value !== null),
+        Object.entries(source)
+            .filter(([, value]) => value !== '' && value !== null && value !== false)
+            .map(([key, value]) => [key, value === true ? 1 : value]),
     )
 }
 
@@ -137,6 +144,8 @@ function resetFilters() {
         good_id: null,
         date_from: '',
         date_to: '',
+        delivery_date: '',
+        delivery_unscheduled: false,
         total_from: '',
         total_to: '',
         sort_by: 'submitted_at',
@@ -229,6 +238,23 @@ function formatMoney(value, currency = 'RUB') {
         minimumFractionDigits: 0,
         maximumFractionDigits: 2,
     })} ${currency === 'RUB' ? '₽' : currency}`
+}
+
+function formatDeliveryDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''))
+    return match ? `${match[3]}.${match[2]}.${match[1]}` : 'Не назначена'
+}
+
+function chooseDeliveryDate(value) {
+    filters.delivery_date = value
+    filters.delivery_unscheduled = false
+    applyFilters()
+}
+
+function toggleUnscheduled(checked) {
+    filters.delivery_unscheduled = checked
+    if (checked) filters.delivery_date = ''
+    applyFilters()
 }
 
 function statusStyle(order) {
@@ -333,13 +359,23 @@ onMounted(async () => {
             </label>
 
             <label class="orders-filter">
-                <span>С даты</span>
+                <span>Создан с</span>
                 <input v-model="filters.date_from" type="date">
             </label>
 
             <label class="orders-filter">
-                <span>По дату</span>
+                <span>Создан по</span>
                 <input v-model="filters.date_to" type="date">
+            </label>
+
+            <label class="orders-filter">
+                <span>День доставки</span>
+                <input :value="filters.delivery_date" type="date" @change="chooseDeliveryDate($event.target.value)">
+            </label>
+
+            <label class="orders-filter orders-filter--checkbox">
+                <input :checked="filters.delivery_unscheduled" type="checkbox" @change="toggleUnscheduled($event.target.checked)">
+                <span>Без даты доставки</span>
             </label>
 
             <label class="orders-filter">
@@ -444,12 +480,15 @@ onMounted(async () => {
                             <td class="orders-ledger__date">
                                 {{ formatDate(order.submitted_at) }}
                             </td>
+                            <td class="orders-ledger__date">
+                                {{ formatDeliveryDate(order.delivery_date) }}
+                            </td>
                         </tr>
                     </tbody>
 
                     <tbody v-else-if="!loading">
                         <tr>
-                            <td colspan="7" class="orders-ledger__empty">
+                            <td :colspan="headers.length" class="orders-ledger__empty">
                                 Заказы по выбранным условиям не найдены.
                             </td>
                         </tr>
@@ -555,6 +594,18 @@ onMounted(async () => {
 .orders-filter {
     display: grid;
     gap: 4px;
+}
+
+.orders-filter--checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 16px;
+}
+
+.orders-filter--checkbox input {
+    height: 18px;
+    width: 18px;
 }
 
 .orders-filter span,
@@ -676,6 +727,7 @@ onMounted(async () => {
 .orders-ledger td:nth-child(5) { width: 230px; }
 .orders-ledger td:nth-child(6) { width: 125px; }
 .orders-ledger td:nth-child(7) { width: 120px; }
+.orders-ledger td:nth-child(8) { width: 120px; }
 
 .orders-ledger td > strong,
 .orders-ledger td > small {

@@ -1,9 +1,15 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { Capacitor } from '@capacitor/core'
 import DeliveryContacts from './DeliveryContacts.vue'
-import { groupDeliveryAddresses, loadDeliveryOrders, loadYandexMaps, resolveDeliveryGroups } from './delivery-map.js'
+import { exactGeocodeCoordinates, groupDeliveryAddresses, loadDeliveryOrders, loadYandexMaps, resolveDeliveryGroups, timedGeocode } from './delivery-map.js'
+import { disposeYandexRoute, fastestYandexRoute, planDeliveryRoute, requestYandexRoute, ROUTE_LIMITS, splitRoutePoints, yandexRouteUrl } from './delivery-route.js'
+import { formatDeliveryDate } from './delivery-date.js'
 
-const props = defineProps({ api: { type: Object, required: true }, search: { type: String, default: '' }, filter: { type: String, default: 'all' } })
+const props = defineProps({
+    api: { type: Object, required: true }, search: { type: String, default: '' }, filter: { type: String, default: 'all' },
+    deliveryDate: { type: String, default: '' }, deliveryUnscheduled: { type: Boolean, default: false },
+})
 const emit = defineEmits(['open-order', 'notification'])
 const canvas = ref(null)
 const orders = ref([])
@@ -18,10 +24,110 @@ const unresolved = ref([])
 const selected = shallowRef(null)
 const selectedElement = ref(null)
 const displayedCount = ref(30)
+const locatedPoints = shallowRef([])
+const originAddress = ref('')
+const returnToStart = ref(false)
+const planning = ref(false)
+const routeProgress = ref('')
+const routeError = ref('')
+const routePlan = shallowRef(null)
+const externalTarget = Capacitor.isNativePlatform() ? undefined : '_blank'
 let active = null
 let map = null
+let mapsApi = null
 let filterTimer
+let routeController = null
+let routeObjects = []
+let originMarker = null
 const locatedOrderIds = new Set()
+
+const routeBlocked = computed(() => {
+    if (!props.deliveryDate || props.deliveryUnscheduled) return 'Выберите день доставки, чтобы построить маршрут.'
+    if (!configured.value) return 'Для расчёта маршрута нужно подключить Яндекс Карты.'
+    if (!online.value) return 'Для расчёта маршрута нужен интернет.'
+    if (loading.value) return 'Дождитесь определения всех адресов.'
+    if (error.value) return 'Обновите карту перед расчётом маршрута.'
+    if (unresolved.value.length) return 'Уточните все нераспознанные адреса ниже, затем обновите карту. Маршрут должен включать каждый адрес.'
+    if (!locatedPoints.value.length) return 'В выбранный день нет адресов для маршрута.'
+    if (locatedPoints.value.length > ROUTE_LIMITS.maximumStops) return `В одном маршруте может быть до ${ROUTE_LIMITS.maximumStops} адресов. Уточните поиск для выбора части доставок.`
+    return ''
+})
+
+function clearRoute() {
+    routeController?.abort()
+    routeController = null
+    for (const route of routeObjects) disposeYandexRoute(route)
+    routeObjects = []
+    if (originMarker && map) map.geoObjects.remove(originMarker)
+    originMarker = null
+    for (const point of locatedPoints.value) point.marker.properties.set('iconContent', String(point.orders.length))
+    routePlan.value = null
+    routeError.value = ''
+    routeProgress.value = ''
+    planning.value = false
+}
+
+async function calculateRoute() {
+    if (routeBlocked.value || !originAddress.value.trim() || !mapsApi || !map) return
+    clearRoute()
+    const controller = new AbortController()
+    routeController = controller
+    const current = () => routeController === controller && !controller.signal.aborted
+    planning.value = true
+    try {
+        routeProgress.value = 'Определяем адрес отправления…'
+        const origin = exactGeocodeCoordinates(await timedGeocode(address => mapsApi.geocode(address, { results: 1, kind: 'house' }),
+            originAddress.value.trim(), 12000, controller.signal))
+        if (!current()) return
+        if (!origin) throw new Error('Не удалось точно определить адрес отправления. Укажите город, улицу и дом.')
+        const plan = await planDeliveryRoute(origin, locatedPoints.value, async (from, to, signal) => {
+            const route = await requestYandexRoute(mapsApi, [from, to], { signal })
+            try { return fastestYandexRoute(route, 2).seconds } finally { disposeYandexRoute(route) }
+        }, {
+            returnToStart: returnToStart.value, signal: controller.signal,
+            onProgress: ({ completed, total }) => { if (current()) routeProgress.value = `Сравниваем время проезда: ${completed} из ${total}` },
+        })
+        if (!current()) return
+        const points = [origin, ...plan.stops.map(point => point.coordinates), ...(returnToStart.value ? [origin] : [])]
+        const chunks = splitRoutePoints(points)
+        let seconds = 0
+        let metres = 0
+        for (let index = 0; index < chunks.length; index++) {
+            routeProgress.value = `Строим маршрут: участок ${index + 1} из ${chunks.length}`
+            const route = await requestYandexRoute(mapsApi, chunks[index], { signal: controller.signal })
+            if (!current()) { disposeYandexRoute(route); return }
+            routeObjects.push(route)
+            const stats = fastestYandexRoute(route, chunks[index].length)
+            seconds += stats.seconds
+            metres += stats.metres
+            route.options.set({
+                wayPointVisible: false, viaPointVisible: false, routeActiveStrokeWidth: 5,
+                routeActiveStrokeColor: '#157347', routeStrokeColor: '#157347', boundsAutoApply: false,
+            })
+            map.geoObjects.add(route)
+        }
+        if (!current()) return
+        for (let index = 0; index < plan.stops.length; index++) plan.stops[index].marker.properties.set('iconContent', String(index + 1))
+        originMarker = new mapsApi.Placemark(origin, { iconContent: 'С' }, { preset: 'islands#blueIcon', openBalloonOnClick: false })
+        map.geoObjects.add(originMarker)
+        const bounds = map.geoObjects.getBounds()
+        if (bounds) await map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 36 })
+        if (!current()) return
+        routePlan.value = { ...plan, origin: originAddress.value.trim(), returnToStart: returnToStart.value, seconds, metres,
+            navigation: chunks.map(yandexRouteUrl) }
+    } catch (failure) {
+        if (!current() || failure.name === 'AbortError') return
+        clearRoute()
+        routeError.value = failure.message || 'Не удалось рассчитать маршрут. Повторите попытку.'
+    } finally {
+        if (current()) { planning.value = false; routeProgress.value = '' }
+    }
+}
+
+function routeDuration(seconds) {
+    const minutes = Math.ceil(seconds / 60)
+    return minutes >= 60 ? `${Math.floor(minutes / 60)} ч ${minutes % 60} мин` : `${minutes} мин`
+}
 
 const fallbackOrders = computed(() => {
     if (!configured.value || error.value) return orders.value.map(order => ({ order, reason: '' }))
@@ -32,8 +138,11 @@ const fallbackOrders = computed(() => {
 const shownOrders = computed(() => fallbackOrders.value.slice(0, displayedCount.value))
 
 function disposeMap() {
+    clearRoute()
     map?.destroy()
     map = null
+    mapsApi = null
+    locatedPoints.value = []
     mapReady.value = false
 }
 
@@ -65,7 +174,9 @@ async function refresh() {
     try {
         const [configuration] = await Promise.all([
             props.api.deliveryMapConfig(),
-            loadDeliveryOrders(query => props.api.deliveryMapOrders(query), { search: props.search, filter: props.filter }, {
+            loadDeliveryOrders(query => props.api.deliveryMapOrders(query), {
+                search: props.search, filter: props.filter, delivery_date: props.deliveryDate, delivery_unscheduled: props.deliveryUnscheduled,
+            }, {
                 signal: controller.signal,
                 onProgress: ({ loaded, total }) => { if (current()) progress.value = `Загружено заказов: ${loaded} из ${total}` },
             }).then(data => { if (current()) orders.value = data }),
@@ -79,6 +190,7 @@ async function refresh() {
         progress.value = 'Подключаем Яндекс Карты…'
         const maps = await loadYandexMaps(configuration.data)
         if (!current()) return
+        mapsApi = maps
         mapReady.value = true
         await nextTick()
         if (!current()) return
@@ -131,6 +243,7 @@ async function refresh() {
                 })
                 point.marker.events.add('click', () => { if (current()) selectPoint({ ...point, orders: [...point.orders] }) })
                 points.set(key, point)
+                locatedPoints.value = [...points.values()]
                 cluster.add(point.marker)
                 if (points.size === 1) map.setCenter(coordinates, 15)
             },
@@ -152,13 +265,14 @@ function updateConnection() {
     online.value = navigator.onLine
     if (!online.value) {
         active?.abort()
+        clearRoute()
         loading.value = false
     } else {
         refresh()
     }
 }
 
-watch(() => [props.search, props.filter], () => {
+watch(() => [props.search, props.filter, props.deliveryDate, props.deliveryUnscheduled], () => {
     active?.abort()
     disposeMap()
     selected.value = null
@@ -170,6 +284,8 @@ watch(() => [props.search, props.filter], () => {
     clearTimeout(filterTimer)
     filterTimer = setTimeout(refresh, 300)
 })
+
+watch([originAddress, returnToStart], clearRoute)
 
 onMounted(() => {
     window.addEventListener('online', updateConnection)
@@ -190,6 +306,8 @@ onBeforeUnmount(() => {
         <div class="delivery-map-heading">
             <div>
                 <h2>Карта доставок</h2>
+                <p v-if="deliveryDate">Доставка {{ formatDeliveryDate(deliveryDate) }}</p>
+                <p v-else-if="deliveryUnscheduled">Доставки без назначенной даты</p>
                 <p v-if="orders.length">На карте {{ locatedCount }} из {{ orders.length }} заказов</p>
             </div>
             <v-btn icon="mdi-refresh" variant="text" aria-label="Обновить карту доставок" :disabled="!online" :loading="loading" @click="refresh" />
@@ -205,6 +323,43 @@ onBeforeUnmount(() => {
         </v-alert>
         <div v-show="mapReady" ref="canvas" class="delivery-map-canvas" aria-label="Адреса доставки на Яндекс Картах" />
         <p v-if="mapReady && locatedCount" class="delivery-map-hint">Нажмите на точку или группу точек, чтобы выбрать заказ.</p>
+        <section class="delivery-route-panel" aria-label="Маршрут доставок на день">
+            <h3>Маршрут на день</h3>
+            <p v-if="routeBlocked" class="delivery-route-note">{{ routeBlocked }}</p>
+            <template v-else>
+                <p class="delivery-route-note">Адресов: {{ locatedPoints.length }}. Заказов: {{ orders.length }}. Отгрузка со склада не означает, что заказ уже доставлен.</p>
+                <v-alert v-if="search.trim() || filter !== 'all'" type="info" variant="tonal" density="compact">
+                    Маршрут включает заказы по текущему поиску и статусу. Чтобы включить весь день, нажмите «Все доставки дня» над картой.
+                </v-alert>
+                <v-text-field v-model="originAddress" label="Адрес отправления" placeholder="Город, улица, дом" prepend-inner-icon="mdi-flag-outline"
+                    variant="outlined" density="comfortable" hide-details="auto" autocomplete="off" maxlength="500" />
+                <v-switch v-model="returnToStart" label="Вернуться в точку отправления" color="primary" density="compact" hide-details />
+                <p v-if="locatedPoints.length > ROUTE_LIMITS.exactStops" class="delivery-route-note">Для большого числа адресов порядок объезда рассчитывается приближённо по времени проезда дорог. Самый короткий маршрут не гарантируется.</p>
+                <v-btn v-if="!planning" color="primary" prepend-icon="mdi-routes" block :disabled="!originAddress.trim()" @click="calculateRoute">{{ routePlan ? 'Пересчитать маршрут' : 'Рассчитать маршрут' }}</v-btn>
+                <template v-else>
+                    <v-progress-linear indeterminate color="primary" />
+                    <p class="delivery-route-note" role="status" aria-live="polite">{{ routeProgress }}</p>
+                    <v-btn variant="tonal" block @click="clearRoute">Отменить расчёт</v-btn>
+                </template>
+                <p class="delivery-route-note">Оценка по текущей дорожной обстановке, без времени разгрузки и окон доставки. Для будущего дня это предварительный план: пересчитайте перед выездом.</p>
+            </template>
+            <v-alert v-if="routeError" type="warning" variant="tonal">{{ routeError }}</v-alert>
+            <div v-if="routePlan" class="delivery-route-result">
+                <strong>{{ (routePlan.metres / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) }} км · {{ routeDuration(routePlan.seconds) }} в пути</strong>
+                <p class="delivery-route-note">{{ routePlan.exact ? 'Выбран порядок с минимальным суммарным временем по рассчитанным дорогам.' : 'Приближённый порядок объезда по времени проезда дорог.' }}</p>
+                <p class="delivery-route-note">Старт: {{ routePlan.origin }}</p>
+                <article v-for="(point, index) in routePlan.stops" :key="point.key" class="delivery-route-stop">
+                    <strong>{{ index + 1 }}. {{ point.address.full_address }}</strong>
+                    <v-btn v-for="order in point.orders" :key="order.id" variant="text" color="primary" append-icon="mdi-arrow-top-right"
+                        class="delivery-route-order-link" block @click="emit('open-order', order.id)">Заказ {{ order.number }} · {{ order.entity?.name || 'Покупатель не указан' }}</v-btn>
+                </article>
+                <p v-if="routePlan.returnToStart" class="delivery-route-note">Финиш: возврат в {{ routePlan.origin }}</p>
+                <v-btn v-for="(url, index) in routePlan.navigation" :key="url" :href="url" :target="externalTarget" rel="noopener noreferrer"
+                    color="primary" variant="tonal" prepend-icon="mdi-navigation-variant-outline" block>
+                    {{ routePlan.navigation.length === 1 ? 'Открыть маршрут в Яндекс Картах' : `Открыть участок ${index + 1} из ${routePlan.navigation.length}` }}
+                </v-btn>
+            </div>
+        </section>
         <div v-if="selected" ref="selectedElement" class="delivery-map-selection">
             <div class="delivery-map-selection-heading">
                 <h3>{{ selected.address.full_address }}</h3>
@@ -247,4 +402,11 @@ onBeforeUnmount(() => {
 .delivery-map-order :deep(.delivery-contacts) { margin-bottom: 12px; }
 .delivery-map-reason { color: #956119; font-size: .87rem; }
 .delivery-map-empty { text-align: center; color: #61716b; padding: 30px 12px; }
+.delivery-route-panel, .delivery-route-result { display: grid; gap: 12px; min-width: 0; }
+.delivery-route-panel { background: white; padding: 16px; border: 1px solid #dce7e0; border-radius: 16px; }
+.delivery-route-panel h3 { margin: 0; font-size: 1.05rem; }
+.delivery-route-note { color: #61716b; font-size: .84rem; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.delivery-route-stop { padding: 10px 0; border-top: 1px solid #e3ebe5; overflow-wrap: anywhere; }
+.delivery-route-order-link { height: auto !important; min-height: 44px; padding: 8px 0 !important; justify-content: flex-start; }
+.delivery-route-order-link :deep(.v-btn__content) { white-space: normal; text-align: left; }
 </style>

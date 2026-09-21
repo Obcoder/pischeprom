@@ -110,6 +110,7 @@ export function createApi({ baseUrl, fetchImpl = globalThis.fetch, nativeRequest
         deliveryMapConfig() { return request('/delivery-map/config') },
         deliveryMapOrders(query) { return request('/delivery-map/orders', { query }) },
         order(id) { return request(`/orders/${encodeURIComponent(id)}`) },
+        setDeliveryDate(id, data) { return request(`/orders/${encodeURIComponent(id)}/delivery-date`, { method: 'PATCH', data }) },
         prepare(id, data) { return request(`/orders/${encodeURIComponent(id)}/prepare`, { method: 'PATCH', data }) },
         ship(id, data) { return request(`/orders/${encodeURIComponent(id)}/ship`, { method: 'POST', data }) },
     }

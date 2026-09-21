@@ -72,6 +72,9 @@ class OrderFulfillmentService
     {
         return hash('sha256', json_encode([
             $this->fingerprint($order),
+            // Planning a different delivery day does not require assembling goods again,
+            // but a shipment must still confirm the latest order shown to the employee.
+            $order->delivery_date?->toDateString(),
             $order->only([
                 'prepared_at', 'prepared_by_user_id', 'prepared_fingerprint', 'preparation_invalidated_at',
                 'shipped_sale_id', 'shipped_by_user_id', 'shipped_at',

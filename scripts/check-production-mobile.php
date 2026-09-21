@@ -26,7 +26,7 @@ try {
     if (! Schema::hasColumns('orders', [
         'fulfillment_warehouse_id', 'prepared_by_user_id', 'prepared_at',
         'prepared_fingerprint', 'preparation_invalidated_at', 'shipped_sale_id',
-        'shipped_by_user_id', 'shipped_at',
+        'shipped_by_user_id', 'shipped_at', 'delivery_date',
     ]) || ! Schema::hasColumn('order_items', 'measure_id')) {
         throw new RuntimeException('Mobile order fulfillment migration is missing.');
     }

@@ -6,6 +6,7 @@ import { ApiError, createApi } from './api.js'
 import { createShipmentOperation, validatePreparation } from './shipment.js'
 import DeliveryContacts from './DeliveryContacts.vue'
 import DeliveryMap from './DeliveryMap.vue'
+import { calendarDay, deliveryDateQuery, formatDeliveryDate } from './delivery-date.js'
 
 const user = ref(null)
 const abilities = ref([])
@@ -21,6 +22,10 @@ const online = ref(navigator.onLine)
 const orders = ref([])
 const search = ref('')
 const filter = ref('awaiting')
+const deliveryDate = ref('')
+const deliveryUnscheduled = ref(false)
+const deliveryDateDraft = ref('')
+const savingDeliveryDate = ref(false)
 const screen = ref('list')
 const listLoading = ref(false)
 const listError = ref('')
@@ -78,7 +83,7 @@ try {
 
 const filters = [
     { value: 'all', label: 'Все' },
-    { value: 'today', label: 'Сегодня' },
+    { value: 'today', label: 'Созданы сегодня' },
     { value: 'awaiting', label: 'К сборке' },
     { value: 'ready', label: 'К отгрузке' },
     { value: 'shipped', label: 'Отгружены' },
@@ -90,11 +95,13 @@ const statuses = {
 }
 const status = value => statuses[value] || { label: 'Требует проверки', color: 'warning', icon: 'mdi-alert-circle-outline' }
 const inDetail = computed(() => selectedId.value !== null)
-const busy = computed(() => preparing.value || shipping.value || loggingOut.value)
+const busy = computed(() => preparing.value || shipping.value || savingDeliveryDate.value || loggingOut.value)
+const deliveryDateDirty = computed(() => (deliveryDateDraft.value || '') !== (order.value?.delivery_date || ''))
+const canSaveDeliveryDate = computed(() => order.value && deliveryDateDirty.value && !busy.value && !stale.value && online.value && !orderLoading.value && !uncertainShipment.value)
 const checkedCount = computed(() => rows.value.filter(row => row.checked).length)
 const preparationError = computed(() => validatePreparation(order.value, rows.value))
-const canPrepare = computed(() => order.value?.can_prepare && !preparationError.value && !stale.value && online.value && !orderLoading.value)
-const canShip = computed(() => order.value?.can_ship && !stale.value && online.value && !orderLoading.value)
+const canPrepare = computed(() => order.value?.can_prepare && !preparationError.value && !deliveryDateDirty.value && !stale.value && online.value && !orderLoading.value)
+const canShip = computed(() => order.value?.can_ship && !deliveryDateDirty.value && !stale.value && online.value && !orderLoading.value)
 const initials = computed(() => (user.value?.name || 'Сотрудник').split(' ').slice(0, 2).map(part => part[0]).join('').toUpperCase())
 const date = value => value && !Number.isNaN(new Date(value).getTime()) ? new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value)) : 'Дата не указана'
 const quantity = value => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 6 }).format(Number(value || 0))
@@ -151,7 +158,7 @@ async function loadOrders(page = 1) {
     listError.value = ''
     if (page === 1) orders.value = []
     try {
-        const result = await api.orders({ search: String(search.value || '').trim(), filter: filter.value, page, per_page: 20 })
+        const result = await api.orders({ search: String(search.value || '').trim(), filter: filter.value, ...deliveryDateQuery(deliveryDate.value, deliveryUnscheduled.value), page, per_page: 20 })
         if (request !== listRequest || !user.value) return
         orders.value = page > 1 ? [...orders.value, ...result.data] : result.data
         meta.value = result.meta
@@ -164,6 +171,7 @@ async function loadOrders(page = 1) {
 
 function applyOrder(value) {
     order.value = value
+    deliveryDateDraft.value = value.delivery_date || ''
     rows.value = (value.items || []).map(item => ({
         id: item.id,
         quantity: String(item.quantity),
@@ -172,6 +180,46 @@ function applyOrder(value) {
     }))
     uncertainShipment.value = shipment.hasPending(value)
     stale.value = false
+}
+
+function chooseDeliveryDay(value = '', unscheduled = false) {
+    deliveryDate.value = value
+    deliveryUnscheduled.value = unscheduled
+}
+
+function showAllOrders() {
+    search.value = ''
+    filter.value = 'all'
+    chooseDeliveryDay()
+}
+
+async function saveDeliveryDate() {
+    if (!canSaveDeliveryDate.value) return
+    savingDeliveryDate.value = true
+    orderError.value = ''
+    const currentSession = session
+    try {
+        const result = await api.setDeliveryDate(order.value.id, {
+            version: order.value.version,
+            delivery_date: deliveryDateDraft.value || null,
+        })
+        if (currentSession !== session) return
+        applyOrder(result.data)
+        notify(result.data.delivery_date ? `Доставка назначена на ${formatDeliveryDate(result.data.delivery_date)}.` : 'Дата доставки снята.')
+    } catch (error) {
+        if (currentSession !== session || error.status === 401) return
+        if (error.status === 409) {
+            stale.value = true
+            orderError.value = 'Заказ изменился. Обновите карточку и проверьте дату доставки перед сохранением.'
+        } else if (!(error instanceof ApiError) || error.uncertain) {
+            stale.value = true
+            orderError.value = 'Ответ о сохранении даты не получен. Обновите карточку, чтобы проверить дату на сервере.'
+        } else {
+            orderError.value = error.message
+        }
+    } finally {
+        savingDeliveryDate.value = false
+    }
 }
 
 async function openOrder(id) {
@@ -275,7 +323,7 @@ watch(search, () => {
     clearTimeout(searchTimer)
     if (screen.value === 'list') searchTimer = setTimeout(() => loadOrders(), 350)
 })
-watch(filter, () => {
+watch([filter, deliveryDate, deliveryUnscheduled], () => {
     clearTimeout(searchTimer)
     if (screen.value === 'list') loadOrders()
 })
@@ -365,7 +413,19 @@ onBeforeUnmount(() => {
                         <button v-for="option in filters" :key="option.value" :class="['filter-button', { active: filter === option.value }]" :aria-pressed="filter === option.value" @click="filter = option.value">{{ option.label }}</button>
                     </div>
 
-                    <DeliveryMap v-if="screen === 'map'" :api="api" :search="search || ''" :filter="filter" @open-order="openOrder" @notification="notify" />
+                    <div class="delivery-filter" aria-label="Фильтр по дате доставки">
+                        <div class="delivery-filter-heading"><v-icon icon="mdi-calendar-clock-outline" size="18" /><strong>День доставки</strong><span>{{ deliveryUnscheduled ? 'Не назначен' : deliveryDate ? formatDeliveryDate(deliveryDate) : 'Все даты' }}</span></div>
+                        <div class="delivery-day-buttons" role="group" aria-label="Выбрать день доставки">
+                            <button :class="{ active: !deliveryDate && !deliveryUnscheduled }" :aria-pressed="!deliveryDate && !deliveryUnscheduled" @click="chooseDeliveryDay()">Все даты</button>
+                            <button :class="{ active: deliveryDate === calendarDay() && !deliveryUnscheduled }" :aria-pressed="deliveryDate === calendarDay() && !deliveryUnscheduled" @click="chooseDeliveryDay(calendarDay())">Сегодня</button>
+                            <button :class="{ active: deliveryDate === calendarDay(1) && !deliveryUnscheduled }" :aria-pressed="deliveryDate === calendarDay(1) && !deliveryUnscheduled" @click="chooseDeliveryDay(calendarDay(1))">Завтра</button>
+                            <button :class="{ active: deliveryUnscheduled }" :aria-pressed="deliveryUnscheduled" @click="chooseDeliveryDay('', true)">Без даты</button>
+                        </div>
+                        <label class="delivery-calendar"><span>Выбрать дату</span><input :value="deliveryDate" type="date" aria-label="Дата доставки для списка и карты" @input="chooseDeliveryDay($event.target.value)" /></label>
+                        <v-btn v-if="deliveryDate && (filter !== 'all' || search)" block variant="tonal" color="primary" class="mt-3" @click="filter = 'all'; search = ''">Все доставки дня</v-btn>
+                    </div>
+
+                    <DeliveryMap v-if="screen === 'map'" :api="api" :search="search || ''" :filter="filter" :delivery-date="deliveryDate" :delivery-unscheduled="deliveryUnscheduled" @open-order="openOrder" @notification="notify" />
                     <template v-else>
                     <v-alert v-if="listError" type="error" class="mb-4" role="alert">{{ listError }}<v-btn variant="text" class="mt-2" @click="loadOrders()">Повторить</v-btn></v-alert>
                     <div v-if="listLoading && !orders.length" class="order-list" aria-label="Загрузка заказов" aria-busy="true">
@@ -375,7 +435,7 @@ onBeforeUnmount(() => {
                         <div class="hero-icon"><v-icon icon="mdi-package-variant" size="36" /></div>
                         <h2>Здесь пока нет заказов</h2>
                         <p class="muted">{{ search ? 'Попробуйте другой номер или имя покупателя.' : 'Выберите другой фильтр или обновите список.' }}</p>
-                        <v-btn v-if="search || filter !== 'all'" color="primary" variant="tonal" class="mt-4" @click="search = ''; filter = 'all'">Показать все заказы</v-btn>
+                        <v-btn v-if="search || filter !== 'all' || deliveryDate || deliveryUnscheduled" color="primary" variant="tonal" class="mt-4" @click="showAllOrders">Показать все заказы</v-btn>
                     </div>
                     <div v-else class="order-list">
                         <article v-for="item in orders" :key="item.id" class="order-card">
@@ -385,6 +445,7 @@ onBeforeUnmount(() => {
                             <div class="card-date">{{ date(item.submitted_at) }}<span>·</span>{{ item.items_count }} поз.</div>
                             </button>
                             <div class="card-divider" />
+                            <div class="card-delivery-day"><v-icon icon="mdi-calendar-clock-outline" size="18" /><span>Доставка: <strong>{{ formatDeliveryDate(item.delivery_date) }}</strong></span></div>
                             <DeliveryContacts :addresses="item.delivery_addresses || []" :telephone="item.contact_telephone" compact />
                             <div class="card-info"><v-icon icon="mdi-warehouse" size="18" /><span>{{ item.warehouse?.name || 'Склад не указан' }}</span></div>
                             <div class="card-info"><v-icon icon="mdi-account-outline" size="18" /><span>{{ item.responsible?.name || 'Ответственный не назначен' }}</span></div>
@@ -415,6 +476,17 @@ onBeforeUnmount(() => {
                             <h2 class="detail-customer">{{ order.entity?.name || 'Покупатель не указан' }}</h2>
                             <p class="muted">{{ date(order.submitted_at) }}</p>
                             <DeliveryContacts :addresses="order.delivery_addresses || []" :telephone="order.contact_telephone" />
+                            <section class="delivery-date-editor" aria-label="Плановая дата доставки">
+                                <div class="delivery-filter-heading"><v-icon icon="mdi-calendar-clock-outline" size="18" /><strong>Плановая доставка</strong></div>
+                                <p class="muted mb-3">{{ formatDeliveryDate(order.delivery_date) }}</p>
+                                <v-text-field v-model="deliveryDateDraft" type="date" label="Дата доставки" clearable hide-details density="comfortable" :disabled="busy || stale || orderLoading || !online || uncertainShipment" @click:clear="deliveryDateDraft = ''" />
+                                <div class="delivery-date-actions">
+                                    <v-btn color="primary" :loading="savingDeliveryDate" :disabled="!canSaveDeliveryDate" @click="saveDeliveryDate">Сохранить дату</v-btn>
+                                    <v-btn v-if="deliveryDateDirty" variant="text" :disabled="busy" @click="deliveryDateDraft = order.delivery_date || ''">Отмена</v-btn>
+                                </div>
+                                <p v-if="uncertainShipment" class="section-hint mt-3 mb-0">Сначала проверьте результат отгрузки: обновите заказ или повторите подтверждение.</p>
+                                <p v-else-if="deliveryDateDirty" class="section-hint mt-3 mb-0">Сохраните дату или отмените изменение перед сборкой и отгрузкой.</p>
+                            </section>
                             <dl class="detail-facts">
                                 <div><dt><v-icon icon="mdi-warehouse" size="18" />Склад</dt><dd>{{ order.warehouse?.name || 'Не указан' }}</dd></div>
                                 <div><dt><v-icon icon="mdi-account-outline" size="18" />Ответственный</dt><dd>{{ order.responsible?.name || 'Не назначен' }}</dd></div>

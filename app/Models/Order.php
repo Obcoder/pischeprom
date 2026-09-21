@@ -18,6 +18,7 @@ class Order extends Model
         'created_by_user_id',
         'contact_telephone_id',
         'preferred_delivery_time',
+        'delivery_date',
         'internal_comment',
         'total_amount',
         'total_weight',
@@ -36,6 +37,7 @@ class Order extends Model
         'prepared_at' => 'datetime',
         'preparation_invalidated_at' => 'datetime',
         'shipped_at' => 'datetime',
+        'delivery_date' => 'date:Y-m-d',
     ];
 
     protected static function booted(): void

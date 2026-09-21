@@ -10,6 +10,9 @@ use App\Models\Entity;
 use App\Models\Good;
 use App\Models\Order;
 use App\Models\OrderStatus;
+use App\Services\Orders\OrderDeliveryAccess;
+use App\Services\Orders\OrderDeliveryDateService;
+use App\Services\Orders\OrderDeliveryFilter;
 use App\Services\Orders\OrderWriter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -20,11 +23,13 @@ use Illuminate\Validation\Rule;
 class OrderController extends Controller
 {
     public function __construct(
-        private readonly OrderWriter $writer
+        private readonly OrderWriter $writer,
+        private readonly OrderDeliveryDateService $delivery,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
+        $deliveryFilters = $request->validate(OrderDeliveryFilter::rules($request));
         $perPage = min(max($request->integer('per_page', 25), 1), 100);
         $sortBy = in_array($request->input('sort_by'), [
             'number',
@@ -35,6 +40,7 @@ class OrderController extends Controller
             'entity',
             'items_count',
             'created_at',
+            'delivery_date',
         ], true)
             ? $request->input('sort_by')
             : 'submitted_at';
@@ -68,6 +74,7 @@ class OrderController extends Controller
             ->when($request->filled('date_to'), fn (Builder $builder) => $builder->whereDate('submitted_at', '<=', $request->input('date_to')))
             ->when($request->filled('total_from'), fn (Builder $builder) => $builder->where('total_amount', '>=', $request->input('total_from')))
             ->when($request->filled('total_to'), fn (Builder $builder) => $builder->where('total_amount', '<=', $request->input('total_to')));
+        OrderDeliveryFilter::apply($query, $deliveryFilters);
 
         match ($sortBy) {
             'status' => $query->orderBy(
@@ -178,8 +185,25 @@ class OrderController extends Controller
         return response()->json(null, 204);
     }
 
+    public function deliveryDate(Request $request, Order $order): JsonResponse
+    {
+        $data = $request->validate(OrderDeliveryDateService::updateRules());
+        $order = $this->delivery->update($order, $data['delivery_date'], $data['version']);
+        $order->load($this->writer->relations())->loadCount('items');
+
+        return response()->json(['data' => (new OrderResource($order))->resolve($request)]);
+    }
+
     private function validated(Request $request, ?Order $order = null): array
     {
+        if ($request->exists('delivery_date')) {
+            // Legacy order routes predate CRM middleware. Protect the new planning field
+            // on those routes as well, so a date-only route cannot be bypassed by PUT.
+            $user = $request->user() ?? auth('sanctum')->user();
+            abort_unless($user, 401, 'Unauthenticated.');
+            abort_unless(OrderDeliveryAccess::allowed($user, $order ? 'orders.edit' : 'orders.create'), 403, 'Недостаточно прав для планирования доставки заказов.');
+        }
+
         return $request->validate([
             'number' => [
                 'nullable',
@@ -191,6 +215,8 @@ class OrderController extends Controller
             'order_status_id' => ['required', 'integer', 'exists:order_statuses,id'],
             'contact_telephone_id' => ['nullable', 'integer', 'exists:telephones,id'],
             'preferred_delivery_time' => ['nullable', 'string', 'max:255'],
+            'delivery_date' => OrderDeliveryDateService::dateRules(),
+            'delivery_version' => [Rule::requiredIf($order && $request->exists('delivery_date')), 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'internal_comment' => ['nullable', 'string', 'max:10000'],
             'currency_code' => ['required', 'string', 'min:3', 'max:8'],
             'submitted_at' => ['nullable', 'date'],

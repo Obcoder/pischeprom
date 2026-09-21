@@ -23,6 +23,8 @@ const props = defineProps({
             create: false,
             edit: false,
             delete: false,
+            delivery_edit: false,
+            delivery_create: false,
         }),
     },
 })
@@ -30,6 +32,9 @@ const props = defineProps({
 const order = ref(null)
 const loading = ref(true)
 const saving = ref(false)
+const savingDeliveryDate = ref(false)
+const staleDeliveryDate = ref(false)
+const successMessage = ref('')
 const deleting = ref(false)
 const errorMessage = ref('')
 const errors = ref({})
@@ -47,17 +52,23 @@ const form = reactive({
     building_ids: [],
     currency_code: 'RUB',
     submitted_at: '',
+    delivery_date: '',
     preferred_delivery_time: '',
     internal_comment: '',
     items: [],
 })
 
 let lineKey = 0
+let savedContentSnapshot = ''
 
 const isNew = computed(() => !props.orderId)
 const canSave = computed(() => isNew.value
     ? Boolean(props.permissions.create)
-    : Boolean(props.permissions.edit))
+    : Boolean(props.permissions.edit) && !order.value?.shipped_at)
+const contentDisabled = computed(() => !canSave.value || loading.value || saving.value || savingDeliveryDate.value || deleting.value)
+const canEditDeliveryDate = computed(() => isNew.value ? Boolean(props.permissions.delivery_create) : Boolean(props.permissions.delivery_edit))
+const deliveryDateDirty = computed(() => (form.delivery_date || '') !== (order.value?.delivery_date || ''))
+const dateEditorDisabled = computed(() => !canEditDeliveryDate.value || loading.value || saving.value || savingDeliveryDate.value || deleting.value || staleDeliveryDate.value)
 const pageTitle = computed(() => isNew.value
     ? 'Новый заказ'
     : `Заказ ${order.value?.number || `#${props.orderId}`}`)
@@ -122,6 +133,7 @@ function fillForm(source) {
         building_ids: (source.buildings || []).map((building) => building.id),
         currency_code: source.currency_code || 'RUB',
         submitted_at: toDateTimeLocal(source.submitted_at),
+        delivery_date: source.delivery_date || '',
         preferred_delivery_time: source.preferred_delivery_time || '',
         internal_comment: source.internal_comment || '',
         items: (source.items || []).map((item) => makeLine({
@@ -131,6 +143,8 @@ function fillForm(source) {
             unit_price: item.unit_price ?? item.price_gross,
         })),
     })
+    savedContentSnapshot = JSON.stringify(contentPayload())
+    staleDeliveryDate.value = false
 }
 
 function makeLine(source = {}) {
@@ -210,7 +224,7 @@ function lineError(index, field) {
     return fieldError(`items.${index}.${field}`)
 }
 
-function payload() {
+function contentPayload() {
     return {
         number: form.number || null,
         entity_id: form.entity_id,
@@ -228,14 +242,66 @@ function payload() {
     }
 }
 
+function payload() {
+    return {
+        ...contentPayload(),
+        ...(canEditDeliveryDate.value ? {
+            delivery_date: form.delivery_date || null,
+            ...(!isNew.value ? { delivery_version: order.value?.delivery_version } : {}),
+        } : {}),
+    }
+}
+
+async function saveDeliveryDate() {
+    if (isNew.value || dateEditorDisabled.value || !deliveryDateDirty.value) return
+    savingDeliveryDate.value = true
+    errorMessage.value = ''
+    successMessage.value = ''
+    errors.value = {}
+    try {
+        const { data } = await axios.patch(`/api/orders/${props.orderId}/delivery-date`, {
+            version: order.value.delivery_version,
+            delivery_date: form.delivery_date || null,
+        })
+        order.value = data.data
+        form.delivery_date = data.data.delivery_date || ''
+        successMessage.value = 'Дата доставки сохранена. Сборка и отгрузка заказа сохранены.'
+    } catch (error) {
+        errors.value = error.response?.data?.errors || {}
+        staleDeliveryDate.value = error.response?.status === 409 || !error.response || error.response.status >= 500
+        errorMessage.value = error.response?.status === 409
+            ? 'Заказ изменился. Обновите карточку и проверьте дату перед сохранением.'
+            : error.response?.data?.message || 'Не удалось подтвердить сохранение даты. Обновите карточку, чтобы проверить данные на сервере.'
+    } finally {
+        savingDeliveryDate.value = false
+    }
+}
+
+async function refreshOrder() {
+    if (saving.value || savingDeliveryDate.value || deleting.value) return
+    loading.value = true
+    errors.value = {}
+    errorMessage.value = ''
+    successMessage.value = ''
+    try { await loadOrder() }
+    catch { errorMessage.value = 'Не удалось обновить карточку заказа.' }
+    finally { loading.value = false }
+}
+
 async function saveOrder() {
-    if (saving.value) {
+    if (saving.value || savingDeliveryDate.value || deleting.value || staleDeliveryDate.value || !canSave.value) {
+        return
+    }
+
+    if (!isNew.value && deliveryDateDirty.value && JSON.stringify(contentPayload()) === savedContentSnapshot) {
+        await saveDeliveryDate()
         return
     }
 
     saving.value = true
     errors.value = {}
     errorMessage.value = ''
+    successMessage.value = ''
 
     try {
         const response = isNew.value
@@ -254,6 +320,7 @@ async function saveOrder() {
         console.error(error)
         errors.value = error.response?.data?.errors || {}
         errorMessage.value = error.response?.data?.message || 'Не удалось сохранить заказ.'
+        if (error.response?.status === 409) staleDeliveryDate.value = true
     } finally {
         saving.value = false
     }
@@ -330,10 +397,10 @@ onMounted(async () => {
 
             <div class="order-card-page__actions">
                 <button
-                    v-if="!isNew && permissions.delete"
+                    v-if="!isNew && permissions.delete && !order?.shipped_at"
                     type="button"
                     class="is-danger"
-                    :disabled="deleting || saving"
+                    :disabled="deleting || saving || savingDeliveryDate"
                     @click="deleteOrder"
                 >
                     <v-icon icon="mdi-delete-outline" size="16" />
@@ -343,7 +410,7 @@ onMounted(async () => {
                     v-if="canSave"
                     type="button"
                     class="is-primary"
-                    :disabled="loading || deleting"
+                    :disabled="loading || deleting || saving || savingDeliveryDate || staleDeliveryDate"
                     @click="saveOrder"
                 >
                     <v-progress-circular v-if="saving" indeterminate size="15" width="2" />
@@ -365,6 +432,10 @@ onMounted(async () => {
             {{ errorMessage }}
         </v-alert>
 
+        <v-btn v-if="staleDeliveryDate" variant="tonal" class="mb-3" :disabled="loading || saving || savingDeliveryDate || deleting" @click="refreshOrder">Обновить карточку</v-btn>
+        <v-alert v-if="successMessage" type="success" density="compact" variant="tonal" class="mb-3">{{ successMessage }}</v-alert>
+        <v-alert v-if="order?.shipped_at" type="info" density="compact" variant="tonal" class="mb-3">Заказ отгружен. Плановую дату доставки можно изменить отдельно.</v-alert>
+
         <template v-if="!loading">
             <section class="order-form-grid">
                 <article class="order-panel">
@@ -379,6 +450,7 @@ onMounted(async () => {
                     <div class="order-panel__body order-panel__body--fields">
                         <v-text-field
                             v-model="form.number"
+                            :disabled="contentDisabled"
                             label="Номер заказа (создастся автоматически)"
                             variant="outlined"
                             density="compact"
@@ -388,6 +460,7 @@ onMounted(async () => {
 
                         <v-autocomplete
                             v-model="form.entity_id"
+                            :disabled="contentDisabled"
                             :items="options.entities"
                             item-title="name"
                             item-value="id"
@@ -399,6 +472,7 @@ onMounted(async () => {
 
                         <v-select
                             v-model="form.order_status_id"
+                            :disabled="contentDisabled"
                             :items="options.statuses"
                             item-title="name"
                             item-value="id"
@@ -421,6 +495,7 @@ onMounted(async () => {
 
                         <v-text-field
                             v-model="form.submitted_at"
+                            :disabled="contentDisabled"
                             type="datetime-local"
                             label="Дата создания"
                             variant="outlined"
@@ -442,6 +517,7 @@ onMounted(async () => {
                     <div class="order-panel__body order-panel__body--fields">
                         <v-autocomplete
                             v-model="form.building_ids"
+                            :disabled="contentDisabled"
                             :items="options.buildings"
                             item-title="address"
                             item-value="id"
@@ -461,8 +537,28 @@ onMounted(async () => {
                             </template>
                         </v-autocomplete>
 
+                        <div class="order-delivery-date">
+                            <v-text-field
+                                v-model="form.delivery_date"
+                                type="date"
+                                label="Плановая дата доставки"
+                                variant="outlined"
+                                density="compact"
+                                clearable
+                                :disabled="dateEditorDisabled"
+                                :error-messages="fieldError('delivery_date')"
+                                @click:clear="form.delivery_date = ''"
+                            />
+                            <div v-if="!isNew && canEditDeliveryDate" class="order-delivery-date__actions">
+                                <v-btn color="#7f1d1d" size="small" :loading="savingDeliveryDate" :disabled="dateEditorDisabled || !deliveryDateDirty" @click="saveDeliveryDate">Сохранить дату</v-btn>
+                                <v-btn v-if="deliveryDateDirty" variant="text" size="small" :disabled="saving || savingDeliveryDate" @click="form.delivery_date = order.delivery_date || ''">Отмена</v-btn>
+                            </div>
+                            <small v-if="!isNew">Дата меняется отдельно; подтверждённая сборка сохраняется.</small>
+                        </div>
+
                         <v-text-field
                             v-model="form.preferred_delivery_time"
+                            :disabled="contentDisabled"
                             label="Желаемое время поставки"
                             variant="outlined"
                             density="compact"
@@ -471,6 +567,7 @@ onMounted(async () => {
 
                         <v-textarea
                             v-model="form.internal_comment"
+                            :disabled="contentDisabled"
                             label="Внутренний комментарий"
                             variant="outlined"
                             density="compact"
@@ -491,6 +588,7 @@ onMounted(async () => {
                     <div class="order-items-toolbar">
                         <v-select
                             v-model="form.currency_code"
+                            :disabled="contentDisabled"
                             :items="options.currency_codes"
                             label="Валюта"
                             variant="outlined"
@@ -498,7 +596,7 @@ onMounted(async () => {
                             hide-details
                             class="order-items-toolbar__currency"
                         />
-                        <button type="button" @click="addItem">
+                        <button type="button" :disabled="contentDisabled" @click="addItem">
                             <v-icon icon="mdi-plus" size="14" />
                             Добавить товар
                         </button>
@@ -522,6 +620,7 @@ onMounted(async () => {
                         <div class="order-item-row__good">
                             <v-autocomplete
                                 v-model="item.good_id"
+                                :disabled="contentDisabled"
                                 :items="options.goods"
                                 item-title="name"
                                 item-value="id"
@@ -543,6 +642,7 @@ onMounted(async () => {
 
                         <v-text-field
                             v-model="item.quantity"
+                            :disabled="contentDisabled"
                             type="number"
                             min="0.001"
                             step="0.001"
@@ -555,6 +655,7 @@ onMounted(async () => {
 
                         <v-text-field
                             v-model="item.unit_price"
+                            :disabled="contentDisabled"
                             type="number"
                             min="0"
                             step="0.01"
@@ -576,6 +677,7 @@ onMounted(async () => {
                             type="button"
                             class="order-item-row__remove"
                             aria-label="Удалить позицию"
+                            :disabled="contentDisabled"
                             @click="removeItem(index)"
                         >
                             <v-icon icon="mdi-close" size="16" />
@@ -753,6 +855,24 @@ onMounted(async () => {
     width: 8px;
     height: 8px;
     border-radius: 50%;
+}
+
+.order-delivery-date {
+    grid-column: 1 / -1;
+    padding-bottom: 12px;
+}
+
+.order-delivery-date__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: -6px 0 8px;
+}
+
+.order-delivery-date small {
+    display: block;
+    color: #747d87;
+    font-size: 11px;
 }
 
 .order-panel--items {

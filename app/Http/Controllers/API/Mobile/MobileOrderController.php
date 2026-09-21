@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\Orders\MobileOrderPresenter;
 use App\Services\Orders\MobileOrderQuery;
+use App\Services\Orders\OrderDeliveryDateService;
 use App\Services\Orders\OrderFulfillmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ class MobileOrderController extends Controller
         private readonly OrderFulfillmentService $fulfillment,
         private readonly MobileOrderPresenter $presenter,
         private readonly MobileOrderQuery $orders,
+        private readonly OrderDeliveryDateService $delivery,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -50,6 +52,14 @@ class MobileOrderController extends Controller
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999999'],
         ]);
         $order = $this->fulfillment->prepare($order, $data, $request->user());
+
+        return response()->json(['data' => $this->presenter->one($order)]);
+    }
+
+    public function deliveryDate(Request $request, Order $order): JsonResponse
+    {
+        $data = $request->validate(OrderDeliveryDateService::updateRules());
+        $order = $this->delivery->update($order, $data['delivery_date'], $data['version']);
 
         return response()->json(['data' => $this->presenter->one($order)]);
     }

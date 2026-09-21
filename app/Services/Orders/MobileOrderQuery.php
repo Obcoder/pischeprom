@@ -13,6 +13,7 @@ class MobileOrderQuery
     public function validated(Request $request): array
     {
         return $request->validate([
+            ...OrderDeliveryFilter::rules($request),
             'search' => ['nullable', 'string', 'max:200'],
             'filter' => ['nullable', Rule::in(['all', 'today', 'awaiting', 'ready', 'shipped'])],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -43,6 +44,6 @@ class MobileOrderQuery
             default => null,
         };
 
-        return $query->orderByDesc('submitted_at')->orderByDesc('id');
+        return OrderDeliveryFilter::apply($query, $data)->orderByDesc('submitted_at')->orderByDesc('id');
     }
 }

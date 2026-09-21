@@ -148,3 +148,25 @@ test('token revocation accepts an empty 204 response', async () => {
     const api = createApi({ baseUrl, fetchImpl: async () => response(204) })
     assert.equal(await api.logout(), null)
 })
+
+test('saving and clearing delivery day use a versioned date-only PATCH in both transports', async t => {
+    for (const native of [false, true]) {
+        await t.test(native ? 'native' : 'browser', async () => {
+            const calls = []
+            const api = createApi({ baseUrl, ...(native ? {
+                nativeRequest: async options => { calls.push(options); return { status: 200, data: { data: { id: 9 } } } },
+            } : {
+                fetchImpl: async (url, options) => { calls.push({ url, ...options }); return response(200, { data: { id: 9 } }) },
+            }) })
+            api.setToken('employee-token')
+            for (const date of ['2026-09-21', null]) {
+                await api.setDeliveryDate(9, { version: 'current-version', delivery_date: date })
+                const call = calls.at(-1)
+                assert.equal(call.url, `${baseUrl}/orders/9/delivery-date`)
+                assert.equal(call.method, 'PATCH')
+                assert.equal(call.headers.Authorization, 'Bearer employee-token')
+                assert.deepEqual(native ? call.data : JSON.parse(call.body), { version: 'current-version', delivery_date: date })
+            }
+        })
+    }
+})

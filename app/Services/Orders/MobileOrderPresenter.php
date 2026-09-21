@@ -58,6 +58,7 @@ class MobileOrderPresenter
             return [
                 'id' => $order->id,
                 'number' => $order->number,
+                'delivery_date' => $order->delivery_date?->toDateString(),
                 'entity' => $order->entity?->only(['id', 'name']),
                 'delivery_addresses' => $this->deliveryAddresses($order),
                 'contact_telephone' => $order->contactTelephone ? [

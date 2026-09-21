@@ -7,7 +7,12 @@ export async function loadDeliveryOrders(fetchPage, query, { signal, onProgress 
     let lastPage = 1
     for (let page = 1; page <= lastPage; page++) {
         ensureActive(signal)
-        const response = await fetchPage({ search: query.search, filter: query.filter, page, per_page: 100 })
+        const response = await fetchPage({
+            search: query.search, filter: query.filter,
+            ...(query.delivery_date ? { delivery_date: query.delivery_date } : {}),
+            ...(query.delivery_unscheduled ? { delivery_unscheduled: 1 } : {}),
+            page, per_page: 100,
+        })
         ensureActive(signal)
         const meta = response?.meta
         if (!Array.isArray(response?.data) || meta?.current_page !== page
@@ -52,7 +57,7 @@ export function exactGeocodeCoordinates(result) {
     return coordinates
 }
 
-async function timedGeocode(geocode, address, timeoutMs, signal) {
+export async function timedGeocode(geocode, address, timeoutMs, signal) {
     ensureActive(signal)
     let timer
     let cancel
@@ -110,10 +115,12 @@ export function yandexScriptUrl(config) {
 
 let sdkPromise = null
 let sdkSequence = 0
+let sdkIdentity = null
 
 export function loadYandexMaps(config) {
     const url = yandexScriptUrl(config)
-    if (sdkPromise) return sdkPromise
+    if (sdkPromise && sdkIdentity === url.href) return sdkPromise
+    sdkIdentity = url.href
     const sequence = ++sdkSequence
     const namespace = `pischepromDeliveryMaps${sequence}`
     const loaded = `${namespace}Loaded`
@@ -139,7 +146,7 @@ export function loadYandexMaps(config) {
             else {
                 script.remove()
                 delete window[namespace]
-                sdkPromise = null
+                if (sequence === sdkSequence) sdkPromise = null
                 reject(new Error('Не удалось подключиться к Яндекс Картам. Проверьте интернет и повторите обновление.'))
             }
         }

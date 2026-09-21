@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class OrderWriter
 {
+    public function __construct(private readonly OrderDeliveryDateService $delivery) {}
+
     public function save(?Order $order, array $data): Order
     {
         return DB::transaction(function () use ($order, $data): Order {
@@ -17,6 +19,10 @@ class OrderWriter
                 ? Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail()
                 : new Order;
             abort_if($order->shipped_sale_id !== null, 409, 'Отгруженный заказ нельзя изменять.');
+            if ($order->exists && array_key_exists('delivery_date', $data)) {
+                $order->setRelation('items', $order->items()->lockForUpdate()->get());
+                $this->delivery->assertVersion($order, $data['delivery_version']);
+            }
             if ($order->prepared_at !== null || $order->prepared_fingerprint !== null) {
                 $order->forceFill([
                     'prepared_at' => null,
@@ -41,6 +47,9 @@ class OrderWriter
                     ? $data['contact_telephone_id']
                     : $order->contact_telephone_id,
                 'preferred_delivery_time' => $data['preferred_delivery_time'] ?? null,
+                'delivery_date' => array_key_exists('delivery_date', $data)
+                    ? $data['delivery_date']
+                    : $order->delivery_date,
                 'internal_comment' => $data['internal_comment'] ?? null,
                 'currency_code' => strtoupper($data['currency_code']),
                 'total_amount' => $lines->sum(fn (array $line) => (float) ($line['line_total'] ?? 0)),

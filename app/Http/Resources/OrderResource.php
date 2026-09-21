@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Orders\OrderDeliveryDateService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,6 +18,8 @@ class OrderResource extends JsonResource
             'created_by_user_id' => $this->created_by_user_id,
             'contact_telephone_id' => $this->contact_telephone_id,
             'preferred_delivery_time' => $this->preferred_delivery_time,
+            'delivery_date' => $this->delivery_date?->toDateString(),
+            'delivery_version' => app(OrderDeliveryDateService::class)->version($this->resource),
             'internal_comment' => $this->internal_comment,
             'total_amount' => $this->total_amount,
             'total_weight' => $this->total_weight,
@@ -24,6 +27,8 @@ class OrderResource extends JsonResource
             'submitted_at' => $this->submitted_at?->toISOString(),
             'notified_at' => $this->notified_at?->toISOString(),
             'closed_at' => $this->closed_at?->toISOString(),
+            'shipped_at' => $this->shipped_at?->toISOString(),
+            'shipped_sale_id' => $this->shipped_sale_id,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
             'items_count' => $this->whenCounted('items'),
