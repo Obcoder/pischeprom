@@ -1,0 +1,177 @@
+name: Production backup and recovery checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Plan storage, activate backups, create a backup, verify recovery, or inspect health
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+          - run
+          - verify
+          - status
+      bucket:
+        description: Optional dedicated pischeprom-backups-* bucket; the default is derived from YC_FOLDER_ID
+        required: false
+        type: string
+  schedule:
+    - cron: '15 6 * * *'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pischeprom-production-backups
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  backup:
+    name: ${{ inputs.action || 'status' }} production backups
+    if: github.repository == 'Obcoder/pischeprom' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment:
+      name: production
+    steps:
+      - name: Check out the exact main commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate source, destination and production metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BACKUP_ACTION: ${{ inputs.action || 'status' }}
+          BACKUP_BUCKET: ${{ inputs.bucket }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REPOSITORY" == 'Obcoder/pischeprom' && "$GITHUB_REF" == 'refs/heads/main' ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(gh api repos/Obcoder/pischeprom/git/ref/heads/main --jq .object.sha)" == "$GITHUB_SHA" ]] || {
+            echo '::error::This workflow must run the current main commit.'
+            exit 1
+          }
+          [[ "$BACKUP_ACTION" =~ ^(plan|apply|run|verify|status)$ ]]
+          for required in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS TARGET_DIR; do
+            [[ -n "${!required:-}" ]] || { echo "::error::Missing production secret ${required}."; exit 1; }
+          done
+          [[ "$SSH_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]
+          [[ "$SSH_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$SSH_PORT >= 1 && 10#$SSH_PORT <= 65535 ))
+          [[ "$TARGET_DIR" =~ ^/[A-Za-z0-9._/-]+$ && "$TARGET_DIR" != '/' ]]
+          [[ ! "$TARGET_DIR" =~ (^|/)\.\.?(/|$) ]]
+          [[ -z "$BACKUP_BUCKET" || "$BACKUP_BUCKET" =~ ^pischeprom-backups-[a-z0-9][a-z0-9-]{0,42}[a-z0-9]$ ]]
+          [[ -z "$YC_FOLDER_ID" || "$YC_FOLDER_ID" =~ ^[a-z0-9]{20}$ ]]
+          [[ -z "$YC_SERVICE_ACCOUNT_ID" || "$YC_SERVICE_ACCOUNT_ID" =~ ^[a-z0-9]{20}$ ]]
+          if [[ "$BACKUP_ACTION" == plan || "$BACKUP_ACTION" == apply ]]; then
+            [[ "$YC_FOLDER_ID" =~ ^[a-z0-9]{20}$ && "$YC_SERVICE_ACCOUNT_ID" =~ ^[a-z0-9]{20}$ ]]
+            [[ "$YC_OIDC_AUDIENCE" == "https://github.com/${GITHUB_REPOSITORY_OWNER}" ]]
+          fi
+          python3 -m unittest discover -s scripts/backup/tests -p 'test_*.py'
+          bash -n scripts/backup/provision-production-backups.sh
+
+      - name: Execute on the production host without transferring production data
+        env:
+          BACKUP_ACTION: ${{ inputs.action || 'status' }}
+          BACKUP_BUCKET: ${{ inputs.bucket }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+          YC_FOLDER_ID: ${{ vars.YC_FOLDER_ID }}
+          YC_SERVICE_ACCOUNT_ID: ${{ vars.YC_SERVICE_ACCOUNT_ID }}
+          YC_OIDC_AUDIENCE: ${{ vars.YC_OIDC_AUDIENCE }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          backup_work_dir="$(mktemp -d "${RUNNER_TEMP}/pischeprom-backup.XXXXXXXX")"
+          remote_dir=''
+          ssh_target="${SSH_USER}@${SSH_HOST}"
+          ssh_options=(-i "$backup_work_dir/deploy-key" -p "$SSH_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$backup_work_dir/known-hosts" -o ConnectTimeout=20)
+          scp_options=(-i "$backup_work_dir/deploy-key" -P "$SSH_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$backup_work_dir/known-hosts" -o ConnectTimeout=20)
+          cleanup() {
+            local result=$?
+            trap - EXIT
+            if [[ "$remote_dir" =~ ^/tmp/pischeprom-backup\.[A-Za-z0-9]+$ ]]; then
+              ssh "${ssh_options[@]}" "$ssh_target" "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+            fi
+            rm -rf -- "$backup_work_dir"
+            exit "$result"
+          }
+          trap cleanup EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$backup_work_dir/deploy-key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$backup_work_dir/known-hosts"
+          ssh-keygen -y -P '' -f "$backup_work_dir/deploy-key" >/dev/null
+          ssh-keygen -F "$SSH_HOST" -f "$backup_work_dir/known-hosts" >/dev/null \
+            || ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$backup_work_dir/known-hosts" >/dev/null \
+            || { echo '::error::Production host is absent from pinned SSH_KNOWN_HOSTS.'; exit 1; }
+
+          iam_token_file=''
+          if [[ "$BACKUP_ACTION" == plan || "$BACKUP_ACTION" == apply ]]; then
+            export BACKUP_IAM_TOKEN_FILE="$backup_work_dir/iam-token"
+            # Tokens are passed in HTTP bodies/headers, never command arguments.
+            python3 <<'PY'
+          import json, os, sys, urllib.parse, urllib.request
+          def request(url, data=None, headers=None):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers or {}), timeout=30) as response:
+                      return json.load(response)
+              except Exception:
+                  print('::error::OIDC token exchange failed; sensitive response details were suppressed.')
+                  sys.exit(1)
+          oidc = request(os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'] + '&' + urllib.parse.urlencode({'audience': os.environ['YC_OIDC_AUDIENCE']}),
+                         headers={'Authorization': 'bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})['value']
+          print('::add-mask::' + oidc, flush=True)
+          result = request('https://auth.yandex.cloud/oauth/token', urllib.parse.urlencode({
+              'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
+              'requested_token_type': 'urn:ietf:params:oauth:token-type:access_token',
+              'audience': os.environ['YC_SERVICE_ACCOUNT_ID'], 'subject_token': oidc,
+              'subject_token_type': 'urn:ietf:params:oauth:token-type:id_token',
+          }).encode(), {'Content-Type': 'application/x-www-form-urlencoded'})
+          token = result.get('access_token')
+          if not isinstance(token, str) or not token:
+              sys.exit('::error::Cloud exchange did not return a token.')
+          print('::add-mask::' + token, flush=True)
+          descriptor = os.open(os.environ['BACKUP_IAM_TOKEN_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(descriptor, 'w') as stream:
+              stream.write(token)
+          PY
+            iam_token_file="$backup_work_dir/iam-token"
+          fi
+
+          remote_dir="$(ssh "${ssh_options[@]}" "$ssh_target" 'umask 077 && mktemp -d /tmp/pischeprom-backup.XXXXXXXXXX')"
+          [[ "$remote_dir" =~ ^/tmp/pischeprom-backup\.[A-Za-z0-9]+$ ]] || {
+            echo '::error::Production host returned an unsafe temporary path.'
+            exit 1
+          }
+          # This archive contains audited source code only. No production files are downloaded.
+          tar --exclude='__pycache__' --exclude='*.pyc' -czf "$backup_work_dir/code.tar.gz" -C scripts backup
+          scp "${scp_options[@]}" "$backup_work_dir/code.tar.gz" "${ssh_target}:${remote_dir}/code.tar.gz"
+          remote_token=''
+          if [[ -n "$iam_token_file" ]]; then
+            scp "${scp_options[@]}" "$iam_token_file" "${ssh_target}:${remote_dir}/iam-token"
+            remote_token="$remote_dir/iam-token"
+          fi
+          ssh "${ssh_options[@]}" "$ssh_target" \
+            "tar -xzf '$remote_dir/code.tar.gz' -C '$remote_dir' && sudo -n bash '$remote_dir/backup/provision-production-backups.sh' '$BACKUP_ACTION' '$TARGET_DIR' '$remote_token' '$YC_FOLDER_ID' '$BACKUP_BUCKET' '$YC_SERVICE_ACCOUNT_ID' '$GITHUB_SHA'"

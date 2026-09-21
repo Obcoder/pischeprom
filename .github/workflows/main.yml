@@ -311,6 +311,14 @@ jobs:
             tests/Feature/CommerceRealtimeTest.php tests/Unit/Realtime
           bash -n scripts/deploy-production.sh scripts/provision-production-realtime.sh
 
+      - name: Check encrypted backups and recovery using synthetic data
+        run: |
+          vendor/bin/pint --test app/Support/Backups scripts/backup/*.php tests/Unit/Backups
+          bash -n scripts/backup/provision-production-backups.sh
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends restic
+          python3 -m unittest discover -s scripts/backup/tests -p 'test_*.py'
+
       - name: Run unit, logistics, banking, AI price-list, mail, goods stock, realtime, orders, mobile, and products tests
         env:
           APP_ENV: testing
