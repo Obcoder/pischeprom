@@ -5,13 +5,10 @@ import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
 import UnitManufacturesCard from '@/Components/Unit/UnitManufacturesCard.vue'
-import UnitLeadsPanel from '@/Components/Unit/UnitLeadsPanel.vue'
 
 const props = defineProps({
     unit: { type: Object, required: true },
     dict: { type: Object, default: () => ({}) },
-    canViewOrders: { type: Boolean, default: false },
-    canCreateOrders: { type: Boolean, default: false },
     goodsLoading: { type: Boolean, default: false },
     searchGoods: { type: Function, required: true },
 })
@@ -45,15 +42,6 @@ const goods = computed(() => [...new Map([
 const currencies = computed(() => (props.dict.currencies || []).map((currency) => ({
     ...currency, title: [currency.code, currency.name].filter(Boolean).join(' · '),
 })))
-const orders = computed(() => {
-    const unique = new Map()
-    for (const entity of props.unit?.entities || []) {
-        for (const order of entity.orders || []) {
-            unique.set(order.id, { ...order, entity: order.entity || { id: entity.id, name: entity.name } })
-        }
-    }
-    return [...unique.values()].sort((a, b) => new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0))
-})
 const consumptionHeaders = [
     { title: 'Продукт', key: 'product', sortable: false },
     { title: 'Категория', key: 'category', sortable: false },
@@ -76,10 +64,6 @@ function formatNumber(value, digits = 2) {
     if (value === null || value === undefined || value === '') return '—'
     const number = Number(value)
     return Number.isFinite(number) ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(number) : '—'
-}
-function formatDate(value) {
-    const date = new Date(value)
-    return value && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('ru-RU') : '—'
 }
 function productName(product) { return product?.rus || product?.name || product?.eng || `Product #${product?.id ?? '—'}` }
 async function storeConsumption() {
@@ -148,7 +132,6 @@ function priceLine(quotation) {
     const denominator = Number(quotation.denominator || 1)
     return `${formatNumber(quotation.price)} ${currency}${measure ? ` / ${denominator === 1 ? '' : `${formatNumber(denominator, 4)} `}${measure}` : denominator !== 1 ? ` / ${formatNumber(denominator, 4)}` : ''}`.trim()
 }
-function orderMoney(order) { return `${formatNumber(order.total_amount)} ${order.currency_code || ''}`.trim() }
 </script>
 
 <template>
@@ -157,8 +140,6 @@ function orderMoney(order) { return `${formatNumber(order.total_amount)} ${order
             <v-tab value="consumptions">Закупает / потребляет</v-tab>
             <v-tab value="manufactures">Производит</v-tab>
             <v-tab value="quotations">Quotations · прайс-лист</v-tab>
-            <v-tab v-if="canViewOrders" value="orders">Заказы</v-tab>
-            <v-tab value="leads">Лиды</v-tab>
         </v-tabs>
         <p v-if="feedback" role="alert" class="unit-relations__error">{{ feedback }}</p>
         <v-window v-model="tab">
@@ -202,24 +183,6 @@ function orderMoney(order) { return `${formatNumber(order.total_amount)} ${order
                 </div>
                 <p v-else class="unit-relations__empty">Прайс-лист пока пуст. Добавьте товары и цены Unit.</p>
             </v-window-item>
-            <v-window-item v-if="canViewOrders" value="orders">
-                <div class="unit-relations__toolbar"><span>Заказы связанных юридических лиц</span><Link v-if="canCreateOrders" :href="route('Ameise.orders.create')" class="unit-relations__action"><v-icon icon="mdi-plus" size="15" />Создать заказ</Link></div>
-                <div v-if="orders.length" class="unit-relations__scroll">
-                    <table class="unit-relations__table">
-                        <thead><tr><th>Заказ / контрагент</th><th>Товары</th><th>Статус</th><th class="unit-relations__number">Сумма</th></tr></thead>
-                        <tbody>
-                            <tr v-for="order in orders" :key="order.id">
-                                <td><Link :href="route('Ameise.orders.show', order.id)">{{ order.number || `Заказ #${order.id}` }}</Link><small>{{ order.entity?.name }} · {{ formatDate(order.submitted_at || order.created_at) }}</small></td>
-                                <td><div v-for="item in (order.items || []).slice(0, 3)" :key="item.id"><Link v-if="item.good?.id || item.good_id" :href="route('Ameise.good.show', item.good?.id || item.good_id)">{{ item.good_name || item.good?.name || 'Товар' }}</Link><span v-else>{{ item.good_name || 'Товар' }}</span> × {{ formatNumber(item.quantity, 3) }}</div><small v-if="(order.items || []).length > 3">Ещё {{ order.items.length - 3 }}</small></td>
-                                <td><span class="unit-relations__status">{{ order.status?.name || order.status?.code || 'Без статуса' }}</span></td>
-                                <td class="unit-relations__number">{{ orderMoney(order) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p v-else class="unit-relations__empty">У связанных юридических лиц пока нет заказов.</p>
-            </v-window-item>
-            <v-window-item value="leads"><UnitLeadsPanel :unit="unit" @refresh="emit('refresh')" /></v-window-item>
         </v-window>
         <v-dialog v-model="dialogQuotation" max-width="640" :persistent="savingQuotation">
             <v-card class="unit-quotation-dialog" rounded="0" elevation="0" border>
@@ -258,7 +221,6 @@ function orderMoney(order) { return `${formatNumber(order.total_amount)} ${order
 .unit-relations__table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .unit-relations__table th { position: sticky; top: 0; color: #666; background: #f5f5f5; font-size: 11px; font-weight: 500; text-align: left; }
 .unit-relations__table th, .unit-relations__table td { padding: 8px 12px; border-bottom: 1px solid #e7e7e7; }
-.unit-relations__table small { display: block; color: #777; font-size: 11px; }
 .unit-relations__table .unit-relations__number { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .unit-relations__price { color: #651c2e; }
 .unit-relations__product-path { font-size: 11px; color: #777; margin-top: 2px; }
@@ -268,7 +230,6 @@ function orderMoney(order) { return `${formatNumber(order.total_amount)} ${order
 .unit-relations__controls button:hover { background: #f3f2f4; }
 .unit-relations__controls button:disabled { opacity: .5; }
 .unit-relations__controls .is-danger { color: #651c2e; }
-.unit-relations__status { display: inline-block; border-left: 2px solid #352345; padding-left: 7px; font-size: 12px; }
 .unit-relations__empty { padding: 18px 12px; color: #777; font-size: 13px; margin: 0; }
 .unit-relations__error { padding: 8px 12px; color: #651c2e; font-size: 13px; margin: 0; }
 .unit-quotation-dialog__form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }

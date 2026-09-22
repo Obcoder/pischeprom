@@ -63,18 +63,23 @@ async function saveLead() {
     <div class="unit-leads">
         <p class="unit-leads__caption">Лиды Unit и связанных юридических лиц</p>
         <div v-if="leads.length" class="unit-leads__scroll">
-            <table class="unit-leads__table">
-                <thead><tr><th>Лид</th><th>Связь</th><th>Источник</th><th>Статус</th><th>Активность</th></tr></thead>
-                <tbody>
-                    <tr v-for="lead in leads" :key="lead.id">
-                        <td><button type="button" class="unit-leads__title" @click="editLead(lead)">{{ lead.title || `Лид #${lead.id}` }}</button></td>
-                        <td>{{ lead.entity?.name || 'Unit' }}</td>
-                        <td>{{ sourceLabel(lead.source) }}</td>
-                        <td><button type="button" class="unit-leads__status" :class="{ 'is-closed': ['lost', 'archived'].includes(lead.status) }" @click="editLead(lead)">{{ statusLabel(lead.status) }}</button></td>
-                        <td class="unit-leads__date">{{ formatDate(lead.last_activity_at || lead.created_at) }}</td>
-                    </tr>
-                </tbody>
-            </table>
+            <article v-for="lead in leads" :key="lead.id" class="unit-leads__item">
+                <div class="unit-leads__summary">
+                    <button type="button" class="unit-leads__title" @click="editLead(lead)">{{ lead.title || `Лид #${lead.id}` }}</button>
+                    <button
+                        type="button"
+                        class="unit-leads__status"
+                        :class="{ 'is-closed': ['lost', 'archived'].includes(lead.status) }"
+                        :aria-label="`Изменить статус лида «${lead.title || lead.id}»: ${statusLabel(lead.status)}`"
+                        @click="editLead(lead)"
+                    >{{ statusLabel(lead.status) }}</button>
+                </div>
+                <div class="unit-leads__entity">{{ lead.entity?.name || 'Unit' }}</div>
+                <div class="unit-leads__details">
+                    <span>{{ sourceLabel(lead.source) }}</span>
+                    <time class="unit-leads__date" :datetime="lead.last_activity_at || lead.created_at || undefined">{{ formatDate(lead.last_activity_at || lead.created_at) }}</time>
+                </div>
+            </article>
         </div>
         <p v-else class="unit-leads__empty">Связанных лидов пока нет. Лид можно создать из письма или входящего звонка.</p>
         <v-dialog v-model="dialog" max-width="600" :persistent="saving">
@@ -95,17 +100,20 @@ async function saveLead() {
 </template>
 
 <style scoped>
-.unit-leads { color: #222; font-size: 13px; }
-.unit-leads__caption { padding: 10px 12px; color: #666; margin: 0; }
-.unit-leads__scroll { overflow: auto; max-height: 390px; }
-.unit-leads__table { width: 100%; border-collapse: collapse; }
-.unit-leads__table th, .unit-leads__table td { padding: 8px 12px; border-bottom: 1px solid #e7e7e7; text-align: left; }
-.unit-leads__table th { position: sticky; top: 0; background: #f5f5f5; color: #666; font-size: 11px; font-weight: 500; }
-.unit-leads__title { color: #352345; text-align: left; font-weight: 600; }
+.unit-leads { display: flex; flex-direction: column; height: 100%; min-width: 0; min-height: 0; color: #222; font-size: 12px; }
+.unit-leads__caption { flex-shrink: 0; padding: 10px 12px; color: #666; margin: 0; }
+.unit-leads__scroll { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.unit-leads__item { display: grid; gap: 5px; min-width: 0; padding: 10px 12px; border-top: 1px solid #e7e7e7; }
+.unit-leads__summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+.unit-leads__title { min-width: 0; color: #352345; text-align: left; font-weight: 600; overflow-wrap: anywhere; }
 .unit-leads__title:hover { text-decoration: underline; }
-.unit-leads__status { padding: 3px 6px; border: 1px solid #cfcbd2; color: #352345; white-space: nowrap; }
+.unit-leads__status { padding: 2px 5px; border: 1px solid #cfcbd2; color: #352345; font-size: 10px; white-space: nowrap; }
 .unit-leads__status.is-closed { color: #651c2e; }
-.unit-leads__date { white-space: nowrap; color: #666; }
+.unit-leads__entity { color: #777; font-size: 11px; overflow-wrap: anywhere; }
+.unit-leads__details { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; color: #777; font-size: 11px; }
+.unit-leads__details > span { min-width: 0; overflow-wrap: anywhere; }
+.unit-leads__date { flex-shrink: 0; white-space: nowrap; }
+.unit-leads button:focus-visible { outline: 2px solid #352345; outline-offset: 2px; }
 .unit-leads__empty { padding: 12px; margin: 0; color: #777; }
 .unit-lead-dialog__form { display: grid; gap: 14px; }
 .unit-leads__error { color: #651c2e; margin-bottom: 12px; }

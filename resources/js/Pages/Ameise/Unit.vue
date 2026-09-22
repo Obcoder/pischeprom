@@ -173,7 +173,7 @@ onBeforeUnmount(() => {
 
 <template>
     <v-defaults-provider :defaults="workspaceDefaults">
-        <main class="unit-page">
+        <main class="unit-page" :class="{ 'unit-page--communications': activeSection === 'communications' }">
             <header class="unit-page__header">
                 <div class="unit-page__identity">
                     <a href="/Ameise/units" class="unit-page__back" title="Все Units" aria-label="Все Units"><v-icon icon="mdi-arrow-left" size="19" /></a>
@@ -209,14 +209,16 @@ onBeforeUnmount(() => {
                     :loading="loading"
                     @refresh="refreshAll"
                 />
-                <v-window v-model="activeSection" :touch="false">
-                    <v-window-item value="communications">
+                <v-window v-model="activeSection" :touch="false" class="unit-page__window">
+                    <v-window-item value="communications" class="unit-page__communications-window">
                         <UnitCommunicationsPanel
                             ref="communicationsPanel"
                             :unit="unit"
                             :dict="dict"
                             :can-manage="permissions.unit?.manage_contacts ?? permissions.unit?.manage_emails"
                             :can-send="permissions.unit?.send_mail"
+                            :can-view-orders="permissions.orders?.view"
+                            :can-create-orders="permissions.orders?.create"
                             @refresh="refreshAll"
                         />
                     </v-window-item>
@@ -224,8 +226,6 @@ onBeforeUnmount(() => {
                         <UnitTradeTabsCard
                             :unit="unit"
                             :dict="dict"
-                            :can-view-orders="permissions.orders?.view"
-                            :can-create-orders="permissions.orders?.create"
                             :goods-loading="loading.goods"
                             :search-goods="searchGoods"
                             @refresh="refreshUnit"
@@ -259,7 +259,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.unit-page { --unit-purple: #352345; --unit-red: #651c2e; --unit-line: #d9d7dc; min-height: 100%; padding: 16px 20px 24px; color: #242127; background: #f5f5f6; font-size: 13px; }
+.unit-page { --unit-purple: #352345; --unit-red: #651c2e; --unit-line: #d9d7dc; width: 100%; max-width: 100%; min-width: 0; flex: 1 1 0; align-self: stretch; box-sizing: border-box; min-height: 100%; padding: 16px 20px 36px; color: #242127; background: #f5f5f6; font-size: 13px; }
 .unit-page__header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 16px; }
 .unit-page__identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .unit-page__eyebrow { color: #85808a; font-size: 9px; font-weight: 650; letter-spacing: .13em; margin-bottom: 3px; }
@@ -276,13 +276,14 @@ onBeforeUnmount(() => {
 .unit-page__navigation { border-top: 1px solid var(--unit-line); border-bottom: 1px solid var(--unit-line); background: #fff; }
 .unit-page :deep(.v-tab) { min-width: 0; padding: 0 13px; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .unit-page__content { margin-top: 14px; }
+.unit-page__content, .unit-page__window { width: 100%; min-width: 0; }
+.unit-page__window > :deep(.v-window__container), .unit-page__window > :deep(.v-window__container > .v-window-item) { width: 100%; min-width: 0; }
 .unit-page__ai > .v-tabs { border: 1px solid var(--unit-line); border-bottom: 0; background: #fff; }
 .unit-page :deep(.v-card), .unit-page :deep(.v-sheet), .unit-page :deep(.v-btn), .unit-page :deep(.v-chip), .unit-page :deep(.v-alert), .unit-page :deep(.v-field) { border-radius: 0 !important; box-shadow: none !important; background-image: none !important; }
 .unit-page :deep(.base-section-card) { border-color: var(--unit-line); }
 .unit-page :deep(.base-section-card__header) { background: #fff; color: #352345; border-bottom: 1px solid var(--unit-line); min-height: 39px; padding: 7px 12px; }
 .unit-page :deep(.base-section-card__title) { font-size: 13px; font-weight: 650; }
 .unit-page :deep(.base-section-card__body) { padding: 12px; }
-.unit-page :deep(.base-section-card__body.unit-trade-tabs) { padding: 0; }
 .unit-page :deep(.v-btn) { text-transform: none; letter-spacing: 0; }
 .unit-page :deep(.ai-sales-panel) { background: #fff; }
 .unit-page :deep(button:focus-visible), .unit-page :deep(a:focus-visible) { outline: 2px solid #352345; outline-offset: 2px; }
@@ -290,7 +291,14 @@ onBeforeUnmount(() => {
 @keyframes unit-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .unit-page__refreshing { animation: none; } }
 @media (max-width: 1100px) { .unit-page__roles { flex-direction: column; } }
-@media (max-width: 760px) { .unit-page { padding: 12px; } .unit-page__header { flex-wrap: wrap; gap: 12px; } .unit-page__roles { display: none; } .unit-page__actions { margin-left: 44px; } .unit-page :deep(.v-tab) { padding: 0 10px; } }
+@media (min-width: 1101px) and (min-height: 641px) {
+    .unit-page--communications { height: calc(100dvh - var(--v-layout-top, 0px) - var(--v-layout-bottom, 0px)); min-height: 0; display: flex; flex-direction: column; }
+    .unit-page--communications .unit-page__header, .unit-page--communications .unit-page__navigation { flex-shrink: 0; }
+    .unit-page--communications .unit-page__content { flex: 1; min-height: 0; display: flex; }
+    .unit-page--communications .unit-page__window { flex: 1; min-height: 0; }
+    .unit-page--communications .unit-page__window > :deep(.v-window__container), .unit-page--communications .unit-page__communications-window { height: 100%; min-height: 0; }
+}
+@media (max-width: 760px) { .unit-page { padding: 12px 12px 36px; } .unit-page__header { flex-wrap: wrap; gap: 12px; } .unit-page__roles { display: none; } .unit-page__actions { margin-left: 44px; } .unit-page :deep(.v-tab) { padding: 0 10px; } }
 </style>
 
 <style>

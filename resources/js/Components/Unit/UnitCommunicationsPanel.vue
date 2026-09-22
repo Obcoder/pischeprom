@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitCallsCard from '@/Components/Unit/UnitCallsCard.vue'
+import UnitActivityTabsPanel from '@/Components/Unit/UnitActivityTabsPanel.vue'
 import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 import { collectUnitCommunications, communicationTypes, contactKey, websiteHref } from '@/Composables/unitCommunications.js'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter.js'
@@ -12,6 +13,8 @@ const props = defineProps({
     dict: { type: Object, default: () => ({}) },
     canManage: Boolean,
     canSend: Boolean,
+    canViewOrders: Boolean,
+    canCreateOrders: Boolean,
 })
 const emit = defineEmits(['refresh'])
 const { formatPhone } = usePhoneFormatter()
@@ -249,6 +252,7 @@ defineExpose({ openNewMessage })
         </div>
 
         <div class="communication-history">
+            <UnitActivityTabsPanel :unit="unit" :can-view-orders="canViewOrders" :can-create-orders="canCreateOrders" @refresh="emit('refresh')" />
             <UnitSendingsCard :key="`mail-${unit.id}`" ref="mailCard" :unit="unit" :can-send="canSend" />
             <UnitCallsCard :key="`calls-${unit.id}`" ref="callsCard" :unit="unit" />
         </div>
@@ -298,14 +302,14 @@ defineExpose({ openNewMessage })
 </template>
 
 <style scoped>
-.unit-communications { display: grid; gap: 14px; color: #252329; }
-.communication-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid #d6d3d9; background: #fff; }
+.unit-communications { display: flex; flex-direction: column; gap: 14px; width: 100%; height: 100%; min-width: 0; min-height: 0; color: #252329; }
+.communication-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex-shrink: 0; border: 1px solid #d6d3d9; background: #fff; }
 .communication-column { min-width: 0; }
 .communication-column + .communication-column { border-left: 1px solid #d6d3d9; }
 .communication-heading { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; border-bottom: 1px solid #e4e2e6; }
 .communication-heading h3 { font-size: 12px; font-weight: 700; }
 .communication-count { margin-left: auto; color: #79737e; font-size: 11px; font-variant-numeric: tabular-nums; }
-.communication-list { max-height: 240px; overflow-y: auto; }
+.communication-list { max-height: min(200px, 20dvh); overflow-y: auto; }
 .communication-contact { display: flex; align-items: center; min-height: 58px; padding: 7px 8px 7px 12px; gap: 2px; }
 .communication-contact + .communication-contact { border-top: 1px solid #eeecef; }
 .communication-contact__main { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 3px; }
@@ -313,14 +317,17 @@ defineExpose({ openNewMessage })
 .communication-contact__main > a:hover, .communication-contact__main > button:hover { text-decoration: underline; }
 .communication-contact__main small { color: #77727c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .communication-empty { display: flex; align-items: center; min-height: 58px; margin: 0; padding: 12px; font-size: 12px; color: #827c86; }
-.communication-history { display: grid; grid-template-columns: minmax(0, 1fr) 290px; align-items: start; gap: 14px; }
-.communication-history > * { min-width: 0; }
-.communication-feedback { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #d6d3d9; background: #f7f6f8; color: #382447; font-size: 12px; }
+.communication-history { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); flex: 1; min-height: 0; align-items: stretch; gap: 14px; }
+.communication-history > * { min-width: 0; min-height: 0; }
+.communication-feedback { display: flex; flex-shrink: 0; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #d6d3d9; background: #f7f6f8; color: #382447; font-size: 12px; }
 .communication-feedback.is-error { border-color: #b98a94; color: #6b2032; }
 .communication-feedback button { font-size: 17px; line-height: 1; }
 .communication-help { font-size: 12px; line-height: 1.5; color: #77727c; }
 .communication-dialog { border: 1px solid #d6d3d9; }
-@media (max-width: 1250px) { .communication-history { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1100px), (max-height: 640px) {
+    .unit-communications { height: auto; }
+    .communication-history { grid-template-columns: minmax(0, 1fr); flex: none; }
+}
 @media (max-width: 760px) {
     .communication-grid { grid-template-columns: minmax(0, 1fr); }
     .communication-column + .communication-column { border-left: 0; border-top: 1px solid #d6d3d9; }

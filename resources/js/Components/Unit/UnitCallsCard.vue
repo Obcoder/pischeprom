@@ -116,12 +116,12 @@ defineExpose({ refresh: () => fetchCalls(1) })
 </template>
 
 <style scoped>
-.unit-calls-card { border: 1px solid #d6d3d9 !important; border-radius: 0 !important; box-shadow: none !important; color: #252329; }
-.unit-calls-card :deep(.base-section-card__header) { padding: 5px 10px; min-height: 42px; border-bottom: 1px solid #e4e2e6; }
+.unit-calls-card { display: flex; flex-direction: column; min-height: 0; border: 1px solid #d6d3d9 !important; border-radius: 0 !important; box-shadow: none !important; color: #252329; }
+.unit-calls-card :deep(.base-section-card__header) { flex-shrink: 0; padding: 5px 10px; min-height: 42px; border-bottom: 1px solid #e4e2e6; }
 .unit-calls-card :deep(.base-section-card__title) { font-size: 12px; }
-.unit-calls-card :deep(.base-section-card__body) { padding: 0 10px; }
+.unit-calls-card :deep(.base-section-card__body) { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 0 10px; }
 .unit-calls-total { color: #79737e; font-size: 11px; font-variant-numeric: tabular-nums; }
-.unit-calls-list { max-height: 388px; overflow-y: auto; }
+.unit-calls-list { flex: 1; min-height: 0; overflow-y: auto; }
 .unit-call { padding: 9px 0; }
 .unit-call + .unit-call { border-top: 1px solid #e4e2e6; }
 .unit-call-top, .unit-call-meta { display: flex; align-items: center; gap: 8px; }
@@ -135,6 +135,7 @@ defineExpose({ refresh: () => fetchCalls(1) })
 .unit-call-meta { margin-top: 4px; color: #79737e; font-size: 10px; }
 .unit-call-meta a { margin-left: auto; color: #382447; text-decoration: underline; }
 .unit-calls-empty { padding: 22px 0; color: #79737e; font-size: 12px; text-align: center; }
-.unit-calls-pagination { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #e4e2e6; padding: 6px 0; color: #79737e; font-size: 11px; }
+.unit-calls-pagination { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; border-top: 1px solid #e4e2e6; padding: 6px 0; color: #79737e; font-size: 11px; }
 .unit-calls-error { padding: 8px; margin: 8px 0; border: 1px solid #b98a94; color: #6b2032; font-size: 12px; }
+@media (max-width: 1100px), (max-height: 640px) { .unit-calls-list { flex: auto; max-height: 388px; } }
 </style>

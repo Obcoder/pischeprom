@@ -22,7 +22,7 @@ function harness(t, { canManage = true, canSend = true, requestFailure = null } 
         return { data: { data: [] } }
     }
     const environment = {
-        ...Vue, UnitSendingsCard: {}, UnitCallsCard: {}, MaxContactButton: {}, collectUnitCommunications,
+        ...Vue, UnitSendingsCard: {}, UnitCallsCard: {}, UnitActivityTabsPanel: {}, MaxContactButton: {}, collectUnitCommunications,
         communicationTypes, contactKey, websiteHref, usePhoneFormatter: () => ({ formatPhone: value => value }),
         onBeforeUnmount: callback => disposal.push(callback),
         axios: Object.fromEntries(['get', 'post', 'put', 'delete'].map(method => [method, (url, payload) => request(method, url, payload)])),

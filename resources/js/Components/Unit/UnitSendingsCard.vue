@@ -52,19 +52,19 @@ const headers = [
         title: 'Тип',
         key: 'direction',
         sortable: false,
-        width: '84px',
+        width: '54px',
     },
     {
         title: 'Дата',
         key: 'message_date',
         sortable: false,
-        width: '140px',
+        width: '112px',
     },
     {
         title: 'Контакт',
         key: 'contact',
         sortable: false,
-        width: '260px',
+        width: '180px',
     },
     {
         title: 'Тема',
@@ -76,7 +76,7 @@ const headers = [
         key: 'actions',
         sortable: false,
         align: 'end',
-        width: '110px',
+        width: '72px',
     },
 ]
 
@@ -267,17 +267,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.unit-mail-card { border: 1px solid #d6d3d9 !important; border-radius: 0 !important; box-shadow: none !important; color: #252329; }
-.unit-mail-card :deep(.base-section-card__header) { padding: 5px 10px; min-height: 42px; border-bottom: 1px solid #e4e2e6; }
+.unit-mail-card { display: flex; flex-direction: column; min-height: 0; border: 1px solid #d6d3d9 !important; border-radius: 0 !important; box-shadow: none !important; color: #252329; }
+.unit-mail-card :deep(.base-section-card__header) { flex-shrink: 0; padding: 5px 10px; min-height: 42px; border-bottom: 1px solid #e4e2e6; }
 .unit-mail-card :deep(.base-section-card__title) { font-size: 12px; }
-.unit-mail-card :deep(.base-section-card__body) { padding: 10px; }
+.unit-mail-card :deep(.base-section-card__body) { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 10px; }
 .unit-mail-total { color: #79737e; font-size: 11px; font-variant-numeric: tabular-nums; }
-.unit-mail-filters { display: grid; grid-template-columns: minmax(150px, 1.4fr) minmax(100px, 1fr) minmax(110px, 1fr); gap: 8px; margin-bottom: 10px; }
-.unit-mail-table { width: 100%; max-width: 100%; min-width: 0; font-size: 11px; border-top: 1px solid #e4e2e6; }
-.unit-mail-table :deep(.v-table__wrapper) { max-width: 100%; max-height: 340px; overflow: auto; }
+.unit-mail-filters { display: grid; flex-shrink: 0; grid-template-columns: minmax(150px, 1.4fr) minmax(100px, 1fr) minmax(110px, 1fr); gap: 8px; margin-bottom: 10px; }
+.unit-mail-table { flex: 1; width: 100%; max-width: 100%; min-width: 0; min-height: 0; font-size: 11px; border-top: 1px solid #e4e2e6; }
+.unit-mail-table :deep(.v-table__wrapper) { flex: 1; min-height: 0; max-width: 100%; overflow: auto; }
 .unit-mail-table :deep(th) { font-size: 10px; color: #77727c; }
 .unit-mail-table :deep(td) { padding: 5px 8px !important; }
-.unit-mail-table :deep(.v-data-table-footer) { padding: 6px 0 0; font-size: 11px; gap: 8px; }
+.unit-mail-table :deep(.v-data-table-footer) { flex-shrink: 0; padding: 6px 0 0; font-size: 11px; gap: 8px; }
 .unit-mail-direction { font-size: 10px; color: #382447; white-space: nowrap; }
 .unit-mail-direction.is-outgoing { color: #6b2032; }
 .unit-mail-date { font-size: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -286,6 +286,7 @@ onUnmounted(() => {
 .unit-mail-subject { min-width: 140px; padding: 3px 0; }
 .unit-mail-subject strong { font-size: 11px; font-weight: 600; }
 .unit-mail-subject p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #79737e; font-size: 10px; margin: 3px 0 0; }
-.unit-mail-error { padding: 8px; margin-bottom: 8px; border: 1px solid #b98a94; color: #6b2032; font-size: 12px; }
+.unit-mail-error { flex-shrink: 0; padding: 8px; margin-bottom: 8px; border: 1px solid #b98a94; color: #6b2032; font-size: 12px; }
+@media (max-width: 1100px), (max-height: 640px) { .unit-mail-card { height: min(640px, 80dvh); min-height: 300px; } }
 @media (max-width: 600px) { .unit-mail-filters { grid-template-columns: 1fr 1fr; } .unit-mail-filters > :first-child { grid-column: 1 / -1; } }
 </style>
