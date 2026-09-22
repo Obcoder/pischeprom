@@ -417,6 +417,7 @@ use App\Http\Controllers\API\MailOfferController;
 use App\Http\Controllers\API\MaxChatController;
 use App\Http\Controllers\API\MaxSubscriptionController;
 use App\Http\Controllers\API\MaxWebhookController;
+use App\Http\Controllers\API\UnitWebsiteResearchController;
 use App\Http\Controllers\API\WordAttachmentPreviewController;
 
 Route::apiResource('mailboxes', MailboxController::class)
@@ -446,6 +447,8 @@ Route::prefix('mail-messages/{mailMessage}')->middleware(['auth:sanctum', 'verif
         ->middleware('throttle:5,1,mail-website-research')->name('mail-messages.research.website');
     Route::post('research/company', [MailMessageResearchController::class, 'company'])
         ->middleware('throttle:10,1,mail-company-research')->name('mail-messages.research.company');
+    Route::post('research/{research}/unit', [MailMessageResearchController::class, 'saveToUnit'])
+        ->name('mail-messages.research.unit');
 });
 Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
     ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
@@ -692,6 +695,9 @@ Route::prefix('max')
  */
 Route::prefix('units/{unit}')->group(function () {
     Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
+
+    Route::get('/website-research', [UnitWebsiteResearchController::class, 'index'])
+        ->middleware(['auth:sanctum', 'verified'])->name('api.units.website-research.index');
 
     Route::get('/emails/options', [UnitEmailController::class, 'options'])
         ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:60,1'])

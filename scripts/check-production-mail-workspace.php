@@ -21,14 +21,18 @@ try {
     $app = require $targetDir.'/bootstrap/app.php';
     $app->make(Kernel::class)->bootstrap();
 
-    if (! Schema::hasTable('mail_message_researches')) {
+    if (! Schema::hasTable('mail_message_researches') || ! Schema::hasTable('unit_website_researches')) {
         throw new RuntimeException('research_migration_missing');
     }
-    foreach (['mail-messages.research.website', 'mail-messages.research.company', 'mail-messages.attachments.word-preview', 'mail-messages.lead.store'] as $name) {
+    foreach (['mail-messages.research.website', 'mail-messages.research.company', 'mail-messages.research.unit', 'mail-messages.attachments.word-preview', 'mail-messages.lead.store'] as $name) {
         $route = $app['router']->getRoutes()->getByName($name);
         if (! $route || $route->methods() !== ['POST'] || array_diff(['auth:sanctum', 'verified'], $route->gatherMiddleware()) !== []) {
             throw new RuntimeException('mail_route_unavailable');
         }
+    }
+    $unitRoute = $app['router']->getRoutes()->getByName('api.units.website-research.index');
+    if (! $unitRoute || ! in_array('GET', $unitRoute->methods(), true) || array_diff(['auth:sanctum', 'verified'], $unitRoute->gatherMiddleware()) !== []) {
+        throw new RuntimeException('unit_website_research_route_unavailable');
     }
 
     $previewer = $app->make(WordAttachmentPreviewer::class);
@@ -51,7 +55,7 @@ try {
     }
     $ai = $app->make(MailWebsiteCatalogAi::class)->availability()['available'] ? 'configured' : 'unavailable';
     $company = config('services.dadata.token') ? 'configured' : 'unavailable';
-    fwrite(STDOUT, "Mail workspace check passed: Word=DOC,DOCX; catalog_AI={$ai}; company_lookup={$company}.\n");
+    fwrite(STDOUT, "Mail workspace check passed: Word=DOC,DOCX; catalog_AI={$ai}; company_lookup={$company}; unit_website_research=ready.\n");
     $success = true;
 } catch (Throwable) {
     fwrite(STDERR, "Mail workspace check failed; inspect PHP CLI, Word preview and mail route configuration.\n");

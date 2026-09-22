@@ -6,6 +6,7 @@ import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { useUnitPage } from '@/Composables/useUnitPage'
 
 import UnitOverviewCard from '@/Components/Unit/UnitOverviewCard.vue'
+import UnitWebsiteResearchCard from '@/Components/Unit/UnitWebsiteResearchCard.vue'
 import UnitSendingsCard from '@/Components/Unit/UnitSendingsCard.vue'
 import UnitSalesCard from '@/Components/Unit/UnitSalesCard.vue'
 import UnitCallsCard from '@/Components/Unit/UnitCallsCard.vue'
@@ -121,7 +122,11 @@ onMounted(async () => {
     const params = new URLSearchParams(window.location.search)
     const requestedSection = params.get('section')
 
-    if (sectionTabs.value.some((tab) => tab.value === requestedSection)) {
+    if (window.location.hash === '#website-research') {
+        activeSection.value = 'overview'
+        await nextTick()
+        document.getElementById('website-research')?.scrollIntoView({ block: 'start' })
+    } else if (sectionTabs.value.some((tab) => tab.value === requestedSection)) {
         activeSection.value = requestedSection
     } else if (params.get('ai_sales') === '1' || window.location.hash === '#prospecting-dossier') {
         activeSection.value = 'ai-sales'
@@ -173,13 +178,16 @@ onMounted(async () => {
 
         <v-window v-model="activeSection" class="unit-page__content" :touch="false">
             <v-window-item value="overview">
-                <UnitOverviewCard
-                    :unit="unit"
-                    :files="files"
-                    :dict="dict"
-                    :loading="loading"
-                    @refresh="refreshAll"
-                />
+                <div class="unit-page__stack">
+                    <UnitOverviewCard
+                        :unit="unit"
+                        :files="files"
+                        :dict="dict"
+                        :loading="loading"
+                        @refresh="refreshAll"
+                    />
+                    <UnitWebsiteResearchCard :unit-id="Number(unit.id)" />
+                </div>
             </v-window-item>
 
             <v-window-item value="trade">

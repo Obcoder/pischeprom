@@ -29,6 +29,10 @@ const form = reactive({})
 const researchRecords = ref([])
 const researchAvailability = ref({})
 const selectedResearchId = ref(null)
+const researchUnits = ref([])
+const selectedResearchUnitId = ref(null)
+const researchLoading = ref(false)
+const savingResearchToUnit = ref(false)
 const requests = new Map()
 const searchTimers = new Map()
 let revision = 0
@@ -51,6 +55,11 @@ const researchKind = computed(() => action.value === 'ai-company' ? 'company' : 
 const isResearch = computed(() => action.value.startsWith('ai-'))
 const researchHistory = computed(() => researchRecords.value.filter((record) => record.kind === researchKind.value))
 const selectedResearch = computed(() => researchHistory.value.find((record) => record.id === selectedResearchId.value) || researchHistory.value[0] || null)
+const selectedResearchUnit = computed(() => researchUnits.value.find((unit) => Number(unit.id) === Number(selectedResearchUnitId.value)) || null)
+const savedResearchUnits = computed(() => selectedResearch.value?.saved_units || [])
+const researchSavedToSelectedUnit = computed(() => Boolean(selectedResearchUnit.value && savedResearchUnits.value.some((unit) => Number(unit.id) === Number(selectedResearchUnit.value.id))))
+const canSaveResearchToUnit = computed(() => action.value === 'ai-website' && !props.disabled && !saving.value && !loading.value && !researchLoading.value
+    && Boolean(selectedResearch.value?.id && selectedResearchUnit.value))
 const availability = computed(() => researchAvailability.value[researchKind.value])
 const showEntityTarget = computed(() => ['phone', 'email', 'building', 'unit'].includes(action.value))
 const showUnitTarget = computed(() => ['phone', 'email', 'building', 'website', 'entity'].includes(action.value))
@@ -58,7 +67,7 @@ const entityOptions = computed(() => mergeOptions(linked.value.entities, entitie
 const unitOptions = computed(() => mergeOptions(linked.value.units, units.value))
 const ready = computed(() => {
     if (props.disabled || saving.value || loading.value || !props.message?.id) return false
-    if (isResearch.value) return Boolean(availability.value?.available && String(form.query || '').trim())
+    if (isResearch.value) return Boolean(!researchLoading.value && availability.value?.available && String(form.query || '').trim())
     if (action.value === 'phone') return Boolean(String(form.number || '').trim())
     if (action.value === 'email') return Boolean(String(form.email_address || '').trim() && (form.entity_id || form.unit_id))
     if (action.value === 'website') return Boolean(form.unit_id && String(form.address || '').trim())
@@ -83,7 +92,9 @@ function cancelRequests() {
     for (const timer of searchTimers.values()) clearTimeout(timer)
     searchTimers.clear()
     loading.value = false
+    researchLoading.value = false
     saving.value = false
+    savingResearchToUnit.value = false
     emit('busy', false)
 }
 
@@ -156,13 +167,20 @@ for (const [kind, search] of [['entities', entitySearch], ['units', unitSearch],
 
 async function loadResearch() {
     const currentRevision = revision
+    researchLoading.value = true
     try {
         const data = await getResource('research', `/api/mail-messages/${props.message.id}/research`)
         if (!data) return
         researchRecords.value = data.data || []
         researchAvailability.value = data.availability || {}
+        researchUnits.value = mergeOptions(data.linked_units)
+        const validSelection = researchUnits.value.find((unit) => Number(unit.id) === Number(selectedResearchUnitId.value))
+        const defaultUnit = researchUnits.value.find((unit) => Number(unit.id) === Number(props.defaultUnitId))
+        selectedResearchUnitId.value = validSelection?.id || defaultUnit?.id || (researchUnits.value.length === 1 ? researchUnits.value[0].id : null)
     } catch (exception) {
         if (currentRevision === revision) error.value = exception?.response?.data?.message || 'Не удалось загрузить результаты исследования.'
+    } finally {
+        if (currentRevision === revision && !requests.has('research')) researchLoading.value = false
     }
 }
 
@@ -190,6 +208,8 @@ function openAction(key) {
     error.value = ''
     notice.value = ''
     selectedResearchId.value = null
+    selectedResearchUnitId.value = null
+    researchUnits.value = []
     resetForm()
     dialog.value = true
     loadContext()
@@ -227,11 +247,16 @@ async function submit() {
     try {
         if (isResearch.value) {
             const kind = researchKind.value
-            const { data } = await axios.post(`/api/mail-messages/${id}/research/${kind}`, kind === 'website' ? { url: String(form.query ?? '').trim() } : { query: String(form.query ?? '').trim() }, { timeout: 65000 })
+            const body = kind === 'website'
+                ? { url: String(form.query ?? '').trim(), ...(selectedResearchUnit.value ? { unit_id: selectedResearchUnit.value.id } : {}) }
+                : { query: String(form.query ?? '').trim() }
+            const { data } = await axios.post(`/api/mail-messages/${id}/research/${kind}`, body, { timeout: 65000 })
             if (currentRevision !== revision || Number(id) !== Number(props.message?.id)) return
             researchRecords.value = [data.data, ...researchRecords.value.filter((record) => record.id !== data.data?.id)]
             selectedResearchId.value = data.data?.id
-            notice.value = data.cached ? 'Показан сохранённый результат.' : 'Результат исследования сохранён в письме.'
+            notice.value = data.saved_to_unit
+                ? `Результат сохранён в письме и в Unit «${data.saved_to_unit.name}».`
+                : data.cached ? 'Показан сохранённый результат.' : 'Результат исследования сохранён в письме.'
         } else {
             const resource = { phone: 'telephones', email: 'emails', entity: 'entities', unit: 'units', website: 'websites', building: 'buildings' }[currentAction]
             const { data } = await axios.post(`/api/mail-messages/${id}/crm/${resource}`, payload())
@@ -248,6 +273,31 @@ async function submit() {
         error.value = Object.values(exception?.response?.data?.errors || {}).flat()[0] || exception?.response?.data?.message || 'Не удалось выполнить действие. Попробуйте ещё раз.'
     } finally {
         if (currentRevision === revision) { saving.value = false; emit('busy', false) }
+    }
+}
+
+async function saveResearchToUnit() {
+    if (!canSaveResearchToUnit.value) return
+    const id = props.message.id
+    const researchId = selectedResearch.value.id
+    const unitId = selectedResearchUnit.value.id
+    const currentRevision = revision
+    saving.value = true
+    savingResearchToUnit.value = true
+    emit('busy', true)
+    error.value = ''
+    notice.value = ''
+    try {
+        const { data } = await axios.post(`/api/mail-messages/${id}/research/${researchId}/unit`, { unit_id: unitId })
+        if (currentRevision !== revision || Number(id) !== Number(props.message?.id)) return
+        researchRecords.value = researchRecords.value.map((record) => Number(record.id) === Number(data.data.id) ? data.data : record)
+        notice.value = `Результат сохранён в Unit «${data.saved_to_unit.name}».`
+        emit('notice', { type: 'success', text: notice.value })
+    } catch (exception) {
+        if (currentRevision !== revision) return
+        error.value = Object.values(exception?.response?.data?.errors || {}).flat()[0] || exception?.response?.data?.message || 'Не удалось сохранить результат в Unit. Попробуйте ещё раз.'
+    } finally {
+        if (currentRevision === revision) { saving.value = false; savingResearchToUnit.value = false; emit('busy', false) }
     }
 }
 
@@ -271,12 +321,20 @@ function safeLink(value) {
     try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : null } catch { return null }
 }
 
+function unitResearchLink(unit) {
+    const url = String(unit?.url || '')
+    if (url.startsWith('/') && !url.startsWith('//')) return url
+    return safeLink(url) || `/Ameise/unit/${Number(unit.id)}?section=overview#website-research`
+}
+
 watch(() => props.message?.id, () => {
     cancelRequests()
     dialog.value = false
     crm.value = { candidates: {}, linked: {} }
     researchRecords.value = []
     researchAvailability.value = {}
+    researchUnits.value = []
+    selectedResearchUnitId.value = null
 })
 watch(dialog, (open) => { if (!open) cancelRequests() })
 onBeforeUnmount(cancelRequests)
@@ -293,7 +351,7 @@ onBeforeUnmount(cancelRequests)
     <v-dialog v-model="dialog" max-width="660" :persistent="saving" scrollable>
         <v-card theme="dark" class="mail-crm-dialog">
             <header class="mail-crm-dialog__header"><div><h3>{{ actionTitle }}</h3><p>{{ sender }}</p></div><v-btn icon="mdi-close" size="small" variant="text" aria-label="Закрыть инструменты CRM" :disabled="saving" @click="dialog = false" /></header>
-            <v-progress-linear v-if="loading || saving" indeterminate height="2" color="cyan" />
+            <v-progress-linear v-if="loading || saving || researchLoading" indeterminate height="2" color="cyan" />
             <v-card-text class="mail-crm-dialog__body">
                 <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mail-crm-dialog__alert">{{ error }} <button v-if="!saving" type="button" @click="reloadData">Обновить данные</button></v-alert>
                 <v-alert v-if="notice" type="success" density="compact" variant="tonal" class="mail-crm-dialog__alert">{{ notice }}</v-alert>
@@ -301,10 +359,23 @@ onBeforeUnmount(cancelRequests)
                 <template v-if="isResearch">
                     <v-combobox v-model="form.query" :items="researchKind === 'website' ? candidates.websites || [] : [...(candidates.tax_ids || []), ...(candidates.companies || [])]" :label="researchKind === 'website' ? 'Сайт для поиска товаров' : 'ИНН или название юридического лица'" :return-object="false" density="compact" variant="outlined" hide-details :disabled="saving" />
                     <p class="mail-crm-dialog__hint">{{ researchKind === 'website' ? 'По кнопке будут исследованы публичные страницы сайта. Результат с источниками сохранится в письме.' : 'Найдите реквизиты и выберите юридическое лицо для заполнения карточки Entity.' }}</p>
+                    <template v-if="researchKind === 'website'">
+                        <v-select v-if="researchUnits.length" v-model="selectedResearchUnitId" :items="researchUnits" item-value="id" item-title="name" label="Сохранить исследование в Unit" density="compact" variant="outlined" hide-details clearable :disabled="saving || researchLoading" />
+                        <p v-if="selectedResearchUnit" class="mail-crm-dialog__hint">По кнопке «Исследовать сайт» результат также сохранится в Unit «{{ selectedResearchUnit.name }}».</p>
+                        <p v-else-if="!researchLoading && !researchUnits.length" class="mail-crm-dialog__hint">Чтобы сохранить результат в Unit, сначала привяжите подразделение к этому письму. <button type="button" class="mail-research-link-button" :disabled="saving" @click="openAction('unit')">Привязать Unit</button></p>
+                        <p v-else-if="!researchLoading" class="mail-crm-dialog__hint">Выберите связанный Unit, чтобы сохранить в нём результат. Без выбора результат останется в письме.</p>
+                    </template>
                     <p v-if="availability && !availability.available" class="mail-crm-dialog__warning">{{ availability.message || 'Исследование сейчас недоступно.' }}</p>
                     <v-select v-if="researchHistory.length > 1" v-model="selectedResearchId" :items="researchHistory" item-value="id" item-title="query" label="Сохранённые результаты" density="compact" variant="outlined" hide-details :disabled="saving" />
                     <section v-if="selectedResearch" class="mail-research-result">
                         <template v-if="researchKind === 'website'">
+                            <div class="mail-research-unit-actions">
+                                <v-btn size="small" variant="tonal" color="teal" :loading="savingResearchToUnit" :disabled="!canSaveResearchToUnit" @click="saveResearchToUnit">{{ researchSavedToSelectedUnit ? 'Обновить в Unit' : 'Сохранить результат в Unit' }}</v-btn>
+                                <span class="mail-crm-dialog__hint">Готовый результат, без повторного исследования.</span>
+                            </div>
+                            <nav v-if="savedResearchUnits.length" class="mail-research-saved-units" aria-label="Unit с сохранённым исследованием">
+                                <span>Сохранено в:</span><a v-for="unit in savedResearchUnits" :key="unit.id" :href="unitResearchLink(unit)" target="_blank" rel="noopener noreferrer"><v-icon icon="mdi-office-building-marker-outline" size="13" />{{ unit.name }}<v-icon icon="mdi-open-in-new" size="11" /></a>
+                            </nav>
                             <p v-if="selectedResearch.result?.summary">{{ selectedResearch.result.summary }}</p>
                             <div v-for="(product, index) in selectedResearch.result?.products || []" :key="index" class="mail-research-product"><strong>{{ product.name }}</strong><span v-if="product.description">{{ product.description }}</span><small v-if="product.evidence">{{ product.evidence }}</small><a v-if="safeLink(product.source_url)" :href="safeLink(product.source_url)" target="_blank" rel="noopener noreferrer">Источник <v-icon icon="mdi-open-in-new" size="11" /></a></div>
                             <p v-if="!selectedResearch.result?.products?.length" class="mail-crm-dialog__hint">Товары в сохранённом результате не найдены.</p>
@@ -348,7 +419,7 @@ onBeforeUnmount(cancelRequests)
                     <p class="mail-crm-dialog__hint">{{ action === 'building' ? 'Выберите Entity или Unit, к которому относится адрес.' : action === 'phone' ? 'Можно сохранить телефон отдельно или сразу связать его с выбранной Entity и Unit.' : ['entity', 'unit'].includes(action) ? 'Email отправителя будет связан с выбранной карточкой. Существующие записи будут использованы повторно.' : 'Проверьте данные и выберите карточку для привязки.' }}</p>
                 </template>
             </v-card-text>
-            <v-card-actions class="mail-crm-dialog__footer"><v-btn size="small" variant="text" :disabled="saving" @click="dialog = false">Закрыть</v-btn><v-spacer /><v-btn size="small" color="teal-lighten-2" variant="tonal" :loading="saving" :disabled="!ready" @click="submit">{{ isResearch ? (researchKind === 'website' ? 'Исследовать сайт' : 'Найти реквизиты') : ['entity', 'unit'].includes(action) && mode === 'new' ? 'Создать и привязать' : 'Сохранить' }}</v-btn></v-card-actions>
+            <v-card-actions class="mail-crm-dialog__footer"><v-btn size="small" variant="text" :disabled="saving" @click="dialog = false">Закрыть</v-btn><v-spacer /><v-btn size="small" color="teal-lighten-2" variant="tonal" :loading="saving && !savingResearchToUnit" :disabled="!ready" @click="submit">{{ isResearch ? (researchKind === 'website' ? 'Исследовать сайт' : 'Найти реквизиты') : ['entity', 'unit'].includes(action) && mode === 'new' ? 'Создать и привязать' : 'Сохранить' }}</v-btn></v-card-actions>
         </v-card>
     </v-dialog>
 </template>
@@ -381,6 +452,11 @@ onBeforeUnmount(cancelRequests)
 .mail-crm-mode button.active { color: #b9efe7; background: #134844; }
 .mail-crm-role-row { display: flex; gap: 12px; }
 .mail-research-result { display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid #354964; border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.mail-research-unit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.mail-research-unit-actions :deep(.v-btn) { font-size: 11px; letter-spacing: 0; text-transform: none; }
+.mail-research-saved-units { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; color: #8da7c4; font-size: 11px; }
+.mail-research-saved-units a { display: inline-flex; align-items: center; gap: 4px; color: #8de1d5; }
+.mail-research-link-button { color: #78cbdc; text-decoration: underline; }
 .mail-research-product, .mail-research-company { display: flex; flex-direction: column; gap: 4px; padding: 9px; border: 1px solid #324760; border-radius: 6px; background: #17253a; overflow-wrap: anywhere; }
 .mail-research-product strong, .mail-research-company strong { color: #d9eafa; font-size: 12px; }
 .mail-research-product span, .mail-research-company span { color: #a8bdd4; font-size: 11px; }
