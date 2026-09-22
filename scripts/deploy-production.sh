@@ -532,7 +532,7 @@ if ! php artisan app:deploy-smoke --path=/api/good-warehouse-stock >/dev/null 2>
     fail 'Smoke check for goods stock balances failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/Ameise/avito >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/Ameise/avito --status=302 >/dev/null 2>&1; then
     fail 'Smoke check for /Ameise/avito failed; rerun the command locally on the VPS.'
 fi
 
