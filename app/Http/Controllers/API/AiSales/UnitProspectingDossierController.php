@@ -100,9 +100,13 @@ class UnitProspectingDossierController extends Controller
             : [];
         $emailIds = $visibleContactLinks->where('channel_type', 'email')->pluck('email_id')->filter()->unique()->values();
         $communicationCount = $emailIds->isEmpty() ? 0 : DB::table('email_mail_message')
-            ->whereIn('email_id', $emailIds)->distinct()->count('mail_message_id');
+            ->join('mail_messages', 'mail_messages.id', '=', 'email_mail_message.mail_message_id')
+            ->whereNull('mail_messages.deleted_at')
+            ->whereIn('email_mail_message.email_id', $emailIds)->distinct()->count('email_mail_message.mail_message_id');
         $attachmentCount = $emailIds->isEmpty() ? 0 : DB::table('mail_message_attachments')
             ->join('email_mail_message', 'email_mail_message.mail_message_id', '=', 'mail_message_attachments.mail_message_id')
+            ->join('mail_messages', 'mail_messages.id', '=', 'mail_message_attachments.mail_message_id')
+            ->whereNull('mail_messages.deleted_at')
             ->whereIn('email_mail_message.email_id', $emailIds)
             ->distinct()->count('mail_message_attachments.id');
         $aiRuns = $contextAuthorization->hasPermission($request->user(), 'ai_sales.runs.view')

@@ -145,11 +145,14 @@ class UnitDossierTimelineQuery
         if ($emailIds->isNotEmpty()) {
             $messageQuery = DB::table('email_mail_message')
                 ->join('mail_messages', 'mail_messages.id', '=', 'email_mail_message.mail_message_id')
+                ->whereNull('mail_messages.deleted_at')
                 ->whereIn('email_mail_message.email_id', $emailIds);
             $messageCount = (clone $messageQuery)->distinct()->count('mail_messages.id');
             if ($messageCount > 0) {
                 $attachmentCount = DB::table('mail_message_attachments')
                     ->join('email_mail_message', 'email_mail_message.mail_message_id', '=', 'mail_message_attachments.mail_message_id')
+                    ->join('mail_messages', 'mail_messages.id', '=', 'mail_message_attachments.mail_message_id')
+                    ->whereNull('mail_messages.deleted_at')
                     ->whereIn('email_mail_message.email_id', $emailIds)
                     ->distinct()->count('mail_message_attachments.id');
                 $latestMessageAt = (clone $messageQuery)->max('mail_messages.message_date');

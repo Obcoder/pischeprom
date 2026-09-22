@@ -106,6 +106,7 @@ class MailMessageFilterTest extends TestCase
 
         Schema::create('mail_messages', function (Blueprint $table) {
             $table->id();
+            $table->softDeletes();
             $table->timestamps();
             $table->string('mailbox')->index();
             $table->string('folder')->index();

@@ -254,7 +254,7 @@ class UnitWebsiteResearchTest extends TestCase
 
         $research->update(['result' => ['products' => [['name' => 'Обновлённый каталог']]]]);
         $this->getJson($this->historyUrl($unit))->assertOk()->assertJsonPath('data.0.result', $original);
-        $mail->delete();
+        $mail->forceDelete();
 
         $this->assertDatabaseMissing('mail_message_researches', ['id' => $research->id]);
         $this->assertDatabaseHas('unit_website_researches', [

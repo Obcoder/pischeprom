@@ -15,7 +15,7 @@ class Verwalter extends Controller
     public function index(): Response
     {
         $activeLeads = Lead::query()
-            ->with(['telephone', 'entity', 'unit'])
+            ->with(['mailMessage:id', 'telephone', 'entity', 'unit'])
             ->open()
             ->orderByDesc('last_activity_at')
             ->orderByDesc('id')

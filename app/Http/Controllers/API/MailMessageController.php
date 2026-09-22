@@ -5,6 +5,8 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\MailMessage;
 use App\Services\Mail\MailboxRegistry;
+use App\Services\Mail\MailDeletionException;
+use App\Services\Mail\MailWorkspaceAccess;
 use App\Services\Mail\YandexMailboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -128,12 +130,21 @@ class MailMessageController extends Controller
         return response()->json($mailMessage, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
-    public function destroy(MailMessage $mailMessage): JsonResponse
+    public function destroy(Request $request, MailMessage $mailMessage, YandexMailboxService $service, MailWorkspaceAccess $access): JsonResponse
     {
-        $mailMessage->delete();
+        $access->authorize($request->user());
+        try {
+            $service->deleteMessage($mailMessage);
+        } catch (MailDeletionException $exception) {
+            return response()->json(['message' => $exception->getMessage()], $exception->status);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json(['message' => 'Не удалось подтвердить удаление на почтовом сервере. Письмо оставлено в приложении. Повторите попытку.'], 502);
+        }
 
         return response()->json([
-            'message' => 'Письмо удалено из базы.',
+            'message' => 'Письмо удалено из приложения и с почтового сервера.',
         ]);
     }
 

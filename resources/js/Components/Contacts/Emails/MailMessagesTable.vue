@@ -17,6 +17,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    deletingIds: {
+        type: Array,
+        default: () => [],
+    },
     options: {
         type: Object,
         required: true,
@@ -89,14 +93,13 @@ const headers = computed(() => [
         title: 'Связи',
         key: 'relations',
         sortable: false,
-        align: 'center',
-        width: '142px',
+        width: '250px',
     },
     {
         title: 'От / Кому',
         key: 'contact',
         sortable: false,
-        width: '210px',
+        width: '190px',
     },
     {
         title: 'Тема',
@@ -227,6 +230,10 @@ function relations(item) {
 
 function markingRead(item) {
     return props.markingReadIds.some((id) => String(id) === String(item.id))
+}
+
+function deleting(item) {
+    return props.deletingIds.some((id) => String(id) === String(item.id))
 }
 
 function readStatusTitle(item) {
@@ -434,7 +441,7 @@ function rowProps({ item }) {
         hover
         class="mail-messages-table rounded border border-blue-900 bg-slate-950"
         @update:options="emit('update:options', $event)"
-        @click:row="(_, row) => emit('read', row.item)"
+        @click:row="(_, row) => !deleting(row.item) && emit('read', row.item)"
     >
         <template #item.direction="{ item }">
             <v-chip
@@ -603,6 +610,7 @@ function rowProps({ item }) {
                     color="blue"
                     title="Открыть письмо"
                     aria-label="Открыть письмо"
+                    :disabled="deleting(item)"
                     @click.stop="emit('read', item)"
                 />
 
@@ -613,7 +621,7 @@ function rowProps({ item }) {
                         variant="text"
                         :color="item.is_seen === true ? 'teal-lighten-3' : 'blue-grey-lighten-2'"
                         :loading="markingRead(item)"
-                        :disabled="item.is_seen === true || !item.imap_uid"
+                        :disabled="item.is_seen === true || !item.imap_uid || deleting(item)"
                         :aria-label="readStatusTitle(item)"
                         @click.stop="emit('mark-read', item)"
                     />
@@ -624,8 +632,10 @@ function rowProps({ item }) {
                     size="x-small"
                     variant="text"
                     color="red-lighten-2"
-                    title="Удалить письмо из базы"
-                    aria-label="Удалить письмо из базы"
+                    title="Удалить письмо из приложения и с почтового сервера"
+                    aria-label="Удалить письмо из приложения и с почтового сервера"
+                    :loading="deleting(item)"
+                    :disabled="deleting(item) || markingRead(item)"
                     @click.stop="emit('delete', item)"
                 />
             </div>
@@ -645,8 +655,9 @@ function rowProps({ item }) {
     align-items: center;
     display: flex;
     flex-wrap: nowrap;
-    gap: 3px;
-    justify-content: center;
+    gap: 5px;
+    justify-content: flex-start;
+    min-width: 0;
 }
 
 .mail-messages-table {
@@ -770,7 +781,7 @@ function rowProps({ item }) {
 }
 
 .mail-subject-line {
-    align-items: center;
+    align-items: flex-start;
     display: flex;
     gap: 5px;
     min-width: 0;
@@ -779,6 +790,7 @@ function rowProps({ item }) {
 .mail-subject-kind {
     display: inline-flex;
     flex: 0 0 auto;
+    margin-top: 1px;
 }
 
 .mail-subject-kind--attachment {
@@ -794,9 +806,12 @@ function rowProps({ item }) {
     font-size: 12px;
     line-height: 1.3;
     min-width: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .mail-subject-cell:hover .mail-subject-title {
@@ -861,10 +876,11 @@ function rowProps({ item }) {
 .mail-relations__links {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     gap: 2px;
     justify-content: center;
     min-width: 0;
+    flex: 1 1 auto;
 }
 
 .mail-relations-more {
@@ -886,7 +902,7 @@ function rowProps({ item }) {
     overflow-y: auto;
     padding: 10px;
     border: 1px solid rgba(96, 165, 250, 0.35);
-    border-radius: 8px;
+    border-radius: 4px;
     background: #0f172a;
 }
 
@@ -894,6 +910,8 @@ function rowProps({ item }) {
     max-width: 100%;
     padding: 5px 7px;
     font-size: 11px;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .mail-relations__empty {
@@ -904,17 +922,21 @@ function rowProps({ item }) {
 .mail-relation-link {
     align-items: center;
     border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 999px;
+    border-radius: 3px;
     display: inline-flex;
-    gap: 3px;
-    font-size: 9px;
-    line-height: 1.1;
+    gap: 4px;
+    font-size: 10px;
+    line-height: 1.3;
     max-width: 100%;
     min-width: 0;
     overflow: hidden;
-    padding: 1px 5px;
+    padding: 1px 5px 1px 4px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.mail-relation-link :deep(.v-icon) {
+    flex: 0 0 auto;
 }
 
 .mail-relation-link span {
@@ -923,11 +945,13 @@ function rowProps({ item }) {
 }
 
 .mail-relation-link--unit {
+    border-left: 2px solid #6399d2;
     background: rgba(59, 130, 246, 0.12);
     color: #93c5fd;
 }
 
 .mail-relation-link--entity {
+    border-left: 2px solid #b191d0;
     background: rgba(168, 85, 247, 0.12);
     color: #d8b4fe;
 }
@@ -935,5 +959,10 @@ function rowProps({ item }) {
 .mail-relation-link:hover {
     border-color: rgba(255, 255, 255, 0.5);
     color: #fff;
+}
+
+.mail-relation-link:focus-visible {
+    outline: 1px solid #bae6fd;
+    outline-offset: 1px;
 }
 </style>

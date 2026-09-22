@@ -24,6 +24,13 @@ try {
     if (! Schema::hasTable('mail_message_researches') || ! Schema::hasTable('unit_website_researches')) {
         throw new RuntimeException('research_migration_missing');
     }
+    if (! Schema::hasColumn('mail_messages', 'deleted_at')) {
+        throw new RuntimeException('mail_deletion_migration_missing');
+    }
+    $deleteRoute = $app['router']->getRoutes()->getByName('mail-messages.destroy');
+    if (! $deleteRoute || $deleteRoute->methods() !== ['DELETE'] || array_diff(['auth:sanctum', 'verified'], $deleteRoute->gatherMiddleware()) !== []) {
+        throw new RuntimeException('mail_deletion_route_unavailable');
+    }
     foreach (['mail-messages.research.website', 'mail-messages.research.company', 'mail-messages.research.unit', 'mail-messages.attachments.word-preview', 'mail-messages.lead.store'] as $name) {
         $route = $app['router']->getRoutes()->getByName($name);
         if (! $route || $route->methods() !== ['POST'] || array_diff(['auth:sanctum', 'verified'], $route->gatherMiddleware()) !== []) {
@@ -55,7 +62,7 @@ try {
     }
     $ai = $app->make(MailWebsiteCatalogAi::class)->availability()['available'] ? 'configured' : 'unavailable';
     $company = config('services.dadata.token') ? 'configured' : 'unavailable';
-    fwrite(STDOUT, "Mail workspace check passed: Word=DOC,DOCX; catalog_AI={$ai}; company_lookup={$company}; unit_website_research=ready.\n");
+    fwrite(STDOUT, "Mail workspace check passed: Word=DOC,DOCX; catalog_AI={$ai}; company_lookup={$company}; unit_website_research=ready; server_mail_deletion=ready.\n");
     $success = true;
 } catch (Throwable) {
     fwrite(STDERR, "Mail workspace check failed; inspect PHP CLI, Word preview and mail route configuration.\n");

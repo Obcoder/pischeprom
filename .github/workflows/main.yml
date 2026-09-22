@@ -299,6 +299,18 @@ jobs:
             tests/Feature/Mail/MailMessageRelationsTest.php \
             tests/Unit/MailInvoiceParserTest.php
 
+      - name: Check server mail deletion
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/MailMessageController.php \
+            app/Models/MailMessage.php \
+            app/Services/Mail/MailDeletionException.php \
+            app/Services/Mail/MailRemoteDeletion.php \
+            database/migrations/2026_09_23_090000_add_deleted_at_to_mail_messages_table.php \
+            tests/Feature/Mail/MailMessageDeleteTest.php \
+            tests/Feature/Mail/MailMessageDeletionSyncTest.php \
+            tests/Unit/MailRemoteDeletionTest.php
+
       - name: Check mail CRM, website research, and Word preview
         run: |
           vendor/bin/pint --test \
@@ -401,6 +413,8 @@ jobs:
             tests/Feature/CommercialOffersAccessTest.php \
             tests/Feature/CommercialOffersUnisenderTest.php \
             tests/Feature/MailMessageAttachmentDownloadTest.php \
+            tests/Feature/MailMessageFilterTest.php \
+            tests/Feature/AiSales/ProspectingTimelineIsolationTest.php \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/GoodInquiryTest.php \
             tests/Feature/PublicGoodLandingTest.php \

@@ -443,6 +443,7 @@ class IncomingMailMaxNotificationTest extends TestCase
     {
         Schema::create('mail_messages', function (Blueprint $table): void {
             $table->id();
+            $table->softDeletes();
             $table->timestamps();
             $table->string('mailbox')->index();
             $table->string('folder')->index();

@@ -3,8 +3,8 @@
 namespace App\Services\Mail;
 
 use Carbon\CarbonInterface;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -20,7 +20,7 @@ class UnansweredOutgoingMailService
             ->unique()
             ->values();
 
-        if ($unitIds->isEmpty() || !$this->hasRequiredTables()) {
+        if ($unitIds->isEmpty() || ! $this->hasRequiredTables()) {
             return [];
         }
 
@@ -49,7 +49,7 @@ class UnansweredOutgoingMailService
                 $sentAt = $this->date($row->message_date);
                 $lastIncomingAt = $this->date($latestIncomingByEmail->get((int) $row->email_id));
                 $answered = $sentAt && $lastIncomingAt && $lastIncomingAt->greaterThan($sentAt);
-                $isOverdue = $sentAt && !$answered && $sentAt->lessThanOrEqualTo($now->copy()->subHours(self::OVERDUE_HOURS));
+                $isOverdue = $sentAt && ! $answered && $sentAt->lessThanOrEqualTo($now->copy()->subHours(self::OVERDUE_HOURS));
 
                 return [
                     $unitId => [
@@ -110,6 +110,7 @@ class UnansweredOutgoingMailService
     {
         $rows = DB::table('mail_messages')
             ->join('email_mail_message', 'email_mail_message.mail_message_id', '=', 'mail_messages.id')
+            ->whereNull('mail_messages.deleted_at')
             ->whereIn('email_mail_message.email_id', $emailIds)
             ->whereIn('email_mail_message.role', ['to', 'cc'])
             ->where('mail_messages.direction', 'outgoing')
@@ -128,7 +129,7 @@ class UnansweredOutgoingMailService
 
         foreach ($rows as $row) {
             foreach ($emailToUnitIds->get((int) $row->email_id, collect()) as $unitId) {
-                if (!$latestByUnit->has($unitId)) {
+                if (! $latestByUnit->has($unitId)) {
                     $latestByUnit->put($unitId, $row);
                 }
             }
@@ -151,12 +152,13 @@ class UnansweredOutgoingMailService
             ->filter()
             ->min();
 
-        if ($emailIds->isEmpty() || !$oldestSentAt) {
+        if ($emailIds->isEmpty() || ! $oldestSentAt) {
             return collect();
         }
 
         return DB::table('mail_messages')
             ->join('email_mail_message', 'email_mail_message.mail_message_id', '=', 'mail_messages.id')
+            ->whereNull('mail_messages.deleted_at')
             ->whereIn('email_mail_message.email_id', $emailIds)
             ->where('email_mail_message.role', 'from')
             ->where('mail_messages.direction', 'incoming')
@@ -168,7 +170,7 @@ class UnansweredOutgoingMailService
 
     private function date(mixed $value): ?CarbonInterface
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
 

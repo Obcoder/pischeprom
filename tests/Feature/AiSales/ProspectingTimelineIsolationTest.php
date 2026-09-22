@@ -4,6 +4,7 @@ namespace Tests\Feature\AiSales;
 
 use App\Domain\AiSales\Enums\UnitGoodMatchType;
 use App\Domain\AiSales\Enums\UnitProductMatchType;
+use App\Domain\AiSales\Queries\UnitDossierTimelineQuery;
 use App\Domain\AiSales\Services\UnitGoodMatchService;
 use App\Domain\AiSales\Services\UnitProductMatchService;
 use App\Models\Email;
@@ -21,6 +22,54 @@ use Illuminate\Validation\ValidationException;
 
 class ProspectingTimelineIsolationTest extends Stage08TestCase
 {
+    public function test_deleted_mail_and_attachments_do_not_count_in_communications_timeline(): void
+    {
+        $actor = $this->prospectingUser(['sales']);
+        $unit = $this->unit();
+        $context = UnitBusinessContext::query()->findOrFail($this->createContext($actor, $unit, ['lane' => 'sales', 'role_code' => 'prospective_customer'])['id']);
+        $email = Email::query()->create(['address' => 'deleted-timeline@stage08.example', 'is_active' => true]);
+        $unit->emails()->attach($email->id);
+        UnitContactContextLink::query()->create([
+            'unit_id' => $unit->id, 'unit_business_context_id' => $context->id,
+            'channel_type' => 'email', 'email_id' => $email->id,
+            'channel_value_snapshot' => 'de***@stage08.example',
+            'normalized_hash' => hash('sha256', 'email|deleted-timeline@stage08.example'),
+            'contact_role' => 'business_general', 'verification_status' => 'verified',
+            'data_classification' => 'public', 'visibility_scope' => 'sales_lane',
+            'communication_state' => 'review_required', 'review_required' => true,
+        ]);
+        $messages = [];
+        foreach ([now()->subDays(2), now()->subDay()] as $date) {
+            $message = MailMessage::query()->create([
+                'mailbox' => 'office@stage08.example', 'folder' => 'INBOX',
+                'direction' => 'incoming', 'message_date' => $date,
+            ]);
+            $message->emails()->attach($email->id, ['role' => 'from']);
+            DB::table('mail_message_attachments')->insert([
+                'mail_message_id' => $message->id, 'disk' => 'synthetic', 'path' => 'synthetic-'.$message->id,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $messages[] = $message;
+        }
+        $messages[1]->delete();
+        $this->actingAs($actor)->getJson("/api/ai-sales/units/{$unit->id}/prospecting-dossier?context_id={$context->id}")
+            ->assertOk()->assertJsonPath('data.communications.message_count', 1)
+            ->assertJsonPath('data.communications.attachment_count', 1);
+        $query = app(UnitDossierTimelineQuery::class);
+        $timeline = $query->paginate($actor, $unit, $context);
+        $communications = collect($timeline['data'])->firstWhere('type', 'communications.aggregate');
+        $this->assertNotNull($communications);
+        $this->assertStringContainsString('Связанных сообщений: 1; вложений: 1.', $communications['summary']);
+        $this->assertSame($messages[0]->message_date->toIso8601String(), $communications['occurred_at']);
+
+        $messages[0]->delete();
+        $this->actingAs($actor)->getJson("/api/ai-sales/units/{$unit->id}/prospecting-dossier?context_id={$context->id}")
+            ->assertOk()->assertJsonPath('data.communications.message_count', 0)
+            ->assertJsonPath('data.communications.attachment_count', 0);
+        $this->assertNull(collect($query->paginate($actor, $unit, $context)['data'])->firstWhere('type', 'communications.aggregate'));
+        $this->assertDatabaseCount('mail_message_attachments', 2);
+    }
+
     public function test_dual_role_unit_requires_explicit_context_and_projects_distinct_lane_transactions(): void
     {
         $actor = $this->prospectingUser(['sales', 'procurement'], ['ai_sales.classifications.view_internal']);

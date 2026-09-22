@@ -77,6 +77,7 @@ class LeadController extends Controller
     {
         return $lead
             ->load([
+                'mailMessage:id',
                 'telephone',
                 'entity.units',
                 'entity.buildings.city.region',
@@ -100,6 +101,7 @@ class LeadController extends Controller
     protected function leadRelations(): array
     {
         return [
+            'mailMessage:id',
             'telephone',
             'entity.units',
             'entity.buildings.city.region',

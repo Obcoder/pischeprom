@@ -19,7 +19,7 @@ class LeadResource extends JsonResource
             'telephone_id' => $this->telephone_id,
             'entity_id' => $this->entity_id,
             'unit_id' => $this->unit_id,
-            'mail_message_id' => $this->mail_message_id,
+            'mail_message_id' => $this->mailMessage?->id,
             'assigned_user_id' => $this->assigned_user_id,
             'last_activity_at' => $this->last_activity_at?->toISOString(),
             'closed_at' => $this->closed_at?->toISOString(),

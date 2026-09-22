@@ -9,7 +9,9 @@ use App\Models\MailMessage;
 use App\Models\MailMessageAttachment;
 use Carbon\Carbon;
 use DateTimeInterface;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -245,78 +247,102 @@ class YandexMailboxService
             );
         }
 
-        $mailMessage = MailMessage::query()->firstOrNew([
-            'mailbox' => $mailboxAddress,
-            'folder' => $folderName,
-            'imap_uid' => $imapUid,
-        ]);
-        $isNewMessage = ! $mailMessage->exists;
-        $previouslyHadAttachments = (bool) $mailMessage->has_attachments;
+        $lock = $this->messageMutationLock($mailboxAddress, $folderName, $imapUid);
+        $lock->block(5);
+        try {
+            $normalizedMessageId = trim((string) $messageId, " \t\r\n<>");
+            if ($normalizedMessageId !== '' && MailMessage::onlyTrashed()
+                ->where('mailbox', $mailboxAddress)->where('folder', $folderName)
+                ->whereIn('message_id', [$normalizedMessageId, '<'.$normalizedMessageId.'>'])->exists()) {
+                return;
+            }
+            $mailMessage = MailMessage::withTrashed()->firstOrNew([
+                'mailbox' => $mailboxAddress,
+                'folder' => $folderName,
+                'imap_uid' => $imapUid,
+            ]);
+            if ($mailMessage->trashed()) {
+                $deletedMessageId = trim((string) $mailMessage->message_id, " \t\r\n<>");
+                if ($normalizedMessageId === '' || $deletedMessageId === '' || $normalizedMessageId === $deletedMessageId) {
+                    return;
+                }
+                // A recreated IMAP folder can reuse a UID for a different Message-ID.
+                // Keep the deleted record and its CRM references; allocate a new local row.
+                $mailMessage->forceFill(['imap_uid' => null])->save();
+                $mailMessage = new MailMessage([
+                    'mailbox' => $mailboxAddress, 'folder' => $folderName, 'imap_uid' => $imapUid,
+                ]);
+            }
+            $isNewMessage = ! $mailMessage->exists;
+            $previouslyHadAttachments = (bool) $mailMessage->has_attachments;
 
-        $mailMessage->fill([
-            'message_id' => $messageId,
-            'in_reply_to' => $this->boundedThreadHeader($message, 'in_reply_to'),
-            'references' => $this->boundedThreadHeader($message, 'references', 2_000),
-            'direction' => $direction,
-            'subject' => $subject,
-            'message_date' => $messageDate,
-            'from_address' => $from['address'] ?? null,
-            'from_name' => $from['name'] ?? null,
-            'to' => $to,
-            'cc' => $cc,
-            'preview' => $mailMessage->preview,
-            'has_attachments' => (bool) ($mailMessage->has_attachments ?? false)
-                || $this->messageHeadersSuggestAttachments($message)
-                || $this->messageHasAttachments($message),
-            'raw_headers' => $this->stringValue($message->header->raw ?? null),
-        ]);
+            $mailMessage->fill([
+                'message_id' => $messageId,
+                'in_reply_to' => $this->boundedThreadHeader($message, 'in_reply_to'),
+                'references' => $this->boundedThreadHeader($message, 'references', 2_000),
+                'direction' => $direction,
+                'subject' => $subject,
+                'message_date' => $messageDate,
+                'from_address' => $from['address'] ?? null,
+                'from_name' => $from['name'] ?? null,
+                'to' => $to,
+                'cc' => $cc,
+                'preview' => $mailMessage->preview,
+                'has_attachments' => (bool) ($mailMessage->has_attachments ?? false)
+                    || $this->messageHeadersSuggestAttachments($message)
+                    || $this->messageHasAttachments($message),
+                'raw_headers' => $this->stringValue($message->header->raw ?? null),
+            ]);
 
-        if (method_exists($message, 'hasFlag')) {
-            $mailMessage->is_seen = $message->hasFlag('Seen');
-        }
-
-        $mailMessage->save();
-
-        if ($direction === 'incoming' && ! empty($from['address'])) {
-            $email = $this->findOrCreateEmail(
-                address: $from['address'],
-                name: $from['name'] ?? null,
-            );
-
-            $this->attachRole($mailMessage, $email, 'from');
-        }
-
-        if ($direction === 'outgoing') {
-            foreach ($to as $address) {
-                $email = $this->findOrCreateEmail(
-                    address: $address['address'],
-                    name: $address['name'] ?? null,
-                );
-
-                $this->attachRole($mailMessage, $email, 'to');
+            if (method_exists($message, 'hasFlag')) {
+                $mailMessage->is_seen = $message->hasFlag('Seen');
             }
 
-            foreach ($cc as $address) {
+            $mailMessage->save();
+
+            if ($direction === 'incoming' && ! empty($from['address'])) {
                 $email = $this->findOrCreateEmail(
-                    address: $address['address'],
-                    name: $address['name'] ?? null,
+                    address: $from['address'],
+                    name: $from['name'] ?? null,
                 );
 
-                $this->attachRole($mailMessage, $email, 'cc');
+                $this->attachRole($mailMessage, $email, 'from');
             }
-        }
 
-        if ($isNewMessage) {
-            $this->maxNotifications->safeRegister($mailMessage);
-        }
+            if ($direction === 'outgoing') {
+                foreach ($to as $address) {
+                    $email = $this->findOrCreateEmail(
+                        address: $address['address'],
+                        name: $address['name'] ?? null,
+                    );
 
-        if ($isNewMessage || (! $previouslyHadAttachments && $mailMessage->has_attachments)) {
-            $this->priceListIngestion->safeRegister($mailMessage);
-        }
+                    $this->attachRole($mailMessage, $email, 'to');
+                }
 
-        if ($isNewMessage && $direction === 'incoming') {
-            ($this->outreachReplies ?? app(OutreachReplyCorrelationService::class))
-                ->safeCorrelate($mailMessage);
+                foreach ($cc as $address) {
+                    $email = $this->findOrCreateEmail(
+                        address: $address['address'],
+                        name: $address['name'] ?? null,
+                    );
+
+                    $this->attachRole($mailMessage, $email, 'cc');
+                }
+            }
+
+            if ($isNewMessage) {
+                $this->maxNotifications->safeRegister($mailMessage);
+            }
+
+            if ($isNewMessage || (! $previouslyHadAttachments && $mailMessage->has_attachments)) {
+                $this->priceListIngestion->safeRegister($mailMessage);
+            }
+
+            if ($isNewMessage && $direction === 'incoming') {
+                ($this->outreachReplies ?? app(OutreachReplyCorrelationService::class))
+                    ->safeCorrelate($mailMessage);
+            }
+        } finally {
+            $lock->release();
         }
     }
 
@@ -765,6 +791,49 @@ class YandexMailboxService
         ]);
 
         return null;
+    }
+
+    public function deleteMessage(MailMessage $mailMessage): void
+    {
+        if (! $mailMessage->imap_uid || ! ctype_digit((string) $mailMessage->imap_uid) || (int) $mailMessage->imap_uid > 4294967295 || ! $mailMessage->mailbox) {
+            throw new MailDeletionException('У письма нет надёжного идентификатора на почтовом сервере. Удаление отменено; сначала синхронизируйте почту.');
+        }
+        $lock = $this->messageMutationLock($mailMessage->mailbox, $mailMessage->folder, $mailMessage->imap_uid);
+        try {
+            $lock->block(5);
+        } catch (LockTimeoutException) {
+            throw new MailDeletionException('Письмо сейчас обрабатывается. Повторите удаление через несколько секунд.', 409);
+        }
+        try {
+            $mailMessage = MailMessage::withTrashed()->findOrFail($mailMessage->id);
+            if ($mailMessage->trashed()) {
+                return;
+            }
+            $mailbox = $this->mailboxes->find($mailMessage->mailbox);
+            if (! $mailbox) {
+                throw new MailDeletionException('Почтовый ящик не настроен. Письмо не удалено.', 409);
+            }
+            $client = $this->client($mailbox);
+            try {
+                $client->connect();
+                $folder = $this->resolveFolder($client, $mailMessage->folder);
+                if (! $folder) {
+                    throw new MailDeletionException('Папка письма не найдена на сервере. Письмо не удалено.', 409);
+                }
+                app(MailRemoteDeletion::class)->delete($client, $folder, $mailMessage);
+                // Retain an invisible tombstone and CRM audit references. Sync shares this lock.
+                $mailMessage->delete();
+            } finally {
+                $this->safeDisconnect($client, ['operation' => 'delete_message', 'mail_message_id' => $mailMessage->id]);
+            }
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function messageMutationLock(string $mailbox, string $folder, int|string $uid)
+    {
+        return Cache::lock('mail-message-mutation:'.hash('sha256', json_encode([Str::lower($mailbox), $folder, (string) $uid])), 300);
     }
 
     public function markRead(MailMessage $mailMessage): MailMessage

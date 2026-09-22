@@ -462,6 +462,7 @@ Route::post('mail-messages/{mailMessage}/mark-read', [MailMessageActionControlle
     ->middleware(['auth:sanctum', 'verified'])
     ->name('mail-messages.mark-read');
 Route::delete('mail-messages/{mailMessage}', [MailMessageController::class, 'destroy'])
+    ->middleware(['auth:sanctum', 'verified'])
     ->name('mail-messages.destroy');
 Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
     ->name('mail-messages.attachments.sync');

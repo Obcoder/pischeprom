@@ -48,6 +48,9 @@ const mailboxesDialog = ref(false)
 const templatesDialog = ref(false)
 const replyContext = ref(null)
 const activeView = ref('all')
+const deletingIds = ref([])
+const deleteError = ref('')
+const deleteStatus = ref('')
 let autoRefreshTimer = null
 
 const tableHeight = computed(() => props.standalone ? '100%' : 720)
@@ -89,7 +92,7 @@ const hasResettableFilters = computed(() => Boolean(
 const dateDescription = computed(() => filters.value.date_from || filters.value.date_to
     ? mailDateRangeLabel(filters.value.date_from, filters.value.date_to)
     : '')
-const statusError = computed(() => markReadError.value || fetchError.value)
+const statusError = computed(() => deleteError.value || markReadError.value || fetchError.value)
 
 async function openMessage(message) {
     readerDialog.value = true
@@ -154,28 +157,37 @@ async function afterMailboxesChanged() {
 }
 
 async function deleteMessage(message) {
-    if (!message?.id) {
+    if (!message?.id || deletingIds.value.some((id) => String(id) === String(message.id))) {
         return
     }
 
-    if (!window.confirm(`Удалить письмо "${message.subject || 'Без темы'}" из базы?`)) {
+    if (!window.confirm(`Удалить письмо «${message.subject || 'Без темы'}» из приложения и с почтового сервера?`)) {
         return
     }
+
+    deletingIds.value = [...deletingIds.value, message.id]
+    deleteError.value = ''
+    deleteStatus.value = ''
 
     try {
-        await axios.delete(`/api/mail-messages/${message.id}`)
+        const { data } = await axios.delete(`/api/mail-messages/${message.id}`)
+
+        const existedInList = messages.value.some((item) => String(item.id) === String(message.id))
+        messages.value = messages.value.filter((item) => String(item.id) !== String(message.id))
+        if (existedInList) totalItems.value = Math.max(0, totalItems.value - 1)
+
+        if (String(selectedMessage.value?.id) === String(message.id)) {
+            readerDialog.value = false
+            clearSelectedMessage()
+        }
+
+        deleteStatus.value = data?.message || 'Письмо удалено из приложения и с почтового сервера.'
+        await fetchMessages()
     } catch (error) {
-        window.alert(error?.response?.data?.message || 'Не удалось удалить письмо.')
-
-        return
+        deleteError.value = error?.response?.data?.message || 'Не удалось удалить письмо. Оно сохранено в приложении.'
+    } finally {
+        deletingIds.value = deletingIds.value.filter((id) => String(id) !== String(message.id))
     }
-
-    if (selectedMessage.value?.id === message.id) {
-        readerDialog.value = false
-        clearSelectedMessage()
-    }
-
-    await fetchMessages()
 }
 
 function applyView(value) {
@@ -274,7 +286,7 @@ watch(activeView, (value) => {
                 <v-btn class="mail-compose-launcher" size="small" variant="flat" prepend-icon="mdi-email-plus-outline" @click="openComposer">Написать письмо</v-btn>
             </div>
             <div class="mail-status-line" :class="{ 'mail-status-line--error': statusError }" role="status" aria-live="polite">
-                <span :title="statusError || markReadStatus || viewDescription">{{ statusError || markReadStatus || viewDescription }}</span>
+                <span :title="statusError || deleteStatus || markReadStatus || viewDescription">{{ statusError || deleteStatus || markReadStatus || viewDescription }}</span>
                 <span v-if="dateDescription" class="mail-status-line__dates">{{ dateDescription }}</span>
             </div>
         </div>
@@ -297,6 +309,7 @@ watch(activeView, (value) => {
                 :mailboxes="mailboxes"
                 :height="tableHeight"
                 :marking-read-ids="markingReadIds"
+                :deleting-ids="deletingIds"
                 @update:options="options = $event"
                 @read="openMessage"
                 @mark-read="markMessageRead"
