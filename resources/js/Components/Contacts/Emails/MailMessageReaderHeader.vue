@@ -169,6 +169,7 @@ function contextLabel(context) {
                 title="Обновить письмо"
                 aria-label="Обновить письмо"
                 :loading="loading"
+                :disabled="relatedDisabled"
                 @click="emit('reload')"
             />
             <v-btn
@@ -180,7 +181,7 @@ function contextLabel(context) {
                 color="teal"
                 title="Ответить на письмо"
                 aria-label="Ответить на письмо"
-                :disabled="loading"
+                :disabled="loading || relatedDisabled"
                 @click="emit('reply', message)"
             />
             <v-btn
@@ -193,6 +194,7 @@ function contextLabel(context) {
                 @click="emit('close')"
             />
         </div>
+        <div v-if="$slots.tools" class="mail-reader-header__tools"><slot name="tools" /></div>
     </header>
 </template>
 
@@ -201,18 +203,22 @@ function contextLabel(context) {
     align-items: flex-start;
     display: flex;
     flex: 0 0 auto;
-    gap: 8px 16px;
+    flex-wrap: wrap;
+    gap: 6px 16px;
     min-width: 0;
     padding: 8px 10px;
 }
 
 .mail-reader-header__main {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     max-height: min(180px, 28dvh);
     min-width: 0;
     overflow: auto;
     scrollbar-width: thin;
 }
+
+.mail-reader-header__tools { flex: 1 0 100%; min-width: 0; max-width: 100%; }
+.mail-reader-header__tools :deep(.mail-crm-tools) { margin-top: 0; }
 
 .mail-reader-header__subject {
     -webkit-box-orient: vertical;

@@ -411,10 +411,13 @@ use App\Http\Controllers\API\MailAttachmentAnalysisController;
 use App\Http\Controllers\API\MailboxController;
 use App\Http\Controllers\API\MailMessageActionController;
 use App\Http\Controllers\API\MailMessageController;
+use App\Http\Controllers\API\MailMessageCrmController;
+use App\Http\Controllers\API\MailMessageResearchController;
 use App\Http\Controllers\API\MailOfferController;
 use App\Http\Controllers\API\MaxChatController;
 use App\Http\Controllers\API\MaxSubscriptionController;
 use App\Http\Controllers\API\MaxWebhookController;
+use App\Http\Controllers\API\WordAttachmentPreviewController;
 
 Route::apiResource('mailboxes', MailboxController::class)
     ->only(['index', 'store', 'show', 'update', 'destroy']);
@@ -424,6 +427,26 @@ Route::prefix('mail-offers')->middleware(['auth:sanctum', 'verified', 'can:mail.
 });
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
     ->name('mail-messages.folders');
+Route::prefix('mail-crm')->middleware(['auth:sanctum', 'verified'])->group(function (): void {
+    Route::get('options', [MailMessageCrmController::class, 'options']);
+    Route::get('entities', [MailMessageCrmController::class, 'entities']);
+    Route::get('units', [MailMessageCrmController::class, 'units']);
+    Route::get('cities', [MailMessageCrmController::class, 'cities']);
+});
+Route::prefix('mail-messages/{mailMessage}')->middleware(['auth:sanctum', 'verified'])->group(function (): void {
+    Route::get('crm', [MailMessageCrmController::class, 'show'])->name('mail-messages.crm.show');
+    Route::post('crm/entities', [MailMessageCrmController::class, 'storeEntity']);
+    Route::post('crm/units', [MailMessageCrmController::class, 'storeUnit']);
+    Route::post('crm/telephones', [MailMessageCrmController::class, 'storeTelephone']);
+    Route::post('crm/emails', [MailMessageCrmController::class, 'storeEmail']);
+    Route::post('crm/websites', [MailMessageCrmController::class, 'storeWebsite']);
+    Route::post('crm/buildings', [MailMessageCrmController::class, 'storeBuilding']);
+    Route::get('research', [MailMessageResearchController::class, 'index'])->name('mail-messages.research.index');
+    Route::post('research/website', [MailMessageResearchController::class, 'website'])
+        ->middleware('throttle:5,1,mail-website-research')->name('mail-messages.research.website');
+    Route::post('research/company', [MailMessageResearchController::class, 'company'])
+        ->middleware('throttle:10,1,mail-company-research')->name('mail-messages.research.company');
+});
 Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
     ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
     ->name('mail-messages.send');
@@ -446,6 +469,10 @@ Route::post('mail-messages/{mailMessage}/attachments/{index}/analyze', MailAttac
     ->whereNumber('index')
     ->middleware('throttle:30,1,mail-attachment-analysis')
     ->name('mail-messages.attachments.analyze');
+Route::post('mail-messages/{mailMessage}/attachments/{index}/word-preview', WordAttachmentPreviewController::class)
+    ->whereNumber('index')
+    ->middleware(['auth:sanctum', 'verified', 'throttle:30,1,mail-word-preview'])
+    ->name('mail-messages.attachments.word-preview');
 Route::get('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'attachmentFolders'])
     ->name('mail-messages.attachment-folders.index');
 Route::post('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'storeAttachmentFolder'])
@@ -456,6 +483,7 @@ Route::post('mail-messages/{mailMessage}/attachments/{index}/save', [MailMessage
 Route::post('mail-messages/{mailMessage}/notes', [MailMessageActionController::class, 'storeNote'])
     ->name('mail-messages.notes.store');
 Route::post('mail-messages/{mailMessage}/lead', [MailMessageActionController::class, 'createLead'])
+    ->middleware(['auth:sanctum', 'verified'])
     ->name('mail-messages.lead.store');
 
 use App\Http\Controllers\API\MailTemplateController;

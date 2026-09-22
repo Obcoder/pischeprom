@@ -299,6 +299,33 @@ jobs:
             tests/Feature/Mail/MailMessageRelationsTest.php \
             tests/Unit/MailInvoiceParserTest.php
 
+      - name: Check mail CRM, website research, and Word preview
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/MailMessageCrmController.php \
+            app/Http/Controllers/API/MailMessageResearchController.php \
+            app/Http/Controllers/API/WordAttachmentPreviewController.php \
+            app/Http/Requests/Mail/PreviewWordAttachmentRequest.php \
+            app/Models/MailMessageResearch.php \
+            app/Services/Mail/MailContactExtractor.php \
+            app/Services/Mail/MailMessageCrmService.php \
+            app/Services/Mail/MailPublicWebsiteReader.php \
+            app/Services/Mail/MailResearchException.php \
+            app/Services/Mail/MailWebsiteCatalogAi.php \
+            app/Services/Mail/MailWorkspaceAccess.php \
+            app/Services/Mail/WordAttachmentPreviewer.php \
+            app/Services/Mail/WordPreview \
+            app/Services/Mail/WordPreviewException.php \
+            config/mail-research.php \
+            database/migrations/2026_09_22_140000_create_mail_message_researches_table.php \
+            scripts/check-production-mail-workspace.php \
+            tests/Feature/Mail/MailMessageCrmTest.php \
+            tests/Feature/Mail/MailMessageResearchTest.php \
+            tests/Feature/Mail/WordAttachmentPreviewTest.php \
+            tests/Unit/MailPublicWebsiteReaderTest.php \
+            tests/Unit/LegacyWordTextReaderTest.php \
+            tests/Unit/WordAttachmentPreviewerTest.php
+
       - name: Check goods SEO AI and deployment PHP style
         run: |
           vendor/bin/pint --test \

@@ -5,6 +5,8 @@ import { route } from 'ziggy-js'
 import MailInvoiceDetails from './MailInvoiceDetails.vue'
 import MailPdfViewer from './MailPdfViewer.vue'
 import MailMessageReaderHeader from './MailMessageReaderHeader.vue'
+import MailMessageCrmTools from './MailMessageCrmTools.vue'
+import WordAttachmentPreview from './WordAttachmentPreview.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -34,6 +36,9 @@ const emit = defineEmits([
 ])
 
 const actionLoading = ref(false)
+const crmActionLoading = ref(false)
+const crmNoteDialog = ref(false)
+const crmLeadDialog = ref(false)
 const noteTitle = ref('')
 const noteBody = ref('')
 const noteImportance = ref('important')
@@ -56,7 +61,7 @@ let folderRequest = 0
 
 const currentMessage = computed(() => localMessage.value || props.message)
 const readerLoading = computed(() => props.loading || relatedMessageLoading.value)
-const relatedNavigationBlocked = computed(() => readerLoading.value || actionLoading.value
+const relatedNavigationBlocked = computed(() => readerLoading.value || actionLoading.value || crmActionLoading.value
     || creatingFolder.value || savingAttachmentIndex.value !== null)
 const relatedContexts = computed(() => {
     const contexts = new Map()
@@ -141,6 +146,10 @@ const selectedPdfAttachment = computed(() => {
 })
 const selectedPdfIdentity = computed(() => selectedPdfAttachment.value
     ? `${currentMessage.value?.id}:${selectedPdfAttachment.value.index}:${selectedPdfAttachment.value.id || 'mail'}`
+    : null)
+const selectedWordAttachment = computed(() => selectedAttachment.value && isAttachmentWord(selectedAttachment.value) ? selectedAttachment.value : null)
+const selectedWordIdentity = computed(() => selectedWordAttachment.value
+    ? `${currentMessage.value?.id}:${selectedWordAttachment.value.index}:${selectedWordAttachment.value.id || 'mail'}`
     : null)
 const notes = computed(() => currentMessage.value?.notes || [])
 const leads = computed(() => currentMessage.value?.leads || [])
@@ -241,6 +250,11 @@ function isAttachmentPdf(attachment) {
         || /\.pdf$/i.test(name)
 }
 
+function isAttachmentWord(attachment) {
+    return /\.docx?$/i.test(attachmentName(attachment))
+        || ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(attachmentMime(attachment).toLowerCase())
+}
+
 function attachmentIcon(attachment) {
     const mime = attachmentMime(attachment).toLowerCase()
     const name = attachmentName(attachment).toLowerCase()
@@ -276,6 +290,8 @@ function plainBody() {
 }
 
 function resetForms() {
+    crmNoteDialog.value = false
+    crmLeadDialog.value = false
     noteTitle.value = ''
     noteBody.value = ''
     noteImportance.value = 'important'
@@ -299,6 +315,19 @@ function applyMessageUpdate(message) {
 
     localMessage.value = message
     emit('updated', message)
+}
+
+async function refreshCrmMessage() {
+    const id = currentMessage.value?.id
+    if (!id) return
+    try {
+        const { data } = await axios.get(`/api/mail-messages/${id}`)
+        if (model.value && Number(currentMessage.value?.id) === Number(id)) applyMessageUpdate(data)
+    } catch {
+        if (model.value && Number(currentMessage.value?.id) === Number(id)) {
+            feedback.value = { type: 'warning', text: 'Данные CRM сохранены. Обновите письмо, чтобы увидеть связи.' }
+        }
+    }
 }
 
 function folderFromPath(path, url = null) {
@@ -524,20 +553,22 @@ async function downloadAttachment(attachment) {
 }
 
 async function saveNote() {
-    if (readerLoading.value || !currentMessage.value?.id || !noteBody.value.trim()) {
+    if (readerLoading.value || actionLoading.value || !currentMessage.value?.id || !noteBody.value.trim()) {
         return
     }
 
+    const messageId = currentMessage.value.id
     actionLoading.value = true
     feedback.value = null
 
     try {
-        const { data } = await axios.post(`/api/mail-messages/${currentMessage.value.id}/notes`, {
+        const { data } = await axios.post(`/api/mail-messages/${messageId}/notes`, {
             title: noteTitle.value,
             body: noteBody.value,
             importance: noteImportance.value,
         })
 
+        if (!model.value || Number(currentMessage.value?.id) !== Number(messageId)) return
         applyMessageUpdate(data)
         noteTitle.value = ''
         noteBody.value = ''
@@ -546,6 +577,7 @@ async function saveNote() {
             text: 'Важная информация сохранена.',
         }
     } catch (error) {
+        if (!model.value || Number(currentMessage.value?.id) !== Number(messageId)) return
         feedback.value = {
             type: 'error',
             text: error?.response?.data?.message || 'Не удалось сохранить информацию.',
@@ -556,27 +588,30 @@ async function saveNote() {
 }
 
 async function createLead() {
-    if (readerLoading.value || !currentMessage.value?.id || !leadTitle.value.trim()) {
+    if (readerLoading.value || actionLoading.value || leads.value.length || !currentMessage.value?.id || !leadTitle.value.trim()) {
         return
     }
 
+    const messageId = currentMessage.value.id
     actionLoading.value = true
     feedback.value = null
 
     try {
-        const { data } = await axios.post(`/api/mail-messages/${currentMessage.value.id}/lead`, {
+        const { data } = await axios.post(`/api/mail-messages/${messageId}/lead`, {
             title: leadTitle.value,
             description: leadDescription.value,
             entity_id: currentDefaultEntityId.value,
             unit_id: currentDefaultUnitId.value,
         })
 
+        if (!model.value || Number(currentMessage.value?.id) !== Number(messageId)) return
         applyMessageUpdate(data.mail_message)
         feedback.value = {
             type: 'success',
-            text: `Лид #${data.lead?.id} создан.`,
+            text: data.created === false ? `Лид #${data.lead?.id} уже существует для этого письма.` : `Лид #${data.lead?.id} создан.`,
         }
     } catch (error) {
+        if (!model.value || Number(currentMessage.value?.id) !== Number(messageId)) return
         feedback.value = {
             type: 'error',
             text: error?.response?.data?.message || 'Не удалось создать лид.',
@@ -643,6 +678,8 @@ watch(() => currentMessage.value?.id, async () => {
 
 watch(model, async (isOpen) => {
     if (!isOpen) {
+        crmNoteDialog.value = false
+        crmLeadDialog.value = false
         cancelRelatedMessage()
         folderRequest++
         foldersLoading.value = false
@@ -682,7 +719,21 @@ onBeforeUnmount(() => {
                 @reply="emit('reply', $event)"
                 @close="model = false"
                 @open="openRelatedMessage"
-            />
+            >
+                <template #tools>
+                    <MailMessageCrmTools
+                        :message="currentMessage"
+                        :disabled="relatedNavigationBlocked"
+                        :default-entity-id="currentDefaultEntityId"
+                        :default-unit-id="currentDefaultUnitId"
+                        @changed="refreshCrmMessage"
+                        @busy="crmActionLoading = $event"
+                        @notice="feedback = $event"
+                        @note="feedback = null; crmNoteDialog = true"
+                        @lead="feedback = null; crmLeadDialog = true"
+                    />
+                </template>
+            </MailMessageReaderHeader>
 
             <v-divider />
 
@@ -879,99 +930,6 @@ onBeforeUnmount(() => {
                                             {{ hasAttachmentSignal ? 'Вложения ещё не загружены. Нажмите refresh письма.' : 'Вложений нет.' }}
                                         </div>
 
-                                        <v-card variant="tonal" color="teal" class="mail-crm-card">
-                                            <v-card-title class="mail-crm-card__title">
-                                                CRM
-                                            </v-card-title>
-
-                                            <v-card-text class="mail-crm-card__body">
-                                                <v-text-field
-                                                    v-model="noteTitle"
-                                                    label="Заголовок"
-                                                    density="compact"
-                                                    variant="outlined"
-                                                    hide-details
-                                                />
-
-                                                <div class="mail-crm-card__row">
-                                                    <v-select
-                                                        v-model="noteImportance"
-                                                        :items="[
-                                                            { title: 'Important', value: 'important' },
-                                                            { title: 'Critical', value: 'critical' },
-                                                            { title: 'Normal', value: 'normal' },
-                                                        ]"
-                                                        label="Важность"
-                                                        density="compact"
-                                                        variant="outlined"
-                                                        hide-details
-                                                    />
-
-                                                    <v-btn
-                                                        color="teal"
-                                                        variant="elevated"
-                                                        size="x-small"
-                                                        icon="mdi-content-save-outline"
-                                                        :loading="actionLoading"
-                                                        :disabled="readerLoading || !noteBody.trim()"
-                                                        @click="saveNote"
-                                                    />
-                                                </div>
-
-                                                <v-textarea
-                                                    v-model="noteBody"
-                                                    label="Важное из письма"
-                                                    density="compact"
-                                                    variant="outlined"
-                                                    rows="1"
-                                                    no-resize
-                                                    hide-details
-                                                />
-
-                                                <v-text-field
-                                                    v-model="leadTitle"
-                                                    label="Лид"
-                                                    density="compact"
-                                                    variant="outlined"
-                                                    hide-details
-                                                />
-
-                                                <v-btn
-                                                    block
-                                                    color="amber"
-                                                    variant="elevated"
-                                                    size="x-small"
-                                                    prepend-icon="mdi-account-plus-outline"
-                                                    :loading="actionLoading"
-                                                    :disabled="readerLoading || !leadTitle.trim()"
-                                                    @click="createLead"
-                                                >
-                                                    Создать лид
-                                                </v-btn>
-
-                                                <div v-if="notes.length || leads.length" class="mail-crm-history">
-                                                    <v-chip
-                                                        v-for="lead in leads"
-                                                        :key="`lead-${lead.id}`"
-                                                        size="x-small"
-                                                        color="amber"
-                                                        variant="tonal"
-                                                    >
-                                                        Lead #{{ lead.id }} {{ lead.title }}
-                                                    </v-chip>
-
-                                                    <v-chip
-                                                        v-for="note in notes"
-                                                        :key="`note-${note.id}`"
-                                                        size="x-small"
-                                                        :color="note.importance === 'critical' ? 'red' : 'teal'"
-                                                        variant="tonal"
-                                                    >
-                                                        {{ note.title || note.body }}
-                                                    </v-chip>
-                                                </div>
-                                            </v-card-text>
-                                        </v-card>
                                     </div>
 
                                     <div v-if="attachmentRows.length" class="mail-attachment-preview">
@@ -993,6 +951,15 @@ onBeforeUnmount(() => {
                                                 class="mail-attachment-preview__pdf"
                                                 :src="downloadAttachmentUrl(selectedPdfAttachment)"
                                                 :title="attachmentName(selectedPdfAttachment)"
+                                            />
+
+                                            <WordAttachmentPreview
+                                                v-else-if="model && selectedWordAttachment && currentMessage?.id"
+                                                :key="selectedWordIdentity"
+                                                :message-id="Number(currentMessage.id)"
+                                                :attachment-index="Number(selectedWordAttachment.index)"
+                                                :attachment-id="selectedWordAttachment.id ? Number(selectedWordAttachment.id) : null"
+                                                :filename="attachmentName(selectedWordAttachment)"
                                             />
 
                                             <div v-else class="mail-attachment-preview__empty">
@@ -1080,9 +1047,49 @@ onBeforeUnmount(() => {
             </v-card-actions>
         </v-card>
     </v-dialog>
+
+    <v-dialog v-model="crmNoteDialog" max-width="560" :persistent="actionLoading" scrollable>
+        <v-card theme="dark" class="mail-reader-crm-dialog">
+            <v-card-title>Важное из письма</v-card-title>
+            <v-card-text class="mail-reader-crm-dialog__body">
+                <v-text-field v-model="noteTitle" label="Заголовок" density="compact" variant="outlined" hide-details :disabled="actionLoading" />
+                <v-select v-model="noteImportance" :items="[{ title: 'Обычная', value: 'normal' }, { title: 'Важная', value: 'important' }, { title: 'Критичная', value: 'critical' }]" label="Важность" density="compact" variant="outlined" hide-details :disabled="actionLoading" />
+                <v-textarea v-model="noteBody" label="Заметка" rows="4" density="compact" variant="outlined" hide-details :disabled="actionLoading" />
+                <v-alert v-if="feedback" :type="feedback.type === 'error' ? 'error' : 'success'" density="compact" variant="tonal">{{ feedback.text }}</v-alert>
+                <div v-if="notes.length" class="mail-reader-crm-dialog__history"><article v-for="note in notes" :key="note.id"><strong>{{ note.title || 'Заметка' }}</strong><p>{{ note.body }}</p></article></div>
+            </v-card-text>
+            <v-card-actions><v-btn variant="text" :disabled="actionLoading" @click="crmNoteDialog = false">Закрыть</v-btn><v-spacer /><v-btn variant="tonal" color="teal" :loading="actionLoading" :disabled="readerLoading || actionLoading || !noteBody.trim()" @click="saveNote">Сохранить заметку</v-btn></v-card-actions>
+        </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="crmLeadDialog" max-width="560" :persistent="actionLoading" scrollable>
+        <v-card theme="dark" class="mail-reader-crm-dialog">
+            <v-card-title>{{ leads.length ? 'Лид этого письма' : 'Создать лид из письма' }}</v-card-title>
+            <v-card-text class="mail-reader-crm-dialog__body">
+                <template v-if="leads.length">
+                    <p class="mail-reader-crm-dialog__hint">Письмо уже связано с лидом.</p>
+                    <article v-for="lead in leads" :key="lead.id" class="mail-reader-crm-dialog__lead"><strong>#{{ lead.id }} · {{ lead.title }}</strong><span>{{ lead.status }}</span><p v-if="lead.description">{{ lead.description }}</p></article>
+                </template>
+                <template v-else><v-text-field v-model="leadTitle" label="Название лида" density="compact" variant="outlined" hide-details :disabled="actionLoading" /><v-textarea v-model="leadDescription" label="Описание" rows="5" density="compact" variant="outlined" hide-details :disabled="actionLoading" /></template>
+                <v-alert v-if="feedback" :type="feedback.type === 'error' ? 'error' : 'success'" density="compact" variant="tonal">{{ feedback.text }}</v-alert>
+            </v-card-text>
+            <v-card-actions><v-btn variant="text" :disabled="actionLoading" @click="crmLeadDialog = false">Закрыть</v-btn><v-spacer /><v-btn v-if="!leads.length" variant="tonal" color="amber" :loading="actionLoading" :disabled="readerLoading || actionLoading || !leadTitle.trim()" @click="createLead">Создать лид</v-btn></v-card-actions>
+        </v-card>
+    </v-dialog>
 </template>
 
 <style scoped>
+.mail-reader-crm-dialog { border: 1px solid #354964; border-radius: 12px; background: #101d30; color: #d2def0; }
+.mail-reader-crm-dialog > .v-card-title { font-size: 15px; color: #c5e4fc; padding: 14px 16px 8px; }
+.mail-reader-crm-dialog__body { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px !important; }
+.mail-reader-crm-dialog__body :deep(.v-field), .mail-reader-crm-dialog__body :deep(.v-label), .mail-reader-crm-dialog__body :deep(.v-alert) { font-size: 12px; }
+.mail-reader-crm-dialog__history { display: flex; flex-direction: column; gap: 8px; }
+.mail-reader-crm-dialog__history article, .mail-reader-crm-dialog__lead { padding: 10px; border: 1px solid #354964; border-radius: 7px; font-size: 12px; }
+.mail-reader-crm-dialog__history p, .mail-reader-crm-dialog__lead p { margin-top: 5px; color: #a8bdd4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail-reader-crm-dialog__lead > span { float: right; color: #f3cd8d; font-size: 11px; }
+.mail-reader-crm-dialog__hint { color: #93a7c1; font-size: 12px; }
+.mail-reader-crm-dialog :deep(.v-card-actions .v-btn) { font-size: 11px; letter-spacing: 0; text-transform: none; }
+
 :global(.mail-reader-dialog > .v-overlay__content) {
     margin: 12px;
 }
@@ -1166,32 +1173,9 @@ onBeforeUnmount(() => {
     padding-bottom: 8px;
 }
 
-.mail-crm-card__title {
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    padding: 5px 8px 2px !important;
-    text-transform: uppercase;
-}
 
-.mail-crm-card__body {
-    display: grid;
-    gap: 4px;
-    padding: 0 6px 6px !important;
-}
 
-.mail-crm-card__row {
-    align-items: center;
-    display: grid;
-    gap: 4px;
-    grid-template-columns: minmax(0, 1fr) auto;
-}
 
-.mail-crm-history {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-}
 
 .mail-attachments-card__title {
     align-items: baseline;
@@ -1244,15 +1228,14 @@ onBeforeUnmount(() => {
     scrollbar-width: thin;
 }
 
-.mail-attachments-sidebar > .mail-invoice-details,
-.mail-attachments-sidebar > .mail-crm-card {
+.mail-attachments-sidebar > .mail-invoice-details {
     flex: 0 0 auto;
 }
 
 .mail-attachments-workspace--empty .mail-attachments-sidebar {
     display: grid;
     grid-column: 1 / -1;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
 }
 
@@ -1261,11 +1244,6 @@ onBeforeUnmount(() => {
     grid-row: 1;
 }
 
-.mail-attachments-workspace--empty .mail-crm-card {
-    grid-column: 2;
-    grid-row: 1;
-    min-width: 0;
-}
 
 .mail-attachments-target,
 .mail-attachments-saved {
@@ -1585,7 +1563,7 @@ onBeforeUnmount(() => {
 
     .mail-attachments-workspace--empty .mail-attachments-sidebar {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(180px, 1fr) auto;
+        grid-template-rows: minmax(180px, 1fr);
     }
 
     .mail-attachments-workspace--empty .mail-attachments-empty {
@@ -1593,10 +1571,6 @@ onBeforeUnmount(() => {
         grid-row: 1;
     }
 
-    .mail-attachments-workspace--empty .mail-crm-card {
-        grid-column: 1;
-        grid-row: 2;
-    }
 
     .mail-attachments-toolbar {
         grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto;

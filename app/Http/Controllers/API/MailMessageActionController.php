@@ -13,10 +13,11 @@ use App\Models\MailMessageNote;
 use App\Models\Unit;
 use App\Services\Mail\AuthorizedMailDispatchService;
 use App\Services\Mail\MailDispatchException;
+use App\Services\Mail\MailWorkspaceAccess;
 use App\Services\Mail\YandexMailboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -216,6 +217,7 @@ class MailMessageActionController extends Controller
 
     public function createLead(Request $request, MailMessage $mailMessage): JsonResponse
     {
+        app(MailWorkspaceAccess::class)->authorize($request->user());
         $data = $request->validate([
             'title' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -223,26 +225,32 @@ class MailMessageActionController extends Controller
             'unit_id' => ['nullable', 'integer', 'exists:units,id'],
         ]);
 
-        $leadPayload = [
-            'source' => 'email',
-            'status' => Lead::STATUS_OPEN,
-            'title' => ($data['title'] ?? null) ?: ($mailMessage->subject ?: 'Лид из письма'),
-            'description' => ($data['description'] ?? null) ?: $this->leadDescription($mailMessage),
-            'entity_id' => $data['entity_id'] ?? $this->firstRelatedEntityId($mailMessage),
-            'unit_id' => $data['unit_id'] ?? $this->firstRelatedUnitId($mailMessage),
-            'last_activity_at' => $mailMessage->message_date ?: now(),
-        ];
+        // Lock the parent, which always exists: locking an empty lead query would not
+        // serialize two concurrent first clicks. Keep historical duplicates intact.
+        [$lead, $created] = DB::transaction(function () use ($mailMessage, $data): array {
+            $mailMessage = MailMessage::query()->whereKey($mailMessage->id)->lockForUpdate()->firstOrFail();
+            $existing = $mailMessage->leads()->orderBy('id')->first();
+            if ($existing) {
+                return [$existing, false];
+            }
 
-        if (Schema::hasColumn('leads', 'mail_message_id')) {
-            $leadPayload['mail_message_id'] = $mailMessage->id;
-        }
-
-        $lead = Lead::query()->create($leadPayload);
+            return [Lead::query()->create([
+                'source' => 'email',
+                'status' => Lead::STATUS_OPEN,
+                'title' => ($data['title'] ?? null) ?: ($mailMessage->subject ?: 'Лид из письма'),
+                'description' => ($data['description'] ?? null) ?: $this->leadDescription($mailMessage),
+                'entity_id' => $data['entity_id'] ?? $this->firstRelatedEntityId($mailMessage),
+                'unit_id' => $data['unit_id'] ?? $this->firstRelatedUnitId($mailMessage),
+                'last_activity_at' => $mailMessage->message_date ?: now(),
+                'mail_message_id' => $mailMessage->id,
+            ]), true];
+        }, 3);
 
         return response()->json([
+            'created' => $created,
             'lead' => $lead->fresh(['entity', 'unit']),
             'mail_message' => $this->messagePayload($mailMessage->fresh()),
-        ], 201);
+        ], $created ? 201 : 200);
     }
 
     private function leadDescription(MailMessage $mailMessage): string

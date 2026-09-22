@@ -423,6 +423,8 @@ php artisan view:cache
 php artisan bank:sber:health --if-enabled
 php "$target_dir/scripts/check-production-goods-seo-ai.php" "$target_dir" \
     || fail 'SEO AI configuration or route health check failed; inspect the VPS.'
+php "$target_dir/scripts/check-production-mail-workspace.php" "$target_dir" \
+    || fail 'Mail CRM and Word preview health check failed; inspect the VPS.'
 
 sudo chown -R "${application_owner}:${runtime_group}" "$target_dir"
 sudo find storage bootstrap/cache -type d -exec chmod 2770 {} +
