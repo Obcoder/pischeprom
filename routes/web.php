@@ -232,7 +232,9 @@ Route::get('/Ameise/ContactsCentre', function () {
 })->name('Ameise.contactsCentre');
 
 Route::get('/Ameise/Mail', function () {
-    return Inertia::render('Ameise/Mail');
+    return Inertia::render('Ameise/Mail', [
+        'mailTimezone' => config('app.timezone'),
+    ]);
 })->name('Ameise.mail');
 
 Route::get('/Ameise/Max', function () {
@@ -279,11 +281,6 @@ Route::prefix('web')->name('web.')->group(function () {
         ->name('entities.lookup');
 });
 //  E N D  E N T I T I E S
-
-//     F L U X  M O N I T O R
-Route::get('/Ameise/FluxMonitor/', function () {
-    return Inertia::render('Ameise/FluxMonitor');
-})->name('Ameise.fluxmonitor');
 
 Route::get('/Ameise/fields', function () {
     return Inertia::render('Ameise/FieldBoard');

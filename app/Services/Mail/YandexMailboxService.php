@@ -271,6 +271,10 @@ class YandexMailboxService
             'raw_headers' => $this->stringValue($message->header->raw ?? null),
         ]);
 
+        if (method_exists($message, 'hasFlag')) {
+            $mailMessage->is_seen = $message->hasFlag('Seen');
+        }
+
         $mailMessage->save();
 
         if ($direction === 'incoming' && ! empty($from['address'])) {
@@ -763,6 +767,51 @@ class YandexMailboxService
         return null;
     }
 
+    public function markRead(MailMessage $mailMessage): MailMessage
+    {
+        if (! $mailMessage->imap_uid || ! $mailMessage->mailbox) {
+            throw new RuntimeException('Письмо не связано с почтовым сервером.');
+        }
+
+        $mailbox = $this->mailboxes->find($mailMessage->mailbox);
+
+        if (! $mailbox) {
+            throw new RuntimeException('Почтовый ящик не настроен: '.$mailMessage->mailbox);
+        }
+
+        $client = $this->client($mailbox);
+
+        try {
+            $client->connect();
+            $folder = $this->resolveFolder($client, $mailMessage->folder);
+
+            if (! $folder) {
+                throw new RuntimeException('Папка письма не найдена на почтовом сервере.');
+            }
+
+            $message = $folder->query()
+                ->leaveUnread()
+                ->setFetchBody(false)
+                ->setFetchFlags(true)
+                ->getMessageByUid((int) $mailMessage->imap_uid);
+
+            if (! $message || ! $message->setFlag('Seen') || ! $message->hasFlag('Seen')) {
+                throw new RuntimeException('Почтовый сервер не подтвердил отметку о прочтении.');
+            }
+
+            $mailMessage->forceFill(['is_seen' => true])->save();
+
+            return $mailMessage;
+        } finally {
+            $this->safeDisconnect($client, [
+                'operation' => 'mark_read',
+                'mailbox' => $mailbox['address'],
+                'mail_message_id' => $mailMessage->id,
+                'folder' => $mailMessage->folder,
+            ]);
+        }
+    }
+
     public function loadBody(
         MailMessage $mailMessage,
         bool $force = false,
@@ -865,6 +914,10 @@ class YandexMailboxService
                 'text' => $text,
                 'body_loaded_at' => now(),
             ];
+
+            if (method_exists($message, 'hasFlag')) {
+                $payload['is_seen'] = $message->hasFlag('Seen');
+            }
 
             if (($withAttachments || $includeAttachmentList) && $this->messageHasAttachments($message)) {
                 $payload['has_attachments'] = true;

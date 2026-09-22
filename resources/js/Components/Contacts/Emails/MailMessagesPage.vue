@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import axios from 'axios'
 import { useMailMessages } from '@/Composables/useMailMessages.js'
 import MailMessagesToolbar from './MailMessagesToolbar.vue'
+import MailDateFilter from './MailDateFilter.vue'
+import { mailDateRangeLabel } from './mailDateFilters.js'
 import MailMessagesTable from './MailMessagesTable.vue'
 import MailMessageReaderDialog from './MailMessageReaderDialog.vue'
 import MailComposerDialog from './MailComposerDialog.vue'
@@ -10,6 +12,7 @@ import MailTemplatesDialog from './MailTemplatesDialog.vue'
 import MailboxesManagerDialog from './MailboxesManagerDialog.vue'
 
 const props = defineProps({
+    timezone: { type: String, default: 'Europe/Moscow' },
     standalone: {
         type: Boolean,
         default: false,
@@ -21,6 +24,11 @@ const {
     totalItems,
     loading,
     reading,
+    markingReadIds,
+    markReadError,
+    markReadStatus,
+    fetchError,
+    markMessageRead,
     selectedMessage,
     mailboxes,
     search,
@@ -42,7 +50,7 @@ const replyContext = ref(null)
 const activeView = ref('all')
 let autoRefreshTimer = null
 
-const tableHeight = computed(() => props.standalone ? 'calc(100vh - 350px)' : 720)
+const tableHeight = computed(() => props.standalone ? '100%' : 720)
 
 const mailboxSubtitle = computed(() => {
     if (!mailboxes.value.length) {
@@ -73,69 +81,15 @@ const viewDescription = computed(() => {
     return 'Общая серверная выборка писем по всем активным фильтрам.'
 })
 
-const activeFilterChips = computed(() => {
-    const chips = []
-
-    if (search.value) {
-        chips.push({
-            key: 'search',
-            label: `Поиск: ${search.value}`,
-            color: 'blue',
-            closable: true,
-        })
-    }
-
-    if (filters.value.mailbox) {
-        const mailbox = mailboxes.value.find((item) => item.address === filters.value.mailbox)
-
-        chips.push({
-            key: 'mailbox',
-            label: `Ящик: ${mailbox?.label || filters.value.mailbox}`,
-            color: 'cyan',
-            closable: true,
-        })
-    }
-
-    if (filters.value.direction) {
-        chips.push({
-            key: 'direction',
-            label: filters.value.direction === 'incoming' ? 'Тип: входящие' : 'Тип: исходящие',
-            color: filters.value.direction === 'incoming' ? 'purple' : 'blue',
-            closable: activeView.value !== 'price_requests',
-        })
-    }
-
-    if (filters.value.folder) {
-        chips.push({
-            key: 'folder',
-            label: `Папка: ${filters.value.folder}`,
-            color: filters.value.folder === 'Sent' ? 'blue' : 'purple',
-            closable: true,
-        })
-    }
-
-    if (filters.value.today) {
-        chips.push({
-            key: 'today',
-            label: 'Почта сегодня',
-            color: 'amber',
-            closable: true,
-        })
-    }
-
-    if (filters.value.subject_exact && activeView.value !== 'price_requests') {
-        chips.push({
-            key: 'subject_exact',
-            label: `Тема: ${filters.value.subject_exact}`,
-            color: 'blue-grey',
-            closable: true,
-        })
-    }
-
-    return chips
-})
-
-const hasResettableFilters = computed(() => activeFilterChips.value.some((chip) => chip.closable))
+const hasResettableFilters = computed(() => Boolean(
+    search.value || filters.value.mailbox || filters.value.folder || filters.value.today
+    || filters.value.date_from || filters.value.date_to
+    || (activeView.value !== 'price_requests' && (filters.value.direction || filters.value.subject_exact))
+))
+const dateDescription = computed(() => filters.value.date_from || filters.value.date_to
+    ? mailDateRangeLabel(filters.value.date_from, filters.value.date_to)
+    : '')
+const statusError = computed(() => markReadError.value || fetchError.value)
 
 async function openMessage(message) {
     readerDialog.value = true
@@ -248,26 +202,9 @@ function resetFilters() {
         mailbox: null,
         email_id: null,
         today: false,
+        date_from: null,
+        date_to: null,
         subject_exact: activeView.value === 'price_requests' ? PRICE_REQUEST_SUBJECT : null,
-    }
-}
-
-function clearFilter(key) {
-    options.value.page = 1
-
-    if (key === 'search') {
-        search.value = ''
-
-        return
-    }
-
-    if (key === 'direction' && activeView.value === 'price_requests') {
-        return
-    }
-
-    filters.value = {
-        ...filters.value,
-        [key]: key === 'today' ? false : null,
     }
 }
 
@@ -302,133 +239,70 @@ watch(activeView, (value) => {
         class="mail-messages-card rounded border border-blue-900 bg-slate-950"
         :class="{ 'mail-messages-card--standalone': standalone }"
     >
-        <v-card-title class="d-flex justify-space-between align-center py-2">
-            <div>
-                <div class="text-blue-lighten-3 font-ComfortaaVariableFont">
-                    Письма
+        <div class="mail-heading">
+            <div class="mail-topbar">
+                <h1 class="mail-heading__title font-ComfortaaVariableFont" :title="mailboxSubtitle">Письма</h1>
+                <v-chip size="x-small" color="blue" variant="tonal" :title="`Всего писем: ${totalItems}`">{{ totalItems }}</v-chip>
+
+                <div class="mail-view-tabs" role="group" aria-label="Вид писем">
+                    <v-btn
+                        v-for="item in viewTabs"
+                        :key="item.value"
+                        :prepend-icon="item.icon"
+                        :color="activeView === item.value ? 'blue-lighten-2' : 'blue-grey-lighten-3'"
+                        :variant="activeView === item.value ? 'tonal' : 'text'"
+                        :aria-pressed="activeView === item.value"
+                        size="small"
+                        @click="activeView = item.value"
+                    >{{ item.title }}</v-btn>
                 </div>
 
-                <div class="text-[10px] text-grey">
-                    {{ mailboxSubtitle }}
-                </div>
-            </div>
-
-            <div class="d-flex align-center ga-2">
+                <MailDateFilter v-model:filters="filters" :timezone="timezone" />
                 <v-btn
-                    size="small"
-                    color="cyan"
-                    variant="tonal"
-                    prepend-icon="mdi-email-cog-outline"
-                    @click="openMailboxes"
-                >
-                    Почтовые ящики
-                </v-btn>
-
-                <v-btn
-                    size="small"
-                    color="blue-grey"
-                    variant="tonal"
-                    prepend-icon="mdi-file-document-edit-outline"
-                    @click="templatesDialog = true"
-                >
-                    Шаблоны
-                </v-btn>
-
-                <v-btn
-                    class="mail-compose-launcher"
-                    size="small"
-                    variant="flat"
-                    prepend-icon="mdi-email-plus-outline"
-                    @click="openComposer"
-                >
-                    Написать письмо
-                </v-btn>
-
-                <v-chip
-                    size="small"
-                    color="blue"
-                    variant="tonal"
-                >
-                    {{ totalItems }}
-                </v-chip>
-            </div>
-        </v-card-title>
-
-        <v-divider />
-
-        <v-card-text>
-            <v-tabs
-                v-model="activeView"
-                density="compact"
-                color="blue-lighten-2"
-                class="mail-view-tabs mb-3"
-            >
-                <v-tab
-                    v-for="item in viewTabs"
-                    :key="item.value"
-                    :value="item.value"
-                    :prepend-icon="item.icon"
-                >
-                    {{ item.title }}
-                </v-tab>
-            </v-tabs>
-
-            <div class="mail-view-context mb-3">
-                <div class="mail-view-context__text">
-                    {{ viewDescription }}
-                </div>
-
-                <v-btn
-                    v-if="hasResettableFilters"
-                    size="x-small"
+                    icon="mdi-refresh"
+                    size="28"
+                    color="blue-lighten-2"
                     variant="text"
-                    color="blue-lighten-3"
-                    prepend-icon="mdi-filter-remove-outline"
-                    @click="resetFilters"
-                >
-                    Сбросить фильтры
-                </v-btn>
+                    :loading="loading"
+                    title="Обновить письма"
+                    aria-label="Обновить письма"
+                    @click="fetchMessages"
+                />
+                <div class="mail-topbar__spacer" />
+                <v-btn icon="mdi-mailbox-outline" size="28" color="cyan" variant="text" title="Почтовые ящики" aria-label="Почтовые ящики" @click="openMailboxes" />
+                <v-btn icon="mdi-file-document-edit-outline" size="28" color="blue-grey-lighten-2" variant="text" title="Шаблоны" aria-label="Шаблоны" @click="templatesDialog = true" />
+                <v-btn class="mail-compose-launcher" size="small" variant="flat" prepend-icon="mdi-email-plus-outline" @click="openComposer">Написать письмо</v-btn>
             </div>
-
-            <div
-                v-if="activeFilterChips.length"
-                class="mail-active-filters mb-3"
-            >
-                <v-chip
-                    v-for="chip in activeFilterChips"
-                    :key="chip.key"
-                    size="x-small"
-                    :color="chip.color"
-                    variant="tonal"
-                    :closable="chip.closable"
-                    @click:close="clearFilter(chip.key)"
-                >
-                    {{ chip.label }}
-                </v-chip>
+            <div class="mail-status-line" :class="{ 'mail-status-line--error': statusError }" role="status" aria-live="polite">
+                <span :title="statusError || markReadStatus || viewDescription">{{ statusError || markReadStatus || viewDescription }}</span>
+                <span v-if="dateDescription" class="mail-status-line__dates">{{ dateDescription }}</span>
             </div>
+        </div>
 
+        <div class="mail-messages-content">
             <MailMessagesToolbar
                 v-model:search="search"
                 v-model:filters="filters"
                 :mailboxes="mailboxes"
-                :loading="loading"
                 :locked-direction="activeView === 'price_requests'"
-                @refresh="fetchMessages"
+                :has-filters="hasResettableFilters"
+                @reset="resetFilters"
             />
-
             <MailMessagesTable
-                class="mt-3"
+                class="mail-messages-content__table"
                 :messages="messages"
                 :total-items="totalItems"
                 :loading="loading"
                 :options="options"
                 :mailboxes="mailboxes"
                 :height="tableHeight"
+                :marking-read-ids="markingReadIds"
                 @update:options="options = $event"
                 @read="openMessage"
+                @mark-read="markMessageRead"
                 @delete="deleteMessage"
             />
-        </v-card-text>
+        </div>
     </v-card>
 
     <MailMessageReaderDialog
@@ -459,52 +333,30 @@ watch(activeView, (value) => {
 .mail-messages-card {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
-
 .mail-messages-card--standalone {
-    min-height: calc(100vh - 96px);
-}
-
-.mail-messages-card :deep(.v-card-text) {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
+    flex: 1 1 0;
     min-height: 0;
+    overflow: hidden;
 }
-
-.mail-compose-launcher {
-    border: 1px solid rgba(125, 211, 252, 0.6);
-    background:
-        linear-gradient(135deg, rgba(14, 165, 233, 0.92), rgba(29, 78, 216, 0.92)) !important;
-    color: #fff !important;
-    font-weight: 900;
-    letter-spacing: 0.05em;
-}
-
-.mail-view-tabs {
-    border-bottom: 1px solid rgba(96, 165, 250, 0.18);
-}
-
-.mail-view-context {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 28px;
-    padding: 6px 10px;
-    border: 1px solid rgba(96, 165, 250, 0.16);
-    border-radius: 12px;
-    background: rgba(15, 23, 42, 0.58);
-}
-
-.mail-view-context__text {
-    color: rgba(191, 219, 254, 0.82);
-    font-size: 11px;
-}
-
-.mail-active-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+.mail-heading { flex: 0 0 auto; padding: 8px 10px 5px; border-bottom: 1px solid rgba(96, 165, 250, .18); }
+.mail-topbar { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
+.mail-topbar > * { flex-shrink: 0; }
+.mail-heading__title { color: #93c5fd; font-size: 17px; margin-right: 1px; }
+.mail-topbar__spacer { flex: 1 0 0; }
+.mail-view-tabs { display: flex; gap: 2px; padding-inline: 6px; border-inline: 1px solid rgba(147, 197, 253, .18); }
+.mail-view-tabs :deep(.v-btn), .mail-compose-launcher { min-width: 0; height: 28px; padding: 0 8px; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.mail-status-line { display: flex; align-items: center; gap: 12px; min-height: 18px; padding-top: 3px; color: #94a3b8; font-size: 10px; line-height: 15px; }
+.mail-status-line > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-status-line--error { color: #fca5a5; }
+.mail-status-line__dates { flex-shrink: 0; color: #fcd34d; }
+.mail-messages-content { display: flex; flex: 1 1 0; flex-direction: column; gap: 8px; min-height: 0; padding: 10px 10px 0; }
+.mail-messages-content__table { min-height: 0; }
+.mail-messages-card--standalone .mail-messages-content__table { flex: 1 1 0; }
+.mail-compose-launcher { border: 1px solid rgba(125, 211, 252, .6); background: linear-gradient(135deg, #0ea5e9, #1d4ed8) !important; color: #fff !important; font-weight: 700; }
+@media (max-width: 700px) {
+    .mail-heading, .mail-messages-content { padding-inline: 6px; }
+    .mail-status-line__dates { font-size: 9px; }
 }
 </style>

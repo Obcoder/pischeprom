@@ -581,80 +581,48 @@ onMounted(fetchWorkingLeads)
 
             <nav class="ameise-header-nav" aria-label="Основная навигация Ameise">
                 <Link
-                    :href="route('Ameise.großbuch')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.großbuch')) }"
-                    title="Großbuch"
-                    aria-label="Großbuch"
+                    :href="route('Ameise.commerce')"
+                    class="ameise-header-control ameise-nav-link ameise-nav-link--commerce"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.commerce')) }"
+                    title="Закупки и продажи"
+                    aria-label="Закупки и продажи"
                 >
-                    <v-icon icon="mdi-book-open-variant" size="19" />
-                    <span class="ameise-nav-link__label">Großbuch</span>
+                    <TradeFlowIcon width="20" height="20" />
+                    <span class="ameise-nav-link__label">Закупки и продажи</span>
                 </Link>
 
                 <Link
-                    :href="route('Ameise.units')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.units')) || isActiveUrl('/Ameise/unit') }"
-                    title="Units"
-                    aria-label="Units"
+                    v-if="canViewOrders"
+                    :href="route('Ameise.orders.index')"
+                    class="ameise-header-control ameise-nav-link ameise-orders-icon"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.orders.index')) }"
+                    title="Заказы"
+                    aria-label="Панель заказов"
                 >
-                    <v-icon icon="mdi-office-building-marker-outline" size="19" />
-                    <span class="ameise-nav-link__label">Units</span>
+                    <v-icon icon="mdi-clipboard-text-clock-outline" size="19" />
+                    <span class="ameise-nav-link__label">Заказы</span>
                 </Link>
 
                 <Link
-                    :href="route('Ameise.entities')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.entities')) || isActiveUrl(route('Ameise.entity.create')) }"
-                    title="Entities"
-                    aria-label="Entities"
+                    :href="route('Ameise.products')"
+                    class="ameise-header-control ameise-nav-link ameise-products-icon"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.products')) }"
+                    title="Products"
+                    aria-label="Products"
                 >
-                    <v-icon icon="mdi-card-account-details-outline" size="19" />
-                    <span class="ameise-nav-link__label">Entities</span>
+                    <v-icon icon="mdi-package-variant-closed" size="19" />
+                    <span class="ameise-nav-link__label">Products</span>
                 </Link>
 
                 <Link
-                    :href="route('Ameise.checks')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.checks')) }"
-                    title="Checks"
-                    aria-label="Checks"
+                    :href="route('Ameise.avito')"
+                    class="ameise-header-control ameise-nav-link ameise-avito-icon"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.avito')) }"
+                    title="Avito API"
+                    aria-label="Центр управления Avito API"
                 >
-                    <v-icon icon="mdi-receipt-text-outline" size="19" />
-                    <span class="ameise-nav-link__label">Checks</span>
-                </Link>
-
-                <Link
-                    :href="route('Ameise.warehouses')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.warehouses')) }"
-                    title="Склады"
-                    aria-label="Склады"
-                >
-                    <v-icon icon="mdi-warehouse" size="19" />
-                    <span class="ameise-nav-link__label">Склады</span>
-                </Link>
-
-                <Link
-                    :href="route('Ameise.taxi-shifts')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.taxi-shifts')) }"
-                    title="Такси"
-                    aria-label="Такси"
-                >
-                    <v-icon icon="mdi-taxi" size="19" />
-                    <span class="ameise-nav-link__label">Такси</span>
-                </Link>
-
-                <Link
-                    :href="route('Ameise.logistics')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.logistics')) }"
-                    title="Логистика"
-                    aria-label="Логистика"
-                >
-                    <v-icon icon="mdi-truck-fast-outline" size="19" />
-                    <span class="ameise-nav-link__label">Логистика</span>
+                    <v-icon icon="mdi-storefront-outline" size="19" />
+                    <span class="ameise-nav-link__label">Авито</span>
                 </Link>
 
                 <Link
@@ -681,6 +649,61 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
+                    :href="route('Ameise.entities')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.entities')) || isActiveUrl(route('Ameise.entity.create')) }"
+                    title="Entities"
+                    aria-label="Entities"
+                >
+                    <v-icon icon="mdi-card-account-details-outline" size="19" />
+                    <span class="ameise-nav-link__label">Entities</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.units')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.units')) || isActiveUrl('/Ameise/unit') }"
+                    title="Units"
+                    aria-label="Units"
+                >
+                    <v-icon icon="mdi-office-building-marker-outline" size="19" />
+                    <span class="ameise-nav-link__label">Units</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.checks')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.checks')) }"
+                    title="Checks"
+                    aria-label="Checks"
+                >
+                    <v-icon icon="mdi-receipt-text-outline" size="19" />
+                    <span class="ameise-nav-link__label">Checks</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.warehouses')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.warehouses')) }"
+                    title="Склады"
+                    aria-label="Склады"
+                >
+                    <v-icon icon="mdi-warehouse" size="19" />
+                    <span class="ameise-nav-link__label">Склады</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.logistics')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.logistics')) }"
+                    title="Логистика"
+                    aria-label="Логистика"
+                >
+                    <v-icon icon="mdi-truck-fast-outline" size="19" />
+                    <span class="ameise-nav-link__label">Логистика</span>
+                </Link>
+
+                <Link
                     :href="route('Ameise.ai.price-lists.index')"
                     class="ameise-header-control ameise-nav-link ameise-nav-link--ai"
                     :class="{ 'is-active': isActiveUrl(route('Ameise.ai.price-lists.index')) }"
@@ -701,17 +724,6 @@ onMounted(fetchWorkingLeads)
                 >
                     <v-icon icon="mdi-account-search-outline" size="19" />
                     <span class="ameise-nav-link__label">AI Sales</span>
-                </Link>
-
-                <Link
-                    :href="route('Ameise.fluxmonitor')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.fluxmonitor')) }"
-                    title="FluxMonitor"
-                    aria-label="FluxMonitor"
-                >
-                    <span class="ameise-nav-monogram">M</span>
-                    <span class="ameise-nav-link__label">Monitor</span>
                 </Link>
 
                 <Link
@@ -745,28 +757,6 @@ onMounted(fetchWorkingLeads)
                 >
                     <v-icon icon="mdi-view-dashboard-outline" size="19" />
                     <span class="ameise-nav-link__label">WorkBoard</span>
-                </Link>
-
-                <Link
-                    :href="route('Ameise.botany')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.botany')) }"
-                    title="Botany"
-                    aria-label="Botany"
-                >
-                    <v-icon icon="mdi-sprout" size="19" />
-                    <span class="ameise-nav-link__label">Botany</span>
-                </Link>
-
-                <Link
-                    :href="route('Ameise.perfume')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.perfume')) }"
-                    title="Perfume"
-                    aria-label="Perfume"
-                >
-                    <v-icon icon="mdi-scent" size="19" />
-                    <span class="ameise-nav-link__label">Perfume</span>
                 </Link>
 
                 <Link
@@ -804,48 +794,59 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
-                    :href="route('Ameise.commerce')"
-                    class="ameise-header-control ameise-nav-link ameise-nav-link--commerce"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.commerce')) }"
-                    title="Закупки и продажи"
-                    aria-label="Закупки и продажи"
+                    :href="route('Ameise.contactsCentre')"
+                    class="ameise-header-control ameise-nav-link ameise-contacts-icon"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.contactsCentre')) }"
+                    title="Contacts centre"
+                    aria-label="Contacts centre"
                 >
-                    <TradeFlowIcon width="20" height="20" />
-                    <span class="ameise-nav-link__label">Закупки и продажи</span>
+                    <v-icon icon="mdi-phone-in-talk" size="19" />
+                    <span class="ameise-nav-link__label">Contacts centre</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.großbuch')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.großbuch')) }"
+                    title="Großbuch"
+                    aria-label="Großbuch"
+                >
+                    <v-icon icon="mdi-book-open-variant" size="19" />
+                    <span class="ameise-nav-link__label">Großbuch</span>
+                </Link>
+
+                <Link
+                    :href="route('Ameise.taxi-shifts')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.taxi-shifts')) }"
+                    title="Такси"
+                    aria-label="Такси"
+                >
+                    <v-icon icon="mdi-taxi" size="19" />
+                    <span class="ameise-nav-link__label">Такси</span>
                 </Link>
             </nav>
 
             <template #append>
                 <div class="ameise-header-actions">
                     <Link
-                        :href="route('Ameise.avito')"
-                        class="ameise-header-control ameise-header-icon ameise-avito-icon"
-                        :class="{ 'is-active': isActiveUrl(route('Ameise.avito')) }"
-                        title="Avito API"
-                        aria-label="Центр управления Avito API"
+                        :href="route('Ameise.botany')"
+                        class="ameise-header-control ameise-header-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.botany')) }"
+                        title="Botany"
+                        aria-label="Botany"
                     >
-                        <v-icon icon="mdi-storefront-outline" size="21" />
+                        <v-icon icon="mdi-sprout" size="21" />
                     </Link>
 
                     <Link
-                        :href="route('Ameise.products')"
-                        class="ameise-header-control ameise-header-icon ameise-products-icon"
-                        :class="{ 'is-active': isActiveUrl(route('Ameise.products')) }"
-                        title="Products"
-                        aria-label="Products"
+                        :href="route('Ameise.perfume')"
+                        class="ameise-header-control ameise-header-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.perfume')) }"
+                        title="Perfume"
+                        aria-label="Perfume"
                     >
-                        <v-icon icon="mdi-package-variant-closed" size="21" />
-                    </Link>
-
-                    <Link
-                        v-if="canViewOrders"
-                        :href="route('Ameise.orders.index')"
-                        class="ameise-header-control ameise-header-icon ameise-orders-icon"
-                        :class="{ 'is-active': isActiveUrl(route('Ameise.orders.index')) }"
-                        title="Заказы"
-                        aria-label="Панель заказов"
-                    >
-                        <v-icon icon="mdi-clipboard-text-clock-outline" size="21" />
+                        <v-icon icon="mdi-scent" size="21" />
                     </Link>
 
                     <Link
@@ -868,16 +869,6 @@ onMounted(fetchWorkingLeads)
                     >
                         <v-icon icon="mdi-server-network" size="21" />
                     </a>
-
-                    <Link
-                        :href="route('Ameise.contactsCentre')"
-                        class="ameise-header-control ameise-header-icon ameise-contacts-icon"
-                        :class="{ 'is-active': isActiveUrl(route('Ameise.contactsCentre')) }"
-                        title="Contacts centre"
-                        aria-label="Contacts centre"
-                    >
-                        <v-icon icon="mdi-phone-in-talk" size="21" />
-                    </Link>
 
                     <Link
                         :href="route('Ameise.settings')"

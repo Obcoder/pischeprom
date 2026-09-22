@@ -21,6 +21,16 @@ class MailMessageController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'filters' => ['sometimes', 'array'],
+            'filters.date_from' => ['nullable', 'date_format:Y-m-d'],
+            'filters.date_to' => [
+                'nullable',
+                'date_format:Y-m-d',
+                ...($request->filled('filters.date_from') ? ['after_or_equal:filters.date_from'] : []),
+            ],
+        ]);
+
         $itemsPerPage = (int) $request->input('itemsPerPage', 25);
 
         $query = MailMessage::query()
@@ -42,6 +52,7 @@ class MailMessageController extends Controller
                 'cc',
                 'preview',
                 'has_attachments',
+                'is_seen',
                 'body_loaded_at',
                 'created_at',
                 'updated_at',

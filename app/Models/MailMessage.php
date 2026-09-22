@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class MailMessage extends Model
 {
@@ -32,6 +33,7 @@ class MailMessage extends Model
         'text',
         'body_loaded_at',
         'has_attachments',
+        'is_seen',
         'raw_headers',
     ];
 
@@ -41,6 +43,7 @@ class MailMessage extends Model
         'to' => 'array',
         'cc' => 'array',
         'has_attachments' => 'boolean',
+        'is_seen' => 'boolean',
     ];
 
     public function emails(): BelongsToMany
@@ -109,6 +112,17 @@ class MailMessage extends Model
     public function scopeFilter(Builder $query, array $filters = []): Builder
     {
         $today = filter_var($filters['today'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $dateFrom = ! empty($filters['date_from'])
+            ? Carbon::createFromFormat('!Y-m-d', $filters['date_from'])
+            : null;
+        $dateTo = ! empty($filters['date_to'])
+            ? Carbon::createFromFormat('!Y-m-d', $filters['date_to'])->addDay()
+            : null;
+
+        if ($today && ! $dateFrom && ! $dateTo) {
+            $dateFrom = now()->startOfDay();
+            $dateTo = $dateFrom->copy()->addDay();
+        }
 
         return $query
             ->when(! empty($filters['direction']), function (Builder $q) use ($filters) {
@@ -117,11 +131,11 @@ class MailMessage extends Model
             ->when(! empty($filters['folder']), function (Builder $q) use ($filters) {
                 $q->where('folder', $filters['folder']);
             })
-            ->when($today, function (Builder $q) {
-                $q->whereBetween('message_date', [
-                    now()->startOfDay(),
-                    now()->endOfDay(),
-                ]);
+            ->when($dateFrom, function (Builder $q) use ($dateFrom) {
+                $q->where('message_date', '>=', $dateFrom);
+            })
+            ->when($dateTo, function (Builder $q) use ($dateTo) {
+                $q->where('message_date', '<', $dateTo);
             })
             ->when(! empty($filters['subject_exact']), function (Builder $q) use ($filters) {
                 $q->where('subject', trim((string) $filters['subject_exact']));

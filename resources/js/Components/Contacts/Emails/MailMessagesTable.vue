@@ -13,6 +13,10 @@ const props = defineProps({
         default: 0,
     },
     loading: Boolean,
+    markingReadIds: {
+        type: Array,
+        default: () => [],
+    },
     options: {
         type: Object,
         required: true,
@@ -30,6 +34,7 @@ const props = defineProps({
 const emit = defineEmits([
     'update:options',
     'read',
+    'mark-read',
     'delete',
 ])
 
@@ -72,26 +77,26 @@ const headers = computed(() => [
         title: 'Дата',
         key: 'message_date',
         sortable: false,
-        width: '128px',
+        width: '120px',
     },
     {
         title: 'Ящик',
         key: 'mailbox',
         sortable: false,
-        width: '155px',
+        width: '150px',
     },
     {
         title: 'Связи',
         key: 'relations',
         sortable: false,
         align: 'center',
-        width: '155px',
+        width: '142px',
     },
     {
         title: 'От / Кому',
         key: 'contact',
         sortable: false,
-        width: '230px',
+        width: '210px',
     },
     {
         title: 'Тема',
@@ -103,7 +108,7 @@ const headers = computed(() => [
         key: 'actions',
         sortable: false,
         align: 'end',
-        width: '80px',
+        width: '100px',
     },
 ])
 
@@ -127,7 +132,9 @@ const itemsPerPageOptions = [
 ]
 
 function formatDate(value) {
-    if (!value) {
+    const date = value ? new Date(value) : null
+
+    if (!date || Number.isNaN(date.getTime())) {
         return '—'
     }
 
@@ -137,7 +144,7 @@ function formatDate(value) {
         year: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
-    }).format(new Date(value))
+    }).format(date)
 }
 
 function recipients(item) {
@@ -185,6 +192,55 @@ function entityUnits(entity, item) {
 
 function relationLabel(item, fallback) {
     return item?.name || `${fallback} #${item?.id}`
+}
+
+function relations(item) {
+    const units = relatedUnits(item).map((unit) => ({
+        key: `unit-${unit.id}`,
+        label: relationLabel(unit, 'Unit'),
+        title: relationLabel(unit, 'Unit'),
+        href: unitHref(unit),
+        kind: 'unit',
+        icon: 'mdi-factory',
+    }))
+    const entities = relatedEntities(item).flatMap((entity) => [
+        {
+            key: `entity-${entity.id}`,
+            label: relationLabel(entity, 'Entity'),
+            title: relationLabel(entity, 'Entity'),
+            href: entityHref(entity),
+            kind: 'entity',
+            icon: 'mdi-domain',
+        },
+        ...entityUnits(entity, item).map((unit) => ({
+            key: `entity-${entity.id}-unit-${unit.id}`,
+            label: relationLabel(unit, 'Unit'),
+            title: `${relationLabel(entity, 'Entity')} → ${relationLabel(unit, 'Unit')}`,
+            href: unitHref(unit),
+            kind: 'unit',
+            icon: 'mdi-factory',
+        })),
+    ])
+
+    return [...units, ...entities]
+}
+
+function markingRead(item) {
+    return props.markingReadIds.some((id) => String(id) === String(item.id))
+}
+
+function readStatusTitle(item) {
+    if (item.is_seen === true) {
+        return 'Прочитано на почтовом сервере'
+    }
+
+    if (!item.imap_uid) {
+        return 'Отметка на сервере недоступна: письмо ещё не связано с IMAP'
+    }
+
+    return item.is_seen == null
+        ? 'Статус на сервере ещё неизвестен. Отметить прочитанным'
+        : 'Отметить прочитанным на почтовом сервере'
 }
 
 function unitHref(unit) {
@@ -354,6 +410,7 @@ function rowProps({ item }) {
             'mail-message-row',
             `mail-message-row--${folderKind(item?.folder)}`,
             hasAttachments(item) ? 'mail-message-row--with-attachments' : 'mail-message-row--text-only',
+            item?.is_seen === false ? 'mail-message-row--unread' : '',
         ].join(' '),
     }
 }
@@ -369,6 +426,7 @@ function rowProps({ item }) {
         :items-per-page="options.itemsPerPage"
         :items-per-page-options="itemsPerPageOptions"
         :height="height"
+        :style="{ height: typeof height === 'number' ? `${height}px` : height }"
         :row-props="rowProps"
         item-value="id"
         density="compact"
@@ -397,7 +455,7 @@ function rowProps({ item }) {
         </template>
 
         <template #item.message_date="{ item }">
-            <span class="text-[11px] font-mono">
+            <span class="mail-date text-[10px] font-mono">
                 {{ formatDate(item.message_date) }}
             </span>
         </template>
@@ -406,21 +464,22 @@ function rowProps({ item }) {
             <span
                 class="mailbox-pill"
                 :style="mailboxStyle(mailboxAddress(item))"
-                :title="mailboxTitle(item)"
+                :title="`${mailboxTitle(item)} · ${mailboxLabel(item) || '—'}`"
             >
                 {{ mailboxLabel(item) || '—' }}
             </span>
         </template>
 
         <template #item.contact="{ item }">
-            <div v-if="item.direction === 'incoming'">
-                <div class="text-purple-lighten-3 text-xs">
+            <div v-if="item.direction === 'incoming'" class="mail-contact">
+                <div class="mail-contact-line text-purple-lighten-3" :title="item.from_address">
                     {{ item.from_address || '—' }}
                 </div>
 
                 <div
                     v-if="item.from_name"
-                    class="text-[10px] text-grey"
+                    class="mail-contact-line text-[10px] text-grey"
+                    :title="item.from_name"
                 >
                     {{ item.from_name }}
                 </div>
@@ -428,11 +487,13 @@ function rowProps({ item }) {
 
             <div
                 v-else
-                class="text-[10px] text-grey-lighten-1"
+                class="mail-contact text-[10px] text-grey-lighten-1"
             >
                 <div
                     v-for="line in recipients(item)"
                     :key="line"
+                    class="mail-contact-line"
+                    :title="line"
                 >
                     {{ line }}
                 </div>
@@ -472,6 +533,7 @@ function rowProps({ item }) {
                 <div
                     v-if="item.preview"
                     class="mail-subject-preview line-clamp-1"
+                    :title="item.preview"
                 >
                     {{ item.preview }}
                 </div>
@@ -481,78 +543,89 @@ function rowProps({ item }) {
         <template #item.relations="{ item }">
             <div class="mail-relations">
                 <div
-                    v-if="relatedUnits(item).length || relatedEntities(item).length"
+                    v-if="relations(item).length"
                     class="mail-relations__links"
                 >
                     <Link
-                        v-for="unit in relatedUnits(item)"
-                        :key="`unit-${unit.id}`"
-                        :href="unitHref(unit)"
-                        class="mail-relation-link mail-relation-link--unit"
-                        :title="relationLabel(unit, 'Unit')"
+                        v-for="relation in relations(item).slice(0, 2)"
+                        :key="relation.key"
+                        :href="relation.href"
+                        class="mail-relation-link"
+                        :class="`mail-relation-link--${relation.kind}`"
+                        :title="relation.title"
                         @click.stop
                     >
-                        <v-icon icon="mdi-factory" size="10" />
-                        <span>{{ relationLabel(unit, 'Unit') }}</span>
+                        <v-icon :icon="relation.icon" size="10" />
+                        <span>{{ relation.label }}</span>
                     </Link>
-
-                    <div
-                        v-for="entity in relatedEntities(item)"
-                        :key="`entity-${entity.id}`"
-                        class="mail-relation-entity-group"
-                    >
-                        <Link
-                            :href="entityHref(entity)"
-                            class="mail-relation-link mail-relation-link--entity"
-                            :title="relationLabel(entity, 'Entity')"
-                            @click.stop
-                        >
-                            <v-icon icon="mdi-domain" size="10" />
-                            <span>{{ relationLabel(entity, 'Entity') }}</span>
-                        </Link>
-
-                        <div
-                            v-for="unit in entityUnits(entity, item)"
-                            :key="`entity-${entity.id}-unit-${unit.id}`"
-                            class="mail-relation-entity-unit-row"
-                        >
-                            <span
-                                class="mail-relation-entity-arrow"
-                                aria-hidden="true"
-                            >↳</span>
-
-                            <Link
-                                :href="unitHref(unit)"
-                                class="mail-relation-link mail-relation-link--unit mail-relation-link--entity-unit"
-                                :title="relationLabel(unit, 'Unit')"
-                                @click.stop
-                            >
-                                <v-icon icon="mdi-factory" size="10" />
-                                <span>{{ relationLabel(unit, 'Unit') }}</span>
-                            </Link>
-                        </div>
-                    </div>
                 </div>
 
                 <span v-else class="mail-relations__empty">—</span>
+
+                <v-menu v-if="relations(item).length > 2" location="bottom">
+                    <template #activator="{ props: menuProps }">
+                        <v-btn
+                            v-bind="menuProps"
+                            class="mail-relations-more"
+                            size="x-small"
+                            variant="text"
+                            :title="`Все связи: ${relations(item).length}`"
+                            :aria-label="`Показать все связи: ${relations(item).length}`"
+                            @click.stop
+                        >
+                            +{{ relations(item).length - 2 }}
+                        </v-btn>
+                    </template>
+                    <div class="mail-relations-menu">
+                        <Link
+                            v-for="relation in relations(item)"
+                            :key="relation.key"
+                            :href="relation.href"
+                            class="mail-relation-link"
+                            :class="`mail-relation-link--${relation.kind}`"
+                            :title="relation.title"
+                            @click.stop
+                        >
+                            <v-icon :icon="relation.icon" size="12" />
+                            <span>{{ relation.title }}</span>
+                        </Link>
+                    </div>
+                </v-menu>
             </div>
         </template>
 
         <template #item.actions="{ item }">
-            <div class="d-flex justify-end ga-1">
+            <div class="mail-actions">
                 <v-btn
                     icon="mdi-email-open-outline"
                     size="x-small"
                     variant="text"
                     color="blue"
+                    title="Открыть письмо"
+                    aria-label="Открыть письмо"
                     @click.stop="emit('read', item)"
                 />
+
+                <span :title="readStatusTitle(item)" @click.stop>
+                    <v-btn
+                        :icon="item.is_seen === true ? 'mdi-email-check' : 'mdi-email-check-outline'"
+                        size="x-small"
+                        variant="text"
+                        :color="item.is_seen === true ? 'teal-lighten-3' : 'blue-grey-lighten-2'"
+                        :loading="markingRead(item)"
+                        :disabled="item.is_seen === true || !item.imap_uid"
+                        :aria-label="readStatusTitle(item)"
+                        @click.stop="emit('mark-read', item)"
+                    />
+                </span>
 
                 <v-btn
                     icon="mdi-delete-outline"
                     size="x-small"
                     variant="text"
                     color="red-lighten-2"
+                    title="Удалить письмо из базы"
+                    aria-label="Удалить письмо из базы"
                     @click.stop="emit('delete', item)"
                 />
             </div>
@@ -571,9 +644,18 @@ function rowProps({ item }) {
 .mail-relations {
     align-items: center;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 3px;
     justify-content: center;
+}
+
+.mail-messages-table {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    --v-table-header-height: 30px;
+    --v-table-row-height: 42px;
 }
 
 .mail-messages-table :deep(.v-data-table__tr:hover) {
@@ -581,28 +663,92 @@ function rowProps({ item }) {
 }
 
 .mail-messages-table :deep(.v-table__wrapper) {
-    overflow-x: auto;
+    flex: 1 1 auto;
+    height: auto !important;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
 }
 
 .mail-messages-table :deep(table) {
-    min-width: 1060px;
+    min-width: 1040px;
     table-layout: fixed;
 }
 
 .mail-messages-table :deep(th) {
-    font-size: 11px;
-    height: 34px;
+    font-size: 10px;
+    height: 30px;
     padding: 0 8px !important;
     white-space: nowrap;
 }
 
 .mail-messages-table :deep(th),
 .mail-messages-table :deep(td) {
-    vertical-align: top;
+    vertical-align: middle;
 }
 
 .mail-messages-table :deep(td) {
-    padding: 4px 8px !important;
+    height: 42px;
+    padding: 3px 7px !important;
+}
+
+.mail-messages-table :deep(.v-data-table-footer) {
+    flex: 0 0 auto;
+    gap: 4px;
+    min-height: 40px;
+    padding: 2px 6px;
+    border-top: 1px solid rgba(96, 165, 250, 0.15);
+    font-size: 11px;
+}
+
+.mail-messages-table :deep(.v-data-table-footer__items-per-page) {
+    gap: 6px;
+}
+
+.mail-messages-table :deep(.v-data-table-footer__items-per-page .v-field) {
+    --v-input-control-height: 30px;
+    --v-field-padding-top: 2px;
+    --v-field-padding-bottom: 2px;
+    font-size: 11px;
+}
+
+.mail-messages-table :deep(.v-data-table-footer__pagination .v-btn) {
+    width: 28px;
+    height: 28px;
+}
+
+.mail-messages-table :deep(.mail-message-row--unread .mail-subject-title) {
+    color: #eff6ff;
+    font-weight: 700;
+}
+
+.mail-date {
+    white-space: nowrap;
+}
+
+.mail-contact {
+    font-size: 11px;
+    line-height: 1.35;
+    min-width: 0;
+}
+
+.mail-contact-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1px;
+}
+
+.mail-actions :deep(.v-btn) {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
 }
 
 .mail-messages-table :deep(.mail-message-row--with-attachments) {
@@ -645,7 +791,8 @@ function rowProps({ item }) {
 
 .mail-subject-title {
     color: #dbeafe;
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1.3;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -658,17 +805,16 @@ function rowProps({ item }) {
 
 .mail-subject-preview {
     color: #94a3b8;
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1.2;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 
 .mailbox-pill {
-    display: inline-flex;
-    align-items: center;
+    display: block;
     max-width: 100%;
     min-width: 0;
-    padding: 3px 9px;
+    padding: 2px 7px;
     border: 1px solid var(--mailbox-border);
     border-radius: 999px;
     background: var(--mailbox-bg);
@@ -691,6 +837,10 @@ function rowProps({ item }) {
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .folder-badge--inbox {
@@ -710,35 +860,40 @@ function rowProps({ item }) {
 
 .mail-relations__links {
     display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
     justify-content: center;
-    width: 100%;
+    min-width: 0;
 }
 
-.mail-relation-entity-group {
-    align-items: center;
+.mail-relations-more {
+    flex: 0 0 auto;
+    min-width: 20px;
+    padding: 0 2px;
+    height: 20px;
+    font-size: 9px;
+    color: #93c5fd;
+}
+
+.mail-relations-menu {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    max-width: 150px;
+    gap: 5px;
+    min-width: 180px;
+    max-width: 360px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    border-radius: 8px;
+    background: #0f172a;
 }
 
-.mail-relation-entity-unit-row {
-    align-items: center;
-    display: flex;
-    gap: 2px;
-    max-width: 150px;
-}
-
-.mail-relation-entity-arrow {
-    color: rgba(147, 197, 253, 0.78);
-    flex: 0 0 auto;
-    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
-    font-size: 8px;
-    font-weight: 900;
-    line-height: 1;
-    margin-top: -2px;
+.mail-relations-menu .mail-relation-link {
+    max-width: 100%;
+    padding: 5px 7px;
+    font-size: 11px;
 }
 
 .mail-relations__empty {
@@ -754,7 +909,8 @@ function rowProps({ item }) {
     gap: 3px;
     font-size: 9px;
     line-height: 1.1;
-    max-width: 138px;
+    max-width: 100%;
+    min-width: 0;
     overflow: hidden;
     padding: 1px 5px;
     text-overflow: ellipsis;
@@ -769,11 +925,6 @@ function rowProps({ item }) {
 .mail-relation-link--unit {
     background: rgba(59, 130, 246, 0.12);
     color: #93c5fd;
-}
-
-.mail-relation-link--entity-unit {
-    border-color: rgba(96, 165, 250, 0.36);
-    max-width: 128px;
 }
 
 .mail-relation-link--entity {

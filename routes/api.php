@@ -114,7 +114,6 @@ use App\Http\Controllers\API\SaleController;
 use App\Http\Controllers\API\SegmentController;
 use App\Http\Controllers\API\SendingController;
 use App\Http\Controllers\API\ServiceController;
-use App\Http\Controllers\API\StageController;
 use App\Http\Controllers\API\StockMovementController;
 use App\Http\Controllers\API\SupplierPipelineCardController;
 use App\Http\Controllers\API\SupplierPipelineController;
@@ -428,6 +427,9 @@ Route::get('mail-messages', [MailMessageController::class, 'index'])
 
 Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show'])
     ->name('mail-messages.show');
+Route::post('mail-messages/{mailMessage}/mark-read', [MailMessageActionController::class, 'markRead'])
+    ->middleware(['auth:sanctum', 'verified'])
+    ->name('mail-messages.mark-read');
 Route::delete('mail-messages/{mailMessage}', [MailMessageController::class, 'destroy'])
     ->name('mail-messages.destroy');
 Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
@@ -823,7 +825,6 @@ Route::apiResource('sales', SaleController::class)
     ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
 Route::apiResource('segments', SegmentController::class);
 Route::apiResource('sendings', SendingController::class);
-Route::apiResource('stages', StageController::class);
 Route::apiResource('uris', UriController::class);
 Route::get('/vat-rates', [GoodController::class, 'vatRates'])->name('api.vat-rates');
 Route::apiResource('yandex-requests', YandexRequestController::class);

@@ -24,6 +24,27 @@ use Throwable;
 
 class MailMessageActionController extends Controller
 {
+    public function markRead(MailMessage $mailMessage, YandexMailboxService $service): JsonResponse
+    {
+        if (! $mailMessage->imap_uid) {
+            return response()->json([
+                'message' => 'У письма нет идентификатора на почтовом сервере.',
+            ], 422);
+        }
+
+        try {
+            $mailMessage = $service->markRead($mailMessage);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'Не удалось отметить письмо прочитанным на почтовом сервере. Повторите попытку.',
+            ], 502);
+        }
+
+        return response()->json($mailMessage->only(['id', 'is_seen']));
+    }
+
     public function send(
         SendMailMessageRequest $request,
         AuthorizedMailDispatchService $dispatch,
