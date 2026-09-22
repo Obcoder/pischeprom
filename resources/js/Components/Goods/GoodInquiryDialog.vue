@@ -238,12 +238,13 @@ async function submit() {
         :model-value="modelValue"
         :persistent="saving"
         max-width="960"
+        content-class="good-inquiry-overlay"
         aria-labelledby="good-inquiry-title"
         aria-describedby="good-inquiry-description"
         @update:model-value="value => !value && close()"
     >
         <section class="good-inquiry" :aria-busy="saving">
-            <button class="inquiry-close" type="button" aria-label="Закрыть форму" :disabled="saving" @click="close">
+            <button v-if="result" class="inquiry-close" type="button" aria-label="Закрыть форму" :disabled="saving" @click="close">
                 <v-icon icon="mdi-close" size="22" />
             </button>
 
@@ -270,12 +271,34 @@ async function submit() {
 
             <template v-else>
                 <header class="inquiry-header">
+                    <button class="inquiry-close" type="button" aria-label="Закрыть форму" :disabled="saving" @click="close">
+                        <v-icon icon="mdi-close" size="22" />
+                    </button>
                     <p class="inquiry-eyebrow">{{ variant.eyebrow }}</p>
                     <h2 id="good-inquiry-title">{{ variant.title }}</h2>
                     <p id="good-inquiry-description">{{ variant.description }}</p>
                 </header>
 
                 <div class="inquiry-layout">
+                    <details :key="`${activeGood.id}-${activeKind}`" class="inquiry-mobile-summary">
+                        <summary>
+                            <img v-if="activeGood.ava_thumb || activeGood.ava_image" :src="activeGood.ava_thumb || activeGood.ava_image" alt="" />
+                            <span class="mobile-summary-product"><strong>{{ activeGood.name }}</strong><small>Товар и расчёт <span aria-hidden="true">·</span> {{ validQuantity ? `${number(validQuantity)} уп.` : 'Укажите количество' }}</small></span>
+                            <v-icon class="mobile-summary-chevron" icon="mdi-chevron-down" size="22" />
+                        </summary>
+                        <div class="mobile-summary-content">
+                            <dl class="summary-details">
+                                <div v-if="packageWeight"><dt>В упаковке</dt><dd>{{ number(packageWeight) }} кг</dd></div>
+                                <div v-if="publishedPrice"><dt>Цена на сайте</dt><dd>{{ money(publishedPrice) }} / {{ priceUnit }}</dd></div>
+                                <div v-if="totalWeight"><dt>Общий вес</dt><dd>{{ number(totalWeight) }} кг</dd></div>
+                            </dl>
+                            <div class="summary-total">
+                                <span>{{ isBargain ? 'По вашей цене' : 'Предварительная сумма' }}</span>
+                                <strong>{{ total !== null ? money(total) : isBargain ? 'Предложите цену' : 'Уточним в ответе' }}</strong>
+                                <p>{{ isBargain ? 'Менеджер рассмотрит предложение. Все условия согласуем с вами.' : 'Без доставки. Стоимость и наличие подтвердит менеджер.' }}</p>
+                            </div>
+                        </div>
+                    </details>
                     <aside class="inquiry-summary" aria-label="Товар и предварительный расчёт">
                         <div class="summary-product">
                             <img v-if="activeGood.ava_thumb || activeGood.ava_image" :src="activeGood.ava_thumb || activeGood.ava_image" :alt="activeGood.name" class="summary-image" />
@@ -404,12 +427,18 @@ async function submit() {
                             <small v-if="fieldError('consent')" class="field-error">{{ fieldError('consent') }}</small>
                         </fieldset>
 
-                        <button type="submit" class="inquiry-button inquiry-button--primary inquiry-submit" :disabled="saving">
-                            <v-progress-circular v-if="saving" indeterminate size="20" width="2" />
-                            {{ saving ? 'Отправляем…' : uncertain ? 'Проверить и повторить' : variant.action }}
-                            <v-icon v-if="!saving" icon="mdi-arrow-right" size="20" />
-                        </button>
-                        <p class="submit-note">{{ isOrder ? 'Без онлайн-оплаты. Сначала подтвердим все детали.' : 'Заявку получит команда ПИЩЕПРОМ-СЕРВЕР. Без подписки на рассылку.' }}</p>
+                        <div class="inquiry-submit-area">
+                            <div class="mobile-submit-total" aria-live="polite" aria-atomic="true">
+                                <span>{{ isBargain ? 'Ваше предложение' : 'Предварительная сумма' }}<small>{{ validQuantity ? `${number(validQuantity)} уп.` : 'Укажите количество' }}{{ totalWeight ? ` · ${number(totalWeight)} кг` : '' }}</small></span>
+                                <strong>{{ total !== null ? money(total) : 'Уточним' }}</strong>
+                            </div>
+                            <button type="submit" class="inquiry-button inquiry-button--primary inquiry-submit" :disabled="saving">
+                                <v-progress-circular v-if="saving" indeterminate size="20" width="2" />
+                                {{ saving ? 'Отправляем…' : uncertain ? 'Проверить и повторить' : variant.action }}
+                                <v-icon v-if="!saving" icon="mdi-arrow-right" size="20" />
+                            </button>
+                            <p class="submit-note">{{ isOrder ? 'Без онлайн-оплаты. Сначала подтвердим все детали.' : 'Заявку получит команда ПИЩЕПРОМ-СЕРВЕР. Без подписки на рассылку.' }}</p>
+                        </div>
                     </form>
                 </div>
             </template>
@@ -418,54 +447,55 @@ async function submit() {
 </template>
 
 <style scoped>
-.good-inquiry { --inquiry-green: #164c3c; --inquiry-ink: #24372f; --inquiry-muted: #69766d; position: relative; max-height: min(94dvh, 1100px); overflow-y: auto; background: #fffefa; color: var(--inquiry-ink); border-radius: 24px; box-shadow: 0 28px 100px #132e2630; font-family: inherit; }
+.good-inquiry { --inquiry-brand: #800000; --inquiry-ink: #381f24; --inquiry-muted: #78656a; position: relative; max-height: min(94dvh, 1100px); overflow-y: auto; background: #fffaf8; color: var(--inquiry-ink); border-radius: 24px; box-shadow: 0 28px 100px #50000030; font-family: inherit; }
 .good-inquiry *, .good-inquiry *::before, .good-inquiry *::after { box-sizing: border-box; }
-.inquiry-close { position: absolute; top: 20px; right: 20px; z-index: 2; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #e1e5dd; border-radius: 50%; background: #fffefa; color: var(--inquiry-ink); }
-.inquiry-close:hover { background: #eef1e8; }
-.inquiry-header { padding: 38px 72px 28px 36px; border-bottom: 1px solid #e5e8df; }
-.inquiry-eyebrow { margin: 0 0 10px; color: #5c7261; font-size: 11px; line-height: 1.5; font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
-.inquiry-header h2, .inquiry-success h2 { margin: 0; font-size: clamp(25px, 4vw, 34px); line-height: 1.15; font-weight: 750; letter-spacing: -.035em; color: var(--inquiry-green); }
+.inquiry-close { position: absolute; top: 20px; right: 20px; z-index: 2; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #eadcde; border-radius: 50%; background: #fffaf8; color: var(--inquiry-ink); }
+.inquiry-close:hover { background: #f8e9e9; }
+.inquiry-header { position: relative; padding: 38px 72px 28px 36px; border-bottom: 1px solid #eadcde; }
+.inquiry-eyebrow { margin: 0 0 10px; color: #8b555c; font-size: 11px; line-height: 1.5; font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+.inquiry-header h2, .inquiry-success h2 { margin: 0; font-size: clamp(25px, 4vw, 34px); line-height: 1.15; font-weight: 750; letter-spacing: -.035em; color: var(--inquiry-brand); }
 .inquiry-header > p:last-child { margin: 12px 0 0; max-width: 630px; color: var(--inquiry-muted); font-size: 14px; line-height: 1.6; }
+.inquiry-mobile-summary, .mobile-submit-total { display: none; }
 .inquiry-layout { display: grid; grid-template-columns: 255px minmax(0, 1fr); }
-.inquiry-summary { padding: 30px 24px; background: #f3f4eb; border-right: 1px solid #e5e8df; }
+.inquiry-summary { padding: 30px 24px; background: #fbefed; border-right: 1px solid #eadcde; }
 .summary-image { width: 96px; height: 96px; object-fit: contain; display: block; border-radius: 14px; background: white; margin-bottom: 18px; }
 .summary-caption { color: var(--inquiry-muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .summary-product h3 { margin: 9px 0 0; font-size: 17px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 .summary-weight { margin-top: 10px; color: var(--inquiry-muted); font-size: 12px; }
-.summary-details { display: grid; gap: 13px; padding: 24px 0; margin: 20px 0 0; border-top: 1px solid #dbe0d4; }
+.summary-details { display: grid; gap: 13px; padding: 24px 0; margin: 20px 0 0; border-top: 1px solid #ead7d8; }
 .summary-details > div { display: flex; flex-wrap: wrap; gap: 5px 10px; justify-content: space-between; font-size: 12px; }
 .summary-details dt { color: var(--inquiry-muted); }
 .summary-details dd { font-weight: 650; margin: 0; }
-.summary-total { padding-top: 20px; border-top: 1px solid #dbe0d4; }
+.summary-total { padding-top: 20px; border-top: 1px solid #ead7d8; }
 .summary-total > span { font-size: 12px; color: var(--inquiry-muted); }
-.summary-total strong { display: block; margin-top: 7px; font-size: 23px; line-height: 1.25; letter-spacing: -.035em; color: var(--inquiry-green); overflow-wrap: anywhere; }
+.summary-total strong { display: block; margin-top: 7px; font-size: 23px; line-height: 1.25; letter-spacing: -.035em; color: var(--inquiry-brand); overflow-wrap: anywhere; }
 .summary-total p { margin-top: 10px; font-size: 11px; line-height: 1.6; color: var(--inquiry-muted); }
-.summary-process { display: flex; align-items: flex-start; gap: 10px; margin-top: 35px; color: #5c7261; }
+.summary-process { display: flex; align-items: flex-start; gap: 10px; margin-top: 35px; color: #8b555c; }
 .summary-process p { margin: 0; max-width: 155px; font-size: 11px; line-height: 1.7; }
 .inquiry-form { padding: 30px 32px 28px; min-width: 0; }
 .inquiry-fields { display: grid; gap: 19px; min-width: 0; padding: 0; border: 0; margin: 0; }
 .inquiry-fields:disabled { opacity: .65; }
 .form-section-title { display: flex; align-items: center; gap: 9px; margin: 2px 0 0; }
-.form-section-title > span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; background: #eff2e9; color: #56705d; font-size: 10px; font-weight: 700; }
+.form-section-title > span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; background: #fae8e8; color: #800000; font-size: 10px; font-weight: 700; }
 .form-section-title h3 { margin: 0; font-size: 15px; font-weight: 700; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 14px; }
 .inquiry-field { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
 .inquiry-field > label { font-size: 12px; font-weight: 650; line-height: 1.5; }
-.inquiry-field label > span { color: #9d5f2e; }
-.inquiry-field input, .inquiry-field textarea { width: 100%; min-width: 0; padding: 12px 13px; border: 1px solid #dce2d7; border-radius: 10px; background: #fff; color: var(--inquiry-ink); font-family: inherit; font-size: 14px; line-height: 1.45; outline: 0; box-shadow: none; transition: border-color .15s, box-shadow .15s; }
+.inquiry-field label > span { color: #800000; }
+.inquiry-field input, .inquiry-field textarea { width: 100%; min-width: 0; padding: 12px 13px; border: 1px solid #e6d5d8; border-radius: 10px; background: #fff; color: var(--inquiry-ink); font-family: inherit; font-size: 14px; line-height: 1.45; outline: 0; box-shadow: none; transition: border-color .15s, box-shadow .15s; }
 .inquiry-field input { min-height: 46px; }
 .inquiry-field textarea { resize: vertical; min-height: 86px; max-height: 240px; }
-.inquiry-field input::placeholder, .inquiry-field textarea::placeholder { color: #8b938b; font-size: 12px; opacity: 1; }
-.inquiry-field input:focus, .inquiry-field textarea:focus { border-color: var(--inquiry-green); box-shadow: 0 0 0 3px #164c3c14; }
+.inquiry-field input::placeholder, .inquiry-field textarea::placeholder { color: #927f84; font-size: 12px; opacity: 1; }
+.inquiry-field input:focus, .inquiry-field textarea:focus { border-color: var(--inquiry-brand); box-shadow: 0 0 0 3px #80000014; }
 .inquiry-field input[aria-invalid="true"], .inquiry-field textarea[aria-invalid="true"] { border-color: #b84535; }
-.quantity-input { display: flex; align-items: center; min-height: 46px; overflow: hidden; border: 1px solid #dce2d7; border-radius: 10px; background: #fff; }
-.quantity-input:focus-within { border-color: var(--inquiry-green); box-shadow: 0 0 0 3px #164c3c14; }
+.quantity-input { display: flex; align-items: center; min-height: 46px; overflow: hidden; border: 1px solid #e6d5d8; border-radius: 10px; background: #fff; }
+.quantity-input:focus-within { border-color: var(--inquiry-brand); box-shadow: 0 0 0 3px #80000014; }
 .quantity-input input { padding-inline: 0; text-align: center; -moz-appearance: textfield; border: 0; border-radius: 0; }
 .quantity-input input:focus { box-shadow: none; }
 .quantity-input input::-webkit-inner-spin-button, .quantity-input input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.quantity-input button { flex: 0 0 42px; height: 44px; color: var(--inquiry-green); background: #fff; font-size: 22px; }
-.quantity-input button:hover { background: #eff2e9; }
-.quantity-input button:disabled { color: #bfc8be; }
+.quantity-input button { flex: 0 0 42px; height: 44px; color: var(--inquiry-brand); background: #fff; font-size: 22px; }
+.quantity-input button:hover { background: #fae8e8; }
+.quantity-input button:disabled { color: #cbb7bb; }
 .price-input { position: relative; }
 .price-input input { padding-right: 30px; }
 .price-input > span { position: absolute; right: 12px; top: 12px; color: var(--inquiry-muted); font-size: 14px; pointer-events: none; }
@@ -474,27 +504,27 @@ async function submit() {
 .field-error { color: #aa3c2c; }
 .required-note { margin: -10px 0 -4px; color: var(--inquiry-muted); font-size: 11px; }
 .scenario-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-.scenario-option { display: flex; position: relative; align-items: flex-start; gap: 8px; padding: 12px 10px; border: 1px solid #dce2d7; border-radius: 11px; color: #647466; cursor: pointer; background: #fff; }
-.scenario-option.is-selected { color: var(--inquiry-green); border-color: var(--inquiry-green); background: #eef3e9; box-shadow: inset 0 0 0 .5px var(--inquiry-green); }
+.scenario-option { display: flex; position: relative; align-items: flex-start; gap: 8px; padding: 12px 10px; border: 1px solid #e6d5d8; border-radius: 11px; color: #7e646a; cursor: pointer; background: #fff; }
+.scenario-option.is-selected { color: var(--inquiry-brand); border-color: var(--inquiry-brand); background: #fff0ef; box-shadow: inset 0 0 0 .5px var(--inquiry-brand); }
 .scenario-option strong { display: block; font-size: 11px; line-height: 1.45; font-weight: 750; }
 .scenario-option small { display: block; margin-top: 3px; color: var(--inquiry-muted); font-size: 10px; line-height: 1.4; }
 .scenario-option input, .contact-options input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.scenario-option:focus-within, .contact-options label:focus-within { outline: 2px solid var(--inquiry-green); outline-offset: 3px; }
-.scenario-advice { padding: 11px 13px; margin: -7px 0 0; background: #fff3e5; border-left: 2px solid #e9a35d; border-radius: 0 8px 8px 0; font-size: 12px; line-height: 1.6; color: #795a39; }
+.scenario-option:focus-within, .contact-options label:focus-within { outline: 2px solid var(--inquiry-brand); outline-offset: 3px; }
+.scenario-advice { padding: 11px 13px; margin: -7px 0 0; background: #fcf0eb; border-left: 2px solid #b76568; border-radius: 0 8px 8px 0; font-size: 12px; line-height: 1.6; color: #865057; }
 .contact-preference { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .contact-preference > span { font-size: 12px; }
 .contact-options { display: flex; gap: 7px; }
-.contact-options label { position: relative; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid #dce2d7; border-radius: 8px; font-size: 11px; cursor: pointer; }
-.contact-options label.is-selected { color: var(--inquiry-green); border-color: var(--inquiry-green); background: #eef3e9; }
+.contact-options label { position: relative; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid #e6d5d8; border-radius: 8px; font-size: 11px; cursor: pointer; }
+.contact-options label.is-selected { color: var(--inquiry-brand); border-color: var(--inquiry-brand); background: #fff0ef; }
 .inquiry-consent { display: flex; gap: 10px; align-items: flex-start; color: var(--inquiry-muted); font-size: 11px; line-height: 1.6; cursor: pointer; }
-.inquiry-consent input { flex-shrink: 0; width: 17px; height: 17px; margin-top: 2px; border: 1px solid #9aab9d; border-radius: 4px; color: var(--inquiry-green); accent-color: var(--inquiry-green); }
-.inquiry-consent a { color: var(--inquiry-green); text-decoration: underline; text-underline-offset: 2px; }
+.inquiry-consent input { flex-shrink: 0; width: 17px; height: 17px; margin-top: 2px; border: 1px solid #b7979e; border-radius: 4px; color: var(--inquiry-brand); accent-color: var(--inquiry-brand); }
+.inquiry-consent a { color: var(--inquiry-brand); text-decoration: underline; text-underline-offset: 2px; }
 .inquiry-button { display: inline-flex; justify-content: center; align-items: center; gap: 10px; min-height: 48px; padding: 12px 20px; border-radius: 11px; text-decoration: none; font-size: 13px; line-height: 1.45; font-weight: 700; transition: background .15s; }
-.inquiry-button--primary { color: #fffefa; background: var(--inquiry-green); }
-.inquiry-button--primary:hover { background: #216047; }
+.inquiry-button--primary { color: #fffaf8; background: var(--inquiry-brand); }
+.inquiry-button--primary:hover { background: #a00000; }
 .inquiry-button--primary:disabled { opacity: .7; cursor: wait; }
-.inquiry-button--plain { color: var(--inquiry-green); background: transparent; }
-.inquiry-button--plain:hover { background: #eff2e9; }
+.inquiry-button--plain { color: var(--inquiry-brand); background: transparent; }
+.inquiry-button--plain:hover { background: #fae8e8; }
 .inquiry-submit { width: 100%; margin-top: 22px; }
 .submit-note { margin: 10px 0 0; text-align: center; color: var(--inquiry-muted); font-size: 10px; line-height: 1.6; }
 .inquiry-error { display: flex; align-items: flex-start; gap: 9px; padding: 13px; margin-bottom: 20px; border: 1px solid #ebc9bc; border-radius: 10px; color: #913d2d; background: #fff4ee; font-size: 12px; line-height: 1.6; }
@@ -503,45 +533,86 @@ async function submit() {
 .inquiry-error .v-icon { flex-shrink: 0; margin-top: 1px; }
 .inquiry-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .inquiry-success { display: flex; align-items: center; flex-direction: column; padding: 55px 34px 35px; text-align: center; }
-.success-mark { display: grid; place-items: center; width: 78px; height: 78px; margin-bottom: 25px; border-radius: 50%; background: #e9efde; color: var(--inquiry-green); box-shadow: 0 0 0 10px #f5f7ef; }
+.success-mark { display: grid; place-items: center; width: 78px; height: 78px; margin-bottom: 25px; border-radius: 50%; background: #f8e1e2; color: var(--inquiry-brand); box-shadow: 0 0 0 10px #fcf0ef; }
 .success-description { max-width: 530px; margin: 18px 0 0; font-size: 14px; line-height: 1.7; color: var(--inquiry-muted); overflow-wrap: anywhere; }
-.success-reference { display: grid; gap: 6px; min-width: min(100%, 290px); padding: 20px 24px; margin-top: 25px; border: 1px solid #dbe2d2; border-radius: 13px; background: #f3f4eb; }
+.success-reference { display: grid; gap: 6px; min-width: min(100%, 290px); padding: 20px 24px; margin-top: 25px; border: 1px solid #ead7d8; border-radius: 13px; background: #fbefed; }
 .success-reference span, .success-reference small { color: var(--inquiry-muted); font-size: 11px; }
-.success-reference strong { font-size: 23px; color: var(--inquiry-green); font-variant-numeric: tabular-nums; }
+.success-reference strong { font-size: 23px; color: var(--inquiry-brand); font-variant-numeric: tabular-nums; }
 .success-note { max-width: 480px; margin: 20px 0; font-size: 12px; line-height: 1.7; color: var(--inquiry-muted); }
 .success-max-hint { max-width: 380px; margin: 12px 0 3px; color: var(--inquiry-muted); font-size: 11px; line-height: 1.6; }
-.good-inquiry button:focus-visible, .good-inquiry a:focus-visible { outline: 2px solid #e9a35d; outline-offset: 3px; }
+.good-inquiry button:focus-visible, .good-inquiry a:focus-visible { outline: 2px solid #b76568; outline-offset: 3px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-@media (max-width: 700px) {
-    .good-inquiry { border-radius: 18px; max-height: 94dvh; }
-    .inquiry-header { padding: 20px 55px 17px 22px; }
-    .inquiry-close { top: 16px; right: 14px; width: 34px; height: 34px; }
-    .inquiry-header > p:last-child { margin-top: 9px; font-size: 12px; line-height: 1.5; }
-    .inquiry-eyebrow { margin-bottom: 7px; font-size: 10px; }
-    .inquiry-layout { grid-template-columns: 1fr; }
-    .inquiry-summary { padding: 15px 22px; border-right: 0; border-bottom: 1px solid #e5e8df; }
-    .summary-product { display: flex; align-items: center; gap: 11px; }
-    .summary-image { flex-shrink: 0; width: 48px; height: 48px; margin: 0; border-radius: 9px; }
-    .summary-caption { display: none; }
-    .summary-product h3 { margin: 0; font-size: 13px; line-height: 1.4; }
-    .summary-weight { margin-top: 3px; font-size: 10px; }
-    .summary-details { display: none; }
-    .summary-total { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; margin-top: 12px; padding-top: 11px; }
+@media (max-width: 767px) {
+    :global(.good-inquiry-overlay) { width: 100% !important; max-width: 100% !important; height: 100% !important; max-height: 100% !important; margin: 0 !important; }
+    .good-inquiry { height: 100dvh; max-height: 100dvh; border-radius: 0; overscroll-behavior-y: contain; scroll-padding-top: 150px; }
+    .inquiry-header { position: sticky; top: 0; z-index: 3; padding: calc(17px + env(safe-area-inset-top)) 68px 15px 20px; background: #fffaf8; box-shadow: 0 3px 12px #80000008; }
+    .inquiry-close { top: calc(14px + env(safe-area-inset-top)); right: 14px; width: 44px; height: 44px; }
+    .inquiry-header h2 { font-size: 25px; line-height: 1.15; letter-spacing: -.03em; }
+    .inquiry-header > p:last-child { margin-top: 8px; font-size: 12px; line-height: 1.5; }
+    .inquiry-eyebrow { display: none; }
+    .inquiry-layout { display: block; }
+    .inquiry-summary { display: none; }
+    .inquiry-mobile-summary { display: block; border-bottom: 1px solid #eadcde; background: #fbefed; }
+    .inquiry-mobile-summary > summary { display: flex; align-items: center; gap: 11px; min-height: 80px; padding: 14px 20px; cursor: pointer; list-style: none; }
+    .inquiry-mobile-summary > summary::-webkit-details-marker { display: none; }
+    .inquiry-mobile-summary > summary:focus-visible { outline: 2px solid var(--inquiry-brand); outline-offset: -4px; }
+    .inquiry-mobile-summary > summary img { flex: 0 0 46px; width: 46px; height: 46px; border-radius: 10px; object-fit: contain; background: white; }
+    .mobile-summary-product { min-width: 0; flex: 1; }
+    .mobile-summary-product strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 13px; line-height: 1.45; font-weight: 700; }
+    .mobile-summary-product small { display: block; margin-top: 4px; color: var(--inquiry-muted); font-size: 11px; }
+    .mobile-summary-chevron { flex-shrink: 0; color: var(--inquiry-brand); transition: transform .15s; }
+    .inquiry-mobile-summary[open] .mobile-summary-chevron { transform: rotate(180deg); }
+    .mobile-summary-content { padding: 0 20px 17px; }
+    .summary-details { gap: 10px; padding: 15px 0; margin: 0; }
+    .summary-total { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; padding-top: 13px; }
     .summary-total > span { font-size: 11px; }
-    .summary-total strong { margin: 0; font-size: 19px; }
-    .summary-total p { flex-basis: 100%; margin: 2px 0 0; font-size: 10px; line-height: 1.5; }
-    .summary-process { display: none; }
-    .inquiry-form { padding: 23px 22px; }
-    .inquiry-field input, .inquiry-field textarea { font-size: 16px; }
-    .inquiry-success { padding: 55px 22px 25px; }
+    .summary-total strong { margin: 0; font-size: 20px; }
+    .summary-total p { flex-basis: 100%; margin: 3px 0 0; font-size: 11px; line-height: 1.5; }
+    .inquiry-form { padding: 23px 20px 0; }
+    .inquiry-fields { gap: 20px; }
+    .form-section-title { gap: 10px; }
+    .form-section-title > span { width: 29px; height: 29px; }
+    .form-section-title h3 { font-size: 16px; }
+    .field-grid { grid-template-columns: 1fr; gap: 19px; }
+    .inquiry-field > label { font-size: 13px; }
+    .inquiry-field input, .inquiry-field textarea { font-size: 16px; scroll-margin-top: 150px; }
+    .inquiry-field input { min-height: 50px; }
+    .inquiry-field input::placeholder, .inquiry-field textarea::placeholder { font-size: 13px; }
+    .quantity-input { min-height: 50px; }
+    .quantity-input button { flex-basis: 52px; height: 50px; }
+    .quantity-input input { min-height: 50px; }
+    .price-input > span { top: 14px; }
+    .field-hint, .field-error { font-size: 12px; }
+    .scenario-option { gap: 8px; align-items: center; padding: 13px 10px; min-height: 68px; }
+    .scenario-option strong { font-size: 12px; }
+    .scenario-option small { font-size: 10px; }
+    .scenario-advice { margin-top: -8px; font-size: 12px; }
+    .contact-preference { display: grid; gap: 12px; }
+    .contact-preference > span { font-size: 13px; }
+    .contact-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .contact-options label { justify-content: center; min-height: 46px; font-size: 13px; }
+    .inquiry-consent { gap: 12px; font-size: 12px; }
+    .inquiry-consent input { width: 21px; height: 21px; }
+    .inquiry-submit-area { margin: 24px -20px 0; padding: 18px 20px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid #eadcde; background: #fbefed; }
+    .mobile-submit-total { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .mobile-submit-total > span { color: var(--inquiry-muted); font-size: 12px; line-height: 1.45; }
+    .mobile-submit-total small { display: block; margin-top: 3px; font-size: 11px; }
+    .mobile-submit-total strong { color: var(--inquiry-brand); text-align: right; font-size: 21px; line-height: 1.3; overflow-wrap: anywhere; }
+    .inquiry-submit { min-height: 54px; margin-top: 15px; font-size: 14px; }
+    .submit-note { margin-top: 11px; font-size: 11px; }
+    .inquiry-success { min-height: 100%; justify-content: center; padding: calc(78px + env(safe-area-inset-top)) 22px calc(30px + env(safe-area-inset-bottom)); }
+    .inquiry-success .inquiry-eyebrow { display: block; }
     .inquiry-success h2 { font-size: 28px; }
 }
-@media (max-width: 420px) {
-    .inquiry-header, .inquiry-form, .inquiry-summary { padding-left: 17px; padding-right: 17px; }
-    .inquiry-header { padding-right: 52px; }
-    .field-grid { grid-template-columns: 1fr; }
-    .scenario-option { gap: 6px; padding: 11px 8px; }
+@media (max-width: 360px) {
+    .inquiry-header { padding-left: 16px; padding-right: 65px; }
+    .inquiry-header h2 { font-size: 23px; }
+    .inquiry-form { padding-inline: 16px; }
+    .inquiry-mobile-summary > summary { padding-inline: 16px; }
+    .mobile-summary-content { padding-inline: 16px; }
+    .inquiry-submit-area { margin-inline: -16px; padding-inline: 16px; }
+    .scenario-option { padding-inline: 8px; }
     .scenario-option > .v-icon { display: none; }
-    .inquiry-field input, .inquiry-field textarea { font-size: 16px; }
+    .mobile-submit-total strong { font-size: 19px; }
 }
 </style>
