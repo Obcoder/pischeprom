@@ -7,6 +7,7 @@ use App\Models\AvitoApiCall;
 use App\Models\AvitoCapabilitySetting;
 use App\Models\AvitoConnection;
 use App\Models\AvitoWebhookEvent;
+use App\Models\User;
 use App\Services\Avito\AvitoPayloadRedactor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AvitoIntegrationTest extends TestCase
@@ -36,14 +38,23 @@ class AvitoIntegrationTest extends TestCase
             'avito.allowed_hosts' => ['api.avito.ru', 'pro.autoteka.ru'],
             'avito.mutations_enabled' => false,
             'avito.webhook_secret' => 'webhook-test-secret',
+            'realtime.enabled' => true,
+            'broadcasting.connections.reverb.key' => 'avito-test-public-key',
         ]);
     }
 
-    public function test_page_is_available_without_separate_auth_and_linked_from_header(): void
+    public function test_page_is_available_to_verified_employees_with_live_updates_and_linked_from_header(): void
     {
-        $this->get('/Ameise/avito')
+        $employee = User::factory()->create(['type' => 'employee', 'status' => 'active']);
+
+        $this->actingAs($employee, 'web')->get('/Ameise/avito')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('Ameise/Avito'));
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Ameise/Avito')
+                ->where('auth.user.id', $employee->id)
+                ->where('avitoRealtime.enabled', true)
+                ->where('avitoRealtime.key', 'avito-test-public-key')
+                ->where('avitoRealtime.channel', 'avito.updates'));
 
         $layout = (string) file_get_contents(resource_path('js/Layouts/VerwalterLayout.vue'));
         $page = (string) file_get_contents(resource_path('js/Pages/Ameise/Avito.vue'));
@@ -52,6 +63,76 @@ class AvitoIntegrationTest extends TestCase
         $this->assertStringContainsString('mdi-storefront-outline', $layout);
         $this->assertStringContainsString('class="excel-table"', $page);
         $this->assertStringNotContainsString('localStorage', $page);
+    }
+
+    public function test_guest_is_sent_to_login_and_returns_to_live_chats_after_employee_login(): void
+    {
+        Http::preventStrayRequests();
+        $employee = User::factory()->create(['type' => 'employee', 'status' => 'active']);
+        $destination = route('Ameise.avito');
+
+        $this->get($destination)
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('url.intended', $destination);
+
+        $this->post('/login', ['email' => $employee->email, 'password' => 'password'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect($destination);
+        $this->assertAuthenticatedAs($employee, 'web');
+
+        $this->get($destination)->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Ameise/Avito')
+                ->where('auth.user.id', $employee->id)
+                ->where('avitoRealtime.enabled', true));
+        Http::assertNothingSent();
+    }
+
+    public function test_verified_crm_admin_can_open_live_chats_without_employee_type(): void
+    {
+        $admin = User::factory()->create(['type' => 'customer', 'status' => 'active']);
+        $admin->assignRole(Role::findOrCreate('admin', 'crm'));
+
+        $this->actingAs($admin, 'web')->get('/Ameise/avito')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Ameise/Avito')
+                ->where('auth.user.id', $admin->id)
+                ->where('avitoRealtime.enabled', true)
+                ->where('avitoRealtime.key', 'avito-test-public-key')
+                ->where('avitoRealtime.channel', 'avito.updates'));
+    }
+
+    public function test_customers_and_inactive_employees_cannot_open_avito_workspace(): void
+    {
+        foreach ([
+            ['type' => 'customer', 'status' => 'active'],
+            ['type' => 'employee', 'status' => 'blocked'],
+        ] as $attributes) {
+            $this->actingAs(User::factory()->create($attributes), 'web')
+                ->get('/Ameise/avito')->assertForbidden();
+        }
+    }
+
+    public function test_employee_must_verify_email_before_opening_avito_workspace(): void
+    {
+        $employee = User::factory()->unverified()->create(['type' => 'employee', 'status' => 'active']);
+
+        $this->actingAs($employee, 'web')->get('/Ameise/avito')
+            ->assertRedirect(route('verification.notice'));
+    }
+
+    public function test_staff_page_access_does_not_depend_on_realtime_infrastructure_being_enabled(): void
+    {
+        config(['realtime.enabled' => false]);
+        $employee = User::factory()->create(['type' => 'employee', 'status' => 'active']);
+
+        $this->actingAs($employee, 'web')->get('/Ameise/avito')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Ameise/Avito')
+                ->where('avitoRealtime.enabled', false)
+                ->where('avitoRealtime.reason', 'disabled'));
     }
 
     public function test_committed_catalog_contains_every_current_official_capability(): void

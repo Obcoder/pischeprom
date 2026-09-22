@@ -56,6 +56,8 @@ use App\Models\City;
 use App\Models\Good;
 use App\Models\Product;
 use App\Models\Region;
+use App\Services\Realtime\AvitoRealtimeAccess;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -501,9 +503,12 @@ Route::get(
     ->middleware('throttle:600,1')
     ->name('avito.autoload.media');
 
-Route::get('/Ameise/avito', function () {
+Route::get('/Ameise/avito', function (Request $request, AvitoRealtimeAccess $access) {
+    abort_unless($access->canAccess($request->user()), 403, 'Чаты Avito доступны сотрудникам и администраторам CRM.');
+
     return Inertia::render('Ameise/Avito');
-})->name('Ameise.avito');
+})->middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified'])
+    ->name('Ameise.avito');
 
 Route::redirect('/Ameise/Avito', '/Ameise/avito', 301);
 

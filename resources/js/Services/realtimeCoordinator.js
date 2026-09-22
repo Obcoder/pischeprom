@@ -1,6 +1,6 @@
 export const COMMERCE_TOPICS = ['sales', 'goods_stock', 'purchases', 'warehouses', 'commodity_stock']
 
-// Only incoming events or browser lifecycle changes schedule reads. There is no polling timer.
+// Reads follow events, subscriptions, and browser lifecycle changes. Recovery timers only reconnect WebSocket.
 export function createRealtimeCoordinator({
     connect,
     onStatus = () => {},
@@ -12,6 +12,9 @@ export function createRealtimeCoordinator({
     clearTimer = clearTimeout,
     debounceMs = 150,
     minRefreshIntervalMs = 0,
+    reconnectDelayMs = 1000,
+    maxReconnectDelayMs = 30000,
+    subscriptionTimeoutMs = 30000,
     now = Date.now,
     allowedTopics = COMMERCE_TOPICS,
 }) {
@@ -24,13 +27,44 @@ export function createRealtimeCoordinator({
     let started = false
     let subscribed = false
     let forbidden = false
+    let retryTimer = null
+    let subscriptionTimer = null
+    let retryDelay = reconnectDelayMs
+
+    function clearSubscriptionTimer() {
+        if (subscriptionTimer !== null) clearTimer(subscriptionTimer)
+        subscriptionTimer = null
+    }
 
     function stop() {
         generation++
         started = false
         subscribed = false
+        if (retryTimer !== null) clearTimer(retryTimer)
+        retryTimer = null
+        clearSubscriptionTimer()
         disconnect?.()
         disconnect = null
+    }
+
+    function retryConnection() {
+        stop()
+        if (forbidden || !configuration?.enabled || !resources.size || !isOnline()) return
+        retryTimer = setTimer(() => {
+            retryTimer = null
+            void start()
+        }, retryDelay)
+        retryDelay = Math.min(retryDelay * 2, maxReconnectDelayMs)
+    }
+
+    function awaitSubscription(currentGeneration) {
+        if (subscriptionTimer !== null) return
+        subscriptionTimer = setTimer(() => {
+            subscriptionTimer = null
+            if (generation !== currentGeneration || subscribed) return
+            onStatus('error')
+            retryConnection()
+        }, subscriptionTimeoutMs)
     }
 
     function denyAccess() {
@@ -108,7 +142,7 @@ export function createRealtimeCoordinator({
     }
 
     async function start() {
-        if (started || forbidden || !configuration?.enabled || !resources.size) return
+        if (started || retryTimer !== null || forbidden || !configuration?.enabled || !resources.size) return
         if (!isOnline()) {
             onStatus('offline')
             return
@@ -116,10 +150,13 @@ export function createRealtimeCoordinator({
         started = true
         const currentGeneration = ++generation
         onStatus('connecting')
+        awaitSubscription(currentGeneration)
         try {
             const close = await connect(configuration, {
                 ready() {
                     if (generation !== currentGeneration) return
+                    clearSubscriptionTimer()
+                    retryDelay = reconnectDelayMs
                     subscribed = true
                     onStatus('live')
                     // Includes first subscription: covers a change between the initial GET and subscribing.
@@ -134,15 +171,22 @@ export function createRealtimeCoordinator({
                     onStatus(status)
                     if (status === 'forbidden') {
                         denyAccess()
+                    } else if (status === 'error' || status === 'offline') {
+                        retryConnection()
+                    } else if (status === 'connecting') {
+                        awaitSubscription(currentGeneration)
                     }
                 },
             })
             if (generation !== currentGeneration) close?.()
             else disconnect = close
-        } catch {
+        } catch (error) {
             if (generation === currentGeneration) {
-                started = false
-                onStatus('error')
+                if ([401, 403, 419].includes(error?.response?.status)) denyAccess()
+                else {
+                    onStatus('error')
+                    retryConnection()
+                }
             }
         }
     }
@@ -152,6 +196,7 @@ export function createRealtimeCoordinator({
         const key = JSON.stringify(next)
         if (key === configurationKey) return
         stop()
+        retryDelay = reconnectDelayMs
         for (const resource of resources.values()) {
             resource.controller?.abort()
             if (resource.timer !== null) clearTimer(resource.timer)
@@ -200,6 +245,7 @@ export function createRealtimeCoordinator({
 
     function reconnect() {
         stop()
+        retryDelay = reconnectDelayMs
         forbidden = false
         void start()
     }

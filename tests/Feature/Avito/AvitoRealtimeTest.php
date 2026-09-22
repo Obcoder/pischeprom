@@ -88,7 +88,27 @@ class AvitoRealtimeTest extends TestCase
         $this->assertStringNotContainsString('never-publish-secret', json_encode($config));
         $this->assertSame(['enabled' => false], $share['realtime']());
         $request->setUserResolver(fn () => null);
-        $this->assertSame(['enabled' => false], $share['avitoRealtime']());
+        $this->assertSame(['enabled' => false, 'reason' => 'unauthenticated'], $share['avitoRealtime']());
+    }
+
+    public function test_disabled_client_explains_missing_configuration_or_access_without_exposing_credentials(): void
+    {
+        $request = Request::create('/Ameise/avito');
+        $employee = $this->user();
+        $request->setUserResolver(fn () => $employee);
+        $share = app(HandleInertiaRequests::class)->share($request);
+
+        config(['realtime.enabled' => false]);
+        $this->assertSame(['enabled' => false, 'reason' => 'disabled'], $share['avitoRealtime']());
+
+        config(['realtime.enabled' => true, 'broadcasting.connections.reverb.key' => '']);
+        $this->assertSame(['enabled' => false, 'reason' => 'unconfigured'], $share['avitoRealtime']());
+
+        foreach ([['type' => 'customer'], ['status' => 'blocked'], ['email_verified_at' => null]] as $attributes) {
+            $user = $this->user($attributes);
+            $request->setUserResolver(fn () => $user);
+            $this->assertSame(['enabled' => false, 'reason' => 'forbidden'], $share['avitoRealtime']());
+        }
     }
 
     public function test_events_wait_for_outer_commit_and_payload_contains_only_topics_unique_id_and_change_metadata(): void

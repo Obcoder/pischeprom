@@ -31,8 +31,20 @@ class AvitoRealtimeAccess
 
     public function clientConfig(?User $user): array
     {
-        if (! $this->allowed($user) || ! config('broadcasting.connections.reverb.key')) {
-            return ['enabled' => false];
+        if (! $user) {
+            return ['enabled' => false, 'reason' => 'unauthenticated'];
+        }
+
+        if (! $this->canAccess($user)) {
+            return ['enabled' => false, 'reason' => 'forbidden'];
+        }
+
+        if (! config('realtime.enabled')) {
+            return ['enabled' => false, 'reason' => 'disabled'];
+        }
+
+        if (! config('broadcasting.connections.reverb.key')) {
+            return ['enabled' => false, 'reason' => 'unconfigured'];
         }
 
         return [

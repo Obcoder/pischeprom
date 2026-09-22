@@ -52,19 +52,34 @@ const canSend = computed(() => selectedChat.value && composerText.value.trim().l
 const realtimeFailed = computed(() => archiveRefreshFailed.value
     || Object.keys(store.refreshErrors).some((key) => key.startsWith('messages:')))
 const realtimeStatus = computed(() => {
+    if (store.status === 'forbidden') return { label: 'Нет доступа к автообновлению', short: 'Нет доступа', icon: 'mdi-lock-outline', warning: true }
     if (realtimeFailed.value) return { label: 'Не удалось обновить архив', short: 'Сбой', icon: 'mdi-alert-circle-outline', warning: true }
+    if (store.status === 'disabled') {
+        return {
+            unauthenticated: { label: 'Войдите для автообновления', short: 'Нужен вход', icon: 'mdi-login', warning: true },
+            forbidden: { label: 'Нет доступа к автообновлению', short: 'Нет доступа', icon: 'mdi-lock-outline', warning: true },
+            disabled: { label: 'Автообновление отключено на сервере', short: 'Отключено', icon: 'mdi-sync-off', warning: true },
+        }[store.realtimeDisabledReason] || { label: 'Автообновление не настроено', short: 'Нет связи', icon: 'mdi-alert-circle-outline', warning: true }
+    }
     return {
         live: { label: 'Обновляется автоматически', short: 'Авто', icon: 'mdi-access-point', warning: false },
         connecting: { label: 'Подключение…', short: 'Связь…', icon: 'mdi-connection', warning: false },
-        disabled: { label: 'Обновление вручную', short: 'Вручную', icon: 'mdi-sync-off', warning: true },
-        offline: { label: 'Связь потеряна', short: 'Нет связи', icon: 'mdi-wifi-off', warning: true },
-        forbidden: { label: 'Нет доступа к автообновлению', short: 'Нет доступа', icon: 'mdi-lock-outline', warning: true },
-        error: { label: 'Автообновление недоступно', short: 'Сбой', icon: 'mdi-alert-circle-outline', warning: true },
-    }[store.status] || { label: 'Обновление вручную', short: 'Вручную', icon: 'mdi-sync-off', warning: true }
+        offline: { label: 'Ожидание соединения…', short: 'Нет связи', icon: 'mdi-wifi-off', warning: true },
+        error: { label: 'Восстановление соединения…', short: 'Связь…', icon: 'mdi-connection', warning: true },
+    }[store.status] || { label: 'Подключение…', short: 'Связь…', icon: 'mdi-connection', warning: false }
 })
-const realtimeHint = computed(() => `${realtimeStatus.value.label}. ${store.status === 'disabled'
-    ? 'Нажмите, чтобы перечитать сохранённые чаты и сообщения.'
-    : 'Нажмите, чтобы восстановить соединение и перечитать архив.'}`)
+const realtimeHint = computed(() => {
+    let hint = 'Новые сообщения появляются автоматически. При потере связи подключение восстанавливается само. Нажмите для повторного подключения.'
+    if (store.status === 'forbidden') {
+        hint = 'Проверьте вход и права доступа. После восстановления доступа нажмите для повторного подключения.'
+    } else if (store.status === 'disabled') {
+        hint = {
+            unauthenticated: 'Войдите под учётной записью сотрудника, чтобы получать новые сообщения автоматически.',
+            forbidden: 'Для автообновления нужна активная учётная запись сотрудника или администратора с подтверждённой почтой.',
+        }[store.realtimeDisabledReason] || 'Обратитесь к администратору для включения автоматического обновления чатов.'
+    }
+    return `${realtimeStatus.value.label}. ${hint}`
+})
 
 watch(filters, () => {
     if (props.embedded) return

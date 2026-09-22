@@ -5,6 +5,7 @@ namespace Tests\Feature\Avito;
 use App\Models\AvitoChat;
 use App\Models\AvitoMessage;
 use App\Models\AvitoMessengerAccount;
+use App\Models\User;
 use App\Services\Avito\AvitoMessengerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -46,14 +47,15 @@ class AvitoMessengerTest extends TestCase
         ]);
     }
 
-    public function test_messages_tab_and_public_archive_endpoints_use_the_ameise_access_model(): void
+    public function test_messages_tab_requires_staff_while_archive_endpoints_keep_their_access_model(): void
     {
         $this->artisan('avito:preflight --schema')->assertExitCode(0);
-        $this->get('/Ameise/avito')->assertOk();
         $this->getJson('/api/avito/messenger/overview')
             ->assertOk()
             ->assertJsonPath('counts.chats', 0)
             ->assertJsonCount(13, 'tools');
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']), 'web')
+            ->get('/Ameise/avito')->assertOk();
 
         $page = (string) file_get_contents(resource_path('js/Pages/Ameise/Avito.vue'));
         $component = (string) file_get_contents(resource_path('js/Components/Avito/AvitoMessages.vue'));

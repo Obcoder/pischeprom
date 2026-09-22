@@ -102,6 +102,33 @@ function findVNode(node, predicate) {
     }
 }
 
+test('messenger explains disabled automatic updates and displays connection recovery without a manual mode', async (t) => {
+    t.mock.method(axios, 'get', async () => ({ data: { chat: chat(), messages: page([]) } }))
+    const { state, store } = mount(t, Messages, { embedded: true, chat: chat() })
+    await until(() => !store.loading)
+    assert.equal(state.realtimeStatus.label, 'Подключение…')
+
+    store.status = 'disabled'
+    store.configure({ enabled: false, reason: 'disabled' }, 1)
+    assert.equal(state.realtimeStatus.label, 'Автообновление отключено на сервере')
+    store.configure({ enabled: false, reason: 'unconfigured' }, 1)
+    assert.equal(state.realtimeStatus.label, 'Автообновление не настроено')
+    store.configure({ enabled: false, reason: 'forbidden' }, 1)
+    assert.equal(state.realtimeStatus.label, 'Нет доступа к автообновлению')
+    store.configure({ enabled: false, reason: 'unauthenticated' }, null)
+    assert.equal(state.realtimeStatus.label, 'Войдите для автообновления')
+
+    store.status = 'error'
+    assert.equal(state.realtimeStatus.label, 'Восстановление соединения…')
+    store.status = 'forbidden'
+    store.refreshErrors['messages:1'] = true
+    assert.equal(state.realtimeStatus.label, 'Нет доступа к автообновлению')
+    assert.match(state.realtimeHint, /Проверьте вход и права доступа/)
+    delete store.refreshErrors['messages:1']
+    store.status = 'live'
+    assert.equal(state.realtimeStatus.label, 'Обновляется автоматически')
+})
+
 test('dashboard adds, edits and removes a waiter without replacing unrelated messenger state', async (t) => {
     let rows = []
     const calls = []

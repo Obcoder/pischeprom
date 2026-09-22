@@ -7,7 +7,7 @@ import { useCommerceStore } from '../../resources/js/Stores/commerce.js'
 const flush = () => new Promise((resolve) => setImmediate(resolve))
 const configuration = { enabled: true, key: 'test-key', host: 'app.test', port: 443, scheme: 'https', path: '/realtime', channel: 'commerce.updates' }
 
-function harness() {
+function harness({ connect, ...settings } = {}) {
     let now = 0
     let timerId = 0
     const timers = new Map()
@@ -21,6 +21,7 @@ function harness() {
         connect: async (_config, handlers) => {
             const socket = { handlers, closed: false }
             sockets.push(socket)
+            if (connect) await connect(_config, handlers, sockets.length)
             return () => { socket.closed = true }
         },
         onStatus: (status) => states.push(status),
@@ -33,6 +34,8 @@ function harness() {
             return timerId
         },
         clearTimer: (id) => timers.delete(id),
+        now: () => now,
+        ...settings,
     })
     async function advance(ms = 150) {
         const target = now + ms
@@ -150,6 +153,168 @@ test('reconnect reloads once to catch events missed while disconnected', async (
     assert.equal(loads, 2)
     assert.equal(h.states.at(-1), 'live')
     h.coordinator.dispose()
+})
+
+test('failed connections retry automatically with capped backoff and stop retrying after subscription', async () => {
+    const h = harness({ connect: async (_config, _handlers, attempt) => {
+        if (attempt <= 7) throw new Error('Temporary WebSocket failure')
+    } })
+    let loads = 0
+    h.coordinator.configure(configuration, 1)
+    h.coordinator.subscribe('sales', ['sales'], async () => { loads++ })
+    await flush()
+    const delays = [1000, 2000, 4000, 8000, 16000, 30000, 30000]
+    for (const [index, delay] of delays.entries()) {
+        await h.advance(delay - 1)
+        assert.equal(h.sockets.length, index + 1)
+        await h.advance(1)
+        assert.equal(h.sockets.length, index + 2)
+        assert.equal(loads, 0)
+    }
+    h.sockets.at(-1).handlers.ready()
+    await h.advance()
+    assert.equal(loads, 1)
+    assert.equal(h.states.at(-1), 'live')
+    await h.advance(3600000)
+    assert.equal(h.sockets.length, 8)
+    assert.equal(loads, 1)
+    assert.equal(h.timers.size, 0)
+    h.coordinator.dispose()
+})
+
+for (const status of ['error', 'offline']) {
+    test(`WebSocket ${status} reconnects automatically, ignores stale events, and resets backoff on success`, async () => {
+        const h = harness()
+        let loads = 0
+        h.coordinator.configure(configuration, 1)
+        h.coordinator.subscribe('sales', ['sales'], async () => { loads++ })
+        await flush()
+        const first = h.sockets[0]
+        first.handlers.ready()
+        await h.advance()
+        first.handlers.status(status)
+        assert.equal(first.closed, true)
+        first.handlers.ready()
+        first.handlers.status(status)
+        first.handlers.event({ event_id: 'stale', topics: ['sales'] })
+        h.setVisible(true)
+        await h.advance(999)
+        assert.equal(h.sockets.length, 1)
+        assert.equal(loads, 1)
+        await h.advance(1)
+        h.sockets[1].handlers.status(status)
+        await h.advance(1999)
+        assert.equal(h.sockets.length, 2)
+        await h.advance(1)
+        h.sockets[2].handlers.ready()
+        await h.advance()
+        assert.equal(loads, 2)
+        h.sockets[2].handlers.status(status)
+        await h.advance(1000)
+        assert.equal(h.sockets.length, 4)
+        h.sockets[3].handlers.ready()
+        await h.advance()
+        assert.equal(loads, 3)
+        await h.advance(3600000)
+        assert.equal(h.timers.size, 0)
+        assert.equal(loads, 3)
+        h.coordinator.dispose()
+    })
+}
+
+for (const action of ['disabled', 'unsubscribed', 'disposed', 'offline']) {
+    for (const waitingForRetry of [false, true]) {
+        test(`${action} cancels a pending ${waitingForRetry ? 'reconnection' : 'subscription timeout'}`, async () => {
+            const h = harness()
+            let loads = 0
+            h.coordinator.configure(configuration, 1)
+            const unsubscribe = h.coordinator.subscribe('sales', ['sales'], async () => { loads++ })
+            await flush()
+            if (waitingForRetry) h.sockets[0].handlers.status('error')
+            assert.equal(h.timers.size, 1)
+            if (action === 'disabled') h.coordinator.configure({ enabled: false }, null)
+            if (action === 'unsubscribed') unsubscribe()
+            if (action === 'disposed') h.coordinator.dispose()
+            if (action === 'offline') h.setOnline(false)
+            assert.equal(h.timers.size, 0)
+            assert.equal(h.sockets[0].closed, true)
+            await h.advance(60000)
+            assert.equal(h.sockets.length, 1)
+            assert.equal(loads, 0)
+            if (action === 'offline') {
+                h.setOnline(true)
+                await flush()
+                assert.equal(h.sockets.length, 2)
+                h.sockets[1].handlers.ready()
+                await h.advance()
+                assert.equal(loads, 1)
+            }
+            h.coordinator.dispose()
+        })
+    }
+}
+
+test('a missing subscription acknowledgement retries and closes a connection that resolves too late', async () => {
+    let finishFirstConnection
+    const h = harness({ connect: (_config, _handlers, attempt) => {
+        if (attempt === 1) return new Promise((resolve) => { finishFirstConnection = resolve })
+    } })
+    let loads = 0
+    h.coordinator.configure(configuration, 1)
+    h.coordinator.subscribe('sales', ['sales'], async () => { loads++ })
+    await flush()
+    await h.advance(29999)
+    assert.equal(h.states.at(-1), 'connecting')
+    await h.advance(1)
+    assert.equal(h.states.at(-1), 'error')
+    assert.equal(loads, 0)
+    await h.advance(1000)
+    assert.equal(h.sockets.length, 2)
+    finishFirstConnection()
+    await flush()
+    assert.equal(h.sockets[0].closed, true)
+    h.sockets[0].handlers.ready()
+    h.sockets[0].handlers.event({ event_id: 'late', topics: ['sales'] })
+    assert.equal(h.states.at(-1), 'connecting')
+    h.sockets[1].handlers.ready()
+    await h.advance()
+    assert.equal(loads, 1)
+    assert.equal(h.timers.size, 0)
+    h.coordinator.dispose()
+})
+
+test('a transport stuck reconnecting after a live subscription is restarted automatically', async () => {
+    const h = harness()
+    let loads = 0
+    h.coordinator.configure(configuration, 1)
+    h.coordinator.subscribe('sales', ['sales'], async () => { loads++ })
+    await flush()
+    h.sockets[0].handlers.ready()
+    await h.advance()
+    h.sockets[0].handlers.status('connecting')
+    await h.advance(31000)
+    assert.equal(h.sockets[0].closed, true)
+    assert.equal(h.sockets.length, 2)
+    assert.equal(loads, 1)
+    h.sockets[1].handlers.ready()
+    await h.advance()
+    assert.equal(loads, 2)
+    h.coordinator.dispose()
+})
+
+test('rejected connection authorization never starts an automatic retry', async () => {
+    for (const status of [401, 403, 419]) {
+        const h = harness({ connect: async () => { throw { response: { status } } } })
+        h.coordinator.configure(configuration, 1)
+        h.coordinator.subscribe('sales', ['sales'], async () => {})
+        await flush()
+        assert.equal(h.states.at(-1), 'forbidden')
+        assert.equal(h.timers.size, 0)
+        h.setVisible(true)
+        await h.advance(60000)
+        assert.equal(h.sockets.length, 1)
+        h.coordinator.dispose()
+    }
 })
 
 test('unmount aborts the request and disconnects the last subscription', async () => {

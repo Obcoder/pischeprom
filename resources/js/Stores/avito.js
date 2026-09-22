@@ -46,7 +46,8 @@ export const useAvitoStore = defineStore('avito', () => {
     const chatLoading = ref(false)
     const sending = ref(false)
     const syncing = ref(false)
-    const status = ref('disabled')
+    const status = ref('connecting')
+    const realtimeDisabledReason = ref(null)
     const refreshErrors = reactive({})
     const controlSettings = ref(null)
     const controlLoading = ref(false)
@@ -365,6 +366,8 @@ export const useAvitoStore = defineStore('avito', () => {
             Object.assign(filters, { search: '', account_id: null, unread_only: false, chat_type: null })
         }
         actor = nextActor
+        realtimeDisabledReason.value = settings?.enabled && nextActor
+            ? null : (settings?.reason || (nextActor ? 'unconfigured' : 'unauthenticated'))
         if (browser) coordinator.configure({ event: 'avito.changed', ...settings }, actorId)
     }
 
@@ -411,7 +414,7 @@ export const useAvitoStore = defineStore('avito', () => {
 
     return { overview, chats, chatsMeta, selectedChat, messages, messagesMeta, subscriptions,
         selectedConnectionId, activeRun, filters, composerText, composerTemplateId, composerTemplateName,
-        loading, chatsLoading, chatLoading, sending, syncing, status, refreshErrors,
+        loading, chatsLoading, chatLoading, sending, syncing, status, realtimeDisabledReason, refreshErrors,
         controlSettings, controlLoading, stopLoading, controlVersion, applyControl, loadControl,
         emergencyStop: () => mutateControl('emergency-stop'), resumeAutomation: () => mutateControl('resume'),
         configure, subscribe, retainControl, reconnect: coordinator.reconnect,
