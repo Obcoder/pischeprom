@@ -37,7 +37,11 @@ class AuthorizedMailDispatchService
         'image/png', 'image/jpeg',
     ];
 
-    public function __construct(private readonly MailboxRegistry $mailboxes) {}
+    public function __construct(
+        private readonly MailboxRegistry $mailboxes,
+        private readonly MailOfferCatalog $offerCatalog,
+        private readonly MailOfferRenderer $offerRenderer,
+    ) {}
 
     /** @return array{duplicate: bool, mail_message: ?MailMessage} */
     public function dispatchMessage(
@@ -48,6 +52,18 @@ class AuthorizedMailDispatchService
         ?Entity $entity = null,
     ): array {
         $this->authorize($actor, $unit);
+        $body = (string) ($data['body'] ?? '');
+        $html = nl2br(e($body));
+        if (! empty($data['offer']) || (string) ($data['quoted_body'] ?? '') !== '') {
+            $rendered = $this->offerRenderer->render(
+                $body,
+                $this->offerCatalog->resolve($data['offer']['items'] ?? []),
+                $data['offer']['logistics'] ?? null,
+                (string) ($data['quoted_body'] ?? ''),
+            );
+            $html = $rendered['html'];
+            $body = $rendered['text'];
+        }
         $recipients = $this->recipients($data);
         $attachments = $this->uploadedFiles($data['attachments'] ?? []);
         $storagePaths = $this->storagePaths($data['storage_files'] ?? [], $unit);
@@ -68,8 +84,6 @@ class AuthorizedMailDispatchService
         $reply = $this->replyMessage($data['reply_to_mail_message_id'] ?? null, $unit);
         $headers = $this->replyHeaders($reply);
         $subject = trim((string) ($data['subject'] ?? '')) ?: '(без темы)';
-        $body = (string) ($data['body'] ?? '');
-        $html = nl2br(e($body));
         $requestedMailbox = $data['mailbox'] ?? $reply?->mailbox;
         $mailbox = $requestedMailbox ? $this->mailboxes->find((string) $requestedMailbox) : null;
 
@@ -99,7 +113,7 @@ class AuthorizedMailDispatchService
         try {
             $mailerName = $this->mailboxes->registerMailer($mailbox);
             Mail::mailer($mailerName)->html($html, function ($message) use (
-                $recipients, $subject, $fromAddress, $fromName, $attachments, $storageAttachments, $headers
+                $recipients, $subject, $fromAddress, $fromName, $attachments, $storageAttachments, $headers, $body
             ): void {
                 $message->to($recipients['to']);
                 if ($recipients['cc'] !== []) {
@@ -111,6 +125,7 @@ class AuthorizedMailDispatchService
                 $message->from($fromAddress, $fromName);
                 $message->replyTo($fromAddress, $fromName);
                 $message->subject($subject);
+                $message->text($body);
 
                 if ($headers !== []) {
                     $symfonyHeaders = $message->getHeaders();
@@ -310,6 +325,15 @@ class AuthorizedMailDispatchService
 
     private function requestHash(array $data, array $recipients, array $storagePaths): string
     {
+        // Preserve hashes of ordinary pre-offer requests, including retries across a deployment.
+        $offerContent = [];
+        if (! empty($data['offer'])) {
+            $offerContent['offer'] = $data['offer'];
+        }
+        if ((string) ($data['quoted_body'] ?? '') !== '') {
+            $offerContent['quoted_body_hash'] = hash('sha256', (string) $data['quoted_body']);
+        }
+
         return hash('sha256', json_encode([
             'subject' => (string) ($data['subject'] ?? ''),
             'body_hash' => hash('sha256', (string) ($data['body'] ?? '')),
@@ -320,6 +344,7 @@ class AuthorizedMailDispatchService
                 'name' => $this->safeFileName($file->getClientOriginalName()), 'size' => $file->getSize(), 'mime' => $file->getMimeType(),
             ])->all(),
             'reply' => $data['reply_to_mail_message_id'] ?? null,
+            ...$offerContent,
         ], JSON_THROW_ON_ERROR));
     }
 

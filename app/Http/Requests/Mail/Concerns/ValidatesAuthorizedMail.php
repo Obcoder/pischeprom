@@ -6,6 +6,8 @@ use Illuminate\Validation\Validator;
 
 trait ValidatesAuthorizedMail
 {
+    use ValidatesMailOffer;
+
     protected function mailRules(bool $allowRelations = false): array
     {
         $rules = [
@@ -44,7 +46,7 @@ trait ValidatesAuthorizedMail
             $rules['unit_id'] = ['prohibited'];
         }
 
-        return $rules;
+        return [...$rules, ...$this->mailOfferRules()];
     }
 
     public function withValidator(Validator $validator): void

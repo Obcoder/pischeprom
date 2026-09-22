@@ -411,12 +411,17 @@ use App\Http\Controllers\API\MailAttachmentAnalysisController;
 use App\Http\Controllers\API\MailboxController;
 use App\Http\Controllers\API\MailMessageActionController;
 use App\Http\Controllers\API\MailMessageController;
+use App\Http\Controllers\API\MailOfferController;
 use App\Http\Controllers\API\MaxChatController;
 use App\Http\Controllers\API\MaxSubscriptionController;
 use App\Http\Controllers\API\MaxWebhookController;
 
 Route::apiResource('mailboxes', MailboxController::class)
     ->only(['index', 'store', 'show', 'update', 'destroy']);
+Route::prefix('mail-offers')->middleware(['auth:sanctum', 'verified', 'can:mail.send'])->group(function (): void {
+    Route::get('goods', [MailOfferController::class, 'goods'])->name('mail-offers.goods');
+    Route::post('preview', [MailOfferController::class, 'preview'])->name('mail-offers.preview');
+});
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
     ->name('mail-messages.folders');
 Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
