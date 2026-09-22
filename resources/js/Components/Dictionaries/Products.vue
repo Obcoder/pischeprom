@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
@@ -11,6 +11,11 @@ import {
 
 const loading = ref(false)
 const saving = ref(false)
+const translating = ref(false)
+const translationError = ref('')
+const translationMessage = ref('')
+let translationController
+let translationGeneration = 0
 
 const products = ref([])
 const categories = ref([])
@@ -41,6 +46,90 @@ const form = reactive({
 
 const rules = {
     required: v => !!String(v ?? '').trim() || 'Обязательное поле',
+    maxLength: v => [...String(v ?? '').trim()].length <= 255 || 'Не более 255 символов',
+}
+
+const missingTranslationKeys = computed(() =>
+    productLanguageFields.filter(field => !String(form[field.key] ?? '').trim()).map(field => field.key)
+)
+
+const canTranslate = computed(() =>
+    createDialog.value && !saving.value && !translating.value &&
+    !!String(form.rus ?? '').trim() && rules.maxLength(form.rus) === true &&
+    missingTranslationKeys.value.length > 0
+)
+
+const translationFieldVersions = Object.fromEntries(productLanguageFields.map(field => [field.key, 0]))
+
+// Keep edits made during a request, including a field that was typed in and then cleared.
+watch(() => productLanguageFields.map(field => form[field.key]), (values, previous) => {
+    productLanguageFields.forEach((field, index) => {
+        if (values[index] !== previous[index]) translationFieldVersions[field.key]++
+    })
+}, { flush: 'sync' })
+
+function cancelTranslations() {
+    translationGeneration++
+    translationController?.abort()
+    translationController = undefined
+    translating.value = false
+    translationError.value = ''
+    translationMessage.value = ''
+}
+
+watch([() => form.rus, () => form.category_id, createDialog], cancelTranslations, { flush: 'sync' })
+onBeforeUnmount(cancelTranslations)
+
+async function translateProduct() {
+    if (!canTranslate.value) return
+
+    const generation = ++translationGeneration
+    const controller = new AbortController()
+    translationController = controller
+    const languages = [...missingTranslationKeys.value]
+    const fieldVersions = { ...translationFieldVersions }
+    translating.value = true
+    translationError.value = ''
+    translationMessage.value = ''
+
+    try {
+        const response = await axios.post('/api/products/translate-ai', {
+            rus: String(form.rus).trim(),
+            category_id: form.category_id || null,
+            languages,
+        }, { signal: controller.signal, timeout: 90000 })
+
+        if (generation !== translationGeneration || controller.signal.aborted) return
+
+        const translations = response.data?.translations
+        if (!translations || languages.some(key =>
+            typeof translations[key] !== 'string' || !translations[key].trim() ||
+            rules.maxLength(translations[key]) !== true
+        )) {
+            throw new Error('Invalid translation response')
+        }
+
+        let added = 0
+        languages.forEach(key => {
+            if (translationFieldVersions[key] !== fieldVersions[key] || String(form[key] ?? '').trim()) return
+            form[key] = translations[key].trim()
+            added++
+        })
+        translationMessage.value = added
+            ? `Добавлено переводов: ${added}. Проверьте названия перед сохранением.`
+            : 'Поля изменены вручную. Переводы AI не добавлены.'
+    } catch (e) {
+        if (generation !== translationGeneration || controller.signal.aborted) return
+        translationError.value =
+            (e?.response?.data?.errors ? Object.values(e.response.data.errors).flat().join('\n') : null) ||
+            e?.response?.data?.message ||
+            'Не удалось получить переводы. Попробуйте ещё раз.'
+    } finally {
+        if (generation === translationGeneration) {
+            translating.value = false
+            translationController = undefined
+        }
+    }
 }
 
 const categoryItems = computed(() =>
@@ -87,6 +176,7 @@ function formatDate(iso) {
 }
 
 function openCreate() {
+    cancelTranslations()
     error.value = ''
     resetForm()
     createDialog.value = true
@@ -140,18 +230,18 @@ async function loadAll() {
 }
 
 async function createProduct() {
+    if (saving.value || translating.value) return
     error.value = ''
-
-    const formEl = formRef.value
-    if (formEl?.validate) {
-        const res = await formEl.validate()
-        if (!res.valid) return
-    } else if (!String(form.rus ?? '').trim()) {
-        return
-    }
-
     saving.value = true
     try {
+        const formEl = formRef.value
+        if (formEl?.validate) {
+            const res = await formEl.validate()
+            if (!res.valid) return
+        } else if (!String(form.rus ?? '').trim() || rules.maxLength(form.rus) !== true) {
+            return
+        }
+
         const res = await axios.post('/api/products', normalizePayload())
         const created = res.data && typeof res.data === 'object' ? res.data : null
 
@@ -325,7 +415,7 @@ onMounted(loadAll)
                                     label="Русский / базовое название"
                                     variant="outlined"
                                     density="compact"
-                                    :rules="[rules.required]"
+                                    :rules="[rules.required, rules.maxLength]"
                                     required
                                     hide-details="auto"
                                 >
@@ -358,6 +448,34 @@ onMounted(loadAll)
                                     hide-details
                                     label="Published"
                                 />
+                            </v-col>
+
+                            <v-col cols="12" class="pb-3">
+                                <v-btn
+                                    color="primary"
+                                    variant="tonal"
+                                    prepend-icon="mdi-auto-fix"
+                                    :loading="translating"
+                                    :disabled="!canTranslate"
+                                    @click="translateProduct"
+                                >
+                                    Заполнить переводы AI
+                                </v-btn>
+                                <div class="text-caption text-medium-emphasis mt-2">
+                                    Введите русское название. AI заполнит пустые поля — их можно исправить перед сохранением.
+                                </div>
+                                <v-alert
+                                    v-if="translationError"
+                                    type="error"
+                                    variant="tonal"
+                                    density="compact"
+                                    class="mt-2 error-alert"
+                                    :text="translationError"
+                                    role="alert"
+                                />
+                                <div v-else-if="translationMessage" class="text-body-2 mt-2" role="status">
+                                    {{ translationMessage }}
+                                </div>
                             </v-col>
 
                             <v-col
@@ -399,7 +517,7 @@ onMounted(loadAll)
                 <v-card-actions class="px-4 py-3">
                     <v-spacer />
                     <v-btn variant="text" @click="createDialog = false">Отмена</v-btn>
-                    <v-btn color="primary" :loading="saving" @click="createProduct">
+                    <v-btn color="primary" :loading="saving" :disabled="translating" @click="createProduct">
                         Создать
                     </v-btn>
                 </v-card-actions>

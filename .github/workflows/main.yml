@@ -365,6 +365,15 @@ jobs:
             database/migrations/2026_09_11_120000_create_entity_consumptions_table.php \
             tests/Feature/EntityConsumptionApiTest.php
 
+      - name: Check product translations AI PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/ProductTranslationAiController.php \
+            app/Http/Requests/TranslateProductAiRequest.php \
+            app/Services/Products \
+            config/product-translations-ai.php \
+            tests/Feature/ProductTranslationsAiTest.php
+
       - name: Check realtime PHP and deployment scripts
         run: |
           vendor/bin/pint --test \
@@ -420,6 +429,7 @@ jobs:
             tests/Feature/GoodInquiryTest.php \
             tests/Feature/PublicGoodLandingTest.php \
             tests/Feature/GoodsSeoAiGenerationTest.php \
+            tests/Feature/ProductTranslationsAiTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/SaleGoodsStockTest.php \
             tests/Feature/SaleGoodAttachmentTest.php \

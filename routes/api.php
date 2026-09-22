@@ -106,6 +106,7 @@ use App\Http\Controllers\API\PlantController;
 use App\Http\Controllers\API\PriceTypeController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\ProductSearchController;
+use App\Http\Controllers\API\ProductTranslationAiController;
 use App\Http\Controllers\API\ProjectController;
 use App\Http\Controllers\API\PurchaseController;
 use App\Http\Controllers\API\QuotationController;
@@ -866,6 +867,9 @@ Route::get('good-stock-alerts', [GoodStockAlertAdminController::class, 'index'])
     ->name('good-stock-alerts.index');
 Route::delete('good-stock-alerts/{goodStockAlert}', [GoodStockAlertAdminController::class, 'destroy'])
     ->name('good-stock-alerts.destroy');
+Route::post('products/translate-ai', ProductTranslationAiController::class)
+    ->middleware(['auth:sanctum', 'verified', 'throttle:10,1,product-translations-ai'])
+    ->name('products.translate-ai');
 Route::apiResource('products', ProductController::class);
 Route::apiResource('purchases', PurchaseController::class)
     ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
