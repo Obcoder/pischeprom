@@ -12,10 +12,12 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    canSend: Boolean,
 })
 
 const {
     messages,
+    error,
     relatedEmails,
     totalItems,
     loading,
@@ -41,6 +43,7 @@ const readerDialog = ref(false)
 const composerDialog = ref(false)
 const templatesDialog = ref(false)
 const replyContext = ref(null)
+const initialTo = ref([])
 
 let autoRefreshTimer = null
 
@@ -103,16 +106,8 @@ const mailboxItems = computed(() => [
     })),
 ])
 
-const visibleRelatedEmails = computed(() => {
-    return relatedEmails.value.slice(0, 5)
-})
-
-const hiddenRelatedEmailsCount = computed(() => {
-    return Math.max(relatedEmails.value.length - visibleRelatedEmails.value.length, 0)
-})
-
 function formatDate(value) {
-    if (!value) return '—'
+    if (!value || Number.isNaN(new Date(value).getTime())) return '—'
 
     return new Intl.DateTimeFormat('ru-RU', {
         day: '2-digit',
@@ -138,24 +133,29 @@ async function openMessage(message) {
     await readMessage(message)
 }
 
-function openNewMessage() {
+function openNewMessage(address = null) {
+    if (!props.canSend) return
+    initialTo.value = typeof address === 'string' ? [address] : []
     replyContext.value = null
     composerDialog.value = true
+    loadFiles()
 }
 
-defineExpose({ openNewMessage })
+defineExpose({ openNewMessage, refresh: fetchMessages })
 
 async function replyToTableMessage(message) {
-    await readMessage(message)
-    replyToMessage(selectedMessage.value || message)
+    const loadedMessage = await readMessage(message)
+    if (loadedMessage) replyToMessage(loadedMessage)
 }
 
 function replyToMessage(message) {
-    if (!message || message.direction !== 'incoming') {
+    if (!props.canSend || !message || message.direction !== 'incoming') {
         return
     }
 
+    initialTo.value = []
     replyContext.value = message
+    loadFiles()
     readerDialog.value = false
     composerDialog.value = true
 }
@@ -180,7 +180,6 @@ onMounted(async () => {
     await Promise.all([
         fetchMailboxes(),
         fetchMessages(),
-        loadFiles(),
     ])
 
     autoRefreshTimer = window.setInterval(() => {
@@ -196,102 +195,20 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <BaseSectionCard
-        title="Emails"
-        icon="mdi-email-fast-outline"
-        compact
-    >
+    <BaseSectionCard title="Emails" icon="mdi-email-outline" header-color="default" compact class="unit-mail-card">
         <template #actions>
-            <div class="d-flex ga-1">
-                <v-btn
-                    icon="mdi-file-document-edit-outline"
-                    size="small"
-                    variant="text"
-                    color="blue"
-                    @click="templatesDialog = true"
-                />
-
-                <v-btn
-                    icon="mdi-refresh"
-                    size="small"
-                    variant="text"
-                    color="teal"
-                    :loading="loading"
-                    @click="fetchMessages"
-                />
-
-                <v-btn
-                    icon="mdi-email-plus-outline"
-                    size="small"
-                    variant="text"
-                    color="blue"
-                    @click="openNewMessage"
-                />
-            </div>
+            <span class="unit-mail-total">{{ totalItems }}</span>
+            <v-btn v-if="canSend" icon="mdi-file-document-edit-outline" size="x-small" variant="text" aria-label="Шаблоны писем" title="Шаблоны писем" @click="templatesDialog = true" />
+            <v-btn icon="mdi-refresh" size="x-small" variant="text" :loading="loading" aria-label="Обновить письма" title="Обновить письма" @click="fetchMessages" />
+            <v-btn v-if="canSend" icon="mdi-email-plus-outline" size="x-small" variant="text" aria-label="Написать письмо" title="Написать письмо" @click="openNewMessage()" />
         </template>
 
-        <div class="mb-3">
-            <div class="text-caption text-medium-emphasis">
-                Письма по emails Unit и emails связанных Entities
-            </div>
-
-            <div class="d-flex flex-wrap ga-1 mt-1 unit-mail-related-emails">
-                <v-chip
-                    v-for="email in visibleRelatedEmails"
-                    :key="email.address"
-                    size="x-small"
-                    color="blue"
-                    variant="tonal"
-                >
-                    {{ email.address }}
-                </v-chip>
-
-                <v-chip
-                    v-if="hiddenRelatedEmailsCount"
-                    size="x-small"
-                    color="grey"
-                    variant="tonal"
-                >
-                    +{{ hiddenRelatedEmailsCount }}
-                </v-chip>
-            </div>
+        <div v-if="error" class="unit-mail-error" role="alert">{{ error }}</div>
+        <div class="unit-mail-filters">
+            <v-text-field v-model="search" label="Поиск по письмам" prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable hide-details />
+            <v-select v-model="mailbox" :items="mailboxItems" label="Ящик" variant="outlined" density="compact" hide-details />
+            <v-select v-model="direction" :items="directionItems" label="Направление" variant="outlined" density="compact" hide-details />
         </div>
-
-        <v-row dense class="mb-3">
-            <v-col cols="12" lg="6">
-                <v-text-field
-                    v-model="search"
-                    label="Поиск по письмам"
-                    prepend-inner-icon="mdi-magnify"
-                    variant="solo"
-                    density="compact"
-                    clearable
-                    hide-details
-                />
-            </v-col>
-
-            <v-col cols="12" lg="3">
-                <v-select
-                    v-model="mailbox"
-                    :items="mailboxItems"
-                    label="Ящик"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                />
-            </v-col>
-
-            <v-col cols="12" lg="3">
-                <v-select
-                    v-model="direction"
-                    :items="directionItems"
-                    label="Тип"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                />
-            </v-col>
-        </v-row>
 
         <v-data-table-server
             :headers="headers"
@@ -300,133 +217,75 @@ onUnmounted(() => {
             :loading="loading"
             :page="options.page"
             :items-per-page="options.itemsPerPage"
+            :items-per-page-options="[15, 25, 50]"
             item-value="id"
             density="compact"
             fixed-header
-            height="340"
+            :hide-default-footer="!totalItems"
             hover
-            class="rounded border border-blue-900 bg-slate-950"
+            no-data-text="Переписки пока нет"
+            loading-text="Загрузка писем…"
+            items-per-page-text="На странице"
+            class="unit-mail-table"
             @update:options="options = $event"
             @click:row="(_, row) => openMessage(row.item)"
         >
             <template #item.direction="{ item }">
-                <v-chip
-                    size="x-small"
-                    :color="item.direction === 'incoming' ? 'purple' : 'blue'"
-                    variant="tonal"
-                >
-                    {{ item.direction === 'incoming' ? '↓ in' : '↑ out' }}
-                </v-chip>
-            </template>
-
-            <template #item.message_date="{ item }">
-                <span class="text-[10px] font-mono">
-                    {{ formatDate(item.message_date) }}
+                <span class="unit-mail-direction" :class="{ 'is-outgoing': item.direction !== 'incoming' }">
+                    {{ item.direction === 'incoming' ? '↓ Вх' : '↑ Исх' }}
                 </span>
-
-                <div class="text-[9px] text-grey">
-                    {{ item.folder }}
-                </div>
-
-                <div class="text-[9px] text-teal-lighten-3">
-                    {{ item.mailbox || '—' }}
-                </div>
             </template>
-
+            <template #item.message_date="{ item }">
+                <time class="unit-mail-date">{{ formatDate(item.message_date) }}</time>
+                <div class="unit-mail-muted">{{ item.mailbox || '—' }}</div>
+            </template>
             <template #item.contact="{ item }">
                 <div v-if="item.direction === 'incoming'">
-                    <div class="text-purple-lighten-3 text-xs">
-                        {{ item.from_address || '—' }}
-                    </div>
-
-                    <div
-                        v-if="item.from_name"
-                        class="text-[10px] text-grey"
-                    >
-                        {{ item.from_name }}
-                    </div>
+                    <div class="unit-mail-address">{{ item.from_address || '—' }}</div>
+                    <div v-if="item.from_name" class="unit-mail-muted">{{ item.from_name }}</div>
                 </div>
-
-                <div v-else class="text-[10px] text-grey-lighten-1">
-                    <div
-                        v-for="line in recipients(item)"
-                        :key="line"
-                    >
-                        {{ line }}
-                    </div>
+                <div v-else class="unit-mail-address">
+                    <div v-for="line in recipients(item)" :key="line">{{ line }}</div>
                 </div>
             </template>
-
             <template #item.subject="{ item }">
-                <div class="py-1 cursor-pointer">
-                    <div class="text-sm text-blue-lighten-4 hover:text-white">
-                        {{ item.subject || 'Без темы' }}
-                    </div>
-
-                    <div
-                        v-if="item.preview"
-                        class="text-[10px] text-grey-lighten-1 line-clamp-2 mt-1"
-                    >
-                        {{ item.preview }}
-                    </div>
+                <div class="unit-mail-subject">
+                    <strong>{{ item.subject || 'Без темы' }}</strong>
+                    <p v-if="item.preview">{{ item.preview }}</p>
                 </div>
             </template>
-
             <template #item.actions="{ item }">
-                <v-btn
-                    v-if="item.direction === 'incoming'"
-                    icon="mdi-reply"
-                    size="x-small"
-                    variant="text"
-                    color="teal"
-                    @click.stop="replyToTableMessage(item)"
-                />
-
-                <v-btn
-                    icon="mdi-email-open-outline"
-                    size="x-small"
-                    variant="text"
-                    color="blue"
-                    @click.stop="openMessage(item)"
-                />
+                <v-btn v-if="canSend && item.direction === 'incoming'" icon="mdi-reply" size="x-small" variant="text" aria-label="Ответить на письмо" title="Ответить" @click.stop="replyToTableMessage(item)" />
+                <v-btn icon="mdi-email-open-outline" size="x-small" variant="text" aria-label="Открыть письмо" title="Открыть письмо" @click.stop="openMessage(item)" />
             </template>
         </v-data-table-server>
 
-        <UnitMailComposerDialog
-            v-model="composerDialog"
-            :unit-id="unit.id"
-            :recipients="relatedEmails"
-            :mailboxes="mailboxes"
-            :unit-files="files"
-            :reply-context="replyContext"
-            :sending="sending"
-            @sent="afterSent"
-        />
-
-        <MailTemplatesDialog v-model="templatesDialog" />
-
-        <MailMessageReaderDialog
-            v-model="readerDialog"
-            :message="selectedMessage"
-            :loading="reading"
-            :default-unit-id="unit.id"
-            @reload="forceReloadMessage"
-            @reply="replyToMessage"
-            @updated="updateSelectedMessage"
-        />
+        <UnitMailComposerDialog v-if="canSend" v-model="composerDialog" :unit-id="unit.id" :recipients="relatedEmails" :initial-to="initialTo" :mailboxes="mailboxes" :unit-files="files" :reply-context="replyContext" :sending="sending" @sent="afterSent" />
+        <MailTemplatesDialog v-if="canSend" v-model="templatesDialog" />
+        <MailMessageReaderDialog v-model="readerDialog" :message="selectedMessage" :loading="reading" :default-unit-id="unit.id" @reload="forceReloadMessage" @reply="replyToMessage" @updated="updateSelectedMessage" />
     </BaseSectionCard>
 </template>
 
 <style scoped>
-.line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.unit-mail-related-emails {
-    max-height: 24px;
-    overflow: hidden;
-}
+.unit-mail-card { border: 1px solid #d6d3d9 !important; border-radius: 0 !important; box-shadow: none !important; color: #252329; }
+.unit-mail-card :deep(.base-section-card__header) { padding: 5px 10px; min-height: 42px; border-bottom: 1px solid #e4e2e6; }
+.unit-mail-card :deep(.base-section-card__title) { font-size: 12px; }
+.unit-mail-card :deep(.base-section-card__body) { padding: 10px; }
+.unit-mail-total { color: #79737e; font-size: 11px; font-variant-numeric: tabular-nums; }
+.unit-mail-filters { display: grid; grid-template-columns: minmax(150px, 1.4fr) minmax(100px, 1fr) minmax(110px, 1fr); gap: 8px; margin-bottom: 10px; }
+.unit-mail-table { width: 100%; max-width: 100%; min-width: 0; font-size: 11px; border-top: 1px solid #e4e2e6; }
+.unit-mail-table :deep(.v-table__wrapper) { max-width: 100%; max-height: 340px; overflow: auto; }
+.unit-mail-table :deep(th) { font-size: 10px; color: #77727c; }
+.unit-mail-table :deep(td) { padding: 5px 8px !important; }
+.unit-mail-table :deep(.v-data-table-footer) { padding: 6px 0 0; font-size: 11px; gap: 8px; }
+.unit-mail-direction { font-size: 10px; color: #382447; white-space: nowrap; }
+.unit-mail-direction.is-outgoing { color: #6b2032; }
+.unit-mail-date { font-size: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.unit-mail-muted { color: #79737e; font-size: 10px; overflow-wrap: anywhere; }
+.unit-mail-address { color: #382447; font-size: 11px; overflow-wrap: anywhere; }
+.unit-mail-subject { min-width: 140px; padding: 3px 0; }
+.unit-mail-subject strong { font-size: 11px; font-weight: 600; }
+.unit-mail-subject p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #79737e; font-size: 10px; margin: 3px 0 0; }
+.unit-mail-error { padding: 8px; margin-bottom: 8px; border: 1px solid #b98a94; color: #6b2032; font-size: 12px; }
+@media (max-width: 600px) { .unit-mail-filters { grid-template-columns: 1fr 1fr; } .unit-mail-filters > :first-child { grid-column: 1 / -1; } }
 </style>

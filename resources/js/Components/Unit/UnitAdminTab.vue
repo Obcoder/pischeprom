@@ -138,13 +138,13 @@ async function detachIndustry(industry) {
     <div class="unit-okved-tab">
         <div class="unit-okved-tab__toolbar">
             <div class="unit-okved-tab__title">
-                <span>Присоединённые ОКВЭД</span>
+                <span>ОКВЭД</span>
                 <strong>{{ industries.length }}</strong>
             </div>
 
             <div class="unit-okved-tab__actions">
-                <button type="button" @click="openIndustryDialog()">ОКВЭД CRUD</button>
-                <button type="button" @click="openAttachDialog">Привязка ОКВЭД</button>
+                <button type="button" @click="openIndustryDialog()">Создать ОКВЭД</button>
+                <button type="button" @click="openAttachDialog">Привязать ОКВЭД</button>
             </div>
         </div>
 
@@ -164,10 +164,10 @@ async function detachIndustry(industry) {
                 <div v-for="industry in industries" :key="industry.id" class="unit-okved-table__row">
                     <span class="unit-okved-table__code">{{ industry.code }}</span>
                     <span>{{ industry.title }}</span>
-                    <span>{{ industry.pivot?.is_primary ? 'primary' : 'linked' }}</span>
+                    <span>{{ industry.pivot?.is_primary ? 'Основной' : 'Дополнительный' }}</span>
                     <span class="unit-okved-table__actions">
-                        <button type="button" @click="openIndustryDialog(industry)">Edit</button>
-                        <button type="button" class="danger" @click="detachIndustry(industry)">Detach</button>
+                        <button type="button" @click="openIndustryDialog(industry)">Изменить</button>
+                        <button type="button" class="danger" @click="detachIndustry(industry)">Отвязать</button>
                     </span>
                 </div>
 
@@ -178,12 +178,12 @@ async function detachIndustry(industry) {
         </section>
 
         <v-dialog v-model="industryDialog" max-width="680">
-            <v-card rounded="xl">
+            <v-card rounded="0">
                 <v-card-title>{{ industryForm.id ? 'Редактировать ОКВЭД' : 'Создать ОКВЭД' }}</v-card-title>
                 <v-card-text>
                     <div class="unit-okved-tab__fields-2">
-                        <v-text-field v-model="industryForm.code" label="Code" variant="solo-filled" density="compact" :error-messages="industryErrors.code || []" />
-                        <v-text-field v-model="industryForm.title" label="Title" variant="solo-filled" density="compact" :error-messages="industryErrors.title || []" />
+                        <v-text-field v-model="industryForm.code" label="Code" variant="outlined" density="compact" :error-messages="industryErrors.code || []" />
+                        <v-text-field v-model="industryForm.title" label="Title" variant="outlined" density="compact" :error-messages="industryErrors.title || []" />
                     </div>
                 </v-card-text>
                 <v-card-actions class="justify-space-between">
@@ -194,18 +194,18 @@ async function detachIndustry(industry) {
                         :loading="deletingIndustryId === industryForm.id"
                         @click="deleteIndustry({ id: industryForm.id, code: industryForm.code })"
                     >
-                        Delete
+                        Удалить
                     </v-btn>
                     <v-spacer />
-                    <v-btn variant="text" @click="industryDialog = false">Cancel</v-btn>
-                    <v-btn color="teal-darken-3" :disabled="!industryForm.code || !industryForm.title" :loading="savingIndustry" @click="saveIndustry">Save</v-btn>
+                    <v-btn variant="text" @click="industryDialog = false">Отмена</v-btn>
+                    <v-btn color="#352345" :disabled="!industryForm.code || !industryForm.title" :loading="savingIndustry" @click="saveIndustry">Сохранить</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
 
         <v-dialog v-model="attachDialog" max-width="680">
-            <v-card rounded="xl">
-                <v-card-title>Привязка ОКВЭД</v-card-title>
+            <v-card rounded="0">
+                <v-card-title>Привязать ОКВЭД</v-card-title>
                 <v-card-text>
                     <v-autocomplete
                         v-model="selectedIndustryId"
@@ -213,7 +213,7 @@ async function detachIndustry(industry) {
                         item-title="code"
                         item-value="id"
                         label="ОКВЭД"
-                        variant="solo-filled"
+                        variant="outlined"
                         density="compact"
                         hide-details
                     >
@@ -223,9 +223,9 @@ async function detachIndustry(industry) {
                     </v-autocomplete>
                 </v-card-text>
                 <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="attachDialog = false">Cancel</v-btn>
-                    <v-btn color="teal-darken-3" :disabled="!selectedIndustryId || attachingIndustry" :loading="attachingIndustry" @click="attachIndustry(false)">Attach</v-btn>
-                    <v-btn color="teal-darken-4" :disabled="!selectedIndustryId || attachingIndustry" :loading="attachingIndustry" @click="attachIndustry(true)">Attach primary</v-btn>
+                    <v-btn variant="text" @click="attachDialog = false">Отмена</v-btn>
+                    <v-btn color="#352345" :disabled="!selectedIndustryId || attachingIndustry" :loading="attachingIndustry" @click="attachIndustry(false)">Привязать</v-btn>
+                    <v-btn color="#352345" :disabled="!selectedIndustryId || attachingIndustry" :loading="attachingIndustry" @click="attachIndustry(true)">Привязать как основной</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -236,7 +236,7 @@ async function detachIndustry(industry) {
 .unit-okved-tab {
     display: grid;
     gap: 8px;
-    color: #153b3a;
+    color: #242127;
 }
 
 .unit-okved-tab__toolbar {
@@ -256,40 +256,40 @@ async function detachIndustry(industry) {
 }
 
 .unit-okved-tab__title span {
-    color: #00524b;
+    color: #352345;
     font-size: 0.72rem;
-    font-weight: 950;
+    font-weight: 650;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .unit-okved-tab__title strong {
     min-width: 24px;
     padding: 2px 7px;
-    border-radius: 999px;
-    background: #00695c;
-    color: #ecfffb;
+    border-radius: 0;
+    background: #352345;
+    color: #ffffff;
     font-size: 0.68rem;
     line-height: 1.2;
     text-align: center;
 }
 
 .unit-okved-tab button {
-    border: 1px solid rgba(0, 128, 128, 0.24);
-    border-radius: 8px;
-    background: #00796b;
-    color: #f1fffc;
+    border: 1px solid #d9d7dc;
+    border-radius: 0;
+    background: #352345;
+    color: #ffffff;
     cursor: pointer;
     font-size: 0.62rem;
-    font-weight: 900;
+    font-weight: 650;
     letter-spacing: 0.06em;
     padding: 5px 8px;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .unit-okved-tab button.danger,
 .unit-okved-table__actions button.danger {
-    background: #95133d;
+    background: #651c2e;
 }
 
 .unit-okved-tab button:disabled {
@@ -299,19 +299,19 @@ async function detachIndustry(industry) {
 
 .unit-okved-tab__feedback {
     padding: 6px 8px;
-    border: 1px solid rgba(0, 128, 128, 0.18);
-    border-radius: 8px;
-    background: #f0fdfa;
-    color: #00695c;
+    border: 1px solid #d9d7dc;
+    border-radius: 0;
+    background: #f5f4f6;
+    color: #352345;
     font-size: 0.68rem;
     font-weight: 800;
 }
 
 .unit-okved-tab__sheet {
     width: 100%;
-    border: 1px solid rgba(0, 128, 128, 0.18);
-    border-radius: 12px;
-    background: #f7fffd;
+    border: 1px solid #d9d7dc;
+    border-radius: 0;
+    background: #ffffff;
     overflow: hidden;
 }
 
@@ -326,40 +326,40 @@ async function detachIndustry(industry) {
     display: grid;
     grid-template-columns: 92px minmax(0, 1fr) 86px 142px;
     min-height: 30px;
-    border-bottom: 1px solid rgba(0, 128, 128, 0.14);
+    border-bottom: 1px solid #d9d7dc;
 }
 
 .unit-okved-table__row > span {
     overflow: hidden;
     padding: 5px 7px;
-    border-right: 1px solid rgba(0, 128, 128, 0.12);
+    border-right: 1px solid #d9d7dc;
     font-size: 0.68rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .unit-okved-table__row--head > span {
-    background: #d9f5ef;
-    color: #00524b;
-    font-weight: 950;
+    background: #f3f2f4;
+    color: #352345;
+    font-weight: 650;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .unit-okved-table__code {
-    color: #004d46;
-    font-weight: 950;
+    color: #352345;
+    font-weight: 650;
 }
 
 .unit-okved-table__actions button {
-    border-radius: 6px;
+    border-radius: 0;
     font-size: 0.54rem;
     padding: 3px 5px;
 }
 
 .unit-okved-table__empty {
     padding: 12px;
-    color: #607d7a;
+    color: #77727b;
     font-size: 0.72rem;
 }
 

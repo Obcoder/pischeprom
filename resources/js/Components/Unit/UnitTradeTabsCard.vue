@@ -3,1132 +3,277 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
-import { useDate } from 'vuetify'
 import axios from 'axios'
-
-import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
+import UnitManufacturesCard from '@/Components/Unit/UnitManufacturesCard.vue'
+import UnitLeadsPanel from '@/Components/Unit/UnitLeadsPanel.vue'
 
 const props = defineProps({
-    unit: {
-        type: Object,
-        required: true,
-    },
-    dict: {
-        type: Object,
-        default: () => ({}),
-    },
-    canViewOrders: {
-        type: Boolean,
-        default: false,
-    },
-    canCreateOrders: {
-        type: Boolean,
-        default: false,
-    },
-    goodsLoading: {
-        type: Boolean,
-        default: false,
-    },
-    searchGoods: {
-        type: Function,
-        required: true,
-    },
+    unit: { type: Object, required: true },
+    dict: { type: Object, default: () => ({}) },
+    canViewOrders: { type: Boolean, default: false },
+    canCreateOrders: { type: Boolean, default: false },
+    goodsLoading: { type: Boolean, default: false },
+    searchGoods: { type: Function, required: true },
 })
-
 const emit = defineEmits(['refresh'])
-
-const date = useDate()
 const tab = ref('consumptions')
 const showConsumptionForm = ref(false)
 const savingConsumption = ref(false)
 const consumptionErrors = ref({})
+const categoryFilter = ref(null)
 const dialogQuotation = ref(false)
 const editingQuotation = ref(null)
 const goodsSearch = ref('')
 const savingQuotation = ref(false)
 const deletingQuotationId = ref(null)
 const quotationErrors = ref({})
-
-const formConsumption = reactive({
-    unit_id: props.unit.id,
-    product_id: null,
-    quantity: null,
-    measure_id: null,
-})
-
-const quotationForm = reactive({
-    good_id: null,
-    price: null,
-    currency_id: null,
-    measure_id: null,
-    denominator: 1,
-})
-
+const feedback = ref('')
+const quotationFeedback = ref('')
+const formConsumption = reactive({ product_id: null, quantity: null, measure_id: null })
+const quotationForm = reactive({ good_id: null, price: null, currency_id: null, measure_id: null, denominator: 1 })
 const consumptions = computed(() => props.unit?.consumptions || [])
 const quotations = computed(() => props.unit?.quotations || [])
-const orders = computed(() => {
-    const byId = new Map()
-
-    ;(props.unit?.entities || []).forEach((entity) => {
-        ;(entity.orders || []).forEach((order) => {
-            byId.set(order.id, {
-                ...order,
-                entity: order.entity || {
-                    id: entity.id,
-                    name: entity.name,
-                },
-            })
-        })
-    })
-
-    return Array.from(byId.values()).sort((left, right) => {
-        return new Date(right.submitted_at || right.created_at || 0)
-            - new Date(left.submitted_at || left.created_at || 0)
-    })
-})
-
-const consumptionHeaders = [
-    { title: 'Product', key: 'product', sortable: false },
-    { title: 'Quantity', key: 'quantity', sortable: false, width: 132, align: 'end' },
-    { title: 'Measure', key: 'measure', sortable: false, width: 112 },
-    { title: 'Requests', key: 'requests', sortable: false, width: 96, align: 'end' },
-    { title: 'Created', key: 'created_at', sortable: false, width: 116 },
-]
-
+const consumptionCategories = computed(() => [...new Map(consumptions.value
+    .filter((item) => item.product?.category?.id)
+    .map((item) => [item.product.category.id, item.product.category])).values()])
+const filteredConsumptions = computed(() => consumptions.value.filter((item) => !categoryFilter.value || item.product?.category?.id === categoryFilter.value))
+const products = computed(() => (props.dict.products || []).map((product) => ({ ...product, title: productName(product) })))
+const goods = computed(() => [...new Map([
+    ...(props.dict.goods || []),
+    ...(editingQuotation.value?.good ? [editingQuotation.value.good] : []),
+].map((good) => [good.id, good])).values()])
 const currencies = computed(() => (props.dict.currencies || []).map((currency) => ({
-    ...currency,
-    title: [currency.code, currency.name].filter(Boolean).join(' - '),
+    ...currency, title: [currency.code, currency.name].filter(Boolean).join(' · '),
 })))
-
-const tradeStats = computed(() => [
-    { label: 'consumptions', value: consumptions.value.length },
-    { label: 'quotations', value: quotations.value.length },
-    ...(props.canViewOrders ? [{ label: 'orders', value: orders.value.length }] : []),
-    { label: 'requests', value: consumptions.value.reduce((sum, item) => sum + requestsCount(item), 0) },
-])
-
-const quoteStats = computed(() => {
-    const uniqueGoods = new Set(quotations.value.map((item) => item.good_id || item.good?.id).filter(Boolean))
-    const currencySet = new Set(quotations.value.map((item) => item.currency?.code || item.currency?.name).filter(Boolean))
-
-    return [
-        { label: 'quotes', value: quotations.value.length },
-        { label: 'goods', value: uniqueGoods.size },
-        { label: 'currencies', value: currencySet.size || '-' },
-    ]
+const orders = computed(() => {
+    const unique = new Map()
+    for (const entity of props.unit?.entities || []) {
+        for (const order of entity.orders || []) {
+            unique.set(order.id, { ...order, entity: order.entity || { id: entity.id, name: entity.name } })
+        }
+    }
+    return [...unique.values()].sort((a, b) => new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0))
 })
-
+const consumptionHeaders = [
+    { title: 'Продукт', key: 'product', sortable: false },
+    { title: 'Категория', key: 'category', sortable: false },
+    { title: 'Объём', key: 'quantity', sortable: false, align: 'end' },
+    { title: 'Ед.', key: 'measure', sortable: false },
+]
 const debouncedSearchGoods = useDebounceFn(async (value) => {
-    await props.searchGoods(value || '')
+    try { await props.searchGoods(value || '') }
+    catch (error) { quotationFeedback.value = 'Не удалось найти товары. Повторите поиск.' }
 }, 350)
-
-watch(goodsSearch, (value) => {
-    debouncedSearchGoods(value)
+watch(goodsSearch, (value) => { debouncedSearchGoods(value) })
+watch(() => props.unit.id, () => {
+    showConsumptionForm.value = false
+    dialogQuotation.value = false
+    categoryFilter.value = null
+    feedback.value = ''
+    Object.assign(formConsumption, { product_id: null, quantity: null, measure_id: null })
 })
-
-watch(() => props.unit?.id, (unitId) => {
-    formConsumption.unit_id = unitId
-})
-
 function formatNumber(value, digits = 2) {
+    if (value === null || value === undefined || value === '') return '—'
     const number = Number(value)
-
-    if (!Number.isFinite(number)) {
-        return '-'
-    }
-
-    return new Intl.NumberFormat('ru-RU', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: digits,
-    }).format(number)
+    return Number.isFinite(number) ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(number) : '—'
 }
-
 function formatDate(value) {
-    if (!value) {
-        return '-'
-    }
-
-    return date.format(value, 'keyboardDate')
+    const date = new Date(value)
+    return value && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('ru-RU') : '—'
 }
-
-function productName(consumption) {
-    return consumption.product?.rus
-        || consumption.product?.name
-        || consumption.product?.eng
-        || `Product #${consumption.product_id}`
-}
-
-function productHref(product) {
-    if (!product?.id) {
-        return '#'
-    }
-
-    try {
-        return route('product.show', product.id)
-    } catch (error) {
-        return `/Ameise/product/${product.id}`
-    }
-}
-
-function requestsCount(consumption) {
-    return Number(consumption.product?.search_requests_count || consumption.product?.search_requests?.length || 0)
-}
-
-function requestTone(consumption) {
-    return requestsCount(consumption) > 0 ? 'is-hot' : 'is-muted'
-}
-
-function quantityTone(consumption) {
-    const quantity = Number(consumption.quantity || 0)
-
-    if (quantity >= 1000) {
-        return 'is-high'
-    }
-
-    if (quantity > 0) {
-        return 'is-positive'
-    }
-
-    return 'is-muted'
-}
-
-function consumptionShare(consumption) {
-    const max = Math.max(...consumptions.value.map((item) => Number(item.quantity || 0)), 0)
-    const quantity = Number(consumption.quantity || 0)
-
-    if (!max || !quantity) {
-        return 0
-    }
-
-    return Math.max(8, Math.min(100, Math.round((quantity / max) * 100)))
-}
-
+function productName(product) { return product?.rus || product?.name || product?.eng || `Product #${product?.id ?? '—'}` }
 async function storeConsumption() {
+    if (savingConsumption.value) return
     savingConsumption.value = true
     consumptionErrors.value = {}
-
+    feedback.value = ''
     try {
-        await axios.post(route('api.consumption.store'), {
-            unit_id: props.unit.id,
-            product_id: formConsumption.product_id,
-            quantity: formConsumption.quantity,
-            measure_id: formConsumption.measure_id,
-        })
-
-        formConsumption.unit_id = props.unit.id
-        formConsumption.product_id = null
-        formConsumption.quantity = null
-        formConsumption.measure_id = null
+        await axios.post(route('api.consumption.store'), { unit_id: props.unit.id, ...formConsumption })
+        Object.assign(formConsumption, { product_id: null, quantity: null, measure_id: null })
         showConsumptionForm.value = false
         emit('refresh')
     } catch (error) {
         consumptionErrors.value = error.response?.data?.errors || {}
-        console.error('Ошибка сохранения consumption:', error)
-    } finally {
-        savingConsumption.value = false
-    }
+        feedback.value = error.response?.data?.message || 'Не удалось добавить потребление.'
+    } finally { savingConsumption.value = false }
 }
-
-function resetQuotationForm(quotation = null) {
+async function openQuotation(quotation = null) {
     editingQuotation.value = quotation
     quotationErrors.value = {}
-    quotationForm.good_id = quotation?.good_id || quotation?.good?.id || null
-    quotationForm.price = quotation?.price ?? null
-    quotationForm.currency_id = quotation?.currency_id || quotation?.currency?.id || null
-    quotationForm.measure_id = quotation?.measure_id || quotation?.measure?.id || null
-    quotationForm.denominator = quotation?.denominator || 1
+    quotationFeedback.value = ''
+    Object.assign(quotationForm, {
+        good_id: quotation?.good_id || quotation?.good?.id || null,
+        price: quotation?.price ?? null,
+        currency_id: quotation?.currency_id || quotation?.currency?.id || null,
+        measure_id: quotation?.measure_id || quotation?.measure?.id || null,
+        denominator: quotation?.denominator || 1,
+    })
     goodsSearch.value = quotation?.good?.name || ''
-}
-
-async function openCreateQuotation() {
-    resetQuotationForm()
     dialogQuotation.value = true
-
     if (!props.dict.goods?.length) {
-        await props.searchGoods('')
+        try { await props.searchGoods(goodsSearch.value) }
+        catch (error) { quotationFeedback.value = 'Не удалось загрузить товары. Повторите поиск.' }
     }
 }
-
-async function openEditQuotation(quotation) {
-    resetQuotationForm(quotation)
-    dialogQuotation.value = true
-
-    if (!props.dict.goods?.length) {
-        await props.searchGoods(quotation?.good?.name || '')
-    }
-}
-
-function quotationPayload() {
-    return {
-        unit_id: props.unit.id,
-        good_id: quotationForm.good_id,
-        price: quotationForm.price,
-        currency_id: quotationForm.currency_id || null,
-        measure_id: quotationForm.measure_id || null,
-        denominator: quotationForm.denominator || 1,
-    }
-}
-
 async function saveQuotation() {
+    if (savingQuotation.value) return
     savingQuotation.value = true
     quotationErrors.value = {}
-
+    quotationFeedback.value = ''
     try {
-        if (editingQuotation.value?.id) {
-            await axios.put(`/api/quotations/${editingQuotation.value.id}`, quotationPayload())
-        } else {
-            await axios.post('/api/quotations', quotationPayload())
-        }
-
+        const payload = { unit_id: props.unit.id, ...quotationForm }
+        if (editingQuotation.value?.id) await axios.put(`/api/quotations/${editingQuotation.value.id}`, payload)
+        else await axios.post('/api/quotations', payload)
         dialogQuotation.value = false
-        resetQuotationForm()
         emit('refresh')
     } catch (error) {
         quotationErrors.value = error.response?.data?.errors || {}
-        console.error('Ошибка сохранения quotation:', error)
-    } finally {
-        savingQuotation.value = false
-    }
+        quotationFeedback.value = error.response?.data?.message || 'Не удалось сохранить цену.'
+    } finally { savingQuotation.value = false }
 }
-
 async function deleteQuotation(quotation) {
-    if (!quotation?.id || !window.confirm(`Удалить quotation для "${quotation.good?.name || 'good'}"?`)) {
-        return
-    }
-
+    if (!quotation?.id || deletingQuotationId.value) return
+    if (!window.confirm(`Удалить цену для «${quotation.good?.name || 'товара'}»?`)) return
     deletingQuotationId.value = quotation.id
-
+    feedback.value = ''
     try {
         await axios.delete(`/api/quotations/${quotation.id}`)
         emit('refresh')
-    } catch (error) {
-        console.error('Ошибка удаления quotation:', error)
-    } finally {
-        deletingQuotationId.value = null
-    }
+    } catch (error) { feedback.value = error.response?.data?.message || 'Не удалось удалить цену.' }
+    finally { deletingQuotationId.value = null }
 }
-
-function currencyLabel(quotation) {
-    return quotation?.currency?.code || quotation?.currency?.name || 'RUB'
-}
-
-function measureLabel(quotation) {
-    return quotation?.measure?.name || quotation?.measure?.title || 'unit'
-}
-
 function priceLine(quotation) {
-    const denominator = Number(quotation?.denominator || 1)
-    const denominatorLabel = denominator === 1 ? '' : ` / ${formatNumber(denominator, 4)}`
-
-    return `${formatNumber(quotation?.price)} ${currencyLabel(quotation)}${denominatorLabel} ${measureLabel(quotation)}`
+    const currency = quotation.currency?.code || quotation.currency?.name || ''
+    const measure = quotation.measure?.name || quotation.measure?.title || ''
+    const denominator = Number(quotation.denominator || 1)
+    return `${formatNumber(quotation.price)} ${currency}${measure ? ` / ${denominator === 1 ? '' : `${formatNumber(denominator, 4)} `}${measure}` : denominator !== 1 ? ` / ${formatNumber(denominator, 4)}` : ''}`.trim()
 }
-
-function goodHref(good) {
-    if (!good?.id) {
-        return '#'
-    }
-
-    try {
-        return route('Ameise.good.show', good.id)
-    } catch (error) {
-        return `/Ameise/good/${good.id}`
-    }
-}
-
-function orderHref(order) {
-    if (!order?.id) {
-        return '#'
-    }
-
-    try {
-        return route('Ameise.orders.show', order.id)
-    } catch (error) {
-        return `/Ameise/orders/${order.id}`
-    }
-}
-
-function orderStatus(order) {
-    return order?.status?.name || order?.status?.code || 'Без статуса'
-}
-
-function orderStatusColor(order) {
-    return order?.status?.color || '#64748b'
-}
-
-function orderBuildings(order) {
-    return (order?.buildings || []).map((building) => building.address).filter(Boolean).join(' · ') || 'Логистика не задана'
-}
-
-function orderMoney(order) {
-    const amount = Number(order?.total_amount)
-    const currency = order?.currency_code === 'RUB' ? '₽' : (order?.currency_code || 'RUB')
-
-    return Number.isFinite(amount)
-        ? `${formatNumber(amount)} ${currency}`
-        : '—'
-}
+function orderMoney(order) { return `${formatNumber(order.total_amount)} ${order.currency_code || ''}`.trim() }
 </script>
 
 <template>
-    <BaseSectionCard
-        title="Trade"
-        icon="mdi-view-dashboard-outline"
-        compact
-        body-class="unit-trade-tabs"
-    >
-        <template #actions>
-            <div class="unit-trade-tabs__stats">
-                <span v-for="stat in tradeStats" :key="stat.label">
-                    <strong>{{ stat.value }}</strong> {{ stat.label }}
-                </span>
-            </div>
-        </template>
-
-        <v-tabs
-            v-model="tab"
-            color="#5f0f24"
-            density="compact"
-            height="34"
-            class="unit-trade-tabs__tabs"
-        >
-            <v-tab value="consumptions">
-                Потребление
-            </v-tab>
-            <v-tab value="quotations">
-                Quotations
-            </v-tab>
-            <v-tab v-if="canViewOrders" value="orders">
-                Заказы
-            </v-tab>
+    <section class="unit-relations" aria-label="Связи с продуктами, товарами и категориями">
+        <v-tabs v-model="tab" color="#352345" density="compact" height="38" class="unit-relations__tabs" show-arrows>
+            <v-tab value="consumptions">Закупает / потребляет</v-tab>
+            <v-tab value="manufactures">Производит</v-tab>
+            <v-tab value="quotations">Quotations · прайс-лист</v-tab>
+            <v-tab v-if="canViewOrders" value="orders">Заказы</v-tab>
+            <v-tab value="leads">Лиды</v-tab>
         </v-tabs>
-
-        <v-window v-model="tab" class="unit-trade-tabs__window">
+        <p v-if="feedback" role="alert" class="unit-relations__error">{{ feedback }}</p>
+        <v-window v-model="tab">
             <v-window-item value="consumptions">
-                <div class="unit-trade-tabs__toolbar">
-                    <div class="unit-trade-tabs__caption">
-                        Продукты, которые unit потенциально закупает
-                    </div>
-
-                    <button type="button" class="unit-trade-tabs__action" @click="showConsumptionForm = !showConsumptionForm">
-                        <v-icon icon="mdi-plus" size="14" />
-                        <span>consumption</span>
-                    </button>
+                <div class="unit-relations__toolbar">
+                    <span>Продукты для поставок этому Unit</span>
+                    <button type="button" class="unit-relations__action" :aria-expanded="showConsumptionForm" @click="showConsumptionForm = !showConsumptionForm"><v-icon :icon="showConsumptionForm ? 'mdi-close' : 'mdi-plus'" size="15" />{{ showConsumptionForm ? 'Закрыть' : 'Добавить продукт' }}</button>
                 </div>
-
-                <v-expand-transition>
-                    <div v-if="showConsumptionForm" class="unit-trade-tabs__form">
-                        <v-autocomplete
-                            v-model="formConsumption.product_id"
-                            :items="dict.products || []"
-                            item-title="rus"
-                            item-value="id"
-                            label="Product"
-                            variant="outlined"
-                            density="compact"
-                            hide-details="auto"
-                            :error-messages="consumptionErrors.product_id || []"
-                        />
-
-                        <v-text-field
-                            v-model="formConsumption.quantity"
-                            label="Quantity"
-                            type="number"
-                            variant="outlined"
-                            density="compact"
-                            hide-details="auto"
-                            :error-messages="consumptionErrors.quantity || []"
-                        />
-
-                        <v-select
-                            v-model="formConsumption.measure_id"
-                            :items="dict.measures || []"
-                            item-title="name"
-                            item-value="id"
-                            label="Measure"
-                            variant="outlined"
-                            density="compact"
-                            hide-details="auto"
-                            :error-messages="consumptionErrors.measure_id || []"
-                        />
-
-                        <v-btn
-                            color="#5f0f24"
-                            size="small"
-                            :disabled="!formConsumption.product_id || !formConsumption.quantity"
-                            :loading="savingConsumption"
-                            @click="storeConsumption"
-                        >
-                            Save
-                        </v-btn>
-                    </div>
-                </v-expand-transition>
-
-                <v-data-table
-                    :items="consumptions"
-                    :headers="consumptionHeaders"
-                    density="compact"
-                    items-per-page="12"
-                    fixed-header
-                    height="330"
-                    class="unit-consumption-table"
-                >
-                    <template #item.product="{ item }">
-                        <div class="unit-consumption-table__product">
-                            <Link
-                                v-if="item.product?.id"
-                                :href="productHref(item.product)"
-                                class="unit-consumption-table__link"
-                            >
-                                {{ productName(item) }}
-                            </Link>
-                            <span v-else>{{ productName(item) }}</span>
-                            <small v-if="item.product?.category?.name">{{ item.product.category.name }}</small>
-                        </div>
-                    </template>
-
-                    <template #item.quantity="{ item }">
-                        <div class="unit-consumption-table__metric">
-                            <strong :class="quantityTone(item)">{{ formatNumber(item.quantity) }}</strong>
-                            <span class="unit-consumption-table__bar">
-                                <span :style="{ width: consumptionShare(item) + '%' }" />
-                            </span>
-                        </div>
-                    </template>
-
-                    <template #item.measure="{ item }">
-                        <span class="unit-consumption-table__muted">{{ item.measure?.name || '-' }}</span>
-                    </template>
-
-                    <template #item.requests="{ item }">
-                        <span class="unit-consumption-table__requests" :class="requestTone(item)">
-                            {{ requestsCount(item) }}
-                        </span>
-                    </template>
-
-                    <template #item.created_at="{ item }">
-                        <span class="unit-consumption-table__date">{{ formatDate(item.created_at) }}</span>
-                    </template>
-
-                    <template #no-data>
-                        <div class="unit-trade-tabs__empty">
-                            Нет данных о потенциальном потреблении.
-                        </div>
-                    </template>
+                <form v-if="showConsumptionForm" class="unit-relations__consumption-form" @submit.prevent="storeConsumption">
+                    <v-autocomplete v-model="formConsumption.product_id" :items="products" item-title="title" item-value="id" label="Продукт" variant="outlined" density="compact" hide-details="auto" :error-messages="consumptionErrors.product_id || []" />
+                    <v-text-field v-model="formConsumption.quantity" label="Объём" type="number" min="0" step="any" variant="outlined" density="compact" hide-details="auto" :error-messages="consumptionErrors.quantity || []" />
+                    <v-select v-model="formConsumption.measure_id" :items="dict.measures || []" item-title="name" item-value="id" label="Единица" variant="outlined" density="compact" hide-details="auto" clearable :error-messages="consumptionErrors.measure_id || []" />
+                    <v-btn type="submit" color="#352345" variant="flat" rounded="0" :disabled="!formConsumption.product_id || formConsumption.quantity === null || formConsumption.quantity === ''" :loading="savingConsumption">Добавить</v-btn>
+                </form>
+                <v-select v-if="consumptionCategories.length > 1" v-model="categoryFilter" :items="consumptionCategories" item-title="name" item-value="id" label="Категория" variant="outlined" density="compact" hide-details clearable class="unit-relations__filter" />
+                <v-data-table :items="filteredConsumptions" :headers="consumptionHeaders" density="compact" :items-per-page="12" :hide-default-footer="filteredConsumptions.length <= 12" class="unit-relations__consumptions">
+                    <template #item.product="{ item }"><Link v-if="item.product?.id" :href="route('product.show', item.product.id)">{{ productName(item.product) }}</Link><span v-else>Product #{{ item.product_id }}</span></template>
+                    <template #item.category="{ item }"><Link v-if="item.product?.category?.id" :href="route('category.show', item.product.category.id)" class="unit-relations__category">{{ item.product.category.name }}</Link><span v-else>—</span></template>
+                    <template #item.quantity="{ item }">{{ formatNumber(item.quantity) }}</template>
+                    <template #item.measure="{ item }">{{ item.measure?.name || '—' }}</template>
+                    <template #no-data><p class="unit-relations__empty">Потребляемые продукты пока не добавлены.</p></template>
                 </v-data-table>
             </v-window-item>
-
+            <v-window-item value="manufactures"><UnitManufacturesCard :unit="unit" :dict="dict" @refresh="emit('refresh')" /></v-window-item>
             <v-window-item value="quotations">
-                <div class="unit-trade-tabs__toolbar">
-                    <div class="unit-quote-stats">
-                        <span v-for="stat in quoteStats" :key="stat.label">
-                            <strong>{{ stat.value }}</strong>
-                            {{ stat.label }}
-                        </span>
-                    </div>
-
-                    <button type="button" class="unit-trade-tabs__action" @click="openCreateQuotation">
-                        <v-icon icon="mdi-plus" size="14" />
-                        <span>price</span>
-                    </button>
+                <div class="unit-relations__toolbar"><span>Товары и цены поставщика</span><button type="button" class="unit-relations__action" @click="openQuotation()"><v-icon icon="mdi-plus" size="15" />Добавить цену</button></div>
+                <div v-if="quotations.length" class="unit-relations__scroll">
+                    <table class="unit-relations__table">
+                        <thead><tr><th>Товар / продукт / категория</th><th class="unit-relations__number">Цена</th><th><span class="sr-only">Действия</span></th></tr></thead>
+                        <tbody>
+                            <tr v-for="quotation in quotations" :key="quotation.id">
+                                <td>
+                                    <Link v-if="quotation.good?.id" :href="route('Ameise.good.show', quotation.good.id)">{{ quotation.good.name }}</Link><span v-else>Good #{{ quotation.good_id }}</span>
+                                    <div v-for="product in quotation.good?.products || []" :key="product.id" class="unit-relations__product-path"><Link :href="route('product.show', product.id)">{{ productName(product) }}</Link><span v-if="product.category?.id"> / <Link :href="route('category.show', product.category.id)">{{ product.category.name }}</Link></span></div>
+                                </td>
+                                <td class="unit-relations__number unit-relations__price">{{ priceLine(quotation) }}</td>
+                                <td class="unit-relations__controls"><button type="button" title="Изменить цену" aria-label="Изменить цену" @click="openQuotation(quotation)"><v-icon icon="mdi-pencil-outline" size="16" /></button><button type="button" class="is-danger" title="Удалить цену" aria-label="Удалить цену" :disabled="deletingQuotationId === quotation.id" @click="deleteQuotation(quotation)"><v-icon icon="mdi-trash-can-outline" size="16" /></button></td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-
-                <div v-if="quotations.length" class="unit-quotations-list">
-                    <article
-                        v-for="quotation in quotations"
-                        :key="quotation.id"
-                        class="unit-quotations-list__item"
-                    >
-                        <div class="unit-quotations-list__main">
-                            <Link
-                                v-if="quotation.good"
-                                :href="goodHref(quotation.good)"
-                                class="unit-quotations-list__good"
-                            >
-                                {{ quotation.good.name }}
-                            </Link>
-                            <span v-else class="unit-quotations-list__good">Good #{{ quotation.good_id }}</span>
-                            <small>{{ measureLabel(quotation) }}</small>
-                        </div>
-
-                        <div class="unit-quotations-list__price">
-                            {{ priceLine(quotation) }}
-                        </div>
-
-                        <div class="unit-quotations-list__controls">
-                            <button type="button" @click="openEditQuotation(quotation)">Edit</button>
-                            <button
-                                type="button"
-                                class="is-danger"
-                                :disabled="deletingQuotationId === quotation.id"
-                                @click="deleteQuotation(quotation)"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </article>
-                </div>
-
-                <div v-else class="unit-trade-tabs__empty">
-                    Нет прайс-позиций. Добавьте товары, которые поставляет эта компания.
-                </div>
+                <p v-else class="unit-relations__empty">Прайс-лист пока пуст. Добавьте товары и цены Unit.</p>
             </v-window-item>
-
             <v-window-item v-if="canViewOrders" value="orders">
-                <div class="unit-trade-tabs__toolbar">
-                    <div class="unit-trade-tabs__caption">
-                        Заказы Entity, связанных с этим Unit
-                    </div>
-
-                    <Link
-                        v-if="canCreateOrders"
-                        :href="route('Ameise.orders.create')"
-                        class="unit-trade-tabs__action"
-                    >
-                        <v-icon icon="mdi-plus" size="14" />
-                        <span>order</span>
-                    </Link>
+                <div class="unit-relations__toolbar"><span>Заказы связанных юридических лиц</span><Link v-if="canCreateOrders" :href="route('Ameise.orders.create')" class="unit-relations__action"><v-icon icon="mdi-plus" size="15" />Создать заказ</Link></div>
+                <div v-if="orders.length" class="unit-relations__scroll">
+                    <table class="unit-relations__table">
+                        <thead><tr><th>Заказ / контрагент</th><th>Товары</th><th>Статус</th><th class="unit-relations__number">Сумма</th></tr></thead>
+                        <tbody>
+                            <tr v-for="order in orders" :key="order.id">
+                                <td><Link :href="route('Ameise.orders.show', order.id)">{{ order.number || `Заказ #${order.id}` }}</Link><small>{{ order.entity?.name }} · {{ formatDate(order.submitted_at || order.created_at) }}</small></td>
+                                <td><div v-for="item in (order.items || []).slice(0, 3)" :key="item.id"><Link v-if="item.good?.id || item.good_id" :href="route('Ameise.good.show', item.good?.id || item.good_id)">{{ item.good_name || item.good?.name || 'Товар' }}</Link><span v-else>{{ item.good_name || 'Товар' }}</span> × {{ formatNumber(item.quantity, 3) }}</div><small v-if="(order.items || []).length > 3">Ещё {{ order.items.length - 3 }}</small></td>
+                                <td><span class="unit-relations__status">{{ order.status?.name || order.status?.code || 'Без статуса' }}</span></td>
+                                <td class="unit-relations__number">{{ orderMoney(order) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-
-                <div v-if="orders.length" class="unit-orders-list">
-                    <article
-                        v-for="order in orders"
-                        :key="order.id"
-                        class="unit-orders-list__item"
-                    >
-                        <div class="unit-orders-list__main">
-                            <Link :href="orderHref(order)" class="unit-orders-list__number">
-                                {{ order.number }}
-                            </Link>
-                            <small>{{ order.entity?.name || 'Entity' }} · {{ formatDate(order.submitted_at) }}</small>
-                        </div>
-
-                        <div class="unit-orders-list__goods">
-                            <Link
-                                v-for="item in (order.items || []).slice(0, 3)"
-                                :key="item.id"
-                                :href="goodHref(item.good || { id: item.good_id })"
-                            >
-                                {{ item.good_name || item.good?.name }} × {{ formatNumber(item.quantity, 3) }}
-                            </Link>
-                            <small v-if="(order.items || []).length > 3">
-                                + ещё {{ order.items.length - 3 }}
-                            </small>
-                        </div>
-
-                        <div class="unit-orders-list__logistics" :title="orderBuildings(order)">
-                            {{ orderBuildings(order) }}
-                        </div>
-
-                        <div class="unit-orders-list__summary">
-                            <span :style="{ '--order-status-color': orderStatusColor(order) }">
-                                {{ orderStatus(order) }}
-                            </span>
-                            <strong>{{ orderMoney(order) }}</strong>
-                        </div>
-                    </article>
-                </div>
-
-                <div v-else class="unit-trade-tabs__empty">
-                    У Entity этого Unit пока нет заказов.
-                </div>
+                <p v-else class="unit-relations__empty">У связанных юридических лиц пока нет заказов.</p>
             </v-window-item>
+            <v-window-item value="leads"><UnitLeadsPanel :unit="unit" @refresh="emit('refresh')" /></v-window-item>
         </v-window>
-
-        <v-dialog v-model="dialogQuotation" max-width="920">
-            <v-card rounded="xl">
-                <v-card-title>
-                    {{ editingQuotation ? 'Edit quotation' : 'New quotation' }}
-                </v-card-title>
-
+        <v-dialog v-model="dialogQuotation" max-width="640" :persistent="savingQuotation">
+            <v-card class="unit-quotation-dialog" rounded="0" elevation="0" border>
+                <v-card-title>{{ editingQuotation ? 'Изменить цену' : 'Добавить цену' }}</v-card-title>
                 <v-card-text>
-                    <v-row dense>
-                        <v-col cols="12" md="6">
-                            <v-autocomplete
-                                v-model="quotationForm.good_id"
-                                v-model:search="goodsSearch"
-                                :items="dict.goods || []"
-                                item-title="name"
-                                item-value="id"
-                                label="Good"
-                                variant="outlined"
-                                density="compact"
-                                clearable
-                                :loading="goodsLoading"
-                                no-filter
-                                :error-messages="quotationErrors.good_id || []"
-                            />
-                        </v-col>
-
-                        <v-col cols="12" md="3">
-                            <v-text-field
-                                v-model="quotationForm.price"
-                                label="Price"
-                                type="number"
-                                step="0.01"
-                                variant="outlined"
-                                density="compact"
-                                clearable
-                                :error-messages="quotationErrors.price || []"
-                            />
-                        </v-col>
-
-                        <v-col cols="12" md="3">
-                            <v-select
-                                v-model="quotationForm.currency_id"
-                                :items="currencies"
-                                item-title="title"
-                                item-value="id"
-                                label="Currency"
-                                variant="outlined"
-                                density="compact"
-                                clearable
-                                :error-messages="quotationErrors.currency_id || []"
-                            />
-                        </v-col>
-
-                        <v-col cols="12" md="6">
-                            <v-select
-                                v-model="quotationForm.measure_id"
-                                :items="dict.measures || []"
-                                item-title="name"
-                                item-value="id"
-                                label="Measure"
-                                variant="outlined"
-                                density="compact"
-                                clearable
-                                :error-messages="quotationErrors.measure_id || []"
-                            />
-                        </v-col>
-
-                        <v-col cols="12" md="6">
-                            <v-text-field
-                                v-model="quotationForm.denominator"
-                                label="Denominator"
-                                type="number"
-                                step="0.0001"
-                                min="0.0001"
-                                variant="outlined"
-                                density="compact"
-                                :error-messages="quotationErrors.denominator || []"
-                            />
-                        </v-col>
-                    </v-row>
+                    <p v-if="quotationFeedback" role="alert" class="unit-relations__error">{{ quotationFeedback }}</p>
+                    <form id="unit-quotation-form" class="unit-quotation-dialog__form" @submit.prevent="saveQuotation">
+                        <v-autocomplete v-model="quotationForm.good_id" v-model:search="goodsSearch" :items="goods" item-title="name" item-value="id" label="Товар" variant="outlined" density="compact" clearable :loading="goodsLoading" no-filter hide-details="auto" class="unit-quotation-dialog__good" :error-messages="quotationErrors.good_id || []" />
+                        <v-text-field v-model="quotationForm.price" label="Цена" type="number" step="0.01" min="0" variant="outlined" density="compact" hide-details="auto" :error-messages="quotationErrors.price || []" />
+                        <v-select v-model="quotationForm.currency_id" :items="currencies" item-title="title" item-value="id" label="Валюта" variant="outlined" density="compact" clearable hide-details="auto" :error-messages="quotationErrors.currency_id || []" />
+                        <v-text-field v-model="quotationForm.denominator" label="За количество" type="number" step="0.0001" min="0.0001" variant="outlined" density="compact" hide-details="auto" :error-messages="quotationErrors.denominator || []" />
+                        <v-select v-model="quotationForm.measure_id" :items="dict.measures || []" item-title="name" item-value="id" label="Единица" variant="outlined" density="compact" clearable hide-details="auto" :error-messages="quotationErrors.measure_id || []" />
+                    </form>
                 </v-card-text>
-
-                <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="dialogQuotation = false">
-                        Cancel
-                    </v-btn>
-                    <v-btn
-                        color="#5f0f24"
-                        :disabled="!quotationForm.good_id || quotationForm.price === null || quotationForm.price === ''"
-                        :loading="savingQuotation"
-                        @click="saveQuotation"
-                    >
-                        Save
-                    </v-btn>
-                </v-card-actions>
+                <v-card-actions><v-spacer /><v-btn :disabled="savingQuotation" @click="dialogQuotation = false">Отмена</v-btn><v-btn form="unit-quotation-form" type="submit" color="#352345" variant="flat" rounded="0" :disabled="!quotationForm.good_id || quotationForm.price === null || quotationForm.price === ''" :loading="savingQuotation">Сохранить</v-btn></v-card-actions>
             </v-card>
         </v-dialog>
-    </BaseSectionCard>
+    </section>
 </template>
 
 <style scoped>
-:deep(.unit-trade-tabs) {
-    padding: 0;
-}
-
-.unit-trade-tabs__stats,
-.unit-quote-stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    color: #7c6f67;
-    font-size: 0.66rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.unit-trade-tabs__stats strong,
-.unit-quote-stats strong {
-    color: #35231f;
-    font-size: 0.74rem;
-}
-
-.unit-trade-tabs__tabs {
-    border-bottom: 1px solid rgba(95, 15, 36, 0.12);
-    padding: 0 10px;
-}
-
-.unit-trade-tabs__window {
-    padding: 8px 10px 10px;
-}
-
-.unit-trade-tabs__toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 8px;
-}
-
-.unit-trade-tabs__caption {
-    color: #7c6f67;
-    font-size: 0.72rem;
-    font-weight: 750;
-}
-
-.unit-trade-tabs__action {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    border: 1px solid rgba(95, 15, 36, 0.16);
-    border-radius: 999px;
-    background: #5f0f24;
-    color: #fff7ee;
-    cursor: pointer;
-    font-size: 0.66rem;
-    font-weight: 900;
-    letter-spacing: 0.07em;
-    line-height: 1;
-    padding: 6px 9px;
-    text-transform: uppercase;
-}
-
-.unit-trade-tabs__action {
-    text-decoration: none;
-}
-
-.unit-trade-tabs__form {
-    display: grid;
-    grid-template-columns: minmax(220px, 1fr) 120px 150px auto;
-    gap: 7px;
-    align-items: center;
-    margin-bottom: 8px;
-    padding: 8px;
-    border: 1px solid rgba(95, 15, 36, 0.12);
-    border-radius: 8px;
-    background: #fffaf6;
-}
-
-.unit-consumption-table {
-    border: 1px solid rgba(52, 48, 44, 0.14);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.unit-consumption-table :deep(th) {
-    height: 42px !important;
-    border-bottom: 1px solid rgba(52, 48, 44, 0.26) !important;
-    background: #fff !important;
-    color: #34302c;
-    font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.76rem;
-    font-weight: 900;
-    letter-spacing: 0;
-    white-space: nowrap;
-}
-
-.unit-consumption-table :deep(td) {
-    height: 42px !important;
-    border-bottom: 1px solid rgba(52, 48, 44, 0.16) !important;
-    color: #34302c;
-    font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.78rem;
-    vertical-align: middle;
-}
-
-.unit-consumption-table__product {
-    display: grid;
-    gap: 1px;
-    min-width: 0;
-}
-
-.unit-consumption-table__product small,
-.unit-consumption-table__muted,
-.unit-consumption-table__date {
-    color: #908b86;
-    font-size: 0.68rem;
-}
-
-.unit-consumption-table__link {
-    overflow: hidden;
-    color: #3155a4;
-    font-weight: 900;
-    text-decoration: none;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.unit-consumption-table__link:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.unit-consumption-table__metric {
-    display: grid;
-    justify-items: end;
-    gap: 4px;
-}
-
-.unit-consumption-table__metric strong {
-    font-size: 0.82rem;
-    line-height: 1;
-}
-
-.unit-consumption-table__metric .is-high {
-    color: #0f9f6e;
-}
-
-.unit-consumption-table__metric .is-positive {
-    color: #34302c;
-}
-
-.unit-consumption-table__metric .is-muted {
-    color: #9b9690;
-}
-
-.unit-consumption-table__bar {
-    position: relative;
-    width: 90px;
-    height: 4px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: #e5e7eb;
-}
-
-.unit-consumption-table__bar span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: #19a974;
-}
-
-.unit-consumption-table__requests {
-    display: inline-flex;
-    justify-content: flex-end;
-    min-width: 36px;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-weight: 900;
-}
-
-.unit-consumption-table__requests.is-hot {
-    color: #166534;
-    background: #e7f8e9;
-}
-
-.unit-consumption-table__requests.is-muted {
-    color: #9b9690;
-    background: #f7f7f6;
-}
-
-.unit-quotations-list {
-    display: grid;
-    gap: 6px;
-    max-height: 330px;
-    overflow: auto;
-    padding-right: 2px;
-}
-
-.unit-quotations-list__item {
-    display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(150px, 0.7fr) auto;
-    gap: 8px;
-    align-items: center;
-    padding: 8px 9px;
-    border: 1px solid rgba(95, 15, 36, 0.11);
-    border-radius: 8px;
-    background: #fff;
-}
-
-.unit-quotations-list__main {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-}
-
-.unit-quotations-list__good {
-    overflow: hidden;
-    color: #35171f;
-    font-size: 0.82rem;
-    font-weight: 900;
-    line-height: 1.18;
-    text-decoration: none;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.unit-quotations-list__good:hover {
-    color: #8a1631;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.unit-quotations-list__main small {
-    color: #82736d;
-    font-size: 0.64rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.unit-quotations-list__price {
-    color: #0f5f56;
-    font-size: 0.82rem;
-    font-weight: 950;
-    text-align: right;
-    white-space: nowrap;
-}
-
-.unit-quotations-list__controls {
-    display: flex;
-    gap: 5px;
-}
-
-.unit-quotations-list__controls button {
-    border: 1px solid rgba(95, 15, 36, 0.16);
-    border-radius: 999px;
-    background: #fff;
-    color: #5f0f24;
-    cursor: pointer;
-    font-size: 0.61rem;
-    font-weight: 900;
-    letter-spacing: 0.05em;
-    line-height: 1;
-    padding: 5px 7px;
-    text-transform: uppercase;
-}
-
-.unit-quotations-list__controls .is-danger {
-    border-color: rgba(190, 18, 60, 0.2);
-    color: #9f1239;
-}
-
-.unit-trade-tabs__empty {
-    padding: 12px;
-    border: 1px dashed rgba(95, 15, 36, 0.18);
-    border-radius: 8px;
-    color: #7c6f67;
-    font-size: 0.76rem;
-    font-weight: 750;
-}
-
-.unit-orders-list {
-    display: grid;
-    gap: 6px;
-    max-height: 330px;
-    overflow: auto;
-    padding-right: 2px;
-}
-
-.unit-orders-list__item {
-    display: grid;
-    grid-template-columns: minmax(150px, 0.75fr) minmax(220px, 1.3fr) minmax(160px, 1fr) minmax(125px, 0.55fr);
-    gap: 9px;
-    align-items: center;
-    padding: 8px 9px;
-    border: 1px solid rgba(95, 15, 36, 0.11);
-    border-radius: 8px;
-    background: #fff;
-}
-
-.unit-orders-list__main,
-.unit-orders-list__goods,
-.unit-orders-list__summary {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-}
-
-.unit-orders-list__number {
-    color: #35171f;
-    font-size: 0.78rem;
-    font-weight: 950;
-    text-decoration: none;
-}
-
-.unit-orders-list__main small,
-.unit-orders-list__goods small {
-    overflow: hidden;
-    color: #897b75;
-    font-size: 0.62rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.unit-orders-list__goods a {
-    overflow: hidden;
-    color: #3155a4;
-    font-size: 0.68rem;
-    font-weight: 850;
-    text-decoration: none;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.unit-orders-list__number:hover,
-.unit-orders-list__goods a:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.unit-orders-list__logistics {
-    display: -webkit-box;
-    overflow: hidden;
-    color: #69615c;
-    font-size: 0.66rem;
-    line-height: 1.35;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-}
-
-.unit-orders-list__summary {
-    justify-items: end;
-}
-
-.unit-orders-list__summary span {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: #746b65;
-    font-size: 0.61rem;
-    font-weight: 850;
-}
-
-.unit-orders-list__summary span::before {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--order-status-color);
-    content: "";
-}
-
-.unit-orders-list__summary strong {
-    color: #0f5f56;
-    font-size: 0.75rem;
-    font-weight: 950;
-}
-
-@media (max-width: 880px) {
-    .unit-trade-tabs__form,
-    .unit-quotations-list__item,
-    .unit-orders-list__item {
-        grid-template-columns: 1fr;
-    }
-
-    .unit-quotations-list__price {
-        text-align: left;
-    }
-
-    .unit-orders-list__summary {
-        justify-items: start;
-    }
-
-    .unit-trade-tabs__toolbar {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-}
+.unit-relations { border: 1px solid #d9d7dc; background: #fff; color: #222; min-width: 0; }
+.unit-relations__tabs { border-bottom: 1px solid #d8d6db; }
+.unit-relations__tabs :deep(.v-tab) { text-transform: none; letter-spacing: 0; font-size: 12px; padding: 0 14px; }
+.unit-relations__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; color: #666; font-size: 13px; }
+.unit-relations__action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; padding: 5px 9px; border: 1px solid #cfcbd2; background: #fff; color: #352345; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.unit-relations__action:hover { background: #f3f2f4; }
+.unit-relations__consumption-form { display: grid; grid-template-columns: minmax(170px, 1.8fr) minmax(90px, .7fr) minmax(90px, .7fr) auto; gap: 8px; padding: 0 12px 12px; align-items: start; }
+.unit-relations__filter { max-width: 300px; margin: 0 12px 12px; }
+.unit-relations__consumptions { font-size: 13px; }
+.unit-relations__consumptions :deep(th) { color: #666; font-size: 11px; font-weight: 500 !important; background: #f5f5f5; }
+.unit-relations__consumptions a, .unit-relations__table a { color: #352345; text-decoration: none; }
+.unit-relations__consumptions a:hover, .unit-relations__table a:hover { text-decoration: underline; }
+.unit-relations__consumptions .unit-relations__category { color: #666; font-size: 12px; }
+.unit-relations__scroll { overflow: auto; max-height: 390px; }
+.unit-relations__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.unit-relations__table th { position: sticky; top: 0; color: #666; background: #f5f5f5; font-size: 11px; font-weight: 500; text-align: left; }
+.unit-relations__table th, .unit-relations__table td { padding: 8px 12px; border-bottom: 1px solid #e7e7e7; }
+.unit-relations__table small { display: block; color: #777; font-size: 11px; }
+.unit-relations__table .unit-relations__number { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.unit-relations__price { color: #651c2e; }
+.unit-relations__product-path { font-size: 11px; color: #777; margin-top: 2px; }
+.unit-relations__product-path a { color: #666; }
+.unit-relations__controls { width: 82px; white-space: nowrap; text-align: right; }
+.unit-relations__controls button { width: 28px; height: 28px; color: #352345; }
+.unit-relations__controls button:hover { background: #f3f2f4; }
+.unit-relations__controls button:disabled { opacity: .5; }
+.unit-relations__controls .is-danger { color: #651c2e; }
+.unit-relations__status { display: inline-block; border-left: 2px solid #352345; padding-left: 7px; font-size: 12px; }
+.unit-relations__empty { padding: 18px 12px; color: #777; font-size: 13px; margin: 0; }
+.unit-relations__error { padding: 8px 12px; color: #651c2e; font-size: 13px; margin: 0; }
+.unit-quotation-dialog__form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.unit-quotation-dialog__good { grid-column: 1 / -1; }
+.unit-relations :deep(.v-field), .unit-quotation-dialog :deep(.v-field) { border-radius: 0; }
+@media (max-width: 760px) { .unit-relations__consumption-form { grid-template-columns: 1fr 1fr; } .unit-relations__consumption-form > :first-child { grid-column: 1 / -1; } }
+@media (max-width: 480px) { .unit-relations__toolbar { flex-wrap: wrap; } .unit-quotation-dialog__form { grid-template-columns: 1fr; } }
 </style>

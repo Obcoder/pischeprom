@@ -410,6 +410,7 @@ jobs:
             tests/Feature/AiPriceLists \
             tests/Feature/Avito \
             tests/Feature/Mail \
+            tests/Feature/Unit \
             tests/Feature/CommercialOffersAccessTest.php \
             tests/Feature/CommercialOffersUnisenderTest.php \
             tests/Feature/MailMessageAttachmentDownloadTest.php \

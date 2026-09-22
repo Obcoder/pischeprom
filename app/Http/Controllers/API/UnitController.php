@@ -147,7 +147,7 @@ class UnitController extends Controller
     protected function attachConsumptionRequestCounts(Unit $unit): void
     {
         $unit->load([
-            'consumptions.product' => fn ($query) => $query->withCount('searchRequests'),
+            'consumptions.product' => fn ($query) => $query->with('category')->withCount('searchRequests'),
         ]);
     }
 }

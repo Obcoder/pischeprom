@@ -42,7 +42,7 @@ const {
 const breadcrumbs = computed(() => {
     const parts = currentFolder.value ? currentFolder.value.split('/').filter(Boolean) : []
     return [
-        { label: 'root', folder: '' },
+        { label: 'Файлы', folder: '' },
         ...parts.map((part, index) => ({
             label: part,
             folder: parts.slice(0, index + 1).join('/'),
@@ -132,8 +132,8 @@ watch(() => props.unitId, (value, oldValue) => {
 
             <div class="unit-files-manager__actions">
                 <input ref="fileInput" type="file" class="d-none" @change="onFileSelected" />
-                <button type="button" :disabled="creatingFolder" @click="openFolderDialog">New folder</button>
-                <button type="button" :disabled="uploadingFile" @click="fileInput?.click()">Upload</button>
+                <button type="button" :disabled="creatingFolder" @click="openFolderDialog">Новая папка</button>
+                <button type="button" :disabled="uploadingFile" @click="fileInput?.click()">Загрузить</button>
             </div>
         </div>
 
@@ -159,7 +159,7 @@ watch(() => props.unitId, (value, oldValue) => {
                 <div class="unit-file-item__actions">
                     <button type="button" @click="openMove(folder, 'folder')">Move</button>
                     <button type="button" @click="openRename(folder, 'folder')">Rename</button>
-                    <button type="button" class="is-danger" :disabled="deletingFilePath === folder.path" @click="deletePath(folder.path, 'folder')">Delete</button>
+                    <button type="button" class="is-danger" :disabled="deletingFilePath === folder.path" @click="deletePath(folder.path, 'folder')">Удалить</button>
                 </div>
             </article>
 
@@ -174,7 +174,7 @@ watch(() => props.unitId, (value, oldValue) => {
                     <a :href="file.url" target="_blank">Download</a>
                     <button type="button" :disabled="movingPath === file.path" @click="openMove(file, 'file')">Move</button>
                     <button type="button" :disabled="renamingFilePath === file.path" @click="openRename(file, 'file')">Rename</button>
-                    <button type="button" class="is-danger" :disabled="deletingFilePath === file.path" @click="deletePath(file.path, 'file')">Delete</button>
+                    <button type="button" class="is-danger" :disabled="deletingFilePath === file.path" @click="deletePath(file.path, 'file')">Удалить</button>
                 </div>
             </article>
 
@@ -184,13 +184,13 @@ watch(() => props.unitId, (value, oldValue) => {
         </div>
 
         <v-dialog v-model="folderDialog" max-width="520">
-            <v-card rounded="xl">
-                <v-card-title>New folder</v-card-title>
+            <v-card rounded="0">
+                <v-card-title>Новая папка</v-card-title>
                 <v-card-text>
                     <v-text-field
                         v-model="folderName"
                         label="Folder name"
-                        variant="solo-filled"
+                        variant="outlined"
                         density="compact"
                         @keyup.enter="submitFolder"
                     />
@@ -202,35 +202,35 @@ watch(() => props.unitId, (value, oldValue) => {
                     </div>
                 </v-card-text>
                 <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="folderDialog = false">Cancel</v-btn>
-                    <v-btn color="teal-darken-3" :disabled="!folderName.trim() || creatingFolder" :loading="creatingFolder" @click="submitFolder">Create</v-btn>
+                    <v-btn variant="text" @click="folderDialog = false">Отмена</v-btn>
+                    <v-btn color="#352345" :disabled="!folderName.trim() || creatingFolder" :loading="creatingFolder" @click="submitFolder">Create</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
 
         <v-dialog v-model="renameDialog" max-width="560">
-            <v-card rounded="xl">
+            <v-card rounded="0">
                 <v-card-title>Rename</v-card-title>
                 <v-card-text>
                     <v-text-field v-model="newName" label="New name" variant="outlined" density="compact" />
                 </v-card-text>
                 <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="renameDialog = false">Cancel</v-btn>
-                    <v-btn color="teal-darken-3" :disabled="!newName" @click="submitRename">Save</v-btn>
+                    <v-btn variant="text" @click="renameDialog = false">Отмена</v-btn>
+                    <v-btn color="#352345" :disabled="!newName" @click="submitRename">Сохранить</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
 
         <v-dialog v-model="moveDialog" max-width="560">
-            <v-card rounded="xl">
+            <v-card rounded="0">
                 <v-card-title>Move</v-card-title>
                 <v-card-text>
                     <v-text-field v-model="targetFolder" label="Target folder relative to unit root" variant="outlined" density="compact" placeholder="docs/contracts" />
                     <div class="text-caption text-medium-emphasis">Root: {{ root }}</div>
                 </v-card-text>
                 <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="moveDialog = false">Cancel</v-btn>
-                    <v-btn color="teal-darken-3" @click="submitMove">Move</v-btn>
+                    <v-btn variant="text" @click="moveDialog = false">Отмена</v-btn>
+                    <v-btn color="#352345" @click="submitMove">Move</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -261,17 +261,17 @@ watch(() => props.unitId, (value, oldValue) => {
 
 .unit-files-manager button,
 .unit-file-item__actions a {
-    border: 1px solid rgba(0, 128, 128, 0.22);
-    border-radius: 999px;
-    background: #00796b;
-    color: #effefa;
+    border: 1px solid #d9d7dc;
+    border-radius: 0;
+    background: #352345;
+    color: #ffffff;
     cursor: pointer;
     font-size: 0.62rem;
-    font-weight: 900;
+    font-weight: 650;
     letter-spacing: 0.06em;
     padding: 5px 7px;
     text-decoration: none;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .unit-files-manager button:disabled {
@@ -289,7 +289,7 @@ watch(() => props.unitId, (value, oldValue) => {
 .unit-files-manager__root {
     max-width: 220px;
     overflow: hidden;
-    color: #607d8b;
+    color: #77727b;
     font-size: 0.62rem;
     font-weight: 800;
     text-overflow: ellipsis;
@@ -302,13 +302,13 @@ watch(() => props.unitId, (value, oldValue) => {
     gap: 8px;
     align-items: center;
     padding: 6px;
-    border: 1px solid rgba(0, 128, 128, 0.13);
-    border-radius: 10px;
+    border: 1px solid #d9d7dc;
+    border-radius: 0;
     background: #fff;
 }
 
 .unit-file-item--folder {
-    background: #f0fdfa;
+    background: #f5f4f6;
 }
 
 .unit-file-item__main {
@@ -317,7 +317,7 @@ watch(() => props.unitId, (value, oldValue) => {
     gap: 6px;
     align-items: center;
     min-width: 0;
-    color: #243b3a;
+    color: #242127;
     text-decoration: none;
 }
 
@@ -326,7 +326,7 @@ button.unit-file-item__main {
     border: 0;
     border-radius: 0;
     background: transparent;
-    color: #243b3a;
+    color: #242127;
     padding: 0;
     text-align: left;
     text-transform: none;
@@ -340,29 +340,29 @@ button.unit-file-item__main {
 }
 
 .unit-file-item__main span {
-    color: #607d8b;
+    color: #77727b;
     font-size: 0.66rem;
 }
 
 .unit-file-item__actions .is-danger {
-    background: #8a1238;
-    border-color: rgba(138, 18, 56, 0.24);
+    background: #651c2e;
+    border-color: #651c2e;
 }
 
 .unit-files-manager__empty {
     padding: 10px;
-    border: 1px dashed rgba(0, 128, 128, 0.28);
-    border-radius: 10px;
-    color: #607d8b;
+    border: 1px dashed #d9d7dc;
+    border-radius: 0;
+    color: #77727b;
     font-size: 0.74rem;
 }
 
 .unit-files-manager__error {
     padding: 6px 8px;
     border: 1px solid rgba(149, 19, 61, 0.24);
-    border-radius: 9px;
-    background: #fff1f4;
-    color: #95133d;
+    border-radius: 0;
+    background: #f7f4f5;
+    color: #651c2e;
     font-size: 0.72rem;
     font-weight: 800;
 }

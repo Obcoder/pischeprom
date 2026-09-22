@@ -1,10 +1,11 @@
-import { ref, watch } from 'vue'
+import { onScopeDispose, ref, watch } from 'vue'
 import axios from 'axios'
 
 export function useUnitMail(unitId) {
     const messages = ref([])
     const relatedEmails = ref([])
     const totalItems = ref(0)
+    const error = ref('')
 
     const loading = ref(false)
     const sending = ref(false)
@@ -22,14 +23,24 @@ export function useUnitMail(unitId) {
         itemsPerPage: 15,
         sortBy: [],
     })
+    let messageRequest = null
+    let messageSequence = 0
+    let readingRequest = null
+    let readingSequence = 0
 
     async function fetchMessages() {
         if (!unitId) return
 
+        messageRequest?.abort()
+        const controller = new AbortController()
+        messageRequest = controller
+        const sequence = ++messageSequence
         loading.value = true
+        error.value = ''
 
         try {
             const { data } = await axios.get(`/api/units/${unitId}/mail-messages`, {
+                signal: controller.signal,
                 params: {
                     search: search.value,
                     direction: direction.value,
@@ -39,13 +50,16 @@ export function useUnitMail(unitId) {
                 },
             })
 
+            if (sequence !== messageSequence) return
             messages.value = data.data ?? []
             totalItems.value = data.meta?.total ?? data.total ?? 0
             relatedEmails.value = data.related_emails ?? []
-        } catch (error) {
-            console.error('Unit mail loading error:', error)
+        } catch (failure) {
+            if (!controller.signal.aborted && sequence === messageSequence) {
+                error.value = failure.response?.data?.message || 'Не удалось загрузить письма. Повторите загрузку.'
+            }
         } finally {
-            loading.value = false
+            if (sequence === messageSequence) loading.value = false
         }
     }
 
@@ -60,22 +74,33 @@ export function useUnitMail(unitId) {
     }
 
     async function readMessage(message, force = false) {
-        if (!message?.id) return
+        if (!message?.id) return null
 
+        readingRequest?.abort()
+        const controller = new AbortController()
+        readingRequest = controller
+        const sequence = ++readingSequence
+        selectedMessage.value = null
         reading.value = true
 
         try {
             const { data } = await axios.get(`/api/mail-messages/${message.id}`, {
+                signal: controller.signal,
                 params: {
                     force,
                 },
             })
 
+            if (sequence !== readingSequence) return null
             selectedMessage.value = data
-        } catch (error) {
-            console.error('Mail message reading error:', error)
+            return data
+        } catch (failure) {
+            if (!controller.signal.aborted && sequence === readingSequence) {
+                error.value = failure.response?.data?.message || 'Не удалось открыть письмо. Повторите загрузку.'
+            }
+            return null
         } finally {
-            reading.value = false
+            if (sequence === readingSequence) reading.value = false
         }
     }
 
@@ -104,6 +129,14 @@ export function useUnitMail(unitId) {
 
     let searchTimer = null
 
+    onScopeDispose(() => {
+        clearTimeout(searchTimer)
+        messageRequest?.abort()
+        messageSequence++
+        readingRequest?.abort()
+        readingSequence++
+    })
+
     watch(search, () => {
         clearTimeout(searchTimer)
 
@@ -131,6 +164,7 @@ export function useUnitMail(unitId) {
 
     return {
         messages,
+        error,
         relatedEmails,
         totalItems,
         loading,

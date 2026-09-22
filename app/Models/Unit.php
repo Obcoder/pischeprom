@@ -21,13 +21,17 @@ class Unit extends Model
         'entities.classification',
         'entities.telephones',
         'entities.emails',
+        'entities.uris',
         'entities.sales',
+        'entities.purchases',
+        'entities.leads.entity',
+        'leads.entity',
 
         'buildings.city',
         'buildings.buildingType',
-        'consumptions.product',
+        'consumptions.product.category',
         'consumptions.measure',
-        'manufactures',
+        'manufactures.category',
 
         'emails',
         'emails.sendings',
@@ -35,7 +39,7 @@ class Unit extends Model
         'stages',
         'supplierPipelineCards.pipeline',
         'supplierPipelineCards.stage',
-        'quotations.good',
+        'quotations.good.products.category',
         'quotations.currency',
         'quotations.measure',
         'industries',
@@ -48,7 +52,7 @@ class Unit extends Model
             ? [
                 ...self::DETAIL_RELATIONS,
                 'entities.orders.status',
-                'entities.orders.items.good',
+                'entities.orders.items.good.products.category',
                 'entities.orders.buildings',
             ]
             : self::DETAIL_RELATIONS;

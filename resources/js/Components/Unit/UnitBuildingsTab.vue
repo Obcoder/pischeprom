@@ -114,7 +114,7 @@ async function detachBuilding(building) {
 }
 
 async function deleteBuilding(building) {
-    if (!building?.id || !window.confirm(`Удалить building "${building.address}" полностью?`)) return
+    if (!building?.id || !window.confirm(`Удалить объект "${building.address}" полностью?`)) return
 
     deletingId.value = building.id
 
@@ -135,14 +135,14 @@ async function deleteBuilding(building) {
                 :items="dict.buildings || []"
                 :item-title="buildingTitle"
                 item-value="id"
-                label="Attach building"
-                variant="solo-filled"
+                label="Выбрать адрес из базы"
+                variant="outlined"
                 density="compact"
                 hide-details
                 clearable
             />
-            <button type="button" :disabled="!attachBuildingId" @click="attachExisting">Attach</button>
-            <button type="button" @click="openCreate">New building</button>
+            <button type="button" :disabled="!attachBuildingId" @click="attachExisting">Привязать</button>
+            <button type="button" @click="openCreate">Добавить объект</button>
         </div>
 
         <div class="unit-buildings-tab__grid">
@@ -153,39 +153,39 @@ async function deleteBuilding(building) {
                 </div>
                 <small>{{ building.building_type?.name || building.buildingType?.name || 'вид не указан' }}</small>
                 <div class="unit-building-card__actions">
-                    <button type="button" @click="openEdit(building)">Edit</button>
-                    <button type="button" :disabled="detachingId === building.id" @click="detachBuilding(building)">Detach</button>
-                    <button type="button" class="is-danger" :disabled="deletingId === building.id" @click="deleteBuilding(building)">Delete</button>
+                    <button type="button" @click="openEdit(building)">Изменить</button>
+                    <button type="button" :disabled="detachingId === building.id" @click="detachBuilding(building)">Отвязать</button>
+                    <button type="button" class="is-danger" :disabled="deletingId === building.id" @click="deleteBuilding(building)">Удалить</button>
                 </div>
             </article>
 
             <div v-if="!unit.buildings?.length" class="unit-buildings-tab__empty">
-                Buildings не привязаны.
+                Объекты логистики пока не добавлены.
             </div>
         </div>
 
         <v-dialog v-model="dialog" max-width="760">
-            <v-card rounded="xl">
-                <v-card-title>{{ editing ? 'Edit building' : 'New building' }}</v-card-title>
+            <v-card rounded="0">
+                <v-card-title>{{ editing ? 'Изменить объект' : 'Добавить объект' }}</v-card-title>
                 <v-card-text>
                     <v-row dense>
                         <v-col cols="12" md="5">
-                            <v-autocomplete v-model="form.city_id" :items="dict.cities || []" item-title="name" item-value="id" label="City" variant="outlined" density="compact" :error-messages="errors.city_id || []" />
+                            <v-autocomplete v-model="form.city_id" :items="dict.cities || []" item-title="name" item-value="id" label="Город" variant="outlined" density="compact" :error-messages="errors.city_id || []" />
                         </v-col>
                         <v-col cols="12" md="4">
-                            <v-select v-model="form.building_type_id" :items="dict.buildingTypes || []" item-title="name" item-value="id" label="Building type" variant="outlined" density="compact" clearable :error-messages="errors.building_type_id || []" />
+                            <v-select v-model="form.building_type_id" :items="dict.buildingTypes || []" item-title="name" item-value="id" label="Тип объекта" variant="outlined" density="compact" clearable :error-messages="errors.building_type_id || []" />
                         </v-col>
                         <v-col cols="12" md="3">
-                            <v-text-field v-model="form.postcode" label="Postcode" variant="outlined" density="compact" :error-messages="errors.postcode || []" />
+                            <v-text-field v-model="form.postcode" label="Индекс" variant="outlined" density="compact" :error-messages="errors.postcode || []" />
                         </v-col>
                         <v-col cols="12">
-                            <v-text-field v-model="form.address" label="Address" variant="outlined" density="compact" :error-messages="errors.address || []" />
+                            <v-text-field v-model="form.address" label="Адрес" variant="outlined" density="compact" :error-messages="errors.address || []" />
                         </v-col>
                     </v-row>
                 </v-card-text>
                 <v-card-actions class="justify-end">
-                    <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
-                    <v-btn color="teal-darken-3" :disabled="!form.city_id || !form.address" :loading="saving" @click="saveBuilding">Save</v-btn>
+                    <v-btn variant="text" @click="dialog = false">Отмена</v-btn>
+                    <v-btn color="#352345" :disabled="!form.city_id || !form.address" :loading="saving" @click="saveBuilding">Сохранить</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -207,16 +207,16 @@ async function deleteBuilding(building) {
 
 .unit-buildings-tab__toolbar button,
 .unit-building-card__actions button {
-    border: 1px solid rgba(0, 128, 128, 0.22);
-    border-radius: 999px;
-    background: #00796b;
-    color: #effefa;
+    border: 1px solid #d9d7dc;
+    border-radius: 0;
+    background: #352345;
+    color: #ffffff;
     cursor: pointer;
     font-size: 0.64rem;
-    font-weight: 900;
+    font-weight: 650;
     letter-spacing: 0.07em;
     padding: 6px 8px;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .unit-buildings-tab__toolbar button:disabled,
@@ -238,8 +238,8 @@ async function deleteBuilding(building) {
     gap: 8px;
     align-items: center;
     padding: 7px 8px;
-    border: 1px solid rgba(0, 128, 128, 0.14);
-    border-radius: 10px;
+    border: 1px solid #d9d7dc;
+    border-radius: 0;
     background: #fff;
 }
 
@@ -252,13 +252,13 @@ async function deleteBuilding(building) {
 }
 
 .unit-building-card strong {
-    color: #263238;
+    color: #242127;
     font-size: 0.78rem;
 }
 
 .unit-building-card span,
 .unit-building-card small {
-    color: #607d8b;
+    color: #77727b;
     font-size: 0.68rem;
 }
 
@@ -268,15 +268,15 @@ async function deleteBuilding(building) {
 }
 
 .unit-building-card__actions .is-danger {
-    background: #8a1238;
-    border-color: rgba(138, 18, 56, 0.24);
+    background: #651c2e;
+    border-color: #651c2e;
 }
 
 .unit-buildings-tab__empty {
     padding: 10px;
-    border: 1px dashed rgba(0, 128, 128, 0.28);
-    border-radius: 10px;
-    color: #607d8b;
+    border: 1px dashed #d9d7dc;
+    border-radius: 0;
+    color: #77727b;
     font-size: 0.74rem;
 }
 

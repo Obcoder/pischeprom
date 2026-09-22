@@ -8,9 +8,9 @@ use App\Models\Lead;
 use App\Models\PhoneCall;
 use App\Services\Telephones\TelephoneIdentityService;
 use App\Services\Telephony\BeelinePbxService;
-use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -102,7 +102,24 @@ class PhoneCallController extends Controller
             ->when($request->filled('direction'), fn ($q) => $q->where('direction', $request->input('direction')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->filled('entity_id'), fn ($q) => $q->where('entity_id', $request->integer('entity_id')))
-            ->when($request->filled('unit_id'), fn ($q) => $q->where('unit_id', $request->integer('unit_id')))
+            ->when($request->filled('unit_id'), function ($query) use ($request): void {
+                $unitId = $request->integer('unit_id');
+
+                $query->where(function ($related) use ($unitId): void {
+                    $related->where('unit_id', $unitId)
+                        ->orWhereIn('entity_id', function ($entities) use ($unitId): void {
+                            $entities->select('entity_id')->from('entity_unit')->where('unit_id', $unitId);
+                        })
+                        ->orWhereIn('telephone_id', function ($telephones) use ($unitId): void {
+                            $telephones->select('telephone_id')->from('telephone_unit')->where('unit_id', $unitId);
+                        })
+                        ->orWhereIn('telephone_id', function ($telephones) use ($unitId): void {
+                            $telephones->select('entity_telephone.telephone_id')->from('entity_telephone')
+                                ->join('entity_unit', 'entity_unit.entity_id', '=', 'entity_telephone.entity_id')
+                                ->where('entity_unit.unit_id', $unitId);
+                        });
+                });
+            })
             ->when($request->filled('lead_id'), fn ($q) => $q->where('lead_id', $request->integer('lead_id')))
             ->when($request->filled('date_from'), fn ($q) => $q->where('started_at', '>=', $request->date('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->where('started_at', '<=', $request->date('date_to')))
@@ -183,7 +200,7 @@ class PhoneCallController extends Controller
         $employeePhone = $this->normalizePhone($data['employee_phone'] ?? null)
             ?: $this->defaultEmployeePhone();
 
-        if (!$clientPhone) {
+        if (! $clientPhone) {
             return response()->json([
                 'message' => 'Client phone is required.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -262,12 +279,12 @@ class PhoneCallController extends Controller
 
     protected function leadTitle(array $data): string
     {
-        if (!empty($data['good_name'])) {
-            return 'Клик по телефону: ' . $data['good_name'];
+        if (! empty($data['good_name'])) {
+            return 'Клик по телефону: '.$data['good_name'];
         }
 
-        if (!empty($data['category_name'])) {
-            return 'Клик по телефону: ' . $data['category_name'];
+        if (! empty($data['category_name'])) {
+            return 'Клик по телефону: '.$data['category_name'];
         }
 
         return 'Клик по телефону с сайта';
@@ -276,12 +293,12 @@ class PhoneCallController extends Controller
     protected function leadDescription(array $data, string $targetPhone): string
     {
         return collect([
-            'Целевой номер: +' . $targetPhone,
-            !empty($data['source']) ? 'Источник: ' . $data['source'] : null,
-            !empty($data['good_id']) ? 'Good ID: ' . $data['good_id'] : null,
-            !empty($data['category_id']) ? 'Category ID: ' . $data['category_id'] : null,
-            !empty($data['search']) ? 'Поиск: ' . $data['search'] : null,
-            !empty($data['url']) ? 'URL: ' . $data['url'] : null,
+            'Целевой номер: +'.$targetPhone,
+            ! empty($data['source']) ? 'Источник: '.$data['source'] : null,
+            ! empty($data['good_id']) ? 'Good ID: '.$data['good_id'] : null,
+            ! empty($data['category_id']) ? 'Category ID: '.$data['category_id'] : null,
+            ! empty($data['search']) ? 'Поиск: '.$data['search'] : null,
+            ! empty($data['url']) ? 'URL: '.$data['url'] : null,
         ])->filter()->implode("\n");
     }
 
@@ -294,7 +311,7 @@ class PhoneCallController extends Controller
         }
 
         if (strlen($digits) === 11 && str_starts_with($digits, '8')) {
-            $digits = '7' . substr($digits, 1);
+            $digits = '7'.substr($digits, 1);
         }
 
         return Str::limit($digits, 16, '');

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Builder;
 
 class Uri extends Model
 {
@@ -23,6 +22,11 @@ class Uri extends Model
         return $this->belongsToMany(Unit::class);
     }
 
+    public function entities(): BelongsToMany
+    {
+        return $this->belongsToMany(Entity::class)->withTimestamps();
+    }
+
     /**
      * Текстовый поиск
      */
@@ -37,7 +41,7 @@ class Uri extends Model
         // Разбиваем строку поиска на слова
         $terms = preg_split('/\s+/', $search);
 
-        return $query->where(function ($q) use ($terms, $search) {
+        return $query->where(function ($q) use ($terms) {
 
             foreach ($terms as $term) {
 
@@ -62,5 +66,4 @@ class Uri extends Model
 
         });
     }
-
 }

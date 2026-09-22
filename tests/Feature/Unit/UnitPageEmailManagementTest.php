@@ -279,34 +279,18 @@ class UnitPageEmailManagementTest extends TestCase
 
         $page = (string) file_get_contents(resource_path('js/Pages/Ameise/Unit.vue'));
         $overview = (string) file_get_contents(resource_path('js/Components/Unit/UnitOverviewCard.vue'));
-        $emailCard = (string) file_get_contents(resource_path('js/Components/Unit/Mail/UnitEmailContactsCard.vue'));
+        $communications = (string) file_get_contents(resource_path('js/Components/Unit/UnitCommunicationsPanel.vue'));
 
-        foreach (['Обзор', 'Торговля', 'Коммуникации', 'AI Sales'] as $tab) {
+        foreach (['Коммуникации', 'Продукты и товары', 'Классификация и сегментация', 'Логистика', 'Статистика', 'AI Sales'] as $tab) {
             $this->assertStringContainsString($tab, $page);
         }
 
-        foreach ([
-            'Написать письмо',
-            'Добавить email',
-            'Выбрать или создать email',
-            'Выберите email из базы или введите новый прямо в этом поле',
-            'Email найден в базе и уже привязан к этому Unit.',
-            '/emails/options',
-        ] as $action) {
-            $this->assertStringContainsString($action, $emailCard);
-        }
-
-        $this->assertStringContainsString('<v-combobox', $emailCard);
-        $this->assertStringContainsString('v-model:search="emailSearch"', $emailCard);
-        $this->assertStringContainsString('return-object', $emailCard);
-        $this->assertStringNotContainsString('Привязать из базы', $emailCard);
-        $this->assertStringNotContainsString('Создать и привязать', $emailCard);
-        $this->assertStringNotContainsString('createDialog', $emailCard);
-        $this->assertStringNotContainsString('newEmail', $emailCard);
-        $this->assertStringNotContainsString(
-            '.filter((email) => !directEmailIds.value.has(Number(email.id)))',
-            $emailCard,
-        );
+        $this->assertStringContainsString('<UnitCommunicationsPanel', $page);
+        $this->assertStringContainsString('<v-combobox', $communications);
+        $this->assertStringContainsString('return-object', $communications);
+        $this->assertStringContainsString('canManage', $communications);
+        $this->assertStringContainsString('/communications/', $communications);
+        $this->assertStringContainsString('contact_id', $communications);
 
         $this->assertStringNotContainsString('mdi-dots-vertical', $overview);
         $this->assertStringNotContainsString("route('emailgood.store')", $overview);

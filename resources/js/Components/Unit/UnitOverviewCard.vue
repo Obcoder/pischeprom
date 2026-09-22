@@ -4,18 +4,15 @@ import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import axios from 'axios'
 
-import BaseSectionCard from '@/Components/Unit/BaseSectionCard.vue'
 import UnitFilesTab from '@/Components/Unit/UnitFilesTab.vue'
 import UnitBuildingsTab from '@/Components/Unit/UnitBuildingsTab.vue'
 import UnitAdminTab from '@/Components/Unit/UnitAdminTab.vue'
-import UnitUrisCard from '@/Components/Unit/UnitUrisCard.vue'
 import UnitRelationManagerDialog from '@/Components/Unit/UnitRelationManagerDialog.vue'
 import UnitMailComposerDialog from '@/Components/Unit/Mail/UnitMailComposerDialog.vue'
-import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 
-const MANAGER_PHONE = '79650160001'
 
 const props = defineProps({
+    section: { type: String, default: 'entities' },
     unit: {
         type: Object,
         required: true,
@@ -36,27 +33,6 @@ const props = defineProps({
 
 const emit = defineEmits(['refresh'])
 
-const emojiDigitMap = {
-    '0': '0️⃣',
-    '1': '1️⃣',
-    '2': '2️⃣',
-    '3': '3️⃣',
-    '4': '4️⃣',
-    '5': '5️⃣',
-    '6': '6️⃣',
-    '7': '7️⃣',
-    '8': '8️⃣',
-    '9': '9️⃣',
-}
-
-function formatUnitIdToEmoji(id) {
-    return String(id ?? '')
-        .split('')
-        .map(char => emojiDigitMap[char] ?? char)
-        .join('')
-}
-
-const activeTab = ref('info')
 const unitDialog = ref(false)
 const savingUnit = ref(false)
 const deletingUnit = ref(false)
@@ -67,12 +43,6 @@ const unitForm = reactive({
     is_customer: false,
     is_supplier: false,
 })
-
-function openAdmin(action) {
-    if (action === 'unit') {
-        openUnitDialog()
-    }
-}
 
 function fillUnitForm() {
     unitForm.name = props.unit?.name || ''
@@ -117,14 +87,12 @@ async function deleteUnit() {
 
 const dialogLabels = ref(false)
 const dialogFields = ref(false)
-const dialogTelephones = ref(false)
 const dialogCities = ref(false)
 const dialogAttachEntity = ref(false)
 const dialogEntityForm = ref(false)
 
 const savingLabels = ref(false)
 const savingFields = ref(false)
-const savingTelephones = ref(false)
 const savingCities = ref(false)
 const savingEntity = ref(false)
 const savingEntityRelation = ref(false)
@@ -240,52 +208,6 @@ async function syncFields(payload) {
         console.error('Ошибка сохранения fields:', error)
     } finally {
         savingFields.value = false
-    }
-}
-
-async function syncTelephones(payload) {
-    savingTelephones.value = true
-
-    try {
-        const currentIds = (props.unit.telephones || []).map(item => item.id)
-        const nextIds = getIds(payload)
-        const newNumbers = getStrings(payload)
-
-        const idsToDetach = currentIds.filter(id => !nextIds.includes(id))
-
-        await Promise.all(
-            idsToDetach.map(id =>
-                axios.delete(route('api.units.telephones.detach', {
-                    unit: props.unit.id,
-                    telephone: id,
-                }))
-            )
-        )
-
-        await Promise.all(
-            nextIds
-                .filter(id => !currentIds.includes(id))
-                .map(id =>
-                    axios.post(route('api.units.telephones.attach', props.unit.id), {
-                        telephone_id: id,
-                    })
-                )
-        )
-
-        await Promise.all(
-            newNumbers.map(number =>
-                axios.post(route('api.units.telephones.attach', props.unit.id), {
-                    number,
-                })
-            )
-        )
-
-        dialogTelephones.value = false
-        emit('refresh')
-    } catch (error) {
-        console.error('Ошибка сохранения telephones:', error)
-    } finally {
-        savingTelephones.value = false
     }
 }
 
@@ -472,8 +394,6 @@ async function deleteEntity(entity) {
 const quickMailDialog = ref(false)
 const quickMailFiles = ref([])
 const quickMailRecipients = ref([])
-const dialingPhone = ref(null)
-const dialFeedback = ref(null)
 
 function cloneRecipients(items = []) {
     return items.map((item) => ({ ...item }))
@@ -515,39 +435,7 @@ const unitMailRecipients = computed(() => {
     })
 })
 
-const workboardCards = computed(() => {
-    return props.unit?.supplier_pipeline_cards || props.unit?.supplierPipelineCards || []
-})
-
-const overviewStats = computed(() => [
-    {
-        label: 'Entities',
-        value: props.unit?.entities?.length || 0,
-    },
-    {
-        label: 'Emails',
-        value: props.unit?.emails?.length || 0,
-    },
-    {
-        label: 'Phones',
-        value: props.unit?.telephones?.length || 0,
-    },
-    {
-        label: 'Quotations',
-        value: props.unit?.quotations?.length || 0,
-    },
-])
-
-const unitFlags = computed(() => [
-    props.unit?.is_supplier ? 'Supplier' : null,
-    props.unit?.is_customer ? 'Customer' : null,
-].filter(Boolean))
-
 const unitEntities = computed(() => props.unit?.entities || [])
-
-function stageLabel(card) {
-    return card.stage?.name || 'Без стадии'
-}
 
 function entityHref(entity) {
     try {
@@ -557,70 +445,8 @@ function entityHref(entity) {
     }
 }
 
-function entityInitials(entity) {
-    const words = String(entity?.name || '')
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-
-    return words.map((word) => word.charAt(0).toUpperCase()).join('') || 'E'
-}
-
 function entityClassification(entity) {
     return entity?.classification?.name || 'Entity'
-}
-
-function entityTelephones(entity) {
-    return entity?.telephones || []
-}
-
-function entityEmails(entity) {
-    return entity?.emails || []
-}
-
-function normalizePhone(value) {
-    return String(value || '').replace(/[^\d+]/g, '')
-}
-
-function formatPhone(value) {
-    const normalized = normalizePhone(value)
-
-    return normalized ? `+${normalized.replace(/^\+/, '')}` : 'нет номера'
-}
-
-function phoneNumber(telephone) {
-    return telephone?.number ?? telephone?.telephone ?? telephone?.phone ?? ''
-}
-
-async function dialEntityPhone(telephone, entity) {
-    const phone = normalizePhone(phoneNumber(telephone))
-
-    if (!phone) {
-        return
-    }
-
-    dialingPhone.value = phone
-    dialFeedback.value = null
-
-    try {
-        await axios.post('/api/phone-calls/dial', {
-            client_phone: phone,
-            employee_phone: MANAGER_PHONE,
-        })
-
-        dialFeedback.value = {
-            tone: 'success',
-            text: `Билайн: звонок ${formatPhone(phone)} для ${entity.name} запущен.`,
-        }
-    } catch (error) {
-        console.error(error)
-        dialFeedback.value = {
-            tone: 'error',
-            text: error.response?.data?.message || 'Не удалось запустить звонок через Билайн.',
-        }
-    } finally {
-        dialingPhone.value = null
-    }
 }
 
 function openFileMail(file) {
@@ -629,370 +455,91 @@ function openFileMail(file) {
     quickMailDialog.value = true
 }
 
+
+defineExpose({ openUnitDialog })
 </script>
 
 <template>
-    <BaseSectionCard
-        title="Обзор Unit"
-        icon="mdi-factory"
-        header-color="teal"
-        compact
-    >
-        <template #actions>
-            <div class="unit-overview__header-actions">
-                <button type="button" @click="openAdmin('unit')">Редактировать Unit</button>
-            </div>
-        </template>
-
-        <div class="d-flex align-start justify-space-between mb-3">
-            <div class="text-h4 font-weight-bold">
-                {{ unit.name }}
-
-                <div v-if="unitFlags.length" class="unit-overview__flags">
-                    <span
-                        v-for="flag in unitFlags"
-                        :key="flag"
-                    >
-                        {{ flag }}
-                    </span>
+    <div class="unit-details">
+        <section v-if="section === 'entities'" class="unit-details__section">
+            <div class="unit-details__toolbar">
+                <p>Юридические лица и контакты, связанные с Unit</p>
+                <div class="unit-details__actions">
+                    <button type="button" @click="dialogAttachEntity = true">Привязать Entity</button>
+                    <button type="button" class="is-primary" @click="openCreateEntity">Создать Entity</button>
                 </div>
             </div>
-
-            <div class="text-right">
-                <div class="text-caption text-medium-emphasis">
-                    ID
-                </div>
-                <div class="text-h5 font-weight-bold">
-                    {{ formatUnitIdToEmoji(unit.id) }}
-                </div>
-            </div>
-        </div>
-
-        <div class="unit-overview__top-grid">
-            <div class="unit-overview__stats">
-                <div
-                    v-for="stat in overviewStats"
-                    :key="stat.label"
-                    class="unit-overview__stat"
-                >
-                    <strong>{{ stat.value }}</strong>
-                    <span>{{ stat.label }}</span>
-                </div>
-            </div>
-
-            <aside class="unit-overview__workboard-tile">
-                <div class="unit-overview__workboard-label">Workboard</div>
-                <strong>{{ workboardCards.length }}</strong>
-                <span v-if="workboardCards[0]">
-                    {{ stageLabel(workboardCards[0]) }}
-                </span>
-                <span v-else>not linked</span>
-                <small v-if="unit.mail_follow_up" :class="{ 'is-alert': unit.mail_follow_up.is_overdue }">
-                    {{ unit.mail_follow_up.is_overdue ? 'mail overdue' : 'mail ok' }}
-                </small>
-            </aside>
-        </div>
-
-        <div class="unit-overview__body-grid">
-            <section class="unit-overview__tabs-panel">
-                <v-tabs v-model="activeTab" color="primary" density="compact">
-                    <v-tab value="info">Общее</v-tab>
-                    <v-tab value="okved">ОКВЭД</v-tab>
-                    <v-tab value="contacts">Телефоны</v-tab>
-                    <v-tab value="files">Файлы</v-tab>
-                    <v-tab value="buildings">Адреса</v-tab>
-                </v-tabs>
-
-                <v-window v-model="activeTab" class="mt-4">
-                    <v-window-item value="info">
-                        <div class="mb-4">
-                            <div class="text-caption text-medium-emphasis mb-2">URI</div>
-                            <UnitUrisCard
-                                :unit="unit"
-                                :dict="dict"
-                                @refresh="emit('refresh')"
-                            />
-                        </div>
-
-                        <div class="mb-4">
-                            <div class="d-flex align-center justify-space-between mb-2">
-                                <div class="text-caption text-medium-emphasis">Labels</div>
-                                <v-btn size="x-small" variant="text" @click="dialogLabels = true">
-                                    Manage
-                                </v-btn>
-                            </div>
-
-                            <div v-if="unit.labels?.length" class="d-flex flex-wrap ga-2">
-                                <v-chip
-                                    v-for="label in unit.labels"
-                                    :key="label.id"
-                                    size="small"
-                                    color="primary"
-                                    variant="tonal"
-                                >
-                                    {{ label.name }}
-                                </v-chip>
-                            </div>
-
-                            <div v-else class="text-caption text-disabled">
-                                No labels
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <div class="d-flex align-center justify-space-between mb-2">
-                                <div class="text-caption text-medium-emphasis">Fields</div>
-                                <v-btn size="x-small" variant="text" @click="dialogFields = true">
-                                    Manage
-                                </v-btn>
-                            </div>
-
-                            <div v-if="unit.fields?.length" class="d-flex flex-wrap ga-2">
-                                <v-chip
-                                    v-for="field in unit.fields"
-                                    :key="field.id"
-                                    size="small"
-                                    color="deep-purple"
-                                    variant="tonal"
-                                >
-                                    {{ field.name }}
-                                </v-chip>
-                            </div>
-
-                            <div v-else class="text-caption text-disabled">
-                                No fields
-                            </div>
-                        </div>
-
-                        <div class="mb-2">
-                            <div class="d-flex align-center justify-space-between mb-2">
-                                <div class="text-caption text-medium-emphasis">
-                                    Cities for offices / warehouses / production / delivery
-                                </div>
-                                <v-btn size="x-small" variant="text" @click="dialogCities = true">
-                                    Manage
-                                </v-btn>
-                            </div>
-
-                            <div v-if="unit.cities?.length" class="d-flex flex-wrap ga-2">
-                                <v-chip
-                                    v-for="city in unit.cities"
-                                    :key="city.id"
-                                    size="small"
-                                    color="teal"
-                                    variant="tonal"
-                                >
-                                    {{ city.name }}
-                                </v-chip>
-                            </div>
-
-                            <div v-else class="text-caption text-disabled">
-                                No cities
-                            </div>
-                        </div>
-                    </v-window-item>
-
-                    <v-window-item value="okved">
-                        <UnitAdminTab
-                            :unit="unit"
-                            :dict="dict"
-                            @refresh="emit('refresh')"
-                        />
-                    </v-window-item>
-
-                    <v-window-item value="contacts">
-                        <div class="mb-4">
-                            <div class="d-flex align-center justify-space-between mb-2">
-                                <div class="text-caption text-medium-emphasis">Telephones</div>
-                                <v-btn size="x-small" variant="text" @click="dialogTelephones = true">
-                                    Manage
-                                </v-btn>
-                            </div>
-
-                            <div v-if="unit.telephones?.length" class="d-flex flex-wrap ga-2">
-                                <span
-                                    v-for="telephone in unit.telephones"
-                                    :key="telephone.id"
-                                    class="unit-overview__max-phone-chip"
-                                >
-                                    <v-chip
-                                        size="small"
-                                        color="indigo"
-                                        variant="tonal"
-                                    >
-                                        {{ phoneNumber(telephone) }}
-                                    </v-chip>
-
-                                    <MaxContactButton
-                                        :phone="phoneNumber(telephone)"
-                                        :unit-id="unit.id"
-                                        :context-title="unit.name"
-                                        size="x-small"
-                                        variant="tonal"
-                                    />
-                                </span>
-                            </div>
-
-                            <div v-else class="text-caption text-disabled">
-                                No telephones
-                            </div>
-                        </div>
-
-                    </v-window-item>
-
-                    <v-window-item value="files">
-                        <UnitFilesTab
-                            v-if="unit?.id"
-                            :unit-id="Number(unit.id)"
-                            @send-file="openFileMail"
-                        />
-                    </v-window-item>
-
-                    <v-window-item value="buildings">
-                        <UnitBuildingsTab
-                            :unit="unit"
-                            :dict="dict"
-                            @refresh="emit('refresh')"
-                        />
-                    </v-window-item>
-                </v-window>
-            </section>
-
-            <section class="unit-overview__entities">
-                <div class="unit-overview__entities-head">
-                    <div>
-                        <span>Entities</span>
-                        <strong>{{ unitEntities.length }}</strong>
+            <div class="unit-details__entity-list">
+                <article v-for="entity in unitEntities" :key="entity.id" class="unit-details__entity">
+                    <div class="unit-details__entity-name">
+                        <a :href="entityHref(entity)">{{ entity.name }}</a>
+                        <span v-if="entity.full_name && entity.full_name !== entity.name">{{ entity.full_name }}</span>
                     </div>
-
-                    <div class="unit-overview__entity-toolbar">
-                        <button type="button" @click="dialogAttachEntity = true">Attach</button>
-                        <button type="button" @click="openCreateEntity">Create</button>
+                    <span class="unit-details__muted">{{ entityClassification(entity) }}</span>
+                    <span class="unit-details__muted">{{ entity.INN ? `ИНН ${entity.INN}` : 'ИНН не указан' }}</span>
+                    <div class="unit-details__actions">
+                        <button type="button" @click="openEditEntity(entity)">Изменить</button>
+                        <button type="button" :disabled="savingEntityRelation" @click="detachEntityFromUnit(entity)">Отвязать</button>
+                        <button type="button" class="is-danger" :disabled="savingEntityRelation" @click="deleteEntity(entity)">Удалить</button>
                     </div>
+                </article>
+                <p v-if="!unitEntities.length" class="unit-details__empty">Связанных Entities пока нет. Привяжите существующую запись или создайте новую.</p>
+            </div>
+        </section>
+
+        <section v-if="section === 'classification'" class="unit-details__section">
+            <div class="unit-details__classification">
+                <div class="unit-details__group">
+                    <div class="unit-details__toolbar">
+                        <h2>Метки <span>Labels</span></h2>
+                        <button type="button" @click="dialogLabels = true">Изменить</button>
+                    </div>
+                    <div v-if="unit.labels?.length" class="unit-details__tags">
+                        <span v-for="label in unit.labels" :key="label.id">{{ label.name }}</span>
+                    </div>
+                    <p v-else class="unit-details__empty">Метки не назначены</p>
                 </div>
-
-                <div
-                    v-if="unitEntities.length"
-                    class="unit-overview__entity-grid"
-                >
-                    <article
-                        v-for="entity in unitEntities"
-                        :key="entity.id"
-                        class="unit-overview__entity"
-                    >
-                        <div class="unit-overview__entity-mark">
-                            {{ entityInitials(entity) }}
-                        </div>
-
-                        <div class="unit-overview__entity-body">
-                            <a
-                                :href="entityHref(entity)"
-                                class="unit-overview__entity-name"
-                            >
-                                {{ entity.name }}
-                            </a>
-
-                            <div class="unit-overview__entity-kind">
-                                {{ entityClassification(entity) }}
-                            </div>
-
-                            <div
-                                v-if="entityTelephones(entity).length"
-                                class="unit-overview__entity-phones"
-                            >
-                                <span
-                                    v-for="telephone in entityTelephones(entity)"
-                                    :key="telephone.id"
-                                    class="unit-overview__entity-phone-wrap"
-                                >
-                                    <button
-                                        type="button"
-                                        class="unit-overview__entity-phone"
-                                        :disabled="dialingPhone === normalizePhone(phoneNumber(telephone))"
-                                        @click="dialEntityPhone(telephone, entity)"
-                                    >
-                                        <span class="unit-overview__entity-phone-icon">call</span>
-                                        <span>{{ formatPhone(phoneNumber(telephone)) }}</span>
-                                        <small v-if="dialingPhone === normalizePhone(phoneNumber(telephone))">
-                                            dialing
-                                        </small>
-                                    </button>
-
-                                    <MaxContactButton
-                                        :phone="phoneNumber(telephone)"
-                                        :entity-id="entity.id"
-                                        :unit-id="unit.id"
-                                        :context-title="entity.name"
-                                        size="x-small"
-                                        variant="tonal"
-                                    />
-                                </span>
-                            </div>
-
-                            <div
-                                v-if="entityEmails(entity).length"
-                                class="unit-overview__entity-emails"
-                            >
-                                <a
-                                    v-for="email in entityEmails(entity)"
-                                    :key="email.id"
-                                    :href="`mailto:${email.address}`"
-                                >
-                                    {{ email.address }}
-                                </a>
-                            </div>
-
-                            <div class="unit-overview__entity-actions">
-                                <button type="button" @click="openEditEntity(entity)">Edit</button>
-                                <button
-                                    type="button"
-                                    :disabled="savingEntityRelation"
-                                    @click="detachEntityFromUnit(entity)"
-                                >
-                                    Detach
-                                </button>
-                                <button
-                                    type="button"
-                                    class="is-danger"
-                                    :disabled="savingEntityRelation"
-                                    @click="deleteEntity(entity)"
-                                >
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    </article>
+                <div class="unit-details__group">
+                    <div class="unit-details__toolbar">
+                        <h2>Сферы деятельности <span>Fields</span></h2>
+                        <button type="button" @click="dialogFields = true">Изменить</button>
+                    </div>
+                    <div v-if="unit.fields?.length" class="unit-details__tags">
+                        <span v-for="field in unit.fields" :key="field.id">{{ field.name || field.title }}</span>
+                    </div>
+                    <p v-else class="unit-details__empty">Сферы деятельности не назначены</p>
                 </div>
+            </div>
+            <UnitAdminTab :unit="unit" :dict="dict" @refresh="emit('refresh')" />
+        </section>
 
-                <div
-                    v-else
-                    class="unit-overview__empty"
-                >
-                    Entities не связаны
-                </div>
+        <section v-if="section === 'logistics'" class="unit-details__section">
+            <div class="unit-details__toolbar">
+                <h2>География работы</h2>
+                <button type="button" @click="dialogCities = true">Изменить города</button>
+            </div>
+            <div v-if="unit.cities?.length" class="unit-details__tags">
+                <span v-for="city in unit.cities" :key="city.id">{{ city.name }}<small v-if="city.region?.name"> · {{ city.region.name }}</small></span>
+            </div>
+            <p v-else class="unit-details__empty">Города офисов, складов, производств и доставки не указаны</p>
+            <h2 class="unit-details__subheading">Офисы, склады, производство и доставка</h2>
+            <UnitBuildingsTab :unit="unit" :dict="dict" @refresh="emit('refresh')" />
+        </section>
 
-                <div
-                    v-if="dialFeedback"
-                    class="unit-overview__dial-feedback"
-                    :class="`unit-overview__dial-feedback--${dialFeedback.tone}`"
-                >
-                    {{ dialFeedback.text }}
-                </div>
-            </section>
-
-        </div>
-
+        <section v-if="section === 'files'" class="unit-details__section">
+            <UnitFilesTab v-if="unit?.id" :unit-id="Number(unit.id)" @send-file="openFileMail" />
+        </section>
         <v-dialog v-model="unitDialog" max-width="640">
-            <v-card rounded="xl">
+            <v-card rounded="0">
                 <v-card-title class="unit-overview__unit-dialog-title">
-                    Unit CRUD
+                    Редактировать Unit
                 </v-card-title>
 
                 <v-card-text>
                     <v-text-field
                         v-model="unitForm.name"
-                        label="Name"
-                        variant="solo-filled"
+                        label="Название"
+                        variant="outlined"
                         density="compact"
                         :error-messages="unitErrors.name || []"
                     />
@@ -1000,15 +547,15 @@ function openFileMail(file) {
                     <div class="unit-overview__unit-switches">
                         <v-switch
                             v-model="unitForm.is_customer"
-                            label="Customer"
-                            color="teal"
+                            label="Покупатель"
+                            color="#352345"
                             hide-details
                             density="compact"
                         />
                         <v-switch
                             v-model="unitForm.is_supplier"
-                            label="Supplier"
-                            color="teal"
+                            label="Поставщик"
+                            color="#352345"
                             hide-details
                             density="compact"
                         />
@@ -1022,19 +569,19 @@ function openFileMail(file) {
                         :loading="deletingUnit"
                         @click="deleteUnit"
                     >
-                        Delete Unit
+                        Удалить Unit
                     </v-btn>
                     <div>
                         <v-btn variant="text" @click="unitDialog = false">
-                            Cancel
+                            Отмена
                         </v-btn>
                         <v-btn
-                            color="teal-darken-3"
+                            color="#352345"
                             :disabled="!unitForm.name"
                             :loading="savingUnit"
                             @click="saveUnit"
                         >
-                            Save Unit
+                            Сохранить
                         </v-btn>
                     </div>
                 </v-card-actions>
@@ -1042,8 +589,8 @@ function openFileMail(file) {
         </v-dialog>
 
         <v-dialog v-model="dialogAttachEntity" max-width="720">
-            <v-card rounded="xl">
-                <v-card-title>Attach Entity</v-card-title>
+            <v-card rounded="0">
+                <v-card-title>Привязать Entity</v-card-title>
 
                 <v-card-text>
                     <v-autocomplete
@@ -1053,32 +600,32 @@ function openFileMail(file) {
                         item-value="id"
                         label="Entity"
                         variant="outlined"
-                        density="comfortable"
+                        density="compact"
                         clearable
                     />
                 </v-card-text>
 
                 <v-card-actions class="justify-end">
                     <v-btn variant="text" @click="dialogAttachEntity = false">
-                        Cancel
+                        Отмена
                     </v-btn>
 
                     <v-btn
-                        color="primary"
+                        color="#352345"
                         :disabled="!attachEntityId"
                         :loading="savingEntityRelation"
                         @click="attachEntityToUnit"
                     >
-                        Attach
+                        Привязать
                     </v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
 
         <v-dialog v-model="dialogEntityForm" max-width="820">
-            <v-card rounded="xl">
+            <v-card rounded="0">
                 <v-card-title>
-                    {{ editingEntity ? 'Edit Entity' : 'Create Entity' }}
+                    {{ editingEntity ? 'Редактировать Entity' : 'Создать Entity' }}
                 </v-card-title>
 
                 <v-card-text>
@@ -1086,9 +633,9 @@ function openFileMail(file) {
                         <v-col cols="12" md="6">
                             <v-text-field
                                 v-model="entityForm.name"
-                                label="Name"
+                                label="Название"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="entityErrors.name || []"
                             />
                         </v-col>
@@ -1099,9 +646,9 @@ function openFileMail(file) {
                                 :items="dict.entityClassifications || []"
                                 item-title="name"
                                 item-value="id"
-                                label="Classification"
+                                label="Классификация"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 clearable
                                 :error-messages="entityErrors.entity_classification_id || []"
                             />
@@ -1110,9 +657,9 @@ function openFileMail(file) {
                         <v-col cols="12">
                             <v-text-field
                                 v-model="entityForm.full_name"
-                                label="Full name"
+                                label="Полное название"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="entityErrors.full_name || []"
                             />
                         </v-col>
@@ -1123,9 +670,9 @@ function openFileMail(file) {
                                 :items="dict.telephones || []"
                                 item-title="number"
                                 item-value="id"
-                                label="Telephones"
+                                label="Телефоны"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 multiple
                                 chips
                                 clearable
@@ -1137,16 +684,16 @@ function openFileMail(file) {
 
                 <v-card-actions class="justify-end">
                     <v-btn variant="text" @click="dialogEntityForm = false">
-                        Cancel
+                        Отмена
                     </v-btn>
 
                     <v-btn
-                        color="primary"
+                        color="#352345"
                         :disabled="!entityForm.name"
                         :loading="savingEntity"
                         @click="saveEntity"
                     >
-                        Save
+                        Сохранить
                     </v-btn>
                 </v-card-actions>
             </v-card>
@@ -1154,7 +701,7 @@ function openFileMail(file) {
 
         <UnitRelationManagerDialog
             v-model="dialogLabels"
-            title="Manage Labels"
+            title="Метки · Labels"
             :items="unit.labels || []"
             :dict-items="dict.labels || []"
             item-title="name"
@@ -1165,7 +712,7 @@ function openFileMail(file) {
 
         <UnitRelationManagerDialog
             v-model="dialogFields"
-            title="Manage Fields"
+            title="Сферы деятельности · Fields"
             :items="unit.fields || []"
             :dict-items="dict.fields || []"
             item-title="name"
@@ -1175,20 +722,8 @@ function openFileMail(file) {
         />
 
         <UnitRelationManagerDialog
-            v-model="dialogTelephones"
-            title="Manage Telephones"
-            :items="unit.telephones || []"
-            :dict-items="dict.telephones || []"
-            item-title="number"
-            item-value="id"
-            hint="Можно выбрать номер из базы или ввести новый"
-            :loading="savingTelephones"
-            @save="syncTelephones"
-        />
-
-        <UnitRelationManagerDialog
             v-model="dialogCities"
-            title="Manage Cities"
+            title="География работы"
             :items="unit.cities || []"
             :dict-items="dict.cities || []"
             item-title="name"
@@ -1205,435 +740,40 @@ function openFileMail(file) {
             :initial-storage-files="quickMailFiles"
             @sent="emit('refresh')"
         />
-    </BaseSectionCard>
+    </div>
 </template>
 
 <style scoped>
-.unit-overview__flags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 4px;
+.unit-details { min-width: 0; }
+.unit-details__section { padding: 14px; border: 1px solid #d9d7dc; background: #fff; }
+.unit-details__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.unit-details__toolbar p, .unit-details__muted { color: #77727b; font-size: 12px; }
+.unit-details h2 { font-size: 13px; font-weight: 700; margin: 0; }
+.unit-details h2 span { color: #77727b; font-size: 11px; font-weight: 400; margin-left: 5px; }
+.unit-details__actions { display: flex; gap: 5px; flex-wrap: wrap; }
+.unit-details button { padding: 5px 9px; border: 1px solid #d9d7dc; color: #352345; font-size: 11px; font-weight: 600; background: #fff; min-height: 30px; }
+.unit-details button:hover { background: #f2f1f3; }
+.unit-details button:focus-visible { outline: 2px solid #352345; outline-offset: 2px; }
+.unit-details button:disabled { opacity: .45; cursor: default; }
+.unit-details button.is-primary { background: #352345; border-color: #352345; color: #fff; }
+.unit-details button.is-danger { color: #651c2e; }
+.unit-details__entity { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(100px, .6fr) minmax(130px, .6fr) auto; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid #e8e6e9; }
+.unit-details__entity-name { display: grid; gap: 3px; min-width: 0; }
+.unit-details__entity-name a { color: #352345; text-decoration: none; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.unit-details__entity-name a:hover { text-decoration: underline; }
+.unit-details__entity-name span { color: #77727b; font-size: 11px; }
+.unit-details__classification { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #d9d7dc; gap: 24px; padding-bottom: 16px; margin-bottom: 16px; }
+.unit-details__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.unit-details__tags > span { padding: 4px 8px; color: #352345; border: 1px solid #d9d7dc; background: #f7f6f8; font-size: 12px; }
+.unit-details__empty { padding: 12px 0; color: #77727b; font-size: 12px; }
+.unit-details h2.unit-details__subheading { margin: 20px 0 12px; padding-top: 14px; border-top: 1px solid #d9d7dc; }
+.unit-overview__unit-switches { display: flex; gap: 24px; }
+@media (max-width: 900px) {
+    .unit-details__entity { grid-template-columns: 1fr 1fr; }
+    .unit-details__classification { grid-template-columns: 1fr; gap: 16px; }
 }
-
-.unit-overview__flags span {
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: rgba(128, 0, 32, 0.08);
-    color: #6f1026;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-}
-
-.unit-overview__unit-dialog-title {
-    color: #00524d;
-    font-weight: 950;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-overview__unit-switches {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.unit-overview__header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-}
-
-.unit-overview__header-actions button {
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.14);
-    color: #f1fffc;
-    cursor: pointer;
-    font-size: 0.62rem;
-    font-weight: 950;
-    letter-spacing: 0.08em;
-    line-height: 1;
-    padding: 6px 10px;
-    text-transform: uppercase;
-    transition: background 0.18s ease, transform 0.18s ease;
-}
-
-.unit-overview__header-actions button:hover {
-    background: rgba(255, 255, 255, 0.23);
-    transform: translateY(-1px);
-}
-
-.unit-overview__stats {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 4px;
-    align-items: start;
-}
-
-.unit-overview__top-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 88px;
-    gap: 6px;
-    align-items: start;
-    margin-bottom: 6px;
-}
-
-.unit-overview__stat {
-    min-height: 34px;
-    padding: 4px 7px;
-    border: 1px solid rgba(128, 0, 32, 0.12);
-    border-radius: 9px;
-    background: linear-gradient(180deg, #fff, #fff8f8);
-}
-
-.unit-overview__stat strong,
-.unit-overview__stat span {
-    display: block;
-}
-
-.unit-overview__stat strong {
-    color: #5f0f24;
-    font-size: 0.82rem;
-    line-height: 1;
-}
-
-.unit-overview__stat span {
-    margin-top: 1px;
-    color: #7a6770;
-    font-size: 0.56rem;
-    font-weight: 900;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.unit-overview__workboard-tile {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    min-height: 64px;
-    aspect-ratio: 1 / 1;
-    padding: 7px;
-    border: 1px solid rgba(95, 15, 36, 0.16);
-    border-radius: 15px;
-    background:
-        radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.54), transparent 30%),
-        linear-gradient(145deg, #6f1026, #2a151b);
-    color: #fff7ee;
-    box-shadow: 0 14px 28px rgba(95, 15, 36, 0.16);
-}
-
-.unit-overview__workboard-label {
-    font-size: 0.56rem;
-    font-weight: 900;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    opacity: 0.82;
-}
-
-.unit-overview__workboard-tile strong {
-    font-size: 1.12rem;
-    line-height: 0.95;
-}
-
-.unit-overview__workboard-tile span,
-.unit-overview__workboard-tile small {
-    font-size: 0.62rem;
-    font-weight: 800;
-    line-height: 1.15;
-}
-
-.unit-overview__workboard-tile small {
-    width: fit-content;
-    padding: 3px 6px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.14);
-}
-
-.unit-overview__workboard-tile small.is-alert {
-    background: #fff;
-    color: #9f1239;
-}
-
-.unit-overview__empty {
-    padding: 8px 10px;
-    border: 1px dashed rgba(128, 0, 32, 0.22);
-    border-radius: 12px;
-    color: #8d7f85;
-    font-size: 0.75rem;
-}
-
-.unit-overview__entities {
-    min-width: 0;
-    padding: 10px;
-    border: 1px solid rgba(95, 15, 36, 0.12);
-    border-radius: 18px;
-    background:
-        linear-gradient(180deg, rgba(255, 248, 248, 0.9), rgba(255, 255, 255, 0.96));
-}
-
-.unit-overview__body-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
-    gap: 12px;
-    align-items: start;
-}
-
-.unit-overview__tabs-panel {
-    min-width: 0;
-}
-
-.unit-overview__entities-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 8px;
-}
-
-.unit-overview__entities-head > div:first-child {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    color: #6b5f64;
-    font-size: 0.74rem;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-overview__entities-head strong {
-    min-width: 24px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: #5f0f24;
-    color: #fff;
-    font-size: 0.68rem;
-    line-height: 1.2;
-    text-align: center;
-}
-
-.unit-overview__entity-toolbar,
-.unit-overview__entity-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
-.unit-overview__entity-toolbar button,
-.unit-overview__entity-actions button {
-    border: 1px solid rgba(95, 15, 36, 0.18);
-    border-radius: 999px;
-    background: #fff;
-    color: #5f0f24;
-    cursor: pointer;
-    font-size: 0.64rem;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    line-height: 1;
-    padding: 6px 8px;
-    text-transform: uppercase;
-}
-
-.unit-overview__entity-toolbar button:hover,
-.unit-overview__entity-actions button:hover {
-    background: rgba(95, 15, 36, 0.08);
-}
-
-.unit-overview__entity-toolbar button:disabled,
-.unit-overview__entity-actions button:disabled {
-    cursor: wait;
-    opacity: 0.5;
-}
-
-.unit-overview__entity-actions .is-danger {
-    border-color: rgba(190, 18, 60, 0.2);
-    color: #9f1239;
-}
-
-.unit-overview__entity-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-    max-height: 520px;
-    overflow: auto;
-    padding-right: 2px;
-}
-
-.unit-overview__entity {
-    display: grid;
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 9px;
-    padding: 10px;
-    border: 1px solid rgba(95, 15, 36, 0.13);
-    border-radius: 16px;
-    background:
-        linear-gradient(135deg, rgba(95, 15, 36, 0.055), transparent 48%),
-        #fff;
-    box-shadow: 0 8px 22px rgba(58, 31, 38, 0.05);
-}
-
-.unit-overview__entity-mark {
-    display: grid;
-    width: 42px;
-    height: 42px;
-    place-items: center;
-    border-radius: 14px;
-    background:
-        radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.38), transparent 34%),
-        linear-gradient(145deg, #6f1026, #2c1d20);
-    color: #fff7ee;
-    font-family: 'OrelegaOne-Regular', Georgia, serif;
-    font-size: 1.02rem;
-    letter-spacing: 0.03em;
-}
-
-.unit-overview__entity-body {
-    min-width: 0;
-}
-
-.unit-overview__entity-name {
-    display: inline-block;
-    max-width: 100%;
-    color: #35171f;
-    font-family: 'Rubik-Medium', 'Comfortaa-VariableFont_wght', sans-serif;
-    font-size: 0.92rem;
-    line-height: 1.15;
-    text-decoration: none;
-}
-
-.unit-overview__entity-name:hover {
-    color: #8a1631;
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-}
-
-.unit-overview__entity-kind {
-    margin-top: 2px;
-    color: #8a7880;
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-overview__entity-phones,
-.unit-overview__entity-emails {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 7px;
-}
-
-.unit-overview__max-phone-chip,
-.unit-overview__entity-phone-wrap {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.unit-overview__entity-phone {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    max-width: 100%;
-    padding: 4px 8px 4px 5px;
-    border: 1px solid rgba(13, 148, 136, 0.22);
-    border-radius: 999px;
-    background: rgba(13, 148, 136, 0.075);
-    color: #135e55;
-    cursor: pointer;
-    font-size: 0.76rem;
-    font-weight: 800;
-    line-height: 1.1;
-}
-
-.unit-overview__entity-phone:hover:not(:disabled) {
-    border-color: rgba(13, 148, 136, 0.48);
-    background: rgba(13, 148, 136, 0.13);
-    transform: translateY(-1px);
-}
-
-.unit-overview__entity-phone:disabled {
-    cursor: wait;
-    opacity: 0.72;
-}
-
-.unit-overview__entity-phone-icon {
-    padding: 2px 5px;
-    border-radius: 999px;
-    background: #0f766e;
-    color: #fff;
-    font-size: 0.58rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.unit-overview__entity-phone small {
-    color: #0f766e;
-    font-size: 0.62rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.unit-overview__entity-emails a {
-    color: #365486;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-decoration: none;
-}
-
-.unit-overview__entity-emails a:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.unit-overview__entity-actions {
-    margin-top: 8px;
-}
-
-.unit-overview__dial-feedback {
-    margin-top: 8px;
-    padding: 8px 10px;
-    border-radius: 12px;
-    font-size: 0.76rem;
-    font-weight: 800;
-}
-
-.unit-overview__dial-feedback--success {
-    background: rgba(13, 148, 136, 0.1);
-    color: #0f766e;
-}
-
-.unit-overview__dial-feedback--error {
-    background: rgba(190, 18, 60, 0.1);
-    color: #9f1239;
-}
-
-@media (max-width: 700px) {
-    .unit-overview__stats {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .unit-overview__top-grid,
-    .unit-overview__body-grid,
-    .unit-overview__entity-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .unit-overview__workboard-tile {
-        aspect-ratio: auto;
-        min-height: 96px;
-    }
-}
-
-@media (max-width: 1100px) {
-    .unit-overview__body-grid {
-        grid-template-columns: 1fr;
-    }
+@media (max-width: 600px) {
+    .unit-details__toolbar { align-items: flex-start; flex-direction: column; }
+    .unit-details__entity { grid-template-columns: 1fr; gap: 8px; }
 }
 </style>

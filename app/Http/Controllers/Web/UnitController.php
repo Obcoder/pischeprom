@@ -69,6 +69,9 @@ class UnitController extends Controller
                     'create' => true,
                 ],
                 'unit' => [
+                    'manage_contacts' => $request->user()
+                        ? Gate::forUser($request->user())->allows('manageContacts', $unit)
+                        : false,
                     'manage_emails' => $request->user()
                         ? Gate::forUser($request->user())->allows('manageContacts', $unit)
                         : false,
@@ -118,7 +121,7 @@ class UnitController extends Controller
     protected function attachConsumptionRequestCounts(Unit $unit): void
     {
         $unit->load([
-            'consumptions.product' => fn ($query) => $query->withCount('searchRequests'),
+            'consumptions.product' => fn ($query) => $query->with('category')->withCount('searchRequests'),
         ]);
     }
 }

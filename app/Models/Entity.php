@@ -92,6 +92,11 @@ class Entity extends Model
         return $this->belongsToMany(Telephone::class);
     }
 
+    public function uris(): BelongsToMany
+    {
+        return $this->belongsToMany(Uri::class)->withTimestamps();
+    }
+
     public function units(): BelongsToMany
     {
         return $this->belongsToMany(Unit::class);

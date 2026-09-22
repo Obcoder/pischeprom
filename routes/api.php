@@ -121,6 +121,7 @@ use App\Http\Controllers\API\SupplierPipelineStageController;
 use App\Http\Controllers\API\SupplierWorkBoardController;
 use App\Http\Controllers\API\TaxiShiftController;
 use App\Http\Controllers\API\TelephoneController;
+use App\Http\Controllers\API\UnitCommunicationController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\UnitController as ApiUnitController;
 use App\Http\Controllers\API\UnitEmailController;
@@ -696,6 +697,18 @@ Route::prefix('max')
  */
 Route::prefix('units/{unit}')->group(function () {
     Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
+
+    Route::prefix('communications')->middleware(['auth:sanctum', 'verified'])->group(function () {
+        Route::get('/', [UnitCommunicationController::class, 'index'])
+            ->middleware('can:view,unit')->name('api.units.communications.index');
+
+        Route::middleware(['can:manageContacts,unit', 'throttle:60,1'])->group(function () {
+            Route::get('/{type}/options', [UnitCommunicationController::class, 'options'])->name('api.units.communications.options');
+            Route::post('/{type}', [UnitCommunicationController::class, 'store'])->name('api.units.communications.store');
+            Route::put('/{type}/{contact}', [UnitCommunicationController::class, 'update'])->whereNumber('contact')->name('api.units.communications.update');
+            Route::delete('/{type}/{contact}', [UnitCommunicationController::class, 'destroy'])->whereNumber('contact')->name('api.units.communications.destroy');
+        });
+    });
 
     Route::get('/website-research', [UnitWebsiteResearchController::class, 'index'])
         ->middleware(['auth:sanctum', 'verified'])->name('api.units.website-research.index');
