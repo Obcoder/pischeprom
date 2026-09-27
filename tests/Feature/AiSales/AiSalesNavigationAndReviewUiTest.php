@@ -31,7 +31,7 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
         $product = $this->campaignProduct('Navigation Product');
         $guestCounts = $this->domainCounts();
 
-        $this->get(route('product.show', $product))->assertRedirect(route('login'));
+        $this->get(route('product.show', $product))->assertRedirect(route('Ameise.login'));
         $this->getJson(route('Ameise.ai-sales'))->assertUnauthorized();
         $this->actingAs($this->userWith([]))->get(route('product.show', $product))
             ->assertOk()

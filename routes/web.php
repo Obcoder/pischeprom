@@ -55,10 +55,14 @@ use App\Models\City;
 use App\Models\Good;
 use App\Models\Product;
 use App\Models\Region;
+use App\Services\Auth\StaffAccess;
 use App\Services\Realtime\AvitoRealtimeAccess;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Laravel\Fortify\Features;
+use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -140,6 +144,24 @@ Route::get('/personal-data-consent', [LegalPageController::class, 'personalDataC
 Route::get('/', [MainController::class, 'index'])
     ->name('home');
 //   * * * * * * * * *   A M E I S E   * * * * * * * * *
+Route::get('/Ameise/login', function (Request $request, StaffAccess $access) {
+    if ($user = Auth::guard(config('fortify.guard'))->user()) {
+        return redirect()->route($access->allows($user) ? 'Ameise' : 'dashboard');
+    }
+
+    return Inertia::render('Auth/AmeiseLogin', [
+        'canResetPassword' => Features::enabled(Features::resetPasswords()),
+        'status' => $request->session()->get('status'),
+    ]);
+})->name('Ameise.login');
+
+Route::post('/Ameise/login', [AuthenticatedSessionController::class, 'store'])
+    ->middleware(array_filter([
+        'guest:'.config('fortify.guard'),
+        config('fortify.limiters.login') ? 'throttle:'.config('fortify.limiters.login') : null,
+    ]))
+    ->name('Ameise.login.store');
+
 Route::get('/Ameise/', [Verwalter::class, 'index'])
     ->name('Ameise');
 //   * * * * * * * * * * * * * * * * * * * * * * * * * *

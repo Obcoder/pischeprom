@@ -65,19 +65,19 @@ class AvitoIntegrationTest extends TestCase
         $this->assertStringNotContainsString('localStorage', $page);
     }
 
-    public function test_guest_is_sent_to_login_and_returns_to_live_chats_after_employee_login(): void
+    public function test_guest_uses_admin_login_and_opens_ameise_home_before_live_chats(): void
     {
         Http::preventStrayRequests();
         $employee = User::factory()->create(['type' => 'employee', 'status' => 'active']);
         $destination = route('Ameise.avito');
 
         $this->get($destination)
-            ->assertRedirect(route('login'))
+            ->assertRedirect(route('Ameise.login'))
             ->assertSessionHas('url.intended', $destination);
 
-        $this->post('/login', ['email' => $employee->email, 'password' => 'password'])
+        $this->post('/Ameise/login', ['email' => $employee->email, 'password' => 'password'])
             ->assertSessionHasNoErrors()
-            ->assertRedirect($destination);
+            ->assertRedirect(route('Ameise'));
         $this->assertAuthenticatedAs($employee, 'web');
 
         $this->get($destination)->assertOk()

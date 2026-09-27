@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, ref } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed, onMounted, ref } from 'vue';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 
 defineProps({
@@ -8,6 +8,8 @@ defineProps({
     status: String,
 });
 
+const page = usePage();
+const canRegister = computed(() => Boolean(page.props.canRegister));
 const emailInput = ref(null);
 const passwordInput = ref(null);
 const passwordVisible = ref(false);
@@ -40,61 +42,38 @@ const submit = () => {
 </script>
 
 <template>
-    <Head title="Вход в Ameise" />
+    <Head title="Вход в личный кабинет" />
 
-    <main class="ameise-login" lang="ru">
-        <div class="login-shell">
-            <div class="login-caption" aria-hidden="true">
-                <span>AMEISE / ПАНЕЛЬ УПРАВЛЕНИЯ</span>
-                <span class="login-caption__mark">↗</span>
-            </div>
+    <main class="customer-login" lang="ru">
+        <div class="customer-shell">
+            <Link href="/" class="customer-brand" aria-label="Пищепром-сервер — на главную">
+                <svg class="customer-brand__mark" width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+                    <rect x=".75" y=".75" width="34.5" height="34.5" rx="10" stroke="currentColor" stroke-width="1.5" />
+                    <path d="M18 27V9M18 15C12 15 10 12 10 9C15 9 18 11 18 15ZM18 21C12 21 10 18 10 15C15 15 18 17 18 21ZM18 18C24 18 26 15 26 12C21 12 18 14 18 18ZM18 24C24 24 26 21 26 18C21 18 18 20 18 24Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+                </svg>
+                <span>ПИЩЕПРОМ<span class="customer-brand__divider"> / </span>СЕРВЕР</span>
+            </Link>
 
-            <section class="login-card" aria-labelledby="login-title">
-                <aside class="login-brand" aria-label="Ameise — система управления">
-                    <div class="login-brand__wordmark">ameise<span>.</span></div>
-
-                    <svg class="login-brand__graphic" viewBox="0 0 240 240" fill="none" aria-hidden="true">
-                        <circle cx="120" cy="120" r="100" stroke="currentColor" stroke-opacity=".25" />
-                        <path d="M0 120H240M120 0V240" stroke="currentColor" stroke-opacity=".2" />
-                        <path d="M44 32V44H32M196 32V44H208M44 208V196H32M196 208V196H208" stroke="currentColor" />
-                        <circle cx="193" cy="50" r="17" fill="#DFFF84" />
-                        <g stroke="currentColor" stroke-width="5" stroke-linecap="square" stroke-linejoin="miter">
-                            <path d="M108 77L89 56V42M132 77L151 56V42" />
-                            <path d="M108 111L76 91L58 103M132 111L164 91L182 103" />
-                            <path d="M107 124H72L55 143M133 124H168L185 143" />
-                            <path d="M108 139L80 161V185M132 139L160 161V185" />
+            <section class="customer-card" aria-labelledby="login-title">
+                <header class="customer-heading">
+                    <div class="customer-eyebrow"><span aria-hidden="true" /> Для клиентов и заказчиков</div>
+                    <h1 id="login-title">Вход в личный<br>кабинет</h1>
+                    <p>Рады видеть вас снова.</p>
+                    <svg class="customer-heading__graphic" width="126" height="142" viewBox="0 0 126 142" fill="none" aria-hidden="true">
+                        <circle cx="104" cy="62" r="60" stroke="currentColor" stroke-opacity=".12" />
+                        <circle cx="104" cy="62" r="43" stroke="currentColor" stroke-opacity=".12" />
+                        <g stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+                            <path d="M78 129V38M78 57C60 57 53 47 53 35C68 35 78 44 78 57ZM78 79C60 79 53 69 53 57C68 57 78 66 78 79ZM78 101C60 101 53 91 53 79C68 79 78 88 78 101ZM78 68C96 68 103 58 103 46C88 46 78 55 78 68ZM78 90C96 90 103 80 103 68C88 68 78 77 78 90ZM78 112C96 112 103 102 103 90C88 90 78 99 78 112Z" />
+                            <path d="M78 39C67 30 68 20 78 10C88 20 89 30 78 39Z" fill="currentColor" fill-opacity=".06" />
                         </g>
-                        <ellipse cx="120" cy="87" rx="21" ry="24" fill="currentColor" />
-                        <circle cx="120" cy="123" r="15" fill="currentColor" />
-                        <ellipse cx="120" cy="168" rx="29" ry="35" fill="currentColor" />
-                        <path d="M97 163H143M96 174H144" stroke="#244BE8" stroke-width="3" />
                     </svg>
+                </header>
 
-                    <div class="login-brand__footer">
-                        <span>Система<br>управления</span>
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path d="M4 12H20M13 5L20 12L13 19" stroke="currentColor" stroke-width="1.5" />
-                        </svg>
-                    </div>
-                </aside>
+                <div class="customer-content">
+                    <div v-if="status" class="customer-status" role="status">{{ status }}</div>
 
-                <div class="login-content">
-                    <header class="login-heading">
-                        <div class="login-eyebrow">
-                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                <rect x="3.5" y="7" width="9" height="7" stroke="currentColor" />
-                                <path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0V7M8 10V11.5" stroke="currentColor" />
-                            </svg>
-                            Рабочее пространство
-                        </div>
-                        <h1 id="login-title">Вход в Ameise</h1>
-                        <p>Используйте свою учётную запись.</p>
-                    </header>
-
-                    <div v-if="status" class="login-status" role="status">{{ status }}</div>
-
-                    <form class="login-form" :aria-busy="form.processing" @submit.prevent="submit">
-                        <div class="login-field">
+                    <form class="customer-form" :aria-busy="form.processing" @submit.prevent="submit">
+                        <div class="customer-field">
                             <label for="email">Электронная почта</label>
                             <input
                                 id="email"
@@ -102,7 +81,7 @@ const submit = () => {
                                 v-model="form.email"
                                 name="email"
                                 type="email"
-                                placeholder="name@company.ru"
+                                placeholder="you@example.ru"
                                 required
                                 autofocus
                                 autocomplete="username"
@@ -111,14 +90,19 @@ const submit = () => {
                                 :aria-invalid="Boolean(form.errors.email)"
                                 :aria-describedby="form.errors.email ? 'email-error' : undefined"
                             >
-                            <p v-if="form.errors.email" id="email-error" class="login-error" role="alert">
+                            <p v-if="form.errors.email" id="email-error" class="customer-error" role="alert">
                                 {{ form.errors.email }}
                             </p>
                         </div>
 
-                        <div class="login-field">
-                            <label for="password">Пароль</label>
-                            <div class="login-password">
+                        <div class="customer-field">
+                            <div class="customer-field__heading">
+                                <label for="password">Пароль</label>
+                                <Link v-if="canResetPassword" :href="route('password.request')" class="customer-link customer-recovery">
+                                    Забыли пароль?
+                                </Link>
+                            </div>
+                            <div class="customer-password">
                                 <input
                                     id="password"
                                     ref="passwordInput"
@@ -133,252 +117,131 @@ const submit = () => {
                                 >
                                 <button
                                     type="button"
-                                    class="login-password__toggle"
+                                    class="customer-password__toggle"
                                     :aria-label="passwordVisible ? 'Скрыть пароль' : 'Показать пароль'"
+                                    :aria-pressed="passwordVisible"
                                     :title="passwordVisible ? 'Скрыть пароль' : 'Показать пароль'"
                                     aria-controls="password"
                                     @click="passwordVisible = !passwordVisible"
                                 >
-                                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                         <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" stroke-width="1.5" />
                                         <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.5" />
                                         <path v-if="passwordVisible" d="M4 4L20 20" stroke="currentColor" stroke-width="1.5" />
                                     </svg>
                                 </button>
                             </div>
-                            <p v-if="form.errors.password" id="password-error" class="login-error" role="alert">
+                            <p v-if="form.errors.password" id="password-error" class="customer-error" role="alert">
                                 {{ form.errors.password }}
                             </p>
                         </div>
 
-                        <div class="login-options">
-                            <label class="login-remember">
-                                <input v-model="form.remember" type="checkbox" name="remember">
-                                <span>Запомнить меня</span>
-                            </label>
-                            <Link v-if="canResetPassword" :href="route('password.request')" class="login-link">
-                                Забыли пароль?
-                            </Link>
-                        </div>
+                        <label class="customer-remember">
+                            <input v-model="form.remember" type="checkbox" name="remember">
+                            <span>Запомнить меня</span>
+                        </label>
 
-                        <button class="login-submit" type="submit" :disabled="form.processing">
-                            <span>{{ form.processing ? 'Входим…' : 'Войти' }}</span>
-                            <span v-if="form.processing" class="login-spinner" aria-hidden="true" />
+                        <button class="customer-submit" type="submit" :disabled="form.processing">
+                            <span>{{ form.processing ? 'Входим…' : 'Войти в кабинет' }}</span>
+                            <span v-if="form.processing" class="customer-spinner" aria-hidden="true" />
                             <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M4 12H20M13 5L20 12L13 19" stroke="currentColor" stroke-width="1.5" />
+                                <path d="M4 12H20M13 5L20 12L13 19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                         </button>
                     </form>
+
+                    <p v-if="canRegister" class="customer-register">
+                        Ещё нет аккаунта?
+                        <Link :href="route('register')" class="customer-link">Зарегистрироваться</Link>
+                    </p>
                 </div>
             </section>
 
-            <footer class="login-footer">
-                <Link href="/" class="login-back">
-                    <span aria-hidden="true">←</span> На сайт
-                </Link>
-                <span>ПИЩЕПРОМ-СЕРВЕР</span>
+            <footer class="customer-footer">
+                <Link href="/" class="customer-back"><span aria-hidden="true">←</span> Вернуться на сайт</Link>
+                <span>Пищепром-сервер</span>
             </footer>
         </div>
     </main>
 </template>
 
 <style scoped>
-.ameise-login {
-    --login-ink: #202522;
-    --login-muted: #646b67;
-    --login-blue: #244be8;
+.customer-login {
+    --customer-ink: #302520;
+    --customer-muted: #796b62;
+    --customer-wine: #800000;
+    --customer-line: #e7ddd4;
     display: grid;
     min-height: 100vh;
     min-height: 100svh;
     place-items: center;
-    padding: 40px 24px;
-    background-color: #f3f3ed;
-    background-image: linear-gradient(#20252206 1px, transparent 1px), linear-gradient(90deg, #20252206 1px, transparent 1px);
-    background-size: 32px 32px;
-    color: var(--login-ink);
+    padding: 32px 20px;
+    background-color: #f7f2eb;
+    background-image: radial-gradient(ellipse at 16% 10%, #fffaf5 0, transparent 52%), radial-gradient(ellipse at 90% 95%, #eadbcb70 0, transparent 45%);
+    color: var(--customer-ink);
     font-family: Arial, Helvetica, sans-serif;
     -webkit-font-smoothing: antialiased;
 }
 
-.login-shell { width: 100%; max-width: 740px; }
-
-.login-caption,
-.login-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: .08em;
+.customer-login *, .customer-login *::before, .customer-login *::after { box-sizing: border-box; }
+.customer-shell { width: 100%; max-width: 440px; }
+.customer-brand { display: flex; align-items: center; justify-content: center; gap: 11px; margin-bottom: 24px; color: var(--customer-wine); font-size: 12px; font-weight: 700; letter-spacing: .095em; text-decoration: none; }
+.customer-brand__mark { flex-shrink: 0; }
+.customer-brand__divider { font-weight: 400; opacity: .5; }
+.customer-card { overflow: hidden; border: 1px solid var(--customer-line); border-radius: 18px; background: #fff; box-shadow: 0 18px 55px #62442d0b, 0 2px 5px #62442d04; }
+.customer-heading { position: relative; overflow: hidden; padding: 27px 30px 24px; border-bottom: 1px solid var(--customer-line); background: #fcf7f0; }
+.customer-eyebrow { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; margin-bottom: 15px; color: var(--customer-wine); font-size: 10px; font-weight: 600; letter-spacing: .055em; text-transform: uppercase; }
+.customer-eyebrow > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.customer-heading h1 { position: relative; z-index: 1; margin: 0; font-size: 29px; font-weight: 600; letter-spacing: -.035em; line-height: 1.16; }
+.customer-heading p { position: relative; z-index: 1; margin: 11px 0 0; color: var(--customer-muted); font-size: 13px; line-height: 1.5; }
+.customer-heading__graphic { position: absolute; right: 0; bottom: 6px; color: #a57d59; pointer-events: none; }
+.customer-content { padding: 26px 30px 25px; }
+.customer-form { display: grid; gap: 19px; }
+.customer-field { min-width: 0; }
+.customer-field label { display: block; color: var(--customer-ink); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.customer-field__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.customer-field input { display: block; width: 100%; height: 46px; margin-top: 8px; padding: 0 13px; border: 1px solid #d9d0c8; border-radius: 7px; outline: none; background: #fff; color: var(--customer-ink); font: inherit; font-size: 14px; box-shadow: none; transition: border-color .15s, box-shadow .15s; }
+.customer-field input::placeholder { color: #9b918a; opacity: 1; }
+.customer-field input:focus { border-color: var(--customer-wine); box-shadow: 0 0 0 3px #8000000d; }
+.customer-field input[aria-invalid="true"] { border-color: #ae271f; }
+.customer-password { position: relative; }
+.customer-password input { padding-right: 48px; }
+.customer-password__toggle { position: absolute; top: 1px; right: 1px; display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--customer-muted); cursor: pointer; }
+.customer-password__toggle:hover { color: var(--customer-wine); }
+.customer-link { color: var(--customer-wine); text-decoration: none; text-underline-offset: 3px; }
+.customer-link:hover { text-decoration: underline; }
+.customer-recovery { font-size: 11px; line-height: 1.5; }
+.customer-remember { display: flex; align-items: center; gap: 9px; width: fit-content; min-height: 24px; margin-top: -3px; color: var(--customer-muted); font-size: 12px; cursor: pointer; }
+.customer-remember input { width: 16px; height: 16px; margin: 0; border: 1px solid #c7bab0; border-radius: 4px; accent-color: var(--customer-wine); color: var(--customer-wine); }
+.customer-submit { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 47px; margin-top: -3px; padding: 12px 16px; border: 1px solid var(--customer-wine); border-radius: 7px; background: var(--customer-wine); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color .15s, border-color .15s; }
+.customer-submit:hover:not(:disabled) { border-color: #600000; background: #600000; }
+.customer-submit:disabled { opacity: .65; cursor: wait; }
+.customer-register { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 23px 0 0; padding-top: 20px; border-top: 1px solid #f0e9e2; color: var(--customer-muted); font-size: 11px; line-height: 1.6; }
+.customer-register .customer-link { font-weight: 600; }
+.customer-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 20px 4px 0; color: var(--customer-muted); font-size: 10px; line-height: 1.5; }
+.customer-back { display: inline-flex; align-items: center; gap: 7px; color: var(--customer-muted); text-decoration: none; }
+.customer-back:hover { color: var(--customer-wine); }
+.customer-status { margin-bottom: 20px; padding: 11px 13px; border: 1px solid #bed7bf; border-radius: 7px; background: #f1f8ef; color: #355a34; font-size: 12px; line-height: 1.6; }
+.customer-error { margin: 7px 0 0; color: #a1251e; font-size: 12px; line-height: 1.5; }
+.customer-spinner { width: 18px; height: 18px; border: 2px solid #ffffff50; border-top-color: #fff; border-radius: 50%; animation: customer-spin .8s linear infinite; }
+.customer-login a:focus-visible, .customer-login button:focus-visible, .customer-remember input:focus-visible { outline: 2px solid var(--customer-wine); outline-offset: 4px; }
+.customer-submit:focus-visible { outline-offset: 3px; }
+@keyframes customer-spin { to { transform: rotate(360deg); } }
+@media (max-width: 380px) {
+    .customer-login { padding: 24px 16px; }
+    .customer-brand { gap: 8px; font-size: 10px; letter-spacing: .06em; }
+    .customer-heading { padding: 24px 22px 22px; }
+    .customer-heading h1 { font-size: 26px; }
+    .customer-heading__graphic { right: -27px; opacity: .65; }
+    .customer-content { padding: 24px 22px; }
+    .customer-eyebrow { font-size: 9px; }
+    .customer-footer { font-size: 9px; }
 }
-
-.login-caption { margin-bottom: 12px; }
-.login-caption__mark { font-size: 21px; line-height: 1; }
-
-.login-card {
-    display: grid;
-    grid-template-columns: 268px minmax(0, 1fr);
-    border: 1px solid var(--login-ink);
-    background: #fff;
-    box-shadow: 6px 6px 0 var(--login-ink);
+@media (max-width: 600px) {
+    .customer-field input { font-size: 16px; }
 }
-
-.login-brand {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 28px;
-    overflow: hidden;
-    padding: 29px 28px;
-    border-right: 1px solid var(--login-ink);
-    background: var(--login-blue);
-    color: #fff;
-}
-
-.login-brand__wordmark { font-size: 46px; font-weight: 700; letter-spacing: -.065em; line-height: 1; }
-.login-brand__wordmark span { color: #dfff84; }
-.login-brand__graphic { width: 100%; max-width: 210px; align-self: center; }
-.login-brand__footer { display: flex; align-items: flex-end; justify-content: space-between; font-size: 12px; line-height: 1.5; }
-.login-content { align-self: center; min-width: 0; padding: 38px; }
-.login-heading { margin-bottom: 28px; }
-
-.login-eyebrow {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin-bottom: 14px;
-    color: var(--login-muted);
-    font-size: 10px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-}
-
-.login-heading h1 { margin: 0; font-size: 29px; font-weight: 600; letter-spacing: -.045em; line-height: 1.15; }
-.login-heading p { margin-top: 9px; color: var(--login-muted); font-size: 13px; line-height: 1.5; }
-.login-form { display: grid; gap: 18px; }
-.login-field > label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 600; line-height: 1.4; }
-
-.login-field input {
-    display: block;
-    width: 100%;
-    height: 44px;
-    padding: 0 12px;
-    border: 1px solid #bbc0b9;
-    border-radius: 0;
-    background: #fcfcf9;
-    color: var(--login-ink);
-    font: inherit;
-    font-size: 14px;
-    outline: none;
-    transition: border-color .15s, box-shadow .15s;
-}
-
-.login-field input::placeholder { color: #777e77; opacity: 1; }
-.login-field input:hover { border-color: var(--login-ink); }
-.login-field input:focus { border-color: var(--login-blue); box-shadow: 0 0 0 3px #244be81a; }
-.login-field input[aria-invalid='true'] { border-color: #b42318; }
-.login-password { position: relative; }
-.login-password input { padding-right: 46px; }
-
-.login-password__toggle {
-    position: absolute;
-    inset: 1px 1px 1px auto;
-    display: grid;
-    width: 42px;
-    place-items: center;
-    color: var(--login-muted);
-}
-
-.login-password__toggle:hover { color: var(--login-blue); }
-
-.login-options {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 16px;
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.login-remember { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; }
-.login-remember input { width: 15px; height: 15px; accent-color: var(--login-blue); cursor: pointer; }
-.login-link { padding: 5px 0; color: var(--login-blue); text-decoration: underline; text-decoration-color: #244be84d; text-underline-offset: 3px; }
-.login-link:hover { text-decoration-color: currentColor; }
-
-.login-submit {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    min-height: 46px;
-    padding: 12px 16px;
-    border: 1px solid var(--login-ink);
-    background: var(--login-ink);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.5;
-    transition: background .15s, border-color .15s;
-}
-
-.login-submit:hover:not(:disabled) { border-color: var(--login-blue); background: var(--login-blue); }
-.login-submit:disabled { cursor: wait; opacity: .65; }
-
-.login-password__toggle:focus-visible,
-.login-remember input:focus-visible,
-.login-link:focus-visible,
-.login-submit:focus-visible,
-.login-back:focus-visible { outline: 2px solid var(--login-blue); outline-offset: 4px; }
-
-.login-error { margin-top: 6px; color: #b42318; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-
-.login-status {
-    margin-bottom: 20px;
-    padding: 10px 12px;
-    border-left: 2px solid #32754b;
-    background: #edf7ee;
-    color: #215c37;
-    font-size: 13px;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-}
-
-.login-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid #ffffff4d;
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: login-spin .7s linear infinite;
-}
-
-.login-footer { margin-top: 22px; color: var(--login-muted); font-size: 9px; }
-.login-back { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; color: var(--login-ink); font-family: Arial, Helvetica, sans-serif; font-size: 12px; letter-spacing: 0; }
-.login-back:hover { color: var(--login-blue); }
-
-@keyframes login-spin {
-    to { transform: rotate(360deg); }
-}
-
-@media (max-width: 640px) {
-    .ameise-login { padding: 28px 20px; }
-    .login-shell { max-width: 420px; }
-    .login-card { grid-template-columns: minmax(0, 1fr); box-shadow: 4px 4px 0 var(--login-ink); }
-    .login-brand { flex-direction: row; align-items: center; gap: 16px; padding: 18px 26px; border-right: 0; border-bottom: 1px solid var(--login-ink); }
-    .login-brand__wordmark { font-size: 36px; }
-    .login-brand__graphic { width: 64px; height: 64px; }
-    .login-brand__footer { display: none; }
-    .login-content { padding: 28px 26px; }
-    .login-heading { margin-bottom: 24px; }
-    .login-heading h1 { font-size: 27px; }
-    .login-field input { font-size: 16px; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .login-field input, .login-submit { transition: none; }
-    .login-spinner { animation: none; }
+    .customer-field input, .customer-submit { transition: none; }
+    .customer-spinner { animation: none; }
 }
 </style>

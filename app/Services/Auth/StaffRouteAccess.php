@@ -43,6 +43,7 @@ class StaffRouteAccess
 
         // Fortify/Jetstream keep their existing session, password and 2FA checks.
         'login' => ['GET', 'HEAD', 'POST'],
+        'Ameise/login' => ['GET', 'HEAD', 'POST'],
         'logout' => ['POST'],
         'register' => ['GET', 'HEAD', 'POST'],
         'forgot-password' => ['GET', 'HEAD', 'POST'],

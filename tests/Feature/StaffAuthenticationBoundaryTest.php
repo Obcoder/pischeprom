@@ -42,7 +42,7 @@ class StaffAuthenticationBoundaryTest extends TestCase
             }
 
             foreach ($route->methods() as $method) {
-                if (str_starts_with($route->uri(), 'Ameise')) {
+                if (str_starts_with($route->uri(), 'Ameise') && $route->uri() !== 'Ameise/login') {
                     $ameise++;
                     $this->assertTrue($boundary->requiresStaff($route, $method), $route->uri());
                 }
@@ -71,7 +71,7 @@ class StaffAuthenticationBoundaryTest extends TestCase
         $boundary = app(StaffRouteAccess::class);
         foreach (StaffRouteAccess::EXCEPTIONS as $uri => $methods) {
             $this->assertStringNotContainsString('*', $uri);
-            $this->assertFalse(str_starts_with($uri, 'Ameise'));
+            $this->assertTrue(! str_starts_with($uri, 'Ameise') || $uri === 'Ameise/login');
             foreach ($methods as $method) {
                 $route = collect(Route::getRoutes()->getRoutes())->first(
                     fn (RoutingRoute $route) => $route->uri() === $uri && in_array($method, $route->methods(), true),
@@ -91,10 +91,10 @@ class StaffAuthenticationBoundaryTest extends TestCase
         }
     }
 
-    public function test_guests_use_normal_login_for_pages_and_receive_401_for_api_even_without_accept_header(): void
+    public function test_guests_use_admin_login_for_pages_and_receive_401_for_api_even_without_accept_header(): void
     {
         foreach (['/Ameise', '/Ameise/', '/Ameise/Mail', '/Ameise/Avito', '/purchases', '/gis/2gis', '/web/entities'] as $uri) {
-            $this->get($uri)->assertRedirect(route('login'));
+            $this->get($uri)->assertRedirect(route('Ameise.login'));
             $this->getJson($uri)->assertUnauthorized();
         }
 
@@ -152,12 +152,12 @@ class StaffAuthenticationBoundaryTest extends TestCase
         $this->getJson('/api/mailboxes')->assertForbidden();
     }
 
-    public function test_login_preserves_the_requested_admin_page_and_existing_operation_checks_remain(): void
+    public function test_admin_login_opens_ameise_home_and_existing_operation_checks_remain(): void
     {
         $employee = $this->user('employee');
-        $this->get('/Ameise/Mail')->assertRedirect(route('login'));
-        $this->post('/login', ['email' => $employee->email, 'password' => 'password'])
-            ->assertRedirect('/Ameise/Mail');
+        $this->get('/Ameise/Mail')->assertRedirect(route('Ameise.login'));
+        $this->post('/Ameise/login', ['email' => $employee->email, 'password' => 'password'])
+            ->assertRedirect('/Ameise');
         $this->get('/Ameise/Mail')->assertOk();
         $this->postJson('/api/mail-messages/send')->assertForbidden(); // No mail.send permission.
 
@@ -195,7 +195,7 @@ class StaffAuthenticationBoundaryTest extends TestCase
         Route::middleware('api')->get('/api/mobile/v1/future-private-route', fn () => response('private'));
         Route::middleware('api')->post('/api/avito/oauth/callback', fn () => response('private'));
 
-        $this->get('/_boundary/future-page')->assertRedirect(route('login'));
+        $this->get('/_boundary/future-page')->assertRedirect(route('Ameise.login'));
         $this->get('/api/mobile/v1/future-private-route')->assertUnauthorized();
         $this->postJson('/api/avito/oauth/callback')->assertUnauthorized();
     }

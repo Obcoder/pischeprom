@@ -528,6 +528,12 @@ if ! php artisan app:deploy-smoke --path=/g >/dev/null 2>&1; then
     fail 'Smoke check for /g failed; rerun the command locally on the VPS.'
 fi
 
+for login_page in /login /Ameise/login; do
+    if ! php artisan app:deploy-smoke --path="$login_page" >/dev/null 2>&1; then
+        fail "Smoke check for $login_page failed; rerun the command locally on the VPS."
+    fi
+done
+
 if ! php artisan app:deploy-smoke --path=/Ameise/ --status=302 >/dev/null 2>&1; then
     fail 'Smoke check for /Ameise/ failed; rerun the command locally on the VPS.'
 fi

@@ -34,7 +34,7 @@ class RequireStaffAuthentication
         if (! $user) {
             return $json
                 ? response()->json(['message' => 'Unauthenticated.'], 401, ['Cache-Control' => 'no-store, private'])
-                : redirect()->guest(route('login'));
+                : redirect()->guest(route('Ameise.login'));
         }
 
         if (! $this->access->allows($user)) {

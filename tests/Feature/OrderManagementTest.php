@@ -273,7 +273,7 @@ class OrderManagementTest extends TestCase
             'line_total' => 120,
         ]);
 
-        $this->get('/Ameise/orders')->assertRedirect(route('login'));
+        $this->get('/Ameise/orders')->assertRedirect(route('Ameise.login'));
         $this->getJson('/api/orders')->assertUnauthorized();
         $actor = User::factory()->create(['type' => 'employee', 'status' => 'active']);
         $this->actingAs($actor);
@@ -304,7 +304,7 @@ class OrderManagementTest extends TestCase
 
     public function test_order_control_panel_and_api_require_staff_authentication(): void
     {
-        $this->get('/Ameise/orders')->assertRedirect(route('login'));
+        $this->get('/Ameise/orders')->assertRedirect(route('Ameise.login'));
         $this->getJson('/api/orders')->assertUnauthorized();
         $actor = User::factory()->create(['type' => 'employee', 'status' => 'active']);
         $this->actingAs($actor);

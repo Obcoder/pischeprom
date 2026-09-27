@@ -177,7 +177,7 @@ class CommercialOffersAccessTest extends TestCase
 
     public function test_guests_must_authenticate_before_accessing_page_or_services(): void
     {
-        $this->get('/Ameise/commercial-offers')->assertRedirect(route('login'));
+        $this->get('/Ameise/commercial-offers')->assertRedirect(route('Ameise.login'));
         foreach (self::INITIAL_ENDPOINTS as $endpoint) {
             $this->getJson('/Ameise/commercial-offers/'.$endpoint)->assertUnauthorized();
         }

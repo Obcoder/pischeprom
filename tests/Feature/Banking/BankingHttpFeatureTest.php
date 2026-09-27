@@ -26,7 +26,7 @@ class BankingHttpFeatureTest extends BankingDatabaseTestCase
 
     public function test_bank_page_requires_authentication_and_bank_view_permission(): void
     {
-        $this->get('/Ameise/bank')->assertRedirect('/login');
+        $this->get('/Ameise/bank')->assertRedirect('/Ameise/login');
 
         $user = $this->createUser();
         $this->actingAs($user)->get('/Ameise/bank')->assertForbidden();

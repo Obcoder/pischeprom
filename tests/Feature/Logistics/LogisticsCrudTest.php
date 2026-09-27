@@ -16,7 +16,7 @@ class LogisticsCrudTest extends LogisticsTestCase
 {
     public function test_logistics_page_uses_the_shared_staff_login(): void
     {
-        $this->get('/Ameise/logistics')->assertRedirect('/login');
+        $this->get('/Ameise/logistics')->assertRedirect('/Ameise/login');
         $this->actingAs($this->logisticsUser());
         $this->get('/Ameise/logistics')
             ->assertOk()
@@ -27,7 +27,7 @@ class LogisticsCrudTest extends LogisticsTestCase
     {
         config(['logistics.authorization_enabled' => false]);
 
-        $this->get('/Ameise/logistics')->assertRedirect('/login');
+        $this->get('/Ameise/logistics')->assertRedirect('/Ameise/login');
         $this->getJson('/api/logistics/dashboard')->assertUnauthorized();
         $this->postJson('/api/logistics/vehicles', $this->vehiclePayload())->assertUnauthorized();
         $this->actingAs(User::factory()->create(['type' => 'customer', 'status' => 'active']))

@@ -23,7 +23,7 @@ class AuthorizationAndReviewTest extends AiPriceListTestCase
         $this->assertStringNotContainsString('v-if="canViewAiPriceLists"', $layout);
 
         $this->get('/Ameise/ai/price-lists')
-            ->assertRedirect('/login');
+            ->assertRedirect('/Ameise/login');
     }
 
     public function test_shared_staff_login_preserves_review_permissions_and_actor_even_with_the_legacy_flag_disabled(): void
@@ -78,7 +78,7 @@ class AuthorizationAndReviewTest extends AiPriceListTestCase
     {
         config()->set('ai-price-lists.authorization_enabled', false);
         $import = $this->import();
-        $this->get('/Ameise/ai/price-lists')->assertRedirect('/login');
+        $this->get('/Ameise/ai/price-lists')->assertRedirect('/Ameise/login');
         $this->getJson('/api/ai/price-lists')->assertUnauthorized();
         $this->postJson("/api/ai/price-lists/{$import->uuid}/apply")->assertUnauthorized();
         $this->actingAs($this->userWith([]))->getJson('/api/ai/price-lists')->assertForbidden();

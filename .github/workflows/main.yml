@@ -401,6 +401,10 @@ jobs:
       - name: Check Ameise authentication and mail delivery safety
         run: |
           vendor/bin/pint --test \
+            app/Actions/Fortify/AuthenticatePortalUser.php \
+            app/Http/Responses/PortalLoginResponse.php \
+            app/Http/Requests/PortalTwoFactorLoginRequest.php \
+            app/Providers/FortifyServiceProvider.php \
             app/Services/Auth \
             app/Http/Middleware/RequireStaffAuthentication.php \
             app/Http/Middleware/VerifyTelegramWebhook.php \
@@ -422,6 +426,7 @@ jobs:
             scripts/update-production-mail-safety-env.php \
             scripts/provision-production-telegram.php \
             tests/Feature/StaffAuthenticationBoundaryTest.php \
+            tests/Feature/LoginPortalsTest.php \
             tests/Feature/TelegramWebhookSecurityTest.php \
             tests/Feature/CustomerEntityBoundaryTest.php \
             tests/Feature/Mail/AuthorizedMailDeliveryTest.php \
@@ -451,6 +456,7 @@ jobs:
             tests/Feature/Avito \
             tests/Feature/Mail \
             tests/Feature/StaffAuthenticationBoundaryTest.php \
+            tests/Feature/LoginPortalsTest.php \
             tests/Feature/TelegramWebhookSecurityTest.php \
             tests/Feature/CustomerEntityBoundaryTest.php \
             tests/Feature/MailboxRegistryTest.php \
