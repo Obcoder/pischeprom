@@ -28,6 +28,11 @@ Schedule::job(new SyncYandexMailboxJob(50), 'mail-sync')
     ->everyMinute()
     ->withoutOverlapping(10);
 
+Schedule::command('mail:reconcile-sent --limit=50')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground();
+
 Schedule::command('goods:retry-inquiry-notifications --limit=20')
     ->everyMinute()
     ->withoutOverlapping(30)

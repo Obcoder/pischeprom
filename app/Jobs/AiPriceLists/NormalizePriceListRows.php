@@ -7,6 +7,7 @@ use App\Domain\AiPriceLists\Enums\PriceListStatus;
 use App\Domain\AiPriceLists\Exceptions\ExternalAiException;
 use App\Domain\AiPriceLists\Normalization\PriceListRowNormalizer;
 use App\Domain\AiPriceLists\Services\PriceListAuditLogger;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use App\Domain\AiPriceLists\Services\PriceListStateMachine;
 use App\Domain\AiPriceLists\Services\StructuredPriceListExtractor;
 use App\Models\PriceListImport;
@@ -36,7 +37,7 @@ class NormalizePriceListRows extends AbstractPriceListJob
         $result = $normalizer->normalize($import);
 
         if ($result['product_rows'] === 0) {
-            if (! config('ai-price-lists.ai.enabled')) {
+            if (! PriceListRuntimePolicy::aiEnabled()) {
                 $states->fail($import, 'ai_disabled', 'AI-обработка прайс-листов временно отключена.', false);
 
                 return;

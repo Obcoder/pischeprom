@@ -34,7 +34,7 @@ abstract class UnitContextsTestCase extends TestCase
 
     protected function userWith(array $permissions): User
     {
-        $user = User::factory()->create(['status' => 'active']);
+        $user = User::factory()->create(['type' => 'employee', 'status' => 'active']);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach ($permissions as $permission) {

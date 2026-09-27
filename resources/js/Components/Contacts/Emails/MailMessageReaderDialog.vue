@@ -7,6 +7,7 @@ import MailPdfViewer from './MailPdfViewer.vue'
 import MailMessageReaderHeader from './MailMessageReaderHeader.vue'
 import MailMessageCrmTools from './MailMessageCrmTools.vue'
 import WordAttachmentPreview from './WordAttachmentPreview.vue'
+import MailHtmlBody from './MailHtmlBody.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -1009,10 +1010,9 @@ onBeforeUnmount(() => {
                             class="my-2"
                         />
 
-                        <div
+                        <MailHtmlBody
                             v-if="bodyHtml"
-                            class="mail-body bg-white text-black rounded"
-                            v-html="bodyHtml"
+                            :html="bodyHtml"
                         />
 
                         <pre

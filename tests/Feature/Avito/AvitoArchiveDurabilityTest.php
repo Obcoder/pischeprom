@@ -15,17 +15,20 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\Concerns\BuildsIsolatedAvitoDatabase;
 use Tests\TestCase;
 
 class AvitoArchiveDurabilityTest extends TestCase
 {
+    use AuthenticatesStaff;
     use BuildsIsolatedAvitoDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->createAvitoTestDatabase();
+        $this->actingAsStaff();
         config([
             'avito.enabled' => true,
             'avito.client_id' => 'archive-client',

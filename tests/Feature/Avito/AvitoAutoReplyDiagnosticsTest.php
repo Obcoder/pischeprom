@@ -17,15 +17,18 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\TestCase;
 
 class AvitoAutoReplyDiagnosticsTest extends TestCase
 {
+    use AuthenticatesStaff;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAsStaff();
         config([
             'avito.enabled' => true,
             'avito.mutations_enabled' => true,

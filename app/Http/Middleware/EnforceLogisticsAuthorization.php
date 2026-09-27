@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Illuminate\Http\Request;
@@ -21,7 +20,6 @@ class EnforceLogisticsAuthorization
         return app(Pipeline::class)
             ->send($request)
             ->through([
-                Authenticate::using('sanctum'),
                 EnsureEmailIsVerified::class,
                 Authorize::using('logistics.view'),
             ])

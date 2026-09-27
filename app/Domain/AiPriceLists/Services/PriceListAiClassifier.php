@@ -20,11 +20,15 @@ class PriceListAiClassifier
 
     public function configured(): bool
     {
-        return config('ai-price-lists.ai.enabled') && $this->provider->configured();
+        return PriceListRuntimePolicy::aiEnabled() && $this->provider->configured();
     }
 
     public function classify(PriceListImport $import, ExtractionResult $extraction): DocumentClass
     {
+        if (! $this->configured()) {
+            return DocumentClass::Uncertain;
+        }
+
         $schema = $this->schema();
         $instructions = (string) file_get_contents(resource_path('ai/prompts/price-list-classification-v1.txt'));
         $rows = collect($extraction->rows)

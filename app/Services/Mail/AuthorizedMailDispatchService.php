@@ -2,6 +2,7 @@
 
 namespace App\Services\Mail;
 
+use App\Jobs\ArchiveSentMailJob;
 use App\Models\AuthorizedMailDispatchAttempt;
 use App\Models\Email;
 use App\Models\Entity;
@@ -11,6 +12,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Mail\Message;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -18,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\Mime\Email as MimeEmail;
 use Throwable;
 
 class AuthorizedMailDispatchService
@@ -67,6 +70,34 @@ class AuthorizedMailDispatchService
         $recipients = $this->recipients($data);
         $attachments = $this->uploadedFiles($data['attachments'] ?? []);
         $storagePaths = $this->storagePaths($data['storage_files'] ?? [], $unit);
+        $reply = $this->replyMessage($data['reply_to_mail_message_id'] ?? null, $unit);
+        $headers = $this->replyHeaders($reply);
+        $subject = trim((string) ($data['subject'] ?? '')) ?: '(без темы)';
+        $requestedMailbox = $data['mailbox'] ?? $reply?->mailbox;
+        $mailbox = $requestedMailbox ? $this->mailboxes->find((string) $requestedMailbox) : null;
+
+        if ($requestedMailbox && ! $mailbox) {
+            throw new MailDispatchException('mailbox_not_allowlisted', 'Выбранный почтовый ящик не настроен.');
+        }
+
+        $mailbox ??= $this->mailboxes->findOrDefault(null);
+        $fromAddress = $this->safeAddress($mailbox['address'] ?? null);
+        $fromName = $this->safeHeader((string) ($mailbox['from_name'] ?? config('mail.from.name', '')));
+
+        if (! $fromAddress) {
+            throw new MailDispatchException('sender_not_configured', 'Почтовый ящик отправителя не настроен.');
+        }
+
+        $storageAttachments = $this->loadStorageAttachments($storagePaths);
+        $totalBytes = $attachments->sum(fn (UploadedFile $file) => (int) $file->getSize())
+            + collect($storageAttachments)->sum('size');
+
+        if ($totalBytes > self::MAX_TOTAL_ATTACHMENT_BYTES) {
+            throw new MailDispatchException('attachment_total_too_large', 'Общий размер вложений превышает лимит.');
+        }
+
+        // Fallible read-only preparation precedes the ownership claim, so missing replies
+        // or unavailable storage cannot leave a permanently claimed, unsent request.
         $attempt = $this->claimAttempt(
             actor: $actor,
             unit: $unit,
@@ -76,103 +107,116 @@ class AuthorizedMailDispatchService
             recipientCount: count($recipients['all']),
             attachmentCount: $attachments->count() + count($storagePaths),
         );
-
-        if ($attempt->status !== 'claimed') {
-            return ['duplicate' => true, 'mail_message' => null];
+        if (! $attempt->wasRecentlyCreated) {
+            return [
+                'duplicate' => true,
+                'mail_message' => $attempt->mail_message_id ? MailMessage::find($attempt->mail_message_id) : null,
+                'warning' => match ($attempt->status) {
+                    'dispatched' => null,
+                    'failed' => 'Предыдущая попытка завершилась до отправки. Письмо не отправлено.',
+                    default => 'Результат предыдущей попытки отправки ещё не подтверждён. Проверьте почту перед повторной отправкой.',
+                },
+            ];
         }
 
-        $reply = $this->replyMessage($data['reply_to_mail_message_id'] ?? null, $unit);
-        $headers = $this->replyHeaders($reply);
-        $subject = trim((string) ($data['subject'] ?? '')) ?: '(без темы)';
-        $requestedMailbox = $data['mailbox'] ?? $reply?->mailbox;
-        $mailbox = $requestedMailbox ? $this->mailboxes->find((string) $requestedMailbox) : null;
-
-        if ($requestedMailbox && ! $mailbox) {
-            $this->failAttempt($attempt, 'mailbox_not_allowlisted');
-            throw new MailDispatchException('mailbox_not_allowlisted', 'Выбранный почтовый ящик не настроен.');
-        }
-
-        $mailbox ??= $this->mailboxes->findOrDefault(null);
-        $fromAddress = $this->safeAddress($mailbox['address'] ?? null);
-        $fromName = $this->safeHeader((string) ($mailbox['from_name'] ?? config('mail.from.name', '')));
-
-        if (! $fromAddress) {
-            $this->failAttempt($attempt, 'sender_not_configured');
-            throw new MailDispatchException('sender_not_configured', 'Почтовый ящик отправителя не настроен.');
-        }
-
-        $storageAttachments = $this->loadStorageAttachments($storagePaths);
-        $totalBytes = $attachments->sum(fn (UploadedFile $file) => (int) $file->getSize())
-            + collect($storageAttachments)->sum('size');
-
-        if ($totalBytes > self::MAX_TOTAL_ATTACHMENT_BYTES) {
-            $this->failAttempt($attempt, 'attachment_total_too_large');
-            throw new MailDispatchException('attachment_total_too_large', 'Общий размер вложений превышает лимит.');
-        }
-
+        $mailMessage = null;
+        $smtpStarted = false;
+        $messageId = $attempt->public_id.'@'.Str::after($fromAddress, '@');
         try {
+            $archive = app(SentMailArchive::class);
             $mailerName = $this->mailboxes->registerMailer($mailbox);
-            Mail::mailer($mailerName)->html($html, function ($message) use (
-                $recipients, $subject, $fromAddress, $fromName, $attachments, $storageAttachments, $headers, $body
-            ): void {
-                $message->to($recipients['to']);
-                if ($recipients['cc'] !== []) {
-                    $message->cc($recipients['cc']);
-                }
-                if ($recipients['bcc'] !== []) {
-                    $message->bcc($recipients['bcc']);
-                }
-                $message->from($fromAddress, $fromName);
-                $message->replyTo($fromAddress, $fromName);
-                $message->subject($subject);
-                $message->text($body);
+            $mime = (new MimeEmail)->html($html)->date(now()->toDateTimeImmutable());
+            $mime->getHeaders()->addIdHeader('Message-ID', $messageId);
+            $message = new Message($mime);
+            $message->to($recipients['to']);
+            if ($recipients['cc'] !== []) {
+                $message->cc($recipients['cc']);
+            }
+            if ($recipients['bcc'] !== []) {
+                $message->bcc($recipients['bcc']);
+            }
+            $message->from($fromAddress, $fromName);
+            $message->replyTo($fromAddress, $fromName);
+            $message->subject($subject);
+            $message->text($body);
 
-                if ($headers !== []) {
-                    $symfonyHeaders = $message->getHeaders();
-                    $symfonyHeaders->addTextHeader('In-Reply-To', $headers['in_reply_to']);
-                    $symfonyHeaders->addTextHeader('References', $headers['references']);
-                }
+            if ($headers !== []) {
+                $symfonyHeaders = $message->getHeaders();
+                $symfonyHeaders->addTextHeader('In-Reply-To', $headers['in_reply_to']);
+                $symfonyHeaders->addTextHeader('References', $headers['references']);
+            }
 
-                foreach ($attachments as $file) {
-                    $message->attach($file->getRealPath(), [
-                        'as' => $this->safeFileName($file->getClientOriginalName()),
-                        'mime' => $file->getMimeType(),
-                    ]);
-                }
+            foreach ($attachments as $file) {
+                $message->attach($file->getRealPath(), [
+                    'as' => $this->safeFileName($file->getClientOriginalName()),
+                    'mime' => $file->getMimeType(),
+                ]);
+            }
 
-                foreach ($storageAttachments as $attachment) {
-                    $message->attachData($attachment['data'], $attachment['name'], ['mime' => $attachment['mime']]);
-                }
-            });
-
+            foreach ($storageAttachments as $attachment) {
+                $message->attachData($attachment['data'], $attachment['name'], ['mime' => $attachment['mime']]);
+            }
             $mailMessage = $this->recordMessage(
                 $fromAddress, $fromName, $recipients, $subject, $body, $html, $reply, $headers,
                 $attachments->isNotEmpty() || $storageAttachments !== [], $entity, $unit,
+                '<'.$messageId.'>', $mailbox['imap']['sent'] ?? 'Sent',
             );
+            $attempt->forceFill(['mail_message_id' => $mailMessage->id])->save();
+            // A durable, private original is required BEFORE SMTP can accept the message.
+            $archive->prepare($mailMessage, $mime);
             $this->recordAttachments($mailMessage, $attachments, $storageAttachments);
-            $attempt->forceFill(['status' => 'dispatched', 'dispatched_at' => now(), 'safe_error_code' => null])->save();
-
-            Log::info('Authorized manual mail dispatched', [
-                'dispatch_attempt_id' => $attempt->id,
-                'route_name' => $routeName,
-                'unit_id' => $unit?->id,
-                'recipient_count' => count($recipients['all']),
-                'attachment_count' => $attempt->attachment_count,
-            ]);
-
-            return ['duplicate' => false, 'mail_message' => $mailMessage];
-        } catch (MailDispatchException $exception) {
-            throw $exception;
+            $transport = Mail::mailer($mailerName)->getSymfonyTransport();
+            $mailMessage->forceFill(['delivery_status' => 'sending'])->save();
+            $smtpStarted = true;
+            // Use the transport receipt directly: a failing after-send listener must never
+            // turn an accepted SMTP delivery into a failure inviting another send.
+            $receipt = $transport->send($mime);
+            if (! $receipt) {
+                throw new \RuntimeException('Transport did not return an acceptance receipt.');
+            }
         } catch (Throwable $exception) {
-            $this->failAttempt($attempt, 'transport_failed');
-            Log::warning('Authorized manual mail failed', [
-                'dispatch_attempt_id' => $attempt->id,
-                'route_name' => $routeName,
-                'exception_type' => $exception::class,
-            ]);
-
-            throw new MailDispatchException('transport_failed', 'Письмо не отправлено.', 500);
+            try {
+                $mailMessage?->forceFill(['delivery_status' => $smtpStarted ? 'unknown' : 'failed'])->save();
+                $attempt->forceFill(['status' => $smtpStarted ? 'unknown' : 'failed', 'safe_error_code' => $smtpStarted ? 'transport_uncertain' : 'preparation_failed'])->save();
+            } catch (Throwable) {
+                // Preserve the original uncertainty even if persistence is unavailable.
+            }
+            throw new MailDispatchException(
+                $smtpStarted ? 'transport_uncertain' : 'preparation_failed',
+                $smtpStarted ? 'Не удалось подтвердить отправку. Проверьте почту перед повторной отправкой.' : 'Не удалось сохранить письмо перед отправкой. Письмо не отправлено.',
+                502,
+            );
         }
+
+        // Everything below occurs AFTER SMTP acceptance and must not report "not sent".
+        $warning = null;
+        try {
+            DB::transaction(function () use ($mailMessage, $attempt): void {
+                $mailMessage->forceFill(['delivery_status' => 'sent', 'smtp_accepted_at' => now()])->save();
+                $attempt->forceFill(['status' => 'dispatched', 'dispatched_at' => now(), 'safe_error_code' => null])->save();
+            });
+        } catch (Throwable) {
+            return ['duplicate' => false, 'mail_message' => $mailMessage, 'warning' => 'SMTP принял письмо, но подтверждение не удалось сохранить. Не отправляйте письмо повторно.'];
+        }
+
+        try {
+            $archive->archive($mailMessage);
+        } catch (Throwable $exception) {
+            $warning = 'Письмо отправлено. Копия в папке «Отправленные» ожидает синхронизации.';
+            try {
+                $mailMessage->forceFill([
+                    'sent_copy_status' => $exception instanceof SentCopyPendingException ? 'pending' : 'failed',
+                    'sent_copy_error' => 'sent_copy_unavailable',
+                ])->save();
+                if (filled($mailbox['imap']['host'] ?? null)) {
+                    ArchiveSentMailJob::dispatch($mailMessage->id)->delay(now()->addSeconds(15));
+                }
+            } catch (Throwable) {
+                // The persisted sent/pending row can be retried with mail:reconcile-sent.
+            }
+        }
+
+        return ['duplicate' => false, 'mail_message' => $mailMessage, 'warning' => $warning];
     }
 
     public function authorize(User $actor, ?Unit $unit = null): void
@@ -207,36 +251,24 @@ class AuthorizedMailDispatchService
     ): AuthorizedMailDispatchAttempt {
         $keyHash = hash('sha256', $actor->id.'|'.$routeName.'|'.Str::lower($idempotencyKey));
 
-        return DB::transaction(function () use (
-            $actor, $unit, $routeName, $keyHash, $requestHash, $recipientCount, $attachmentCount
-        ): AuthorizedMailDispatchAttempt {
-            $existing = AuthorizedMailDispatchAttempt::query()->where('idempotency_key_hash', $keyHash)->lockForUpdate()->first();
-
-            if ($existing) {
-                if (! hash_equals($existing->request_hash, $requestHash)) {
-                    throw new MailDispatchException('idempotency_conflict', 'Ключ повторной отправки уже использован.', 409);
-                }
-
-                return $existing;
-            }
-
-            return AuthorizedMailDispatchAttempt::query()->create([
+        // firstOrCreate handles the UNIQUE-key race. Only its creator owns this send,
+        // including while the persisted status is still claimed or sending.
+        $attempt = AuthorizedMailDispatchAttempt::query()->firstOrCreate(
+            ['idempotency_key_hash' => $keyHash], [
                 'public_id' => (string) Str::uuid(),
                 'user_id' => $actor->id,
                 'unit_id' => $unit?->id,
                 'route_name' => $routeName,
-                'idempotency_key_hash' => $keyHash,
                 'request_hash' => $requestHash,
                 'recipient_count' => $recipientCount,
                 'attachment_count' => $attachmentCount,
                 'status' => 'claimed',
             ]);
-        });
-    }
+        if (! hash_equals($attempt->request_hash, $requestHash)) {
+            throw new MailDispatchException('idempotency_conflict', 'Ключ повторной отправки уже использован.', 409);
+        }
 
-    private function failAttempt(AuthorizedMailDispatchAttempt $attempt, string $code): void
-    {
-        $attempt->forceFill(['status' => 'failed', 'safe_error_code' => $code])->save();
+        return $attempt;
     }
 
     private function recipients(array $data): array
@@ -385,13 +417,14 @@ class AuthorizedMailDispatchService
     private function recordMessage(
         string $fromAddress, string $fromName, array $recipients, string $subject, string $body,
         string $html, ?MailMessage $reply, array $headers, bool $hasAttachments, ?Entity $entity, ?Unit $unit,
+        string $messageId, string $sentFolder,
     ): MailMessage {
         return DB::transaction(function () use (
-            $fromAddress, $fromName, $recipients, $subject, $body, $html, $reply, $headers, $hasAttachments, $entity, $unit
+            $fromAddress, $fromName, $recipients, $subject, $body, $html, $reply, $headers, $hasAttachments, $entity, $unit, $messageId, $sentFolder
         ): MailMessage {
             $message = MailMessage::query()->create([
-                'mailbox' => $fromAddress, 'folder' => 'Sent', 'direction' => 'outgoing',
-                'message_id' => '<'.Str::uuid().'@local.pischeprom>',
+                'mailbox' => $fromAddress, 'folder' => $sentFolder, 'direction' => 'outgoing',
+                'message_id' => $messageId, 'delivery_status' => 'prepared', 'sent_copy_status' => 'pending',
                 'reply_to_mail_message_id' => $reply?->id,
                 'in_reply_to' => $headers['in_reply_to'] ?? null, 'references' => $headers['references'] ?? null,
                 'subject' => $subject, 'message_date' => now(), 'from_address' => $fromAddress,

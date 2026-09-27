@@ -45,7 +45,8 @@ class CommercialOffersAccessTest extends TestCase
         Http::preventStrayRequests();
         Queue::fake();
 
-        Route::middleware('web')->get('/_test/mailing-navigation', fn () => Inertia::render('Admin/CommercialOffers'));
+        Route::middleware('web')->get('/_test/mailing-navigation', fn () => Inertia::render('Admin/CommercialOffers'))
+            ->withoutMiddleware(\App\Http\Middleware\RequireStaffAuthentication::class);
     }
 
     public function test_legacy_crm_admin_can_open_page_without_registered_mailing_permissions(): void
@@ -284,7 +285,7 @@ class CommercialOffersAccessTest extends TestCase
             Permission::findOrCreate($permission, 'crm');
         }
 
-        $user = User::factory()->create(['status' => 'active', ...$attributes]);
+        $user = User::factory()->create(['type' => 'employee', 'status' => 'active', ...$attributes]);
         $user->givePermissionTo($permissions);
 
         return $user;

@@ -60,11 +60,25 @@ class MailMessageActionController extends Controller
             $data['attachments'] = $request->file('attachments', []);
             $result = $dispatch->dispatchMessage($request->user(), $data, 'mail-messages.send', $unit, $entity);
 
+            $warning = $result['warning'] ?? null;
+            $payload = null;
+            if ($result['mail_message']) {
+                try {
+                    $payload = $this->messagePayload($result['mail_message']);
+                } catch (Throwable) {
+                    // SMTP has already accepted the message. A failed response
+                    // enrichment must not invite another SMTP submission.
+                    $payload = $result['mail_message']->only(['id', 'mailbox', 'direction', 'message_id', 'delivery_status', 'sent_copy_status']);
+                    $warning ??= 'Письмо отправлено. Обновить сведения о серверной копии пока не удалось.';
+                }
+            }
+
             return response()->json([
                 'message' => $result['duplicate'] ? 'Письмо уже обработано.' : 'Письмо отправлено.',
                 'duplicate' => $result['duplicate'],
-                'mail_message' => $result['mail_message'] ? $this->messagePayload($result['mail_message']->fresh()) : null,
-            ]);
+                'warning' => $warning,
+                'mail_message' => $payload,
+            ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (MailDispatchException $exception) {
             return response()->json(['message' => $exception->getMessage(), 'code' => $exception->safeCode], $exception->httpStatus);
         }

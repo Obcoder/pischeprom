@@ -50,7 +50,11 @@ if ($maxAccessTokenPath !== null && $maxAccessTokenPath !== '') {
 
 $updates = [
     'AI_PRICE_LISTS_ENABLED' => 'true',
-    'AI_PRICE_LIST_AUTHORIZATION_ENABLED' => 'false',
+    'AI_PRICE_LIST_AI_ENABLED' => 'false',
+    'PRICE_LIST_AI_RERANKING_ENABLED' => 'false',
+    'AI_PRICE_LIST_NOTIFICATIONS_ENABLED' => 'false',
+    'AI_PRICE_LIST_MAX_ACK_ENABLED' => 'false',
+    'AI_PRICE_LIST_AUTHORIZATION_ENABLED' => 'true',
     'AI_PRICE_LIST_QUEUE_CONNECTION' => 'redis',
     'AI_PRICE_LIST_QUEUE' => 'price-lists',
     'AI_PRICE_LIST_MAIL_QUEUE' => 'mail-sync',

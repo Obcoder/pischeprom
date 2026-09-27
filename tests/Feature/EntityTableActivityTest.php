@@ -6,10 +6,13 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\TestCase;
 
 class EntityTableActivityTest extends TestCase
 {
+    use AuthenticatesStaff;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -23,6 +26,7 @@ class EntityTableActivityTest extends TestCase
         DB::purge('sqlite');
         DB::reconnect('sqlite');
         Http::preventStrayRequests();
+        $this->actingAsStaff();
 
         Schema::create('entities', function (Blueprint $table): void {
             $table->id();

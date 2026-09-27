@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Message;
-use Illuminate\Http\Request;
-use App\Services\TelegramService;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
 use App\Models\Chat;
+use App\Models\Message;
+use App\Services\TelegramService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class TelegramController extends Controller
 {
@@ -21,28 +20,27 @@ class TelegramController extends Controller
     public function sendMessage(Request $request)
     {
         $validated = $request->validate([
-                                            'chat_id' => 'required|string',
-                                            'text' => 'required|string'
-                                        ]);
+            'chat_id' => 'required|string',
+            'text' => 'required|string',
+        ]);
 
         try {
             // Сначала сохраняем в БД
-            Log::info("Сохранение сообщения в БД", ['chat_id' => $validated['chat_id'], 'text' => $validated['text']]);
+            Log::info('Сохранение сообщения в БД', ['chat_id' => $validated['chat_id'], 'text' => $validated['text']]);
             $chat = Chat::where('numbers', '=', $validated['chat_id'])->firstOrFail();
             $message = Message::create([
-                                           'chat_id' => $chat->id,
-                                           'content' => $validated['text'],
-                                       ]);
-            Log::info("Сообщение успешно сохранено", ['id' => $message->id]);
+                'chat_id' => $chat->id,
+                'content' => $validated['text'],
+            ]);
+            Log::info('Сообщение успешно сохранено', ['id' => $message->id]);
             // Отправка сообщения через сервис
             $this->telegramService->sendMessage($validated['chat_id'], $validated['text']);
         } catch (\Exception $e) {
             // Логирование ошибки
-            Log::error("Ошибка при отправке сообщения: " . $e->getMessage());
-//            return response()->json(['error' => 'Failed to send message'], 500);
+            Log::error('Telegram message delivery failed.', ['exception' => get_class($e)]);
+            //            return response()->json(['error' => 'Failed to send message'], 500);
         }
     }
-
 
     public function webhook(Request $request)
     {
@@ -53,6 +51,9 @@ class TelegramController extends Controller
         $update_id = $update['update_id'] ?? null;
         // Получаем сообщение
         $message = $update['message'] ?? null;
+        if (! is_array($message)) {
+            return response()->json(['ok' => true]);
+        }
         if ($message) {
             $message_id = $message['message_id'] ?? null;
             $date = $message['date'] ?? null;
@@ -63,7 +64,7 @@ class TelegramController extends Controller
             $photo = $message['photo'] ?? null; // Массив фото
             $caption = $message['caption'] ?? null; // Подпись к фото
 
-            //Сохраняем chatID в БД
+            // Сохраняем chatID в БД
             $chat = Chat::firstOrCreate(['numbers' => $chatId]);
 
             if ($text) { // Добавляем проверку
@@ -79,10 +80,10 @@ class TelegramController extends Controller
             }
 
             // Логируем информацию о сообщении
-            //Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
+            // Log::info("Received message:", ['chat_id' => $chatId, 'text' => $text]);
 
             // Ответное сообщение
-            //$this->telegram->sendMessage($chatId, "Получено ваше сообщение: " . $text);
+            // $this->telegram->sendMessage($chatId, "Получено ваше сообщение: " . $text);
         }
 
         if ($photo) {
@@ -92,18 +93,13 @@ class TelegramController extends Controller
 
             // Сохраняем в БД
             Message::create([
-                                'content' => "[Фото] $fileId",
-                                'chat_id' => $chat->id,
-                            ]);
+                'content' => "[Фото] $fileId",
+                'chat_id' => $chat->id,
+            ]);
 
-            // Получаем прямую ссылку на файл
-            $fileUrl = $this->telegramService->getFileUrl($fileId);
-
-            Log::info("Фото получено: $fileUrl");
         }
 
-        Log::info('Пришли данные из Telegram:', $update);
-        // Возвращаем успешный ответ
-        //return response()->json(['status' => 'Message received']);
+        // Do not log the update body or token-bearing Telegram file URLs.
+        return response()->json(['ok' => true]);
     }
 }

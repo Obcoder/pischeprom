@@ -9,17 +9,20 @@ use App\Services\Avito\AvitoMessengerArchive;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\Concerns\BuildsIsolatedAvitoDatabase;
 use Tests\TestCase;
 
 class AvitoWaitingListTest extends TestCase
 {
+    use AuthenticatesStaff;
     use BuildsIsolatedAvitoDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->createAvitoTestDatabase();
+        $this->actingAsStaff();
         config([
             'avito.enabled' => true,
             'avito.client_id' => 'waiting-client',
@@ -33,11 +36,18 @@ class AvitoWaitingListTest extends TestCase
         Queue::fake();
     }
 
-    public function test_waiting_list_has_shared_crud_using_the_existing_ameise_access_model(): void
+    public function test_waiting_list_requires_staff_for_reads_and_mutations(): void
     {
         $chat = $this->chat();
         $url = "/api/avito/messenger/chats/{$chat->id}/waiting-list";
+        auth()->logout();
         $this->assertGuest();
+        $this->getJson('/api/avito/messenger/waiting-list')->assertUnauthorized();
+        $this->putJson($url, ['note' => 'Unauthorized'])->assertUnauthorized();
+        $this->patchJson($url, ['note' => 'Unauthorized'])->assertUnauthorized();
+        $this->deleteJson($url)->assertUnauthorized();
+        $this->assertNull($chat->fresh()->waiting_since);
+        $this->actingAsStaff();
         $this->getJson('/api/avito/messenger/waiting-list')->assertOk()->assertJsonCount(0, 'data');
         $added = $this->putJson($url, ['note' => 'Уточнить срок доставки'])->assertOk()
             ->assertJsonPath('chat.id', $chat->id)

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import MailRelatedMessagesMenu from './MailRelatedMessagesMenu.vue'
+import { sentCopyNotice } from './mailMessageStatus'
 
 const props = defineProps({
     message: {
@@ -50,6 +51,7 @@ const messageDate = computed(() => {
     }).format(date)
 })
 const syncNotice = computed(() => props.syncError || props.message?.mail_sync_error || null)
+const deliveryNotice = computed(() => sentCopyNotice(props.message))
 
 function formatRecipient(recipient) {
     if (typeof recipient === 'string') return recipient.trim()
@@ -130,7 +132,11 @@ function contextLabel(context) {
                 </Link>
             </nav>
 
-            <div v-if="feedback || syncNotice" class="mail-reader-header__notices" role="status" aria-live="polite">
+            <div v-if="feedback || syncNotice || deliveryNotice" class="mail-reader-header__notices" role="status" aria-live="polite">
+                <div v-if="deliveryNotice" class="mail-reader-header__notice" :title="deliveryNotice">
+                    <v-icon icon="mdi-email-sync-outline" size="14" />
+                    <span>{{ deliveryNotice }}</span>
+                </div>
                 <div
                     v-if="feedback"
                     class="mail-reader-header__notice"

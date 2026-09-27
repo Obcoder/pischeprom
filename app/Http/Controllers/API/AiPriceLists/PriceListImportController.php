@@ -9,6 +9,7 @@ use App\Domain\AiPriceLists\Enums\PriceListStage;
 use App\Domain\AiPriceLists\Enums\PriceListStatus;
 use App\Domain\AiPriceLists\Services\PriceListAuditLogger;
 use App\Domain\AiPriceLists\Services\PriceListReviewService;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use App\Domain\AiPriceLists\Services\PriceListStateMachine;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AiPriceLists\ApplyPriceListRequest;
@@ -75,6 +76,7 @@ class PriceListImportController extends Controller
         return response()->json([
             ...$imports->toArray(),
             'statuses' => collect(PriceListStatus::cases())->map(fn ($status) => ['value' => $status->value, 'title' => $status->label()])->all(),
+            'processing' => $this->processingSettings(),
         ]);
     }
 
@@ -140,6 +142,7 @@ class PriceListImportController extends Controller
                 'applied_prices' => $priceListImport->supplierPrices,
             ],
             'permissions' => $this->permissions($priceListImport),
+            'processing' => $this->processingSettings(),
         ]);
     }
 
@@ -415,6 +418,7 @@ class PriceListImportController extends Controller
             'has_error' => filled($import->error_code),
             'requires_review' => in_array($import->status, [PriceListStatus::ReviewRequired, PriceListStatus::SupplierUnresolved], true),
             'ocr_pages' => $import->ocr_pages,
+            'ocr_skipped' => (bool) data_get($import->document_metadata, 'ocr_skipped_ai_disabled', false),
             'model_id' => $import->model_id,
             'created_at' => $import->created_at?->toISOString(),
         ];
@@ -429,6 +433,14 @@ class PriceListImportController extends Controller
             'assign_supplier' => Gate::allows('assignSupplier', $import),
             'apply' => Gate::allows('apply', $import),
             'view_technical' => Gate::allows('viewTechnical', $import),
+        ];
+    }
+
+    private function processingSettings(): array
+    {
+        return [
+            'ai_enabled' => PriceListRuntimePolicy::aiEnabled(),
+            'notifications_enabled' => PriceListRuntimePolicy::notificationsEnabled(),
         ];
     }
 

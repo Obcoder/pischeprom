@@ -24,17 +24,20 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Mockery;
 use RuntimeException;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\Concerns\BuildsIsolatedAvitoDatabase;
 use Tests\TestCase;
 
 class AvitoAutoReplyEmergencyStopTest extends TestCase
 {
+    use AuthenticatesStaff;
     use BuildsIsolatedAvitoDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->createAvitoTestDatabase();
+        $this->actingAsStaff();
         config([
             'ai-price-lists.ai.base_url' => 'https://ai.api.cloud.yandex.net/v1',
             'ai-price-lists.ai.api_key' => 'test-key',

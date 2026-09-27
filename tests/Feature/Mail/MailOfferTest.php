@@ -15,10 +15,10 @@ use App\Services\Mail\AuthorizedMailDispatchService;
 use App\Services\Mail\MailboxRegistry;
 use App\Services\Mail\MailOfferCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Mockery;
@@ -36,6 +36,7 @@ class MailOfferTest extends TestCase
         parent::setUp();
         Http::preventStrayRequests();
         Mail::fake();
+        Storage::fake('local');
         Queue::fake();
         config()->set(['app.url' => 'https://pischeprom.test', 'mail.default' => 'array']);
 
@@ -199,12 +200,13 @@ class MailOfferTest extends TestCase
         $actor = $this->user();
         $preview = $this->actingAs($actor)->postJson('/api/mail-offers/preview', $payload)->assertOk()->json();
         $transport = Mockery::mock();
-        $transport->shouldReceive('html')->once()->andReturnUsing(function (string $html, callable $callback) use ($preview): void {
-            $message = new Message(new Email);
-            $callback($message);
-            $this->assertSame($preview['html'], $html);
-            $this->assertSame($preview['text'], $message->getSymfonyMessage()->getTextBody());
+        $transport->shouldReceive('getSymfonyTransport')->once()->andReturnSelf();
+        $transport->shouldReceive('send')->once()->andReturnUsing(function (Email $message) use ($preview) {
+            $this->assertSame($preview['html'], $message->getHtmlBody());
+            $this->assertSame($preview['text'], $message->getTextBody());
             $this->assertSame('<original@example.test>', $message->getHeaders()->get('In-Reply-To')->getBodyAsString());
+
+            return new \Symfony\Component\Mailer\SentMessage($message, \Symfony\Component\Mailer\Envelope::create($message));
         });
         Mail::shouldReceive('mailer')->once()->with('array')->andReturn($transport);
 
@@ -291,7 +293,7 @@ class MailOfferTest extends TestCase
 
     private function user(bool $verified = true, bool $permission = true, string $status = 'active'): User
     {
-        $user = User::factory()->create(['email_verified_at' => $verified ? now() : null, 'status' => $status]);
+        $user = User::factory()->create(['email_verified_at' => $verified ? now() : null, 'status' => $status, 'type' => 'employee']);
         Permission::findOrCreate('mail.send', 'crm');
         if ($permission) {
             $user->givePermissionTo('mail.send');

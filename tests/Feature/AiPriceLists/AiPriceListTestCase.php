@@ -24,6 +24,7 @@ abstract class AiPriceListTestCase extends TestCase
         config()->set([
             'queue.default' => 'sync',
             'ai-price-lists.enabled' => true,
+            'ai-price-lists.notifications_enabled' => false,
             'ai-price-lists.authorization_enabled' => true,
             'ai-price-lists.queue_connection' => 'sync',
             'ai-price-lists.queue' => 'price-lists',
@@ -43,7 +44,7 @@ abstract class AiPriceListTestCase extends TestCase
 
     protected function userWith(array $permissions): User
     {
-        $user = User::factory()->create(['status' => 'active']);
+        $user = User::factory()->create(['type' => 'employee', 'status' => 'active']);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach ($permissions as $permission) {

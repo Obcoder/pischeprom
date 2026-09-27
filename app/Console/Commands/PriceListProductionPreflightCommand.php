@@ -7,6 +7,7 @@ use App\Domain\AiPriceLists\Contracts\OcrProviderInterface;
 use App\Domain\AiPriceLists\Contracts\StructuredTextModelProviderInterface;
 use App\Domain\AiPriceLists\DTO\OcrRequest;
 use App\Domain\AiPriceLists\DTO\StructuredModelRequest;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use App\Services\MaxMessengerService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
@@ -214,6 +215,8 @@ class PriceListProductionPreflightCommand extends Command
 
     private function assertAi(StructuredTextModelProviderInterface $ai): void
     {
+        PriceListRuntimePolicy::assertAiEnabled();
+
         if (! $ai->configured()) {
             throw new RuntimeException('AI Studio provider is not configured.');
         }
@@ -243,6 +246,8 @@ class PriceListProductionPreflightCommand extends Command
 
     private function assertVision(OcrProviderInterface $ocr): void
     {
+        PriceListRuntimePolicy::assertAiEnabled();
+
         if (! $ocr->configured()) {
             throw new RuntimeException('Vision OCR provider is not configured.');
         }

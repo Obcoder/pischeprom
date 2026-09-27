@@ -51,6 +51,7 @@ const activeView = ref('all')
 const deletingIds = ref([])
 const deleteError = ref('')
 const deleteStatus = ref('')
+const sendStatus = ref('')
 let autoRefreshTimer = null
 
 const tableHeight = computed(() => props.standalone ? '100%' : 720)
@@ -143,7 +144,8 @@ function replyToMessage(message) {
     composerDialog.value = true
 }
 
-async function afterSent() {
+async function afterSent(message, result) {
+    sendStatus.value = result?.warning || result?.message || 'Письмо отправлено.'
     composerDialog.value = false
     replyContext.value = null
     await fetchMessages()
@@ -286,7 +288,7 @@ watch(activeView, (value) => {
                 <v-btn class="mail-compose-launcher" size="small" variant="flat" prepend-icon="mdi-email-plus-outline" @click="openComposer">Написать письмо</v-btn>
             </div>
             <div class="mail-status-line" :class="{ 'mail-status-line--error': statusError }" role="status" aria-live="polite">
-                <span :title="statusError || deleteStatus || markReadStatus || viewDescription">{{ statusError || deleteStatus || markReadStatus || viewDescription }}</span>
+                <span :title="statusError || sendStatus || deleteStatus || markReadStatus || viewDescription">{{ statusError || sendStatus || deleteStatus || markReadStatus || viewDescription }}</span>
                 <span v-if="dateDescription" class="mail-status-line__dates">{{ dateDescription }}</span>
             </div>
         </div>

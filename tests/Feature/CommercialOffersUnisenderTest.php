@@ -69,6 +69,7 @@ class CommercialOffersUnisenderTest extends TestCase
         $actor = \Mockery::mock(User::class)->makePartial();
         $actor->forceFill([
             'id' => 1,
+            'type' => 'employee',
             'email' => 'commercial-offers@example.test',
             'email_verified_at' => now(),
             'status' => 'active',

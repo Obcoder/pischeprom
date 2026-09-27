@@ -6,6 +6,7 @@ use App\Domain\AiPriceLists\Contracts\OcrProviderInterface;
 use App\Domain\AiPriceLists\DTO\OcrRequest;
 use App\Domain\AiPriceLists\DTO\OcrResponse;
 use App\Domain\AiPriceLists\Exceptions\ExternalAiException;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
@@ -17,16 +18,14 @@ class YandexVisionOcrProvider implements OcrProviderInterface
 {
     public function configured(): bool
     {
-        return config('ai-price-lists.ai.enabled')
+        return PriceListRuntimePolicy::aiEnabled()
             && filled(config('ai-price-lists.ai.api_key'))
             && filled(config('ai-price-lists.ai.folder_id'));
     }
 
     public function recognize(OcrRequest $request): OcrResponse
     {
-        if (! config('ai-price-lists.ai.enabled')) {
-            throw new ExternalAiException('AI/OCR-обработка прайс-листов временно отключена.', false, 'ai_disabled');
-        }
+        PriceListRuntimePolicy::assertAiEnabled();
 
         if (! $this->configured()) {
             throw new ExternalAiException('Yandex Vision OCR не настроен.', false, 'ocr_not_configured');
@@ -38,6 +37,7 @@ class YandexVisionOcrProvider implements OcrProviderInterface
             ->acceptJson()
             ->timeout((int) config('ai-price-lists.limits.timeout_seconds'))
             ->connectTimeout(10)
+            ->beforeSending(fn () => PriceListRuntimePolicy::assertAiEnabled())
             ->withHeaders([
                 'Authorization' => 'Api-Key '.config('ai-price-lists.ai.api_key'),
                 'x-folder-id' => (string) config('ai-price-lists.ai.folder_id'),
@@ -48,6 +48,10 @@ class YandexVisionOcrProvider implements OcrProviderInterface
                 (int) config('ai-price-lists.limits.max_attempts'),
                 fn (int $attempt) => min(8000, 250 * (2 ** ($attempt - 1)) + random_int(0, 250)),
                 static function (\Throwable $exception, PendingRequest $request): bool {
+                    if (! PriceListRuntimePolicy::aiEnabled()) {
+                        return false;
+                    }
+
                     if ($exception instanceof ConnectionException) {
                         return true;
                     }

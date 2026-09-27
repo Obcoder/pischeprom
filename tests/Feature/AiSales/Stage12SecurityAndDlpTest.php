@@ -36,8 +36,8 @@ class Stage12SecurityAndDlpTest extends Stage12TestCase
             ->filter(fn ($route) => str_starts_with($route->uri(), 'api/ai-sales/units/{unit}/outreach'));
         $this->assertNotEmpty($routes);
         foreach ($routes as $route) {
-            $middleware = $route->gatherMiddleware();
-            $this->assertContains('auth:sanctum', $middleware);
+            $middleware = array_merge($route->gatherMiddleware(), app('router')->gatherRouteMiddleware($route));
+            $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, $middleware);
             $this->assertContains('verified', $middleware);
             $this->assertContains('throttle:60,1', $middleware);
         }

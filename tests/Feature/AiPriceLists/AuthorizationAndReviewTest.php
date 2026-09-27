@@ -26,9 +26,11 @@ class AuthorizationAndReviewTest extends AiPriceListTestCase
             ->assertRedirect('/login');
     }
 
-    public function test_pages_and_review_actions_work_without_separate_authorization(): void
+    public function test_shared_staff_login_preserves_review_permissions_and_actor_even_with_the_legacy_flag_disabled(): void
     {
         config()->set('ai-price-lists.authorization_enabled', false);
+        $reviewer = $this->userWith(['ai_price_lists.view', 'ai_price_lists.review', 'ai_price_lists.apply', 'ai_price_lists.view_technical']);
+        $this->actingAs($reviewer);
         $import = $this->import(['items_total' => 1, 'items_probable' => 1]);
         $good = Good::query()->create(['name' => 'Мука без отдельной авторизации', 'is_published' => true]);
         $item = $this->item($import->id, [
@@ -40,7 +42,7 @@ class AuthorizationAndReviewTest extends AiPriceListTestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Ameise/Ai/PriceLists/Index')
-                ->where('auth.user', null)
+                ->where('auth.user.id', $reviewer->id)
                 ->where('auth.permissions.ai_price_lists.view', true)
                 ->where('auth.permissions.ai_price_lists.review', true)
                 ->where('auth.permissions.ai_price_lists.apply', true));
@@ -58,23 +60,35 @@ class AuthorizationAndReviewTest extends AiPriceListTestCase
 
         $this->assertDatabaseHas('price_list_import_items', [
             'id' => $item->id,
-            'reviewed_by' => null,
+            'reviewed_by' => $reviewer->id,
         ]);
         $this->assertDatabaseHas('supplier_product_aliases', [
             'entity_id' => $import->entity_id,
             'good_id' => $good->id,
-            'confirmed_by' => null,
+            'confirmed_by' => $reviewer->id,
         ]);
         $this->assertDatabaseHas('price_list_events', [
             'price_list_import_id' => $import->id,
             'event_type' => 'item_decision_changed',
-            'user_id' => null,
+            'user_id' => $reviewer->id,
         ]);
     }
 
-    public function test_quarantined_document_stays_unavailable_in_public_mode(): void
+    public function test_legacy_flag_cannot_bypass_login_or_operation_permissions(): void
     {
         config()->set('ai-price-lists.authorization_enabled', false);
+        $import = $this->import();
+        $this->get('/Ameise/ai/price-lists')->assertRedirect('/login');
+        $this->getJson('/api/ai/price-lists')->assertUnauthorized();
+        $this->postJson("/api/ai/price-lists/{$import->uuid}/apply")->assertUnauthorized();
+        $this->actingAs($this->userWith([]))->getJson('/api/ai/price-lists')->assertForbidden();
+        $this->postJson("/api/ai/price-lists/{$import->uuid}/apply")->assertForbidden();
+    }
+
+    public function test_quarantined_document_stays_unavailable_without_technical_permission_with_legacy_flag_disabled(): void
+    {
+        config()->set('ai-price-lists.authorization_enabled', false);
+        $this->actingAs($this->userWith(['ai_price_lists.view']));
         $import = $this->import(['status' => PriceListStatus::Quarantined]);
         Storage::disk('local')->put($import->path, 'quarantined supplier document');
 

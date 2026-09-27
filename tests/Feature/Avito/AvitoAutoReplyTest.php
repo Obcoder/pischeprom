@@ -8,6 +8,7 @@ use App\Models\AvitoAutoReplySetting;
 use App\Models\AvitoChat;
 use App\Models\AvitoMessage;
 use App\Models\AvitoMessengerAccount;
+use App\Models\User;
 use App\Services\Avito\AutoReply\AvitoAutoReplyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -24,6 +25,7 @@ class AvitoAutoReplyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
 
         config([
             'cache.default' => 'array',

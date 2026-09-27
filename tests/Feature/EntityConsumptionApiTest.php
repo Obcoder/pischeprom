@@ -409,6 +409,7 @@ class EntityConsumptionApiTest extends TestCase
         $user = (new User)->forceFill([
             'id' => 1, 'name' => 'Менеджер', 'email' => 'manager@example.test',
             'email_verified_at' => $verified ? now() : null,
+            'type' => 'employee', 'status' => 'active',
         ]);
         $this->actingAs($user);
     }

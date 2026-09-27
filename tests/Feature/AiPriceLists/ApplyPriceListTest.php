@@ -10,36 +10,36 @@ use App\Domain\AiPriceLists\Services\ApplyPriceListService;
 use App\Jobs\AiPriceLists\ApplyConfirmedPriceList;
 use App\Models\Good;
 use App\Models\PriceListImportItem;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 
 class ApplyPriceListTest extends AiPriceListTestCase
 {
-    public function test_public_mode_apply_records_an_anonymous_actor(): void
+    public function test_old_anonymous_apply_job_is_rejected_even_with_legacy_flag_disabled(): void
     {
         config()->set('ai-price-lists.authorization_enabled', false);
         $import = $this->import(['status' => PriceListStatus::ReadyToApply]);
         $good = Good::query()->create(['name' => 'Мука из публичного review', 'is_published' => true]);
         $item = $this->matchedItem($import->id, $good, 1, '100.00');
 
-        (new ApplyConfirmedPriceList($import->id, null, [$item->id]))
-            ->handle(app(ApplyPriceListService::class), app(\App\Domain\AiPriceLists\Services\PriceListStateMachine::class));
+        $job = unserialize(serialize(new ApplyConfirmedPriceList($import->id, null, [$item->id])));
+        try {
+            $job->handle(app(ApplyPriceListService::class), app(\App\Domain\AiPriceLists\Services\PriceListStateMachine::class));
+            $this->fail('Anonymous queued apply must be rejected.');
+        } catch (AuthorizationException $exception) {
+            $job->failed($exception);
+        }
 
-        $this->assertSame(PriceListStatus::Applied, $import->fresh()->status);
-        $this->assertDatabaseHas('supplier_good_prices', [
-            'price_list_import_item_id' => $item->id,
-            'created_by' => null,
-        ]);
+        $this->assertSame(PriceListStatus::ReadyToApply, $import->fresh()->status);
+        $this->assertDatabaseCount('supplier_good_prices', 0);
         $this->assertNull($import->fresh()->applied_by);
-        $this->assertDatabaseHas('price_list_events', [
-            'price_list_import_id' => $import->id,
-            'event_type' => 'prices_applied',
-            'user_id' => null,
-        ]);
+        $this->assertDatabaseCount('price_list_events', 0);
+        $this->assertNull($item->fresh()->applied_at);
     }
 
     public function test_selected_rows_apply_partially_then_completely_without_duplicate_prices(): void
     {
-        $user = $this->userWith([]);
+        $user = $this->userWith(['ai_price_lists.apply']);
         $import = $this->import(['status' => PriceListStatus::ReadyToApply]);
         $firstGood = Good::query()->create(['name' => 'Мука', 'is_published' => true]);
         $secondGood = Good::query()->create(['name' => 'Сахар', 'is_published' => true]);
@@ -65,9 +65,36 @@ class ApplyPriceListTest extends AiPriceListTestCase
         $this->assertDatabaseHas('price_list_events', ['price_list_import_id' => $import->id, 'event_type' => 'prices_applied']);
     }
 
+    public function test_delivery_rejects_revoked_blocked_and_customer_actors_before_changes(): void
+    {
+        foreach (['revoked', 'blocked', 'customer'] as $scenario) {
+            $user = $this->userWith(['ai_price_lists.apply']);
+            $import = $this->import(['status' => PriceListStatus::ReadyToApply]);
+            $good = Good::query()->create(['name' => 'Товар '.$scenario, 'is_published' => true]);
+            $item = $this->matchedItem($import->id, $good, 1, '100.00');
+            $serialized = serialize(new ApplyConfirmedPriceList($import->id, $user->id, [$item->id]));
+            match ($scenario) {
+                'revoked' => $user->revokePermissionTo('ai_price_lists.apply'),
+                'blocked' => $user->update(['status' => 'blocked']),
+                'customer' => $user->update(['type' => 'customer']),
+            };
+
+            try {
+                unserialize($serialized)->handle(app(ApplyPriceListService::class), app(\App\Domain\AiPriceLists\Services\PriceListStateMachine::class));
+                $this->fail('Unauthorized queued apply must be rejected: '.$scenario);
+            } catch (AuthorizationException) {
+                $this->assertSame(PriceListStatus::ReadyToApply, $import->fresh()->status);
+                $this->assertNull($item->fresh()->applied_at);
+            }
+        }
+
+        $this->assertDatabaseCount('supplier_good_prices', 0);
+        $this->assertDatabaseCount('price_list_events', 0);
+    }
+
     public function test_create_draft_produces_only_one_unpublished_good_and_provenance(): void
     {
-        $user = $this->userWith([]);
+        $user = $this->userWith(['ai_price_lists.apply']);
         $import = $this->import(['status' => PriceListStatus::ReadyToApply]);
         $item = PriceListImportItem::query()->create([
             'price_list_import_id' => $import->id,
@@ -98,7 +125,7 @@ class ApplyPriceListTest extends AiPriceListTestCase
 
     public function test_apply_is_atomic_when_any_selected_row_is_invalid(): void
     {
-        $user = $this->userWith([]);
+        $user = $this->userWith(['ai_price_lists.apply']);
         $import = $this->import(['status' => PriceListStatus::ReadyToApply]);
         $good = Good::query()->create(['name' => 'Валидный товар', 'is_published' => true]);
         $first = $this->matchedItem($import->id, $good, 1, '100.00');

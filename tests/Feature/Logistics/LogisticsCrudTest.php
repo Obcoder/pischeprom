@@ -14,16 +14,25 @@ use LogicException;
 
 class LogisticsCrudTest extends LogisticsTestCase
 {
-    public function test_logistics_page_is_available_without_page_specific_authentication(): void
+    public function test_logistics_page_uses_the_shared_staff_login(): void
     {
+        $this->get('/Ameise/logistics')->assertRedirect('/login');
+        $this->actingAs($this->logisticsUser());
         $this->get('/Ameise/logistics')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Ameise/Logistics'));
     }
 
-    public function test_logistics_page_and_api_are_fully_available_without_authentication_when_disabled(): void
+    public function test_disabling_domain_authorization_does_not_bypass_the_shared_staff_login(): void
     {
         config(['logistics.authorization_enabled' => false]);
+
+        $this->get('/Ameise/logistics')->assertRedirect('/login');
+        $this->getJson('/api/logistics/dashboard')->assertUnauthorized();
+        $this->postJson('/api/logistics/vehicles', $this->vehiclePayload())->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['type' => 'customer', 'status' => 'active']))
+            ->getJson('/api/logistics/dashboard')->assertForbidden();
+        $this->actingAs($this->logisticsUser());
 
         $this->get('/Ameise/logistics')
             ->assertOk()

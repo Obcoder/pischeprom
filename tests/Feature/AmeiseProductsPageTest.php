@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -12,6 +13,8 @@ class AmeiseProductsPageTest extends TestCase
 
     public function test_products_catalog_has_its_own_page_and_header_navigation(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         $this->get('/Ameise/products')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Ameise/Products'));

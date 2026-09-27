@@ -9,6 +9,7 @@ use App\Domain\AiPriceLists\Enums\PriceListStage;
 use App\Domain\AiPriceLists\Enums\PriceListStatus;
 use App\Domain\AiPriceLists\Services\PriceListAuditLogger;
 use App\Domain\AiPriceLists\Services\PriceListParserManager;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use App\Domain\AiPriceLists\Services\PriceListStateMachine;
 use App\Domain\AiPriceLists\Services\StoredFileMaterializer;
 use App\Models\PriceListImport;
@@ -33,7 +34,7 @@ class ExtractPriceListContent extends AbstractPriceListJob
         $started = hrtime(true);
         $result = $files->using($import->disk, $import->path, fn (string $path) => $parsers->parse($path, (string) $import->extension));
 
-        $import->items()->whereNull('reviewed_at')->delete();
+        $import->items()->whereNull('reviewed_at')->whereNull('applied_at')->delete();
 
         foreach ($result->rows as $row) {
             $this->storeRawRow($import, $row);
@@ -51,11 +52,27 @@ class ExtractPriceListContent extends AbstractPriceListJob
             'requires_ocr' => $result->requiresOcr,
         ], durationMs: (int) round((hrtime(true) - $started) / 1_000_000), stage: PriceListStage::Extract->value);
 
-        if ($result->requiresOcr) {
+        if ($result->requiresOcr && PriceListRuntimePolicy::aiEnabled()) {
             $states->transition($import, PriceListStatus::Ocr, PriceListStage::Ocr, 30);
             $this->dispatchNext(new RecognizePriceListWithOcr($import->id));
 
             return;
+        }
+
+        if ($result->requiresOcr) {
+            $metadata = $import->document_metadata ?: [];
+            $metadata['ocr_skipped_ai_disabled'] = true;
+            $metadata['parser_warnings'] = array_values(array_unique([
+                ...($metadata['parser_warnings'] ?? []),
+                'OCR отключён: страницы без текстового слоя не распознаны. Проверьте полноту прайс-листа вручную.',
+            ]));
+            $import->forceFill(['document_metadata' => $metadata])->save();
+
+            if ($result->rows === []) {
+                $states->fail($import, 'ai_disabled', 'Для этого файла требуется OCR, который отключён. Файл сохранён для ручной работы.', false);
+
+                return;
+            }
         }
 
         if ($result->rows === []) {
@@ -68,10 +85,14 @@ class ExtractPriceListContent extends AbstractPriceListJob
 
     private function storeRawRow(PriceListImport $import, ExtractedRow $row): void
     {
-        PriceListImportItem::query()->updateOrCreate([
+        $item = PriceListImportItem::query()->firstOrNew([
             'price_list_import_id' => $import->id,
             'row_fingerprint' => $row->fingerprint(),
-        ], [
+        ]);
+        if ($item->reviewed_at || $item->applied_at) {
+            return;
+        }
+        $item->fill([
             'position' => $row->position,
             'source_sheet' => $row->sheet,
             'source_page' => $row->page,
@@ -83,6 +104,6 @@ class ExtractPriceListContent extends AbstractPriceListJob
             'field_evidence' => $row->evidence,
             'decision_status' => ItemDecisionStatus::Unreviewed,
             'match_class' => MatchClass::None,
-        ]);
+        ])->save();
     }
 }

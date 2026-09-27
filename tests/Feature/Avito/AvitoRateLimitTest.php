@@ -12,15 +12,19 @@ use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\TestCase;
 
 class AvitoRateLimitTest extends TestCase
 {
+    use AuthenticatesStaff;
+
     private const TEXT_URL = '/api/avito/messenger/chats/1/messages';
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAsStaff();
 
         Cache::clear();
         Http::preventStrayRequests();
@@ -126,7 +130,7 @@ class AvitoRateLimitTest extends TestCase
         $this->assertAllMessageTypesCanSend();
     }
 
-    public function test_another_ip_has_an_independent_message_quota(): void
+    public function test_changing_ip_does_not_reset_the_same_staff_members_message_quota(): void
     {
         for ($attempt = 0; $attempt < 30; $attempt++) {
             $this->postJson(self::TEXT_URL)->assertCreated();
@@ -134,13 +138,14 @@ class AvitoRateLimitTest extends TestCase
         $this->postJson(self::TEXT_URL)->assertStatus(429);
 
         $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.25'])
-            ->postJson(self::TEXT_URL)->assertCreated();
+            ->postJson(self::TEXT_URL)->assertStatus(429);
     }
 
     public function test_users_on_the_same_ip_have_independent_read_and_message_quotas(): void
     {
-        $firstUser = new User;
-        $firstUser->id = 101;
+        $firstUser = (new User)->forceFill([
+            'id' => 101, 'type' => 'employee', 'status' => 'active', 'email_verified_at' => now(),
+        ]);
         $this->actingAs($firstUser);
 
         $this->readBackgroundRequests(120);
@@ -150,8 +155,9 @@ class AvitoRateLimitTest extends TestCase
         $this->getJson('/api/avito/messenger/chats')->assertStatus(429);
         $this->postJson(self::TEXT_URL)->assertStatus(429);
 
-        $secondUser = new User;
-        $secondUser->id = 102;
+        $secondUser = (new User)->forceFill([
+            'id' => 102, 'type' => 'employee', 'status' => 'active', 'email_verified_at' => now(),
+        ]);
         $this->actingAs($secondUser);
 
         $this->getJson('/api/avito/messenger/chats')->assertOk();

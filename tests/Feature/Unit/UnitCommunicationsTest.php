@@ -182,7 +182,7 @@ class UnitCommunicationsTest extends TestCase
 
     private function actor(bool $manage = true, bool $verified = true): User
     {
-        $actor = User::factory()->create(['status' => 'active', 'email_verified_at' => $verified ? now() : null]);
+        $actor = User::factory()->create(['type' => 'employee', 'status' => 'active', 'email_verified_at' => $verified ? now() : null]);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         $permissions = $manage ? ['ai_sales.view', 'ai_sales.contexts.manage'] : ['ai_sales.view'];
 

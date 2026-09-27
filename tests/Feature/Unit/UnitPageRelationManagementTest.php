@@ -18,6 +18,7 @@ class UnitPageRelationManagementTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(\App\Models\User::factory()->create(['type' => 'employee', 'status' => 'active']));
 
         Http::preventStrayRequests();
         Mail::fake();

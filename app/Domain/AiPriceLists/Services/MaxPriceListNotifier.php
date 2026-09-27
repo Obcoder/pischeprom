@@ -30,7 +30,9 @@ class MaxPriceListNotifier
 
     private function sendOnce(PriceListImport $import, string $flag, string $message): void
     {
-        if ($import->source_channel->value !== 'max' || ! config('ai-price-lists.max.send_acknowledgement')) {
+        if (! PriceListRuntimePolicy::notificationsEnabled()
+            || $import->source_channel->value !== 'max'
+            || config('ai-price-lists.max.send_acknowledgement', false) !== true) {
             return;
         }
 

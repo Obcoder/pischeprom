@@ -79,6 +79,7 @@ class OrderManagementTest extends TestCase
 
     public function test_order_crud_recalculates_goods_totals_and_syncs_logistics(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
         $entity = Entity::query()->create(['name' => 'ООО Покупатель']);
         $building = Building::query()->create(['address' => 'Складская, 10']);
         $firstGood = Good::query()->create([
@@ -187,6 +188,7 @@ class OrderManagementTest extends TestCase
             'phone' => '+79991234567',
         ]);
         $entity = Entity::query()->create(['name' => 'Покупатель Entity']);
+        $entity->forceFill(['customer_created_by_user_id' => $user->id])->save();
         $user->entities()->attach($entity->id, [
             'role' => 'owner',
             'status' => 'active',
@@ -271,6 +273,11 @@ class OrderManagementTest extends TestCase
             'line_total' => 120,
         ]);
 
+        $this->get('/Ameise/orders')->assertRedirect(route('login'));
+        $this->getJson('/api/orders')->assertUnauthorized();
+        $actor = User::factory()->create(['type' => 'employee', 'status' => 'active']);
+        $this->actingAs($actor);
+
         $this->get('/Ameise/orders')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Ameise/Orders/Index'));
@@ -295,15 +302,19 @@ class OrderManagementTest extends TestCase
         $this->assertSame($good->id, $loadedUnit->entities->first()->orders->first()->items->first()->good->id);
     }
 
-    public function test_order_control_panel_and_api_are_available_without_authentication(): void
+    public function test_order_control_panel_and_api_require_staff_authentication(): void
     {
+        $this->get('/Ameise/orders')->assertRedirect(route('login'));
+        $this->getJson('/api/orders')->assertUnauthorized();
+        $actor = User::factory()->create(['type' => 'employee', 'status' => 'active']);
+        $this->actingAs($actor);
         $this->get('/Ameise/orders')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Ameise/Orders/Index')
                 ->where('permissions.view', true)
                 ->where('permissions.create', true)
-                ->where('auth.user', null)
+                ->where('auth.user.id', $actor->id)
                 ->where('auth.permissions.orders.view', true));
         $this->get('/Ameise/orders/create')
             ->assertOk()

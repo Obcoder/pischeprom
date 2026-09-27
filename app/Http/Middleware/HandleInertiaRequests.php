@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Domain\AiSales\Enums\BusinessLane;
 use App\Domain\AiSales\Services\ProspectingAuthorizationService;
 use App\Models\City;
+use App\Services\Auth\StaffAccess;
 use App\Services\Realtime\AvitoRealtimeAccess;
 use App\Services\Realtime\CommerceRealtimeAccess;
 use Illuminate\Http\Request;
@@ -23,6 +24,8 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
+        $isStaff = app(StaffAccess::class)->allows($request->user());
+
         return [
             ...parent::share($request),
 
@@ -48,7 +51,6 @@ class HandleInertiaRequests extends Middleware
                         'email_verified_at' => $request->user()->email_verified_at,
                         'phone_verified_at' => $request->user()->phone_verified_at,
                         'city_id' => $request->user()->city_id,
-                        'user' => fn () => $request->user(),
                     ]
                     : null,
                 'permissions' => fn () => [
@@ -89,18 +91,12 @@ class HandleInertiaRequests extends Middleware
                             ),
                     ],
                     'ai_price_lists' => [
-                        'view' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.view'),
-                        'process' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.process'),
-                        'review' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.review'),
-                        'assign_supplier' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.assign_supplier'),
-                        'apply' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.apply'),
-                        'view_technical' => ! config('ai-price-lists.authorization_enabled')
-                            || (bool) $request->user()?->can('ai_price_lists.view_technical'),
+                        'view' => $isStaff && (bool) $request->user()?->can('ai_price_lists.view'),
+                        'process' => $isStaff && (bool) $request->user()?->can('ai_price_lists.process'),
+                        'review' => $isStaff && (bool) $request->user()?->can('ai_price_lists.review'),
+                        'assign_supplier' => $isStaff && (bool) $request->user()?->can('ai_price_lists.assign_supplier'),
+                        'apply' => $isStaff && (bool) $request->user()?->can('ai_price_lists.apply'),
+                        'view_technical' => $isStaff && (bool) $request->user()?->can('ai_price_lists.view_technical'),
                     ],
                     'logistics' => [
                         'view' => ! config('logistics.authorization_enabled')

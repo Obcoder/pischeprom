@@ -67,8 +67,8 @@ class Stage14AuthorizationAndApiTest extends Stage14TestCase
 
         $this->assertCount(12, $campaignRoutes);
         foreach ($campaignRoutes as $route) {
-            $middleware = $route->gatherMiddleware();
-            $this->assertContains('auth:sanctum', $middleware);
+            $middleware = array_merge($route->gatherMiddleware(), app('router')->gatherRouteMiddleware($route));
+            $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, $middleware);
             $this->assertContains('verified', $middleware);
             $this->assertContains('throttle:ai-sales', $middleware);
             $this->assertContains('throttle:ai-sales-campaigns', $middleware);

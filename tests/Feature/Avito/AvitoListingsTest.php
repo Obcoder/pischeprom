@@ -9,6 +9,7 @@ use App\Models\Good;
 use App\Models\GoodMedia;
 use App\Models\GoodPriceTypeValue;
 use App\Models\PriceType;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
@@ -24,6 +25,7 @@ class AvitoListingsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
 
         Cache::clear();
         config([

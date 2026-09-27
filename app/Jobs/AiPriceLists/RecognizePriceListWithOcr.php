@@ -10,6 +10,7 @@ use App\Domain\AiPriceLists\Enums\PriceListStatus;
 use App\Domain\AiPriceLists\Exceptions\ExternalAiException;
 use App\Domain\AiPriceLists\Services\AiUsageRecorder;
 use App\Domain\AiPriceLists\Services\OcrInputPreparer;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use App\Domain\AiPriceLists\Services\PriceListStateMachine;
 use App\Domain\AiPriceLists\Services\StoredFileMaterializer;
 use App\Models\PriceListImport;
@@ -38,7 +39,7 @@ class RecognizePriceListWithOcr extends AbstractPriceListJob
 
         $import = $states->transition($import, PriceListStatus::Ocr, PriceListStage::Ocr, 35);
 
-        if (! config('ai-price-lists.ai.enabled')) {
+        if (! PriceListRuntimePolicy::aiEnabled()) {
             $states->fail($import, 'ai_disabled', 'AI/OCR-обработка прайс-листов временно отключена.', false);
 
             return;
@@ -71,6 +72,7 @@ class RecognizePriceListWithOcr extends AbstractPriceListJob
                     is_numeric($totalPages) ? (int) $totalPages : null,
                 ) as $prepared) {
                     $usage->guardOcrBudget($prepared['expected_pages']);
+                    PriceListRuntimePolicy::assertAiEnabled();
                     $response = $ocr->recognize($prepared['request']);
                     $usage->ocr($import, $response);
                     $processedPages += $response->pages;
@@ -118,10 +120,14 @@ class RecognizePriceListWithOcr extends AbstractPriceListJob
         foreach ($recognized['rows'] as $row) {
             $position++;
             $fingerprint = hash('sha256', json_encode([$row['page'] ?? null, $row['table'] ?? null, $row['row'] ?? null, $row['text']], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-            PriceListImportItem::query()->updateOrCreate([
+            $item = PriceListImportItem::query()->firstOrNew([
                 'price_list_import_id' => $import->id,
                 'row_fingerprint' => $fingerprint,
-            ], [
+            ]);
+            if ($item->reviewed_at || $item->applied_at) {
+                continue;
+            }
+            $item->fill([
                 'position' => $position,
                 'source_page' => $row['page'] ?? null,
                 'source_table' => $row['table'] ?? null,
@@ -131,7 +137,7 @@ class RecognizePriceListWithOcr extends AbstractPriceListJob
                 'field_evidence' => ['ocr_bounding_box' => $row['bounding_box'] ?? null],
                 'decision_status' => ItemDecisionStatus::Unreviewed,
                 'match_class' => MatchClass::None,
-            ]);
+            ])->save();
         }
 
         $import->forceFill(['ocr_pages' => $recognized['pages']])->save();

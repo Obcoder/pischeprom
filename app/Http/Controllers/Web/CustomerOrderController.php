@@ -63,7 +63,10 @@ class CustomerOrderController extends Controller
             ->first()
             ?: $user->entities()->first()
             ?: $entityResolver->resolve($user);
-        $contactTelephone = $entityResolver->attachPhone($entity, $validated['customer_phone']);
+        $canManageEntity = $entityResolver->canManageEntity($entity, $user);
+        $contactTelephone = $canManageEntity
+            ? $entityResolver->attachPhone($entity, $validated['customer_phone'])
+            : $entityResolver->resolvePhone($validated['customer_phone']);
         $statusId = OrderStatus::query()
             ->where('code', OrderStatus::OPEN)
             ->value('id');
@@ -74,7 +77,8 @@ class CustomerOrderController extends Controller
             $contactTelephone,
             $lines,
             $validated,
-            $statusId
+            $statusId,
+            $canManageEntity
         ): Order {
             $address = trim($validated['delivery_address']);
             $building = Building::query()->firstOrCreate([
@@ -82,7 +86,9 @@ class CustomerOrderController extends Controller
                 'address' => $address,
             ]);
 
-            $entity->buildings()->syncWithoutDetaching([$building->id]);
+            if ($canManageEntity) {
+                $entity->buildings()->syncWithoutDetaching([$building->id]);
+            }
 
             $order = Order::query()->create([
                 'number' => Order::generateNumber(),

@@ -16,6 +16,7 @@ class MailMessageRelationsTest extends TestCase
 
     public function test_saving_a_note_preserves_direct_and_indirect_unit_links_for_related_mail_navigation(): void
     {
+        $this->actingAs(\App\Models\User::factory()->create(['type' => 'employee', 'status' => 'active']));
         Http::preventStrayRequests();
 
         $directUnit = Unit::query()->create([

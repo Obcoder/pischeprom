@@ -13,6 +13,7 @@ const importData = ref(null)
 const permissions = ref({})
 const loading = ref(true)
 const itemsLoading = ref(false)
+const processing = ref(null)
 const actionLoading = ref('')
 const activeTab = ref('items')
 const items = ref([])
@@ -102,6 +103,7 @@ async function loadImport({ quiet = false } = {}) {
         const { data } = await axios.get(baseUrl.value)
         importData.value = data.data
         permissions.value = data.permissions || {}
+        processing.value = data.processing || null
         supplierId.value = data.data.supplier?.id || null
         configurePolling()
     } catch (error) {
@@ -458,6 +460,10 @@ onBeforeUnmount(() => {
                 </header>
 
                 <v-progress-linear v-if="importData.progress < 100" :model-value="importData.progress" color="light-blue-accent-2" height="5" rounded class="mb-4" />
+
+                <v-alert v-if="processing && !processing.ai_enabled" type="info" variant="tonal" class="mb-4">AI и OCR отключены. Доступны локальный разбор и ручная проверка.</v-alert>
+                <v-alert v-if="processing && !processing.notifications_enabled" type="info" variant="tonal" class="mb-4">Отправка писем и сообщений MAX из этого модуля отключена.</v-alert>
+                <v-alert v-if="importData.ocr_skipped" type="warning" variant="tonal" class="mb-4">Страницы без текстового слоя не распознаны: OCR отключён. Проверьте полноту прайс-листа по исходному файлу.</v-alert>
 
                 <v-alert v-if="importData.error" type="error" variant="tonal" class="mb-4" border="start">
                     <strong>{{ importData.error.message }}</strong>

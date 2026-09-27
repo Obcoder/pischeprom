@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -9,6 +10,13 @@ use Tests\TestCase;
 class AmeiseCommercePageTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+    }
 
     public function test_commerce_route_renders_the_combined_workspace(): void
     {

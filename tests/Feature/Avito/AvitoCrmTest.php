@@ -19,6 +19,7 @@ use App\Models\PriceType;
 use App\Models\Region;
 use App\Models\Telephone;
 use App\Models\Unit;
+use App\Models\User;
 use App\Services\Telephones\TelephoneIdentityService;
 use App\Services\Telephony\BeelinePbxService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,6 +37,7 @@ class AvitoCrmTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
 
         Cache::clear();
         config([

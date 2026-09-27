@@ -11,6 +11,8 @@ use Tests\TestCase;
 
 class MailMessageFilterTest extends TestCase
 {
+    use \Tests\Concerns\AuthenticatesStaff;
+
     protected function tearDown(): void
     {
         Carbon::setTestNow();
@@ -83,6 +85,7 @@ class MailMessageFilterTest extends TestCase
 
     public function test_invalid_and_reversed_dates_are_rejected_before_querying_messages(): void
     {
+        $this->actingAsStaff();
         foreach ([
             ['date_from' => 'yesterday'],
             ['date_from' => '2026-02-30'],

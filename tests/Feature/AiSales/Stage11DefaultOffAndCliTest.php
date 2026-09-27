@@ -27,15 +27,15 @@ class Stage11DefaultOffAndCliTest extends TestCase
         ] as $name) {
             $route = app('router')->getRoutes()->getByName($name);
             $this->assertNotNull($route, $name);
-            $middleware = $route->gatherMiddleware();
-            $this->assertContains('auth:sanctum', $middleware);
+            $middleware = array_merge($route->gatherMiddleware(), app('router')->gatherRouteMiddleware($route));
+            $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, $middleware);
             $this->assertContains('verified', $middleware);
             $this->assertContains('throttle:ai-sales', $middleware);
         }
         $campaignRun = app('router')->getRoutes()->getByName('api.ai-sales.campaigns.run');
         $this->assertNotNull($campaignRun);
-        $campaignMiddleware = $campaignRun->gatherMiddleware();
-        foreach (['auth:sanctum', 'verified', 'throttle:ai-sales', 'throttle:ai-sales-campaigns'] as $middleware) {
+        $campaignMiddleware = array_merge($campaignRun->gatherMiddleware(), app('router')->gatherRouteMiddleware($campaignRun));
+        foreach ([\App\Http\Middleware\RequireStaffAuthentication::class, 'verified', 'throttle:ai-sales', 'throttle:ai-sales-campaigns'] as $middleware) {
             $this->assertContains($middleware, $campaignMiddleware);
         }
         $routes = file_get_contents(base_path('routes/api.php'));

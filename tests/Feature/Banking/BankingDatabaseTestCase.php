@@ -60,6 +60,7 @@ abstract class BankingDatabaseTestCase extends TestCase
         $user = new User;
         $user->forceFill([
             'name' => 'Bank manager',
+            'type' => 'employee',
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => 'password',
@@ -177,6 +178,7 @@ abstract class BankingDatabaseTestCase extends TestCase
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->string('status')->default('active');
+            $table->string('type')->default('customer');
             $table->string('profile_photo_path')->nullable();
             $table->text('two_factor_secret')->nullable();
             $table->text('two_factor_recovery_codes')->nullable();

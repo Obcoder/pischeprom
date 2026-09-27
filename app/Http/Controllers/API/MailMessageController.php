@@ -42,6 +42,8 @@ class MailMessageController extends Controller
                 'folder',
                 'direction',
                 'imap_uid',
+                'delivery_status',
+                'sent_copy_status',
                 'message_id',
                 'reply_to_mail_message_id',
                 'in_reply_to',

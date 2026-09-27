@@ -1,14 +1,16 @@
 <?php
 
 return [
-    // Temporary public mode until authorization is enabled for the whole Ameise area.
+    // Shared Ameise authentication still requires the module's domain permissions.
     'authorization_enabled' => filter_var(
-        env('AI_PRICE_LIST_AUTHORIZATION_ENABLED', false),
+        env('AI_PRICE_LIST_AUTHORIZATION_ENABLED', true),
         FILTER_VALIDATE_BOOL
     ),
     // Enable only after the database, dedicated worker, scanner and provider
     // credentials have passed the production preflight.
     'enabled' => (bool) env('AI_PRICE_LISTS_ENABLED', false),
+    // Applies to email and MAX, including notifications already in the queue.
+    'notifications_enabled' => filter_var(env('AI_PRICE_LIST_NOTIFICATIONS_ENABLED', false), FILTER_VALIDATE_BOOL),
     'auto_apply' => false,
     'queue_connection' => env('AI_PRICE_LIST_QUEUE_CONNECTION', 'redis'),
     'queue' => env('AI_PRICE_LIST_QUEUE', 'price-lists'),
@@ -41,7 +43,7 @@ return [
         'probable_threshold' => (float) env('PRICE_LIST_PROBABLE_MATCH_THRESHOLD', 0.70),
         'max_candidates' => (int) env('PRICE_LIST_MAX_CANDIDATES', 8),
         'price_change_warning_percent' => (float) env('PRICE_LIST_PRICE_CHANGE_WARNING_PERCENT', 25),
-        'ai_reranking_enabled' => (bool) env('PRICE_LIST_AI_RERANKING_ENABLED', true),
+        'ai_reranking_enabled' => filter_var(env('PRICE_LIST_AI_RERANKING_ENABLED', false), FILTER_VALIDATE_BOOL),
         'ai_rerank_chunk_size' => (int) env('PRICE_LIST_AI_RERANK_CHUNK_SIZE', 20),
     ],
 
@@ -86,7 +88,7 @@ return [
         ))),
         'download_timeout_seconds' => (int) env('AI_PRICE_LIST_MAX_DOWNLOAD_TIMEOUT', 30),
         'max_redirects' => (int) env('AI_PRICE_LIST_MAX_DOWNLOAD_REDIRECTS', 2),
-        'send_acknowledgement' => (bool) env('AI_PRICE_LIST_MAX_ACK_ENABLED', true),
+        'send_acknowledgement' => filter_var(env('AI_PRICE_LIST_MAX_ACK_ENABLED', false), FILTER_VALIDATE_BOOL),
         'max_attachments_per_message' => (int) env('AI_PRICE_LIST_MAX_ATTACHMENTS_PER_MESSAGE', 10),
     ],
 

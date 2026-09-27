@@ -10,17 +10,20 @@ use App\Services\Avito\AvitoMessengerArchive;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\Concerns\BuildsIsolatedAvitoDatabase;
 use Tests\TestCase;
 
 class AvitoUnreadStateTest extends TestCase
 {
+    use AuthenticatesStaff;
     use BuildsIsolatedAvitoDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->createAvitoTestDatabase();
+        $this->actingAsStaff();
         config([
             'avito.enabled' => true,
             'avito.client_id' => 'unread-client',

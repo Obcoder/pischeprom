@@ -264,7 +264,7 @@ class UnitPageEmailManagementTest extends TestCase
                 && in_array('POST', $candidate->methods(), true));
 
         $this->assertNotNull($route);
-        $this->assertContains('auth:sanctum', $route->gatherMiddleware());
+        $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, app('router')->gatherRouteMiddleware($route));
         $this->assertContains('verified', $route->gatherMiddleware());
         $this->assertContains('can:manageContacts,unit', $route->gatherMiddleware());
 
@@ -273,7 +273,7 @@ class UnitPageEmailManagementTest extends TestCase
                 && in_array('GET', $candidate->methods(), true));
 
         $this->assertNotNull($optionsRoute);
-        $this->assertContains('auth:sanctum', $optionsRoute->gatherMiddleware());
+        $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, app('router')->gatherRouteMiddleware($optionsRoute));
         $this->assertContains('verified', $optionsRoute->gatherMiddleware());
         $this->assertContains('can:manageContacts,unit', $optionsRoute->gatherMiddleware());
 
@@ -309,6 +309,7 @@ class UnitPageEmailManagementTest extends TestCase
     private function actor(array $permissions, bool $verified = true): User
     {
         $actor = User::factory()->create([
+            'type' => 'employee',
             'status' => 'active',
             'email_verified_at' => $verified ? now() : null,
         ]);

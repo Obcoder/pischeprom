@@ -375,7 +375,7 @@ async function submit() {
             },
         })
 
-        emit('sent', data.mail_message)
+        emit('sent', data.mail_message, data)
         model.value = false
     } catch (err) {
         const errors = Object.values(err?.response?.data?.errors || {}).flat()

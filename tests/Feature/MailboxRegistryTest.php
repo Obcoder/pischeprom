@@ -11,9 +11,12 @@ use Tests\TestCase;
 
 class MailboxRegistryTest extends TestCase
 {
+    use \Tests\Concerns\AuthenticatesStaff;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAsStaff();
 
         config([
             'services.yandex_mail.mailboxes' => [

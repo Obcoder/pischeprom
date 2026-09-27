@@ -28,6 +28,7 @@ class LegacyMailRouteSecurityTest extends TestCase
         Mail::fake();
         Queue::fake();
         Storage::fake('yandex');
+        Storage::fake('local');
         config()->set([
             'mail.default' => 'array',
             'mail.from.address' => 'server@example.test',
@@ -51,7 +52,7 @@ class LegacyMailRouteSecurityTest extends TestCase
             $route = $routes->first(fn ($candidate) => $candidate->uri() === $uri && in_array('POST', $candidate->methods(), true));
             $this->assertNotNull($route);
             $middleware = $route->gatherMiddleware();
-            $this->assertContains('auth:sanctum', $middleware);
+            $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, app('router')->gatherRouteMiddleware($route));
             $this->assertContains('verified', $middleware);
             $this->assertContains('can:mail.send', $middleware);
             $this->assertContains('throttle:mail-send', $middleware);
@@ -170,6 +171,7 @@ class LegacyMailRouteSecurityTest extends TestCase
     private function mailUser(array $permissions, bool $verified): User
     {
         $user = User::factory()->create([
+            'type' => 'employee',
             'status' => 'active',
             'email_verified_at' => $verified ? now() : null,
         ]);

@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\RequireStaffAuthentication;
 use App\Models\Good;
+use App\Services\Auth\StaffRouteAccess;
 use App\Services\Seo\GoodSeoAiException;
 use App\Services\Seo\GoodSeoAiService;
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Eloquent\Collection;
 
 // The default check is free of provider requests and catalog reads or writes.
@@ -25,6 +28,7 @@ try {
     require $targetDir.'/vendor/autoload.php';
     $app = require $targetDir.'/bootstrap/app.php';
     $app->make(Kernel::class)->bootstrap();
+    $app->make(HttpKernel::class);
 
     $service = $app->make(GoodSeoAiService::class);
     $model = config('goods-seo-ai.timeweb.model');
@@ -38,7 +42,9 @@ try {
     $route = $app['router']->getRoutes()->getByName('api.goods.seo.generate-ai');
 
     if ($route === null || $route->methods() !== ['POST']
-        || array_diff(['auth:sanctum', 'verified', 'throttle:10,1,goods-seo-ai'], $route->gatherMiddleware()) !== []) {
+        || ! in_array(RequireStaffAuthentication::class, $app['router']->gatherRouteMiddleware($route), true)
+        || ! $app->make(StaffRouteAccess::class)->requiresStaff($route, 'POST')
+        || array_diff(['verified', 'throttle:10,1,goods-seo-ai'], $route->gatherMiddleware()) !== []) {
         throw new RuntimeException('The protected AI generation route is unavailable.');
     }
 

@@ -1,4 +1,5 @@
 <script setup>
+import { readStatusTitle } from './mailMessageStatus'
 import { Link } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import { route } from 'ziggy-js'
@@ -234,20 +235,6 @@ function markingRead(item) {
 
 function deleting(item) {
     return props.deletingIds.some((id) => String(id) === String(item.id))
-}
-
-function readStatusTitle(item) {
-    if (item.is_seen === true) {
-        return 'Прочитано на почтовом сервере'
-    }
-
-    if (!item.imap_uid) {
-        return 'Отметка на сервере недоступна: письмо ещё не связано с IMAP'
-    }
-
-    return item.is_seen == null
-        ? 'Статус на сервере ещё неизвестен. Отметить прочитанным'
-        : 'Отметить прочитанным на почтовом сервере'
 }
 
 function unitHref(unit) {

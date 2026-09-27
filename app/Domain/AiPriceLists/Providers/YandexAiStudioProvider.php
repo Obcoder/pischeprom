@@ -6,6 +6,7 @@ use App\Domain\AiPriceLists\Contracts\StructuredTextModelProviderInterface;
 use App\Domain\AiPriceLists\DTO\StructuredModelRequest;
 use App\Domain\AiPriceLists\DTO\StructuredModelResponse;
 use App\Domain\AiPriceLists\Exceptions\ExternalAiException;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
@@ -18,7 +19,7 @@ class YandexAiStudioProvider implements StructuredTextModelProviderInterface
 {
     public function configured(): bool
     {
-        return config('ai-price-lists.ai.enabled')
+        return PriceListRuntimePolicy::aiEnabled()
             && filled(config('ai-price-lists.ai.api_key'))
             && filled(config('ai-price-lists.ai.folder_id'))
             && filled(config('ai-price-lists.ai.model'));
@@ -26,9 +27,7 @@ class YandexAiStudioProvider implements StructuredTextModelProviderInterface
 
     public function generate(StructuredModelRequest $request): StructuredModelResponse
     {
-        if (! config('ai-price-lists.ai.enabled')) {
-            throw new ExternalAiException('AI-обработка прайс-листов временно отключена.', false, 'ai_disabled');
-        }
+        PriceListRuntimePolicy::assertAiEnabled();
 
         if (! $this->configured()) {
             throw new ExternalAiException('Yandex AI Studio не настроен.', false, 'ai_not_configured');
@@ -151,6 +150,7 @@ class YandexAiStudioProvider implements StructuredTextModelProviderInterface
             ->acceptJson()
             ->timeout((int) config('ai-price-lists.limits.timeout_seconds'))
             ->connectTimeout(10)
+            ->beforeSending(fn () => PriceListRuntimePolicy::assertAiEnabled())
             ->withHeaders([
                 'Authorization' => 'Api-Key '.config('ai-price-lists.ai.api_key'),
                 'OpenAI-Project' => (string) config('ai-price-lists.ai.folder_id'),
@@ -161,6 +161,10 @@ class YandexAiStudioProvider implements StructuredTextModelProviderInterface
                 (int) config('ai-price-lists.limits.max_attempts'),
                 fn (int $attempt) => min(8000, 250 * (2 ** ($attempt - 1)) + random_int(0, 250)),
                 static function (\Throwable $exception, PendingRequest $request): bool {
+                    if (! PriceListRuntimePolicy::aiEnabled()) {
+                        return false;
+                    }
+
                     if ($exception instanceof ConnectionException) {
                         return true;
                     }

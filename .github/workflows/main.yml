@@ -398,6 +398,35 @@ jobs:
           sudo apt-get install -y --no-install-recommends restic
           python3 -m unittest discover -s scripts/backup/tests -p 'test_*.py'
 
+      - name: Check Ameise authentication and mail delivery safety
+        run: |
+          vendor/bin/pint --test \
+            app/Services/Auth \
+            app/Http/Middleware/RequireStaffAuthentication.php \
+            app/Http/Middleware/VerifyTelegramWebhook.php \
+            app/Http/Controllers/Web/CustomerDashboardController.php \
+            app/Http/Controllers/Web/CustomerOrderController.php \
+            app/Http/Controllers/Web/CustomerProfileController.php \
+            app/Services/TelegramService.php \
+            app/Services/TelegramWebhookProvisioner.php \
+            app/Services/Mail/AuthorizedMailDispatchService.php \
+            app/Services/Mail/SentMailArchive.php \
+            app/Services/Mail/LegacySentReconstruction.php \
+            app/Jobs/ArchiveSentMailJob.php \
+            app/Console/Commands/ReconcileSentMailCommand.php \
+            app/Console/Commands/ReconstructLegacySentCommand.php \
+            database/migrations/2026_09_27_140000_add_sent_copy_state_to_mail_messages.php \
+            database/migrations/2026_09_27_150000_record_customer_entity_creator.php \
+            scripts/update-production-mail-safety-env.php \
+            scripts/provision-production-telegram.php \
+            tests/Feature/StaffAuthenticationBoundaryTest.php \
+            tests/Feature/TelegramWebhookSecurityTest.php \
+            tests/Feature/CustomerEntityBoundaryTest.php \
+            tests/Feature/Mail/AuthorizedMailDeliveryTest.php \
+            tests/Feature/Mail/SentMailArchiveTest.php \
+            tests/Unit/MailSafetyEnvironmentTest.php \
+            tests/Unit/TelegramWebhookProvisionerTest.php
+
       - name: Run unit, logistics, banking, AI price-list, mail, goods stock, realtime, orders, mobile, and products tests
         env:
           APP_ENV: testing
@@ -419,6 +448,11 @@ jobs:
             tests/Feature/AiPriceLists \
             tests/Feature/Avito \
             tests/Feature/Mail \
+            tests/Feature/StaffAuthenticationBoundaryTest.php \
+            tests/Feature/TelegramWebhookSecurityTest.php \
+            tests/Feature/CustomerEntityBoundaryTest.php \
+            tests/Feature/MailboxRegistryTest.php \
+            tests/Feature/MailTemplateApiTest.php \
             tests/Feature/Unit \
             tests/Feature/CommercialOffersAccessTest.php \
             tests/Feature/CommercialOffersUnisenderTest.php \

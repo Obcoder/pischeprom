@@ -148,9 +148,10 @@ class UnitMailController extends Controller
             return response()->json([
                 'message' => $result['duplicate'] ? 'Письмо уже обработано.' : 'Письмо отправлено.',
                 'duplicate' => $result['duplicate'],
+                'warning' => $result['warning'] ?? null,
                 'stored_locally' => $result['mail_message'] !== null,
                 'mail_message' => $result['mail_message'] ? $this->serializeMailMessage($result['mail_message']) : null,
-            ]);
+            ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (MailDispatchException $exception) {
             return response()->json(['message' => $exception->getMessage(), 'code' => $exception->safeCode], $exception->httpStatus);
         }
@@ -191,6 +192,8 @@ class UnitMailController extends Controller
             'direction' => $message->getAttribute('direction'),
 
             'imap_uid' => $message->getAttribute('imap_uid'),
+            'delivery_status' => $message->getAttribute('delivery_status'),
+            'sent_copy_status' => $message->getAttribute('sent_copy_status'),
             'message_id' => $message->getAttribute('message_id'),
             'reply_to_mail_message_id' => $message->getAttribute('reply_to_mail_message_id'),
             'in_reply_to' => $message->getAttribute('in_reply_to'),

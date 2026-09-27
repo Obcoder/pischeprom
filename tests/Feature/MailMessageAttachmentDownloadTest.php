@@ -12,8 +12,11 @@ use Tests\TestCase;
 
 class MailMessageAttachmentDownloadTest extends TestCase
 {
+    use \Tests\Concerns\AuthenticatesStaff;
+
     public function test_saved_mail_attachment_can_be_downloaded(): void
     {
+        $this->actingAsStaff();
         $this->useInMemoryMailAttachmentTables();
 
         Storage::fake('local');

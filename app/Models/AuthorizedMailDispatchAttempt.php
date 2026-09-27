@@ -10,7 +10,7 @@ class AuthorizedMailDispatchAttempt extends Model
 {
     protected $fillable = [
         'public_id', 'user_id', 'unit_id', 'route_name', 'idempotency_key_hash', 'request_hash',
-        'recipient_count', 'attachment_count', 'status', 'safe_error_code', 'dispatched_at',
+        'recipient_count', 'attachment_count', 'status', 'safe_error_code', 'dispatched_at', 'mail_message_id',
     ];
 
     protected function casts(): array

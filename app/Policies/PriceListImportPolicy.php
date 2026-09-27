@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Domain\AiPriceLists\Enums\PriceListStatus;
 use App\Models\PriceListImport;
 use App\Models\User;
+use App\Services\Auth\StaffAccess;
 
 class PriceListImportPolicy
 {
@@ -28,8 +29,7 @@ class PriceListImportPolicy
             return true;
         }
 
-        return config('ai-price-lists.authorization_enabled')
-            && $this->can($user, 'ai_price_lists.view_technical');
+        return $this->can($user, 'ai_price_lists.view_technical');
     }
 
     public function reprocess(?User $user, PriceListImport $import): bool
@@ -76,7 +76,6 @@ class PriceListImportPolicy
 
     private function can(?User $user, string $permission): bool
     {
-        return ! config('ai-price-lists.authorization_enabled')
-            || (bool) $user?->can($permission);
+        return app(StaffAccess::class)->allows($user) && $user->can($permission);
     }
 }

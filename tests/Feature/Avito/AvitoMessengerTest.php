@@ -22,6 +22,7 @@ class AvitoMessengerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
 
         Cache::clear();
         config([
@@ -47,9 +48,12 @@ class AvitoMessengerTest extends TestCase
         ]);
     }
 
-    public function test_messages_tab_requires_staff_while_archive_endpoints_keep_their_access_model(): void
+    public function test_messages_tab_and_archive_endpoints_require_staff(): void
     {
         $this->artisan('avito:preflight --schema')->assertExitCode(0);
+        auth()->logout();
+        $this->getJson('/api/avito/messenger/overview')->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
         $this->getJson('/api/avito/messenger/overview')
             ->assertOk()
             ->assertJsonPath('counts.chats', 0)

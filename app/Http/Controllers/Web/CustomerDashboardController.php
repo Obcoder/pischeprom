@@ -70,10 +70,7 @@ class CustomerDashboardController extends Controller
                 : [],
 
             'orders' => Order::query()
-                ->whereHas(
-                    'entity.users',
-                    fn ($query) => $query->where('users.id', $user->id)
-                )
+                ->where('created_by_user_id', $user->id)
                 ->with([
                     'status',
                     'buildings',

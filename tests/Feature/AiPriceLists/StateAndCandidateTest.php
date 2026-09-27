@@ -26,6 +26,7 @@ class StateAndCandidateTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config()->set('ai-price-lists.enabled', true);
         Notification::fake();
     }
 

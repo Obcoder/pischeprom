@@ -37,6 +37,12 @@ class MailMessage extends Model
         'has_attachments',
         'is_seen',
         'raw_headers',
+        'delivery_status',
+        'sent_copy_status',
+        'sent_copy_error',
+        'sent_mime_path',
+        'smtp_accepted_at',
+        'is_reconstructed',
     ];
 
     protected $casts = [
@@ -46,7 +52,11 @@ class MailMessage extends Model
         'cc' => 'array',
         'has_attachments' => 'boolean',
         'is_seen' => 'boolean',
+        'is_reconstructed' => 'boolean',
+        'smtp_accepted_at' => 'datetime',
     ];
+
+    protected $hidden = ['sent_mime_path'];
 
     public function emails(): BelongsToMany
     {

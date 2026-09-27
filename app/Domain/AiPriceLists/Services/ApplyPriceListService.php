@@ -7,6 +7,8 @@ use App\Models\Good;
 use App\Models\PriceListImport;
 use App\Models\SupplierGoodPrice;
 use App\Models\User;
+use App\Services\Auth\StaffAccess;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -14,11 +16,25 @@ class ApplyPriceListService
 {
     public function __construct(private readonly PriceListAuditLogger $audit) {}
 
+    public function authorize(?User $user): User
+    {
+        $user = $user?->fresh();
+        if (! $user || ! app(StaffAccess::class)->allows($user)
+            || ! $user->hasVerifiedEmail() || ! $user->can('ai_price_lists.apply')) {
+            throw new AuthorizationException('Применение прайс-листа требует действующего права сотрудника.');
+        }
+
+        return $user;
+    }
+
     /** @param list<int> $selectedItemIds */
     public function apply(PriceListImport $import, ?User $user, array $selectedItemIds = []): array
     {
+        $user = $this->authorize($user);
+
         return DB::transaction(function () use ($import, $user, $selectedItemIds): array {
             $import = PriceListImport::query()->lockForUpdate()->findOrFail($import->id);
+            $user = $this->authorize($user);
 
             if (! $import->entity_id) {
                 throw ValidationException::withMessages(['supplier' => 'Перед применением выберите поставщика.']);

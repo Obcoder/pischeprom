@@ -15,10 +15,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\TestCase;
 
 class GoodStockMutationTest extends TestCase
 {
+    use AuthenticatesStaff;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,6 +32,7 @@ class GoodStockMutationTest extends TestCase
         DB::purge();
         DB::setDefaultConnection('sqlite');
         Queue::fake();
+        $this->actingAsStaff();
         // Authorization has separate coverage in SaleGoodsStockTest.
         $this->withoutMiddleware([Authenticate::class, EnsureEmailIsVerified::class, EnsureWarehouseMutationAllowed::class]);
 

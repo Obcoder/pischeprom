@@ -8,17 +8,20 @@ use App\Models\AvitoMessengerAccount;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\Concerns\BuildsIsolatedAvitoDatabase;
 use Tests\TestCase;
 
 class AvitoMessengerUpdatesTest extends TestCase
 {
+    use AuthenticatesStaff;
     use BuildsIsolatedAvitoDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->createAvitoTestDatabase();
+        $this->actingAsStaff();
         Schema::table('entities', function (Blueprint $table): void {
             foreach (['name', 'full_name', 'INN', 'KPP', 'OGRN', 'legal_address'] as $column) {
                 $table->string($column)->nullable();

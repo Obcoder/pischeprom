@@ -22,7 +22,7 @@ class ProductionEnvironmentUpdaterTest extends TestCase
 
     public function test_it_bootstraps_max_credentials_without_exposing_auto_apply(): void
     {
-        $envPath = $this->temporaryFile("APP_ENV=production\nMAX_WEBHOOK_SECRET=\n");
+        $envPath = $this->temporaryFile("APP_ENV=production\nMAX_WEBHOOK_SECRET=\nAI_PRICE_LIST_AI_ENABLED=true\nAI_PRICE_LIST_NOTIFICATIONS_ENABLED=true\nAI_PRICE_LIST_MAX_ACK_ENABLED=true\nPRICE_LIST_AI_RERANKING_ENABLED=true\n");
         $aiKeyPath = $this->temporaryFile('AQVN'.str_repeat('A', 40));
         $maxTokenPath = $this->temporaryFile('max-production-token.with_symbols');
 
@@ -32,9 +32,13 @@ class ProductionEnvironmentUpdaterTest extends TestCase
 
         $this->assertStringContainsString("MAX_API_URL=https://platform-api2.max.ru\n", $contents);
         $this->assertStringContainsString("MAX_ACCESS_TOKEN=max-production-token.with_symbols\n", $contents);
-        $this->assertStringContainsString("AI_PRICE_LIST_AUTHORIZATION_ENABLED=false\n", $contents);
+        $this->assertStringContainsString("AI_PRICE_LIST_AUTHORIZATION_ENABLED=true\n", $contents);
         $this->assertStringContainsString("AI_PRICE_LIST_MAIL_QUEUE=mail-sync\n", $contents);
         $this->assertStringContainsString("PRICE_LIST_AUTO_APPLY=false\n", $contents);
+        foreach (['AI_PRICE_LIST_AI_ENABLED', 'AI_PRICE_LIST_NOTIFICATIONS_ENABLED', 'AI_PRICE_LIST_MAX_ACK_ENABLED', 'PRICE_LIST_AI_RERANKING_ENABLED'] as $flag) {
+            $this->assertStringContainsString($flag."=false\n", $contents);
+            $this->assertStringNotContainsString($flag.'=true', $contents);
+        }
         $this->assertMatchesRegularExpression('/^MAX_WEBHOOK_SECRET=[A-Za-z0-9_-]{64}$/m', $contents);
     }
 

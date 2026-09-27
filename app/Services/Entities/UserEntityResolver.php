@@ -22,21 +22,44 @@ class UserEntityResolver
             ?? $this->findByPhone($phone)
             ?? new Entity;
 
-        $this->fillEntity($entity, $user, $profile, $inn);
-        $entity->save();
+        if (! $entity->exists) {
+            $entity->forceFill(['customer_created_by_user_id' => $user->id]);
+        }
+
+        if ($this->canManageEntity($entity, $user)) {
+            $this->fillEntity($entity, $user, $profile, $inn);
+            $entity->save();
+            $this->attachEmail($entity, $email);
+            $this->attachPhone($entity, $phone);
+
+            if ($user->city_id) {
+                $entity->cities()->syncWithoutDetaching([$user->city_id]);
+            }
+        }
 
         $this->attachUser($entity, $user);
-        $this->attachEmail($entity, $email);
-        $this->attachPhone($entity, $phone);
-
-        if ($user->city_id) {
-            $entity->cities()->syncWithoutDetaching([$user->city_id]);
-        }
 
         return $entity->fresh();
     }
 
+    public function canManageEntity(Entity $entity, User $user): bool
+    {
+        // An INN/contact match and historical owner pivots do not prove ownership.
+        return $entity->customer_created_by_user_id !== null
+            && (int) $entity->customer_created_by_user_id === (int) $user->id;
+    }
+
     public function attachPhone(Entity $entity, ?string $phone): ?Telephone
+    {
+        $telephone = $this->resolvePhone($phone);
+        if ($telephone) {
+            $entity->telephones()->syncWithoutDetaching([$telephone->id]);
+        }
+
+        return $telephone;
+    }
+
+    public function resolvePhone(?string $phone): ?Telephone
     {
         $normalized = $this->normalizePhone($phone);
 
@@ -44,12 +67,8 @@ class UserEntityResolver
             return null;
         }
 
-        $telephone = $this->findTelephoneByNormalizedNumber($normalized)
+        return $this->findTelephoneByNormalizedNumber($normalized)
             ?? Telephone::query()->create(['number' => $normalized]);
-
-        $entity->telephones()->syncWithoutDetaching([$telephone->id]);
-
-        return $telephone;
     }
 
     public function normalizePhone(?string $phone): ?string
@@ -177,7 +196,7 @@ class UserEntityResolver
 
         $user->entities()->syncWithoutDetaching([
             $entity->id => [
-                'role' => 'owner',
+                'role' => $this->canManageEntity($entity, $user) ? 'owner' : 'customer',
                 'status' => 'active',
                 'is_primary' => (bool) ($existing?->pivot?->is_primary) || ! $hasPrimary,
             ],
@@ -190,7 +209,7 @@ class UserEntityResolver
             return;
         }
 
-        $emailModel = Email::withTrashed()
+        $emailModel = Email::query()
             ->whereRaw('LOWER(address) = ?', [$email])
             ->first();
 
@@ -200,8 +219,6 @@ class UserEntityResolver
                 'source' => 'site-registration',
                 'is_active' => true,
             ]);
-        } elseif ($emailModel->trashed()) {
-            $emailModel->restore();
         }
 
         $entity->emails()->syncWithoutDetaching([$emailModel->id]);

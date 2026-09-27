@@ -27,16 +27,18 @@ class StructuredPriceListExtractor
 
     public function configured(): bool
     {
-        return config('ai-price-lists.ai.enabled') && $this->provider->configured();
+        return PriceListRuntimePolicy::aiEnabled() && $this->provider->configured();
     }
 
     public function extract(PriceListImport $import): int
     {
+        PriceListRuntimePolicy::assertAiEnabled();
+
         $schema = $this->validator->schema();
         $instructions = (string) file_get_contents(resource_path('ai/prompts/price-list-v1.txt'));
         $count = 0;
 
-        $import->items()->orderBy('position')->chunk(
+        $import->items()->whereNull('reviewed_at')->whereNull('applied_at')->orderBy('position')->chunk(
             max(1, min(100, (int) config('ai-price-lists.ai.max_rows_per_chunk', 20))),
             function (Collection $rows) use ($import, $schema, $instructions, &$count): void {
                 $count += $this->extractRows($import, $rows, $schema, $instructions);
@@ -48,6 +50,8 @@ class StructuredPriceListExtractor
 
     private function extractRows(PriceListImport $import, Collection $rows, array $schema, string $instructions): int
     {
+        PriceListRuntimePolicy::assertAiEnabled();
+
         $data = $rows->map(fn (PriceListImportItem $item) => [
             'source_locator' => [
                 'sheet' => $item->source_sheet,

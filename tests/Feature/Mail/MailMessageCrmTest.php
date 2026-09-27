@@ -90,7 +90,7 @@ class MailMessageCrmTest extends TestCase
         $this->assertDatabaseCount('leads', 0);
     }
 
-    public function test_legacy_admin_and_explicit_mail_permission_can_use_the_workspace(): void
+    public function test_legacy_admin_can_use_the_workspace_but_customer_mail_permission_does_not_grant_staff_access(): void
     {
         $admin = $this->staff(['type' => 'customer']);
         $admin->assignRole(Role::findOrCreate('admin', 'crm'));
@@ -99,7 +99,7 @@ class MailMessageCrmTest extends TestCase
         Permission::findOrCreate('mail.send', 'crm');
         $operator->givePermissionTo('mail.send');
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        $this->actingAs($operator)->getJson('/api/mail-crm/entities?search=Example')->assertOk();
+        $this->actingAs($operator)->getJson('/api/mail-crm/entities?search=Example')->assertForbidden();
     }
 
     public function test_create_and_link_entity_reuses_existing_tax_identity_and_preserves_previous_links(): void

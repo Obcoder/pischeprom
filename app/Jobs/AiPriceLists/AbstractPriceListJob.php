@@ -44,9 +44,14 @@ abstract class AbstractPriceListJob implements ShouldBeUnique, ShouldQueue
 
     public function middleware(): array
     {
+        // A sync connection runs the next stage inside this handler. Async workers
+        // share one import lock so recovery cannot run two different stages together.
+        $sync = config('queue.connections.'.$this->connection.'.driver') === 'sync';
+        $key = 'price-list:'.$this->importId.($sync ? ':'.static::class : '');
+
         return [
             new ObservePriceListJob,
-            (new WithoutOverlapping('price-list:'.$this->importId.':'.static::class))->expireAfter($this->timeout + 30),
+            (new WithoutOverlapping($key))->shared()->releaseAfter(30)->expireAfter($this->timeout + 30),
         ];
     }
 

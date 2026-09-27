@@ -24,6 +24,8 @@ use Tests\TestCase;
 
 class GoodStockAlertTest extends TestCase
 {
+    use \Tests\Concerns\AuthenticatesStaff;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -464,6 +466,7 @@ class GoodStockAlertTest extends TestCase
 
     public function test_goods_stock_api_uses_a_separate_ledger_from_commodities(): void
     {
+        $this->actingAsStaff();
         // Authorization is exercised with the full user schema in WarehouseMutationAuthorizationTest.
         $this->withoutMiddleware([
             \Illuminate\Auth\Middleware\Authenticate::class,
@@ -501,6 +504,7 @@ class GoodStockAlertTest extends TestCase
 
     public function test_goods_warehouse_is_only_returned_when_explicitly_requested(): void
     {
+        $this->actingAsStaff();
         $warehouse = Warehouse::query()->create([
             'name' => 'Склад goods',
             'code' => Warehouse::GOODS_CODE,
@@ -524,8 +528,11 @@ class GoodStockAlertTest extends TestCase
             ]);
     }
 
-    public function test_goods_stock_read_routes_do_not_require_separate_authentication(): void
+    public function test_goods_stock_read_routes_require_common_staff_authentication(): void
     {
+        $this->getJson(route('good-warehouse-stock.index'))->assertUnauthorized();
+        $this->actingAsStaff();
+
         $this->getJson(route('good-warehouse-stock.index'))
             ->assertOk();
 
@@ -536,8 +543,11 @@ class GoodStockAlertTest extends TestCase
             ->assertOk();
     }
 
-    public function test_ameise_max_routes_do_not_require_authentication(): void
+    public function test_ameise_max_routes_require_common_staff_authentication(): void
     {
+        $this->getJson(route('api.max.chats.index'))->assertUnauthorized();
+        $this->actingAsStaff();
+
         $this->getJson(route('api.max.chats.index'))
             ->assertOk()
             ->assertJsonPath('data', []);
@@ -567,7 +577,7 @@ class GoodStockAlertTest extends TestCase
             $route = Route::getRoutes()->getByName($routeName);
 
             $this->assertNotNull($route, "Route {$routeName} must exist.");
-            $this->assertNotContains('auth:sanctum', $route->gatherMiddleware());
+            $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, app('router')->gatherRouteMiddleware($route));
         }
     }
 

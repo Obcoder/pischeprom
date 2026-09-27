@@ -29,7 +29,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(\App\Http\Middleware\RestrictMobileTokenScope::class);
         $middleware->statefulApi();
 
+        // Run after sessions/Sanctum, before bindings and operation permissions.
+        // The shared boundary covers both API routes and legacy API aliases in web.php.
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\RequireStaffAuthentication::class,
+        );
+        $middleware->api(append: [\App\Http\Middleware\RequireStaffAuthentication::class]);
+
         $middleware->web(append: [
+            \App\Http\Middleware\RequireStaffAuthentication::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);

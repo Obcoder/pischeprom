@@ -16,6 +16,7 @@ use App\Models\OrderStatus;
 use App\Models\PriceType;
 use App\Models\Region;
 use App\Models\Telephone;
+use App\Models\User;
 use Database\Seeders\AvitoMessageTemplateSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -46,8 +47,11 @@ class AvitoMessageTemplateTest extends TestCase
         ]);
     }
 
-    public function test_templates_have_public_crud_categories_variables_and_idempotent_starters(): void
+    public function test_staff_can_manage_templates_with_categories_variables_and_idempotent_starters(): void
     {
+        $this->getJson('/api/avito/messenger/templates')->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         $this->seed(AvitoMessageTemplateSeeder::class);
         $this->seed(AvitoMessageTemplateSeeder::class);
         $this->assertDatabaseCount('avito_message_templates', 6);
@@ -90,6 +94,8 @@ class AvitoMessageTemplateTest extends TestCase
 
     public function test_preview_renders_client_order_product_and_chat_context_on_the_server(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         [, $chat] = $this->chatFixture();
         $country = Country::query()->create(['name' => 'Россия', 'сodeISO' => 'RU']);
         $region = Region::query()->create(['name' => 'Москва', 'country_id' => $country->id]);
@@ -171,6 +177,8 @@ class AvitoMessageTemplateTest extends TestCase
 
     public function test_template_can_be_sent_directly_or_from_edited_composer_and_usage_is_archived(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         [, $chat] = $this->chatFixture();
         $template = AvitoMessageTemplate::query()->create([
             'name' => 'Быстрый ответ',
@@ -211,6 +219,8 @@ class AvitoMessageTemplateTest extends TestCase
 
     public function test_direct_send_rejects_unresolved_or_inactive_template(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         [, $chat] = $this->chatFixture();
         $template = AvitoMessageTemplate::query()->create([
             'name' => 'Требуется товар',

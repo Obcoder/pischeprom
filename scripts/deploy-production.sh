@@ -357,6 +357,16 @@ avito_env_updater="$target_dir/scripts/update-production-avito-env.php"
     || fail 'Avito production environment updater is missing or unsafe.'
 php "$avito_env_updater" "$target_dir/.env"
 
+mail_safety_env_updater="$target_dir/scripts/update-production-mail-safety-env.php"
+[[ -f "$mail_safety_env_updater" && ! -L "$mail_safety_env_updater" ]] \
+    || fail 'Mail safety environment updater is missing or unsafe.'
+php "$mail_safety_env_updater" "$target_dir/.env"
+
+telegram_provisioner="$target_dir/scripts/provision-production-telegram.php"
+[[ -f "$telegram_provisioner" && ! -L "$telegram_provisioner" ]] \
+    || fail 'Telegram webhook provisioner is missing or unsafe.'
+php "$telegram_provisioner" "$target_dir"
+
 seo_ai_env_updater="$target_dir/scripts/update-production-goods-seo-ai-env.php"
 [[ -f "$seo_ai_env_updater" && ! -L "$seo_ai_env_updater" ]] \
     || fail 'SEO AI production environment updater is missing or unsafe.'
@@ -518,19 +528,29 @@ if ! php artisan app:deploy-smoke --path=/g >/dev/null 2>&1; then
     fail 'Smoke check for /g failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/Ameise/ >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/Ameise/ --status=302 >/dev/null 2>&1; then
     fail 'Smoke check for /Ameise/ failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/Ameise/warehouses >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/Ameise/Mail --status=302 >/dev/null 2>&1; then
+    fail 'Anonymous access to the mail workspace was not redirected to login.'
+fi
+
+for private_mail_api in /api/mailboxes /api/mail-messages; do
+    if ! php artisan app:deploy-smoke --path="$private_mail_api" --status=401 >/dev/null 2>&1; then
+        fail 'Anonymous access to the mail API was not rejected.'
+    fi
+done
+
+if ! php artisan app:deploy-smoke --path=/Ameise/warehouses --status=302 >/dev/null 2>&1; then
     fail 'Smoke check for goods warehouses failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/Ameise/Sales/ >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/Ameise/Sales/ --status=302 >/dev/null 2>&1; then
     fail 'Smoke check for sales failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/api/good-warehouse-stock >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/api/good-warehouse-stock --status=401 >/dev/null 2>&1; then
     fail 'Smoke check for goods stock balances failed; rerun the command locally on the VPS.'
 fi
 
@@ -538,27 +558,27 @@ if ! php artisan app:deploy-smoke --path=/Ameise/avito --status=302 >/dev/null 2
     fail 'Smoke check for /Ameise/avito failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/api/avito/status >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/api/avito/status --status=401 >/dev/null 2>&1; then
     fail 'Smoke check for /api/avito/status failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/api/avito/messenger/overview >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/api/avito/messenger/overview --status=401 >/dev/null 2>&1; then
     fail 'Smoke check for Avito Messenger archive failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path='/api/avito/messenger/updates?overview=1&chats=1&unread_only=1&per_page=10' >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path='/api/avito/messenger/updates?overview=1&chats=1&unread_only=1&per_page=10' --status=401 >/dev/null 2>&1; then
     fail 'Smoke check for Avito Messenger incremental updates failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path='/api/avito/messenger/waiting-list?per_page=1' >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path='/api/avito/messenger/waiting-list?per_page=1' --status=401 >/dev/null 2>&1; then
     fail 'Smoke check for Avito waiting list failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/api/avito/messenger/crm/options >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/api/avito/messenger/crm/options --status=401 >/dev/null 2>&1; then
     fail 'Smoke check for Avito CRM failed; rerun the command locally on the VPS.'
 fi
 
-if ! php artisan app:deploy-smoke --path=/api/avito/messenger/templates >/dev/null 2>&1; then
+if ! php artisan app:deploy-smoke --path=/api/avito/messenger/templates --status=401 >/dev/null 2>&1; then
     fail 'Smoke check for Avito message templates failed; rerun the command locally on the VPS.'
 fi
 

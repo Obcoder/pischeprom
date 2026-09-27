@@ -14,6 +14,10 @@ class PriceListStatusNotificationService
 {
     public function statusChanged(PriceListImport $import, PriceListStatus $status): void
     {
+        if (! PriceListRuntimePolicy::notificationsEnabled()) {
+            return;
+        }
+
         $notification = $this->notificationFor($import, $status);
 
         if (! $notification) {
@@ -28,19 +32,22 @@ class PriceListStatusNotificationService
         }
 
         try {
-            $recipients = $this->recipients($import, $notification['permission']);
+            $alert = new PriceListAlertNotification(
+                $notification['subject'],
+                $notification['message'],
+                rtrim((string) config('app.url'), '/').'/Ameise/ai/price-lists/'.$import->uuid,
+                $notification['permission'],
+            );
+            $recipients = $this->recipients($import, $notification['permission'])
+                ->filter(fn (User $user) => $alert->shouldSend($user, 'mail'));
 
             if ($recipients->isEmpty()) {
                 return;
             }
 
+            Notification::send($recipients, $alert);
             $metadata[$flag] = now()->toISOString();
             $import->forceFill(['document_metadata' => $metadata])->save();
-            Notification::send($recipients, new PriceListAlertNotification(
-                $notification['subject'],
-                $notification['message'],
-                rtrim((string) config('app.url'), '/').'/Ameise/ai/price-lists/'.$import->uuid,
-            ));
         } catch (Throwable $exception) {
             report($exception);
         }
@@ -93,11 +100,16 @@ class PriceListStatusNotificationService
         }
 
         try {
-            $users = $users
-                ->merge(User::permission($permission, 'crm')->where('status', '!=', 'blocked')->get())
-                ->merge(User::role('admin', 'crm')->where('status', '!=', 'blocked')->get());
+            // User::scopePermission's second argument means "without", not guard.
+            $users = $users->merge(User::permission($permission)->where('status', 'active')->get());
         } catch (Throwable) {
-            // A fresh installation may not have seeded roles yet.
+            // A fresh installation may not have seeded this permission yet.
+        }
+
+        try {
+            $users = $users->merge(User::role('admin', 'crm')->where('status', 'active')->get());
+        } catch (Throwable) {
+            // An absent admin role must not discard valid permission recipients.
         }
 
         return $users->filter(fn (User $user) => filled($user->email))->unique('id')->values();

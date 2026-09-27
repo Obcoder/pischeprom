@@ -11,6 +11,7 @@ const loading = ref(false)
 const error = ref('')
 const imports = ref([])
 const statuses = ref([])
+const processing = ref(null)
 const total = ref(0)
 const page = ref(1)
 const perPage = ref(25)
@@ -63,6 +64,7 @@ async function load() {
         imports.value = data.data || []
         total.value = data.total || 0
         statuses.value = data.statuses || statuses.value
+        processing.value = data.processing || null
     } catch (requestError) {
         console.error(requestError)
         error.value = requestError.response?.data?.message || 'Не удалось загрузить прайс-листы.'
@@ -124,6 +126,13 @@ onMounted(load)
             </div>
             <v-btn icon="mdi-refresh" variant="tonal" color="white" :loading="loading" title="Обновить" @click="load" />
         </header>
+
+        <v-alert v-if="processing && !processing.ai_enabled" type="info" variant="tonal" class="mb-4">
+            AI и OCR отключены. Файлы принимаются, таблицы разбираются локально; проверка и применение цен доступны вручную.
+        </v-alert>
+        <v-alert v-if="processing && !processing.notifications_enabled" type="info" variant="tonal" class="mb-4">
+            Отправка писем и сообщений MAX из модуля прайс-листов отключена.
+        </v-alert>
 
         <section class="price-lists-panel">
             <div class="price-lists-filters">

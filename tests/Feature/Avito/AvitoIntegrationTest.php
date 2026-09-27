@@ -169,6 +169,8 @@ class AvitoIntegrationTest extends TestCase
 
     public function test_status_and_catalog_do_not_expose_credentials(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         $response = $this->getJson('/api/avito/status')
             ->assertOk()
             ->assertJsonPath('configured', true)
@@ -186,6 +188,8 @@ class AvitoIntegrationTest extends TestCase
 
     public function test_capability_catalog_hydrates_only_the_latest_call_per_capability(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         $capabilityIds = collect(app(AvitoApiCatalog::class)->capabilities())
             ->take(2)
             ->pluck('id')
@@ -238,6 +242,8 @@ class AvitoIntegrationTest extends TestCase
 
     public function test_read_preflight_uses_server_token_and_records_redacted_audit(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         Http::fake([
             'https://api.avito.ru/token' => Http::response([
                 'access_token' => 'server-only-access-token',
@@ -299,6 +305,8 @@ class AvitoIntegrationTest extends TestCase
 
     public function test_unknown_parameters_and_remote_mutations_are_blocked_before_http(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         Http::fake();
 
         $this->postJson('/api/avito/capabilities/user.getuserinfoself.4f59f9b2ea/execute', [
@@ -321,6 +329,8 @@ class AvitoIntegrationTest extends TestCase
 
     public function test_executor_supports_json_multipart_and_binary_responses(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         config(['avito.mutations_enabled' => true]);
         Http::fake([
             'https://api.avito.ru/token' => Http::response([
@@ -402,6 +412,8 @@ class AvitoIntegrationTest extends TestCase
 
     public function test_capabilities_can_be_managed_individually_and_in_bulk(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         $catalog = app(AvitoApiCatalog::class)->capabilities();
         $first = $catalog[0]['id'];
         $second = $catalog[1]['id'];
@@ -487,6 +499,8 @@ class AvitoIntegrationTest extends TestCase
 
     public function test_api_call_details_are_available_without_returning_model_tokens(): void
     {
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+
         $connection = AvitoConnection::query()->create([
             'name' => 'Encrypted connection',
             'access_token' => 'hidden-access',

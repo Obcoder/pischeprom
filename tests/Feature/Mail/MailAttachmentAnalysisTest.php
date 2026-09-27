@@ -19,9 +19,12 @@ use Tests\TestCase;
 
 class MailAttachmentAnalysisTest extends TestCase
 {
+    use \Tests\Concerns\AuthenticatesStaff;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAsStaff();
 
         config([
             'database.default' => 'sqlite',

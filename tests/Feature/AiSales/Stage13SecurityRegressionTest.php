@@ -33,8 +33,8 @@ class Stage13SecurityRegressionTest extends Stage13TestCase
 
         $this->assertNotEmpty($mutations);
         foreach ($mutations as $route) {
-            $middleware = $route->gatherMiddleware();
-            $this->assertContains('auth:sanctum', $middleware, $route->uri());
+            $middleware = array_merge($route->gatherMiddleware(), app('router')->gatherRouteMiddleware($route));
+            $this->assertContains(\App\Http\Middleware\RequireStaffAuthentication::class, $middleware, $route->uri());
             $this->assertContains('verified', $middleware, $route->uri());
             $this->assertTrue(collect($middleware)->contains(fn ($item) => str_starts_with($item, 'throttle:')), $route->uri());
         }

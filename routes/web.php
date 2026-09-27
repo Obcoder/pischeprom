@@ -50,7 +50,6 @@ use App\Http\Controllers\Web\SeoController;
 use App\Http\Controllers\Web\UnitController;
 use App\Http\Controllers\Web\UnitRelationSyncController;
 use App\Http\Controllers\Web\UnitUriController as WebUnitUriController;
-use App\Http\Middleware\EnforceAiPriceListAuthorization;
 use App\Http\Middleware\EnsureBankConnectionAdministrator;
 use App\Models\City;
 use App\Models\Good;
@@ -243,7 +242,6 @@ Route::get('/Ameise/Max', function () {
 
 Route::prefix('/Ameise/ai/price-lists')
     ->name('Ameise.ai.price-lists.')
-    ->middleware(EnforceAiPriceListAuthorization::class)
     ->group(function (): void {
         Route::get('/', [PriceListPageController::class, 'index'])->name('index');
         Route::get('/{priceListImport}', [PriceListPageController::class, 'show'])->name('show');
@@ -412,7 +410,6 @@ Route::get('/Ameise/ai-sales', function (
 
     return Inertia::render('Ameise/AiSales');
 })->middleware([
-    'auth:sanctum',
     config('jetstream.auth_session'),
     'verified',
     'throttle:ai-sales-ui',
@@ -504,7 +501,7 @@ Route::get('/Ameise/avito', function (Request $request, AvitoRealtimeAccess $acc
     abort_unless($access->canAccess($request->user()), 403, 'Чаты Avito доступны сотрудникам и администраторам CRM.');
 
     return Inertia::render('Ameise/Avito');
-})->middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified'])
+})->middleware([config('jetstream.auth_session'), 'verified'])
     ->name('Ameise.avito');
 
 Route::redirect('/Ameise/Avito', '/Ameise/avito', 301);
@@ -573,7 +570,7 @@ Route::patch('/genera/{genus}/toggle-agriculturable', [GenusController::class, '
 
 //    G O O D - S A L E
 Route::post('/web/goodsale/store', [GoodSaleController::class, 'store'])
-    ->middleware(['auth:sanctum', 'verified', \App\Http\Middleware\EnsureWarehouseMutationAllowed::class])
+    ->middleware(['verified', \App\Http\Middleware\EnsureWarehouseMutationAllowed::class])
     ->name('web.goodsale.store');
 
 //   L A B E L S
@@ -595,7 +592,7 @@ Route::post('/web/quotation/store', [QuotationController::class, 'store'])
     ->name('web.quotation.store');
 //      S A L E
 Route::post('/web/sale/store', [SaleController::class, 'store'])
-    ->middleware(['auth:sanctum', 'verified', \App\Http\Middleware\EnsureWarehouseMutationAllowed::class])
+    ->middleware(['verified', \App\Http\Middleware\EnsureWarehouseMutationAllowed::class])
     ->name('web.sale.store');
 
 //    U R I
@@ -634,7 +631,6 @@ Route::get('/banking/sber/oauth/callback', [SberConnectionController::class, 'ca
 Route::prefix('Ameise/bank')
     ->name('admin.bank.')
     ->middleware([
-        'auth:sanctum',
         config('jetstream.auth_session'),
         'verified',
         'can:bank.view',
@@ -707,7 +703,7 @@ Route::prefix('Ameise/bank')
 
 Route::prefix('Ameise/commercial-offers')
     ->name('admin.commercial-offers.')
-    ->middleware(['auth:sanctum', 'verified'])
+    ->middleware(['verified'])
     ->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\CommercialOffersController::class, 'index'])->name('index');
 

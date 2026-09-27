@@ -59,7 +59,9 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseHas('entity_user', [
             'user_id' => auth()->id(),
             'is_primary' => true,
+            'role' => 'owner',
         ]);
+        $this->assertDatabaseHas('entities', ['name' => 'Test User', 'customer_created_by_user_id' => auth()->id()]);
         $this->assertDatabaseHas('telephones', ['number' => '+79991234567']);
     }
 
@@ -91,7 +93,9 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseHas('entity_user', [
             'entity_id' => $entity->id,
             'user_id' => auth()->id(),
+            'role' => 'customer',
         ]);
+        $this->assertNull($entity->fresh()->customer_created_by_user_id);
     }
 
     public function test_registration_attaches_user_to_entity_found_by_phone(): void
@@ -119,7 +123,10 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseHas('entity_user', [
             'entity_id' => $entity->id,
             'user_id' => auth()->id(),
+            'role' => 'customer',
         ]);
         $this->assertDatabaseCount('telephones', 1);
+        $this->assertSame(0, $entity->emails()->count());
+        $this->assertNull($entity->fresh()->customer_created_by_user_id);
     }
 }

@@ -22,6 +22,7 @@ class PriceListItemMatcher
         $expected = max(1, $import->items()->where('decision_status', ItemDecisionStatus::Unreviewed->value)->count());
 
         $import->items()
+            ->whereNull('reviewed_at')->whereNull('applied_at')
             ->where('decision_status', ItemDecisionStatus::Unreviewed->value)
             ->orderBy('position')
             ->chunkById(250, function (Collection $items) use ($import, &$stats, &$processed, $expected): void {

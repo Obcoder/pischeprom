@@ -9,6 +9,8 @@ use App\Domain\AiPriceLists\Services\ApplyPriceListService;
 use App\Domain\AiPriceLists\Services\PriceListStateMachine;
 use App\Models\PriceListImport;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
+use Throwable;
 
 class ApplyConfirmedPriceList extends AbstractPriceListJob
 {
@@ -36,6 +38,7 @@ class ApplyConfirmedPriceList extends AbstractPriceListJob
         }
 
         $user = $this->userId === null ? null : User::query()->find($this->userId);
+        $user = $application->authorize($user);
 
         if ($import->status !== PriceListStatus::Applying) {
             $import = $states->transition($import, PriceListStatus::Applying, PriceListStage::Apply, 95, user: $user);
@@ -48,5 +51,14 @@ class ApplyConfirmedPriceList extends AbstractPriceListJob
             ->whereNull('applied_at')
             ->exists();
         $states->transition($import, $hasRemaining ? PriceListStatus::PartiallyApplied : PriceListStatus::Applied, PriceListStage::Apply, 100, user: $user);
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        if ($exception instanceof AuthorizationException) {
+            return;
+        }
+
+        parent::failed($exception);
     }
 }

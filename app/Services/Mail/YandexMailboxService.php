@@ -235,21 +235,17 @@ class YandexMailboxService
         $imapUid = $this->uid($message);
 
         if (! $imapUid) {
-            $imapUid = $this->fallbackUid(
-                folderName: $folderName,
-                direction: $direction,
-                messageId: $messageId,
-                subject: $subject,
-                messageDate: $messageDate?->toDateTimeString(),
-                from: $from,
-                to: $to,
-                cc: $cc,
-            );
+            throw new RuntimeException('The server message has no reliable IMAP UID.');
         }
 
+        $sentLock = null;
+        if ($direction === 'outgoing' && $messageId && $folderName === ($mailbox['imap']['sent'] ?? 'Sent')) {
+            $sentLock = Cache::lock(SentMailArchive::lockName($mailboxAddress, $messageId), 120);
+            $sentLock->block(5);
+        }
         $lock = $this->messageMutationLock($mailboxAddress, $folderName, $imapUid);
-        $lock->block(5);
         try {
+            $lock->block(5);
             $normalizedMessageId = trim((string) $messageId, " \t\r\n<>");
             if ($normalizedMessageId !== '' && MailMessage::onlyTrashed()
                 ->where('mailbox', $mailboxAddress)->where('folder', $folderName)
@@ -261,6 +257,32 @@ class YandexMailboxService
                 'folder' => $folderName,
                 'imap_uid' => $imapUid,
             ]);
+            if ($mailMessage->exists && ! $mailMessage->trashed() && $normalizedMessageId !== ''
+                && SentMailArchive::identity((string) $mailMessage->message_id) !== $normalizedMessageId) {
+                // A reused UID cannot replace an existing mail's body, attachments or CRM history.
+                $mailMessage->forceFill(['imap_uid' => null])->save();
+                $mailMessage = new MailMessage(['mailbox' => $mailboxAddress, 'folder' => $folderName, 'imap_uid' => $imapUid]);
+            }
+            if ($sentLock && $normalizedMessageId !== '') {
+                $localCopies = MailMessage::query()->where('mailbox', $mailboxAddress)
+                    ->where('direction', 'outgoing')->whereNotNull('sent_mime_path')
+                    ->whereIn('message_id', [$normalizedMessageId, '<'.$normalizedMessageId.'>'])->limit(2)->get();
+                if ($localCopies->count() > 1) {
+                    throw new RuntimeException('Ambiguous local sent identity; automatic linking refused.');
+                }
+                if ($local = $localCopies->first()) {
+                    if ($mailMessage->exists && $mailMessage->id !== $local->id) {
+                        throw new RuntimeException('Conflicting Sent rows; automatic overwrite refused.');
+                    }
+                    $mailMessage = $local;
+                    $mailMessage->forceFill([
+                        'folder' => $folderName, 'imap_uid' => $imapUid,
+                        'delivery_status' => 'sent',
+                        'sent_copy_status' => $local->is_reconstructed ? 'reconstructed' : 'linked',
+                        'sent_copy_error' => null,
+                    ]);
+                }
+            }
             if ($mailMessage->trashed()) {
                 $deletedMessageId = trim((string) $mailMessage->message_id, " \t\r\n<>");
                 if ($normalizedMessageId === '' || $deletedMessageId === '' || $normalizedMessageId === $deletedMessageId) {
@@ -309,7 +331,9 @@ class YandexMailboxService
                 $this->attachRole($mailMessage, $email, 'from');
             }
 
-            if ($direction === 'outgoing') {
+            // Locally archived recipients and CRM roles are already recorded. Reusing the
+            // row must not reclassify Bcc/cc recipients or duplicate attachment metadata.
+            if ($direction === 'outgoing' && ! $mailMessage->sent_mime_path) {
                 foreach ($to as $address) {
                     $email = $this->findOrCreateEmail(
                         address: $address['address'],
@@ -343,6 +367,7 @@ class YandexMailboxService
             }
         } finally {
             $lock->release();
+            $sentLock?->release();
         }
     }
 
@@ -411,7 +436,7 @@ class YandexMailboxService
 
     protected function uid($message): ?int
     {
-        foreach (['uid', 'msgno', 'message_no'] as $property) {
+        foreach (['uid'] as $property) {
             try {
                 $value = is_object($message)
                     ? $message->{$property}
@@ -422,13 +447,13 @@ class YandexMailboxService
 
             $value = $this->firstAttributeValue($value) ?? $value;
 
-            if (is_numeric($value)) {
+            if (ctype_digit((string) $value) && (int) $value > 0 && (int) $value <= 4294967295) {
                 return (int) $value;
             }
 
             $string = $this->stringValue($value);
 
-            if (is_numeric($string)) {
+            if (ctype_digit((string) $string) && (int) $string > 0 && (int) $string <= 4294967295) {
                 return (int) $string;
             }
         }
@@ -443,13 +468,13 @@ class YandexMailboxService
 
                 $value = $this->firstAttributeValue($value) ?? $value;
 
-                if (is_numeric($value)) {
+                if (ctype_digit((string) $value) && (int) $value > 0 && (int) $value <= 4294967295) {
                     return (int) $value;
                 }
 
                 $string = $this->stringValue($value);
 
-                if (is_numeric($string)) {
+                if (ctype_digit((string) $string) && (int) $string > 0 && (int) $string <= 4294967295) {
                     return (int) $string;
                 }
             }
@@ -1471,7 +1496,7 @@ class YandexMailboxService
             ->where('size', $size)
             ->first();
 
-        if ($existing && $existing->path && dirname($existing->path) === $folderPath) {
+        if ($existing && $existing->path && ($mailMessage->sent_mime_path || dirname($existing->path) === $folderPath)) {
             try {
                 if (Storage::disk($existing->disk ?: $diskName)->exists($existing->path)) {
                     return $existing;

@@ -44,7 +44,7 @@ abstract class LogisticsTestCase extends TestCase
             'logistics.matrix.manage',
             'logistics.technical.view',
         ];
-        $user = User::factory()->create(['status' => 'active']);
+        $user = User::factory()->create(['type' => 'employee', 'status' => 'active']);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach ($permissions as $permission) {

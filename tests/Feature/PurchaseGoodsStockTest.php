@@ -13,10 +13,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Tests\Concerns\AuthenticatesStaff;
 use Tests\TestCase;
 
 class PurchaseGoodsStockTest extends TestCase
 {
+    use AuthenticatesStaff;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -30,6 +33,7 @@ class PurchaseGoodsStockTest extends TestCase
         Queue::fake();
 
         $this->createTestSchema();
+        $this->actingAsStaff();
     }
 
     public function test_purchase_lifecycle_keeps_good_purchase_and_goods_stock_in_sync(): void

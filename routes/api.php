@@ -144,7 +144,6 @@ use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\AvitoWaitingListController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
 use App\Http\Controllers\TelegramController;
-use App\Http\Middleware\EnforceAiPriceListAuthorization;
 use App\Http\Middleware\EnsureWarehouseMutationAllowed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -177,7 +176,7 @@ Route::get('/user', function (Request $request) {
 
 Route::prefix('ai-sales/units/{unit}')
     ->name('api.ai-sales.units.')
-    ->middleware(['auth:sanctum', 'verified', 'throttle:60,1'])
+    ->middleware(['verified', 'throttle:60,1'])
     ->group(function (): void {
         Route::get('/dossier', AiSalesUnitDossierController::class)->name('dossier.show');
 
@@ -230,7 +229,7 @@ Route::prefix('ai-sales/units/{unit}')
 
 Route::prefix('ai-sales')
     ->name('api.ai-sales.')
-    ->middleware(['auth:sanctum', 'verified', 'throttle:ai-sales'])
+    ->middleware(['verified', 'throttle:ai-sales'])
     ->group(function (): void {
         Route::get('/control-plane', [AiSalesControlPlaneController::class, 'show'])->name('control-plane.show');
         Route::get('/tooling', AiSalesToolingDiagnosticsController::class)->name('tooling.show');
@@ -317,7 +316,7 @@ Route::prefix('ai-sales')
 
 Route::prefix('ai/price-lists')
     ->name('api.ai.price-lists.')
-    ->middleware([EnforceAiPriceListAuthorization::class, 'throttle:120,1'])
+    ->middleware(['throttle:120,1'])
     ->group(function (): void {
         Route::get('/meta/entities', [AiPriceListImportController::class, 'entities'])->name('entities');
         Route::get('/meta/goods', [AiPriceListImportController::class, 'goods'])->name('goods');
@@ -424,19 +423,19 @@ use App\Http\Controllers\API\WordAttachmentPreviewController;
 
 Route::apiResource('mailboxes', MailboxController::class)
     ->only(['index', 'store', 'show', 'update', 'destroy']);
-Route::prefix('mail-offers')->middleware(['auth:sanctum', 'verified', 'can:mail.send'])->group(function (): void {
+Route::prefix('mail-offers')->middleware(['verified', 'can:mail.send'])->group(function (): void {
     Route::get('goods', [MailOfferController::class, 'goods'])->name('mail-offers.goods');
     Route::post('preview', [MailOfferController::class, 'preview'])->name('mail-offers.preview');
 });
 Route::get('mail-messages/folders', [MailMessageController::class, 'folders'])
     ->name('mail-messages.folders');
-Route::prefix('mail-crm')->middleware(['auth:sanctum', 'verified'])->group(function (): void {
+Route::prefix('mail-crm')->middleware(['verified'])->group(function (): void {
     Route::get('options', [MailMessageCrmController::class, 'options']);
     Route::get('entities', [MailMessageCrmController::class, 'entities']);
     Route::get('units', [MailMessageCrmController::class, 'units']);
     Route::get('cities', [MailMessageCrmController::class, 'cities']);
 });
-Route::prefix('mail-messages/{mailMessage}')->middleware(['auth:sanctum', 'verified'])->group(function (): void {
+Route::prefix('mail-messages/{mailMessage}')->middleware(['verified'])->group(function (): void {
     Route::get('crm', [MailMessageCrmController::class, 'show'])->name('mail-messages.crm.show');
     Route::post('crm/entities', [MailMessageCrmController::class, 'storeEntity']);
     Route::post('crm/units', [MailMessageCrmController::class, 'storeUnit']);
@@ -453,7 +452,7 @@ Route::prefix('mail-messages/{mailMessage}')->middleware(['auth:sanctum', 'verif
         ->name('mail-messages.research.unit');
 });
 Route::post('mail-messages/send', [MailMessageActionController::class, 'send'])
-    ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
+    ->middleware(['verified', 'can:mail.send', 'throttle:mail-send'])
     ->name('mail-messages.send');
 Route::get('mail-messages', [MailMessageController::class, 'index'])
     ->name('mail-messages.index');
@@ -461,10 +460,10 @@ Route::get('mail-messages', [MailMessageController::class, 'index'])
 Route::get('mail-messages/{mailMessage}', [MailMessageController::class, 'show'])
     ->name('mail-messages.show');
 Route::post('mail-messages/{mailMessage}/mark-read', [MailMessageActionController::class, 'markRead'])
-    ->middleware(['auth:sanctum', 'verified'])
+    ->middleware(['verified'])
     ->name('mail-messages.mark-read');
 Route::delete('mail-messages/{mailMessage}', [MailMessageController::class, 'destroy'])
-    ->middleware(['auth:sanctum', 'verified'])
+    ->middleware(['verified'])
     ->name('mail-messages.destroy');
 Route::post('mail-messages/{mailMessage}/attachments/sync', [MailMessageActionController::class, 'syncAttachments'])
     ->name('mail-messages.attachments.sync');
@@ -477,7 +476,7 @@ Route::post('mail-messages/{mailMessage}/attachments/{index}/analyze', MailAttac
     ->name('mail-messages.attachments.analyze');
 Route::post('mail-messages/{mailMessage}/attachments/{index}/word-preview', WordAttachmentPreviewController::class)
     ->whereNumber('index')
-    ->middleware(['auth:sanctum', 'verified', 'throttle:30,1,mail-word-preview'])
+    ->middleware(['verified', 'throttle:30,1,mail-word-preview'])
     ->name('mail-messages.attachments.word-preview');
 Route::get('mail-messages/{mailMessage}/attachment-folders', [MailMessageActionController::class, 'attachmentFolders'])
     ->name('mail-messages.attachment-folders.index');
@@ -489,7 +488,7 @@ Route::post('mail-messages/{mailMessage}/attachments/{index}/save', [MailMessage
 Route::post('mail-messages/{mailMessage}/notes', [MailMessageActionController::class, 'storeNote'])
     ->name('mail-messages.notes.store');
 Route::post('mail-messages/{mailMessage}/lead', [MailMessageActionController::class, 'createLead'])
-    ->middleware(['auth:sanctum', 'verified'])
+    ->middleware(['verified'])
     ->name('mail-messages.lead.store');
 
 use App\Http\Controllers\API\MailTemplateController;
@@ -509,7 +508,7 @@ Route::apiResource('entities', EntityController::class);
 
 Route::prefix('entities/{entity}/consumptions')
     ->name('api.entities.consumptions.')
-    ->middleware(['auth:sanctum', 'verified'])
+    ->middleware(['verified'])
     ->whereNumber('entity')
     ->group(function (): void {
         Route::get('/meta', [EntityConsumptionController::class, 'meta'])->name('meta');
@@ -521,7 +520,7 @@ Route::prefix('entities/{entity}/consumptions')
     });
 
 Route::get('products/{product}/entity-consumptions', [EntityConsumptionController::class, 'forProduct'])
-    ->middleware(['auth:sanctum', 'verified'])
+    ->middleware(['verified'])
     ->whereNumber('product')
     ->name('api.products.entity-consumptions.index');
 
@@ -584,7 +583,7 @@ Route::prefix('goods/{good}')
             ->name('seo.generate-structured-data');
 
         Route::post('/seo/generate-ai', GoodSeoAiController::class)
-            ->middleware(['auth:sanctum', 'verified', 'throttle:10,1,goods-seo-ai'])
+            ->middleware(['verified', 'throttle:10,1,goods-seo-ai'])
             ->name('seo.generate-ai');
 
         Route::get('/price-type-values', [GoodPriceTypeValueController::class, 'index'])
@@ -699,7 +698,7 @@ Route::prefix('max')
 Route::prefix('units/{unit}')->group(function () {
     Route::get('/', [ApiUnitController::class, 'show'])->name('api.units.show');
 
-    Route::prefix('communications')->middleware(['auth:sanctum', 'verified'])->group(function () {
+    Route::prefix('communications')->middleware(['verified'])->group(function () {
         Route::get('/', [UnitCommunicationController::class, 'index'])
             ->middleware('can:view,unit')->name('api.units.communications.index');
 
@@ -712,14 +711,14 @@ Route::prefix('units/{unit}')->group(function () {
     });
 
     Route::get('/website-research', [UnitWebsiteResearchController::class, 'index'])
-        ->middleware(['auth:sanctum', 'verified'])->name('api.units.website-research.index');
+        ->middleware(['verified'])->name('api.units.website-research.index');
 
     Route::get('/emails/options', [UnitEmailController::class, 'options'])
-        ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:60,1'])
+        ->middleware(['verified', 'can:manageContacts,unit', 'throttle:60,1'])
         ->name('api.units.emails.options');
 
     Route::post('/emails', [UnitEmailController::class, 'store'])
-        ->middleware(['auth:sanctum', 'verified', 'can:manageContacts,unit', 'throttle:30,1'])
+        ->middleware(['verified', 'can:manageContacts,unit', 'throttle:30,1'])
         ->name('api.units.emails.store');
 
     Route::post('/uris', [UnitRelationController::class, 'attachUri'])->name('api.units.uris.attach');
@@ -763,7 +762,7 @@ Route::prefix('units/{unit}')->group(function () {
         ->name('api.units.mail-messages.index');
 
     Route::post('/mail/send', [UnitMailController::class, 'send'])
-        ->middleware(['auth:sanctum', 'verified', 'can:mail.send', 'throttle:mail-send'])
+        ->middleware(['verified', 'can:mail.send', 'throttle:mail-send'])
         ->name('api.units.mail.send');
 });
 
@@ -807,7 +806,7 @@ Route::apiResource('industries', IndustryController::class);
 Route::get('industries/{industry}/units', [IndustryController::class, 'units']);
 Route::apiResource('genera', GenusController::class);
 Route::apiResource('goodsales', GoodSaleController::class)
-    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
+    ->middlewareFor(['store', 'update', 'destroy'], ['verified', EnsureWarehouseMutationAllowed::class]);
 Route::prefix('home-banner-assets')
     ->name('api.home-banner-assets.')
     ->group(function () {
@@ -836,7 +835,7 @@ Route::prefix('orders')
         Route::get('/{order}', [OrderController::class, 'show'])
             ->name('show');
         Route::patch('/{order}/delivery-date', [OrderController::class, 'deliveryDate'])
-            ->middleware(['auth:sanctum', 'verified', \App\Http\Middleware\EnsureOrderDeliveryMutationAllowed::class])
+            ->middleware(['verified', \App\Http\Middleware\EnsureOrderDeliveryMutationAllowed::class])
             ->name('delivery-date');
         Route::match(['put', 'patch'], '/{order}', [OrderController::class, 'update'])
             ->name('update');
@@ -850,36 +849,36 @@ Route::apiResource('services', ServiceController::class);
 Route::apiResource('taxi-shifts', TaxiShiftController::class)
     ->parameters(['taxi-shifts' => 'taxiShift']);
 Route::apiResource('warehouses', WarehouseController::class)
-    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
+    ->middlewareFor(['store', 'update', 'destroy'], ['verified', EnsureWarehouseMutationAllowed::class]);
 Route::get('warehouse-stock', [StockMovementController::class, 'stock'])
     ->name('warehouse-stock.index');
 Route::apiResource('stock-movements', StockMovementController::class)
     ->only(['index', 'store', 'update', 'destroy'])
-    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class])
+    ->middlewareFor(['store', 'update', 'destroy'], ['verified', EnsureWarehouseMutationAllowed::class])
     ->parameters(['stock-movements' => 'stockMovement']);
 Route::get('good-warehouse-stock', [GoodStockMovementController::class, 'stock'])
     ->name('good-warehouse-stock.index');
 Route::apiResource('good-stock-movements', GoodStockMovementController::class)
     ->only(['index', 'store', 'update', 'destroy'])
-    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class])
+    ->middlewareFor(['store', 'update', 'destroy'], ['verified', EnsureWarehouseMutationAllowed::class])
     ->parameters(['good-stock-movements' => 'goodStockMovement']);
 Route::get('good-stock-alerts', [GoodStockAlertAdminController::class, 'index'])
     ->name('good-stock-alerts.index');
 Route::delete('good-stock-alerts/{goodStockAlert}', [GoodStockAlertAdminController::class, 'destroy'])
     ->name('good-stock-alerts.destroy');
 Route::post('products/translate-ai', ProductTranslationAiController::class)
-    ->middleware(['auth:sanctum', 'verified', 'throttle:10,1,product-translations-ai'])
+    ->middleware(['verified', 'throttle:10,1,product-translations-ai'])
     ->name('products.translate-ai');
 Route::apiResource('products', ProductController::class);
 Route::apiResource('purchases', PurchaseController::class)
-    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
+    ->middlewareFor(['store', 'update', 'destroy'], ['verified', EnsureWarehouseMutationAllowed::class]);
 Route::apiResource('quotations', QuotationController::class);
 Route::apiResource('regions', RegionController::class);
 Route::post('sales/{sale}/goods', [SaleController::class, 'storeGood'])
-    ->middleware(['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class])
+    ->middleware(['verified', EnsureWarehouseMutationAllowed::class])
     ->name('sales.goods.store');
 Route::apiResource('sales', SaleController::class)
-    ->middlewareFor(['store', 'update', 'destroy'], ['auth:sanctum', 'verified', EnsureWarehouseMutationAllowed::class]);
+    ->middlewareFor(['store', 'update', 'destroy'], ['verified', EnsureWarehouseMutationAllowed::class]);
 Route::apiResource('segments', SegmentController::class);
 Route::apiResource('sendings', SendingController::class);
 Route::apiResource('uris', UriController::class);
@@ -1005,7 +1004,8 @@ Route::apiResource('leads', LeadController::class)
  *  T E L E G R A M
  * __________________
  */
-Route::post('/webhook', [TelegramController::class, 'webhook']);
+Route::post('/webhook', [TelegramController::class, 'webhook'])
+    ->middleware(['throttle:120,1,telegram-webhook:', \App\Http\Middleware\VerifyTelegramWebhook::class]);
 Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class, 'sendMessage'])
     ->name('api.telegram.sendMessage');
 
@@ -1223,7 +1223,7 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:avito')->group(
  */
 
 Route::prefix('products/{product}')
-    ->middleware(['auth:sanctum', 'verified', 'throttle:30,1'])
+    ->middleware(['verified', 'throttle:30,1'])
     ->group(function () {
         Route::post('/yandex-search', [ProductSearchController::class, 'store']);
         Route::get('/yandex-search/latest', [ProductSearchController::class, 'latest']);

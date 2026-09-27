@@ -216,6 +216,8 @@ class MailMessageReadTest extends TestCase
     {
         return (new User)->forceFill([
             'id' => 1,
+            'type' => 'employee',
+            'status' => 'active',
             'email' => 'operator@example.test',
             'email_verified_at' => $verified ? now() : null,
         ]);

@@ -9,9 +9,12 @@ use Tests\TestCase;
 
 class MailTemplateApiTest extends TestCase
 {
+    use \Tests\Concerns\AuthenticatesStaff;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAsStaff();
 
         config([
             'database.default' => 'sqlite',

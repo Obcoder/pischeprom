@@ -31,12 +31,13 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
         $product = $this->campaignProduct('Navigation Product');
         $guestCounts = $this->domainCounts();
 
-        $this->get(route('product.show', $product))
+        $this->get(route('product.show', $product))->assertRedirect(route('login'));
+        $this->getJson(route('Ameise.ai-sales'))->assertUnauthorized();
+        $this->actingAs($this->userWith([]))->get(route('product.show', $product))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Ameise/Product_02')
                 ->where('auth.permissions.ai_sales.view', false));
-        $this->getJson(route('Ameise.ai-sales'))->assertUnauthorized();
 
         $withoutPermission = $this->userWith([]);
         $this->actingAs($withoutPermission)->getJson(route('Ameise.ai-sales'))->assertForbidden();
@@ -58,8 +59,8 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
 
         $route = app('router')->getRoutes()->getByName('Ameise.ai-sales');
         $this->assertNotNull($route);
-        foreach (['auth:sanctum', 'verified', 'throttle:ai-sales-ui', 'can:ai_sales.view', 'can:ai_sales.sales.view', 'can:ai_sales.prospecting.view'] as $middleware) {
-            $this->assertContains($middleware, $route->gatherMiddleware());
+        foreach ([\App\Http\Middleware\RequireStaffAuthentication::class, 'verified', 'throttle:ai-sales-ui', 'can:ai_sales.view', 'can:ai_sales.sales.view', 'can:ai_sales.prospecting.view'] as $middleware) {
+            $this->assertContains($middleware, array_merge($route->gatherMiddleware(), app('router')->gatherRouteMiddleware($route)));
         }
 
         $layout = file_get_contents(resource_path('js/Layouts/VerwalterLayout.vue'));
@@ -226,8 +227,8 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
         foreach (['resolve-existing', 'create-unit', 'reject'] as $action) {
             $route = app('router')->getRoutes()->getByName('api.ai-sales.prospecting.candidates.'.$action);
             $this->assertNotNull($route);
-            foreach (['auth:sanctum', 'verified', 'throttle:ai-sales'] as $middleware) {
-                $this->assertContains($middleware, $route->gatherMiddleware());
+            foreach ([\App\Http\Middleware\RequireStaffAuthentication::class, 'verified', 'throttle:ai-sales'] as $middleware) {
+                $this->assertContains($middleware, array_merge($route->gatherMiddleware(), app('router')->gatherRouteMiddleware($route)));
             }
         }
         $resolveRoute = app('router')->getRoutes()->getByName('api.ai-sales.prospecting.candidates.resolve-existing');

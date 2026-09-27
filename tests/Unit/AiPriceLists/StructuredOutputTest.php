@@ -19,7 +19,7 @@ class StructuredOutputTest extends TestCase
     {
         parent::setUp();
 
-        config()->set('ai-price-lists.ai.enabled', true);
+        config()->set(['ai-price-lists.enabled' => true, 'ai-price-lists.ai.enabled' => true]);
     }
 
     public function test_schema_accepts_minimal_valid_result_and_rejects_extra_fields(): void
@@ -108,6 +108,28 @@ class StructuredOutputTest extends TestCase
                 && data_get($request->data(), 'response_format.type') === 'json_schema'
                 && data_get($request->data(), 'response_format.json_schema.strict') === true;
         });
+    }
+
+    public function test_disabled_module_blocks_paid_providers_even_when_ai_flag_is_true(): void
+    {
+        config()->set([
+            'ai-price-lists.enabled' => false,
+            'ai-price-lists.ai.enabled' => true,
+            'ai-price-lists.ai.api_key' => 'test-key',
+            'ai-price-lists.ai.folder_id' => 'test-folder',
+        ]);
+        Http::fake();
+
+        $this->assertFalse(app(YandexAiStudioProvider::class)->configured());
+        $this->assertFalse(app(YandexVisionOcrProvider::class)->configured());
+        try {
+            app(YandexVisionOcrProvider::class)->recognize(new OcrRequest('image', 'image/png', 'price.png'));
+            $this->fail('Disabled module must not incur OCR charges.');
+        } catch (ExternalAiException $exception) {
+            $this->assertSame('ai_disabled', $exception->errorCode);
+        }
+
+        Http::assertNothingSent();
     }
 
     public function test_non_retryable_ai_error_is_not_repeated(): void

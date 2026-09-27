@@ -15,6 +15,7 @@ use App\Models\Region;
 use App\Models\Service;
 use App\Models\StockMovement;
 use App\Models\Unit;
+use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -22,6 +23,13 @@ use Tests\TestCase;
 class CheckCreationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+    }
 
     public function test_check_commodity_and_service_rows_are_created_together_without_overwriting_manual_amount(): void
     {

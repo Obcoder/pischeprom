@@ -8,6 +8,7 @@ use App\Domain\AiPriceLists\Enums\MatchClass;
 use App\Domain\AiPriceLists\Exceptions\ExternalAiException;
 use App\Domain\AiPriceLists\Services\AiUsageRecorder;
 use App\Domain\AiPriceLists\Services\PriceListAuditLogger;
+use App\Domain\AiPriceLists\Services\PriceListRuntimePolicy;
 use App\Models\PriceListImport;
 use App\Models\PriceListImportItem;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class PriceListCandidateReranker
     {
         $stats = ['attempted' => 0, 'reranked' => 0, 'failed_chunks' => 0];
 
-        if (! config('ai-price-lists.ai.enabled')
+        if (! PriceListRuntimePolicy::aiEnabled()
             || ! config('ai-price-lists.matching.ai_reranking_enabled')
             || ! $this->provider->configured()) {
             return $stats;
@@ -40,6 +41,7 @@ class PriceListCandidateReranker
         $chunkSize = max(1, min(50, (int) config('ai-price-lists.matching.ai_rerank_chunk_size', 20)));
 
         $import->items()
+            ->whereNull('reviewed_at')->whereNull('applied_at')
             ->whereIn('match_class', [MatchClass::Probable->value, MatchClass::Conflict->value])
             ->whereHas('candidates')
             ->with(['candidates.good:id,name'])
@@ -68,6 +70,7 @@ class PriceListCandidateReranker
 
                 try {
                     $this->usage->guardBudget();
+                    PriceListRuntimePolicy::assertAiEnabled();
                     $response = $this->provider->generate(new StructuredModelRequest(
                         instructions: $instructions,
                         data: json_encode(['items' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),

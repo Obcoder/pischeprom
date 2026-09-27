@@ -62,6 +62,14 @@ class PriceListRowNormalizer
             }
 
             foreach ($group as $item) {
+                if ($item->reviewed_at || $item->applied_at) {
+                    if (! in_array($item->decision_status, [ItemDecisionStatus::Ignored, ItemDecisionStatus::Invalid], true)) {
+                        $productRows++;
+                    }
+
+                    continue;
+                }
+
                 $cells = array_map(fn ($value) => trim((string) $value), $item->raw_cells ?: []);
                 $rowMapping = $this->headerMapping($cells);
 

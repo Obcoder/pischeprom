@@ -31,6 +31,11 @@ return [
         ],
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+    ],
+
     'email_provider' => env('EMAIL_PROVIDER', 'log'),
 
     'unisender_go' => [
@@ -77,6 +82,11 @@ return [
         'address' => env('MAILBOX_1_ADDRESS', env('YANDEX_MAIL_ADDRESS', env('MAIL_FROM_ADDRESS'))),
 
         'attachments_disk' => env('YANDEX_ATTACHMENTS_DISK', 'yandex'),
+
+        // Search by the transmitted Message-ID before appending a missing Sent copy.
+        'sent_copy_append_mailboxes' => array_values(array_filter(array_map('trim', explode(',',
+            env('MAIL_SENT_COPY_APPEND_MAILBOXES', 'com@food-server.ru,office@180022.ru')
+        )))),
 
         'imap' => [
             'host' => env('MAILBOX_1_IMAP_HOST', env('YANDEX_IMAP_HOST', 'imap.yandex.com')),

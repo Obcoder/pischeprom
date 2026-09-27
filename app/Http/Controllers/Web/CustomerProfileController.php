@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Entity;
 use App\Models\EntityClassification;
 use App\Models\User;
+use App\Services\Entities\UserEntityResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,8 @@ use Inertia\Inertia;
 
 class CustomerProfileController extends Controller
 {
+    public function __construct(private readonly UserEntityResolver $entityResolver) {}
+
     public function edit(Request $request)
     {
         /** @var User $user */
@@ -43,7 +46,7 @@ class CustomerProfileController extends Controller
                         'id' => $user->city->id,
                         'name' => $user->city->name,
                         'region' => $user->city->region?->name,
-                        'label' => trim($user->city->name . ($user->city->region ? ', ' . $user->city->region->name : '')),
+                        'label' => trim($user->city->name.($user->city->region ? ', '.$user->city->region->name : '')),
                     ]
                     : null,
             ],
@@ -233,10 +236,10 @@ class CustomerProfileController extends Controller
                 $user->updateProfilePhoto($avatar);
             } elseif ($avatar instanceof UploadedFile && Schema::hasColumn('users', 'profile_photo_path')) {
                 $user->forceFill([
-                                     'profile_photo_path' => $avatar->storePublicly('profile-photos', [
-                                         'disk' => 'public',
-                                     ]),
-                                 ])->save();
+                    'profile_photo_path' => $avatar->storePublicly('profile-photos', [
+                        'disk' => 'public',
+                    ]),
+                ])->save();
             }
         }
     }
@@ -249,17 +252,17 @@ class CustomerProfileController extends Controller
             return;
         }
 
-        $classificationId = $data['entity_classification_id']
+        $classificationId = ($data['entity_classification_id'] ?? null)
             ?: $this->resolveEntityClassificationId(
                 inn: $inn,
                 opf: $data['organization_opf'] ?? null,
             );
 
         $entityName = $this->firstFilled([
-                                             $data['organization_name'] ?? null,
-                                             $data['organization_full_name'] ?? null,
-                                             'Организация ' . $inn,
-                                         ]);
+            $data['organization_name'] ?? null,
+            $data['organization_full_name'] ?? null,
+            'Организация '.$inn,
+        ]);
 
         $payload = [
             'name' => $entityName,
@@ -278,19 +281,20 @@ class CustomerProfileController extends Controller
             ->first();
 
         if (! $entity) {
-            $entity = new Entity();
+            $entity = new Entity;
+            $entity->forceFill(['customer_created_by_user_id' => $user->id]);
         }
 
-        $entity->forceFill(
-            $this->onlyExistingColumns('entities', $this->withoutEmptyValues($payload))
-        );
+        if ($this->entityResolver->canManageEntity($entity, $user)) {
+            $entity->forceFill(
+                $this->onlyExistingColumns('entities', $this->withoutEmptyValues($payload))
+            );
 
-        $entity->save();
+            $entity->save();
 
-        if (! empty($data['city_id']) && method_exists($entity, 'cities')) {
-            $entity->cities()->syncWithoutDetaching([
-                                                        (int) $data['city_id'],
-                                                    ]);
+            if (! empty($data['city_id']) && method_exists($entity, 'cities')) {
+                $entity->cities()->syncWithoutDetaching([(int) $data['city_id']]);
+            }
         }
 
         $this->attachUserToEntity($user, $entity);
@@ -316,14 +320,14 @@ class CustomerProfileController extends Controller
         }
 
         $attachPayload = $this->onlyExistingColumns('entity_user', [
-            'role' => 'owner',
+            'role' => $this->entityResolver->canManageEntity($entity, $user) ? 'owner' : 'customer',
             'status' => 'active',
             'is_primary' => true,
         ]);
 
         $user->entities()->syncWithoutDetaching([
-                                                    $entity->id => $attachPayload,
-                                                ]);
+            $entity->id => $attachPayload,
+        ]);
     }
 
     protected function deactivateUserEntities(User $user): void
