@@ -48,10 +48,11 @@ const accountOptions = computed(() => overview.value.accounts.map((account) => (
 })))
 const runningRun = computed(() => activeRun.value
     || overview.value.latest_runs.find((run) => ['queued', 'running'].includes(run.status)))
-const canSend = computed(() => selectedChat.value && composerText.value.trim().length > 0 && !sending.value)
+const canSend = computed(() => selectedChat.value && composerText.value.trim().length > 0 && !sending.value && !store.sessionExpired)
 const realtimeFailed = computed(() => archiveRefreshFailed.value
     || Object.keys(store.refreshErrors).some((key) => key.startsWith('messages:')))
 const realtimeStatus = computed(() => {
+    if (store.sessionExpired) return { label: 'Требуется вход в Ameise', short: 'Нужен вход', icon: 'mdi-login', warning: true }
     if (store.status === 'forbidden') return { label: 'Нет доступа к автообновлению', short: 'Нет доступа', icon: 'mdi-lock-outline', warning: true }
     if (realtimeFailed.value) return { label: 'Не удалось обновить архив', short: 'Сбой', icon: 'mdi-alert-circle-outline', warning: true }
     if (store.status === 'disabled') {
@@ -69,6 +70,7 @@ const realtimeStatus = computed(() => {
     }[store.status] || { label: 'Подключение…', short: 'Связь…', icon: 'mdi-connection', warning: false }
 })
 const realtimeHint = computed(() => {
+    if (store.sessionExpired) return 'Сессия Ameise завершилась. Войдите в новой вкладке и нажмите «Проверить вход».'
     let hint = 'Новые сообщения появляются автоматически. При потере связи подключение восстанавливается само. Нажмите для повторного подключения.'
     if (store.status === 'forbidden') {
         hint = 'Проверьте вход и права доступа. После восстановления доступа нажмите для повторного подключения.'
@@ -248,7 +250,7 @@ async function reloadRealtime(options) {
 }
 
 async function refreshArchive(reconnect = false) {
-    if (refreshingArchive.value) return
+    if (refreshingArchive.value || store.sessionExpired) return
     if (reconnect && store.status !== 'disabled') store.reconnect()
     const controller = new AbortController()
     manualRefreshController = controller
@@ -303,7 +305,7 @@ async function refreshSelectedChat() {
 }
 
 function canAcknowledgeVisibleChat() {
-    return props.autoMarkRead && !disposed && selectedChat.value?.is_unread && !chatLoading.value
+    return props.autoMarkRead && !disposed && !store.sessionExpired && selectedChat.value?.is_unread && !chatLoading.value
         && document.visibilityState === 'visible' && document.hasFocus()
         && messageStream.value?.getClientRects().length > 0 && atBottom()
         && (!selectedChat.value.last_message_id
@@ -319,7 +321,7 @@ function scheduleReadReceipt() {
 }
 
 async function markRead(automatic = false) {
-    if (!selectedChat.value || (automatic && !props.autoMarkRead)) return
+    if (!selectedChat.value || store.sessionExpired || (automatic && !props.autoMarkRead)) return
     const chatId = selectedChat.value.id
     const throughMessageId = automatic ? Math.max(0, ...messages.value.map((message) => message.id)) : undefined
     if (automatic && !throughMessageId) return
@@ -337,7 +339,7 @@ async function markRead(automatic = false) {
 
 async function sendText() {
     const text = composerText.value.trim()
-    if (!text || !selectedChat.value || sending.value) return
+    if (!text || !selectedChat.value || sending.value || store.sessionExpired) return
     const chatId = selectedChat.value.id
     const draft = composerText.value
     const follow = atBottom()
@@ -372,7 +374,7 @@ function selectImage() {
 async function sendImage(event) {
     const image = event.target.files?.[0]
     event.target.value = ''
-    if (!image || !selectedChat.value || sending.value) return
+    if (!image || !selectedChat.value || sending.value || store.sessionExpired) return
     const chatId = selectedChat.value.id
     const follow = atBottom()
     sending.value = true
@@ -554,7 +556,16 @@ function notify(message) {
 }
 
 function fail(exception, fallback) {
+    if (store.handleRequestError(exception)) return
     if (!disposed && exception?.code !== 'ERR_CANCELED') emit('error', exception?.response?.data?.message || fallback)
+}
+
+async function checkSession() {
+    try {
+        if (await store.checkSession()) await refreshArchive()
+    } catch (exception) {
+        fail(exception, 'Не удалось проверить вход.')
+    }
 }
 
 watch(() => [props.autoMarkRead, selectedChat.value?.is_unread, selectedChat.value?.unread_count, mobilePane.value], () => {
@@ -579,6 +590,12 @@ onBeforeUnmount(() => {
 
 <template>
     <section class="messenger-module" :class="[`mobile-pane-${mobilePane}`, { 'is-embedded': embedded, 'is-full-featured': embedded && fullFeatured }]">
+        <v-alert v-if="embedded && store.sessionExpired" type="warning" variant="tonal" density="compact" class="flex-grow-0" role="alert">
+            <div>Сессия Ameise завершилась. Войдите в новой вкладке и нажмите «Проверить вход». Черновик останется здесь.</div>
+            <div v-if="store.sessionCheckError">{{ store.sessionCheckError }}</div>
+            <v-btn href="/Ameise/login" target="_blank" rel="noopener" size="small" variant="text">Войти в Ameise</v-btn>
+            <v-btn size="small" variant="text" :loading="store.sessionChecking" @click="checkSession">Проверить вход</v-btn>
+        </v-alert>
         <header v-if="!embedded" class="messenger-toolbar">
             <div class="messenger-counts"><strong>Всего чатов: {{ overview.counts.chats || 0 }}</strong><span>Непрочитанных чатов: {{ overview.counts.unread_chats || 0 }}</span></div>
             <button type="button" class="realtime-indicator" :class="{ 'is-warning': realtimeStatus.warning }" :title="realtimeHint" :aria-label="realtimeHint" :disabled="refreshingArchive" @click="refreshArchive(true)"><v-icon :icon="realtimeStatus.icon" size="15" /><span class="realtime-label">{{ realtimeStatus.label }}</span><span class="realtime-short-label">{{ realtimeStatus.short }}</span></button>
@@ -687,7 +704,7 @@ onBeforeUnmount(() => {
                         <v-btn v-if="toolsEnabled" icon="mdi-package-variant-closed-plus" size="small" variant="text" :disabled="sending" title="Выбрать товар из Пищепром-Сервера" aria-label="Выбрать товар" @click="openCrmCatalog" />
                         <v-btn v-if="toolsEnabled" icon="mdi-text-box-multiple-outline" size="small" variant="text" :disabled="sending" title="Шаблоны сообщений" aria-label="Шаблоны сообщений" @click="openMessageTemplates" />
                         <v-btn v-if="toolsEnabled" icon="mdi-robot-outline" size="small" variant="text" :disabled="sending" title="Автоответы и безопасная проверка" aria-label="Автоответы" @click="openAutoReplies" />
-                        <v-btn icon="mdi-image-plus-outline" size="small" variant="text" :disabled="sending" title="Отправить изображение" aria-label="Отправить изображение" @click="selectImage" />
+                        <v-btn icon="mdi-image-plus-outline" size="small" variant="text" :disabled="sending || store.sessionExpired" title="Отправить изображение" aria-label="Отправить изображение" @click="selectImage" />
                         <v-textarea ref="composerInput" v-model="composerText" :placeholder="composerTemplateName ? `Шаблон: ${composerTemplateName}` : 'Сообщение до 1000 символов'" rows="1" max-rows="4" auto-grow density="compact" variant="solo-filled" hide-details maxlength="1000" @keydown.ctrl.enter.prevent="sendText" />
                         <span :title="composerTemplateName ? `Используется шаблон «${composerTemplateName}»` : ''">{{ composerText.length }}/1000<b v-if="composerTemplateId">Ш</b></span>
                         <v-btn icon="mdi-send" :color="embedded ? 'pink-darken-1' : 'deep-purple-lighten-1'" size="small" :loading="sending" :disabled="!canSend" title="Отправить сообщение (Ctrl+Enter)" aria-label="Отправить сообщение" @click="sendText" />

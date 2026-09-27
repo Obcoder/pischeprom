@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { onScopeDispose, reactive, ref } from 'vue'
 import { connectCommerceSocket } from '../Services/commerceSocket.js'
 import { createRealtimeCoordinator } from '../Services/realtimeCoordinator.js'
+import { isAvitoSessionError, observeAvitoSessionErrors } from '../Services/avitoSession.js'
 
 export const AVITO_TOPICS = ['avito_messages', 'avito_auto_replies']
 
@@ -47,6 +48,9 @@ export const useAvitoStore = defineStore('avito', () => {
     const sending = ref(false)
     const syncing = ref(false)
     const status = ref('connecting')
+    const sessionExpired = ref(false)
+    const sessionChecking = ref(false)
+    const sessionCheckError = ref('')
     const realtimeDisabledReason = ref(null)
     const refreshErrors = reactive({})
     const controlSettings = ref(null)
@@ -61,6 +65,8 @@ export const useAvitoStore = defineStore('avito', () => {
     let nextId = 0
     let controlConsumers = 0
     let stopControl = () => {}
+    let stopObservingSession = () => {}
+    let realtimeSettings = null
     let receiptVersion = 0
     let selectionVersion = 0
     const coordinator = createRealtimeCoordinator({
@@ -68,12 +74,56 @@ export const useAvitoStore = defineStore('avito', () => {
         allowedTopics: AVITO_TOPICS,
         isVisible: () => browser && document.visibilityState !== 'hidden',
         isOnline: () => browser && navigator.onLine !== false,
-        onStatus: (value) => { status.value = value },
+        onStatus: (value) => { status.value = sessionExpired.value ? 'unauthenticated' : value },
         onRefreshed: (id) => { delete refreshErrors[id] },
-        onError: (id) => { refreshErrors[id] = true },
+        onError: (id, error) => { refreshErrors[id] = true; handleRequestError(error) },
         debounceMs: 250,
         minRefreshIntervalMs: 2000,
     })
+
+    function handleRequestError(error) {
+        if (!isAvitoSessionError(error)) return false
+        if (!sessionExpired.value) {
+            sessionExpired.value = true
+            status.value = 'unauthenticated'
+            coordinator.configure(null, actor)
+            releaseMessenger()
+            cancelRequest('control')
+            controlLoading.value = false
+        }
+        return true
+    }
+
+    async function checkSession() {
+        if (sessionChecking.value) return false
+        sessionChecking.value = true
+        sessionCheckError.value = ''
+        const previousActor = actor
+        try {
+            const { data: user } = await axios.get('/api/user')
+            if (!user?.id) throw new Error('Missing authenticated user')
+            if (actor !== previousActor) return false
+            if (String(user.id) !== actor) {
+                configure(realtimeSettings, user.id)
+                if (browser) window.location.reload()
+                return false
+            }
+            const data = await loadControl()
+            if (!data || actor !== previousActor) return false
+            sessionExpired.value = false
+            status.value = realtimeSettings?.enabled && actor ? 'connecting' : 'disabled'
+            configure(realtimeSettings, actor)
+            return true
+        } catch (error) {
+            handleRequestError(error)
+            sessionCheckError.value = isAvitoSessionError(error)
+                ? 'Вход пока не подтверждён. Войдите в Ameise и повторите проверку.'
+                : 'Не удалось проверить вход. Проверьте соединение и попробуйте ещё раз.'
+            throw error
+        } finally {
+            sessionChecking.value = false
+        }
+    }
 
     // Both cancellation and identity checks are needed: a response can finish while a chat changes.
     function cancelRequest(key) {
@@ -101,6 +151,7 @@ export const useAvitoStore = defineStore('avito', () => {
             return data
         } catch (error) {
             if (controller.signal.aborted || error?.code === 'ERR_CANCELED') return null
+            handleRequestError(error)
             throw error
         } finally {
             external?.removeEventListener('abort', abort)
@@ -242,6 +293,9 @@ export const useAvitoStore = defineStore('avito', () => {
         }).then(({ data }) => {
             if (currentActor === actor) applyReadReceipt(chatId, data)
             return data
+        }).catch((error) => {
+            if (currentActor === actor) handleRequestError(error)
+            throw error
         }).finally(() => { if (readReceipts.get(chatId) === request) readReceipts.delete(chatId) })
         readReceipts.set(chatId, request)
         return request
@@ -336,6 +390,9 @@ export const useAvitoStore = defineStore('avito', () => {
             if (version !== controlVersion.value || currentActor !== actor) return null
             controlSettings.value = data.settings
             return data
+        } catch (error) {
+            if (currentActor === actor) handleRequestError(error)
+            throw error
         } finally {
             if (version === controlVersion.value) {
                 controlVersion.value++
@@ -347,6 +404,8 @@ export const useAvitoStore = defineStore('avito', () => {
     function configure(settings, actorId) {
         const nextActor = actorId ? String(actorId) : null
         if (actor !== null && actor !== nextActor) {
+            sessionExpired.value = false
+            sessionCheckError.value = ''
             releaseMessenger()
             readReceipts.clear()
             chatReceiptVersions.clear()
@@ -366,9 +425,10 @@ export const useAvitoStore = defineStore('avito', () => {
             Object.assign(filters, { search: '', account_id: null, unread_only: false, chat_type: null })
         }
         actor = nextActor
+        realtimeSettings = settings
         realtimeDisabledReason.value = settings?.enabled && nextActor
             ? null : (settings?.reason || (nextActor ? 'unconfigured' : 'unauthenticated'))
-        if (browser) coordinator.configure({ event: 'avito.changed', ...settings }, actorId)
+        if (browser) coordinator.configure(sessionExpired.value ? null : { event: 'avito.changed', ...settings }, actorId)
     }
 
     function subscribe(key, topics, load) {
@@ -381,12 +441,13 @@ export const useAvitoStore = defineStore('avito', () => {
     function retainControl() {
         controlConsumers++
         if (controlConsumers === 1) {
+            stopObservingSession = observeAvitoSessionErrors(axios, handleRequestError, browser ? window.location.origin : undefined)
             stopControl = subscribe('control', ['avito_auto_replies'], loadControl)
             void loadControl().catch(() => { refreshErrors.control = true })
         }
         return () => {
             controlConsumers--
-            if (controlConsumers === 0) { stopControl(); cancelRequest('control'); controlLoading.value = false }
+            if (controlConsumers === 0) { stopControl(); stopObservingSession(); cancelRequest('control'); controlLoading.value = false }
         }
     }
 
@@ -403,6 +464,7 @@ export const useAvitoStore = defineStore('avito', () => {
         window.addEventListener('offline', coordinator.onlineChanged)
     }
     onScopeDispose(() => {
+        stopObservingSession()
         for (const key of requests.keys()) cancelRequest(key)
         coordinator.dispose()
         if (browser) {
@@ -415,9 +477,10 @@ export const useAvitoStore = defineStore('avito', () => {
     return { overview, chats, chatsMeta, selectedChat, messages, messagesMeta, subscriptions,
         selectedConnectionId, activeRun, filters, composerText, composerTemplateId, composerTemplateName,
         loading, chatsLoading, chatLoading, sending, syncing, status, realtimeDisabledReason, refreshErrors,
+        sessionExpired, sessionChecking, sessionCheckError, handleRequestError, checkSession,
         controlSettings, controlLoading, stopLoading, controlVersion, applyControl, loadControl,
         emergencyStop: () => mutateControl('emergency-stop'), resumeAutomation: () => mutateControl('resume'),
-        configure, subscribe, retainControl, reconnect: coordinator.reconnect,
+        configure, subscribe, retainControl, reconnect: () => { if (!sessionExpired.value) coordinator.reconnect() },
         loadOverview, loadChats, invalidateChats, selectChat, loadChatPage, refreshChat, loadSubscriptions, releaseMessenger,
         loadUpdates, markRead, applyReadReceipt }
 })

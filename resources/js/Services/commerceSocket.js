@@ -55,7 +55,9 @@ export async function connectCommerceSocket(config, handlers) {
         for (const controller of requests) controller.abort()
         requests.clear()
         client.connection.unbind('state_change', stateChanged)
-        echo.leave(config.channel)
+        // Pusher defers unsubscribe sends, so close the connection first to
+        // avoid sending on a WebSocket that is already closing.
         echo.disconnect()
+        echo.leave(config.channel)
     }
 }

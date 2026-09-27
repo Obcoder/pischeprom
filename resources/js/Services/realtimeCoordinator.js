@@ -112,8 +112,8 @@ export function createRealtimeCoordinator({
             if (resource.active && !controller.signal.aborted && error?.code !== 'ERR_CANCELED') {
                 // A later event must also recover changes from this failed batch.
                 resource.overflow = true
-                onError(resource.id)
-                if ([401, 403, 419].includes(error?.response?.status)) denyAccess()
+                onError(resource.id, error)
+                if ([401, 403, 419].includes(error?.response?.status) && !error?.response?.data?.category) denyAccess()
                 if (error?.response?.status === 429) {
                     const retryAfter = Number(error.response.headers?.['retry-after'] || error.response.data?.retry_after || 60)
                     resource.nextRefreshAt = now() + Math.max(1, Number.isFinite(retryAfter) ? retryAfter : 60) * 1000

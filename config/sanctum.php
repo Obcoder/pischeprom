@@ -15,11 +15,13 @@ return [
     |
     */
 
+    // Ameise and its API share the request host, including aliases and IDN hosts.
+    // Keep that host stateful even when an explicit frontend allowlist is set.
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s',
         'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
         Sanctum::currentApplicationUrlWithPort()
-    ))),
+    )).Sanctum::currentRequestHost()),
 
     /*
     |--------------------------------------------------------------------------

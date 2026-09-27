@@ -218,6 +218,42 @@ test('embedded correspondence opens only its requested chat and sends a reply wi
     assert.deepEqual(calls, ['/api/avito/messenger/chats/7'])
 })
 
+test('an expired session keeps the failed reply, displays a login link and restores reads without resending', async (t) => {
+    t.mock.method(axios, 'get', async (url) => ({ data: url === '/api/user' ? { id: 7 }
+        : url.endsWith('/control') ? { settings: { mode: 'shadow' } }
+            : { chat: chat(), messages: page([]) } }))
+    let sends = 0
+    t.mock.method(axios, 'post', async () => {
+        sends++
+        throw { response: { status: 401, data: { message: 'Unauthenticated.' } } }
+    })
+    const mounted = mount(t, Messages, { embedded: true, chat: chat() }, { renderTemplate: true })
+    const { state, store, events } = mounted
+    store.configure({ enabled: false }, 7)
+    await until(() => !store.loading)
+    store.composerText = 'Этот ответ не должен потеряться'
+    store.composerTemplateId = 23
+    await state.sendText()
+    await nextTick()
+    assert.equal(store.sessionExpired, true)
+    assert.equal(state.realtimeStatus.label, 'Требуется вход в Ameise')
+    assert.equal(state.canSend, false)
+    assert.deepEqual(events.errors, [], 'Session failure is shown persistently, not as a disappearing raw error')
+    const login = findVNode(mounted.tree, (node) => node.props?.href === '/Ameise/login')
+    assert.ok(login)
+    assert.equal(login.props.target, '_blank')
+    assert.ok(findVNode(mounted.tree, (node) => node.props?.role === 'alert'))
+    await state.sendText()
+    assert.equal(sends, 1)
+    await state.checkSession()
+    assert.equal(store.sessionExpired, false)
+    assert.equal(store.composerText, 'Этот ответ не должен потеряться')
+    assert.equal(store.composerTemplateId, 23)
+    assert.equal(store.selectedChat.id, 7)
+    assert.equal(state.canSend, true)
+    assert.equal(sends, 1, 'Login recovery must not retry the rejected outgoing message')
+})
+
 test('waiting action completing after a chat switch cannot replace the new conversation or draft', async (t) => {
     const pending = deferred()
     t.mock.method(axios, 'get', async (url) => ({ data: { chat: chat(Number(url.split('/').at(-1))), messages: page([]) } }))

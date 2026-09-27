@@ -20,13 +20,14 @@ const loading = ref(true)
 const notice = ref('')
 const error = ref('')
 const feedbackOpen = computed({
-    get: () => Boolean(notice.value || error.value),
+    get: () => !avitoStore.sessionExpired && Boolean(notice.value || error.value),
     set: (open) => { if (!open) { notice.value = ''; error.value = '' } },
 })
 const feedbackKey = ref(0)
 watch([notice, error], () => { feedbackKey.value++ })
 const aiStopped = computed(() => Boolean(avitoStore.controlSettings?.is_emergency_stopped))
 const aiStatus = computed(() => {
+    if (avitoStore.sessionExpired) return 'AI: требуется вход'
     if (aiStopped.value) return 'AI остановлен'
     return { off: 'AI выключен', shadow: 'AI: наблюдение', pilot: 'AI: пилот', active: 'AI включён' }[avitoStore.controlSettings?.mode] || 'AI: проверка состояния'
 })
@@ -139,8 +140,21 @@ function showNotice(message) {
 }
 
 function showError(exception, fallback = 'Операция не выполнена.') {
+    if (avitoStore.handleRequestError(exception)) return
     error.value = exception?.response?.data?.message || fallback
     notice.value = ''
+}
+
+async function checkSession() {
+    try {
+        if (await avitoStore.checkSession()) {
+            error.value = ''
+            notice.value = ''
+            await loadAll()
+        }
+    } catch (exception) {
+        showError(exception, 'Не удалось проверить вход. Попробуйте ещё раз.')
+    }
 }
 
 async function loadAll() {
@@ -544,12 +558,20 @@ onMounted(loadAll)
                     variant="flat"
                     prepend-icon="mdi-stop-circle-outline"
                     :loading="avitoStore.stopLoading"
-                    :disabled="aiStopped"
+                    :disabled="aiStopped || avitoStore.sessionExpired"
                     title="Экстренно остановить ответы AI во всех чатах Avito"
                     @click="stopAiReplies"
                 >{{ aiStopped ? 'AI остановлен' : 'Стоп AI' }}</v-btn>
             </div>
         </header>
+
+        <v-alert v-if="avitoStore.sessionExpired" type="warning" variant="tonal" density="compact" class="flex-grow-0 my-2" role="alert">
+            <strong>Сессия Ameise завершилась. Требуется повторный вход.</strong>
+            <div>Автообновление приостановлено. Войдите в новой вкладке и нажмите «Проверить вход». Черновик сообщения останется здесь.</div>
+            <div v-if="avitoStore.sessionCheckError">{{ avitoStore.sessionCheckError }}</div>
+            <v-btn href="/Ameise/login" target="_blank" rel="noopener" size="small" variant="text" prepend-icon="mdi-login">Войти в Ameise</v-btn>
+            <v-btn size="small" variant="text" :loading="avitoStore.sessionChecking" @click="checkSession">Проверить вход</v-btn>
+        </v-alert>
 
         <v-snackbar
             :key="feedbackKey"
